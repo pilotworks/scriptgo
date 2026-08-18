@@ -29,14 +29,15 @@ policy, and parity tests are complete.
 
 ## Module Names
 
-Use Node's canonical `node:` specifier for built-ins in new examples:
+Use the bare built-in specifier in scriptgo examples:
 
 ```ts
-import * as path from "node:path";
+import * as path from "path";
 ```
 
-Bare built-in names such as `path` may be accepted as a compatibility alias
-only when they resolve to the same built-in module. `node_modules`, package
+The canonical scriptgo name is `path`; `node:path` may be accepted later as a
+Node.js compatibility alias when both resolve to the same built-in module.
+`node_modules`, package
 exports, conditional exports, dynamic `require`, and runtime module loading
 remain outside the MVP.
 

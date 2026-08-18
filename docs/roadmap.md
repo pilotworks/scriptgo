@@ -158,8 +158,8 @@ backend/runtime feature into separate implementation tasks.
 The standard library follows the Node.js-compatible policy in
 [`docs/stdlib.md`](stdlib.md). Implement it in this order:
 
-1. Define a versioned built-in module manifest and canonical `node:` names.
-2. Promote pure synchronous modules, starting with `node:path`.
+1. Define a versioned built-in module manifest and canonical built-in names.
+2. Promote pure synchronous modules, starting with `path`.
 3. Add deterministic Node-reference, interpreter, and native differential tests.
 4. Add process/environment and filesystem APIs only after startup, ownership,
    encoding, and failure behavior are documented in the runtime ABI.
