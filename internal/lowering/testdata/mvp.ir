@@ -1,0 +1,9 @@
+function main -> void span=0:0
+  const|number|t0|20||||77:2
+  const|number|t1|22||||80:3
+  call|number|t2|||add|t0,t1|73:11
+  print|void||||console.log|t2|60:25
+  return|void||||||0:0
+function add -> number span=0:60
+  binary|number|t0||+||a,b|51:6
+  return|number|||||t0|44:14
