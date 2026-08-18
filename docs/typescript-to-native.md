@@ -299,11 +299,13 @@ validated integer lowering later.
 
 ## Runtime and Object Model
 
-Native code will need a runtime for features that are not directly expressible
-as machine instructions. The current MVP has no linked project runtime: the
-LLVM backend calls the host C ABI for `printf` and `puts`, and the reference
-interpreter is kept separately under `internal/interpreter`. A small, versioned
-library linked into the executable is planned for managed values.
+Native code needs a runtime for features that are not directly expressible as
+machine instructions. The current MVP calls the host C ABI for `printf` and
+`puts` and links dense number-array operations from
+`internal/runtime/native/arrays`; the reference interpreter remains separate
+under `internal/interpreter`. The runtime is organized by ABI and value family
+so future managed values can be added without moving frontend or lowering
+responsibilities.
 
 Planned runtime responsibilities:
 
@@ -371,8 +373,9 @@ program entry point and classify imports into:
 - **unsupported modules:** rejected with an actionable diagnostic;
 - **foreign modules:** explicitly declared native or C/LLVM bindings.
 
-The first release should support local TypeScript modules and a small standard
-library surface. Full npm compatibility is a separate project because many npm
+The first release should support local TypeScript modules and the explicitly
+promoted standard-library surface defined in [`stdlib.md`](stdlib.md). Full npm
+compatibility is a separate project because many npm
 packages depend on dynamic loading, Node.js APIs, eval, browser globals, or
 JavaScript-specific packaging behavior.
 

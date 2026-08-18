@@ -34,6 +34,10 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("; ModuleID = 'scriptgo'\n")
 	out.WriteString("declare i32 @printf(ptr, ...)\n")
 	out.WriteString("declare i32 @puts(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_array_number_new(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_number_get(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_number_set(ptr, double, double)\n")
+	out.WriteString("declare i32 @scriptgo_array_number_release(ptr)\n\n")
 	out.WriteString("@.fmt.num = private unnamed_addr constant [4 x i8] c\"%g\\0A\\00\"\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
@@ -69,6 +73,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	out.WriteString(") {\n")
 
 	types := map[string]ir.Type{}
+	arrays := []string{}
 	for _, parameter := range function.Parameters {
 		types[parameter.Name] = parameter.Type
 	}
@@ -129,6 +134,28 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			default:
 				return "", fmt.Errorf("unsupported print type %s", valueType)
 			}
+		case ir.OpArray:
+			if instruction.Type != ir.TypeNumberArray {
+				return "", fmt.Errorf("unsupported LLVM array type %s", instruction.Type)
+			}
+			types[instruction.Result] = instruction.Type
+			arrays = append(arrays, instruction.Result)
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_new(i64 %d, ptr %%%s)\n", len(instruction.Args), slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			for index, argument := range instruction.Args {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_set(ptr %%%s, double %s, double %%%s)\n", instruction.Result, llvmNumber(float64(index)), argument))
+			}
+		case ir.OpIndex:
+			if len(instruction.Args) != 2 {
+				return "", fmt.Errorf("index instruction requires array and index operands")
+			}
+			types[instruction.Result] = instruction.Type
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", instruction.Args[0], instruction.Args[1], slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 		case ir.OpCall:
 			callee, ok := functions[instruction.Callee]
 			if !ok {
@@ -152,6 +179,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			out.WriteString(")\n")
 		case ir.OpReturn:
+			for _, array := range arrays {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
+			}
 			if function.Name == "main" {
 				out.WriteString("  ret i32 0\n")
 			} else if len(instruction.Args) == 0 {
@@ -165,6 +195,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 	}
 	if !terminated {
+		for _, array := range arrays {
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
+		}
 		if function.Name == "main" {
 			out.WriteString("  ret i32 0\n")
 		} else if function.ReturnType == ir.TypeVoid {

@@ -102,14 +102,55 @@ func TestRunSupportsNumberArrayIndexing(t *testing.T) {
 	}
 }
 
-func TestCompileRejectsArrayUntilNativeRuntimeExists(t *testing.T) {
+func TestCompileSupportsNumberArrays(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := Compile(entry); err == nil || !strings.Contains(err.Error(), `unsupported LLVM instruction "array"`) {
-		t.Fatalf("Compile error = %v, want explicit native runtime gate", err)
+	if output, err := Compile(entry); err != nil || !strings.Contains(output, "scriptgo_array_number_get") {
+		t.Fatalf("Compile output/error = %q / %v, want array runtime call", output, err)
+	}
+}
+
+func TestBuildProducesArrayExecutable(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("executable failed: %v\n%s", err, result)
+	}
+	if string(result) != "20\n" {
+		t.Fatalf("executable output = %q, want %q", result, "20\n")
+	}
+}
+
+func TestBuildReportsNativeArrayBoundsFailure(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	if err := os.WriteFile(entry, []byte("const values: number[] = [10];\nconsole.log(values[1]);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err == nil || !strings.Contains(string(result), "scriptgo array index out of bounds") {
+		t.Fatalf("executable output/error = %q / %v, want native bounds diagnostic", result, err)
 	}
 }
 

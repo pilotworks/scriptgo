@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/interpreter"
 	"github.com/pilotworks/scriptgo/internal/ir"
 	"github.com/pilotworks/scriptgo/internal/lowering"
+	"github.com/pilotworks/scriptgo/internal/runtime"
 )
 
 // Compile reads one TypeScript entry point and returns LLVM IR.
@@ -64,7 +66,20 @@ func Build(entryPath, outputPath string) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("close temporary LLVM file: %w", err)
 	}
-	command := exec.Command(clang, "-x", "ir", temporaryPath, "-o", outputPath)
+	runtimeFile, err := os.CreateTemp("", "scriptgo-runtime-*.c")
+	if err != nil {
+		return fmt.Errorf("create temporary runtime file: %w", err)
+	}
+	runtimePath := runtimeFile.Name()
+	defer os.Remove(runtimePath)
+	if _, err := runtimeFile.Write(runtime.Source); err != nil {
+		runtimeFile.Close()
+		return fmt.Errorf("write temporary runtime file: %w", err)
+	}
+	if err := runtimeFile.Close(); err != nil {
+		return fmt.Errorf("close temporary runtime file: %w", err)
+	}
+	command := exec.Command(clang, "-x", "ir", temporaryPath, "-x", "c", runtimePath, "-o", filepath.Clean(outputPath))
 	if diagnostic, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("clang: %w: %s", err, diagnostic)
 	}

@@ -9,10 +9,14 @@ the current backend-independent IR.
 | --- | --- | --- |
 | Files | Closed local `.ts` module graph | npm packages, JavaScript files, dynamic imports |
 | Statements | One variable declaration, expression statement, function declaration, `return` | Branches, loops, `try`/`catch`, `throw`, classes, enums |
-| Values | `number`, `string`, `boolean` literals and identifiers | `null`, `undefined`, arrays, objects, function values |
+| Values | `number`, `string`, `boolean` literals and identifiers, dense `number[]` literals | `null`, `undefined`, objects, function values |
 | Operators | Numeric arithmetic/comparison and string `+` | Operators requiring coercion or unsupported runtime values |
-| Calls | User functions and `console.log` with one argument | Methods, constructors, dynamic call targets, other runtime APIs |
+| Calls | User functions, `console.log` with one typed argument, and only explicitly promoted stdlib calls | Methods, constructors, dynamic call targets, unlisted Node APIs |
 | Functions | Synchronous functions with typed parameters and returns | Async/generator functions, overloads, closures |
 
 Unsupported constructs are rejected before IR verification or native backend
 generation. Diagnostics identify the source file and the unsupported feature.
+
+Standard-library eligibility is defined in [`stdlib.md`](stdlib.md). A Node.js
+API is rejected unless its module, signature, runtime representation, and
+parity tests are explicitly promoted into this table.

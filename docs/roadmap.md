@@ -17,7 +17,7 @@ and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
 - [x] Syntax and semantic diagnostics include the source path, offset, TypeScript code, and message.
 - [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
-- [ ] Arrays, objects, exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
+- [ ] Objects, exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
 
 ## Milestones
 
@@ -73,7 +73,7 @@ vertical slices for expressions, functions, and control flow.
 Turn verified IR into a native executable for the initial primitive subset.
 
 - [x] Specify linked-runtime ABI v1 for primitive values, including conventions, `number` as `f64`, string representation, ownership, errors, compatibility, and process startup policy.
-- [x] Document the temporary MVP host C ABI boundary in `internal/runtime/abi.md`.
+- [x] Document the temporary MVP host C ABI boundary in `internal/runtime/abi/README.md`.
 - [x] Implement reference interpreter semantics plus native `printf`/`puts` calls for numeric output, strings, and `console.log`.
 - [x] Generate LLVM IR for MVP constants, locals, arithmetic, calls, returns, and print calls.
 - [x] Invoke Clang for the selected host target and link against the host C runtime.
@@ -89,17 +89,17 @@ reference-runtime differential tests for numeric and string behavior.
 Dependencies: Milestones 1-2. Estimated scope: Large; land runtime ABI before
 expanding code generation.
 
-ABI v1 is intentionally primitive-only. Arrays, objects, `null`, `undefined`,
-allocation, and runtime-managed errors require a subsequent ABI version and
-must not be enabled by the native subset until their layouts and ownership
-rules are specified.
+ABI v1 is intentionally primitive-only. Objects, `null`, `undefined`,
+allocation beyond the documented array runtime, and runtime-managed errors
+require subsequent ABI work and must not be enabled by the native subset until
+their layouts and ownership rules are specified.
 
 ### Milestone 4: Modules, Arrays, and Static Objects
 
 Expand the useful strict subset while keeping runtime behavior explicit.
 
 - [x] Resolve and compile local TypeScript modules with deterministic initialization order.
-- [ ] Add runtime-managed arrays, indexing, bounds checks, and common array operations.
+- [x] Add runtime-managed number arrays, indexing, and bounds checks.
 - [ ] Add simple classes/object shapes with documented static-layout rules.
 - [ ] Define null/undefined representation and truthiness conversions.
 - [ ] Add integration fixtures for multi-file programs and object/array behavior.
@@ -151,6 +151,19 @@ subset and the expanded feature set has documented runtime costs.
 
 Dependencies: Checkpoint B and Milestone 5. Estimated scope: XL; split each
 backend/runtime feature into separate implementation tasks.
+
+### Standard Library Compatibility Slice
+
+The standard library follows the Node.js-compatible policy in
+[`docs/stdlib.md`](stdlib.md). Implement it in this order:
+
+1. Define a versioned built-in module manifest and canonical `node:` names.
+2. Promote pure synchronous modules, starting with `node:path`.
+3. Add deterministic Node-reference, interpreter, and native differential tests.
+4. Add process/environment and filesystem APIs only after startup, ownership,
+   encoding, and failure behavior are documented in the runtime ABI.
+5. Defer callbacks, streams, networking, crypto, child processes, and worker
+   APIs until object, async, and process-model semantics are complete.
 
 ## Recommended Execution Order
 

@@ -11,6 +11,7 @@ LLVM for the native middle/backend path.
 - [`docs/typescript-to-native.md`](docs/typescript-to-native.md) - compiler
   architecture, pipeline boundaries, and native subset policy.
 - [`docs/roadmap.md`](docs/roadmap.md) - milestones and acceptance criteria.
+- [`docs/stdlib.md`](docs/stdlib.md) - Node.js-compatible standard-library policy and scope.
 
 The documentation follows the structure of the [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html):
 start with the project model and basic concepts, then use architecture and
@@ -22,8 +23,9 @@ modular, reusable compiler infrastructure model described by [LLVM](https://llvm
 The repository now has a working synchronous MVP pipeline. TypeScript-Go parses,
 resolves local modules, and type-checks the reachable graph; scriptgo lowers a
 small subset into verified typed IR, can interpret it, and can emit LLVM IR or
-an executable through Clang. Arrays, objects, exceptions, async code, npm
-resolution, and full JavaScript compatibility remain outside the MVP.
+an executable through Clang. Dense `number[]` arrays are supported; objects,
+exceptions, async code, npm resolution, and full JavaScript compatibility remain
+outside the MVP.
 
 ## Run
 

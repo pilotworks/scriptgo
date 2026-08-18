@@ -54,7 +54,13 @@ This is the structure currently present in the repository:
 │   │       ├── emit.go           # Typed IR -> LLVM IR
 │   │       └── emit_test.go      # LLVM emission tests
 │   ├── runtime/
-│   │   └── abi.md                # Current host ABI contract; no interpreter code
+│   │   ├── README.md             # Runtime ownership and package boundaries
+│   │   ├── runtime.go            # Embeds native runtime assets for linking
+│   │   ├── abi/README.md         # Current ABI contract
+│   │   ├── native/
+│   │   │   ├── README.md         # Native implementation rules
+│   │   │   └── arrays/runtime.c  # Dense number-array operations
+│   │   └── values/README.md      # Managed-value policies and shared contracts
 │   └── typescriptgo/
 │       ├── go.mod               # Separate adapter module
 │       ├── go.sum
@@ -64,6 +70,7 @@ This is the structure currently present in the repository:
 └── docs/
     ├── application-structure.md
     ├── roadmap.md
+    ├── stdlib.md
     └── typescript-to-native.md
 ```
 
@@ -83,8 +90,9 @@ cmd/scriptgo/main.go
 
 The current implementation checks the reachable local module graph, lowers the
 supported synchronous subset, and emits LLVM IR or runs the reference
-interpreter. The native ABI is currently provided by host `printf`/`puts` and
-Clang; managed strings, arrays, objects, and exceptions remain planned.
+interpreter. Primitive output uses host `printf`/`puts`; dense `number[]`
+operations use the linked runtime under `internal/runtime/native/arrays`.
+Managed strings, objects, and exceptions remain planned.
 
 ## Target Repository Layout
 
@@ -113,10 +121,12 @@ internal/
 │   ├── ir.go                    # Existing module/type/instruction model
 │   ├── verify.go                # Planned: IR validity checks
 │   └── dump.go                  # Planned: stable human-readable IR output
-├── runtime/                     # Existing ABI contract; implementation planned
-│   ├── abi.md                   # Host ABI plus frozen primitive linked ABI v1
-│   ├── startup/                 # Planned: process startup and exit handling
-│   └── values/                  # Planned: strings, arrays, objects, errors
+├── runtime/                     # ABI plus native runtime implementations by value family
+│   ├── README.md                # Runtime ownership and package boundaries
+│   ├── abi/README.md            # Current ABI contract
+│   ├── native/                  # Native implementations by value family
+│   │   └── arrays/runtime.c     # Dense number-array operations
+│   └── values/                  # Managed-value policies and shared contracts
 └── backend/
     └── llvm/                    # Existing MVP: typed IR -> LLVM IR
         ├── emit.go              # Existing module/function emission
@@ -147,7 +157,7 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `internal/lowering` | Native subset checks and explicit conversion/runtime operations | Backend-specific emission or CLI behavior |
 | `internal/ir` | Backend-independent types, values, instructions, blocks, spans, verifier | TypeScript-Go internals or LLVM APIs |
 | `internal/interpreter` | Reference execution and semantic oracle tests | Native executable startup or ABI implementation |
-| `internal/runtime` | Native ABI contract and future value/startup services | Reference interpretation, TypeScript syntax, frontend analysis |
+| `internal/runtime` | ABI contract and native value-family services | Reference interpretation, TypeScript syntax, frontend analysis |
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
 
 ## Dependency Direction
@@ -165,11 +175,12 @@ The IR is the contract between language-facing analysis and native backends.
 Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
 
-The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly, so
-`internal/runtime` remains documentation-only while linked ABI v1 is being
-specified. ABI v1 is primitive-only; managed values or startup services require
-a later implementation slice and must not be added to lowering before their
-representation and ownership contract is tested. The package must not absorb
+The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly for
+primitive output and links the focused number-array runtime from
+`internal/runtime/native/arrays`. `internal/runtime` owns the ABI and native
+runtime implementations by value family. Managed values or startup services
+must not be added to lowering before their representation and ownership
+contract is tested. The package must not absorb
 the reference interpreter or become a general utility package.
 
 Rules for imports:
