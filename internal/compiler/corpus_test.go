@@ -20,7 +20,7 @@ func TestCorpus(t *testing.T) {
 		t.Run(filepath.ToSlash(casePath), func(t *testing.T) {
 			entry := filepath.Join(casePath, "main.ts")
 			expectations := 0
-			if expected, ok := readCorpusFile(t, casePath, "run.out"); ok {
+			if expected, ok := readCorpusFile(t, casePath, "run.expected"); ok {
 				expectations++
 				got, err := Run(entry)
 				if err != nil {
