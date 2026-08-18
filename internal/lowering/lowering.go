@@ -12,6 +12,9 @@ import (
 
 // Lower lowers the currently supported synchronous TypeScript subset.
 func Lower(program frontend.Program) (ir.Module, error) {
+	if err := ValidateSubset(program); err != nil {
+		return ir.Module{}, err
+	}
 	module := ir.Module{SourcePath: program.EntryPath, StatementCount: program.StatementCount}
 
 	main := ir.Function{Name: "main", ReturnType: ir.TypeVoid}
