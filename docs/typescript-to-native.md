@@ -15,6 +15,21 @@ LLVM IR, C, or machine code. TypeScript-Go is the starting point for parsing,
 binding, module resolution, and type checking. The lowering, runtime, and native
 backends described below are additional components.
 
+## Reference Model
+
+The [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+is the guide for explaining TypeScript concepts in a progressive order. This
+project does not restate TypeScript's language rules: it should consume the
+corresponding TypeScript-Go implementation and document only the native subset,
+representation choices, and observable differences introduced by compilation.
+
+The [LLVM project](https://llvm.org/) is the model for the native side: reusable
+compiler infrastructure, a specified intermediate representation, independent
+optimization/code-generation components, and target-specific toolchain stages.
+LLVM's [Language Reference](https://llvm.org/docs/LangRef.html) is authoritative
+for emitted LLVM IR; this document describes when and why `scriptgo` emits it,
+not a replacement for that reference.
+
 ## Design Goals
 
 - Reuse TypeScript's existing parser and type system instead of defining a

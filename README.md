@@ -1,8 +1,21 @@
 # scriptgo
 
 `scriptgo` is a Go-based native compiler for a deliberately small, typed
-subset of TypeScript. The long-term pipeline is described in
-[`docs/typescript-to-native.md`](docs/typescript-to-native.md).
+subset of TypeScript. It reuses TypeScript-Go for the language front end and
+LLVM for the native middle/backend path.
+
+## Documentation
+
+- [`docs/application-structure.md`](docs/application-structure.md) - repository
+  layout, ownership, and dependency direction.
+- [`docs/typescript-to-native.md`](docs/typescript-to-native.md) - compiler
+  architecture, pipeline boundaries, and native subset policy.
+- [`docs/roadmap.md`](docs/roadmap.md) - milestones and acceptance criteria.
+
+The documentation follows the structure of the [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html):
+start with the project model and basic concepts, then use architecture and
+reference material for deeper details. Native code generation follows the
+modular, reusable compiler infrastructure model described by [LLVM](https://llvm.org/).
 
 ## Status
 
