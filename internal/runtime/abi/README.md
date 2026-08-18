@@ -301,12 +301,11 @@ The following are intentionally outside the MVP ABI:
 Unsupported features must be rejected by the native subset gate before backend
 generation. They must not be silently represented as C pointers or host calls.
 
-## Object And Null ABI v2 Design And Initial Slice
+## Object And Null ABI Extension
 
-Object-shaped values are reserved for `scriptgo.runtime.v2`. This section is a
-The initial static-field slice is implemented by the runtime, interpreter,
-lowering, and LLVM backend. ABI v1 remains active for primitive operations;
-object operations use the v2 symbols below.
+Object-shaped values use this extension to the current runtime contract. The
+initial static-field slice is implemented by the runtime, interpreter,
+lowering, and LLVM backend; it is not exposed as a new public ABI version.
 
 ### Static object shapes
 
@@ -315,14 +314,14 @@ declared in source order and have primitive or already-supported array types.
 Each shape gets one compiler-emitted descriptor with a stable field order:
 
 ```c
-struct scriptgo_shape_v2 {
+struct scriptgo_shape {
     const char *name;
     uint32_t field_count;
     const uint32_t *field_offsets;
 };
 
-struct scriptgo_object_v2 {
-    const struct scriptgo_shape_v2 *shape;
+struct scriptgo_object {
+    const struct scriptgo_shape *shape;
     uint32_t refcount;
     unsigned char fields[];
 };
@@ -351,9 +350,9 @@ The runtime provides explicit predicates rather than relying on native pointer
 truthiness:
 
 ```text
-scriptgo_value_is_null_v2(value) -> bool
-scriptgo_value_is_undefined_v2(value) -> bool
-scriptgo_value_to_bool_v2(value) -> bool
+scriptgo_value_is_null(value) -> bool
+scriptgo_value_is_undefined(value) -> bool
+scriptgo_value_to_bool(value) -> bool
 ```
 
 `to_bool` returns false for `null` and `undefined`, and true for object
@@ -364,10 +363,10 @@ source-level lowering contract and must be shared with the interpreter.
 
 Object allocation, field access, retain, and release return the v1 status shape
 (`0` success, negative failure) and publish a diagnostic through the runtime
-error channel. Lowering must emit status checks before exposing v2 operations
-to user code. ABI v2 requires the same target compatibility checks as v1 and
-cannot be linked against a v1 runtime. Any change to pointer meaning, shape
-identity, ownership, or sentinel representation requires ABI v3.
+error channel. Lowering must emit status checks before exposing these
+operations to user code. Any change to pointer meaning, shape identity,
+ownership, or sentinel representation requires an explicit compatibility
+decision before it is enabled.
 
 ## Requirements For A Linked Runtime
 

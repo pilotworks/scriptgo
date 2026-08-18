@@ -38,12 +38,12 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_number_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_set(ptr, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_release(ptr)\n\n")
-	out.WriteString("declare i32 @scriptgo_object_new_v2(i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_object_number_set_v2(ptr, i64, double)\n")
-	out.WriteString("declare i32 @scriptgo_object_number_get_v2(ptr, i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_object_string_set_v2(ptr, i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_object_string_get_v2(ptr, i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_object_release_v2(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_number_set(ptr, i64, double)\n")
+	out.WriteString("declare i32 @scriptgo_object_number_get(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_string_set(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_string_get(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
 	out.WriteString("@.fmt.num = private unnamed_addr constant [4 x i8] c\"%g\\0A\\00\"\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
@@ -172,7 +172,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			objects = append(objects, instruction.Result)
 			slot := instruction.Result + ".slot"
 			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new_v2(i64 %d, ptr %%%s)\n", len(shape.Fields), slot))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", len(shape.Fields), slot))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		case ir.OpFieldSet:
 			shape, ok := findShape(shapes, instruction.Callee)
@@ -185,9 +185,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			switch field.Type {
 			case ir.TypeNumber:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set_v2(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
 			case ir.TypeString:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
 			default:
 				return "", fmt.Errorf("unsupported object field type %s", field.Type)
 			}
@@ -205,11 +205,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			switch field.Type {
 			case ir.TypeNumber:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 			case ir.TypeString:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			default:
 				return "", fmt.Errorf("unsupported object field type %s", field.Type)
@@ -241,7 +241,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
 			}
 			for _, object := range objects {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release_v2(ptr %%%s)\n", object))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
 			}
 			if function.Name == "main" {
 				out.WriteString("  ret i32 0\n")
@@ -260,7 +260,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
 		}
 		for _, object := range objects {
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release_v2(ptr %%%s)\n", object))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
 		}
 		if function.Name == "main" {
 			out.WriteString("  ret i32 0\n")
