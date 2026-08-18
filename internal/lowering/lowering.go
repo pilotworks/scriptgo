@@ -235,7 +235,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			if result == "" {
 				result = nextTemp(counter)
 			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: field.Type, Result: result, Callee: className, Field: field.Name, Args: []string{object}, Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: field.Type, Result: result, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{object}, Span: toIRSpan(path, expression.Span)})
 			return result, field.Type, nil
 		}
 		return "", "", fmt.Errorf("unknown field %q on object %q", expression.Text, className)
@@ -248,11 +248,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpObjectNew, Type: ir.Type("object:" + className), Result: result, Callee: className, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpObjectNew, Type: ir.Type("object:" + className), Result: result, Callee: className, FieldCount: len(shape.Fields), Span: toIRSpan(path, expression.Span)})
 		for _, field := range shape.Fields {
 			initializer := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, Args: []string{result, initializer}, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})
 		}
 		return result, ir.Type("object:" + className), nil
 	case "call":
@@ -327,6 +327,15 @@ func toIRType(value string) ir.Type {
 
 func toIRSpan(path string, span typescriptgo.SourceSpan) ir.SourceSpan {
 	return ir.SourceSpan{Path: path, Offset: span.Start, Length: span.Length}
+}
+
+func fieldIndex(shape ir.ObjectShape, name string) int {
+	for index, field := range shape.Fields {
+		if field.Name == name {
+			return index
+		}
+	}
+	return -1
 }
 
 func sourceError(path string, span typescriptgo.SourceSpan, err error) error {

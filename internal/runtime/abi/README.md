@@ -311,33 +311,25 @@ lowering, and LLVM backend; it is not exposed as a new public ABI version.
 
 The first object slice supports only statically known shapes whose fields are
 declared in source order and have primitive or already-supported array types.
-Each shape gets one compiler-emitted descriptor with a stable field order:
+The compiler carries each shape with a stable field order; the runtime does
+not receive or interpret that descriptor:
 
 ```c
-struct scriptgo_shape {
-    const char *name;
-    uint32_t field_count;
-    const uint32_t *field_offsets;
-};
-
 struct scriptgo_object {
-    const struct scriptgo_shape *shape;
-    uint32_t refcount;
-    unsigned char fields[];
+    int64_t field_count;
+    uintptr_t fields[];
 };
 ```
 
-The header and field offsets are runtime-owned layout details. Generated code
-must access fields through shape-checked runtime operations, never by emitting
-direct struct offsets. A field operation identifies the shape and field index;
-access to a different shape is a runtime failure.
+The runtime owns only this opaque field-counted storage block. Generated code
+must use typed load/store functions rather than direct field access. Shape
+names, field names, field ordering, and field indexes are resolved by lowering
+and the LLVM backend before they cross this boundary.
 
-Objects are allocated with one owned reference and initialized with the
-TypeScript field defaults selected by lowering. `retain` increments the count,
-`release` decrements it, and the final release destroys the object. Runtime
-operations never retain borrowed arguments implicitly. Cycles are outside this
-slice; introducing cyclic object graphs requires a tracing or cycle-aware
-strategy and a new ownership decision.
+Objects are allocated with one owned handle, initialized by explicit lowering
+stores, and destroyed by `release`. The current slice has no retain operation
+and does not support shared or cyclic object graphs. Adding sharing requires a
+separate ownership decision; it must not be inferred by this storage layer.
 
 ### `null`, `undefined`, and truthiness
 
@@ -361,7 +353,7 @@ source-level lowering contract and must be shared with the interpreter.
 
 ### Failure and compatibility
 
-Object allocation, field access, retain, and release return the v1 status shape
+Object allocation, field access, and release return the current status shape
 (`0` success, negative failure) and publish a diagnostic through the runtime
 error channel. Lowering must emit status checks before exposing these
 operations to user code. Any change to pointer meaning, shape identity,

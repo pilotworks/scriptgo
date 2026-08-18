@@ -4,7 +4,6 @@
 #include <string.h>
 
 typedef struct {
-    uint32_t refcount;
     int64_t field_count;
     uintptr_t fields[];
 } scriptgo_object;
@@ -24,7 +23,6 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (object == NULL) {
         return object_fail("scriptgo object allocation failed");
     }
-    object->refcount = 1;
     object->field_count = field_count;
     *out_object = object;
     return 0;
@@ -67,8 +65,6 @@ int scriptgo_object_release(void *handle) {
         return 0;
     }
     scriptgo_object *object = handle;
-    if (--object->refcount == 0) {
-        free(object);
-    }
+    free(object);
     return 0;
 }

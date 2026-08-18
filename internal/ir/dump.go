@@ -49,7 +49,7 @@ func dumpInstruction(instruction Instruction) string {
 		parts = append(parts, instruction.Callee)
 	}
 	if instruction.Field != "" {
-		parts = append(parts, "."+instruction.Field)
+		parts = append(parts, fmt.Sprintf(".%s[%d]", instruction.Field, instruction.FieldIndex))
 	}
 	if instruction.Value != "" {
 		parts = append(parts, strconv.Quote(instruction.Value))

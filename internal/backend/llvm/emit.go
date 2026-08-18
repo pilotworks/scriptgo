@@ -53,7 +53,7 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("@.false = private unnamed_addr constant [6 x i8] c\"false\\00\"\n\n")
 
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue, module.Shapes)
+		text, err := emitFunction(function, functions, stringsByValue)
 		if err != nil {
 			return "", err
 		}
@@ -62,7 +62,7 @@ func Emit(module ir.Module) (string, error) {
 	return out.String(), nil
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, shapes []ir.ObjectShape) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	name := function.Name
 	if name == "main" {
@@ -164,55 +164,48 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", instruction.Args[0], instruction.Args[1], slot))
 			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 		case ir.OpObjectNew:
-			shape, ok := findShape(shapes, instruction.Callee)
-			if !ok {
-				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
+			if instruction.FieldCount < 0 {
+				return "", fmt.Errorf("object shape %q has invalid field count", instruction.Callee)
 			}
 			types[instruction.Result] = instruction.Type
 			objects = append(objects, instruction.Result)
 			slot := instruction.Result + ".slot"
 			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", len(shape.Fields), slot))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", instruction.FieldCount, slot))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		case ir.OpFieldSet:
-			shape, ok := findShape(shapes, instruction.Callee)
-			if !ok {
-				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
+			if instruction.FieldIndex < 0 {
+				return "", fmt.Errorf("object field %q has invalid index", instruction.Field)
 			}
-			field, index, ok := findField(shape, instruction.Field)
+			valueType, ok := types[instruction.Args[1]]
 			if !ok {
-				return "", fmt.Errorf("unknown field %q on object %q", instruction.Field, instruction.Callee)
+				return "", fmt.Errorf("unknown object field value %q", instruction.Args[1])
 			}
-			switch field.Type {
+			switch valueType {
 			case ir.TypeNumber:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
 			case ir.TypeString:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
 			default:
-				return "", fmt.Errorf("unsupported object field type %s", field.Type)
+				return "", fmt.Errorf("unsupported object field type %s", valueType)
 			}
 		case ir.OpFieldGet:
-			shape, ok := findShape(shapes, instruction.Callee)
-			if !ok {
-				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
-			}
-			field, index, ok := findField(shape, instruction.Field)
-			if !ok {
-				return "", fmt.Errorf("unknown field %q on object %q", instruction.Field, instruction.Callee)
+			if instruction.FieldIndex < 0 {
+				return "", fmt.Errorf("object field %q has invalid index", instruction.Field)
 			}
 			types[instruction.Result] = instruction.Type
 			slot := instruction.Result + ".slot"
-			switch field.Type {
+			switch instruction.Type {
 			case ir.TypeNumber:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, slot))
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 			case ir.TypeString:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, slot))
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			default:
-				return "", fmt.Errorf("unsupported object field type %s", field.Type)
+				return "", fmt.Errorf("unsupported object field type %s", instruction.Type)
 			}
 		case ir.OpCall:
 			callee, ok := functions[instruction.Callee]
@@ -292,24 +285,6 @@ func llvmType(typ ir.Type) string {
 		}
 		return string(typ)
 	}
-}
-
-func findShape(shapes []ir.ObjectShape, name string) (ir.ObjectShape, bool) {
-	for _, shape := range shapes {
-		if shape.Name == name {
-			return shape, true
-		}
-	}
-	return ir.ObjectShape{}, false
-}
-
-func findField(shape ir.ObjectShape, name string) (ir.Field, int, bool) {
-	for index, field := range shape.Fields {
-		if field.Name == name {
-			return field, index, true
-		}
-	}
-	return ir.Field{}, 0, false
 }
 
 func llvmNumber(value float64) string {

@@ -58,15 +58,17 @@ const (
 )
 
 type Instruction struct {
-	Op       string
-	Type     Type
-	Result   string
-	Value    string
-	Operator string
-	Callee   string
-	Field    string
-	Args     []string
-	Span     SourceSpan
+	Op         string
+	Type       Type
+	Result     string
+	Value      string
+	Operator   string
+	Callee     string
+	Field      string
+	FieldIndex int
+	FieldCount int
+	Args       []string
+	Span       SourceSpan
 }
 
 const (
@@ -156,8 +158,14 @@ func (f Function) Verify() error {
 			if instruction.Op == OpObjectNew && !strings.HasPrefix(string(instruction.Type), string(TypeObject)+":") {
 				return fmt.Errorf("object.new must produce a shaped object")
 			}
+			if instruction.Op == OpObjectNew && instruction.FieldCount < 0 {
+				return fmt.Errorf("object.new has invalid field count")
+			}
 			if instruction.Op == OpFieldGet && len(instruction.Args) != 1 {
 				return fmt.Errorf("field.get requires one object operand")
+			}
+			if instruction.Op == OpFieldGet && instruction.FieldIndex < 0 {
+				return fmt.Errorf("field.get has invalid field index")
 			}
 			known[instruction.Result] = instruction.Type
 		case OpPrint:
@@ -165,7 +173,7 @@ func (f Function) Verify() error {
 				return fmt.Errorf("print instruction requires one argument")
 			}
 		case OpFieldSet:
-			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" {
+			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" || instruction.FieldIndex < 0 {
 				return fmt.Errorf("field.set requires object, value, and field")
 			}
 		case OpReturn:
