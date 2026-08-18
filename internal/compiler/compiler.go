@@ -43,6 +43,15 @@ func CompileModule(entryPath string) (ir.Module, error) {
 	return module, nil
 }
 
+// DumpIR returns the stable backend-independent IR artifact for an entry point.
+func DumpIR(entryPath string) (string, error) {
+	module, err := CompileModule(entryPath)
+	if err != nil {
+		return "", err
+	}
+	return module.Dump()
+}
+
 // Build compiles the generated LLVM IR into a native executable with clang.
 func Build(entryPath, outputPath string) error {
 	clang, err := resolveClang()

@@ -10,7 +10,7 @@ import (
 
 func main() {
 	output := flag.String("o", "", "write generated output to this path")
-	emit := flag.String("emit", "llvm-ir", "output mode: llvm-ir, exe, or run")
+	emit := flag.String("emit", "llvm-ir", "output mode: typed-ir, llvm-ir, exe, or run")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -37,6 +37,22 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Print(result)
+		return
+	}
+	if *emit == "typed-ir" {
+		result, err := compiler.DumpIR(flag.Arg(0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		if *output == "" {
+			fmt.Print(result)
+			return
+		}
+		if err := os.WriteFile(*output, []byte(result), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
 		return
 	}
 	if *emit != "llvm-ir" {

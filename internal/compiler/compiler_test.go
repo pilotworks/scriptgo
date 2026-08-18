@@ -113,6 +113,23 @@ func TestCompileSupportsNumberArrays(t *testing.T) {
 	}
 }
 
+func TestDumpIRReturnsStableArtifact(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("console.log(20 + 22);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := DumpIR(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"module ", "function main()", "binary \"+\"", "print console.log [%t2]"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("IR output does not contain %q:\n%s", expected, output)
+		}
+	}
+}
+
 func TestBuildProducesArrayExecutable(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang is not installed")
