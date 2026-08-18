@@ -299,11 +299,13 @@ validated integer lowering later.
 
 ## Runtime and Object Model
 
-Native code still needs a runtime for features that are not directly expressible
-as machine instructions. The runtime should be a small, versioned library linked
-into the executable.
+Native code will need a runtime for features that are not directly expressible
+as machine instructions. The current MVP has no linked project runtime: the
+LLVM backend calls the host C ABI for `printf` and `puts`, and the reference
+interpreter is kept separately under `internal/interpreter`. A small, versioned
+library linked into the executable is planned for managed values.
 
-Initial runtime responsibilities:
+Planned runtime responsibilities:
 
 - allocation and deallocation or garbage collection;
 - strings and UTF-16/UTF-8 conversion policy;

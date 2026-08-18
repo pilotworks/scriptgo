@@ -19,19 +19,23 @@ modular, reusable compiler infrastructure model described by [LLVM](https://llvm
 
 ## Status
 
-This repository is an executable scaffold. The CLI parses and validates a `.ts`
-entry point with the TypeScript-Go adapter, then emits a textual backend stub
-while lowering passes, runtime, and LLVM backend are developed.
+The repository now has a working synchronous MVP pipeline. TypeScript-Go parses,
+resolves local modules, and type-checks the reachable graph; scriptgo lowers a
+small subset into verified typed IR, can interpret it, and can emit LLVM IR or
+an executable through Clang. Arrays, objects, exceptions, async code, npm
+resolution, and full JavaScript compatibility remain outside the MVP.
 
 ## Run
 
 ```sh
 go run ./cmd/scriptgo examples/hello.ts
-go run ./cmd/scriptgo -o out.ll examples/hello.ts
+go run ./cmd/scriptgo -emit run examples/hello.ts
+go run ./cmd/scriptgo -emit llvm-ir -o out.ll examples/hello.ts
+go run ./cmd/scriptgo -emit exe -o hello examples/hello.ts
 ```
 
-The output is intentionally not executable LLVM yet. It marks the contract
-between the frontend, typed IR, and backend.
+`-emit run` uses the reference interpreter. `-emit llvm-ir` writes LLVM IR, and
+`-emit exe` invokes the host `clang` to produce a native executable.
 
 ## Development
 

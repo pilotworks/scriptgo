@@ -1,0 +1,209 @@
+// Package llvm emits LLVM IR from verified scriptgo IR.
+package llvm
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/ir"
+)
+
+// Emit converts a verified module into LLVM IR using opaque pointers.
+func Emit(module ir.Module) (string, error) {
+	if err := module.Verify(); err != nil {
+		return "", err
+	}
+	functions := make(map[string]ir.Function, len(module.Functions))
+	stringsByValue := map[string]string{}
+	for _, function := range module.Functions {
+		functions[function.Name] = function
+		for _, instruction := range function.Body {
+			if instruction.Op == ir.OpConst && instruction.Type == ir.TypeString {
+				if _, ok := stringsByValue[instruction.Value]; !ok {
+					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+				}
+			}
+		}
+	}
+	if _, ok := functions["main"]; !ok {
+		return "", fmt.Errorf("module has no main function")
+	}
+
+	var out strings.Builder
+	out.WriteString("; ModuleID = 'scriptgo'\n")
+	out.WriteString("declare i32 @printf(ptr, ...)\n")
+	out.WriteString("declare i32 @puts(ptr)\n\n")
+	out.WriteString("@.fmt.num = private unnamed_addr constant [4 x i8] c\"%g\\0A\\00\"\n")
+	for value, name := range stringsByValue {
+		encoded := escapeString(value)
+		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))
+	}
+	out.WriteString("@.true = private unnamed_addr constant [5 x i8] c\"true\\00\"\n")
+	out.WriteString("@.false = private unnamed_addr constant [6 x i8] c\"false\\00\"\n\n")
+
+	for _, function := range module.Functions {
+		text, err := emitFunction(function, functions, stringsByValue)
+		if err != nil {
+			return "", err
+		}
+		out.WriteString(text)
+	}
+	return out.String(), nil
+}
+
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string) (string, error) {
+	returnType := llvmType(function.ReturnType)
+	name := function.Name
+	if name == "main" {
+		returnType = "i32"
+	}
+	var out strings.Builder
+	out.WriteString(fmt.Sprintf("define %s @%s(", returnType, name))
+	for index, parameter := range function.Parameters {
+		if index > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
+	}
+	out.WriteString(") {\n")
+
+	types := map[string]ir.Type{}
+	for _, parameter := range function.Parameters {
+		types[parameter.Name] = parameter.Type
+	}
+	terminated := false
+	for _, instruction := range function.Body {
+		if terminated {
+			return "", fmt.Errorf("function %q contains instruction after return", function.Name)
+		}
+		switch instruction.Op {
+		case ir.OpConst:
+			types[instruction.Result] = instruction.Type
+			switch instruction.Type {
+			case ir.TypeNumber:
+				number, err := strconv.ParseFloat(instruction.Value, 64)
+				if err != nil {
+					return "", fmt.Errorf("invalid number %q: %w", instruction.Value, err)
+				}
+				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, %s\n", instruction.Result, llvmNumber(number)))
+			case ir.TypeString:
+				global := stringsByValue[instruction.Value]
+				length := len([]byte(instruction.Value)) + 1
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", instruction.Result, length, global))
+			case ir.TypeBool:
+				out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
+			default:
+				return "", fmt.Errorf("unsupported constant type %s", instruction.Type)
+			}
+		case ir.OpBinary:
+			leftType, ok := types[instruction.Args[0]]
+			if !ok {
+				return "", fmt.Errorf("unknown binary value %q", instruction.Args[0])
+			}
+			if _, ok := types[instruction.Args[1]]; !ok {
+				return "", fmt.Errorf("unknown binary value %q", instruction.Args[1])
+			}
+			if leftType != ir.TypeNumber {
+				return "", fmt.Errorf("LLVM binary operator %q only supports number", instruction.Operator)
+			}
+			op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]
+			if !ok {
+				return "", fmt.Errorf("unsupported LLVM binary operator %q", instruction.Operator)
+			}
+			types[instruction.Result] = instruction.Type
+			out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+		case ir.OpPrint:
+			valueType, ok := types[instruction.Args[0]]
+			if !ok {
+				return "", fmt.Errorf("unknown print value %q", instruction.Args[0])
+			}
+			switch valueType {
+			case ir.TypeNumber:
+				out.WriteString(fmt.Sprintf("  call i32 (ptr, ...) @printf(ptr @.fmt.num, double %%%s)\n", instruction.Args[0]))
+			case ir.TypeString:
+				out.WriteString(fmt.Sprintf("  call i32 @puts(ptr %%%s)\n", instruction.Args[0]))
+			case ir.TypeBool:
+				out.WriteString(fmt.Sprintf("  %%print.bool = select i1 %%%s, ptr @.true, ptr @.false\n", instruction.Args[0]))
+				out.WriteString("  call i32 @puts(ptr %print.bool)\n")
+			default:
+				return "", fmt.Errorf("unsupported print type %s", valueType)
+			}
+		case ir.OpCall:
+			callee, ok := functions[instruction.Callee]
+			if !ok {
+				return "", fmt.Errorf("unknown function %q", instruction.Callee)
+			}
+			if len(callee.Parameters) != len(instruction.Args) {
+				return "", fmt.Errorf("call to %q has wrong arity", instruction.Callee)
+			}
+			returnType := llvmType(callee.ReturnType)
+			if returnType == "void" {
+				out.WriteString(fmt.Sprintf("  call void @%s(", instruction.Callee))
+			} else {
+				types[instruction.Result] = callee.ReturnType
+				out.WriteString(fmt.Sprintf("  %%%s = call %s @%s(", instruction.Result, returnType, instruction.Callee))
+			}
+			for index, argument := range instruction.Args {
+				if index > 0 {
+					out.WriteString(", ")
+				}
+				out.WriteString(fmt.Sprintf("%s %%%s", llvmType(callee.Parameters[index].Type), argument))
+			}
+			out.WriteString(")\n")
+		case ir.OpReturn:
+			if function.Name == "main" {
+				out.WriteString("  ret i32 0\n")
+			} else if len(instruction.Args) == 0 {
+				out.WriteString("  ret void\n")
+			} else {
+				out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(instruction.Type), instruction.Args[0]))
+			}
+			terminated = true
+		default:
+			return "", fmt.Errorf("unsupported LLVM instruction %q", instruction.Op)
+		}
+	}
+	if !terminated {
+		if function.Name == "main" {
+			out.WriteString("  ret i32 0\n")
+		} else if function.ReturnType == ir.TypeVoid {
+			out.WriteString("  ret void\n")
+		} else {
+			return "", fmt.Errorf("function %q has no return", function.Name)
+		}
+	}
+	out.WriteString("}\n\n")
+	return out.String(), nil
+}
+
+func llvmType(typ ir.Type) string {
+	switch typ {
+	case ir.TypeNumber:
+		return "double"
+	case ir.TypeString:
+		return "ptr"
+	case ir.TypeBool:
+		return "i1"
+	case ir.TypeVoid:
+		return "void"
+	default:
+		return string(typ)
+	}
+}
+
+func llvmNumber(value float64) string {
+	return strconv.FormatFloat(value, 'e', 17, 64)
+}
+
+func escapeString(value string) string {
+	var out strings.Builder
+	for _, b := range []byte(value) {
+		if b >= 32 && b <= 126 && b != '"' && b != '\\' {
+			out.WriteByte(b)
+			continue
+		}
+		out.WriteString(fmt.Sprintf("\\%02X", b))
+	}
+	return out.String()
+}

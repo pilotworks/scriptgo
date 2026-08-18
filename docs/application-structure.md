@@ -1,10 +1,11 @@
 # Application Structure
 
-`scriptgo` is a Go compiler application with a TypeScript-Go frontend and a
-planned LLVM native backend. This document describes both the repository as it
-exists today and the target layout used by the roadmap. A `planned` directory
-is an architectural boundary only; it must not be created until the related
-implementation slice is ready.
+`scriptgo` is a Go compiler application with a TypeScript-Go frontend, a
+backend-independent typed IR, a reference interpreter, and an LLVM native
+backend. This document separates the repository as it exists today from the
+future layout used by the roadmap. A `planned` directory is an architectural
+boundary only; it must not be created until the related implementation slice is
+ready.
 
 ## Design Principles
 
@@ -36,12 +37,24 @@ This is the structure currently present in the repository:
 │       └── main.go              # CLI entry point and -o output flag
 ├── internal/
 │   ├── compiler/
-│   │   ├── compiler.go          # Pipeline orchestration and backend stub
+│   │   ├── compiler.go          # Pipeline orchestration and build modes
 │   │   └── compiler_test.go     # Compiler-level behavior tests
 │   ├── frontend/
 │   │   └── source.go            # Program validation and frontend normalization
+│   ├── lowering/
+│   │   ├── lowering.go          # Checked TypeScript subset -> typed IR
+│   │   └── lowering_test.go     # Lowering and subset tests
 │   ├── ir/
 │   │   └── ir.go                # Initial typed IR data contract
+│   ├── interpreter/
+│   │   ├── interpreter.go        # Reference execution engine for typed IR
+│   │   └── interpreter_test.go   # Interpreter semantic tests
+│   ├── backend/
+│   │   └── llvm/
+│   │       ├── emit.go           # Typed IR -> LLVM IR
+│   │       └── emit_test.go      # LLVM emission tests
+│   ├── runtime/
+│   │   └── abi.md                # Current host ABI contract; no interpreter code
 │   └── typescriptgo/
 │       ├── go.mod               # Separate adapter module
 │       ├── go.sum
@@ -60,17 +73,18 @@ This is the structure currently present in the repository:
 cmd/scriptgo/main.go
     -> internal/compiler.Compile
         -> internal/frontend.NewProgram
-            -> internal/typescriptgo.Parse
-                -> github.com/microsoft/typescript-go
+        -> internal/typescriptgo.Check
+            -> github.com/microsoft/typescript-go
         -> internal/ir.Module
-        -> compiler.GenerateStub
+        -> internal/lowering.Lower
+        -> internal/backend/llvm.Emit or internal/interpreter.Execute
     -> stdout or -o output file
 ```
 
-The current implementation parses one `.ts` entry point, validates basic input
-conditions, counts statements, and emits a textual placeholder. It does not
-yet perform full type checking, lowering, LLVM emission, runtime linking, or
-native executable generation.
+The current implementation checks the reachable local module graph, lowers the
+supported synchronous subset, and emits LLVM IR or runs the reference
+interpreter. The native ABI is currently provided by host `printf`/`puts` and
+Clang; managed strings, arrays, objects, and exceptions remain planned.
 
 ## Target Repository Layout
 
@@ -87,21 +101,25 @@ internal/
 │   ├── source.go                # Existing program model
 │   ├── project.go               # Planned: module graph and program creation
 │   └── diagnostics.go           # Planned: source-anchored errors
-├── lowering/                    # Planned: checked TypeScript -> typed IR
-│   ├── expressions.go           # Planned: literals, operators, calls
-│   ├── statements.go            # Planned: declarations, branches, returns
+├── interpreter/                 # Existing: reference execution; never linked natively
+│   ├── interpreter.go            # Typed IR execution engine
+│   └── interpreter_test.go       # Semantic oracle tests
+├── lowering/                    # Existing: checked TypeScript -> typed IR
+│   ├── lowering.go              # Existing MVP lowering
+│   ├── expressions.go           # Planned split: literals, operators, calls
+│   ├── statements.go            # Planned split: declarations, branches, returns
 │   └── subset.go                # Planned: supported-feature gate
 ├── ir/
 │   ├── ir.go                    # Existing module/type/instruction model
 │   ├── verify.go                # Planned: IR validity checks
 │   └── dump.go                  # Planned: stable human-readable IR output
-├── runtime/                     # Planned: native runtime and ABI
-│   ├── abi.md                   # Planned: calling convention and ownership
+├── runtime/                     # Existing ABI contract; implementation planned
+│   ├── abi.md                   # Current host ABI; future calling convention/ownership
 │   ├── startup/                 # Planned: process startup and exit handling
 │   └── values/                  # Planned: strings, arrays, objects, errors
 └── backend/
-    └── llvm/                    # Planned: typed IR -> LLVM IR
-        ├── emit.go              # Planned: module/function emission
+    └── llvm/                    # Existing MVP: typed IR -> LLVM IR
+        ├── emit.go              # Existing module/function emission
         ├── target.go            # Planned: target triple and data layout
         └── debug.go             # Planned: source/debug metadata
 ```
@@ -128,7 +146,8 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `internal/frontend` | Program creation, module graph, checked input, source spans | Native ABI, runtime calls, LLVM selection |
 | `internal/lowering` | Native subset checks and explicit conversion/runtime operations | Backend-specific emission or CLI behavior |
 | `internal/ir` | Backend-independent types, values, instructions, blocks, spans, verifier | TypeScript-Go internals or LLVM APIs |
-| `internal/runtime` | Value representation, ownership, startup, ABI services | TypeScript syntax or frontend analysis |
+| `internal/interpreter` | Reference execution and semantic oracle tests | Native executable startup or ABI implementation |
+| `internal/runtime` | Native ABI contract and future value/startup services | Reference interpretation, TypeScript syntax, frontend analysis |
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
 
 ## Dependency Direction
@@ -138,13 +157,18 @@ cmd/scriptgo
     -> internal/compiler
         -> internal/frontend -> internal/typescriptgo -> TypeScript-Go
         -> internal/lowering -> internal/ir
+        -> internal/interpreter (reference execution only)
         -> internal/backend/llvm -> internal/ir
-        -> internal/runtime
 ```
 
 The IR is the contract between language-facing analysis and native backends.
 Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
+
+The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly, so
+`internal/runtime` is documentation-only until managed values or startup
+services require a linked runtime library. It must not absorb the reference
+interpreter or become a general utility package.
 
 Rules for imports:
 
@@ -184,9 +208,10 @@ Tests are colocated with the package that owns the behavior:
 ```text
 internal/compiler/compiler_test.go       # Current pipeline behavior
 internal/frontend/source_test.go         # Planned: normalization/diagnostics
-internal/lowering/*_test.go              # Planned: subset and lowering rules
-internal/ir/*_test.go                    # Planned: verifier and IR invariants
-internal/backend/llvm/*_test.go          # Planned: LLVM emission goldens
+internal/lowering/*_test.go              # Current MVP lowering tests
+internal/ir/*_test.go                    # Planned: dedicated verifier tests
+internal/backend/llvm/*_test.go          # Current LLVM emission tests
+internal/interpreter/*_test.go           # Current semantic oracle tests
 testdata/                                # Planned: shared cross-stage inputs
 ```
 
@@ -202,20 +227,22 @@ The current CLI supports one entry point and optional output:
 
 ```sh
 go run ./cmd/scriptgo examples/hello.ts
-go run ./cmd/scriptgo -o out.ll examples/hello.ts
+go run ./cmd/scriptgo -emit run examples/hello.ts
+go run ./cmd/scriptgo -emit llvm-ir -o out.ll examples/hello.ts
+go run ./cmd/scriptgo -emit exe -o hello examples/hello.ts
 ```
 
-Planned commands should map to pipeline boundaries rather than packages:
+Implemented modes map to pipeline boundaries rather than packages:
 
 | Command/artifact | Boundary | Purpose |
 | --- | --- | --- |
-| `check` | frontend + subset gate | Parse, resolve, type-check, report diagnostics |
-| `lower` | frontend -> IR | Produce verified typed IR |
-| `build` | IR -> backend -> toolchain | Produce a native executable |
-| `--emit typed-ir` | IR inspection | Debug lowering without a native toolchain |
-| `--emit llvm-ir` | backend inspection | Debug LLVM emission before clang/linking |
+| `--emit run` | frontend -> IR -> interpreter | Execute reference semantics |
+| `--emit llvm-ir` | IR -> LLVM backend | Inspect LLVM IR before toolchain invocation |
+| `--emit exe` | IR -> LLVM -> Clang | Produce a native executable |
+| `check`, `lower`, `--emit typed-ir` | Planned boundaries | Add when their CLI artifacts have stable contracts |
 
-These command names remain planned until implemented.
+The CLI currently accepts one entry point and keeps these modes stable while
+the roadmap expands the available artifacts.
 
 ## Adding A New Component
 

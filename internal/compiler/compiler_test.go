@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,10 +18,52 @@ func TestCompileReturnsPipelineStub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"scriptgo scaffold", entry, "statements: 1", "typed-ir"} {
+	for _, expected := range []string{"ModuleID = 'scriptgo'", "define i32 @main()", "ret i32 0"} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("output does not contain %q: %s", expected, output)
 		}
+	}
+}
+
+func TestBuildProducesExecutable(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	if err := os.WriteFile(entry, []byte("console.log(20 + 22);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("executable failed: %v\n%s", err, result)
+	}
+	if string(result) != "42\n" {
+		t.Fatalf("executable output = %q, want %q", result, "42\n")
+	}
+}
+
+func TestRunResolvesLocalModuleAndCallsRuntime(t *testing.T) {
+	dir := t.TempDir()
+	dependency := filepath.Join(dir, "answer.ts")
+	entry := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(dependency, []byte("export const answer: number = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("import { answer } from './answer';\nconsole.log(answer);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output != "42\n" {
+		t.Fatalf("runtime output = %q, want %q", output, "42\n")
 	}
 }
 

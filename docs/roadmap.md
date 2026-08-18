@@ -13,10 +13,11 @@ and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
 ## Current Baseline
 
 - [x] CLI accepts one `.ts` entry point and an optional `-o` output path.
-- [x] TypeScript-Go adapter parses a single source file.
-- [x] Syntax diagnostics include the source path, offset, TypeScript code, and message.
-- [x] Initial IR types exist for `void`, `bool`, `number`, and `string`.
-- [ ] Type checking, module resolution, lowering, runtime, executable output, and LLVM emission are not implemented.
+- [x] TypeScript-Go parses, resolves local `.ts` imports, and type-checks the reachable source graph.
+- [x] Syntax and semantic diagnostics include the source path, offset, TypeScript code, and message.
+- [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
+- [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
+- [ ] Arrays, objects, exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
 
 ## Milestones
 
@@ -25,11 +26,11 @@ and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
 Make the frontend return a stable, checked compilation unit instead of only a
 statement count.
 
-- [ ] Pin and document the compatible TypeScript-Go revision.
+- [x] Pin the compatible TypeScript-Go revision in `internal/typescriptgo/go.mod`.
 - [ ] Add source files, compiler options, symbols/types, module references, and source spans to the adapter contract.
-- [ ] Run binding, module resolution, and type checking for the entry point.
+- [x] Run binding, local module resolution, and type checking for the entry point.
 - [ ] Define a native subset feature matrix and reject unsupported constructs with actionable diagnostics.
-- [ ] Add tests for valid programs, type errors, local imports, and source locations.
+- [x] Add tests for valid programs, type errors, and local imports.
 
 Acceptance: `scriptgo check entry.ts` reports deterministic parse/type/subset
 diagnostics and succeeds only for a closed, supported program graph.
@@ -44,12 +45,12 @@ Dependencies: current frontend adapter. Estimated scope: Medium.
 Replace the placeholder module with a backend-independent IR that preserves
 types, evaluation order, and source locations.
 
-- [ ] Define value representations, constants, locals, arithmetic, comparisons, calls, branches, loops, and returns.
+- [x] Define value representations, constants, locals, arithmetic, calls, and returns for the MVP.
 - [ ] Attach source spans and useful names to instructions and functions.
-- [ ] Lower literals, local declarations, assignments, arithmetic, functions, and `if`/`return`.
-- [ ] Implement IR verification for type consistency, control-flow validity, and terminated blocks.
+- [x] Lower literals, local declarations, arithmetic, functions, and `return`.
+- [x] Implement initial IR verification for values, instruction kinds, and return consistency.
 - [ ] Add golden source-to-IR tests for the MVP examples.
-- [ ] Add a small interpreter or execution harness for semantic tests before native code generation.
+- [x] Add a small interpreter for semantic tests before native code generation.
 
 Acceptance: the MVP program `add(20, 22)` lowers to verified IR and produces
 the expected result in the interpreter.
@@ -62,20 +63,21 @@ vertical slices for expressions, functions, and control flow.
 
 ### Checkpoint A: Frontend-to-IR
 
-- [ ] A supported synchronous program parses, type-checks, lowers, and verifies.
+- [x] A supported synchronous program parses, type-checks, lowers, and verifies.
 - [ ] Unsupported features fail before backend generation.
 - [ ] Diagnostics retain original TypeScript locations.
-- [ ] `go test ./...` and `go build ./cmd/scriptgo` pass.
+- [x] `go test ./...` and `go build ./cmd/scriptgo` pass.
 
 ### Milestone 3: Runtime ABI and LLVM MVP
 
 Turn verified IR into a native executable for the initial primitive subset.
 
-- [ ] Specify ABI conventions, `number` as `f64`, string representation, ownership, errors, and process startup.
-- [ ] Implement runtime startup, numeric operations, strings, and `console.log`.
-- [ ] Generate LLVM IR for constants, locals, arithmetic, calls, branches, returns, and runtime calls.
-- [ ] Invoke Clang for the selected host target and link the runtime.
-- [ ] Add `--backend llvm`, `--emit typed-ir`, and `--emit llvm-ir` CLI modes.
+- [ ] Specify a linked-runtime ABI covering conventions, `number` as `f64`, string representation, ownership, errors, and process startup.
+- [x] Document the temporary MVP host C ABI boundary in `internal/runtime/abi.md`.
+- [x] Implement reference interpreter semantics plus native `printf`/`puts` calls for numeric output, strings, and `console.log`.
+- [x] Generate LLVM IR for MVP constants, locals, arithmetic, calls, returns, and print calls.
+- [x] Invoke Clang for the selected host target and link against the host C runtime.
+- [x] Add `--emit run`, `--emit llvm-ir`, and `--emit exe` CLI modes.
 - [ ] Emit compiler errors for missing toolchains and unsupported target/backend combinations.
 
 Acceptance: compiling and running the MVP program produces `42` as a native
@@ -98,7 +100,7 @@ Expand the useful strict subset while keeping runtime behavior explicit.
 - [ ] Add integration fixtures for multi-file programs and object/array behavior.
 
 Acceptance: a multi-file synchronous program using primitives, arrays, and
-simple classes compiles and matches the reference runtime on supported cases.
+simple classes compiles and matches the reference interpreter on supported cases.
 
 Verification: module-graph tests, bounds/null behavior tests, and end-to-end
 differential tests.

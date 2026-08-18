@@ -20,15 +20,74 @@ general TypeScript-Go and LLVM behavior.
 
 - Preserve the package ownership and dependency direction documented in
   [`docs/application-structure.md`](docs/application-structure.md).
+- Treat the module ownership rules below as hard boundaries. Do not move logic
+  across a boundary merely because the destination package is convenient.
 - Keep the frontend-to-IR boundary independent from any one native backend.
 - Make JavaScript/TypeScript semantic differences explicit in the native subset
   policy, runtime ABI, diagnostics, and tests.
 - Add source spans to diagnostics and IR instructions whenever a new lowering
   boundary can report an error.
+- Keep each Go file focused on one responsibility. Split a file by stage or
+  concern before adding more code when it exceeds roughly 300 lines; a file
+  over 400 lines requires an explicit reason in the change description.
+- Do not create catch-all `helpers`, `utils`, or `common` packages. Put a helper
+  beside the boundary that owns its behavior, or document why it is genuinely
+  cross-cutting.
 - Prefer small vertical changes: update one pipeline boundary, add focused tests,
   then run `go test ./...` and `go build ./cmd/scriptgo`.
 - Keep the current CLI contract stable unless a documented roadmap item requires
   a breaking change.
+
+## Module Ownership And Forbidden Responsibilities
+
+These responsibilities are strict. If a feature appears to belong to two
+modules, define the contract at the boundary and keep the implementation in the
+module that owns the behavior.
+
+| Module | May own | Must not own |
+| --- | --- | --- |
+| `cmd/scriptgo` | Flag parsing, input/output paths, process exit codes, user-facing errors | TypeScript semantics, AST traversal, lowering, IR construction, LLVM text, runtime behavior |
+| `internal/compiler` | Stage orchestration, artifact selection, temporary toolchain files, invoking Clang | Parsing, type checking, feature semantics, instruction emission, interpreter logic |
+| `internal/typescriptgo` | The pinned TypeScript-Go adapter and conversion of upstream results into stable adapter data | Native subset policy, IR, LLVM, runtime ABI, a replacement parser/type system |
+| `internal/frontend` | Checked program creation, reachable module graph, normalized source data, frontend diagnostics | Backend selection, native layout, runtime calls, LLVM emission, execution |
+| `internal/lowering` | Native subset validation and conversion of checked source data into backend-independent IR | Direct LLVM/C emission, native process startup, interpreter execution, TypeScript-Go compiler policy |
+| `internal/ir` | Types, instructions, modules, source metadata, verification invariants | TypeScript AST/API usage, backend-specific syntax, runtime implementation, CLI policy |
+| `internal/interpreter` | Reference execution of verified IR and semantic-oracle tests | Native ABI calls, executable startup, LLVM code generation, frontend parsing |
+| `internal/runtime` | The native ABI contract and, later, linked runtime services for values, ownership, startup, and errors | Reference interpretation, TypeScript parsing/type checking, lowering policy, backend orchestration |
+| `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions, interpreter behavior |
+
+Dependency direction must remain acyclic:
+
+```text
+cmd/scriptgo -> compiler
+compiler -> frontend -> typescriptgo -> TypeScript-Go
+compiler -> lowering -> ir
+compiler -> interpreter -> ir
+compiler -> backend/llvm -> ir
+```
+
+`internal/runtime` is currently an ABI document because the MVP calls the host
+C ABI directly. Do not add interpreter code there. When a linked runtime is
+introduced, its ABI must be documented and tested before lowering or LLVM code
+starts depending on it.
+
+## File Boundaries And Splitting Rules
+
+- Keep orchestration, data models, conversion logic, diagnostics, and emission
+  in separate files when they grow independently.
+- Split `internal/typescriptgo` by adapter model, parsing, program checking,
+  syntax normalization, and diagnostics rather than growing one `parse.go`.
+- Split `internal/lowering` by expressions, statements, calls/runtime
+  operations, and subset diagnostics as control flow is added.
+- Split `internal/backend/llvm` by module/function emission, constants/values,
+  runtime ABI declarations, and debug/target metadata as those concerns grow.
+- Split `internal/interpreter` by values, instruction execution, calls, and
+  formatting when execution semantics expand beyond the MVP.
+- Keep tests next to the file or package that owns the behavior. A test that
+  crosses multiple boundaries belongs in the owning integration package and
+  must not become a reason to merge unrelated implementations into one file.
+- When a change makes a file larger than the guideline, split first, then add
+  the feature. Preserve public contracts while moving private helpers.
 
 ## Working With Upstream
 
