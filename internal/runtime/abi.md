@@ -6,9 +6,10 @@ not a description of TypeScript or JavaScript semantics. TypeScript parsing,
 binding, module resolution, and type checking remain owned by TypeScript-Go;
 the reference interpreter remains in [`internal/interpreter`](../interpreter/).
 
-The repository currently implements only the MVP host C ABI. The linked runtime
-described in the future sections is a design constraint for later work, not an
-implemented library or a stable public ABI.
+The repository currently implements only the MVP host C ABI. This document now
+freezes the scope of linked runtime ABI v1 for primitive values. ABI v1 is a
+design contract, not an implemented library; managed values deliberately remain
+outside this version and require a separate ABI decision before Milestone 4.
 
 ## Scope And Status
 
@@ -20,8 +21,101 @@ implemented library or a stable public ABI.
 | Boolean output | Compiler-generated static strings + host C ABI | Selects `"true"` or `"false"`, then calls `puts` |
 | Managed values | Not implemented | No runtime object, array, string, or error library exists |
 | Ownership and cleanup | Not applicable to MVP literals | No runtime allocation is performed |
-| Runtime errors | Not implemented | Lowering and backend errors stop compilation; libc return values are ignored |
-| ABI versioning | Not implemented | The host C ABI is a temporary implementation detail |
+| Runtime errors | v1 policy specified; no fallible operation enabled | Lowering and backend errors stop compilation; libc return values are ignored |
+| ABI versioning | Linked ABI v1 specified; not implemented | The current generated code still uses the temporary host C ABI |
+
+## Linked Runtime ABI v1
+
+ABI v1 is the first project-owned contract. It is limited to values that can be
+represented without allocation in the current typed IR:
+
+- `number`, `bool`, and `void` use the native representations below.
+- `string` is supported only as an immutable literal or borrowed UTF-8 value.
+- Arrays, objects, classes, `null`, `undefined`, exceptions, and async services
+  are not ABI v1 values and must remain rejected by lowering.
+
+### Target and calling convention
+
+The initial v1 target is macOS ARM64 using the target selected by Clang. Runtime
+functions use the platform C calling convention and opaque pointers in LLVM IR.
+Generated code must obtain the target triple and data layout from the selected
+toolchain; it must not hard-code register assignments, pointer width, alignment,
+or endianness.
+
+The runtime ABI identifier is `scriptgo.runtime.v1`. A linked runtime must expose
+its ABI identifier through build metadata so the compiler can reject a runtime
+with an incompatible major version before linking.
+
+### Value representations
+
+| ABI v1 value | Representation | Validity and ownership |
+| --- | --- | --- |
+| `number` | IEEE-754 binary64 (`double`) | Passed and returned by value |
+| `bool` | One-bit LLVM value (`i1`) | Passed and returned by value; only `0` and `1` are valid |
+| `string` | Pointer to immutable UTF-8 bytes terminated by one NUL byte | Borrowed by consumers; literal storage is module-owned and process-lived |
+| `void` | No value | Used for effects and functions without a result |
+
+The v1 string contract is intentionally narrower than a future managed string
+type. String data must not contain an embedded NUL when passed to a v1 C-string
+operation. The compiler must reject or avoid such an operation rather than
+silently truncate data. A future length-aware string ABI may support embedded
+NUL bytes without changing the meaning of v1 literals.
+
+### Ownership and lifetime
+
+ABI v1 has no runtime allocation or release operation. The only valid string
+pointers are:
+
+1. pointers to private immutable globals emitted by the compiler; or
+2. pointers borrowed from a caller that remain valid for the duration of the
+   runtime call.
+
+Runtime functions must not free, mutate, retain, or return ownership of those
+pointers. Any API that needs ownership transfer, heap allocation, or reference
+counting belongs to a later ABI version and must define both success and failure
+paths before it is exposed to lowering.
+
+### Errors
+
+ABI v1 uses status-returning runtime functions for future fallible operations:
+
+- `0` means success;
+- a negative value means failure;
+- the runtime owns the associated diagnostic text until the next runtime call
+  on the same execution context;
+- the compiler/runtime boundary must provide an explicit operation to consume
+  or print the diagnostic before shutdown.
+
+The current MVP has no fallible runtime operation and therefore does not emit
+status checks. Lowering must not add an operation that can fail until its status
+and diagnostic behavior are represented in IR and tested by both the
+interpreter and native backend.
+
+### Startup and shutdown
+
+ABI v1 has no required startup or shutdown hook. Clang and the host linker own
+process startup, and generated `main` returns status `0` on normal completion.
+If a linked runtime later needs initialization, the compiler must call a
+versioned `scriptgo_runtime_init_v1` hook before user code and a matching
+shutdown hook on every normal exit path. Startup failure must produce a
+non-zero process status without entering user code.
+
+This rule reserves the lifecycle boundary without adding an unimplemented
+symbol to the current LLVM output.
+
+### Compatibility policy
+
+The v1 contract is compatible only when all of these match:
+
+- ABI major version `1`;
+- the selected target triple and data layout;
+- pointer width and calling convention;
+- the runtime's documented compiler/runtime feature set.
+
+Changing a representation, ownership rule, error convention, or lifecycle
+requirement requires a new major ABI version. Additive optional operations may
+use a minor version only when existing symbols and representations remain
+binary-compatible.
 
 The runtime package must not become a second interpreter, a TypeScript
 front-end, or a collection of backend helpers. A new runtime operation belongs

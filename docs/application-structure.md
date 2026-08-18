@@ -114,7 +114,7 @@ internal/
 │   ├── verify.go                # Planned: IR validity checks
 │   └── dump.go                  # Planned: stable human-readable IR output
 ├── runtime/                     # Existing ABI contract; implementation planned
-│   ├── abi.md                   # Current host ABI; future calling convention/ownership
+│   ├── abi.md                   # Host ABI plus frozen primitive linked ABI v1
 │   ├── startup/                 # Planned: process startup and exit handling
 │   └── values/                  # Planned: strings, arrays, objects, errors
 └── backend/
@@ -166,9 +166,11 @@ Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
 
 The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly, so
-`internal/runtime` is documentation-only until managed values or startup
-services require a linked runtime library. It must not absorb the reference
-interpreter or become a general utility package.
+`internal/runtime` remains documentation-only while linked ABI v1 is being
+specified. ABI v1 is primitive-only; managed values or startup services require
+a later implementation slice and must not be added to lowering before their
+representation and ownership contract is tested. The package must not absorb
+the reference interpreter or become a general utility package.
 
 Rules for imports:
 

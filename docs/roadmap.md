@@ -72,7 +72,7 @@ vertical slices for expressions, functions, and control flow.
 
 Turn verified IR into a native executable for the initial primitive subset.
 
-- [ ] Specify a linked-runtime ABI covering conventions, `number` as `f64`, string representation, ownership, errors, and process startup.
+- [x] Specify linked-runtime ABI v1 for primitive values, including conventions, `number` as `f64`, string representation, ownership, errors, compatibility, and process startup policy.
 - [x] Document the temporary MVP host C ABI boundary in `internal/runtime/abi.md`.
 - [x] Implement reference interpreter semantics plus native `printf`/`puts` calls for numeric output, strings, and `console.log`.
 - [x] Generate LLVM IR for MVP constants, locals, arithmetic, calls, returns, and print calls.
@@ -88,6 +88,11 @@ reference-runtime differential tests for numeric and string behavior.
 
 Dependencies: Milestones 1-2. Estimated scope: Large; land runtime ABI before
 expanding code generation.
+
+ABI v1 is intentionally primitive-only. Arrays, objects, `null`, `undefined`,
+allocation, and runtime-managed errors require a subsequent ABI version and
+must not be enabled by the native subset until their layouts and ownership
+rules are specified.
 
 ### Milestone 4: Modules, Arrays, and Static Objects
 
