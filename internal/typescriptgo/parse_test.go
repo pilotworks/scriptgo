@@ -25,6 +25,15 @@ func TestCheckResolvesLocalModules(t *testing.T) {
 	if len(result.Files) != 2 {
 		t.Fatalf("Check resolved %d files, want 2: %+v", len(result.Files), result.Files)
 	}
+	if result.Files[0].FileName != dependency || result.Files[1].FileName != entry {
+		t.Fatalf("Check file order = [%s, %s], want dependency before entry", result.Files[0].FileName, result.Files[1].FileName)
+	}
+	if len(result.Files[1].Imports) != 1 {
+		t.Fatalf("entry imports = %+v, want one resolved import", result.Files[1].Imports)
+	}
+	if result.Files[1].Imports[0].Specifier != "./answer" || result.Files[1].Imports[0].ResolvedFileName != dependency {
+		t.Fatalf("entry import = %+v, want resolved answer module", result.Files[1].Imports[0])
+	}
 	if len(result.Diagnostics) != 0 {
 		t.Fatalf("Check returned unexpected diagnostics: %+v", result.Diagnostics)
 	}

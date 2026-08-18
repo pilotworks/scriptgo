@@ -67,6 +67,26 @@ func TestRunResolvesLocalModuleAndCallsRuntime(t *testing.T) {
 	}
 }
 
+func TestRunInitializesLocalModulesBeforeEntry(t *testing.T) {
+	dir := t.TempDir()
+	dependency := filepath.Join(dir, "dependency.ts")
+	entry := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(dependency, []byte("console.log('dependency');\nexport const answer: number = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("import { answer } from './dependency';\nconsole.log('entry');\nconsole.log(answer);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output != "dependency\nentry\n42\n" {
+		t.Fatalf("runtime output = %q, want dependency initialization before entry", output)
+	}
+}
+
 func TestCompileRejectsUnsupportedEntry(t *testing.T) {
 	if _, err := Compile("main.js"); err == nil {
 		t.Fatal("Compile accepted a non-TypeScript entry point")

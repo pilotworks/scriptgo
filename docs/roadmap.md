@@ -98,7 +98,7 @@ rules are specified.
 
 Expand the useful strict subset while keeping runtime behavior explicit.
 
-- [ ] Resolve and compile local TypeScript modules with deterministic initialization order.
+- [x] Resolve and compile local TypeScript modules with deterministic initialization order.
 - [ ] Add runtime-managed arrays, indexing, bounds checks, and common array operations.
 - [ ] Add simple classes/object shapes with documented static-layout rules.
 - [ ] Define null/undefined representation and truthiness conversions.

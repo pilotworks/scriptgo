@@ -3,6 +3,7 @@ package typescriptgo
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -30,7 +31,15 @@ type SourceFile struct {
 	FileName       string
 	StatementCount int
 	Span           SourceSpan
+	Imports        []ModuleReference
 	Syntax         SyntaxFile
+}
+
+// ModuleReference records a TypeScript-Go-resolved local module edge.
+type ModuleReference struct {
+	Specifier        string
+	ResolvedFileName string
+	Span             SourceSpan
 }
 
 type SourceSpan struct {
@@ -143,7 +152,14 @@ func Check(entryPath string) (ProgramResult, error) {
 
 	result := ProgramResult{}
 	ctx := context.Background()
+	files := make(map[string]*ast.SourceFile)
 	for _, file := range program.GetSourceFiles() {
+		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
+			continue
+		}
+		files[filepath.Clean(file.FileName())] = file
+	}
+	for _, file := range orderedSourceFiles(files, absoluteEntry, program) {
 		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
 			continue
 		}
@@ -151,6 +167,7 @@ func Check(entryPath string) (ProgramResult, error) {
 			FileName:       file.FileName(),
 			StatementCount: statementCount(file),
 			Span:           sourceSpan(&file.Node),
+			Imports:        moduleReferences(program, file),
 			Syntax:         syntaxFile(file),
 		})
 		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
@@ -158,6 +175,59 @@ func Check(entryPath string) (ProgramResult, error) {
 	}
 	result.Diagnostics = append(result.Diagnostics, convertDiagnostics("program", program.GetProgramDiagnostics())...)
 	return result, nil
+}
+
+func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleReference {
+	result := make([]ModuleReference, 0, len(file.Imports()))
+	for _, specifier := range file.Imports() {
+		resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
+		if resolved == nil || resolved.ResolvedFileName == "" || resolved.IsExternalLibraryImport {
+			continue
+		}
+		result = append(result, ModuleReference{
+			Specifier:        specifier.Text(),
+			ResolvedFileName: filepath.Clean(resolved.ResolvedFileName),
+			Span:             sourceSpan(specifier),
+		})
+	}
+	return result
+}
+
+// orderedSourceFiles returns reachable local files in dependency-first order.
+func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program *compiler.Program) []*ast.SourceFile {
+	ordered := make([]*ast.SourceFile, 0, len(files))
+	visited := make(map[string]bool, len(files))
+	var visit func(string)
+	visit = func(fileName string) {
+		fileName = filepath.Clean(fileName)
+		if visited[fileName] {
+			return
+		}
+		file, ok := files[fileName]
+		if !ok {
+			return
+		}
+		visited[fileName] = true
+		for _, reference := range moduleReferences(program, file) {
+			visit(reference.ResolvedFileName)
+		}
+		ordered = append(ordered, file)
+	}
+	visit(entry)
+
+	// Keep the adapter deterministic even if the compiler returns an unexpected
+	// disconnected source file in a future TypeScript-Go revision.
+	remaining := make([]string, 0, len(files)-len(ordered))
+	for fileName := range files {
+		if !visited[fileName] {
+			remaining = append(remaining, fileName)
+		}
+	}
+	sort.Strings(remaining)
+	for _, fileName := range remaining {
+		ordered = append(ordered, files[fileName])
+	}
+	return ordered
 }
 
 func syntaxFile(file *ast.SourceFile) SyntaxFile {

@@ -13,7 +13,8 @@ type Program struct {
 	EntryPath      string
 	Source         string
 	StatementCount int
-	Files          []typescriptgo.SourceFile
+	// Files are ordered with local dependencies before their importers.
+	Files []typescriptgo.SourceFile
 }
 
 func NewProgram(entryPath, source string) (Program, error) {
