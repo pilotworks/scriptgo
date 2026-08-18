@@ -17,6 +17,7 @@ type Value struct {
 	String string
 	Bool   bool
 	Array  []Value
+	Object map[string]Value
 }
 
 type Result struct {
@@ -106,6 +107,31 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 				return Value{}, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
 			}
 			env[instruction.Result] = array.Array[position]
+		case ir.OpObjectNew:
+			env[instruction.Result] = Value{Type: instruction.Type, Object: map[string]Value{}}
+		case ir.OpFieldSet:
+			object, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, err
+			}
+			value, err := lookup(env, instruction.Args, 1)
+			if err != nil {
+				return Value{}, err
+			}
+			if object.Object == nil {
+				return Value{}, fmt.Errorf("field set on non-object value")
+			}
+			object.Object[instruction.Field] = value
+		case ir.OpFieldGet:
+			object, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, err
+			}
+			value, ok := object.Object[instruction.Field]
+			if !ok {
+				return Value{}, fmt.Errorf("unknown field %q", instruction.Field)
+			}
+			env[instruction.Result] = value
 		case ir.OpPrint:
 			value, err := lookup(env, instruction.Args, 0)
 			if err != nil {

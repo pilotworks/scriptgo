@@ -18,7 +18,7 @@ contracts used by the native backend.
 | Numeric output | Host C ABI | `printf("%g\\n", value)` |
 | String output | Host C ABI | `puts(value)` |
 | Boolean output | Compiler-generated static strings + host C ABI | Selects `"true"` or `"false"`, then calls `puts` |
-| Managed values | Dense number arrays | Native builds link the embedded number-array runtime |
+| Managed values | Dense number arrays and static object fields | Native builds link the embedded array and object runtimes |
 | Ownership and cleanup | Not applicable to MVP literals | No runtime allocation is performed |
 | Runtime errors | v1 policy specified; no fallible operation enabled | Lowering and backend errors stop compilation; libc return values are ignored |
 | ABI versioning | Linked ABI v1 specified; not implemented | The current generated code still uses the temporary host C ABI |
@@ -289,7 +289,8 @@ frontend -> lowering -> typed IR -> LLVM backend -> host C ABI/toolchain
 The following are intentionally outside the MVP ABI:
 
 - mutable or dynamically allocated strings;
-- non-number arrays, objects, classes, property lookup, and prototype behavior;
+- dynamic objects, class methods/inheritance, prototype behavior, and mutable
+  field assignment;
 - `null` and `undefined` representations;
 - exceptions, stack unwinding, and panic/abort policy;
 - async scheduling, promises, timers, and event-loop integration;
@@ -299,6 +300,74 @@ The following are intentionally outside the MVP ABI:
 
 Unsupported features must be rejected by the native subset gate before backend
 generation. They must not be silently represented as C pointers or host calls.
+
+## Object And Null ABI v2 Design And Initial Slice
+
+Object-shaped values are reserved for `scriptgo.runtime.v2`. This section is a
+The initial static-field slice is implemented by the runtime, interpreter,
+lowering, and LLVM backend. ABI v1 remains active for primitive operations;
+object operations use the v2 symbols below.
+
+### Static object shapes
+
+The first object slice supports only statically known shapes whose fields are
+declared in source order and have primitive or already-supported array types.
+Each shape gets one compiler-emitted descriptor with a stable field order:
+
+```c
+struct scriptgo_shape_v2 {
+    const char *name;
+    uint32_t field_count;
+    const uint32_t *field_offsets;
+};
+
+struct scriptgo_object_v2 {
+    const struct scriptgo_shape_v2 *shape;
+    uint32_t refcount;
+    unsigned char fields[];
+};
+```
+
+The header and field offsets are runtime-owned layout details. Generated code
+must access fields through shape-checked runtime operations, never by emitting
+direct struct offsets. A field operation identifies the shape and field index;
+access to a different shape is a runtime failure.
+
+Objects are allocated with one owned reference and initialized with the
+TypeScript field defaults selected by lowering. `retain` increments the count,
+`release` decrements it, and the final release destroys the object. Runtime
+operations never retain borrowed arguments implicitly. Cycles are outside this
+slice; introducing cyclic object graphs requires a tracing or cycle-aware
+strategy and a new ownership decision.
+
+### `null`, `undefined`, and truthiness
+
+Object references use opaque pointers in LLVM. `null` is the zero pointer and
+`undefined` is a process-lifetime, non-null singleton owned by the runtime;
+they are distinct values and compare unequal. The singleton is never released.
+Primitive fields cannot contain either sentinel in the first object slice.
+
+The runtime provides explicit predicates rather than relying on native pointer
+truthiness:
+
+```text
+scriptgo_value_is_null_v2(value) -> bool
+scriptgo_value_is_undefined_v2(value) -> bool
+scriptgo_value_to_bool_v2(value) -> bool
+```
+
+`to_bool` returns false for `null` and `undefined`, and true for object
+references. Number, string, and boolean truthiness remains defined by the
+source-level lowering contract and must be shared with the interpreter.
+
+### Failure and compatibility
+
+Object allocation, field access, retain, and release return the v1 status shape
+(`0` success, negative failure) and publish a diagnostic through the runtime
+error channel. Lowering must emit status checks before exposing v2 operations
+to user code. ABI v2 requires the same target compatibility checks as v1 and
+cannot be linked against a v1 runtime. Any change to pointer meaning, shape
+identity, ownership, or sentinel representation requires ABI v3.
 
 ## Requirements For A Linked Runtime
 

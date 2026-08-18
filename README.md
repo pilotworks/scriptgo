@@ -23,9 +23,9 @@ modular, reusable compiler infrastructure model described by [LLVM](https://llvm
 The repository now has a working synchronous MVP pipeline. TypeScript-Go parses,
 resolves local modules, and type-checks the reachable graph; scriptgo lowers a
 small subset into verified typed IR, can interpret it, and can emit LLVM IR or
-an executable through Clang. Dense `number[]` arrays are supported; objects,
-exceptions, async code, npm resolution, and full JavaScript compatibility remain
-outside the MVP.
+an executable through Clang. Dense `number[]` arrays and static number/string
+class fields are supported; `null`, `undefined`, exceptions, async code, npm
+resolution, and full JavaScript compatibility remain outside the MVP.
 
 ## Run
 

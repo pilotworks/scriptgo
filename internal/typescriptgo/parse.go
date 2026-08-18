@@ -75,6 +75,20 @@ type SyntaxStatement struct {
 	Expression *SyntaxExpression
 	Parameters []SyntaxParameter
 	Body       []SyntaxStatement
+	Class      *SyntaxClass
+}
+
+type SyntaxClass struct {
+	Span   SourceSpan
+	Name   string
+	Fields []SyntaxField
+}
+
+type SyntaxField struct {
+	Span        SourceSpan
+	Name        string
+	Type        string
+	Initializer *SyntaxExpression
 }
 
 type SyntaxParameter struct {
@@ -369,6 +383,22 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 			}
 		}
 		return result, true
+	case ast.KindClassDeclaration:
+		class := &SyntaxClass{Span: span, Name: node.Name().Text()}
+		for _, member := range node.Members() {
+			if member.Kind != ast.KindPropertyDeclaration {
+				class.Fields = append(class.Fields, SyntaxField{Span: sourceSpan(member), Name: member.Kind.String()})
+				continue
+			}
+			property := member.AsPropertyDeclaration()
+			class.Fields = append(class.Fields, SyntaxField{
+				Span:        sourceSpan(member),
+				Name:        property.Name().Text(),
+				Type:        syntaxType(property.Type),
+				Initializer: syntaxExpression(property.Initializer),
+			})
+		}
+		return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
 	case ast.KindReturnStatement:
 		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
 	case ast.KindExpressionStatement:
@@ -435,6 +465,15 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			Text: node.Name().Text(),
 			Left: syntaxExpression(node.Expression()),
 		}
+	case ast.KindNewExpression:
+		newExpression := node.AsNewExpression()
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "new", Left: syntaxExpression(newExpression.Expression)}
+		if arguments := newExpression.Arguments; arguments != nil {
+			for _, argument := range arguments.Nodes {
+				result.Arguments = append(result.Arguments, syntaxExpression(argument))
+			}
+		}
+		return result
 	default:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}
 	}

@@ -100,9 +100,9 @@ Expand the useful strict subset while keeping runtime behavior explicit.
 
 - [x] Resolve and compile local TypeScript modules with deterministic initialization order.
 - [x] Add runtime-managed number arrays, indexing, and bounds checks.
-- [ ] Add simple classes/object shapes with documented static-layout rules.
-- [ ] Define null/undefined representation and truthiness conversions.
-- [ ] Add integration fixtures for multi-file programs and object/array behavior.
+- [x] Add simple classes/object shapes with documented static-layout rules.
+- [x] Define null/undefined representation and truthiness conversions.
+- [x] Add integration fixtures for multi-file programs and object/array behavior.
 
 Acceptance: a multi-file synchronous program using primitives, arrays, and
 simple classes compiles and matches the reference interpreter on supported cases.

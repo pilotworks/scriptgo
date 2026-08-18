@@ -13,6 +13,12 @@ func (m Module) Dump() (string, error) {
 	}
 	var out strings.Builder
 	fmt.Fprintf(&out, "module %s statements=%d\n", strconv.Quote(m.SourcePath), m.StatementCount)
+	for _, shape := range m.Shapes {
+		fmt.Fprintf(&out, "shape %s %s\n", shape.Name, dumpSpan(shape.Span))
+		for _, field := range shape.Fields {
+			fmt.Fprintf(&out, "  field %s: %s %s\n", field.Name, field.Type, dumpSpan(field.Span))
+		}
+	}
 	for _, function := range m.Functions {
 		fmt.Fprintf(&out, "function %s(%s) -> %s %s\n", function.Name, dumpParameters(function.Parameters), function.ReturnType, dumpSpan(function.Span))
 		for _, instruction := range function.Body {
@@ -41,6 +47,9 @@ func dumpInstruction(instruction Instruction) string {
 	}
 	if instruction.Callee != "" {
 		parts = append(parts, instruction.Callee)
+	}
+	if instruction.Field != "" {
+		parts = append(parts, "."+instruction.Field)
 	}
 	if instruction.Value != "" {
 		parts = append(parts, strconv.Quote(instruction.Value))

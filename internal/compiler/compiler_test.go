@@ -102,6 +102,45 @@ func TestRunSupportsNumberArrayIndexing(t *testing.T) {
 	}
 }
 
+func TestRunSupportsStaticClassFields(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "class Point { x: number = 42; }\nconst point = new Point();\nconsole.log(point.x);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output != "42\n" {
+		t.Fatalf("class output = %q, want %q", output, "42\n")
+	}
+}
+
+func TestBuildSupportsStaticClassFields(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	source := "class Point { x: number = 42; }\nconst point = new Point();\nconsole.log(point.x);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("class executable failed: %v\n%s", err, result)
+	}
+	if string(result) != "42\n" {
+		t.Fatalf("class executable output = %q, want %q", result, "42\n")
+	}
+}
+
 func TestCompileSupportsNumberArrays(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {

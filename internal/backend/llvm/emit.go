@@ -38,6 +38,12 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_number_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_set(ptr, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_release(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_object_new_v2(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_number_set_v2(ptr, i64, double)\n")
+	out.WriteString("declare i32 @scriptgo_object_number_get_v2(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_string_set_v2(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_string_get_v2(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_release_v2(ptr)\n\n")
 	out.WriteString("@.fmt.num = private unnamed_addr constant [4 x i8] c\"%g\\0A\\00\"\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
@@ -47,7 +53,7 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("@.false = private unnamed_addr constant [6 x i8] c\"false\\00\"\n\n")
 
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue)
+		text, err := emitFunction(function, functions, stringsByValue, module.Shapes)
 		if err != nil {
 			return "", err
 		}
@@ -56,7 +62,7 @@ func Emit(module ir.Module) (string, error) {
 	return out.String(), nil
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, shapes []ir.ObjectShape) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	name := function.Name
 	if name == "main" {
@@ -74,6 +80,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 	types := map[string]ir.Type{}
 	arrays := []string{}
+	objects := []string{}
 	for _, parameter := range function.Parameters {
 		types[parameter.Name] = parameter.Type
 	}
@@ -156,6 +163,57 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", instruction.Args[0], instruction.Args[1], slot))
 			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		case ir.OpObjectNew:
+			shape, ok := findShape(shapes, instruction.Callee)
+			if !ok {
+				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
+			}
+			types[instruction.Result] = instruction.Type
+			objects = append(objects, instruction.Result)
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new_v2(i64 %d, ptr %%%s)\n", len(shape.Fields), slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		case ir.OpFieldSet:
+			shape, ok := findShape(shapes, instruction.Callee)
+			if !ok {
+				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
+			}
+			field, index, ok := findField(shape, instruction.Field)
+			if !ok {
+				return "", fmt.Errorf("unknown field %q on object %q", instruction.Field, instruction.Callee)
+			}
+			switch field.Type {
+			case ir.TypeNumber:
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set_v2(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+			case ir.TypeString:
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, instruction.Args[1]))
+			default:
+				return "", fmt.Errorf("unsupported object field type %s", field.Type)
+			}
+		case ir.OpFieldGet:
+			shape, ok := findShape(shapes, instruction.Callee)
+			if !ok {
+				return "", fmt.Errorf("unknown object shape %q", instruction.Callee)
+			}
+			field, index, ok := findField(shape, instruction.Field)
+			if !ok {
+				return "", fmt.Errorf("unknown field %q on object %q", instruction.Field, instruction.Callee)
+			}
+			types[instruction.Result] = instruction.Type
+			slot := instruction.Result + ".slot"
+			switch field.Type {
+			case ir.TypeNumber:
+				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+			case ir.TypeString:
+				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get_v2(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], index, slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			default:
+				return "", fmt.Errorf("unsupported object field type %s", field.Type)
+			}
 		case ir.OpCall:
 			callee, ok := functions[instruction.Callee]
 			if !ok {
@@ -182,6 +240,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			for _, array := range arrays {
 				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
 			}
+			for _, object := range objects {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release_v2(ptr %%%s)\n", object))
+			}
 			if function.Name == "main" {
 				out.WriteString("  ret i32 0\n")
 			} else if len(instruction.Args) == 0 {
@@ -197,6 +258,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	if !terminated {
 		for _, array := range arrays {
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_release(ptr %%%s)\n", array))
+		}
+		for _, object := range objects {
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release_v2(ptr %%%s)\n", object))
 		}
 		if function.Name == "main" {
 			out.WriteString("  ret i32 0\n")
@@ -220,9 +284,32 @@ func llvmType(typ ir.Type) string {
 		return "i1"
 	case ir.TypeVoid:
 		return "void"
+	case ir.TypeObject:
+		return "ptr"
 	default:
+		if strings.HasPrefix(string(typ), string(ir.TypeObject)+":") {
+			return "ptr"
+		}
 		return string(typ)
 	}
+}
+
+func findShape(shapes []ir.ObjectShape, name string) (ir.ObjectShape, bool) {
+	for _, shape := range shapes {
+		if shape.Name == name {
+			return shape, true
+		}
+	}
+	return ir.ObjectShape{}, false
+}
+
+func findField(shape ir.ObjectShape, name string) (ir.Field, int, bool) {
+	for index, field := range shape.Fields {
+		if field.Name == name {
+			return field, index, true
+		}
+	}
+	return ir.Field{}, 0, false
 }
 
 func llvmNumber(value float64) string {

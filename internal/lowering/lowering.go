@@ -4,6 +4,7 @@ package lowering
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -16,6 +17,20 @@ func Lower(program frontend.Program) (ir.Module, error) {
 		return ir.Module{}, err
 	}
 	module := ir.Module{SourcePath: program.EntryPath, StatementCount: program.StatementCount}
+	shapes := map[string]ir.ObjectShape{}
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
+			if statement.Kind != "class" || statement.Class == nil {
+				continue
+			}
+			shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
+			for _, field := range statement.Class.Fields {
+				shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: field.Initializer.Text, Span: toIRSpan(file.FileName, field.Span)})
+			}
+			shapes[shape.Name] = shape
+			module.Shapes = append(module.Shapes, shape)
+		}
+	}
 
 	main := ir.Function{Name: "main", ReturnType: ir.TypeVoid}
 	env := map[string]ir.Type{}
@@ -23,7 +38,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "function" {
-				function, err := lowerFunction(file.FileName, statement)
+				function, err := lowerFunction(file.FileName, statement, shapes)
 				if err != nil {
 					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))
 				}
@@ -33,7 +48,10 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			if statement.Kind == "module" {
 				continue
 			}
-			if err := lowerStatement(file.FileName, statement, &main, env, &counter); err != nil {
+			if statement.Kind == "class" {
+				continue
+			}
+			if err := lowerStatement(file.FileName, statement, &main, env, &counter, shapes); err != nil {
 				return ir.Module{}, fmt.Errorf("lower %s: %w", statement.Kind, sourceError(file.FileName, statement.Span, err))
 			}
 		}
@@ -46,7 +64,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	return module, nil
 }
 
-func lowerFunction(path string, statement typescriptgo.SyntaxStatement) (ir.Function, error) {
+func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape) (ir.Function, error) {
 	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRType(statement.Type)}
 	if function.ReturnType == "" {
 		function.ReturnType = ir.TypeVoid
@@ -63,7 +81,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement) (ir.Func
 	counter := 0
 	returned := false
 	for _, bodyStatement := range statement.Body {
-		if err := lowerStatement(path, bodyStatement, &function, env, &counter); err != nil {
+		if err := lowerStatement(path, bodyStatement, &function, env, &counter, shapes); err != nil {
 			return ir.Function{}, sourceError(path, bodyStatement.Span, err)
 		}
 		if bodyStatement.Kind == "return" {
@@ -79,13 +97,13 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement) (ir.Func
 	return function, nil
 }
 
-func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int) error {
+func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape) error {
 	switch statement.Kind {
 	case "variable":
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
 		}
-		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter)
+		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes)
 		if err != nil {
 			return err
 		}
@@ -97,25 +115,27 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Expression == nil {
 			return fmt.Errorf("empty expression")
 		}
-		_, _, err := lowerExpression(path, statement.Expression, "", function, env, counter)
+		_, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes)
 		return err
 	case "return":
 		if statement.Expression == nil {
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
-		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter)
+		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes)
 		if err != nil {
 			return err
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+	case "class":
+		return nil
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)
 	}
 	return nil
 }
 
-func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int) (string, ir.Type, error) {
+func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape) (string, ir.Type, error) {
 	switch expression.Kind {
 	case "number":
 		typ := ir.TypeNumber
@@ -147,7 +167,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		arguments := make([]string, 0, len(expression.Arguments))
 		for _, element := range expression.Arguments {
-			value, typ, err := lowerExpression(path, element, "", function, env, counter)
+			value, typ, err := lowerExpression(path, element, "", function, env, counter, shapes)
 			if err != nil {
 				return "", "", err
 			}
@@ -159,11 +179,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeNumberArray, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeNumberArray, nil
 	case "index":
-		array, arrayType, err := lowerExpression(path, expression.Left, "", function, env, counter)
+		array, arrayType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes)
 		if err != nil {
 			return "", "", err
 		}
-		index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter)
+		index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes)
 		if err != nil {
 			return "", "", err
 		}
@@ -182,11 +202,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		return expression.Text, typ, nil
 	case "binary":
-		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter)
+		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes)
 		if err != nil {
 			return "", "", err
 		}
-		right, rightType, err := lowerExpression(path, expression.Right, "", function, env, counter)
+		right, rightType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes)
 		if err != nil {
 			return "", "", err
 		}
@@ -199,14 +219,49 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 		return result, leftType, nil
 	case "property":
-		return "", "", fmt.Errorf("property access %q is only supported as a call target", expression.Text)
+		object, objectType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes)
+		if err != nil {
+			return "", "", err
+		}
+		className := strings.TrimPrefix(string(objectType), "object:")
+		shape, ok := shapes[className]
+		if !ok {
+			return "", "", fmt.Errorf("unknown object shape %q", className)
+		}
+		for _, field := range shape.Fields {
+			if field.Name != expression.Text {
+				continue
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: field.Type, Result: result, Callee: className, Field: field.Name, Args: []string{object}, Span: toIRSpan(path, expression.Span)})
+			return result, field.Type, nil
+		}
+		return "", "", fmt.Errorf("unknown field %q on object %q", expression.Text, className)
+	case "new":
+		className := callName(expression.Left)
+		shape, ok := shapes[className]
+		if !ok {
+			return "", "", fmt.Errorf("unknown class %q", className)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpObjectNew, Type: ir.Type("object:" + className), Result: result, Callee: className, Span: toIRSpan(path, expression.Span)})
+		for _, field := range shape.Fields {
+			initializer := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, Args: []string{result, initializer}, Span: field.Span})
+		}
+		return result, ir.Type("object:" + className), nil
 	case "call":
 		callee := callName(expression.Left)
 		if callee == "console.log" {
 			if len(expression.Arguments) != 1 {
 				return "", "", fmt.Errorf("console.log requires one argument")
 			}
-			argument, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter)
+			argument, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes)
 			if err != nil {
 				return "", "", err
 			}
@@ -218,7 +273,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		args := make([]string, 0, len(expression.Arguments))
 		for _, argument := range expression.Arguments {
-			value, _, err := lowerExpression(path, argument, "", function, env, counter)
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes)
 			if err != nil {
 				return "", "", err
 			}

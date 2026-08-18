@@ -24,6 +24,27 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 	switch statement.Kind {
 	case "module":
 		return nil
+	case "class":
+		if statement.Class == nil || len(statement.Class.Fields) == 0 {
+			return subsetError(fileName, statement.Span, "empty class shape")
+		}
+		for _, field := range statement.Class.Fields {
+			if field.Type != "number" && field.Type != "string" {
+				return subsetError(fileName, field.Span, "class field type "+field.Type)
+			}
+			if field.Initializer != nil {
+				if err := validateExpression(fileName, field.Initializer); err != nil {
+					return err
+				}
+				if field.Initializer == nil {
+					return subsetError(fileName, field.Span, "class field without initializer")
+				}
+				if field.Initializer.Kind != "number" && field.Initializer.Kind != "string" && field.Initializer.Kind != "bool" {
+					return subsetError(fileName, field.Span, "non-literal class field initializer")
+				}
+			}
+		}
+		return nil
 	case "variable":
 		if statement.Expression == nil {
 			return subsetError(fileName, statement.Span, "variable declaration without an initializer")
@@ -72,6 +93,19 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return nil
 		}
 		return subsetError(fileName, expression.Span, "nested property access")
+	case "new":
+		for _, argument := range expression.Arguments {
+			if err := validateExpression(fileName, argument); err != nil {
+				return err
+			}
+		}
+		if callName(expression.Left) == "" {
+			return subsetError(fileName, expression.Span, "dynamic constructor target")
+		}
+		if len(expression.Arguments) != 0 {
+			return subsetError(fileName, expression.Span, "class constructors with arguments")
+		}
+		return nil
 	case "binary":
 		if err := validateExpression(fileName, expression.Left); err != nil {
 			return err

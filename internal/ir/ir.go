@@ -1,13 +1,30 @@
 // Package ir defines the stable contract between the frontend and native backends.
 package ir
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Module is the first typed IR unit. Instructions will be added as lowering grows.
 type Module struct {
 	SourcePath     string
 	StatementCount int
+	Shapes         []ObjectShape
 	Functions      []Function
+}
+
+type ObjectShape struct {
+	Name   string
+	Span   SourceSpan
+	Fields []Field
+}
+
+type Field struct {
+	Name  string
+	Type  Type
+	Value string
+	Span  SourceSpan
 }
 
 type SourceSpan struct {
@@ -37,6 +54,7 @@ const (
 	TypeNumber      Type = "number"
 	TypeString      Type = "string"
 	TypeNumberArray Type = "number[]"
+	TypeObject      Type = "object"
 )
 
 type Instruction struct {
@@ -46,19 +64,23 @@ type Instruction struct {
 	Value    string
 	Operator string
 	Callee   string
+	Field    string
 	Args     []string
 	Span     SourceSpan
 }
 
 const (
-	OpConst  = "const"
-	OpBinary = "binary"
-	OpCall   = "call"
-	OpPrint  = "print"
-	OpParam  = "param"
-	OpReturn = "return"
-	OpArray  = "array"
-	OpIndex  = "index"
+	OpConst     = "const"
+	OpBinary    = "binary"
+	OpCall      = "call"
+	OpPrint     = "print"
+	OpParam     = "param"
+	OpReturn    = "return"
+	OpArray     = "array"
+	OpIndex     = "index"
+	OpObjectNew = "object.new"
+	OpFieldGet  = "field.get"
+	OpFieldSet  = "field.set"
 )
 
 // Verify checks the invariants required by every native backend.
@@ -69,6 +91,16 @@ func (m Module) Verify() error {
 	for _, function := range m.Functions {
 		if err := function.Verify(); err != nil {
 			return fmt.Errorf("function %q: %w", function.Name, err)
+		}
+	}
+	for _, shape := range m.Shapes {
+		if shape.Name == "" || len(shape.Fields) == 0 {
+			return fmt.Errorf("invalid object shape %q", shape.Name)
+		}
+		for _, field := range shape.Fields {
+			if field.Name == "" || field.Type == "" {
+				return fmt.Errorf("invalid field in object shape %q", shape.Name)
+			}
 		}
 	}
 	return nil
@@ -96,7 +128,7 @@ func (f Function) Verify() error {
 			}
 		}
 		switch instruction.Op {
-		case OpConst, OpBinary, OpCall, OpParam, OpArray, OpIndex:
+		case OpConst, OpBinary, OpCall, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
 			}
@@ -121,10 +153,20 @@ func (f Function) Verify() error {
 					return fmt.Errorf("index instruction must produce a number")
 				}
 			}
+			if instruction.Op == OpObjectNew && !strings.HasPrefix(string(instruction.Type), string(TypeObject)+":") {
+				return fmt.Errorf("object.new must produce a shaped object")
+			}
+			if instruction.Op == OpFieldGet && len(instruction.Args) != 1 {
+				return fmt.Errorf("field.get requires one object operand")
+			}
 			known[instruction.Result] = instruction.Type
 		case OpPrint:
 			if len(instruction.Args) != 1 {
 				return fmt.Errorf("print instruction requires one argument")
+			}
+		case OpFieldSet:
+			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" {
+				return fmt.Errorf("field.set requires object, value, and field")
 			}
 		case OpReturn:
 			if instruction.Type != f.ReturnType {
