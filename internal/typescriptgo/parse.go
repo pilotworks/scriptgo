@@ -29,10 +29,22 @@ type Diagnostic struct {
 // SourceFile is the normalized source-file metadata exposed to scriptgo.
 type SourceFile struct {
 	FileName       string
+	Source         string
 	StatementCount int
 	Span           SourceSpan
 	Imports        []ModuleReference
+	Symbols        []Symbol
 	Syntax         SyntaxFile
+}
+
+// Symbol is stable declaration metadata for frontend consumers. TypeScript-Go
+// remains responsible for resolving and formatting the underlying type.
+type Symbol struct {
+	Name     string
+	Kind     string
+	Type     string
+	Span     SourceSpan
+	Exported bool
 }
 
 // ModuleReference records a TypeScript-Go-resolved local module edge.
@@ -83,8 +95,18 @@ type SyntaxExpression struct {
 
 // ProgramResult contains the resolved files and all frontend diagnostics.
 type ProgramResult struct {
+	Options     CompilerOptions
 	Files       []SourceFile
 	Diagnostics []Diagnostic
+}
+
+// CompilerOptions records the normalized TypeScript-Go options used by the
+// checked program, without exposing upstream option types across the boundary.
+type CompilerOptions struct {
+	Target           string
+	Module           string
+	ModuleResolution string
+	Strict           bool
 }
 
 // ParseResult contains the parser output needed by the native frontend.
@@ -151,6 +173,12 @@ func Check(entryPath string) (ProgramResult, error) {
 	})
 
 	result := ProgramResult{}
+	result.Options = CompilerOptions{
+		Target:           "ES2020",
+		Module:           "ESNext",
+		ModuleResolution: "Bundler",
+		Strict:           true,
+	}
 	ctx := context.Background()
 	files := make(map[string]*ast.SourceFile)
 	for _, file := range program.GetSourceFiles() {
@@ -165,9 +193,11 @@ func Check(entryPath string) (ProgramResult, error) {
 		}
 		result.Files = append(result.Files, SourceFile{
 			FileName:       file.FileName(),
+			Source:         file.Text(),
 			StatementCount: statementCount(file),
 			Span:           sourceSpan(&file.Node),
 			Imports:        moduleReferences(program, file),
+			Symbols:        fileSymbols(program, ctx, file),
 			Syntax:         syntaxFile(file),
 		})
 		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
@@ -175,6 +205,72 @@ func Check(entryPath string) (ProgramResult, error) {
 	}
 	result.Diagnostics = append(result.Diagnostics, convertDiagnostics("program", program.GetProgramDiagnostics())...)
 	return result, nil
+}
+
+func fileSymbols(program *compiler.Program, ctx context.Context, file *ast.SourceFile) []Symbol {
+	checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)
+	defer done()
+	names := make([]string, 0, len(file.Locals))
+	for name := range file.Locals {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]Symbol, 0, len(names))
+	for _, name := range names {
+		symbol := file.Locals[name]
+		if symbol == nil || symbol.Name == "" {
+			continue
+		}
+		declaration := symbol.ValueDeclaration
+		if declaration == nil && len(symbol.Declarations) > 0 {
+			declaration = symbol.Declarations[0]
+		}
+		if declaration == nil {
+			continue
+		}
+		if declaration.Name() != nil {
+			if namedSymbol := checkerInstance.GetSymbolAtLocation(declaration.Name()); namedSymbol != nil {
+				symbol = namedSymbol
+			}
+		}
+		typ := checkerInstance.GetTypeOfSymbol(symbol)
+		if declaration.Name() != nil {
+			typ = checkerInstance.GetTypeAtLocation(declaration.Name())
+		}
+		exported := false
+		for parent := declaration; parent != nil; parent = parent.Parent {
+			if ast.HasSyntacticModifier(parent, ast.ModifierFlagsExport) {
+				exported = true
+				break
+			}
+		}
+		result = append(result, Symbol{
+			Name:     symbol.Name,
+			Kind:     symbolKind(symbol.Flags),
+			Type:     checkerInstance.TypeToString(typ),
+			Span:     sourceSpan(declaration),
+			Exported: exported,
+		})
+	}
+	return result
+}
+
+func symbolKind(flags ast.SymbolFlags) string {
+	for _, candidate := range []struct {
+		flag ast.SymbolFlags
+		name string
+	}{
+		{ast.SymbolFlagsFunction, "function"},
+		{ast.SymbolFlagsClass, "class"},
+		{ast.SymbolFlagsInterface, "interface"},
+		{ast.SymbolFlagsTypeAlias, "type"},
+		{ast.SymbolFlagsVariable, "variable"},
+	} {
+		if flags&candidate.flag != 0 {
+			return candidate.name
+		}
+	}
+	return "symbol"
 }
 
 func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleReference {

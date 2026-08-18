@@ -13,6 +13,8 @@ type Program struct {
 	EntryPath      string
 	Source         string
 	StatementCount int
+	Options        typescriptgo.CompilerOptions
+	Diagnostics    []typescriptgo.Diagnostic
 	// Files are ordered with local dependencies before their importers.
 	Files []typescriptgo.SourceFile
 }
@@ -62,6 +64,8 @@ func NewProgram(entryPath, source string) (Program, error) {
 		EntryPath:      absoluteEntry,
 		Source:         source,
 		StatementCount: statementCount,
+		Options:        parsed.Options,
+		Diagnostics:    parsed.Diagnostics,
 		Files:          parsed.Files,
 	}, nil
 }

@@ -92,3 +92,39 @@ func TestCheckNormalizesArrayLiteralAndIndexing(t *testing.T) {
 		t.Fatalf("indexing syntax = %+v, want console.log(values[1])", index)
 	}
 }
+
+func TestCheckExposesStableFrontendContract(t *testing.T) {
+	dir := t.TempDir()
+	dependency := filepath.Join(dir, "answer.ts")
+	entry := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(dependency, []byte("export const answer: number = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("import { answer } from './answer';\nconsole.log(answer);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Options.Target != "ES2020" || result.Options.Module != "ESNext" || !result.Options.Strict {
+		t.Fatalf("compiler options = %+v, want normalized strict ES2020/ESNext options", result.Options)
+	}
+	if len(result.Files) != 2 || result.Files[0].Source == "" {
+		t.Fatalf("source files = %+v, want source text for both reachable files", result.Files)
+	}
+	if len(result.Files[0].Symbols) != 1 {
+		t.Fatalf("dependency symbols = %+v, want one symbol", result.Files[0].Symbols)
+	}
+	symbol := result.Files[0].Symbols[0]
+	if symbol.Name != "answer" || symbol.Kind != "variable" || symbol.Type != "number" || !symbol.Exported {
+		t.Fatalf("answer symbol = %+v, want exported number variable", symbol)
+	}
+	if symbol.Span.Length == 0 || symbol.Span.Start < 0 {
+		t.Fatalf("answer symbol span = %+v, want source span", symbol.Span)
+	}
+	if len(result.Files[1].Imports) != 1 || result.Files[1].Imports[0].Span.Length == 0 {
+		t.Fatalf("import references = %+v, want source-anchored module edge", result.Files[1].Imports)
+	}
+}
