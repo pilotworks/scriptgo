@@ -171,6 +171,24 @@ func TestBuildReportsNativeArrayBoundsFailure(t *testing.T) {
 	}
 }
 
+func BenchmarkBuildNative(b *testing.B) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		b.Skip("clang is not installed")
+	}
+	dir := b.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	if err := os.WriteFile(entry, []byte("console.log(20 + 22);\n"), 0o644); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := Build(entry, output); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestCompileRejectsUnsupportedEntry(t *testing.T) {
 	if _, err := Compile("main.js"); err == nil {
 		t.Fatal("Compile accepted a non-TypeScript entry point")

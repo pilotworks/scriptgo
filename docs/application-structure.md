@@ -120,7 +120,7 @@ internal/
 ├── ir/
 │   ├── ir.go                    # Existing module/type/instruction model
 │   ├── verify.go                # Planned: IR validity checks
-│   └── dump.go                  # Planned: stable human-readable IR output
+│   └── dump.go                  # Stable human-readable IR output
 ├── runtime/                     # ABI plus native runtime implementations by value family
 │   ├── README.md                # Runtime ownership and package boundaries
 │   ├── abi/README.md            # Current ABI contract

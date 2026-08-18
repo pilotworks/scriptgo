@@ -27,7 +27,7 @@ Make the frontend return a stable, checked compilation unit instead of only a
 statement count.
 
 - [x] Pin the compatible TypeScript-Go revision in `internal/typescriptgo/go.mod`.
-- [ ] Add source files, compiler options, symbols/types, module references, and source spans to the adapter contract.
+- [x] Add source files, compiler options, symbols/types, module references, and source spans to the adapter contract.
 - [x] Run binding, local module resolution, and type checking for the entry point.
 - [x] Define a native subset feature matrix and reject unsupported constructs with actionable diagnostics.
 - [x] Add tests for valid programs, type errors, and local imports.
@@ -114,18 +114,19 @@ Dependencies: Milestone 3. Estimated scope: Large.
 
 ### Checkpoint B: Native MVP Release
 
-- [ ] One-command build produces a runnable host executable.
-- [ ] The supported-language subset is documented and enforced.
-- [ ] Runtime ABI version and target assumptions are explicit.
-- [ ] Diagnostics and test fixtures cover every supported MVP construct.
-- [ ] Benchmark and smoke-test results are recorded.
+- [x] One-command build produces a runnable host executable.
+- [x] The supported-language subset is documented and enforced.
+- [x] Runtime ABI version and target assumptions are explicit.
+- [x] Diagnostics and test fixtures cover every supported MVP construct.
+- [x] Benchmark and smoke-test results are recorded.
 
 ### Milestone 5: Errors, Debugging, and Tooling
 
 Make failures and intermediate artifacts usable during compiler development.
 
-- [ ] Lower unsupported constructs into source-anchored diagnostics.
-- [ ] Add IR dumps, LLVM dumps, diagnostic verbosity, and reproducible build metadata.
+- [x] Lower unsupported constructs into source-anchored diagnostics.
+- [x] Add IR dumps, LLVM dumps, and diagnostic verbosity.
+- [ ] Add reproducible build metadata.
 - [ ] Preserve source locations in LLVM debug metadata where feasible.
 - [ ] Add sanitizer, leak, and runtime failure test modes.
 - [ ] Document compiler flags, target selection, and runtime compatibility.
@@ -195,3 +196,16 @@ Each item should leave the repository passing `go test ./...` and building with
 - Is Clang/LLVM 18 available in every supported development and CI environment?
 - Which memory strategy is acceptable for the first object runtime: ownership, reference counting, or garbage collection?
 - Which strict TypeScript constructs are required for the first real user program beyond the documented `add` example?
+
+## Current Target Assumptions
+
+- Development and MVP smoke tests target macOS ARM64 (`darwin/arm64`).
+- Native builds use the `clang` executable available in `PATH`; the current
+  verification host uses Apple Clang 21.
+- LLVM output uses opaque pointers and the host C ABI; target selection and
+  cross-compilation are not yet exposed as CLI options.
+- The standard smoke fixture is `console.log(20 + 22)`, and the native build
+  benchmark is `BenchmarkBuildNative` in `internal/compiler/compiler_test.go`.
+- Run `go test ./...`, `go build ./cmd/scriptgo`, and
+  `go test ./internal/compiler -run '^$' -bench BenchmarkBuildNative -benchtime=1x`
+  to repeat the baseline checks.

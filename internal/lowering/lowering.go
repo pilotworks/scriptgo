@@ -25,7 +25,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			if statement.Kind == "function" {
 				function, err := lowerFunction(file.FileName, statement)
 				if err != nil {
-					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, err)
+					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))
 				}
 				module.Functions = append(module.Functions, function)
 				continue
@@ -34,7 +34,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 				continue
 			}
 			if err := lowerStatement(file.FileName, statement, &main, env, &counter); err != nil {
-				return ir.Module{}, fmt.Errorf("lower %s: %w", statement.Kind, err)
+				return ir.Module{}, fmt.Errorf("lower %s: %w", statement.Kind, sourceError(file.FileName, statement.Span, err))
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement) (ir.Func
 	returned := false
 	for _, bodyStatement := range statement.Body {
 		if err := lowerStatement(path, bodyStatement, &function, env, &counter); err != nil {
-			return ir.Function{}, err
+			return ir.Function{}, sourceError(path, bodyStatement.Span, err)
 		}
 		if bodyStatement.Kind == "return" {
 			returned = true
@@ -272,4 +272,11 @@ func toIRType(value string) ir.Type {
 
 func toIRSpan(path string, span typescriptgo.SourceSpan) ir.SourceSpan {
 	return ir.SourceSpan{Path: path, Offset: span.Start, Length: span.Length}
+}
+
+func sourceError(path string, span typescriptgo.SourceSpan, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s:%d+%d: %w", path, span.Start, span.Length, err)
 }
