@@ -6,10 +6,10 @@ not a description of TypeScript or JavaScript semantics. TypeScript parsing,
 binding, module resolution, and type checking remain owned by TypeScript-Go;
 the reference interpreter remains in [`internal/interpreter`](../interpreter/).
 
-The repository currently implements only the MVP host C ABI. This document now
-freezes the scope of linked runtime ABI v1 for primitive values. ABI v1 is a
-design contract, not an implemented library; managed values deliberately remain
-outside this version and require a separate ABI decision before Milestone 4.
+The repository currently implements only the MVP host C ABI. This document
+freezes linked runtime ABI v1 for primitive values and records the first
+managed-array design for ABI v2. ABI v2 is a contract for the future linked
+runtime and is not yet emitted by the LLVM backend.
 
 ## Scope And Status
 
@@ -19,7 +19,7 @@ outside this version and require a separate ABI decision before Milestone 4.
 | Numeric output | Host C ABI | `printf("%g\\n", value)` |
 | String output | Host C ABI | `puts(value)` |
 | Boolean output | Compiler-generated static strings + host C ABI | Selects `"true"` or `"false"`, then calls `puts` |
-| Managed values | Not implemented | No runtime object, array, string, or error library exists |
+| Managed values | Arrays specified for ABI v2; not linked | No runtime object, array, string, or error library exists |
 | Ownership and cleanup | Not applicable to MVP literals | No runtime allocation is performed |
 | Runtime errors | v1 policy specified; no fallible operation enabled | Lowering and backend errors stop compilation; libc return values are ignored |
 | ABI versioning | Linked ABI v1 specified; not implemented | The current generated code still uses the temporary host C ABI |
@@ -121,6 +121,55 @@ The runtime package must not become a second interpreter, a TypeScript
 front-end, or a collection of backend helpers. A new runtime operation belongs
 here only when its native representation, ownership, failure behavior, and
 tests are specified.
+
+## Linked Runtime ABI v2: Primitive Arrays
+
+ABI v2 adds only dense, mutable arrays of `number` values. The first array
+runtime does not expose JavaScript prototype behavior, sparse holes, object
+elements, or arbitrary property keys.
+
+The runtime-owned layout is:
+
+```text
+struct scriptgo_array_number_v2 {
+    i64 length;
+    i64 capacity;
+    double *data;
+}
+```
+
+Generated code passes an opaque pointer to this header. `length` is the number
+of initialized elements and `capacity` is the allocated element capacity;
+both are non-negative and `length <= capacity`. `data` points to contiguous
+`double` elements and is runtime-owned. Generated code must use runtime
+operations rather than direct field access so the runtime can change layout
+details in a future minor release.
+
+The required operations are:
+
+```text
+scriptgo_array_number_new_v2(length, out_array) -> status
+scriptgo_array_number_get_v2(array, index, out_value) -> status
+scriptgo_array_number_set_v2(array, index, value) -> status
+scriptgo_array_number_length_v2(array, out_length) -> status
+scriptgo_array_number_release_v2(array) -> status
+```
+
+Allocation initializes every element to `0.0`. `get`, `set`, and `length`
+reject a null handle. `get` and `set` reject a negative, fractional, NaN, or
+out-of-range index with a stable bounds error; they never read or write past
+the allocation. `release` accepts null as a no-op and invalidates the handle.
+
+Ownership is explicit: `new` returns one owned reference, values stored in an
+array are copied as `double`, and `release` consumes the caller's ownership.
+The current interpreter models the same observable array and bounds semantics;
+the linked implementation and LLVM lowering remain future work.
+
+ABI v2 uses the same platform C calling convention and status policy as v1:
+zero is success, negative values are failures, and the runtime owns error text
+until the next runtime call on the same execution context. Native array
+lowering must remain disabled until these operations and their failure tests
+exist.
 
 ## MVP Contract
 

@@ -32,10 +32,11 @@ type Parameter struct {
 type Type string
 
 const (
-	TypeVoid   Type = "void"
-	TypeBool   Type = "bool"
-	TypeNumber Type = "number"
-	TypeString Type = "string"
+	TypeVoid        Type = "void"
+	TypeBool        Type = "bool"
+	TypeNumber      Type = "number"
+	TypeString      Type = "string"
+	TypeNumberArray Type = "number[]"
 )
 
 type Instruction struct {
@@ -56,6 +57,8 @@ const (
 	OpPrint  = "print"
 	OpParam  = "param"
 	OpReturn = "return"
+	OpArray  = "array"
+	OpIndex  = "index"
 )
 
 // Verify checks the invariants required by every native backend.
@@ -93,9 +96,30 @@ func (f Function) Verify() error {
 			}
 		}
 		switch instruction.Op {
-		case OpConst, OpBinary, OpCall, OpParam:
+		case OpConst, OpBinary, OpCall, OpParam, OpArray, OpIndex:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
+			}
+			if instruction.Op == OpArray {
+				if instruction.Type != TypeNumberArray {
+					return fmt.Errorf("array instruction has unsupported type %q", instruction.Type)
+				}
+				for _, argument := range instruction.Args {
+					if known[argument] != TypeNumber {
+						return fmt.Errorf("array element %q is not a number", argument)
+					}
+				}
+			}
+			if instruction.Op == OpIndex {
+				if len(instruction.Args) != 2 {
+					return fmt.Errorf("index instruction requires array and index operands")
+				}
+				if known[instruction.Args[0]] != TypeNumberArray || known[instruction.Args[1]] != TypeNumber {
+					return fmt.Errorf("index instruction requires number[] and number operands")
+				}
+				if instruction.Type != TypeNumber {
+					return fmt.Errorf("index instruction must produce a number")
+				}
 			}
 			known[instruction.Result] = instruction.Type
 		case OpPrint:

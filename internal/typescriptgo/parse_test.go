@@ -63,3 +63,32 @@ func TestCheckReportsSemanticDiagnostics(t *testing.T) {
 		t.Fatalf("Check diagnostics do not describe the type error: %+v", result.Diagnostics)
 	}
 }
+
+func TestCheckNormalizesArrayLiteralAndIndexing(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics: %+v", result.Diagnostics)
+	}
+	if len(result.Files) != 1 || len(result.Files[0].Syntax.Statements) != 2 {
+		t.Fatalf("unexpected syntax files: %+v", result.Files)
+	}
+	variable := result.Files[0].Syntax.Statements[0]
+	if variable.Type != "number[]" || variable.Expression == nil || variable.Expression.Kind != "array" {
+		t.Fatalf("array declaration = %+v, want number[] array expression", variable)
+	}
+	if len(variable.Expression.Arguments) != 2 {
+		t.Fatalf("array elements = %+v, want two elements", variable.Expression.Arguments)
+	}
+	index := result.Files[0].Syntax.Statements[1].Expression
+	if index == nil || index.Kind != "call" || len(index.Arguments) != 1 || index.Arguments[0].Kind != "index" {
+		t.Fatalf("indexing syntax = %+v, want console.log(values[1])", index)
+	}
+}

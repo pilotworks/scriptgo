@@ -138,6 +138,43 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
+	case "array":
+		if len(expression.Arguments) == 0 {
+			return "", "", fmt.Errorf("empty array literal needs an explicit runtime representation")
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		arguments := make([]string, 0, len(expression.Arguments))
+		for _, element := range expression.Arguments {
+			value, typ, err := lowerExpression(path, element, "", function, env, counter)
+			if err != nil {
+				return "", "", err
+			}
+			if typ != ir.TypeNumber {
+				return "", "", fmt.Errorf("array literal currently supports number elements only")
+			}
+			arguments = append(arguments, value)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeNumberArray, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeNumberArray, nil
+	case "index":
+		array, arrayType, err := lowerExpression(path, expression.Left, "", function, env, counter)
+		if err != nil {
+			return "", "", err
+		}
+		index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter)
+		if err != nil {
+			return "", "", err
+		}
+		if arrayType != ir.TypeNumberArray || indexType != ir.TypeNumber {
+			return "", "", fmt.Errorf("array indexing requires number[] and number operands")
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIndex, Type: ir.TypeNumber, Result: result, Args: []string{array, index}, Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeNumber, nil
 	case "identifier":
 		typ, ok := env[expression.Text]
 		if !ok {
@@ -224,6 +261,8 @@ func toIRType(value string) ir.Type {
 		return ir.TypeString
 	case "bool":
 		return ir.TypeBool
+	case "number[]":
+		return ir.TypeNumberArray
 	case "void", "":
 		return ir.TypeVoid
 	default:

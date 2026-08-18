@@ -316,6 +316,22 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
 		return result
+	case ast.KindArrayLiteralExpression:
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "array"}
+		if elements := node.AsArrayLiteralExpression().Elements; elements != nil {
+			for _, element := range elements.Nodes {
+				result.Arguments = append(result.Arguments, syntaxExpression(element))
+			}
+		}
+		return result
+	case ast.KindElementAccessExpression:
+		element := node.AsElementAccessExpression()
+		return &SyntaxExpression{
+			Span:  sourceSpan(node),
+			Kind:  "index",
+			Left:  syntaxExpression(element.Expression),
+			Right: syntaxExpression(element.ArgumentExpression),
+		}
 	case ast.KindPropertyAccessExpression:
 		return &SyntaxExpression{
 			Span: sourceSpan(node),
@@ -352,6 +368,9 @@ func syntaxType(node *ast.Node) string {
 		return "bool"
 	case ast.KindVoidKeyword:
 		return "void"
+	case ast.KindArrayType:
+		array := node.AsArrayTypeNode()
+		return syntaxType(array.ElementType) + "[]"
 	default:
 		return node.Kind.String()
 	}

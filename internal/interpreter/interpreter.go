@@ -5,6 +5,7 @@ package interpreter
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -15,6 +16,7 @@ type Value struct {
 	Number float64
 	String string
 	Bool   bool
+	Array  []Value
 }
 
 type Result struct {
@@ -77,10 +79,40 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 				return Value{}, err
 			}
 			env[instruction.Result] = value
+		case ir.OpArray:
+			array := make([]Value, 0, len(instruction.Args))
+			for _, name := range instruction.Args {
+				value, err := lookup(env, []string{name}, 0)
+				if err != nil {
+					return Value{}, err
+				}
+				array = append(array, value)
+			}
+			env[instruction.Result] = Value{Type: ir.TypeNumberArray, Array: array}
+		case ir.OpIndex:
+			array, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, err
+			}
+			index, err := lookup(env, instruction.Args, 1)
+			if err != nil {
+				return Value{}, err
+			}
+			if index.Type != ir.TypeNumber || math.Trunc(index.Number) != index.Number || index.Number < 0 {
+				return Value{}, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
+			}
+			position := int(index.Number)
+			if position >= len(array.Array) {
+				return Value{}, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
+			}
+			env[instruction.Result] = array.Array[position]
 		case ir.OpPrint:
 			value, err := lookup(env, instruction.Args, 0)
 			if err != nil {
 				return Value{}, err
+			}
+			if value.Type == ir.TypeNumberArray {
+				return Value{}, fmt.Errorf("console.log does not support array values yet")
 			}
 			fmt.Fprintln(output, format(value))
 		case ir.OpCall:

@@ -87,6 +87,32 @@ func TestRunInitializesLocalModulesBeforeEntry(t *testing.T) {
 	}
 }
 
+func TestRunSupportsNumberArrayIndexing(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output != "20\n" {
+		t.Fatalf("runtime output = %q, want %q", output, "20\n")
+	}
+}
+
+func TestCompileRejectsArrayUntilNativeRuntimeExists(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("const values: number[] = [10, 20];\nconsole.log(values[1]);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Compile(entry); err == nil || !strings.Contains(err.Error(), `unsupported LLVM instruction "array"`) {
+		t.Fatalf("Compile error = %v, want explicit native runtime gate", err)
+	}
+}
+
 func TestCompileRejectsUnsupportedEntry(t *testing.T) {
 	if _, err := Compile("main.js"); err == nil {
 		t.Fatal("Compile accepted a non-TypeScript entry point")

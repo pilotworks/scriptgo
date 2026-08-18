@@ -52,6 +52,21 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	switch expression.Kind {
 	case "number", "string", "bool", "identifier":
 		return nil
+	case "array":
+		if len(expression.Arguments) == 0 {
+			return subsetError(fileName, expression.Span, "empty array literal")
+		}
+		for _, element := range expression.Arguments {
+			if err := validateExpression(fileName, element); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "index":
+		if err := validateExpression(fileName, expression.Left); err != nil {
+			return err
+		}
+		return validateExpression(fileName, expression.Right)
 	case "property":
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
 			return nil
