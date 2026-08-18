@@ -9,6 +9,7 @@ import (
 // Module is the first typed IR unit. Instructions will be added as lowering grows.
 type Module struct {
 	SourcePath     string
+	SourceFiles    map[string]string
 	StatementCount int
 	Shapes         []ObjectShape
 	Functions      []Function

@@ -16,7 +16,10 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	if err := ValidateSubset(program); err != nil {
 		return ir.Module{}, err
 	}
-	module := ir.Module{SourcePath: program.EntryPath, StatementCount: program.StatementCount}
+	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
+	for _, file := range program.Files {
+		module.SourceFiles[file.FileName] = file.Source
+	}
 	shapes := map[string]ir.ObjectShape{}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {

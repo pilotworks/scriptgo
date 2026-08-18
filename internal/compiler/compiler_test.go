@@ -25,6 +25,64 @@ func TestCompileReturnsPipelineStub(t *testing.T) {
 	}
 }
 
+func TestCompileMetadataIsDeterministic(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("console.log(20 + 22);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first, err := CompileWithOptions(entry, BuildOptions{Target: "arm64-apple-darwin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := CompileWithOptions(entry, BuildOptions{Target: "arm64-apple-darwin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("LLVM output is not deterministic:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+	for _, expected := range []string{
+		`; scriptgo.compiler = "dev"`,
+		`; scriptgo.runtime-abi = "scriptgo.runtime.v1"`,
+		`; scriptgo.target = "arm64-apple-darwin"`,
+		`; scriptgo.source-sha256 = "`,
+	} {
+		if !strings.Contains(first, expected) {
+			t.Errorf("LLVM metadata does not contain %q:\n%s", expected, first)
+		}
+	}
+}
+
+func TestCompileDebugMetadataUsesStableSourceNames(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("console.log(20 + 22);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	output, err := CompileWithOptions(entry, BuildOptions{Debug: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"!llvm.dbg.cu = !{!0}",
+		"!DIFile(filename: \"main.ts\", directory: \".\")",
+		"!DISubprogram(name: \"main\"",
+		"!dbg !",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("debug LLVM output does not contain %q:\n%s", expected, output)
+		}
+	}
+	if strings.Contains(output, entry) || strings.Contains(output, filepath.Dir(entry)) {
+		t.Fatalf("debug LLVM output contains an absolute source path:\n%s", output)
+	}
+}
+
+func TestCompileRejectsUnsupportedSanitizer(t *testing.T) {
+	if _, err := CompileWithOptions("main.ts", BuildOptions{Sanitizers: []string{"memory"}}); err == nil || !strings.Contains(err.Error(), "unsupported sanitizer") {
+		t.Fatalf("CompileWithOptions error = %v, want unsupported sanitizer diagnostic", err)
+	}
+}
+
 func TestBuildProducesExecutable(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang is not installed")

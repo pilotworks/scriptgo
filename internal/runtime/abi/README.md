@@ -21,7 +21,7 @@ contracts used by the native backend.
 | Managed values | Dense number arrays and static object fields | Native builds link the embedded array and object runtimes |
 | Ownership and cleanup | Not applicable to MVP literals | No runtime allocation is performed |
 | Runtime errors | v1 policy specified; no fallible operation enabled | Lowering and backend errors stop compilation; libc return values are ignored |
-| ABI versioning | Linked ABI v1 specified; not implemented | The current generated code still uses the temporary host C ABI |
+| ABI versioning | Linked ABI v1 specified; metadata identifier emitted | The current generated code still links the temporary host C ABI; runtime symbol compatibility checks remain future work |
 
 ## Linked Runtime ABI v1
 

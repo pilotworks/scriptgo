@@ -9,8 +9,39 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+// Options controls deterministic LLVM artifact metadata.
+type Options struct {
+	CompilerVersion string
+	RuntimeABI      string
+	Target          string
+	SourceHash      string
+	Debug           bool
+}
+
 // Emit converts a verified module into LLVM IR using opaque pointers.
 func Emit(module ir.Module) (string, error) {
+	return EmitWithOptions(module, Options{
+		CompilerVersion: "dev",
+		RuntimeABI:      "scriptgo.runtime.v1",
+		Target:          "native",
+	})
+}
+
+// EmitWithOptions converts verified IR into LLVM IR with stable build metadata.
+func EmitWithOptions(module ir.Module, options Options) (string, error) {
+	if options.CompilerVersion == "" {
+		options.CompilerVersion = "dev"
+	}
+	if options.RuntimeABI == "" {
+		options.RuntimeABI = "scriptgo.runtime.v1"
+	}
+	if options.Target == "" {
+		options.Target = "native"
+	}
+	var debug *debugInfo
+	if options.Debug {
+		debug = newDebugInfo(module)
+	}
 	if err := module.Verify(); err != nil {
 		return "", err
 	}
@@ -32,6 +63,12 @@ func Emit(module ir.Module) (string, error) {
 
 	var out strings.Builder
 	out.WriteString("; ModuleID = 'scriptgo'\n")
+	fmt.Fprintf(&out, "; scriptgo.compiler = %q\n", options.CompilerVersion)
+	fmt.Fprintf(&out, "; scriptgo.runtime-abi = %q\n", options.RuntimeABI)
+	fmt.Fprintf(&out, "; scriptgo.target = %q\n", options.Target)
+	if options.SourceHash != "" {
+		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
+	}
 	out.WriteString("declare i32 @printf(ptr, ...)\n")
 	out.WriteString("declare i32 @puts(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_array_number_new(i64, ptr)\n")
@@ -53,16 +90,19 @@ func Emit(module ir.Module) (string, error) {
 	out.WriteString("@.false = private unnamed_addr constant [6 x i8] c\"false\\00\"\n\n")
 
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue)
+		text, err := emitFunction(function, functions, stringsByValue, debug)
 		if err != nil {
 			return "", err
 		}
 		out.WriteString(text)
 	}
+	if debug != nil {
+		out.WriteString(debug.metadata(module, options.CompilerVersion))
+	}
 	return out.String(), nil
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	name := function.Name
 	if name == "main" {
@@ -76,7 +116,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 		out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
 	}
-	out.WriteString(") {\n")
+	out.WriteString(")")
+	if debug != nil {
+		fmt.Fprintf(&out, " !dbg !%d", debug.functions[function.Name])
+	}
+	out.WriteString(" {\n")
 
 	types := map[string]ir.Type{}
 	arrays := []string{}

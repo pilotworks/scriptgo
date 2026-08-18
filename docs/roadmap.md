@@ -17,7 +17,7 @@ and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
 - [x] Syntax and semantic diagnostics include the source path, offset, TypeScript code, and message.
 - [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
-- [ ] Objects, exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
+- [ ] Exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
 
 ## Milestones
 
@@ -126,10 +126,10 @@ Make failures and intermediate artifacts usable during compiler development.
 
 - [x] Lower unsupported constructs into source-anchored diagnostics.
 - [x] Add IR dumps, LLVM dumps, and diagnostic verbosity.
-- [ ] Add reproducible build metadata.
-- [ ] Preserve source locations in LLVM debug metadata where feasible.
-- [ ] Add sanitizer, leak, and runtime failure test modes.
-- [ ] Document compiler flags, target selection, and runtime compatibility.
+- [x] Add reproducible build metadata.
+- [x] Preserve source locations in LLVM debug metadata where feasible.
+- [x] Add sanitizer, leak, and runtime failure test modes.
+- [x] Document compiler flags, target selection, and runtime compatibility.
 
 Acceptance: a user can identify the original TypeScript construct behind a
 frontend, lowering, runtime, or backend failure.
@@ -203,7 +203,11 @@ Each item should leave the repository passing `go test ./...` and building with
 - Native builds use the `clang` executable available in `PATH`; the current
   verification host uses Apple Clang 21.
 - LLVM output uses opaque pointers and the host C ABI; target selection and
-  cross-compilation are not yet exposed as CLI options.
+  cross-compilation are exposed through `--target`, while `native` remains the
+  default host target.
+- `--debug` emits stable LLVM debug metadata using source basenames and a
+  reproducible compilation directory. `--sanitize` passes a comma-separated
+  sanitizer list to Clang.
 - The standard smoke fixture is `console.log(20 + 22)`, and the native build
   benchmark is `BenchmarkBuildNative` in `internal/compiler/compiler_test.go`.
 - Run `go test ./...`, `go build ./cmd/scriptgo`, and

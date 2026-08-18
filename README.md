@@ -39,6 +39,11 @@ go run ./cmd/scriptgo -emit exe -o hello examples/hello.ts
 `-emit run` uses the reference interpreter. `-emit llvm-ir` writes LLVM IR, and
 `-emit exe` invokes the host `clang` to produce a native executable.
 
+Native builds accept `-target native` (or a Clang target triple), `-debug` for
+source debug metadata, and `-sanitize address,undefined,leak` for opt-in Clang
+sanitizers. Generated LLVM includes the compiler version, runtime ABI version,
+target, and a SHA-256 hash of the reachable local source graph.
+
 ## Development
 
 ```sh

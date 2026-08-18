@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/compiler"
 )
@@ -12,7 +13,11 @@ func main() {
 	output := flag.String("o", "", "write generated output to this path")
 	emit := flag.String("emit", "llvm-ir", "output mode: typed-ir, llvm-ir, exe, or run")
 	verbose := flag.Bool("v", false, "print compilation stages to stderr")
+	target := flag.String("target", "native", "native target triple, or native for the host")
+	debug := flag.Bool("debug", false, "include native debug metadata")
+	sanitize := flag.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	flag.Parse()
+	options := compiler.BuildOptions{Target: *target, Debug: *debug, Sanitizers: splitList(*sanitize)}
 
 	if flag.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: scriptgo [flags] entry.ts")
@@ -28,7 +33,7 @@ func main() {
 		if *verbose {
 			fmt.Fprintf(os.Stderr, "scriptgo: build %s -> %s\n", flag.Arg(0), *output)
 		}
-		if err := compiler.Build(flag.Arg(0), *output); err != nil {
+		if err := compiler.BuildWithOptions(flag.Arg(0), *output, options); err != nil {
 			fmt.Fprintln(os.Stderr, "scriptgo:", err)
 			os.Exit(1)
 		}
@@ -72,7 +77,7 @@ func main() {
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: lower and emit LLVM IR for %s\n", flag.Arg(0))
 	}
-	result, err := compiler.Compile(flag.Arg(0))
+	result, err := compiler.CompileWithOptions(flag.Arg(0), options)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
@@ -85,4 +90,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
 	}
+}
+
+func splitList(value string) []string {
+	if value == "" {
+		return nil
+	}
+	values := strings.Split(value, ",")
+	result := make([]string, 0, len(values))
+	for _, item := range values {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }
