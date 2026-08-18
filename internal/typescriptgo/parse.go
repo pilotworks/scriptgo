@@ -29,7 +29,13 @@ type Diagnostic struct {
 type SourceFile struct {
 	FileName       string
 	StatementCount int
+	Span           SourceSpan
 	Syntax         SyntaxFile
+}
+
+type SourceSpan struct {
+	Start  int
+	Length int
 }
 
 // SyntaxFile is the small, backend-independent syntax model used by lowering.
@@ -41,6 +47,7 @@ type SyntaxFile struct {
 }
 
 type SyntaxStatement struct {
+	Span       SourceSpan
 	Kind       string
 	Name       string
 	Type       string
@@ -50,11 +57,13 @@ type SyntaxStatement struct {
 }
 
 type SyntaxParameter struct {
+	Span SourceSpan
 	Name string
 	Type string
 }
 
 type SyntaxExpression struct {
+	Span      SourceSpan
 	Kind      string
 	Text      string
 	Operator  string
@@ -141,6 +150,7 @@ func Check(entryPath string) (ProgramResult, error) {
 		result.Files = append(result.Files, SourceFile{
 			FileName:       file.FileName(),
 			StatementCount: statementCount(file),
+			Span:           sourceSpan(&file.Node),
 			Syntax:         syntaxFile(file),
 		})
 		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
@@ -164,21 +174,23 @@ func syntaxFile(file *ast.SourceFile) SyntaxFile {
 }
 
 func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
+	span := sourceSpan(node)
 	switch node.Kind {
 	case ast.KindVariableStatement:
 		declarations := node.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes
 		if len(declarations) != 1 {
-			return SyntaxStatement{Kind: "unsupported", Type: "multiple variable declarations"}, true
+			return SyntaxStatement{Span: span, Kind: "unsupported", Type: "multiple variable declarations"}, true
 		}
 		declaration := declarations[0]
-		result := SyntaxStatement{Kind: "variable", Name: declaration.Name().Text()}
+		result := SyntaxStatement{Span: span, Kind: "variable", Name: declaration.Name().Text()}
 		result.Type = syntaxType(declaration.Type())
 		result.Expression = syntaxExpression(declaration.Initializer())
 		return result, true
 	case ast.KindFunctionDeclaration:
-		result := SyntaxStatement{Kind: "function", Name: node.Name().Text(), Type: syntaxType(node.Type())}
+		result := SyntaxStatement{Span: span, Kind: "function", Name: node.Name().Text(), Type: syntaxType(node.Type())}
 		for _, parameter := range node.Parameters() {
 			result.Parameters = append(result.Parameters, SyntaxParameter{
+				Span: parameterSpan(parameter),
 				Name: parameter.Name().Text(),
 				Type: syntaxType(parameter.Type()),
 			})
@@ -192,13 +204,13 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		}
 		return result, true
 	case ast.KindReturnStatement:
-		return SyntaxStatement{Kind: "return", Expression: syntaxExpression(node.Expression())}, true
+		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
 	case ast.KindExpressionStatement:
-		return SyntaxStatement{Kind: "expression", Expression: syntaxExpression(node.Expression())}, true
+		return SyntaxStatement{Span: span, Kind: "expression", Expression: syntaxExpression(node.Expression())}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration:
-		return SyntaxStatement{Kind: "module", Type: node.Kind.String()}, true
+		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	default:
-		return SyntaxStatement{Kind: "unsupported", Type: node.Kind.String()}, true
+		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}
 }
 
@@ -208,40 +220,53 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 	}
 	switch node.Kind {
 	case ast.KindNumericLiteral:
-		return &SyntaxExpression{Kind: "number", Text: node.Text()}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "number", Text: node.Text()}
 	case ast.KindStringLiteral:
-		return &SyntaxExpression{Kind: "string", Text: node.Text()}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "string", Text: node.Text()}
 	case ast.KindTrueKeyword:
-		return &SyntaxExpression{Kind: "bool", Text: "true"}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bool", Text: "true"}
 	case ast.KindFalseKeyword:
-		return &SyntaxExpression{Kind: "bool", Text: "false"}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bool", Text: "false"}
 	case ast.KindIdentifier:
-		return &SyntaxExpression{Kind: "identifier", Text: node.Text()}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: node.Text()}
 	case ast.KindParenthesizedExpression:
 		return syntaxExpression(node.Expression())
 	case ast.KindBinaryExpression:
 		binary := node.AsBinaryExpression()
 		return &SyntaxExpression{
+			Span:     sourceSpan(node),
 			Kind:     "binary",
 			Operator: binaryOperator(binary.OperatorToken.Kind.String()),
 			Left:     syntaxExpression(binary.Left),
 			Right:    syntaxExpression(binary.Right),
 		}
 	case ast.KindCallExpression:
-		result := &SyntaxExpression{Kind: "call", Left: syntaxExpression(node.Expression())}
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "call", Left: syntaxExpression(node.Expression())}
 		for _, argument := range node.Arguments() {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
 		return result
 	case ast.KindPropertyAccessExpression:
 		return &SyntaxExpression{
+			Span: sourceSpan(node),
 			Kind: "property",
 			Text: node.Name().Text(),
 			Left: syntaxExpression(node.Expression()),
 		}
 	default:
-		return &SyntaxExpression{Kind: "unsupported", Text: node.Kind.String()}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}
 	}
+}
+
+func sourceSpan(node *ast.Node) SourceSpan {
+	if node == nil {
+		return SourceSpan{}
+	}
+	return SourceSpan{Start: node.Pos(), Length: node.End() - node.Pos()}
+}
+
+func parameterSpan(node *ast.Node) SourceSpan {
+	return sourceSpan(node)
 }
 
 func syntaxType(node *ast.Node) string {

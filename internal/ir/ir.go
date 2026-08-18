@@ -10,8 +10,15 @@ type Module struct {
 	Functions      []Function
 }
 
+type SourceSpan struct {
+	Path   string
+	Offset int
+	Length int
+}
+
 type Function struct {
 	Name       string
+	Span       SourceSpan
 	Parameters []Parameter
 	ReturnType Type
 	Body       []Instruction
@@ -39,7 +46,7 @@ type Instruction struct {
 	Operator string
 	Callee   string
 	Args     []string
-	Offset   int
+	Span     SourceSpan
 }
 
 const (

@@ -40,6 +40,10 @@ func TestLowerHelloProgram(t *testing.T) {
 	if !seenBinary || !seenPrint {
 		t.Fatalf("lowered body has no binary and print operations: %+v", module.Functions[0].Body)
 	}
+	wantOffset := strings.Index(source, "20") - 1 // TypeScript-Go node.Pos includes the literal's leading trivia.
+	if module.Functions[0].Body[0].Span.Path != entry || module.Functions[0].Body[0].Span.Offset != wantOffset {
+		t.Fatalf("constant span = %+v, want path %q and offset %d", module.Functions[0].Body[0].Span, entry, wantOffset)
+	}
 }
 
 func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {

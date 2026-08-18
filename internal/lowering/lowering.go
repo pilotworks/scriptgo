@@ -23,7 +23,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "function" {
-				function, err := lowerFunction(statement)
+				function, err := lowerFunction(file.FileName, statement)
 				if err != nil {
 					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, err)
 				}
@@ -33,7 +33,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			if statement.Kind == "module" {
 				continue
 			}
-			if err := lowerStatement(statement, &main, env, &counter); err != nil {
+			if err := lowerStatement(file.FileName, statement, &main, env, &counter); err != nil {
 				return ir.Module{}, fmt.Errorf("lower %s: %w", statement.Kind, err)
 			}
 		}
@@ -46,8 +46,8 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	return module, nil
 }
 
-func lowerFunction(statement typescriptgo.SyntaxStatement) (ir.Function, error) {
-	function := ir.Function{Name: statement.Name, ReturnType: toIRType(statement.Type)}
+func lowerFunction(path string, statement typescriptgo.SyntaxStatement) (ir.Function, error) {
+	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRType(statement.Type)}
 	if function.ReturnType == "" {
 		function.ReturnType = ir.TypeVoid
 	}
@@ -63,7 +63,7 @@ func lowerFunction(statement typescriptgo.SyntaxStatement) (ir.Function, error) 
 	counter := 0
 	returned := false
 	for _, bodyStatement := range statement.Body {
-		if err := lowerStatement(bodyStatement, &function, env, &counter); err != nil {
+		if err := lowerStatement(path, bodyStatement, &function, env, &counter); err != nil {
 			return ir.Function{}, err
 		}
 		if bodyStatement.Kind == "return" {
@@ -74,18 +74,18 @@ func lowerFunction(statement typescriptgo.SyntaxStatement) (ir.Function, error) 
 		if function.ReturnType != ir.TypeVoid {
 			return ir.Function{}, fmt.Errorf("function %q does not return %s", function.Name, function.ReturnType)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: function.Span})
 	}
 	return function, nil
 }
 
-func lowerStatement(statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int) error {
+func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int) error {
 	switch statement.Kind {
 	case "variable":
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
 		}
-		value, typ, err := lowerExpression(statement.Expression, statement.Name, function, env, counter)
+		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter)
 		if err != nil {
 			return err
 		}
@@ -97,46 +97,46 @@ func lowerStatement(statement typescriptgo.SyntaxStatement, function *ir.Functio
 		if statement.Expression == nil {
 			return fmt.Errorf("empty expression")
 		}
-		_, _, err := lowerExpression(statement.Expression, "", function, env, counter)
+		_, _, err := lowerExpression(path, statement.Expression, "", function, env, counter)
 		return err
 	case "return":
 		if statement.Expression == nil {
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
-		value, typ, err := lowerExpression(statement.Expression, "", function, env, counter)
+		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter)
 		if err != nil {
 			return err
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)
 	}
 	return nil
 }
 
-func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int) (string, ir.Type, error) {
+func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int) (string, ir.Type, error) {
 	switch expression.Kind {
 	case "number":
 		typ := ir.TypeNumber
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "string":
 		typ := ir.TypeString
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "bool":
 		typ := ir.TypeBool
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "identifier":
 		typ, ok := env[expression.Text]
@@ -145,11 +145,11 @@ func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, f
 		}
 		return expression.Text, typ, nil
 	case "binary":
-		left, leftType, err := lowerExpression(expression.Left, "", function, env, counter)
+		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter)
 		if err != nil {
 			return "", "", err
 		}
-		right, rightType, err := lowerExpression(expression.Right, "", function, env, counter)
+		right, rightType, err := lowerExpression(path, expression.Right, "", function, env, counter)
 		if err != nil {
 			return "", "", err
 		}
@@ -159,7 +159,7 @@ func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, f
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 		return result, leftType, nil
 	case "property":
 		return "", "", fmt.Errorf("property access %q is only supported as a call target", expression.Text)
@@ -169,11 +169,11 @@ func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, f
 			if len(expression.Arguments) != 1 {
 				return "", "", fmt.Errorf("console.log requires one argument")
 			}
-			argument, _, err := lowerExpression(expression.Arguments[0], "", function, env, counter)
+			argument, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter)
 			if err != nil {
 				return "", "", err
 			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpPrint, Type: ir.TypeVoid, Callee: callee, Args: []string{argument}})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpPrint, Type: ir.TypeVoid, Callee: callee, Args: []string{argument}, Span: toIRSpan(path, expression.Span)})
 			return "", ir.TypeVoid, nil
 		}
 		if callee == "" {
@@ -181,7 +181,7 @@ func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, f
 		}
 		args := make([]string, 0, len(expression.Arguments))
 		for _, argument := range expression.Arguments {
-			value, _, err := lowerExpression(argument, "", function, env, counter)
+			value, _, err := lowerExpression(path, argument, "", function, env, counter)
 			if err != nil {
 				return "", "", err
 			}
@@ -190,7 +190,7 @@ func lowerExpression(expression *typescriptgo.SyntaxExpression, result string, f
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: callee, Args: args})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeNumber, nil
 	default:
 		return "", "", fmt.Errorf("unsupported expression %q", expression.Kind)
@@ -229,4 +229,8 @@ func toIRType(value string) ir.Type {
 	default:
 		return ""
 	}
+}
+
+func toIRSpan(path string, span typescriptgo.SourceSpan) ir.SourceSpan {
+	return ir.SourceSpan{Path: path, Offset: span.Start, Length: span.Length}
 }
