@@ -98,7 +98,7 @@ func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	}
 
 	_, err = Lower(program)
-	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "IfStatement") {
+	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "IfStatement") || !strings.Contains(err.Error(), "at offset 0") {
 		t.Fatalf("Lower error = %v, want actionable native subset diagnostic", err)
 	}
 }

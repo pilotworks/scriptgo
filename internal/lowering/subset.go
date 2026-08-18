@@ -26,7 +26,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		return nil
 	case "variable":
 		if statement.Expression == nil {
-			return subsetError(fileName, "variable declaration without an initializer")
+			return subsetError(fileName, statement.Span, "variable declaration without an initializer")
 		}
 		return validateExpression(fileName, statement.Expression)
 	case "expression", "return":
@@ -42,9 +42,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		}
 		return nil
 	case "unsupported":
-		return subsetError(fileName, statement.Type)
+		return subsetError(fileName, statement.Span, statement.Type)
 	default:
-		return subsetError(fileName, statement.Kind)
+		return subsetError(fileName, statement.Span, statement.Kind)
 	}
 }
 
@@ -56,7 +56,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
 			return nil
 		}
-		return subsetError(fileName, "nested property access")
+		return subsetError(fileName, expression.Span, "nested property access")
 	case "binary":
 		if err := validateExpression(fileName, expression.Left); err != nil {
 			return err
@@ -69,16 +69,16 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			}
 		}
 		if callName(expression.Left) == "" {
-			return subsetError(fileName, "dynamic call target")
+			return subsetError(fileName, expression.Span, "dynamic call target")
 		}
 		return nil
 	case "unsupported":
-		return subsetError(fileName, expression.Text)
+		return subsetError(fileName, expression.Span, expression.Text)
 	default:
-		return subsetError(fileName, expression.Kind)
+		return subsetError(fileName, expression.Span, expression.Kind)
 	}
 }
 
-func subsetError(fileName, feature string) error {
-	return fmt.Errorf("native subset: %s: unsupported feature %q", fileName, feature)
+func subsetError(fileName string, span typescriptgo.SourceSpan, feature string) error {
+	return fmt.Errorf("native subset: %s at offset %d (length %d): unsupported feature %q", fileName, span.Start, span.Length, feature)
 }
