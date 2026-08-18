@@ -1,0 +1,26 @@
+# Build artifacts
+/scriptgo
+/bin/
+/build/
+/dist/
+*.out
+*.ll
+
+# Go tooling
+coverage.out
+coverage.html
+*.test
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Temporary TypeScript-Go sync snapshots and state writes
+third_party/test-*/
+third_party/*.state.tmp.*
