@@ -29,7 +29,7 @@ statement count.
 - [x] Pin the compatible TypeScript-Go revision in `internal/typescriptgo/go.mod`.
 - [ ] Add source files, compiler options, symbols/types, module references, and source spans to the adapter contract.
 - [x] Run binding, local module resolution, and type checking for the entry point.
-- [ ] Define a native subset feature matrix and reject unsupported constructs with actionable diagnostics.
+- [x] Define a native subset feature matrix and reject unsupported constructs with actionable diagnostics.
 - [x] Add tests for valid programs, type errors, and local imports.
 
 Acceptance: `scriptgo check entry.ts` reports deterministic parse/type/subset
@@ -46,10 +46,10 @@ Replace the placeholder module with a backend-independent IR that preserves
 types, evaluation order, and source locations.
 
 - [x] Define value representations, constants, locals, arithmetic, calls, and returns for the MVP.
-- [ ] Attach source spans and useful names to instructions and functions.
+- [x] Attach source spans and useful names to instructions and functions.
 - [x] Lower literals, local declarations, arithmetic, functions, and `return`.
 - [x] Implement initial IR verification for values, instruction kinds, and return consistency.
-- [ ] Add golden source-to-IR tests for the MVP examples.
+- [x] Add golden source-to-IR tests for the MVP examples.
 - [x] Add a small interpreter for semantic tests before native code generation.
 
 Acceptance: the MVP program `add(20, 22)` lowers to verified IR and produces
@@ -64,8 +64,8 @@ vertical slices for expressions, functions, and control flow.
 ### Checkpoint A: Frontend-to-IR
 
 - [x] A supported synchronous program parses, type-checks, lowers, and verifies.
-- [ ] Unsupported features fail before backend generation.
-- [ ] Diagnostics retain original TypeScript locations.
+- [x] Unsupported features fail before backend generation.
+- [x] Diagnostics retain original TypeScript locations.
 - [x] `go test ./...` and `go build ./cmd/scriptgo` pass.
 
 ### Milestone 3: Runtime ABI and LLVM MVP
@@ -78,7 +78,7 @@ Turn verified IR into a native executable for the initial primitive subset.
 - [x] Generate LLVM IR for MVP constants, locals, arithmetic, calls, returns, and print calls.
 - [x] Invoke Clang for the selected host target and link against the host C runtime.
 - [x] Add `--emit run`, `--emit llvm-ir`, and `--emit exe` CLI modes.
-- [ ] Emit compiler errors for missing toolchains and unsupported target/backend combinations.
+- [x] Emit compiler errors for missing toolchains and unsupported target/backend combinations.
 
 Acceptance: compiling and running the MVP program produces `42` as a native
 executable, with deterministic output and exit status.
