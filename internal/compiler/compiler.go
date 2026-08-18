@@ -43,6 +43,10 @@ func CompileModule(entryPath string) (ir.Module, error) {
 
 // Build compiles the generated LLVM IR into a native executable with clang.
 func Build(entryPath, outputPath string) error {
+	clang, err := resolveClang()
+	if err != nil {
+		return err
+	}
 	output, err := Compile(entryPath)
 	if err != nil {
 		return err
@@ -60,11 +64,19 @@ func Build(entryPath, outputPath string) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("close temporary LLVM file: %w", err)
 	}
-	command := exec.Command("clang", "-x", "ir", temporaryPath, "-o", outputPath)
+	command := exec.Command(clang, "-x", "ir", temporaryPath, "-o", outputPath)
 	if diagnostic, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("clang: %w: %s", err, diagnostic)
 	}
 	return nil
+}
+
+func resolveClang() (string, error) {
+	clang, err := exec.LookPath("clang")
+	if err != nil {
+		return "", fmt.Errorf("native backend llvm requires clang in PATH: %w", err)
+	}
+	return clang, nil
 }
 
 // Run executes the verified IR with the reference interpreter.

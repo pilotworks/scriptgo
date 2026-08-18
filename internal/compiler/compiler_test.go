@@ -83,3 +83,10 @@ func TestCompileRejectsTypeScriptSyntaxErrors(t *testing.T) {
 		t.Fatalf("Compile did not report a TypeScript syntax error: %v", err)
 	}
 }
+
+func TestResolveClangReportsMissingToolchain(t *testing.T) {
+	t.Setenv("PATH", "")
+	if _, err := resolveClang(); err == nil || !strings.Contains(err.Error(), "requires clang in PATH") {
+		t.Fatalf("resolveClang error = %v, want missing-toolchain diagnostic", err)
+	}
+}
