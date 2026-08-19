@@ -24,3 +24,6 @@ Thumbs.db
 # Temporary TypeScript-Go sync snapshots and state writes
 third_party/test-*/
 third_party/*.state.tmp.*
+
+# Reference type definitions
+docs/reference/
