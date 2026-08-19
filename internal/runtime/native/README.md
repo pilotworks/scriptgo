@@ -15,3 +15,18 @@ The `arrays/`, `strings/`, and `objects/` families exist today. Add another
 directory when its ABI contract and first native operation are ready. Each implementation is linked by
 `internal/compiler` as a toolchain input and must not import frontend, IR, or
 interpreter packages.
+
+## Runtime Benchmarks
+
+The standalone benchmark covers representative array search, string splitting,
+and base64 workloads. Build and run it from the repository root:
+
+```sh
+clang -O2 \
+  internal/runtime/native/bench/main.c \
+  internal/runtime/native/errors/runtime.c \
+  internal/runtime/native/arrays/runtime.c \
+  internal/runtime/native/strings/runtime.c \
+  internal/runtime/native/web/runtime.c \
+  -o /tmp/scriptgo-runtime-bench && /tmp/scriptgo-runtime-bench
+```

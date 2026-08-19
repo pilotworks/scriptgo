@@ -133,6 +133,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		return fmt.Errorf("write temporary runtime file: %w", err)
 	}
 	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
+	if options.Debug {
+		args = append(args, "-O0")
+	} else {
+		args = append(args, "-O2")
+	}
 	if options.Target != "native" {
 		args = append(args, "--target="+options.Target)
 	}

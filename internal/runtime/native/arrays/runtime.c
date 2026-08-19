@@ -9,6 +9,7 @@ typedef struct {
     int64_t capacity;
     int64_t element_size;
     unsigned char *data;
+    void *owned_data;
 } scriptgo_array;
 
 static int fail(const char *message) { return scriptgo_runtime_set_error(message); }
@@ -44,6 +45,7 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
     array->length = length;
     array->capacity = length;
     array->element_size = element_size;
+    array->owned_data = NULL;
     *out_array = array;
     return 0;
 }
@@ -200,9 +202,18 @@ int scriptgo_array_includes_string(void *handle, const char *target, double *out
 int scriptgo_array_release(void *handle) {
     scriptgo_array *array = handle;
     if (array != NULL) {
+        free(array->owned_data);
         free(array->data);
         free(array);
     }
     return 0;
 }
 
+int scriptgo_array_set_owned_data(void *handle, void *owned_data) {
+    scriptgo_array *array = handle;
+    if (array == NULL) {
+        return fail("scriptgo array access failed");
+    }
+    array->owned_data = owned_data;
+    return 0;
+}

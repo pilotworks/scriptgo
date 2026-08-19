@@ -79,6 +79,15 @@ int scriptgo_string_last_index(const char *value, const char *needle, double pos
         *out_index = position >= 0.0 ? (double)normalized : (double)limit;
         return 0;
     }
+    if (needle[1] == '\0') {
+        const char *found = strrchr(value, needle[0]);
+        if (found != NULL && (size_t)(found - value) < limit) {
+            *out_index = (double)(found - value);
+            return 0;
+        }
+        *out_index = -1.0;
+        return 0;
+    }
     cursor = value;
     while ((cursor = strstr(cursor, needle)) != NULL && (size_t)(cursor - value) < limit) {
         last = cursor;
@@ -200,43 +209,71 @@ int scriptgo_string_replace(const char *value, const char *search, const char *r
 
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set(void *handle, double index, const void *value);
+int scriptgo_array_set_owned_data(void *handle, void *owned_data);
+int scriptgo_array_release(void *handle);
 
 int scriptgo_string_split(const char *value, const char *separator, void **out_array) {
+    size_t val_len, sep_len, count = 1, buffer_size;
+    char *buffer;
     if (value == NULL || separator == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t val_len = strlen(value);
-    size_t sep_len = strlen(separator);
-    
+    val_len = strlen(value);
+    sep_len = strlen(separator);
+
     if (sep_len == 0) {
-        if (scriptgo_array_new((int64_t)val_len, sizeof(char *), out_array) != 0) return -1;
+        count = val_len;
+    } else {
+        const char *p = value;
+        while ((p = sep_len == 1 ? strchr(p, separator[0]) : strstr(p, separator)) != NULL) {
+            count++;
+            p += sep_len;
+        }
+    }
+
+    if (scriptgo_array_new((int64_t)count, sizeof(char *), out_array) != 0) return -1;
+    if (sep_len == 0 && val_len > SIZE_MAX / 2) {
+        scriptgo_array_release(*out_array);
+        return string_fail("scriptgo string allocation failed");
+    }
+    buffer_size = sep_len == 0 ? val_len * 2 : val_len + 1;
+    if (buffer_size == 0) buffer_size = 1;
+    buffer = malloc(buffer_size);
+    if (buffer == NULL) {
+        scriptgo_array_release(*out_array);
+        return string_fail("scriptgo string allocation failed");
+    }
+    if (scriptgo_array_set_owned_data(*out_array, buffer) != 0) {
+        free(buffer);
+        scriptgo_array_release(*out_array);
+        return -1;
+    }
+
+    if (sep_len == 0) {
         for (size_t i = 0; i < val_len; i++) {
-            char *sub;
-            if (string_copy_range(value, i, 1, &sub) != 0) return -1;
+            buffer[i * 2] = value[i];
+            buffer[i * 2 + 1] = '\0';
+            char *sub = buffer + i * 2;
             if (scriptgo_array_set(*out_array, (double)i, &sub) != 0) return -1;
         }
         return 0;
     }
-    
-    size_t count = 1;
-    const char *p = value;
-    while ((p = strstr(p, separator)) != NULL) {
-        count++;
-        p += sep_len;
-    }
-    
-    if (scriptgo_array_new((int64_t)count, sizeof(char *), out_array) != 0) return -1;
-    
+
     size_t idx = 0;
-    p = value;
+    size_t output_offset = 0;
+    const char *p = value;
     const char *next;
-    while ((next = strstr(p, separator)) != NULL) {
-        char *sub;
-        if (string_copy_range(p, 0, (size_t)(next - p), &sub) != 0) return -1;
-        if (scriptgo_array_set(*out_array, (double)idx, &sub) != 0) return -1;
-        idx++;
+    while ((next = sep_len == 1 ? strchr(p, separator[0]) : strstr(p, separator)) != NULL) {
+        size_t part_len = (size_t)(next - p);
+        memcpy(buffer + output_offset, p, part_len);
+        buffer[output_offset + part_len] = '\0';
+        char *sub = buffer + output_offset;
+        if (scriptgo_array_set(*out_array, (double)idx++, &sub) != 0) return -1;
+        output_offset += part_len + 1;
         p = next + sep_len;
     }
-    char *tail;
-    if (string_copy_range(p, 0, strlen(p), &tail) != 0) return -1;
+    size_t tail_len = val_len - (size_t)(p - value);
+    memcpy(buffer + output_offset, p, tail_len);
+    buffer[output_offset + tail_len] = '\0';
+    char *tail = buffer + output_offset;
     if (scriptgo_array_set(*out_array, (double)idx, &tail) != 0) return -1;
     return 0;
 }
@@ -245,5 +282,3 @@ int scriptgo_string_release(char *value) {
     free(value);
     return 0;
 }
-
-
