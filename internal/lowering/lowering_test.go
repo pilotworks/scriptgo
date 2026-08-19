@@ -89,7 +89,7 @@ func TestLowerHelloProgram(t *testing.T) {
 
 func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
-	source := "try { console.log(42); } catch (e) {}\n"
+	source := "debugger;\n"
 	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = Lower(program)
-	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "TryStatement") || !strings.Contains(err.Error(), "at offset 0") || !strings.Contains(err.Error(), entry) {
+	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "DebuggerStatement") || !strings.Contains(err.Error(), "at offset 0") || !strings.Contains(err.Error(), entry) {
 		t.Fatalf("Lower error = %v, want actionable native subset diagnostic", err)
 	}
 }

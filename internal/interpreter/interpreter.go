@@ -25,9 +25,12 @@ func Execute(module ir.Module) (Result, error) {
 		return Result{}, fmt.Errorf("module has no main function")
 	}
 	var output bytes.Buffer
-	value, err := executeFunction(functions, main, nil, &output)
+	value, flow, err := executeFunction(functions, main, nil, &output)
 	if err != nil {
 		return Result{}, err
+	}
+	if flow == flowThrow {
+		return Result{}, fmt.Errorf("uncaught exception: %s", format(value))
 	}
 	return Result{Output: output.String(), Return: value}, nil
 }
@@ -39,22 +42,23 @@ const (
 	flowReturn
 	flowBreak
 	flowContinue
+	flowThrow
 )
 
-func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, error) {
+func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
 	env := make(map[string]Value, len(function.Parameters))
 	if len(arguments) != len(function.Parameters) {
-		return Value{}, fmt.Errorf("function %q received %d arguments, want %d", function.Name, len(arguments), len(function.Parameters))
+		return Value{}, flowNormal, fmt.Errorf("function %q received %d arguments, want %d", function.Name, len(arguments), len(function.Parameters))
 	}
 	for index, parameter := range function.Parameters {
 		if arguments[index].Type != parameter.Type {
-			return Value{}, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, arguments[index].Type, parameter.Type)
+			return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, arguments[index].Type, parameter.Type)
 		}
 		env[parameter.Name] = arguments[index]
 	}
 
-	val, _, _, err := executeBlock(functions, function.Body, env, output)
-	return val, err
+	val, _, flow, err := executeBlock(functions, function.Body, env, output)
+	return val, flow, err
 }
 
 func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env map[string]Value, output *bytes.Buffer) (Value, bool, controlFlow, error) {
@@ -233,11 +237,50 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				arguments = append(arguments, value)
 			}
-			value, err := executeFunction(functions, callee, arguments, output)
+			value, flow, err := executeFunction(functions, callee, arguments, output)
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
+			if flow == flowThrow {
+				return value, false, flowThrow, nil
+			}
 			env[instruction.Result] = value
+		case ir.OpThrow:
+			val, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			return val, false, flowThrow, nil
+		case ir.OpTry:
+			ret, returned, flow, err := executeBlock(functions, instruction.Body, env, output)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			if flow == flowThrow {
+				if len(instruction.Catch) > 0 {
+					if instruction.CatchVar != "" {
+						env[instruction.CatchVar] = ret
+					}
+					ret, returned, flow, err = executeBlock(functions, instruction.Catch, env, output)
+					if err != nil {
+						return Value{}, false, flowNormal, err
+					}
+				}
+			}
+			if len(instruction.Finally) > 0 {
+				fRet, fReturned, fFlow, fErr := executeBlock(functions, instruction.Finally, env, output)
+				if fErr != nil {
+					return Value{}, false, flowNormal, fErr
+				}
+				if fReturned || fFlow != flowNormal {
+					ret = fRet
+					returned = fReturned
+					flow = fFlow
+				}
+			}
+			if returned || flow != flowNormal {
+				return ret, returned, flow, nil
+			}
 		case ir.OpBreak:
 			return Value{}, false, flowBreak, nil
 		case ir.OpContinue:
@@ -273,8 +316,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow == flowReturn {
-						return ret, true, flowReturn, nil
+					if returned || flow != flowNormal {
+						return ret, returned, flow, nil
 					}
 				}
 				condition, err := lookup(env, instruction.Args, 0)
@@ -288,8 +331,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				if returned || flow == flowReturn {
-					return ret, true, flowReturn, nil
+				if returned || flow == flowReturn || flow == flowThrow {
+					return ret, returned, flow, nil
 				}
 				if flow == flowBreak {
 					break
@@ -304,8 +347,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				if returned || flow == flowReturn {
-					return ret, true, flowReturn, nil
+				if returned || flow == flowReturn || flow == flowThrow {
+					return ret, returned, flow, nil
 				}
 				if flow == flowBreak {
 					break
@@ -315,8 +358,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow == flowReturn {
-						return ret, true, flowReturn, nil
+					if returned || flow != flowNormal {
+						return ret, returned, flow, nil
 					}
 				}
 				condition, err := lookup(env, instruction.Args, 0)

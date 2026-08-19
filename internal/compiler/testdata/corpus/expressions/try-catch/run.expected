@@ -1,0 +1,4 @@
+no throw
+caught:
+custom error message
+recovered

@@ -138,6 +138,28 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		return nil
+	case "throw":
+		if statement.Expression == nil {
+			return subsetError(fileName, statement.Span, CodeLanguageLowering, "throw without an expression")
+		}
+		return validateExpression(fileName, statement.Expression)
+	case "try":
+		for _, bodyStatement := range statement.Body {
+			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		for _, catchStatement := range statement.Catch {
+			if err := validateStatement(fileName, catchStatement); err != nil {
+				return err
+			}
+		}
+		for _, finallyStatement := range statement.Finally {
+			if err := validateStatement(fileName, finallyStatement); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "unsupported":
 		return subsetError(fileName, statement.Span, CodeLanguageLowering, statement.Type)
 	default:

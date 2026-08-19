@@ -31,7 +31,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		if err := lowerStatement(path, bodyStatement, &function, env, &counter, shapes, signatures); err != nil {
 			return ir.Function{}, sourceError(path, bodyStatement.Span, err)
 		}
-		if bodyStatement.Kind == "return" {
+		if bodyStatement.Kind == "return" || bodyStatement.Kind == "throw" {
 			returned = true
 		}
 	}
@@ -259,6 +259,56 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		})
 	case "class":
 		return nil
+	case "throw":
+		val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpThrow,
+			Type: ir.TypeVoid,
+			Args: []string{val},
+			Span: toIRSpan(path, statement.Span),
+		})
+	case "try":
+		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		var catchInstructions []ir.Instruction
+		if len(statement.Catch) > 0 {
+			catchEnv := make(map[string]ir.Type, len(env)+1)
+			for k, v := range env {
+				catchEnv[k] = v
+			}
+			if statement.CatchVar != "" {
+				catchEnv[statement.CatchVar] = ir.TypeString
+			}
+			catchBranch := ir.Function{Name: "catch", ReturnType: function.ReturnType}
+			for _, catchStmt := range statement.Catch {
+				if err := lowerStatement(path, catchStmt, &catchBranch, catchEnv, counter, shapes, signatures); err != nil {
+					return err
+				}
+			}
+			catchInstructions = catchBranch.Body
+		}
+		var finallyInstructions []ir.Instruction
+		if len(statement.Finally) > 0 {
+			finallyBranch, err := lowerBranch(path, statement.Finally, function.ReturnType, env, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
+			finallyInstructions = finallyBranch
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:       ir.OpTry,
+			Type:     ir.TypeVoid,
+			Body:     bodyInstructions,
+			CatchVar: statement.CatchVar,
+			Catch:    catchInstructions,
+			Finally:  finallyInstructions,
+			Span:     toIRSpan(path, statement.Span),
+		})
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)
 	}

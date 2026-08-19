@@ -1,0 +1,13 @@
+outer try
+inner try
+inner success
+inner finally
+outer finally
+outer try
+inner try
+caught inner:
+inner error
+inner finally
+caught outer:
+re-thrown from inner
+outer finally

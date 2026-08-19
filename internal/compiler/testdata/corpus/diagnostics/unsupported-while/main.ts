@@ -1,2 +1,5 @@
-throw "error";
-
+enum Color {
+  Red,
+  Green,
+  Blue,
+}

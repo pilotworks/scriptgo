@@ -58,6 +58,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 			collectStrings(instruction.Else)
 			collectStrings(instruction.Cond)
 			collectStrings(instruction.Body)
+			collectStrings(instruction.Catch)
+			collectStrings(instruction.Finally)
 		}
 	}
 	for _, function := range module.Functions {
@@ -118,6 +120,17 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_replace(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
 	out.WriteString("declare i32 @strcmp(ptr, ptr)\n\n")
+	out.WriteString("declare void @scriptgo_exception_push(ptr)\n")
+	out.WriteString("declare void @scriptgo_exception_pop(ptr)\n")
+	out.WriteString("declare ptr @scriptgo_exception_buf(ptr)\n")
+	out.WriteString("declare i32 @setjmp(ptr) returns_twice\n")
+	out.WriteString("declare void @scriptgo_throw_string(ptr)\n")
+	out.WriteString("declare void @scriptgo_throw_number(double)\n")
+	out.WriteString("declare void @scriptgo_throw_bool(i32)\n")
+	out.WriteString("declare ptr @scriptgo_exception_get_string(ptr)\n")
+	out.WriteString("declare double @scriptgo_exception_get_number(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_exception_get_bool(ptr)\n")
+	out.WriteString("declare void @scriptgo_exception_rethrow(ptr)\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))

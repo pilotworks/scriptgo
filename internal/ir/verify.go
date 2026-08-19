@@ -185,6 +185,34 @@ func (f Function) Verify() error {
 			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 0 {
 				return fmt.Errorf("%s instruction must have void type and no args", instruction.Op)
 			}
+		case OpThrow:
+			if len(instruction.Args) != 1 {
+				return fmt.Errorf("throw instruction requires one argument")
+			}
+			terminated = true
+		case OpTry:
+			if instruction.Type != TypeVoid || instruction.Result != "" {
+				return fmt.Errorf("try instruction must have void type and empty result")
+			}
+			tryKnown := cloneTypes(known)
+			if err := verifyBlock(f, instruction.Body, tryKnown); err != nil {
+				return fmt.Errorf("try body block: %w", err)
+			}
+			if len(instruction.Catch) > 0 {
+				catchKnown := cloneTypes(known)
+				if instruction.CatchVar != "" {
+					catchKnown[instruction.CatchVar] = TypeString
+				}
+				if err := verifyBlock(f, instruction.Catch, catchKnown); err != nil {
+					return fmt.Errorf("try catch block: %w", err)
+				}
+			}
+			if len(instruction.Finally) > 0 {
+				finallyKnown := cloneTypes(known)
+				if err := verifyBlock(f, instruction.Finally, finallyKnown); err != nil {
+					return fmt.Errorf("try finally block: %w", err)
+				}
+			}
 		case OpReturn:
 			if instruction.Type != f.ReturnType {
 				return fmt.Errorf("return type %q does not match function return type %q", instruction.Type, f.ReturnType)
@@ -236,6 +264,32 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 			}
 			if err := verifyBlock(f, instruction.Body, cloneTypes(condKnown)); err != nil {
 				return err
+			}
+			continue
+		}
+		if instruction.Op == OpThrow {
+			if len(instruction.Args) != 1 {
+				return fmt.Errorf("nested throw requires one argument")
+			}
+			continue
+		}
+		if instruction.Op == OpTry {
+			if err := verifyBlock(f, instruction.Body, cloneTypes(known)); err != nil {
+				return err
+			}
+			if len(instruction.Catch) > 0 {
+				catchKnown := cloneTypes(known)
+				if instruction.CatchVar != "" {
+					catchKnown[instruction.CatchVar] = TypeString
+				}
+				if err := verifyBlock(f, instruction.Catch, catchKnown); err != nil {
+					return err
+				}
+			}
+			if len(instruction.Finally) > 0 {
+				if err := verifyBlock(f, instruction.Finally, cloneTypes(known)); err != nil {
+					return err
+				}
 			}
 			continue
 		}

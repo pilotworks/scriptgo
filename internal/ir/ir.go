@@ -70,6 +70,9 @@ type Instruction struct {
 	Else       []Instruction
 	Cond       []Instruction
 	Body       []Instruction
+	CatchVar   string
+	Catch      []Instruction
+	Finally    []Instruction
 }
 
 const (
@@ -93,4 +96,6 @@ const (
 	OpBreak     = "break"
 	OpContinue  = "continue"
 	OpAssign    = "assign"
+	OpThrow     = "throw"
+	OpTry       = "try"
 )

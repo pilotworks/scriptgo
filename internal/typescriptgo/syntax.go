@@ -117,6 +117,26 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
 	case ast.KindReturnStatement:
 		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
+	case ast.KindThrowStatement:
+		return SyntaxStatement{Span: span, Kind: "throw", Expression: syntaxExpression(node.Expression())}, true
+	case ast.KindTryStatement:
+		tryNode := node.AsTryStatement()
+		res := SyntaxStatement{
+			Span: span,
+			Kind: "try",
+			Body: syntaxBlockStatements(tryNode.TryBlock),
+		}
+		if tryNode.CatchClause != nil {
+			catchClause := tryNode.CatchClause.AsCatchClause()
+			if catchClause.VariableDeclaration != nil {
+				res.CatchVar = catchClause.VariableDeclaration.Name().Text()
+			}
+			res.Catch = syntaxBlockStatements(catchClause.Block)
+		}
+		if tryNode.FinallyBlock != nil {
+			res.Finally = syntaxBlockStatements(tryNode.FinallyBlock)
+		}
+		return res, true
 	case ast.KindBreakStatement:
 		return SyntaxStatement{Span: span, Kind: "break"}, true
 	case ast.KindContinueStatement:

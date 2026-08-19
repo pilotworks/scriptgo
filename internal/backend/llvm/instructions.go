@@ -130,6 +130,10 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		}
 	case ir.OpReturn:
 		return e.emitReturn(out, inst)
+	case ir.OpThrow:
+		return e.emitThrow(out, inst)
+	case ir.OpTry:
+		return e.emitTry(out, inst)
 	default:
 		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
 	}
@@ -513,5 +517,147 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 		out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(instruction.Type), instruction.Args[0]))
 	}
 	e.terminated = true
+	return nil
+}
+
+func (e *functionEmitter) emitThrow(out *strings.Builder, instruction ir.Instruction) error {
+	argVal := instruction.Args[0]
+	argType, ok := e.types[argVal]
+	if !ok {
+		return fmt.Errorf("unknown throw argument %q", argVal)
+	}
+	switch argType {
+	case ir.TypeString:
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", argVal))
+	case ir.TypeNumber:
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_number(double %%%s)\n", argVal))
+	case ir.TypeBool:
+		boolVal := fmt.Sprintf("throw.bool.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolVal, argVal))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_bool(i32 %%%s)\n", boolVal))
+	default:
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", argVal))
+	}
+	out.WriteString("  unreachable\n")
+	e.terminated = true
+	return nil
+}
+
+func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instruction) error {
+	labelId := e.labelCounter
+	e.labelCounter++
+
+	frameName := fmt.Sprintf("eh.frame.%d", labelId)
+	bufName := fmt.Sprintf("eh.buf.%d", labelId)
+	statusName := fmt.Sprintf("eh.status.%d", labelId)
+	isThrowName := fmt.Sprintf("eh.is_throw.%d", labelId)
+
+	tryBodyLabel := fmt.Sprintf("try.body.%d", labelId)
+	catchLabel := fmt.Sprintf("try.catch.%d", labelId)
+	finallyLabel := fmt.Sprintf("try.finally.%d", labelId)
+	endLabel := fmt.Sprintf("try.end.%d", labelId)
+
+	hasCatch := len(instruction.Catch) > 0 || instruction.CatchVar != ""
+	hasFinally := len(instruction.Finally) > 0
+
+	landingLabel := catchLabel
+	if !hasCatch {
+		landingLabel = finallyLabel
+	}
+
+	out.WriteString(fmt.Sprintf("  %%%s = alloca [1024 x i8], align 16\n", frameName))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_push(ptr %%%s)\n", frameName))
+	out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_buf(ptr %%%s)\n", bufName, frameName))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @setjmp(ptr %%%s) returns_twice\n", statusName, bufName))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", isThrowName, statusName))
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", isThrowName, landingLabel, tryBodyLabel))
+
+	out.WriteString(fmt.Sprintf("%s:\n", tryBodyLabel))
+	e.terminated = false
+	for _, inst := range instruction.Body {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	tryTerminated := e.terminated
+	if !tryTerminated {
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
+		if hasFinally {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
+		} else {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
+		}
+	}
+
+	catchTerminated := false
+	if hasCatch {
+		out.WriteString(fmt.Sprintf("%s:\n", catchLabel))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
+		if instruction.CatchVar != "" {
+			catchValName := fmt.Sprintf("caught.%d", labelId)
+			out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_get_string(ptr %%%s)\n", catchValName, frameName))
+			e.types[instruction.CatchVar] = ir.TypeString
+			e.types[catchValName] = ir.TypeString
+			if slot, ok := e.varSlots[instruction.CatchVar]; ok {
+				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", catchValName, slot))
+			} else {
+				slotName := fmt.Sprintf("slot.%s", instruction.CatchVar)
+				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slotName))
+				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", catchValName, slotName))
+				e.varSlots[instruction.CatchVar] = slotName
+			}
+		}
+		e.terminated = false
+		for _, inst := range instruction.Catch {
+			if err := e.emitInstruction(out, inst); err != nil {
+				return err
+			}
+		}
+		catchTerminated = e.terminated
+		if !catchTerminated {
+			if hasFinally {
+				out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
+			} else {
+				out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
+			}
+		}
+	}
+
+	finallyTerminated := false
+	if hasFinally {
+		out.WriteString(fmt.Sprintf("%s:\n", finallyLabel))
+		if !hasCatch {
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
+		}
+		e.terminated = false
+		for _, inst := range instruction.Finally {
+			if err := e.emitInstruction(out, inst); err != nil {
+				return err
+			}
+		}
+		finallyTerminated = e.terminated
+		if !finallyTerminated {
+			if !hasCatch {
+				afterRethrow := fmt.Sprintf("finally.after_rethrow.%d", labelId)
+				rethrowCond := fmt.Sprintf("rethrow.cond.%d", labelId)
+				out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", rethrowCond, statusName))
+				rethrowBlock := fmt.Sprintf("finally.rethrow.%d", labelId)
+				out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", rethrowCond, rethrowBlock, afterRethrow))
+				out.WriteString(fmt.Sprintf("%s:\n", rethrowBlock))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_rethrow(ptr %%%s)\n", frameName))
+				out.WriteString("  unreachable\n")
+				out.WriteString(fmt.Sprintf("%s:\n", afterRethrow))
+			}
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
+		}
+	}
+
+	if (!tryTerminated) || (hasCatch && !catchTerminated) || (hasFinally && !finallyTerminated) {
+		out.WriteString(fmt.Sprintf("%s:\n", endLabel))
+		e.terminated = false
+	} else {
+		e.terminated = true
+	}
 	return nil
 }

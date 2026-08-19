@@ -67,6 +67,9 @@ type SyntaxStatement struct {
 	Body       []SyntaxStatement
 	Then       []SyntaxStatement
 	Else       []SyntaxStatement
+	CatchVar   string
+	Catch      []SyntaxStatement
+	Finally    []SyntaxStatement
 	Class      *SyntaxClass
 }
 
