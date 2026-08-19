@@ -112,6 +112,7 @@ func Check(entryPath string) (ProgramResult, error) {
 		Target:           core.ScriptTargetES2022,
 		Module:           core.ModuleKindESNext,
 		ModuleResolution: core.ModuleResolutionKindBundler,
+		Lib:              []string{"lib.es2022.d.ts"},
 		Strict:           core.TSTrue,
 		NoEmit:           core.TSTrue,
 	}

@@ -194,7 +194,6 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	}
 
 	// Web-compatible globals (Category 2: WebCompat)
-	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryWebCompat, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
 	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"performance.now"}, CategoryWebCompat, "__performance.now", nil, ir.TypeNumber, 0, 0)
@@ -213,6 +212,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"fs.readFileSync", "__scriptgo.readFileSync", "readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"fs.writeFileSync", "__scriptgo.writeFileSync", "writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
 	register([]string{"fs.existsSync", "__scriptgo.existsSync", "existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
+	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryNodeModule, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
 
 	return m
 }

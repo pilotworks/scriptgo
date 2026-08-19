@@ -45,7 +45,7 @@ all built-ins and runtime symbols are categorized into four distinct groups:
 | Category | Examples | Scope & Meaning | Import Required? | Parity Test Oracle (Gate) |
 | :--- | :--- | :--- | :--- | :--- |
 | **1. ECMAScript built-ins** | `Array`, `Object`, `Promise`, `Math`, `JSON`, `Map`, `Set`, `Error`, `Number`, `String`, `NaN`, `Infinity` | Defined strictly by ECMA-262 specifications. Not tied to Node.js or browser hosts. | **NO (Global Scope)** | **ECMA Test262** test suite & TypeScript baselines |
-| **2. Web-compatible globals** | `fetch`, `Headers`, `Request`, `Response`, `URL`, `URLSearchParams`, `AbortController`, `AbortSignal`, `TextEncoder`, `TextDecoder`, `Blob`, `crypto`, `structuredClone`, `setTimeout`, `queueMicrotask`, `performance` | Standard Web APIs adopted globally across server runtimes (WinterCG / Node.js). **Excludes browser DOM APIs.** | **NO (Global Scope)** | **WPT (Web Platform Tests)** & Node.js Web API suite |
+| **2. Web-compatible globals** | `fetch`, `Headers`, `Request`, `Response`, `URL`, `URLSearchParams`, `AbortController`, `AbortSignal`, `TextEncoder`, `TextDecoder`, `Blob`, `structuredClone`, `setTimeout`, `queueMicrotask`, `performance` | Standard Web APIs adopted globally across server runtimes (WinterCG / Node.js). **Excludes browser DOM APIs.** | **NO (Global Scope)** | **WPT (Web Platform Tests)** & Node.js Web API suite |
 | **3. Node-specific globals** | `process`, `Buffer`, `setImmediate`, `clearImmediate`, `__dirname`, `__filename`, `global`, `console` | Host environment APIs injected by Node.js runtime bootstrap. | **NO (Global Scope)** | **Node.js 22 LTS** globals test suite |
 | **4. Node built-in modules** | `node:fs`, `node:path`, `node:crypto`, `node:os`, `node:events`, `node:util`, `node:process`, `node:child_process` | Standard library modules explicitly imported via `node:*` or bare specifiers. | **YES (`import` / `require`)** | **Node.js 22 LTS** `test/parallel/test-*.js` suites |
 
@@ -64,6 +64,7 @@ Symbols in Category 4 are encapsulated within standard modules and **cannot** be
 ```ts
 // Canonical Node.js import (Recommended)
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import { join, dirname } from "node:path";
 
 // Bare specifier compatibility alias
@@ -77,7 +78,7 @@ Certain concepts exist in both the global scope and as a dedicated module. `scri
 | Symbol / API | Global Usage (No Import) | Module Usage (`import ... from 'node:*'`) |
 | :--- | :--- | :--- |
 | **`process`** | Category 3 Global: `process.argv`, `process.cwd()`, `process.exit()` | Category 4 Module: `import process from "node:process"` (ESM specifier alias to global instance) |
-| **`crypto`** | Category 2 Web Global: `crypto.randomUUID()`, `crypto.getRandomValues()` | Category 4 Module: `import crypto from "node:crypto"` (Full cryptography engine: `createHash`, `createCipheriv`, etc.) |
+| **`crypto`** | *Not available globally* | Category 4 Module: `import * as crypto from "node:crypto"` (`crypto.randomUUID()`, etc.) |
 | **`Buffer` / `buffer`** | Category 3 Global: `Buffer.from()`, `Buffer.alloc()` | Category 4 Module: `import { Buffer } from "node:buffer"` (Module-level exports, Blob/constants) |
 | **Timers / `timers`** | Category 2 Web Global: `setTimeout`, `setInterval`, `clearTimeout` | Category 4 Module: `import { setTimeout } from "node:timers/promises"` (Promise-based timer variants) |
 
@@ -97,12 +98,11 @@ DOM layout or UI rendering.
 3. **I/O Streams:** `ReadableStream`, `WritableStream`, `TransformStream`, `ByteLengthQueuingStrategy`
 4. **Cancellation & Signals:** `AbortController`, `AbortSignal`
 5. **Binary & Text Encoding:** `TextEncoder`, `TextDecoder`, `Blob`, `File`
-6. **Cryptography & Identifiers:** `crypto` (`crypto.randomUUID()`, `crypto.getRandomValues()`), `SubtleCrypto`
-7. **Base64 & Utilities:** `btoa`, `atob`, `structuredClone`
-8. **Events Core:** `Event`, `EventTarget`, `CustomEvent`
-9. **Timers & Microtasks:** `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`
-10. **High-Resolution Time:** `performance` (`performance.now()`, `PerformanceMark`)
-11. **Real-time Comms (Future):** `WebSocket` client
+6. **Base64 & Utilities:** `btoa`, `atob`, `structuredClone`
+7. **Events Core:** `Event`, `EventTarget`, `CustomEvent`
+8. **Timers & Microtasks:** `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`
+9. **High-Resolution Time:** `performance` (`performance.now()`, `PerformanceMark`)
+10. **Real-time Comms (Future):** `WebSocket` client
 
 ### ❌ OUT-OF-SCOPE: Frontend & Browser DOM APIs (Explicitly Excluded)
 
