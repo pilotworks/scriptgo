@@ -28,8 +28,8 @@ general TypeScript-Go and LLVM behavior.
 - Add source spans to diagnostics and IR instructions whenever a new lowering
   boundary can report an error.
 - Keep each Go file focused on one responsibility. Split a file by stage or
-  concern before adding more code when it exceeds roughly 300 lines; a file
-  over 400 lines requires an explicit reason in the change description.
+  concern before adding more code when it exceeds roughly 500 lines; a file
+  over 700 lines requires an explicit reason in the change description.
 - Do not create catch-all `helpers`, `utils`, or `common` packages. Put a helper
   beside the boundary that owns its behavior, or document why it is genuinely
   cross-cutting.
