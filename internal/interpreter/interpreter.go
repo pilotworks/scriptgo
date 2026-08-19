@@ -171,6 +171,14 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 			}
 			fmt.Fprintln(output, format(value))
 		case ir.OpCall:
+			if strings.HasPrefix(instruction.Callee, "__Math.") {
+				value, err := executeMathIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__array.") {
 				value, err := executeArrayIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
@@ -237,6 +245,12 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 func parseConstant(typ ir.Type, value string) (Value, error) {
 	switch typ {
 	case ir.TypeNumber:
+		if value == "NaN" {
+			return Value{Type: typ, Number: math.NaN()}, nil
+		}
+		if value == "+Inf" {
+			return Value{Type: typ, Number: math.Inf(1)}, nil
+		}
 		number, err := strconv.ParseFloat(value, 64)
 		return Value{Type: typ, Number: number}, err
 	case ir.TypeString:
@@ -247,6 +261,30 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 	default:
 		return Value{}, fmt.Errorf("unsupported constant type %s", typ)
 	}
+}
+
+func executeMathIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	if len(arguments) != 1 {
+		return Value{}, fmt.Errorf("%s requires one number", name)
+	}
+	argument, ok := env[arguments[0]]
+	if !ok || argument.Type != ir.TypeNumber {
+		return Value{}, fmt.Errorf("%s requires one number", name)
+	}
+	value := argument.Number
+	switch name {
+	case "__Math.abs":
+		value = math.Abs(value)
+	case "__Math.ceil":
+		value = math.Ceil(value)
+	case "__Math.floor":
+		value = math.Floor(value)
+	case "__Math.trunc":
+		value = math.Trunc(value)
+	default:
+		return Value{}, fmt.Errorf("unknown math intrinsic %q", name)
+	}
+	return Value{Type: ir.TypeNumber, Number: value}, nil
 }
 
 func lookup(env map[string]Value, arguments []string, index int) (Value, error) {

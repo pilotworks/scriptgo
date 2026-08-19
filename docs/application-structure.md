@@ -59,7 +59,7 @@ This is the structure currently present in the repository:
 │   │   ├── abi/README.md         # Current ABI contract
 │   │   ├── native/
 │   │   │   ├── README.md         # Native implementation rules
-│   │   │   └── arrays/runtime.c  # Dense number-array operations
+│   │   │   └── arrays/runtime.c  # Generic element-layout array operations
 │   │   └── values/README.md      # Managed-value policies and shared contracts
 │   └── typescriptgo/
 │       ├── go.mod               # Separate adapter module
@@ -125,7 +125,7 @@ internal/
 │   ├── README.md                # Runtime ownership and package boundaries
 │   ├── abi/README.md            # Current ABI contract
 │   ├── native/                  # Native implementations by value family
-│   │   └── arrays/runtime.c     # Dense number-array operations
+│   │   └── arrays/runtime.c     # Generic element-layout array operations
 │   └── values/                  # Managed-value policies and shared contracts
 └── backend/
     └── llvm/                    # Existing MVP: typed IR -> LLVM IR
@@ -175,8 +175,8 @@ The IR is the contract between language-facing analysis and native backends.
 Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
 
-The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly for
-primitive output and links the focused number-array, string, and static-object
+The current LLVM MVP calls project-owned `scriptgo_print_*` wrappers for
+primitive output and links the generic array, string, and static-object
 runtime families from
 `internal/runtime/native/{arrays,strings,objects}`. `internal/runtime` owns the
 ABI and native runtime implementations by value family. Startup services must

@@ -1,8 +1,10 @@
 # scriptgo
 
-`scriptgo` is a Go-based native compiler for a deliberately small, typed
-subset of TypeScript. It reuses TypeScript-Go for the language front end and
-LLVM for the native middle/backend path.
+`scriptgo` is a Go-based native compiler that aims to run TypeScript and
+JavaScript with Node.js-compatible semantics while compiling eligible code to
+native executables. The current implementation is a deliberately small,
+synchronous subset; it reuses TypeScript-Go for the language front end and LLVM
+for the native middle/backend path.
 
 ## Documentation
 
@@ -25,7 +27,8 @@ resolves local modules, and type-checks the reachable graph; scriptgo lowers a
 small subset into verified typed IR, can interpret it, and can emit LLVM IR or
 an executable through Clang. Dense `number[]` arrays and static number/string
 class fields are supported; `null`, `undefined`, exceptions, async code, npm
-resolution, and full JavaScript compatibility remain outside the MVP.
+resolution, and full JavaScript compatibility are deferred from the MVP, not
+the long-term compatibility direction.
 
 ## Run
 

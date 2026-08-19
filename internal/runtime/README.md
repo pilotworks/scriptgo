@@ -13,7 +13,7 @@ internal/runtime/
 │   └── README.md                # ABI, layout, ownership, and failure contract
 ├── native/
 │   ├── README.md                # Native implementation rules
-│   ├── arrays/runtime.c         # Dense number-array operations
+│   ├── arrays/runtime.c         # Generic element-layout array operations
 │   ├── strings/runtime.c        # String operations
 │   └── objects/runtime.c        # Object operations
 └── values/

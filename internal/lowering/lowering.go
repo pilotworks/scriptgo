@@ -239,10 +239,18 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, resultType, nil
 	case "identifier":
 		typ, ok := env[expression.Text]
+		if ok {
+			return expression.Text, typ, nil
+		}
+		global, ok := builtinGlobal(expression.Text)
 		if !ok {
 			return "", "", fmt.Errorf("unknown identifier %q", expression.Text)
 		}
-		return expression.Text, typ, nil
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: result, Value: global.Value, Span: toIRSpan(path, expression.Span)})
+		return result, global.Type, nil
 	case "binary":
 		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -367,6 +375,27 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, returnType, nil
 		}
 		callee := callName(expression.Left)
+		if intrinsic, ok := builtinIntrinsic(callee); ok {
+			if len(expression.Arguments) < intrinsic.MinArgs || len(expression.Arguments) > intrinsic.MaxArgs {
+				return "", "", fmt.Errorf("builtin %s expects %d argument(s)", callee, intrinsic.MinArgs)
+			}
+			args := make([]string, 0, len(expression.Arguments))
+			for _, argument := range expression.Arguments {
+				value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				if typ != intrinsic.Argument {
+					return "", "", fmt.Errorf("builtin %s requires %s arguments", callee, intrinsic.Argument)
+				}
+				args = append(args, value)
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: intrinsic.ResultType, Result: result, Callee: "__" + callee, Args: args, Span: toIRSpan(path, expression.Span)})
+			return result, intrinsic.ResultType, nil
+		}
 		if callee == "console.log" {
 			if len(expression.Arguments) != 1 {
 				return "", "", fmt.Errorf("console.log requires one argument")

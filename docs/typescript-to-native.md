@@ -42,10 +42,12 @@ not a replacement for that reference.
   portability and a simple bootstrap path.
 - Produce useful diagnostics at the original TypeScript source locations.
 - Start with a small, predictable AOT subset and expand it incrementally.
+- Make ECMAScript and Node.js observable behavior the long-term compatibility
+  contract, so native compilation can consume npm packages without semantic
+  rewrites.
 
-## Non-Goals
+## Current MVP Limitations
 
-- Replacing the JavaScript/Node.js execution model for every existing package.
 - Making all dynamic JavaScript features zero-cost in native code.
 - Guaranteeing that native output has identical performance characteristics to
   JavaScript output.
@@ -301,7 +303,7 @@ validated integer lowering later.
 
 Native code needs a runtime for features that are not directly expressible as
 machine instructions. The current MVP calls the host C ABI for `printf` and
-`puts` and links dense number-array, string, and static-object operations from
+`scriptgo_print_*` and links generic array, string, and static-object operations from
 `internal/runtime/native/{arrays,strings,objects}`; the reference interpreter remains separate
 under `internal/interpreter`. The runtime is organized by ABI and value family
 so future managed values can be added without moving frontend or lowering
@@ -374,10 +376,10 @@ program entry point and classify imports into:
 - **foreign modules:** explicitly declared native or C/LLVM bindings.
 
 The first release should support local TypeScript modules and the explicitly
-promoted standard-library surface defined in [`stdlib.md`](stdlib.md). Full npm
-compatibility is a separate project because many npm
-packages depend on dynamic loading, Node.js APIs, eval, browser globals, or
-JavaScript-specific packaging behavior.
+promoted standard-library surface defined in [`stdlib.md`](stdlib.md). npm
+compatibility is a staged roadmap: package resolution, JavaScript execution,
+CommonJS/ESM interop, Node APIs, dynamic loading, browser globals, and eval
+must each acquire explicit semantics and parity tests before promotion.
 
 ## Errors, Diagnostics, and Debugging
 
@@ -505,14 +507,14 @@ while shared semantic tests verify that both backends agree.
 | JavaScript semantics are more dynamic than native layouts | Incorrect behavior or excessive runtime calls | Start with a documented subset and explicit dynamic fallback |
 | `number` differs from native integers | Overflow and comparison bugs | Use `f64` by default; require explicit integer semantics |
 | TypeScript types are erased at runtime | Missing checks or invalid assumptions | Add representation metadata only where runtime behavior needs it |
-| npm and Node.js compatibility is broad | Scope expands beyond a compiler backend | Require closed modules and target-specific runtime APIs |
+| npm and Node.js compatibility is broad | Scope expands beyond a compiler backend | Stage package resolution, JavaScript semantics, Node APIs, and native optimization behind parity gates |
 | C and LLVM backends diverge | Backend-dependent program behavior | Share Typed IR, ABI, runtime, and differential tests |
 | Memory management is underspecified | Leaks, use-after-free, or pauses | Choose ownership, reference counting, or GC before object-heavy features |
 
 ## Decisions
 
-- The first native language subset is explicitly strict TypeScript, without
-  partial JavaScript compatibility.
+- The first native language subset is strict and small, but its semantic target
+  is JavaScript/Node.js compatibility rather than C-like TypeScript behavior.
 - Object values use specialized static layouts.
 - Exceptions use native unwinding.
 - `async`/`await` is lowered to a state machine.
@@ -527,5 +529,6 @@ detail for multiple backends. LLVM should be implemented first because it gives
 the initial compiler a direct path to optimization, debugging, and native
 targets. A C backend can follow as a deferred portability and bootstrap option.
 The project should grow from a small, tested synchronous subset with an
-explicit runtime rather than attempting full JavaScript compatibility in the
-first release.
+explicit runtime. Full JavaScript and npm compatibility is not a first-release
+claim, but it is the direction that governs representation and boundary
+decisions from the beginning.

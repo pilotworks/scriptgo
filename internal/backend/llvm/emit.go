@@ -3,6 +3,7 @@ package llvm
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -73,15 +74,15 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_print_number(double)\n")
 	out.WriteString("declare i32 @scriptgo_print_string(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_print_bool(i32)\n\n")
-	out.WriteString("declare i32 @scriptgo_array_number_new(i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_number_get(ptr, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_number_set(ptr, double, double)\n")
+	out.WriteString("declare double @llvm.fabs.f64(double)\n")
+	out.WriteString("declare double @llvm.ceil.f64(double)\n")
+	out.WriteString("declare double @llvm.floor.f64(double)\n")
+	out.WriteString("declare double @llvm.trunc.f64(double)\n\n")
+	out.WriteString("declare i32 @scriptgo_array_new(i64, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_get(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_set(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_length(ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_number_release(ptr)\n\n")
-	out.WriteString("declare i32 @scriptgo_array_string_new(i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_string_get(ptr, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_string_set(ptr, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_string_release(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_number_set(ptr, i64, double)\n")
 	out.WriteString("declare i32 @scriptgo_object_number_get(ptr, i64, ptr)\n")
@@ -267,27 +268,23 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			arrayTypes = append(arrayTypes, arrayReference{name: instruction.Result, typ: instruction.Type})
 			slot := instruction.Result + ".slot"
 			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-			constructor := "scriptgo_array_number_new"
-			setter := "scriptgo_array_number_set"
-			if instruction.Type == ir.TypeStringArray {
-				constructor = "scriptgo_array_string_new"
-				setter = "scriptgo_array_string_set"
+			elementSize, err := arrayElementSize(instruction.Type)
+			if err != nil {
+				return "", err
 			}
 			status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
 			runtimeStatus++
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i64 %d, ptr %%%s)\n", status, constructor, len(instruction.Args), slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 %d, i64 %d, ptr %%%s)\n", status, len(instruction.Args), elementSize, slot))
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			for index, argument := range instruction.Args {
-				if instruction.Type == ir.TypeStringArray {
-					status = fmt.Sprintf("runtime.status.%d", runtimeStatus)
-					runtimeStatus++
-					out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, double %s, ptr %%%s)\n", status, setter, instruction.Result, llvmNumber(float64(index)), argument))
-				} else {
-					status = fmt.Sprintf("runtime.status.%d", runtimeStatus)
-					runtimeStatus++
-					out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, double %s, double %%%s)\n", status, setter, instruction.Result, llvmNumber(float64(index)), argument))
-				}
+				valueSlot := fmt.Sprintf("%s.element.%d", instruction.Result, index)
+				elementLLVMType := llvmType(arrayElementType(instruction.Type))
+				out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", valueSlot, elementLLVMType))
+				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elementLLVMType, argument, valueSlot))
+				status = fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Result, llvmNumber(float64(index)), valueSlot))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			}
 		case ir.OpIndex:
@@ -304,12 +301,12 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			runtimeStatus++
 			if arrayType == ir.TypeStringArray {
 				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_string_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			} else {
 				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 			}
@@ -373,6 +370,13 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 				return "", fmt.Errorf("unsupported object field type %s", instruction.Type)
 			}
 		case ir.OpCall:
+			if strings.HasPrefix(instruction.Callee, "__Math.") {
+				if err := emitMathIntrinsic(&out, instruction); err != nil {
+					return "", err
+				}
+				types[instruction.Result] = instruction.Type
+				break
+			}
 			if strings.HasPrefix(instruction.Callee, "__array.") {
 				arrayType, ok := types[instruction.Args[0]]
 				if !ok {
@@ -418,12 +422,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		case ir.OpReturn:
 			for _, arrayReference := range arrayTypes {
 				array := arrayReference.name
-				arrayType := arrayReference.typ
-				release := "scriptgo_array_number_release"
-				if arrayType == ir.TypeStringArray {
-					release = "scriptgo_array_string_release"
-				}
-				out.WriteString(fmt.Sprintf("  call i32 @%s(ptr %%%s)\n", release, array))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", array))
 			}
 			for _, object := range objects {
 				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
@@ -454,12 +453,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	if !terminated {
 		for _, arrayReference := range arrayTypes {
 			array := arrayReference.name
-			arrayType := arrayReference.typ
-			release := "scriptgo_array_number_release"
-			if arrayType == ir.TypeStringArray {
-				release = "scriptgo_array_string_release"
-			}
-			out.WriteString(fmt.Sprintf("  call i32 @%s(ptr %%%s)\n", release, array))
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", array))
 		}
 		for _, object := range objects {
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
@@ -503,7 +497,34 @@ func llvmType(typ ir.Type) string {
 	}
 }
 
+func arrayElementType(arrayType ir.Type) ir.Type {
+	if arrayType == ir.TypeStringArray {
+		return ir.TypeString
+	}
+	return ir.TypeNumber
+}
+
+func arrayElementSize(arrayType ir.Type) (int64, error) {
+	switch arrayType {
+	case ir.TypeNumberArray:
+		return 8, nil // IEEE-754 binary64.
+	case ir.TypeStringArray:
+		return 8, nil // v1 targets use 64-bit opaque pointers.
+	default:
+		return 0, fmt.Errorf("unsupported array element layout %s", arrayType)
+	}
+}
+
 func llvmNumber(value float64) string {
+	if math.IsNaN(value) {
+		return "0x7FF8000000000000"
+	}
+	if math.IsInf(value, 1) {
+		return "0x7FF0000000000000"
+	}
+	if math.IsInf(value, -1) {
+		return "0xFFF0000000000000"
+	}
 	return strconv.FormatFloat(value, 'e', 17, 64)
 }
 

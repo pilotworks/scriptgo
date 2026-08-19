@@ -4,7 +4,7 @@ Native runtime source is grouped by value family:
 
 ```text
 native/
-├── arrays/       # Dense number-array allocation, access, bounds, cleanup
+├── arrays/       # Generic element-layout allocation, access, bounds, cleanup
 ├── strings/      # String representation and primitive operations
 ├── objects/      # Object headers, shapes, and property operations
 ├── errors/       # Future runtime diagnostics and failure transport

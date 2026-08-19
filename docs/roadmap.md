@@ -2,13 +2,15 @@
 
 ## Product Direction
 
-`scriptgo` compiles a deliberately small, strict subset of TypeScript into a
-native executable. TypeScript-Go remains responsible for parsing, binding,
-module resolution, and type checking. `scriptgo` owns the native subset gate,
-typed IR, runtime ABI, lowering, and native backends.
+`scriptgo` aims to compile TypeScript and JavaScript programs, including useful
+npm packages, into native executables while preserving ECMAScript and Node.js
+observable semantics. TypeScript-Go remains responsible for parsing, binding,
+module resolution, and type checking. `scriptgo` owns the compatibility-aware
+subset gate, typed IR, runtime ABI, lowering, and native backends.
 
 The first release targets synchronous local programs on macOS ARM64 with LLVM
-and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
+and Clang. Full JavaScript and npm compatibility are deferred from the MVP and
+remain the product direction.
 
 ## Current Baseline
 
@@ -17,7 +19,7 @@ and Clang. Full JavaScript and npm compatibility are out of scope for the MVP.
 - [x] Syntax and semantic diagnostics include the source path, offset, TypeScript code, and message.
 - [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
-- [ ] Exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP.
+- [ ] Exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP; these are roadmap work, not permanent non-goals.
 
 ## Milestones
 
@@ -105,7 +107,7 @@ stdlib layer, not a new path-specific ABI service.
 Expand the useful strict subset while keeping runtime behavior explicit.
 
 - [x] Resolve and compile local TypeScript modules with deterministic initialization order.
-- [x] Add runtime-managed number arrays, indexing, and bounds checks.
+- [x] Add runtime-managed generic primitive arrays, compiler-selected element layouts, indexing, and bounds checks.
 - [x] Add simple classes/object shapes with documented static-layout rules.
 - [x] Define null/undefined representation and truthiness conversions.
 - [x] Add integration fixtures for multi-file programs and object/array behavior.
@@ -175,6 +177,25 @@ The standard library follows the Node.js-compatible policy in
    encoding, and failure behavior are documented in the runtime ABI.
 5. Defer callbacks, streams, networking, crypto, child processes, and worker
    APIs until object, async, and process-model semantics are complete.
+
+### Node.js And npm Compatibility Track
+
+This track is the long-term product direction. It must be implemented in
+semantic gates rather than by widening the native subset table informally:
+
+1. **JavaScript value model:** `undefined`, `null`, coercion, property access,
+   prototypes, sparse arrays, exceptions, and function values.
+2. **Module model:** Node package resolution, `package.json`, exports/imports,
+   CommonJS/ESM interop, package cache, and initialization order.
+3. **JavaScript execution:** `.js` sources, erased TypeScript, dynamic calls,
+   closures, and the minimum runtime needed by real npm packages.
+4. **Node runtime:** `process`, filesystem, buffers, streams, timers, and
+   platform-specific builtins with explicit target adapters.
+5. **Native optimization:** specialize proven hot paths while retaining a
+   JavaScript-compatible fallback for dynamic cases.
+
+Each gate requires Node.js reference fixtures, interpreter parity, native
+executable parity, and explicit rejection diagnostics for unsupported cases.
 
 ## Recommended Execution Order
 

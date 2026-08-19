@@ -1,12 +1,24 @@
 # Standard Library Compatibility
 
-`scriptgo` aims for a small, explicit standard-library surface familiar to
-Node.js users. This is a compatibility target, not a promise of full Node.js or
-npm support. TypeScript-Go remains responsible for parsing and type checking;
-`scriptgo` owns the native eligibility policy and runtime mapping.
+`scriptgo` targets a Node.js-compatible and JavaScript-compatible standard
+library surface so useful npm packages can eventually compile without source
+rewrites. The current MVP is only a small synchronous subset; unsupported
+behavior must be rejected explicitly until its semantics are implemented.
+TypeScript-Go remains responsible for parsing, binding, module resolution, and
+type checking; `scriptgo` owns native eligibility, runtime mapping, and parity
+verification against Node.js.
 
 ## Compatibility Contract
 
+Compatibility priority is ECMAScript behavior first, Node.js observable behavior
+second, and native representation/optimization third. Typed IR and the runtime ABI
+must model JavaScript values instead of treating TypeScript types as C layouts.
+TypeScript annotations are erased at runtime unless a documented runtime check is
+required.
+
+Unless a fixture declares another version, parity tests use Node.js 22.x LTS as
+the reference runtime. A compatibility claim must identify the ECMAScript and
+Node.js version assumptions it relies on.
 Each supported API must document four things:
 
 1. the accepted module specifier and TypeScript signature;
@@ -18,10 +30,10 @@ Compatibility levels are:
 
 | Level               | Meaning                                                                                                           |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Source-compatible   | Existing Node-style TypeScript imports and calls type-check with the same signatures.                             |
-| Behavior-compatible | Supported inputs produce the same observable values, output, side effects, and error class as the Node reference. |
-| Target-compatible   | Behavior is stable for the selected scriptgo target; platform-specific differences are explicit.                  |
-| Deferred            | The API is documented as planned but must be rejected before lowering.                                            |
+| Source-compatible   | Existing Node-style TypeScript and JavaScript package sources can be parsed, resolved, and type-checked. |
+| Behavior-compatible | Supported inputs produce the same observable values, output, side effects, coercions, and error class as Node. |
+| Target-compatible   | Behavior is stable for the selected scriptgo target; platform-specific differences are explicit. |
+| Deferred            | The API is documented as planned but must be rejected before lowering. |
 
 An API is not supported merely because a declaration exists. It becomes part of
 the native subset only after its runtime representation, ownership, failure
@@ -35,14 +47,19 @@ Use the bare built-in specifier in scriptgo examples:
 import * as path from "path";
 ```
 
-The canonical scriptgo name is `path`; `node:path` may be accepted later as a
-Node.js compatibility alias when both resolve to the same built-in module.
-`node_modules`, package
-exports, conditional exports, dynamic `require`, and runtime module loading
-remain outside the MVP.
+The canonical scriptgo name is `path`; `node:path` is a planned compatibility
+alias when both resolve to the same built-in module.
+The MVP resolves only the current closed graph. The compatibility roadmap must
+add `node_modules`, `package.json`, `exports`/`imports`, conditional exports,
+CommonJS, ESM, package self-resolution, and the Node module cache before npm
+packages can be considered supported.
 
 ## Surface Plan
 
+Package loading is a first-class compatibility area. The roadmap must add
+node_modules, package.json, exports/imports conditions, CommonJS, ESM, package
+self-resolution, cache behavior, and Node-compatible resolution errors before
+npm packages can be considered supported.
 The status below describes the intended order, not an implementation promise.
 
 | Node.js area                                | Initial scriptgo surface                                               | Status and constraints                                                                                                               |
@@ -96,7 +113,7 @@ internal/
     |-- abi/README.md            # ABI contract
     |-- values/README.md         # managed-value policies
     `-- native/
-        |-- arrays/runtime.c    # number-array primitives
+        |-- arrays/runtime.c    # generic array primitives
         |-- strings/runtime.c   # string primitives
         `-- objects/runtime.c   # object primitives
 ```
@@ -104,6 +121,24 @@ internal/
 Future modules such as `fs.ts`, `os.ts`, and `process.ts` may be TypeScript
 wrappers over new native service families, but they are not part of the current
 tree.
+
+## Globals And Intrinsics
+
+TypeScript-Go supplies the declarations for standard globals such as `NaN`,
+`Infinity`, and `Math`. The native subset promotes only the operations listed
+below; lowering maps them to backend-independent intrinsic names and the
+interpreter and LLVM backend must implement the same observable behavior.
+
+| Builtin | Native status | Semantic boundary |
+| --- | --- | --- |
+| `NaN`, `Infinity` | Supported numeric constants | IEEE-754 values; no JavaScript object boxing |
+| `Math.abs`, `Math.ceil`, `Math.floor`, `Math.trunc` | Supported, one numeric argument | Matches JavaScript numeric cases; no coercion or omitted/extra arguments |
+| Other `Math.*` APIs | Deferred | Must be explicitly promoted with parity tests |
+
+This distinction is intentional: a symbol being present in TypeScript's
+standard declarations makes source code type-checkable, but does not make it
+native-eligible. The native subset owns eligibility and rejects unpromoted
+operations before IR generation.
 
 ## Runtime Ownership
 
@@ -157,9 +192,9 @@ IDs, tests must inject a deterministic provider or compare only the documented
 shape and error behavior. Do not snapshot host-specific values as universal
 Node parity.
 
-## Non-Goals
+## Current MVP Limitations
 
-This policy does not make `scriptgo` a Node.js runtime. Full npm compatibility,
-JavaScript coercion, arbitrary package resolution, dynamic loading, browser
-globals, the event loop, and all Node built-ins remain outside the current
-scope until their semantics and native costs are separately specified.
+These features are deferred from the MVP but remain compatibility goals: full npm
+package resolution, JavaScript coercion, arbitrary objects/prototypes, CommonJS/
+ESM interop, dynamic loading, browser globals, the event loop, and the complete
+Node builtin surface.

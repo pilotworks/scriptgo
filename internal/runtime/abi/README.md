@@ -18,7 +18,7 @@ used by the native backend and its ABI harness.
 | Numeric output | `scriptgo_print_number` | Runtime uses `printf("%g\\n", value)` internally |
 | String output | `scriptgo_print_string` | Runtime uses `puts(value)` internally |
 | Boolean output | `scriptgo_print_bool` | Runtime selects `true`/`false` and calls libc internally |
-| Managed values | Dense number arrays and static object fields | Native builds link the embedded array and object runtimes |
+| Managed values | Generic primitive arrays and static object fields | Compiler-selected element layouts use one linked array runtime |
 | Ownership and cleanup | Explicit owned results | Allocating string/array/object operations return one owned value; release consumes it |
 | Runtime errors | Status + thread/process-local diagnostic | Negative status stores an error; generated code calls `scriptgo_runtime_abort_if_failed` |
 | ABI versioning | Linked ABI v1 | LLVM metadata emits `scriptgo.runtime.v1`; symbol names use the `scriptgo_*` prefix |
@@ -125,19 +125,23 @@ front-end, or a collection of backend helpers. A new runtime operation belongs
 here only when its native representation, ownership, failure behavior, and
 tests are specified.
 
-## Linked Runtime Array ABI: Primitive Arrays
+## Linked Runtime Array ABI: Generic Primitive Arrays
 
-Array ABI adds only dense, mutable arrays of `number` values. The first array
-runtime does not expose JavaScript prototype behavior, sparse holes, object
-elements, or arbitrary property keys.
+The array ABI uses one generic dense storage layout. The compiler supplies the
+element layout; the runtime stores and copies opaque bytes and does not expose
+one function family per TypeScript element type. The current native subset uses
+compiler types `number[]` and `string[]`, but both use the same ABI symbols.
+JavaScript prototype behavior, sparse holes, object elements, and arbitrary
+property keys remain deferred.
 
 The runtime-owned layout is:
 
 ```text
-struct scriptgo_array_number {
+struct scriptgo_array {
     i64 length;
     i64 capacity;
-    double *data;
+    i64 element_size;
+    byte *data;
 }
 ```
 
@@ -151,26 +155,29 @@ details in a future minor release.
 The required operations are:
 
 ```text
-scriptgo_array_number_new(length, out_array) -> status
-scriptgo_array_number_get(array, index, out_value) -> status
-scriptgo_array_number_set(array, index, value) -> status
+scriptgo_array_new(length, element_size, out_array) -> status
+scriptgo_array_get(array, index, out_value) -> status
+scriptgo_array_set(array, index, value) -> status
 scriptgo_array_length(array, out_length) -> status
-scriptgo_array_number_release(array) -> status
+scriptgo_array_release(array) -> status
 ```
 
-Allocation initializes every element to `0.0`. `get`, `set`, and `length`
-reject a null handle. `get` and `set` reject a negative, fractional, NaN, or
-out-of-range index with a stable bounds error; they never read or write past
-the allocation. `release` accepts null as a no-op and invalidates the handle.
+`element_size` is a positive byte count selected by the compiler from the
+verified IR layout. v1 uses 8 bytes for `number` and one pointer-sized slot for
+`string`; supported v1 targets are 64-bit. The compiler must reject a target
+whose pointer size does not match the selected string layout. Allocation
+zero-initializes all bytes. `get`, `set`, and `length` reject a null handle.
+`get` and `set` reject a
+negative, fractional, NaN, or out-of-range index with a stable bounds error;
+they copy exactly `element_size` bytes and never read or write past the
+allocation. `release` accepts null as a no-op and consumes the owned handle.
 
-Ownership is explicit: `new` returns one owned reference, values stored in an
-array are copied as `double`, and `release` consumes the caller's ownership.
-The current interpreter, linked implementation, and LLVM lowering model the same
-observable array and bounds semantics.
+Ownership is explicit: `new` returns one owned handle, values stored in an
+array are copied by the generic byte operation, and `release` consumes the
+caller's ownership. The current interpreter, linked implementation, and LLVM
+lowering model the same observable array and bounds semantics.
 
-`number[]` and `string[]` remain specialized because their element storage and
-access types differ, but length is representation-independent and always uses
-`scriptgo_array_length`. The array ABI uses the same platform C calling convention and status policy:
+The array ABI uses the same platform C calling convention and status policy:
 zero is success, negative values are failures, and the runtime owns error text
 until the next runtime call on the same execution context. Native array
 lowering uses these operations and is covered by interpreter and native
@@ -296,8 +303,10 @@ The following are intentionally outside the MVP ABI:
 - `null` and `undefined` representations;
 - exceptions, stack unwinding, and panic/abort policy;
 - async scheduling, promises, timers, and event-loop integration;
-- garbage collection, reference counting, or explicit release operations;
-- Node.js APIs, npm packages, filesystem, networking, and FFI;
+- garbage collection or reference counting; the current ABI uses explicit
+  ownership and release for allocated values;
+- Node.js APIs, npm packages, filesystem, networking, and FFI in the MVP ABI;
+  these remain compatibility roadmap work rather than permanent non-goals;
 - variadic or multi-argument `console.log` behavior.
 
 Unsupported features must be rejected by the native subset gate before backend

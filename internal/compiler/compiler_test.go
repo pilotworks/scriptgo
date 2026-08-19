@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func TestCompileReturnsPipelineStub(t *testing.T) {
@@ -248,6 +250,73 @@ func TestRunSupportsNumberArrayIndexing(t *testing.T) {
 	}
 }
 
+func TestMathBuiltinsMatchInterpreterAndNative(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	outputPath := filepath.Join(dir, "main")
+	source := "console.log(Math.abs(3.5));\n" +
+		"console.log(Math.ceil(2.1));\n" +
+		"console.log(Math.floor(2.9));\n" +
+		"console.log(Math.trunc(2.9));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	interpreted, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if interpreted != "3.5\n3\n2\n2\n" {
+		t.Fatalf("interpreter output = %q", interpreted)
+	}
+	if err := Build(entry, outputPath); err != nil {
+		t.Fatal(err)
+	}
+	native, err := exec.Command(outputPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("native builtin executable failed: %v\n%s", err, native)
+	}
+	if string(native) != interpreted {
+		t.Fatalf("native output = %q, interpreter output = %q", native, interpreted)
+	}
+}
+
+func TestBuiltinGlobalsLowerAsNumbers(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("const nan: number = NaN; const infinity: number = Infinity;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	module, err := CompileModule(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]string{}
+	for _, instruction := range module.Functions[0].Body {
+		if instruction.Op == ir.OpConst {
+			values[instruction.Result] = instruction.Value
+		}
+	}
+	if values["nan"] != "NaN" || values["infinity"] != "+Inf" {
+		t.Fatalf("builtin global constants = %#v", values)
+	}
+}
+
+func TestBuiltinGlobalsCompileToLLVM(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	if err := os.WriteFile(entry, []byte("console.log(NaN); console.log(Infinity);\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	output, err := Compile(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "0x7FF8000000000000") || !strings.Contains(output, "0x7FF0000000000000") {
+		t.Fatalf("LLVM output does not contain builtin number constants:\n%s", output)
+	}
+}
+
 func TestRunSupportsStaticClassFields(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	source := "class Point { x: number = 42; }\nconst point = new Point();\nconsole.log(point.x);\n"
@@ -293,7 +362,7 @@ func TestCompileSupportsNumberArrays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if output, err := Compile(entry); err != nil || !strings.Contains(output, "scriptgo_array_number_get") {
+	if output, err := Compile(entry); err != nil || !strings.Contains(output, "scriptgo_array_get") {
 		t.Fatalf("Compile output/error = %q / %v, want array runtime call", output, err)
 	}
 }

@@ -1,32 +1,41 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 int scriptgo_runtime_set_error(const char *message);
 
 typedef struct {
     int64_t length;
     int64_t capacity;
-    double *data;
-} scriptgo_array_number;
-
-typedef struct {
-    int64_t length;
-    int64_t capacity;
-    void **data;
-} scriptgo_array_string;
+    int64_t element_size;
+    unsigned char *data;
+} scriptgo_array;
 
 static int fail(const char *message) { return scriptgo_runtime_set_error(message); }
 
-int scriptgo_array_number_new(int64_t length, void **out_array) {
-    if (out_array == NULL || length < 0) {
+static int check_index(scriptgo_array *array, double index, size_t *offset) {
+    if (index != index || index < 0 || index != (double)(int64_t)index ||
+        (int64_t)index >= array->length) {
+        return fail("scriptgo array index out of bounds");
+    }
+    *offset = (size_t)index * (size_t)array->element_size;
+    return 0;
+}
+
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
+    scriptgo_array *array;
+    size_t byte_length;
+    if (out_array == NULL || length < 0 || element_size <= 0) {
         return fail("scriptgo array allocation failed");
     }
-    scriptgo_array_number *array = calloc(1, sizeof(*array));
-    if (array == NULL) {
+    if ((uint64_t)length > SIZE_MAX / (uint64_t)element_size) {
         return fail("scriptgo array allocation failed");
     }
-    if (length > 0) {
-        array->data = calloc((size_t)length, sizeof(*array->data));
+    array = calloc(1, sizeof(*array));
+    if (array == NULL) return fail("scriptgo array allocation failed");
+    byte_length = (size_t)length * (size_t)element_size;
+    if (byte_length != 0) {
+        array->data = calloc(1, byte_length);
         if (array->data == NULL) {
             free(array);
             return fail("scriptgo array allocation failed");
@@ -34,119 +43,45 @@ int scriptgo_array_number_new(int64_t length, void **out_array) {
     }
     array->length = length;
     array->capacity = length;
+    array->element_size = element_size;
     *out_array = array;
     return 0;
 }
 
-int scriptgo_array_number_get(void *handle, double index, double *out_value) {
-    if (handle == NULL || out_value == NULL) {
+int scriptgo_array_get(void *handle, double index, void *out_value) {
+    scriptgo_array *array = handle;
+    size_t offset;
+    if (array == NULL || out_value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    scriptgo_array_number *array = handle;
-    if (index != index || index < 0 || index != (double)(int64_t)index ||
-        (int64_t)index >= array->length) {
-        return fail("scriptgo array index out of bounds");
-    }
-    *out_value = array->data[(int64_t)index];
+    if (check_index(array, index, &offset) != 0) return -1;
+    memcpy(out_value, array->data + offset, (size_t)array->element_size);
     return 0;
 }
 
-int scriptgo_array_number_set(void *handle, double index, double value) {
-    if (handle == NULL) {
+int scriptgo_array_set(void *handle, double index, const void *value) {
+    scriptgo_array *array = handle;
+    size_t offset;
+    if (array == NULL || value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    scriptgo_array_number *array = handle;
-    if (index != index || index < 0 || index != (double)(int64_t)index ||
-        (int64_t)index >= array->length) {
-        return fail("scriptgo array index out of bounds");
-    }
-    array->data[(int64_t)index] = value;
-    return 0;
-}
-
-int scriptgo_array_number_length(void *handle, int64_t *out_length) {
-    if (handle == NULL || out_length == NULL) {
-        return fail("scriptgo array access failed");
-    }
-    *out_length = ((scriptgo_array_number *)handle)->length;
+    if (check_index(array, index, &offset) != 0) return -1;
+    memcpy(array->data + offset, value, (size_t)array->element_size);
     return 0;
 }
 
 int scriptgo_array_length(void *handle, int64_t *out_length) {
-    if (handle == NULL || out_length == NULL) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_length == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    *out_length = *(int64_t *)handle;
+    *out_length = array->length;
     return 0;
 }
 
-int scriptgo_array_number_release(void *handle) {
-    if (handle != NULL) {
-        scriptgo_array_number *array = handle;
-        free(array->data);
-        free(array);
-    }
-    return 0;
-}
-
-int scriptgo_array_string_new(int64_t length, void **out_array) {
-    if (out_array == NULL || length < 0) {
-        return fail("scriptgo array allocation failed");
-    }
-    scriptgo_array_string *array = calloc(1, sizeof(*array));
-    if (array == NULL) {
-        return fail("scriptgo array allocation failed");
-    }
-    if (length > 0) {
-        array->data = calloc((size_t)length, sizeof(*array->data));
-        if (array->data == NULL) {
-            free(array);
-            return fail("scriptgo array allocation failed");
-        }
-    }
-    array->length = length;
-    array->capacity = length;
-    *out_array = array;
-    return 0;
-}
-
-int scriptgo_array_string_get(void *handle, double index, void **out_value) {
-    if (handle == NULL || out_value == NULL) {
-        return fail("scriptgo array access failed");
-    }
-    scriptgo_array_string *array = handle;
-    if (index != index || index < 0 || index != (double)(int64_t)index ||
-        (int64_t)index >= array->length) {
-        return fail("scriptgo array index out of bounds");
-    }
-    *out_value = array->data[(int64_t)index];
-    return 0;
-}
-
-int scriptgo_array_string_set(void *handle, double index, void *value) {
-    if (handle == NULL) {
-        return fail("scriptgo array access failed");
-    }
-    scriptgo_array_string *array = handle;
-    if (index != index || index < 0 || index != (double)(int64_t)index ||
-        (int64_t)index >= array->length) {
-        return fail("scriptgo array index out of bounds");
-    }
-    array->data[(int64_t)index] = value;
-    return 0;
-}
-
-int scriptgo_array_string_length(void *handle, int64_t *out_length) {
-    if (handle == NULL || out_length == NULL) {
-        return fail("scriptgo array access failed");
-    }
-    *out_length = ((scriptgo_array_string *)handle)->length;
-    return 0;
-}
-
-int scriptgo_array_string_release(void *handle) {
-    if (handle != NULL) {
-        scriptgo_array_string *array = handle;
+int scriptgo_array_release(void *handle) {
+    scriptgo_array *array = handle;
+    if (array != NULL) {
         free(array->data);
         free(array);
     }

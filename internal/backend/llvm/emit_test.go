@@ -51,10 +51,10 @@ func TestEmitNumberArrayAndIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{
-		"declare i32 @scriptgo_array_number_new(i64, ptr)",
-		"call i32 @scriptgo_array_number_set",
-		"call i32 @scriptgo_array_number_get",
-		"call i32 @scriptgo_array_number_release",
+		"declare i32 @scriptgo_array_new(i64, i64, ptr)",
+		"call i32 @scriptgo_array_set",
+		"call i32 @scriptgo_array_get",
+		"call i32 @scriptgo_array_release",
 		"load double",
 	} {
 		if !strings.Contains(output, expected) {
