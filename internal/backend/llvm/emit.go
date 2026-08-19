@@ -69,16 +69,18 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	if options.SourceHash != "" {
 		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
 	}
-	out.WriteString("declare i32 @printf(ptr, ...)\n")
-	out.WriteString("declare i32 @puts(ptr)\n\n")
+	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n\n")
+	out.WriteString("declare i32 @scriptgo_print_number(double)\n")
+	out.WriteString("declare i32 @scriptgo_print_string(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_print_bool(i32)\n\n")
 	out.WriteString("declare i32 @scriptgo_array_number_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_set(ptr, double, double)\n")
+	out.WriteString("declare i32 @scriptgo_array_length(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_number_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_array_string_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_string_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_string_set(ptr, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_array_string_length(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_string_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_number_set(ptr, i64, double)\n")
@@ -86,17 +88,16 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_string_set(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_string_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
-	out.WriteString("declare ptr @scriptgo_string_concat(ptr, ptr)\n")
-	out.WriteString("declare double @scriptgo_string_length(ptr)\n")
-	out.WriteString("declare double @scriptgo_string_last_index(ptr, ptr, double)\n")
-	out.WriteString("declare ptr @scriptgo_string_slice(ptr, double, double)\n\n")
-	out.WriteString("@.fmt.num = private unnamed_addr constant [4 x i8] c\"%g\\0A\\00\"\n")
+	out.WriteString("declare i32 @scriptgo_string_concat(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_length(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_last_index(ptr, ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_slice(ptr, double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))
 	}
-	out.WriteString("@.true = private unnamed_addr constant [5 x i8] c\"true\\00\"\n")
-	out.WriteString("@.false = private unnamed_addr constant [6 x i8] c\"false\\00\"\n\n")
+	out.WriteString("\n")
 
 	for _, function := range module.Functions {
 		text, err := emitFunction(function, functions, stringsByValue, debug)
@@ -138,11 +139,13 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 	arrayTypes := []arrayReference{}
 	objects := []string{}
+	ownedStrings := []string{}
 	for _, parameter := range function.Parameters {
 		types[parameter.Name] = parameter.Type
 	}
 	terminated := false
 	labelCounter := 0
+	runtimeStatus := 0
 	for _, instruction := range function.Body {
 		if terminated {
 			return "", fmt.Errorf("function %q contains instruction after return", function.Name)
@@ -176,7 +179,13 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			if leftType == ir.TypeString && instruction.Operator == "+" {
 				types[instruction.Result] = ir.TypeString
-				out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_string_concat(ptr %%%s, ptr %%%s)\n", instruction.Result, instruction.Args[0], instruction.Args[1]))
+				slot := instruction.Result + ".slot"
+				status := instruction.Result + ".status"
+				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+				ownedStrings = append(ownedStrings, instruction.Result)
 				break
 			}
 			if leftType != ir.TypeNumber {
@@ -231,12 +240,22 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			switch valueType {
 			case ir.TypeNumber:
-				out.WriteString(fmt.Sprintf("  call i32 (ptr, ...) @printf(ptr @.fmt.num, double %%%s)\n", instruction.Args[0]))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_number(double %%%s)\n", status, instruction.Args[0]))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			case ir.TypeString:
-				out.WriteString(fmt.Sprintf("  call i32 @puts(ptr %%%s)\n", instruction.Args[0]))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_string(ptr %%%s)\n", status, instruction.Args[0]))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			case ir.TypeBool:
-				out.WriteString(fmt.Sprintf("  %%print.bool = select i1 %%%s, ptr @.true, ptr @.false\n", instruction.Args[0]))
-				out.WriteString("  call i32 @puts(ptr %print.bool)\n")
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				boolValue := fmt.Sprintf("print.bool.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolValue, instruction.Args[0]))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_bool(i32 %%%s)\n", status, boolValue))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			default:
 				return "", fmt.Errorf("unsupported print type %s", valueType)
 			}
@@ -254,14 +273,22 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 				constructor = "scriptgo_array_string_new"
 				setter = "scriptgo_array_string_set"
 			}
-			out.WriteString(fmt.Sprintf("  call i32 @%s(i64 %d, ptr %%%s)\n", constructor, len(instruction.Args), slot))
+			status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+			runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i64 %d, ptr %%%s)\n", status, constructor, len(instruction.Args), slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			for index, argument := range instruction.Args {
 				if instruction.Type == ir.TypeStringArray {
-					out.WriteString(fmt.Sprintf("  call i32 @%s(ptr %%%s, double %s, ptr %%%s)\n", setter, instruction.Result, llvmNumber(float64(index)), argument))
+					status = fmt.Sprintf("runtime.status.%d", runtimeStatus)
+					runtimeStatus++
+					out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, double %s, ptr %%%s)\n", status, setter, instruction.Result, llvmNumber(float64(index)), argument))
 				} else {
-					out.WriteString(fmt.Sprintf("  call i32 @%s(ptr %%%s, double %s, double %%%s)\n", setter, instruction.Result, llvmNumber(float64(index)), argument))
+					status = fmt.Sprintf("runtime.status.%d", runtimeStatus)
+					runtimeStatus++
+					out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, double %s, double %%%s)\n", status, setter, instruction.Result, llvmNumber(float64(index)), argument))
 				}
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			}
 		case ir.OpIndex:
 			if len(instruction.Args) != 2 {
@@ -273,13 +300,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			types[instruction.Result] = instruction.Type
 			slot := instruction.Result + ".slot"
+			status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+			runtimeStatus++
 			if arrayType == ir.TypeStringArray {
 				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_string_get(ptr %%%s, double %%%s, ptr %%%s)\n", instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_string_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			} else {
 				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_number_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 			}
 		case ir.OpObjectNew:
@@ -289,8 +320,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			types[instruction.Result] = instruction.Type
 			objects = append(objects, instruction.Result)
 			slot := instruction.Result + ".slot"
+			status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+			runtimeStatus++
 			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", instruction.FieldCount, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", status, instruction.FieldCount, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		case ir.OpFieldSet:
 			if instruction.FieldIndex < 0 {
@@ -302,9 +336,15 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			switch valueType {
 			case ir.TypeNumber:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			case ir.TypeString:
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			default:
 				return "", fmt.Errorf("unsupported object field type %s", valueType)
 			}
@@ -317,11 +357,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			switch instruction.Type {
 			case ir.TypeNumber:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, slot))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 			case ir.TypeString:
 				out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", instruction.Args[0], instruction.FieldIndex, slot))
+				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
+				runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 			default:
 				return "", fmt.Errorf("unsupported object field type %s", instruction.Type)
@@ -343,6 +389,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 					return "", err
 				}
 				types[instruction.Result] = instruction.Type
+				if instruction.Type == ir.TypeString && (instruction.Callee == "__string.slice" || instruction.Callee == "__string.concat") {
+					ownedStrings = append(ownedStrings, instruction.Result)
+				}
 				break
 			}
 			callee, ok := functions[instruction.Callee]
@@ -379,6 +428,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			for _, object := range objects {
 				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
 			}
+			returnValue := ""
+			if len(instruction.Args) != 0 {
+				returnValue = instruction.Args[0]
+			}
+			if function.Name == "main" {
+				for _, value := range ownedStrings {
+					if value != returnValue {
+						out.WriteString(fmt.Sprintf("  call i32 @scriptgo_string_release(ptr %%%s)\n", value))
+					}
+				}
+			}
 			if function.Name == "main" {
 				out.WriteString("  ret i32 0\n")
 			} else if len(instruction.Args) == 0 {
@@ -403,6 +463,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 		for _, object := range objects {
 			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
+		}
+		if function.Name == "main" {
+			for _, value := range ownedStrings {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_string_release(ptr %%%s)\n", value))
+			}
 		}
 		if function.Name == "main" {
 			out.WriteString("  ret i32 0\n")

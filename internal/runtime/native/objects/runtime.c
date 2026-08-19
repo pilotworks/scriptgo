@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,12 +7,9 @@ typedef struct {
     uintptr_t fields[];
 } scriptgo_object;
 
-static int object_fail(const char *message) {
-    fputs(message, stderr);
-    fputc('\n', stderr);
-    exit(1);
-    return -1;
-}
+int scriptgo_runtime_set_error(const char *message);
+
+static int object_fail(const char *message) { return scriptgo_runtime_set_error(message); }
 
 int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (out_object == NULL || field_count < 0) {

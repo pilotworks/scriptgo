@@ -1,6 +1,7 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+
+int scriptgo_runtime_set_error(const char *message);
 
 typedef struct {
     int64_t length;
@@ -14,12 +15,7 @@ typedef struct {
     void **data;
 } scriptgo_array_string;
 
-static int fail(const char *message) {
-    fputs(message, stderr);
-    fputc('\n', stderr);
-    exit(1);
-    return -1;
-}
+static int fail(const char *message) { return scriptgo_runtime_set_error(message); }
 
 int scriptgo_array_number_new(int64_t length, void **out_array) {
     if (out_array == NULL || length < 0) {
@@ -73,6 +69,14 @@ int scriptgo_array_number_length(void *handle, int64_t *out_length) {
         return fail("scriptgo array access failed");
     }
     *out_length = ((scriptgo_array_number *)handle)->length;
+    return 0;
+}
+
+int scriptgo_array_length(void *handle, int64_t *out_length) {
+    if (handle == NULL || out_length == NULL) {
+        return fail("scriptgo array access failed");
+    }
+    *out_length = *(int64_t *)handle;
     return 0;
 }
 

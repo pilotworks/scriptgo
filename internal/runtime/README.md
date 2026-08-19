@@ -7,6 +7,8 @@ compiler pipeline stage:
 internal/runtime/
 ├── README.md                    # This boundary and contribution rules
 ├── runtime.go                   # Embeds native assets for compiler linking
+├── native/errors/runtime.c      # Status diagnostics and failure bridge
+├── native/output/runtime.c      # scriptgo_print_* wrappers around libc output
 ├── abi/
 │   └── README.md                # ABI, layout, ownership, and failure contract
 ├── native/

@@ -7,10 +7,16 @@ import _ "embed"
 //go:embed native/arrays/runtime.c
 var arraySource string
 
+//go:embed native/errors/runtime.c
+var errorSource string
+
 //go:embed native/objects/runtime.c
 var objectSource string
+
+//go:embed native/output/runtime.c
+var outputSource string
 
 //go:embed native/strings/runtime.c
 var stringSource string
 
-var Source = []byte(arraySource + "\n" + objectSource + "\n" + stringSource)
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + stringSource)

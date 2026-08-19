@@ -6,22 +6,22 @@ not a description of TypeScript or JavaScript semantics. TypeScript parsing,
 binding, module resolution, and type checking remain owned by TypeScript-Go;
 the reference interpreter remains in [`internal/interpreter`](../../interpreter/).
 
-The repository implements the MVP host C ABI plus the current linked managed
-array runtime. This document freezes the primitive and dense number-array
-contracts used by the native backend.
+The repository implements a project-owned linked C ABI for primitive strings,
+dense primitive arrays, and static objects. This document freezes the contract
+used by the native backend and its ABI harness.
 
 ## Scope And Status
 
 | Area | MVP status | Current implementation |
 | --- | --- | --- |
 | Process startup | Implemented by the host toolchain | Clang supplies the platform entry point and calls generated `main` |
-| Numeric output | Host C ABI | `printf("%g\\n", value)` |
-| String output | Host C ABI | `puts(value)` |
-| Boolean output | Compiler-generated static strings + host C ABI | Selects `"true"` or `"false"`, then calls `puts` |
+| Numeric output | `scriptgo_print_number` | Runtime uses `printf("%g\\n", value)` internally |
+| String output | `scriptgo_print_string` | Runtime uses `puts(value)` internally |
+| Boolean output | `scriptgo_print_bool` | Runtime selects `true`/`false` and calls libc internally |
 | Managed values | Dense number arrays and static object fields | Native builds link the embedded array and object runtimes |
-| Ownership and cleanup | Not applicable to MVP literals | No runtime allocation is performed |
-| Runtime errors | v1 policy specified; no fallible operation enabled | Lowering and backend errors stop compilation; libc return values are ignored |
-| ABI versioning | Linked ABI v1 specified; metadata identifier emitted | The current generated code still links the temporary host C ABI; runtime symbol compatibility checks remain future work |
+| Ownership and cleanup | Explicit owned results | Allocating string/array/object operations return one owned value; release consumes it |
+| Runtime errors | Status + thread/process-local diagnostic | Negative status stores an error; generated code calls `scriptgo_runtime_abort_if_failed` |
+| ABI versioning | Linked ABI v1 | LLVM metadata emits `scriptgo.runtime.v1`; symbol names use the `scriptgo_*` prefix |
 
 ## Linked Runtime ABI v1
 
@@ -29,10 +29,11 @@ ABI v1 is the first project-owned contract. It is limited to values that can be
 represented without allocation in the current typed IR:
 
 - `number`, `bool`, and `void` use the native representations below.
-- `string` is supported only as an immutable literal or borrowed UTF-8 value.
-- Dense `number[]` values use the array ABI below. Objects, classes, `null`,
-  `undefined`, exceptions, and async services remain outside the current
-  runtime.
+- `string` literals are borrowed immutable UTF-8 C strings; results from string
+  primitives are owned heap strings.
+- Dense `number[]` and `string[]` values use specialized layouts with the
+  shared `scriptgo_array_length` operation. Objects use compiler-resolved
+  static field IDs.
 
 ### Target and calling convention
 
@@ -46,13 +47,19 @@ The runtime ABI identifier is `scriptgo.runtime.v1`. A linked runtime must expos
 its ABI identifier through build metadata so the compiler can reject a runtime
 with an incompatible major version before linking.
 
+Supported target policy for v1 is the platform C ABI selected by Clang on
+macOS, Linux, and Windows for ARM64 and x86-64. The compiler passes the target
+triple to Clang and never hard-codes pointer width, alignment, endianness, or
+LLVM data layout. A target is supported only when the runtime C source and the
+generated LLVM module compile and link together for that triple.
+
 ### Value representations
 
 | ABI v1 value | Representation | Validity and ownership |
 | --- | --- | --- |
 | `number` | IEEE-754 binary64 (`double`) | Passed and returned by value |
 | `bool` | One-bit LLVM value (`i1`) | Passed and returned by value; only `0` and `1` are valid |
-| `string` | Pointer to immutable UTF-8 bytes terminated by one NUL byte | Borrowed by consumers; literal storage is module-owned and process-lived |
+| `string` | Pointer to UTF-8 bytes terminated by one NUL byte | Literals are borrowed; primitive results are owned until `scriptgo_string_release` |
 | `void` | No value | Used for effects and functions without a result |
 
 The v1 string contract is intentionally narrower than a future managed string
@@ -63,33 +70,29 @@ NUL bytes without changing the meaning of v1 literals.
 
 ### Ownership and lifetime
 
-ABI v1 has no runtime allocation or release operation. The only valid string
-pointers are:
+String pointers are either borrowed literals or owned primitive results. The
+caller owns every successful pointer returned through an `out` parameter and
+must release it exactly once:
 
 1. pointers to private immutable globals emitted by the compiler; or
-2. pointers borrowed from a caller that remain valid for the duration of the
-   runtime call.
+2. pointers returned by an allocating primitive, released with the matching
+   release function.
 
-Runtime functions must not free, mutate, retain, or return ownership of those
-pointers. Any API that needs ownership transfer, heap allocation, or reference
-counting belongs to a later ABI version and must define both success and failure
-paths before it is exposed to lowering.
+Runtime functions do not retain borrowed pointers. Array and object fields are
+non-owning primitive copies/borrows in v1; they do not release string values.
+Double release and use-after-release are invalid caller behavior.
 
 ### Errors
 
-ABI v1 uses status-returning runtime functions for future fallible operations:
+ABI v1 uses status-returning runtime functions for fallible operations:
 
 - `0` means success;
 - a negative value means failure;
-- the runtime owns the associated diagnostic text until the next runtime call
-  on the same execution context;
-- the compiler/runtime boundary must provide an explicit operation to consume
-  or print the diagnostic before shutdown.
-
-The current MVP has no fallible runtime operation and therefore does not emit
-status checks. Lowering must not add an operation that can fail until its status
-and diagnostic behavior are represented in IR and tested by both the
-interpreter and native backend.
+- the runtime owns the associated diagnostic text until the next runtime call;
+- native code invokes `scriptgo_runtime_abort_if_failed(status)` after every
+  fallible runtime call;
+- direct scalar returns are reserved for non-fallible source-level functions,
+  not runtime operations that allocate or validate pointers.
 
 ### Startup and shutdown
 
@@ -151,7 +154,7 @@ The required operations are:
 scriptgo_array_number_new(length, out_array) -> status
 scriptgo_array_number_get(array, index, out_value) -> status
 scriptgo_array_number_set(array, index, value) -> status
-scriptgo_array_number_length(array, out_length) -> status
+scriptgo_array_length(array, out_length) -> status
 scriptgo_array_number_release(array) -> status
 ```
 
@@ -165,7 +168,9 @@ array are copied as `double`, and `release` consumes the caller's ownership.
 The current interpreter, linked implementation, and LLVM lowering model the same
 observable array and bounds semantics.
 
-The array ABI uses the same platform C calling convention and status policy:
+`number[]` and `string[]` remain specialized because their element storage and
+access types differ, but length is representation-independent and always uses
+`scriptgo_array_length`. The array ABI uses the same platform C calling convention and status policy:
 zero is success, negative values are failures, and the runtime owns error text
 until the next runtime call on the same execution context. Native array
 lowering uses these operations and is covered by interpreter and native
@@ -181,6 +186,7 @@ selected by Clang. It declares these external functions:
 ```llvm
 declare i32 @printf(ptr, ...)
 declare i32 @puts(ptr)
+declare void @scriptgo_runtime_abort_if_failed(i32)
 ```
 
 The generated program defines a zero-argument `main` function as `i32` in LLVM
@@ -200,7 +206,7 @@ The MVP mapping is:
 | IR type | LLVM type | Runtime representation | Notes |
 | --- | --- | --- | --- |
 | `number` | `double` | IEEE-754 binary64 value | Ordinary arithmetic uses LLVM floating-point operations |
-| `string` | `ptr` | Pointer to a NUL-terminated immutable byte string | Currently points at a private LLVM global; it is not a managed string handle |
+| `string` | `ptr` | Pointer to a NUL-terminated UTF-8 byte string | Literals are borrowed; runtime primitive results are owned and released explicitly |
 | `bool` | `i1` | One-bit boolean | Printed through compiler-generated `true`/`false` literals |
 | `void` | `void` | No value | Used for statements and the source-level `main` function |
 
@@ -214,14 +220,14 @@ remainder is treated as a fully portable runtime behavior.
 
 `console.log` is the only source-level operation that currently crosses the
 runtime boundary. Lowering accepts exactly one argument and emits an `OpPrint`
-instruction. The LLVM backend selects the host operation from the checked IR
-value type:
+instruction. The LLVM backend selects a `scriptgo_print_*` operation from the
+checked IR value type:
 
 | Source value | Generated operation | Observable output |
 | --- | --- | --- |
-| `number` | `printf(ptr @.fmt.num, double value)` | Decimal formatting using C `%g`, followed by `\\n` |
-| `string` | `puts(ptr value)` | Bytes up to the first NUL, followed by `\\n` |
-| `bool` | `select` between `@.true` and `@.false`, then `puts` | `true\\n` or `false\\n` |
+| `number` | `scriptgo_print_number(value)` | Decimal formatting using C `%g`, followed by `\\n` |
+| `string` | `scriptgo_print_string(value)` | Bytes up to the first NUL, followed by `\\n` |
+| `bool` | `scriptgo_print_bool(value)` | `true\\n` or `false\\n` |
 
 The compiler creates these private LLVM constants:
 
@@ -253,15 +259,11 @@ outside the runtime. Runtime failures are not yet modeled.
 
 ### Allocation and ownership
 
-The MVP allocates only dense number arrays through the array ABI. Numeric and
-boolean values are passed by value. String literals point to static immutable
-storage owned by the generated module and remain valid for the entire process.
-Generated code must release every owned array before normal function return and
-must not free, mutate, or retain an assumed heap ownership claim for literals.
-
-This rule does not define ownership for future strings, objects, or errors.
-Those features require a separate representation and lifecycle contract before
-they are added to lowering or LLVM emission.
+Arrays and objects are owned handles released by generated code. String
+literals point to static immutable storage owned by the generated module;
+`concat` and `slice` return owned heap strings released with
+`scriptgo_string_release`. Object string fields borrow their values and never
+release them. Double release and use-after-release are invalid operations.
 
 ## Boundary Responsibilities
 
@@ -288,7 +290,7 @@ frontend -> lowering -> typed IR -> LLVM backend -> host C ABI/toolchain
 
 The following are intentionally outside the MVP ABI:
 
-- mutable or dynamically allocated strings;
+- embedded-NUL or length-aware strings;
 - dynamic objects, class methods/inheritance, prototype behavior, and mutable
   field assignment;
 - `null` and `undefined` representations;
