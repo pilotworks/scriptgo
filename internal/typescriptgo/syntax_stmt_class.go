@@ -5,9 +5,10 @@ import "github.com/microsoft/typescript-go/internal/ast"
 func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, bool) {
 	classDecl := node.AsClassDeclaration()
 	class := &SyntaxClass{
-		Span:       span,
-		Name:       node.Name().Text(),
-		IsAbstract: ast.HasSyntacticModifier(node, ast.ModifierFlagsAbstract),
+		Span:           span,
+		Name:           node.Name().Text(),
+		TypeParameters: syntaxTypeParameters(node.TypeParameters()),
+		IsAbstract:     ast.HasSyntacticModifier(node, ast.ModifierFlagsAbstract),
 	}
 	if classDecl.HeritageClauses != nil {
 		for _, clause := range classDecl.HeritageClauses.Nodes {
@@ -97,14 +98,15 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, b
 				}
 			}
 			class.Methods = append(class.Methods, SyntaxMethod{
-				Span:       sourceSpan(member),
-				Name:       member.Name().Text(),
-				Type:       syntaxType(member.Type()),
-				Parameters: params,
-				Body:       body,
-				IsStatic:   ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
-				IsAbstract: ast.HasSyntacticModifier(member, ast.ModifierFlagsAbstract),
-				Kind:       "method",
+				Span:           sourceSpan(member),
+				Name:           member.Name().Text(),
+				Type:           syntaxType(member.Type()),
+				TypeParameters: syntaxTypeParameters(member.TypeParameters()),
+				Parameters:     params,
+				Body:           body,
+				IsStatic:       ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
+				IsAbstract:     ast.HasSyntacticModifier(member, ast.ModifierFlagsAbstract),
+				Kind:           "method",
 			})
 		case ast.KindGetAccessor:
 			var body []SyntaxStatement

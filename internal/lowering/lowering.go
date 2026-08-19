@@ -12,6 +12,11 @@ import (
 
 // Lower lowers the currently supported synchronous TypeScript subset.
 func Lower(program frontend.Program) (ir.Module, error) {
+	var err error
+	program, err = SpecializeGenerics(program)
+	if err != nil {
+		return ir.Module{}, err
+	}
 	if err := ValidateSubset(program); err != nil {
 		return ir.Module{}, err
 	}

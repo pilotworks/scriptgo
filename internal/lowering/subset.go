@@ -11,6 +11,11 @@ import (
 // ValidateSubset rejects checked syntax that the current native IR cannot
 // represent. Keeping this gate in lowering prevents backend-specific policy.
 func ValidateSubset(program frontend.Program) error {
+	var err error
+	program, err = SpecializeGenerics(program)
+	if err != nil {
+		return err
+	}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if err := validateStatement(file.FileName, statement); err != nil {
@@ -64,6 +69,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 	case "module", "enum", "interface", "type_alias":
 		return nil
 	case "class":
+		if statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
+			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic class %q", statement.Class.Name))
+		}
 		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0) {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "empty class shape")
 		}
@@ -113,6 +121,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		}
 		return validateExpression(fileName, statement.Expression)
 	case "function":
+		if len(statement.TypeParameters) > 0 {
+			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic function %q", statement.Name))
+		}
 		for _, parameter := range statement.Parameters {
 			if err := validateStaticType(fileName, parameter.Span, parameter.Type); err != nil {
 				return err

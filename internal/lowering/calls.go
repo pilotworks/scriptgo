@@ -259,7 +259,7 @@ func lowerCallExpression(
 			}
 		}
 	}
-	if len(target.Parameters) > 0 && (target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+	if restParamsIndex[callee] && len(target.Parameters) > 0 && (target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
 		restType := target.Parameters[len(target.Parameters)-1].Type
 		fixed := len(target.Parameters) - 1
 		if len(args) < fixed {

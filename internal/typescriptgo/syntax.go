@@ -44,13 +44,52 @@ func syntaxType(node *ast.Node) string {
 	case ast.KindVoidKeyword:
 		return "void"
 	case ast.KindTypeReference:
-		return node.AsTypeReferenceNode().TypeName.Text()
+		typeRef := node.AsTypeReferenceNode()
+		if typeRef != nil && typeRef.TypeName != nil {
+			name := typeRef.TypeName.Text()
+			if (name == "Array" || name == "ReadonlyArray") && typeRef.TypeArguments != nil && len(typeRef.TypeArguments.Nodes) == 1 {
+				return syntaxType(typeRef.TypeArguments.Nodes[0]) + "[]"
+			}
+			if typeRef.TypeArguments != nil && len(typeRef.TypeArguments.Nodes) > 0 {
+				var args []string
+				for _, arg := range typeRef.TypeArguments.Nodes {
+					args = append(args, syntaxType(arg))
+				}
+				return name + "<" + strings.Join(args, ", ") + ">"
+			}
+			return name
+		}
+		return node.Kind.String()
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"
 	default:
 		return node.Kind.String()
 	}
+}
+
+func syntaxTypeParameters(typeParams []*ast.Node) []string {
+	if len(typeParams) == 0 {
+		return nil
+	}
+	var result []string
+	for _, p := range typeParams {
+		if p.Name() != nil {
+			result = append(result, p.Name().Text())
+		}
+	}
+	return result
+}
+
+func syntaxTypeArguments(typeArgs *ast.NodeList) []string {
+	if typeArgs == nil {
+		return nil
+	}
+	var result []string
+	for _, a := range typeArgs.Nodes {
+		result = append(result, syntaxType(a))
+	}
+	return result
 }
 
 func statementCount(file *ast.SourceFile) int {

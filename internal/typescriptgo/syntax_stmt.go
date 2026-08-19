@@ -15,7 +15,13 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		declarations := node.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes
 		return syntaxVariableDeclarations(declarations, span)
 	case ast.KindFunctionDeclaration:
-		result := SyntaxStatement{Span: span, Kind: "function", Name: node.Name().Text(), Type: syntaxType(node.Type())}
+		result := SyntaxStatement{
+			Span:           span,
+			Kind:           "function",
+			Name:           node.Name().Text(),
+			Type:           syntaxType(node.Type()),
+			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
+		}
 		for _, parameter := range node.Parameters() {
 			result.Parameters = append(result.Parameters, SyntaxParameter{
 				Span:        parameterSpan(parameter),

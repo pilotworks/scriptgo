@@ -41,7 +41,13 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			Right:    syntaxExpression(binary.Right),
 		}
 	case ast.KindCallExpression:
-		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "call", Left: syntaxExpression(node.Expression())}
+		callExpr := node.AsCallExpression()
+		result := &SyntaxExpression{
+			Span:          sourceSpan(node),
+			Kind:          "call",
+			Left:          syntaxExpression(callExpr.Expression),
+			TypeArguments: syntaxTypeArguments(callExpr.TypeArguments),
+		}
 		for _, argument := range node.Arguments() {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
@@ -130,7 +136,12 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 		}
 	case ast.KindNewExpression:
 		newExpression := node.AsNewExpression()
-		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "new", Left: syntaxExpression(newExpression.Expression)}
+		result := &SyntaxExpression{
+			Span:          sourceSpan(node),
+			Kind:          "new",
+			Left:          syntaxExpression(newExpression.Expression),
+			TypeArguments: syntaxTypeArguments(newExpression.TypeArguments),
+		}
 		if arguments := newExpression.Arguments; arguments != nil {
 			for _, argument := range arguments.Nodes {
 				result.Arguments = append(result.Arguments, syntaxExpression(argument))
@@ -196,12 +207,13 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			}
 		}
 		fnStmt := &SyntaxStatement{
-			Span:       span,
-			Kind:       "function",
-			Name:       name,
-			Type:       syntaxType(node.Type()),
-			Parameters: params,
-			Body:       body,
+			Span:           span,
+			Kind:           "function",
+			Name:           name,
+			Type:           syntaxType(node.Type()),
+			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
+			Parameters:     params,
+			Body:           body,
 		}
 		return &SyntaxExpression{
 			Span:     span,

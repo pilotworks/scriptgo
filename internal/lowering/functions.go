@@ -9,6 +9,7 @@ import (
 )
 
 var defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+var restParamsIndex = map[string]bool{}
 
 // buildFunctionIndex collects function signatures and namespace import aliases
 // from the checked module graph. Lowering does not need to know which module a
@@ -16,6 +17,7 @@ var defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
 func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 	hierarchy := buildClassHierarchy(program)
 	defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+	restParamsIndex = map[string]bool{}
 	index := map[string]ir.Function{}
 	functionsByFile := map[string][]ir.Function{}
 	for _, file := range program.Files {
@@ -29,6 +31,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				for pIdx, parameter := range statement.Parameters {
 					typ := toIRType(parameter.Type)
 					if parameter.Rest {
+						restParamsIndex[function.Name] = true
 						if parameter.Type == "number[]" {
 							typ = ir.TypeNumberArray
 						} else {
@@ -48,6 +51,9 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					index[file.BuiltinName+"."+function.Name] = function
 					if defaultParamsIndex[function.Name] != nil {
 						defaultParamsIndex[file.BuiltinName+"."+function.Name] = defaultParamsIndex[function.Name]
+					}
+					if restParamsIndex[function.Name] {
+						restParamsIndex[file.BuiltinName+"."+function.Name] = true
 					}
 				}
 				functionsByFile[fileName] = append(functionsByFile[fileName], function)

@@ -1,0 +1,189 @@
+package lowering
+
+import (
+	"strings"
+
+	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+)
+
+func mangleGenericName(name string, typeArgs []string) string {
+	if len(typeArgs) == 0 {
+		return name
+	}
+	var cleanArgs []string
+	for _, arg := range typeArgs {
+		clean := strings.ReplaceAll(arg, "[]", "_arr")
+		clean = strings.ReplaceAll(clean, "<", "_")
+		clean = strings.ReplaceAll(clean, ">", "")
+		clean = strings.ReplaceAll(clean, ", ", "_")
+		clean = strings.ReplaceAll(clean, ",", "_")
+		clean = strings.ReplaceAll(clean, "object:", "")
+		clean = strings.ReplaceAll(clean, " ", "_")
+		cleanArgs = append(cleanArgs, clean)
+	}
+	return name + "__" + strings.Join(cleanArgs, "_")
+}
+
+func splitTypeArguments(s string) []string {
+	var res []string
+	depth := 0
+	start := 0
+	for i, r := range s {
+		if r == '<' {
+			depth++
+		} else if r == '>' {
+			depth--
+		} else if r == ',' && depth == 0 {
+			res = append(res, strings.TrimSpace(s[start:i]))
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		res = append(res, strings.TrimSpace(s[start:]))
+	}
+	return res
+}
+
+func substituteType(typ string, subst map[string]string) string {
+	if typ == "" {
+		return ""
+	}
+	if val, ok := subst[typ]; ok {
+		return val
+	}
+	if strings.HasSuffix(typ, "[]") {
+		return substituteType(typ[:len(typ)-2], subst) + "[]"
+	}
+	hasObj := strings.HasPrefix(typ, "object:")
+	clean := strings.TrimPrefix(typ, "object:")
+	if strings.Contains(clean, "<") && strings.HasSuffix(clean, ">") {
+		idx := strings.Index(clean, "<")
+		name := clean[:idx]
+		inner := clean[idx+1 : len(clean)-1]
+		parts := splitTypeArguments(inner)
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, substituteType(p, subst))
+		}
+		if name == "Array" || name == "ReadonlyArray" {
+			if len(newParts) == 1 {
+				return newParts[0] + "[]"
+			}
+		}
+		mangled := mangleGenericName(name, newParts)
+		if hasObj {
+			return "object:" + mangled
+		}
+		return mangled
+	}
+	if val, ok := subst[clean]; ok {
+		if hasObj {
+			return "object:" + val
+		}
+		return val
+	}
+	return typ
+}
+
+func cloneStatement(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatement {
+	res := stmt
+	res.Parameters = append([]typescriptgo.SyntaxParameter(nil), stmt.Parameters...)
+	res.Body = append([]typescriptgo.SyntaxStatement(nil), stmt.Body...)
+	res.Then = append([]typescriptgo.SyntaxStatement(nil), stmt.Then...)
+	res.Else = append([]typescriptgo.SyntaxStatement(nil), stmt.Else...)
+	res.Catch = append([]typescriptgo.SyntaxStatement(nil), stmt.Catch...)
+	res.Finally = append([]typescriptgo.SyntaxStatement(nil), stmt.Finally...)
+	if stmt.Class != nil {
+		c := cloneClass(*stmt.Class)
+		res.Class = &c
+	}
+	return res
+}
+
+func cloneClass(cls typescriptgo.SyntaxClass) typescriptgo.SyntaxClass {
+	res := cls
+	res.Fields = append([]typescriptgo.SyntaxField(nil), cls.Fields...)
+	res.Implements = append([]string(nil), cls.Implements...)
+	if cls.Constructor != nil {
+		ctor := *cls.Constructor
+		ctor.Parameters = append([]typescriptgo.SyntaxParameter(nil), cls.Constructor.Parameters...)
+		ctor.Body = append([]typescriptgo.SyntaxStatement(nil), cls.Constructor.Body...)
+		res.Constructor = &ctor
+	}
+	res.Methods = make([]typescriptgo.SyntaxMethod, len(cls.Methods))
+	for i, m := range cls.Methods {
+		res.Methods[i] = m
+		res.Methods[i].Parameters = append([]typescriptgo.SyntaxParameter(nil), m.Parameters...)
+		res.Methods[i].Body = append([]typescriptgo.SyntaxStatement(nil), m.Body...)
+	}
+	return res
+}
+
+func cloneExpr(expr *typescriptgo.SyntaxExpression) *typescriptgo.SyntaxExpression {
+	if expr == nil {
+		return nil
+	}
+	res := *expr
+	res.Arguments = append([]*typescriptgo.SyntaxExpression(nil), expr.Arguments...)
+	res.TypeArguments = append([]string(nil), expr.TypeArguments...)
+	return &res
+}
+
+func cloneAndSubstituteStmt(stmt typescriptgo.SyntaxStatement, subst map[string]string) typescriptgo.SyntaxStatement {
+	res := cloneStatement(stmt)
+	res.Type = substituteType(res.Type, subst)
+	for i := range res.Parameters {
+		res.Parameters[i].Type = substituteType(res.Parameters[i].Type, subst)
+		if res.Parameters[i].Initializer != nil {
+			res.Parameters[i].Initializer = cloneAndSubstituteExpr(res.Parameters[i].Initializer, subst)
+		}
+	}
+	if res.Expression != nil {
+		res.Expression = cloneAndSubstituteExpr(res.Expression, subst)
+	}
+	if res.Left != nil {
+		res.Left = cloneAndSubstituteExpr(res.Left, subst)
+	}
+	if res.Right != nil {
+		res.Right = cloneAndSubstituteExpr(res.Right, subst)
+	}
+	for i := range res.Body {
+		res.Body[i] = cloneAndSubstituteStmt(res.Body[i], subst)
+	}
+	for i := range res.Then {
+		res.Then[i] = cloneAndSubstituteStmt(res.Then[i], subst)
+	}
+	for i := range res.Else {
+		res.Else[i] = cloneAndSubstituteStmt(res.Else[i], subst)
+	}
+	for i := range res.Catch {
+		res.Catch[i] = cloneAndSubstituteStmt(res.Catch[i], subst)
+	}
+	for i := range res.Finally {
+		res.Finally[i] = cloneAndSubstituteStmt(res.Finally[i], subst)
+	}
+	return res
+}
+
+func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[string]string) *typescriptgo.SyntaxExpression {
+	if expr == nil {
+		return nil
+	}
+	res := cloneExpr(expr)
+	if res.Left != nil {
+		res.Left = cloneAndSubstituteExpr(res.Left, subst)
+	}
+	if res.Right != nil {
+		res.Right = cloneAndSubstituteExpr(res.Right, subst)
+	}
+	for i := range res.Arguments {
+		res.Arguments[i] = cloneAndSubstituteExpr(res.Arguments[i], subst)
+	}
+	if res.WhenTrue != nil {
+		res.WhenTrue = cloneAndSubstituteExpr(res.WhenTrue, subst)
+	}
+	if res.WhenFalse != nil {
+		res.WhenFalse = cloneAndSubstituteExpr(res.WhenFalse, subst)
+	}
+	return res
+}

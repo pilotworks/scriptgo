@@ -56,22 +56,23 @@ type SyntaxFile struct {
 }
 
 type SyntaxStatement struct {
-	Span       SourceSpan
-	Kind       string
-	Name       string
-	Type       string
-	Expression *SyntaxExpression
-	Left       *SyntaxExpression
-	Right      *SyntaxExpression
-	Parameters []SyntaxParameter
-	Body       []SyntaxStatement
-	Then       []SyntaxStatement
-	Else       []SyntaxStatement
-	CatchVar   string
-	Catch      []SyntaxStatement
-	Finally    []SyntaxStatement
-	Class      *SyntaxClass
-	Enum       *SyntaxEnum
+	Span           SourceSpan
+	Kind           string
+	Name           string
+	Type           string
+	TypeParameters []string
+	Expression     *SyntaxExpression
+	Left           *SyntaxExpression
+	Right          *SyntaxExpression
+	Parameters     []SyntaxParameter
+	Body           []SyntaxStatement
+	Then           []SyntaxStatement
+	Else           []SyntaxStatement
+	CatchVar       string
+	Catch          []SyntaxStatement
+	Finally        []SyntaxStatement
+	Class          *SyntaxClass
+	Enum           *SyntaxEnum
 }
 
 type SyntaxEnum struct {
@@ -88,14 +89,15 @@ type SyntaxEnumMember struct {
 }
 
 type SyntaxClass struct {
-	Span        SourceSpan
-	Name        string
-	Extends     string
-	Implements  []string
-	IsAbstract  bool
-	Fields      []SyntaxField
-	Constructor *SyntaxConstructor
-	Methods     []SyntaxMethod
+	Span           SourceSpan
+	Name           string
+	TypeParameters []string
+	Extends        string
+	Implements     []string
+	IsAbstract     bool
+	Fields         []SyntaxField
+	Constructor    *SyntaxConstructor
+	Methods        []SyntaxMethod
 }
 
 type SyntaxConstructor struct {
@@ -105,14 +107,15 @@ type SyntaxConstructor struct {
 }
 
 type SyntaxMethod struct {
-	Span       SourceSpan
-	Name       string
-	Type       string
-	Parameters []SyntaxParameter
-	Body       []SyntaxStatement
-	IsStatic   bool
-	IsAbstract bool
-	Kind       string
+	Span           SourceSpan
+	Name           string
+	Type           string
+	TypeParameters []string
+	Parameters     []SyntaxParameter
+	Body           []SyntaxStatement
+	IsStatic       bool
+	IsAbstract     bool
+	Kind           string
 }
 
 type SyntaxField struct {
@@ -134,16 +137,17 @@ type SyntaxParameter struct {
 }
 
 type SyntaxExpression struct {
-	Span      SourceSpan
-	Kind      string
-	Text      string
-	Operator  string
-	Left      *SyntaxExpression
-	Right     *SyntaxExpression
-	Arguments []*SyntaxExpression
-	WhenTrue  *SyntaxExpression
-	WhenFalse *SyntaxExpression
-	Function  *SyntaxStatement
+	Span          SourceSpan
+	Kind          string
+	Text          string
+	Operator      string
+	Left          *SyntaxExpression
+	Right         *SyntaxExpression
+	Arguments     []*SyntaxExpression
+	TypeArguments []string
+	WhenTrue      *SyntaxExpression
+	WhenFalse     *SyntaxExpression
+	Function      *SyntaxStatement
 }
 
 // ProgramResult contains the resolved files and all frontend diagnostics.
