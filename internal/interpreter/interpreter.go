@@ -43,6 +43,7 @@ const (
 	flowBreak
 	flowContinue
 	flowThrow
+	flowExit
 )
 
 func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
@@ -215,6 +216,29 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 					return Value{}, false, flowNormal, err
 				}
 				env[instruction.Result] = value
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__fs.") {
+				value, err := executeFsIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__process.") {
+				if instruction.Callee == "__process.exit" {
+					return Value{Type: ir.TypeVoid}, true, flowExit, nil
+				}
+				value, err := executeProcessIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__string.") {

@@ -82,3 +82,107 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	return nil
 }
 
+func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction ir.Instruction, arrayType ir.Type) error {
+	switch instruction.Callee {
+	case "__array.length":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("array.length has invalid signature")
+		}
+		resultSlot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca i64\n", resultSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_length(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], resultSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s.i64 = load i64, ptr %%%s\n", instruction.Result, resultSlot)
+		fmt.Fprintf(out, "  %%%s = uitofp i64 %%%s.i64 to double\n", instruction.Result, instruction.Result)
+		return nil
+	case "__array.push":
+		if len(instruction.Args) != 2 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("array.push has invalid signature")
+		}
+		elemType := arrayElementType(arrayType)
+		valSlot := fmt.Sprintf("%s.push.val.%d", instruction.Args[0], e.runtimeStatus)
+		fmt.Fprintf(out, "  %%%s = alloca %s\n", valSlot, llvmType(elemType))
+		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", llvmType(elemType), instruction.Args[1], valSlot)
+		resSlot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_push(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], valSlot, resSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, resSlot)
+		return nil
+	case "__array.pop":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("array.pop has invalid signature")
+		}
+		elemType := arrayElementType(arrayType)
+		resSlot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca %s\n", resSlot, llvmType(elemType))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_pop(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], resSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", instruction.Result, llvmType(elemType), resSlot)
+		return nil
+	case "__array.slice":
+		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != arrayType {
+			return fmt.Errorf("array.slice has invalid signature")
+		}
+		startArg := "%" + instruction.Args[1]
+		endArg := "-1.0"
+		if len(instruction.Args) == 3 {
+			endArg = "%" + instruction.Args[2]
+		}
+		resSlot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", resSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double %s, double %s, ptr %%%s)\n", status, instruction.Args[0], startArg, endArg, resSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
+		return nil
+	case "__array.indexOf":
+		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("array.indexOf has invalid signature")
+		}
+		fromArg := "0.0"
+		if len(instruction.Args) == 3 {
+			fromArg = "%" + instruction.Args[2]
+		}
+		resSlot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if arrayType == ir.TypeStringArray {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_string(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_number(ptr %%%s, double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, resSlot)
+		return nil
+	case "__array.includes":
+		if len(instruction.Args) != 2 || instruction.Type != ir.TypeBool {
+			return fmt.Errorf("array.includes has invalid signature")
+		}
+		resSlot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if arrayType == ir.TypeStringArray {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s.f64 = load double, ptr %%%s\n", instruction.Result, resSlot)
+		fmt.Fprintf(out, "  %%%s = fcmp one double %%%s.f64, 0.0\n", instruction.Result, instruction.Result)
+		return nil
+	default:
+		return fmt.Errorf("unknown array intrinsic %q", instruction.Callee)
+	}
+}
+
+

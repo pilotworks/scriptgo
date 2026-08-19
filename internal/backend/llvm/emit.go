@@ -100,6 +100,13 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_set(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_length(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_push(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_pop(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_slice(ptr, double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_index_of_number(ptr, double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_index_of_string(ptr, ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_includes_number(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_includes_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_number_set(ptr, i64, double)\n")
@@ -118,8 +125,17 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_slice(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_trim(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_replace(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_split(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
 	out.WriteString("declare i32 @strcmp(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_fs_read_file_sync(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_fs_write_file_sync(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_fs_exists_sync(ptr, ptr)\n\n")
+	out.WriteString("declare void @scriptgo_process_init(i32, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_process_exit(double)\n")
+	out.WriteString("declare i32 @scriptgo_process_cwd(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_process_argv(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_process_env(ptr, ptr)\n\n")
 	out.WriteString("declare void @scriptgo_exception_push(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_pop(ptr)\n")
 	out.WriteString("declare ptr @scriptgo_exception_buf(ptr)\n")
@@ -153,22 +169,27 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	name := function.Name
-	if name == "main" {
-		returnType = "i32"
-	}
 	var out strings.Builder
-	out.WriteString(fmt.Sprintf("define %s @%s(", returnType, name))
-	for index, parameter := range function.Parameters {
-		if index > 0 {
-			out.WriteString(", ")
+	if name == "main" {
+		out.WriteString("define i32 @main(i32 %argc, ptr %argv)")
+	} else {
+		out.WriteString(fmt.Sprintf("define %s @%s(", returnType, name))
+		for index, parameter := range function.Parameters {
+			if index > 0 {
+				out.WriteString(", ")
+			}
+			out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
 		}
-		out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
+		out.WriteString(")")
 	}
-	out.WriteString(")")
 	if debug != nil {
 		fmt.Fprintf(&out, " !dbg !%d", debug.functions[function.Name])
 	}
 	out.WriteString(" {\n")
+	if name == "main" {
+		out.WriteString("  call void @scriptgo_process_init(i32 %argc, ptr %argv)\n")
+	}
+
 
 	emitter := &functionEmitter{
 		function:       function,

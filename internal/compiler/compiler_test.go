@@ -20,7 +20,7 @@ func TestCompileReturnsPipelineStub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"ModuleID = 'scriptgo'", "define i32 @main()", "ret i32 0"} {
+	for _, expected := range []string{"ModuleID = 'scriptgo'", "define i32 @main(", "ret i32 0"} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("output does not contain %q: %s", expected, output)
 		}

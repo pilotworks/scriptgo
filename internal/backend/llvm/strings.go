@@ -115,24 +115,16 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.split":
+		if len(instruction.Args) != 2 || instruction.Type != ir.TypeStringArray {
+			return fmt.Errorf("string.split has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	default:
 		return fmt.Errorf("unknown string intrinsic %q", instruction.Callee)
 	}
-	return nil
-}
-
-func emitArrayIntrinsic(out *strings.Builder, instruction ir.Instruction, arrayType ir.Type) error {
-	if instruction.Callee != "__array.length" || len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
-		return fmt.Errorf("array.length has invalid signature")
-	}
-	_ = arrayType
-	length := "scriptgo_array_length"
-	resultSlot := instruction.Result + ".slot"
-	status := instruction.Result + ".status"
-	fmt.Fprintf(out, "  %%%s = alloca i64\n", resultSlot)
-	fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, length, instruction.Args[0], resultSlot)
-	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-	fmt.Fprintf(out, "  %%%s.i64 = load i64, ptr %%%s\n", instruction.Result, resultSlot)
-	fmt.Fprintf(out, "  %%%s = uitofp i64 %%%s.i64 to double\n", instruction.Result, instruction.Result)
 	return nil
 }

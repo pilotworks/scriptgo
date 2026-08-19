@@ -32,6 +32,13 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
+	case "null", "undefined":
+		typ := ir.TypeString
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Kind, Span: toIRSpan(path, expression.Span)})
+		return result, typ, nil
 	case "array":
 		if len(expression.Arguments) == 0 {
 			return "", "", fmt.Errorf("empty array literal needs an explicit runtime representation")
@@ -39,20 +46,118 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		arguments := make([]string, 0, len(expression.Arguments))
-		for _, element := range expression.Arguments {
-			value, typ, err := lowerExpression(path, element, "", function, env, counter, shapes, signatures)
-			if err != nil {
-				return "", "", err
+		hasSpread := false
+		for _, elem := range expression.Arguments {
+			if elem.Kind == "spread" {
+				hasSpread = true
+				break
 			}
-			if typ != ir.TypeNumber {
-				return "", "", fmt.Errorf("array literal currently supports number elements only")
-			}
-			arguments = append(arguments, value)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeNumberArray, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
-		return result, ir.TypeNumberArray, nil
-	case "index":
+		if !hasSpread {
+			arguments := make([]string, 0, len(expression.Arguments))
+			var arrType ir.Type = ir.TypeNumberArray
+			for i, element := range expression.Arguments {
+				value, typ, err := lowerExpression(path, element, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				if i == 0 {
+					if typ == ir.TypeString {
+						arrType = ir.TypeStringArray
+					} else if typ != ir.TypeNumber {
+						return "", "", fmt.Errorf("array literal currently supports number or string elements only")
+					}
+				} else {
+					expectedElem := ir.TypeNumber
+					if arrType == ir.TypeStringArray {
+						expectedElem = ir.TypeString
+					}
+					if typ != expectedElem {
+						return "", "", fmt.Errorf("inconsistent element type in array literal")
+					}
+				}
+				arguments = append(arguments, value)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+			return result, arrType, nil
+		}
+		var arrType ir.Type = ir.TypeNumberArray
+		for _, elem := range expression.Arguments {
+			if elem.Kind == "spread" {
+				val, typ, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
+				if err == nil && typ == ir.TypeStringArray {
+					arrType = ir.TypeStringArray
+					_ = val
+					break
+				}
+			} else {
+				val, typ, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
+				if err == nil && typ == ir.TypeString {
+					arrType = ir.TypeStringArray
+					_ = val
+					break
+				}
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: nil, Span: toIRSpan(path, expression.Span)})
+		for _, elem := range expression.Arguments {
+			if elem.Kind == "spread" {
+				spreadVal, _, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				idxVar := nextTemp(counter)
+				lenVar := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: idxVar, Value: "0", Span: toIRSpan(path, elem.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenVar, Callee: "__array.length", Args: []string{spreadVal}, Span: toIRSpan(path, elem.Span)})
+				condVar := nextTemp(counter)
+				var condBody []ir.Instruction
+				condBody = append(condBody, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condVar, Operator: "<", Args: []string{idxVar, lenVar}, Span: toIRSpan(path, elem.Span)})
+				var loopBody []ir.Instruction
+				itemVar := nextTemp(counter)
+				itemType := ir.TypeNumber
+				if arrType == ir.TypeStringArray {
+					itemType = ir.TypeString
+				}
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpIndex, Type: itemType, Result: itemVar, Args: []string{spreadVal, idxVar}, Span: toIRSpan(path, elem.Span)})
+				pushRes := nextTemp(counter)
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: pushRes, Callee: "__array.push", Args: []string{result, itemVar}, Span: toIRSpan(path, elem.Span)})
+				oneConst := nextTemp(counter)
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: oneConst, Value: "1", Span: toIRSpan(path, elem.Span)})
+				nextIdx := nextTemp(counter)
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: nextIdx, Operator: "+", Args: []string{idxVar, oneConst}, Span: toIRSpan(path, elem.Span)})
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxVar, Args: []string{nextIdx}, Span: toIRSpan(path, elem.Span)})
+
+				function.Body = append(function.Body, ir.Instruction{
+					Op:   ir.OpWhile,
+					Type: ir.TypeVoid,
+					Cond: condBody,
+					Args: []string{condVar},
+					Body: loopBody,
+					Span: toIRSpan(path, elem.Span),
+				})
+			} else {
+				itemVal, _, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				pushRes := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: pushRes, Callee: "__array.push", Args: []string{result, itemVal}, Span: toIRSpan(path, elem.Span)})
+			}
+		}
+		return result, arrType, nil
+	case "index", "optional_index":
+		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
+			keyVal, keyType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+			if err != nil || keyType != ir.TypeString {
+				return "", "", fmt.Errorf("process.env requires string index")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.env", Args: []string{keyVal}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
 		array, arrayType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -142,6 +247,37 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
 	case "binary":
+		if expression.Operator == "??" {
+			leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			rightVal, rightTyp, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if leftTyp != rightTyp {
+				return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
+			}
+			nullConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: nullConst, Value: "null", Span: toIRSpan(path, expression.Span)})
+			cmpNull := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
+
+			undefConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+			cmpUndef := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
+
+			cond := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: cond, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftTyp, Result: result, Args: []string{cond, leftVal, rightVal}, Span: toIRSpan(path, expression.Span)})
+			return result, leftTyp, nil
+		}
 		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -247,24 +383,39 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: trueType, Result: result, Args: []string{condition, whenTrue, whenFalse}, Span: toIRSpan(path, expression.Span)})
 		return result, trueType, nil
-	case "property":
+	case "property", "optional_property":
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
-			objectType, ok := env[expression.Left.Text]
-			if ok && (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray) && expression.Text == "length" {
+			if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "argv" {
 				if result == "" {
 					result = nextTemp(counter)
 				}
-				callee := "__string.length"
-				if objectType != ir.TypeString {
-					callee = "__array.length"
-				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: callee, Args: []string{expression.Left.Text}, Span: toIRSpan(path, expression.Span)})
-				return result, ir.TypeNumber, nil
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__process.argv", Args: nil, Span: toIRSpan(path, expression.Span)})
+				return result, ir.TypeStringArray, nil
 			}
+		}
+		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
+			keyTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: keyTemp, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.env", Args: []string{keyTemp}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
 		}
 		object, objectType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
+		}
+		if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray) && expression.Text == "length" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			callee := "__string.length"
+			if objectType != ir.TypeString {
+				callee = "__array.length"
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: callee, Args: []string{object}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeNumber, nil
 		}
 		className := strings.TrimPrefix(string(objectType), "object:")
 		shape, ok := shapes[className]
@@ -318,60 +469,88 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, ir.Type("object:" + className), nil
 	case "call":
 		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil {
+			methodName := expression.Left.Text
 			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
-			if err == nil && strings.HasPrefix(string(receiverType), "object:") {
-				className := strings.TrimPrefix(string(receiverType), "object:")
-				methodName := expression.Left.Text
-				mangled := className + "_" + methodName
-				if target, ok := signatures[mangled]; ok {
+			if err == nil {
+				if receiverType == ir.TypeString && isStringMethod(methodName) {
 					args := []string{receiver}
 					for _, argument := range expression.Arguments {
-						argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+						value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 						if err != nil {
 							return "", "", err
 						}
-						args = append(args, argVal)
+						args = append(args, value)
 					}
 					if result == "" {
 						result = nextTemp(counter)
 					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpCall,
-						Type:   target.ReturnType,
-						Result: result,
-						Callee: mangled,
-						Args:   args,
-						Span:   toIRSpan(path, expression.Span),
-					})
-					return result, target.ReturnType, nil
+					returnType := ir.TypeNumber
+					switch methodName {
+					case "slice", "trim", "replace", "substring":
+						returnType = ir.TypeString
+					case "startsWith", "endsWith":
+						returnType = ir.TypeBool
+					case "split":
+						returnType = ir.TypeStringArray
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
+					return result, returnType, nil
+				}
+				if (receiverType == ir.TypeNumberArray || receiverType == ir.TypeStringArray) && isArrayMethod(methodName) {
+					args := []string{receiver}
+					for _, argument := range expression.Arguments {
+						value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, value)
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					returnType := ir.TypeNumber
+					switch methodName {
+					case "slice":
+						returnType = receiverType
+					case "includes":
+						returnType = ir.TypeBool
+					case "pop":
+						if receiverType == ir.TypeNumberArray {
+							returnType = ir.TypeNumber
+						} else {
+							returnType = ir.TypeString
+						}
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__array." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
+					return result, returnType, nil
+				}
+				if strings.HasPrefix(string(receiverType), "object:") {
+					className := strings.TrimPrefix(string(receiverType), "object:")
+					mangled := className + "_" + methodName
+					if target, ok := signatures[mangled]; ok {
+						args := []string{receiver}
+						for _, argument := range expression.Arguments {
+							argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return "", "", err
+							}
+							args = append(args, argVal)
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   target.ReturnType,
+							Result: result,
+							Callee: mangled,
+							Args:   args,
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, target.ReturnType, nil
+					}
 				}
 			}
-		}
-		if method := stringMethod(expression.Left); method != "" {
-			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
-			if err != nil || receiverType != ir.TypeString {
-				return "", "", fmt.Errorf("string method %q requires a string receiver", method)
-			}
-			args := []string{receiver}
-			for _, argument := range expression.Arguments {
-				value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-				if err != nil {
-					return "", "", err
-				}
-				args = append(args, value)
-			}
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			returnType := ir.TypeNumber
-			switch method {
-			case "slice", "trim", "replace", "substring":
-				returnType = ir.TypeString
-			case "startsWith", "endsWith":
-				returnType = ir.TypeBool
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + method, Args: args, Span: toIRSpan(path, expression.Span)})
-			return result, returnType, nil
 		}
 		callee := callName(expression.Left)
 		if intrinsic, ok := builtinIntrinsic(callee); ok {
@@ -393,7 +572,22 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", fmt.Errorf("unknown function %q", callee)
 		}
 		callee = target.Name
-		if len(target.Parameters) > 0 && target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray {
+		if len(args) < len(target.Parameters) {
+			defaults := defaultParamsIndex[callee]
+			if defaults != nil {
+				for i := len(args); i < len(target.Parameters); i++ {
+					if initExpr, ok := defaults[i]; ok {
+						val, _, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, val)
+					}
+				}
+			}
+		}
+		if len(target.Parameters) > 0 && (target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+			restType := target.Parameters[len(target.Parameters)-1].Type
 			fixed := len(target.Parameters) - 1
 			if len(args) < fixed {
 				return "", "", fmt.Errorf("call to %q has too few arguments", callee)
@@ -401,7 +595,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			restArgs := append([]string(nil), args[fixed:]...)
 			args = args[:fixed]
 			array := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeStringArray, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: restType, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
 			args = append(args, array)
 		}
 		if result == "" {
@@ -438,14 +632,42 @@ func isComparison(operator string) bool {
 	return operator == "==" || operator == "===" || operator == "!=" || operator == "!==" || operator == "<" || operator == "<=" || operator == ">" || operator == ">="
 }
 
+func isStringMethod(name string) bool {
+	switch name {
+	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "replace", "substring", "split":
+		return true
+	default:
+		return false
+	}
+}
+
+func isArrayMethod(name string) bool {
+	switch name {
+	case "push", "pop", "slice", "indexOf", "includes":
+		return true
+	default:
+		return false
+	}
+}
+
 func stringMethod(expression *typescriptgo.SyntaxExpression) string {
 	if expression == nil || expression.Kind != "property" || expression.Left == nil {
 		return ""
 	}
-	switch expression.Text {
-	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "replace", "substring":
+	if isStringMethod(expression.Text) {
 		return expression.Text
-	default:
+	}
+	return ""
+}
+
+func arrayMethod(expression *typescriptgo.SyntaxExpression) string {
+	if expression == nil || expression.Kind != "property" || expression.Left == nil {
 		return ""
 	}
+	if isArrayMethod(expression.Text) {
+		return expression.Text
+	}
+	return ""
 }
+
+

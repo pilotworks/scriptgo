@@ -103,10 +103,11 @@ type SyntaxField struct {
 }
 
 type SyntaxParameter struct {
-	Span SourceSpan
-	Name string
-	Type string
-	Rest bool
+	Span        SourceSpan
+	Name        string
+	Type        string
+	Rest        bool
+	Initializer *SyntaxExpression
 }
 
 type SyntaxExpression struct {

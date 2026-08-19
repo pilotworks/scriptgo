@@ -17,7 +17,11 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 	for _, parameter := range statement.Parameters {
 		typ := toIRType(parameter.Type)
 		if parameter.Rest {
-			typ = ir.TypeStringArray
+			if parameter.Type == "number[]" {
+				typ = ir.TypeNumberArray
+			} else {
+				typ = ir.TypeStringArray
+			}
 		}
 		if typ == "" {
 			return ir.Function{}, fmt.Errorf("parameter %q has unsupported type %q", parameter.Name, parameter.Type)
@@ -49,6 +53,36 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "variable":
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
+		}
+		if statement.Expression.Kind == "identifier" {
+			srcType, ok := env[statement.Expression.Text]
+			if !ok {
+				global, isGlobal := builtinGlobal(statement.Expression.Text)
+				if isGlobal {
+					env[statement.Name] = global.Type
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: statement.Name, Value: global.Value, Span: toIRSpan(path, statement.Span)})
+					return nil
+				}
+				return fmt.Errorf("unknown identifier %q", statement.Expression.Text)
+			}
+			env[statement.Name] = srcType
+			switch srcType {
+			case ir.TypeNumber:
+				zeroConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, zeroConst}, Span: toIRSpan(path, statement.Span)})
+			case ir.TypeString:
+				emptyStr := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, emptyStr}, Span: toIRSpan(path, statement.Span)})
+			case ir.TypeBool:
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+			default:
+				trueConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, statement.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+			}
+			return nil
 		}
 		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
 		if err != nil {

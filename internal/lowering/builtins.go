@@ -61,6 +61,19 @@ var builtinIntrinsics = map[string]BuiltinIntrinsic{
 	"console.info":  {Name: "console.info", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
 	"console.warn":  {Name: "console.warn", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
 	"console.error": {Name: "console.error", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
+	"fs.readFileSync":  {Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
+	"fs.writeFileSync": {Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
+	"fs.existsSync":    {Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
+	"process.exit":     {Name: "process.exit", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerProcessExit},
+	"process.cwd":      {Name: "process.cwd", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerProcessCwd},
+	"__scriptgo.readFileSync":  {Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
+	"__scriptgo.writeFileSync": {Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
+	"__scriptgo.existsSync":    {Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
+	"__scriptgo.exit":          {Name: "process.exit", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerProcessExit},
+	"__scriptgo.cwd":           {Name: "process.cwd", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerProcessCwd},
+	"readFileSync":     {Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
+	"writeFileSync":    {Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
+	"existsSync":       {Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
 }
 
 func builtinGlobal(name string) (BuiltinGlobal, bool) {
@@ -121,3 +134,65 @@ func lowerConsoleIntrinsic(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpPrint, Type: ir.TypeVoid, Callee: intrinsic.Name, Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
 	return "", ir.TypeVoid, nil
 }
+
+func lowerFsReadFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__fs.readFileSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeString, nil
+}
+
+func lowerFsWriteFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Result: result, Callee: "__fs.writeFileSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeVoid, nil
+}
+
+func lowerFsExistsSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__fs.existsSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeBool, nil
+}
+
+func lowerProcessExit(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Result: result, Callee: "__process.exit", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeVoid, nil
+}
+
+func lowerProcessCwd(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.cwd", Args: nil, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeString, nil
+}
+

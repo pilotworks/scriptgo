@@ -16,7 +16,14 @@ var objectSource string
 //go:embed native/output/runtime.c
 var outputSource string
 
+//go:embed native/fs/runtime.c
+var fsSource string
+
+//go:embed native/process/runtime.c
+var processSource string
+
 //go:embed native/strings/runtime.c
 var stringSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + stringSource)
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + stringSource + "\n" + fsSource + "\n" + processSource)
+

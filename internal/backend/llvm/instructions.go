@@ -451,10 +451,28 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		if !ok {
 			return fmt.Errorf("unknown array intrinsic argument %q", instruction.Args[0])
 		}
-		if err := emitArrayIntrinsic(out, instruction, arrayType); err != nil {
+		if err := e.emitArrayIntrinsic(out, instruction, arrayType); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__fs.") {
+		if err := e.emitFsIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__process.") {
+		if err := e.emitProcessIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__string.") {

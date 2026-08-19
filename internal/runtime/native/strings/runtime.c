@@ -198,8 +198,52 @@ int scriptgo_string_replace(const char *value, const char *search, const char *r
     return 0;
 }
 
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_set(void *handle, double index, const void *value);
+
+int scriptgo_string_split(const char *value, const char *separator, void **out_array) {
+    if (value == NULL || separator == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t val_len = strlen(value);
+    size_t sep_len = strlen(separator);
+    
+    if (sep_len == 0) {
+        if (scriptgo_array_new((int64_t)val_len, sizeof(char *), out_array) != 0) return -1;
+        for (size_t i = 0; i < val_len; i++) {
+            char *sub;
+            if (string_copy_range(value, i, 1, &sub) != 0) return -1;
+            if (scriptgo_array_set(*out_array, (double)i, &sub) != 0) return -1;
+        }
+        return 0;
+    }
+    
+    size_t count = 1;
+    const char *p = value;
+    while ((p = strstr(p, separator)) != NULL) {
+        count++;
+        p += sep_len;
+    }
+    
+    if (scriptgo_array_new((int64_t)count, sizeof(char *), out_array) != 0) return -1;
+    
+    size_t idx = 0;
+    p = value;
+    const char *next;
+    while ((next = strstr(p, separator)) != NULL) {
+        char *sub;
+        if (string_copy_range(p, 0, (size_t)(next - p), &sub) != 0) return -1;
+        if (scriptgo_array_set(*out_array, (double)idx, &sub) != 0) return -1;
+        idx++;
+        p = next + sep_len;
+    }
+    char *tail;
+    if (string_copy_range(p, 0, strlen(p), &tail) != 0) return -1;
+    if (scriptgo_array_set(*out_array, (double)idx, &tail) != 0) return -1;
+    return 0;
+}
+
 int scriptgo_string_release(char *value) {
     free(value);
     return 0;
 }
+
 

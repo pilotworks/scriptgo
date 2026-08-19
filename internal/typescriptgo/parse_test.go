@@ -63,7 +63,7 @@ func TestCheckResolvesBuiltinPathModule(t *testing.T) {
 	if imported.Specifier != "path" || imported.LocalName != "p" || !imported.Builtin {
 		t.Fatalf("path import = %+v, want builtin path reference with namespace alias", imported)
 	}
-	if manifest := BuiltinModuleManifest(); len(manifest) != 1 || manifest[0].Name != "path" || manifest[0].Version == "" {
+	if manifest := BuiltinModuleManifest(); len(manifest) < 1 || manifest[0].Name != "path" || manifest[0].Version == "" {
 		t.Fatalf("builtin manifest = %+v, want versioned path module", manifest)
 	}
 }

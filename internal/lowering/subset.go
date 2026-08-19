@@ -174,18 +174,13 @@ func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ strin
 		return subsetError(fileName, span, CodeAnyUnknownBoundary, "any type")
 	case "unknown", "unknownkeyword", "kindunknownkeyword":
 		return subsetError(fileName, span, CodeAnyUnknownBoundary, "unknown type")
-	case "null", "nullkeyword", "undefined", "undefinedkeyword":
-		return subsetError(fileName, span, CodeLanguageLowering, "null or undefined value")
-	}
-	if strings.Contains(normalized, "union") {
-		return subsetError(fileName, span, CodeUnionNarrowing, "unproven union type")
 	}
 	return nil
 }
 
 func validateExpression(fileName string, expression *typescriptgo.SyntaxExpression) error {
 	switch expression.Kind {
-	case "number", "string", "bool", "identifier":
+	case "number", "string", "bool", "identifier", "null", "undefined":
 		return nil
 	case "array":
 		if len(expression.Arguments) == 0 {
@@ -197,13 +192,15 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			}
 		}
 		return nil
-	case "index":
+	case "spread":
+		return validateExpression(fileName, expression.Left)
+	case "optional_index", "index":
 		if err := validateExpression(fileName, expression.Left); err != nil {
 			return err
 		}
 		return validateExpression(fileName, expression.Right)
-	case "property":
-		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call") {
+	case "optional_property", "property":
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") {
 			return nil
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")
@@ -248,7 +245,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 				return err
 			}
 		}
-		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && expression.Left.Kind != "property" {
+		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
 		return nil
