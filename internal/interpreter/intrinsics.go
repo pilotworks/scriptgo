@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -911,6 +912,46 @@ func executeCryptoIntrinsic(name string, arguments []string, env map[string]Valu
 		return Value{Type: ir.TypeString, String: uuid}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown crypto intrinsic %q", name)
+	}
+}
+
+func executeOsIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__os.platform":
+		platform := goruntime.GOOS
+		if platform == "windows" {
+			platform = "win32"
+		}
+		return Value{Type: ir.TypeString, String: platform}, nil
+	case "__os.arch":
+		arch := goruntime.GOARCH
+		if arch == "amd64" {
+			arch = "x64"
+		} else if arch == "386" {
+			arch = "ia32"
+		}
+		return Value{Type: ir.TypeString, String: arch}, nil
+	case "__os.homedir":
+		dir, _ := os.UserHomeDir()
+		return Value{Type: ir.TypeString, String: dir}, nil
+	case "__os.type":
+		typ := "Darwin"
+		if goruntime.GOOS == "linux" {
+			typ = "Linux"
+		} else if goruntime.GOOS == "windows" {
+			typ = "Windows_NT"
+		}
+		return Value{Type: ir.TypeString, String: typ}, nil
+	case "__os.release":
+		return Value{Type: ir.TypeString, String: "1.0.0"}, nil
+	case "__os.uptime":
+		return Value{Type: ir.TypeNumber, Number: 3600.0}, nil
+	case "__os.totalmem":
+		return Value{Type: ir.TypeNumber, Number: 16.0 * 1024 * 1024 * 1024}, nil
+	case "__os.freemem":
+		return Value{Type: ir.TypeNumber, Number: 8.0 * 1024 * 1024 * 1024}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown os intrinsic %q", name)
 	}
 }
 
