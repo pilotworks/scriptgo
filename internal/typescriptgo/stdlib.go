@@ -1,9 +1,12 @@
 package typescriptgo
 
-import _ "embed"
+import (
+	_ "embed"
+	"strings"
+)
 
 // BuiltinModule is the TypeScript source and version contract for a
-// scriptgo-provided module.
+// scriptgo-provided module (Category 4: Node built-in modules).
 type BuiltinModule struct {
 	Name    string
 	Version string
@@ -46,7 +49,8 @@ func BuiltinModuleManifest() []BuiltinModule {
 }
 
 func builtinModule(name string) (BuiltinModule, bool) {
-	module, ok := builtinModules[name]
+	canonical := strings.TrimPrefix(name, "node:")
+	module, ok := builtinModules[canonical]
 	return module, ok
 }
 
