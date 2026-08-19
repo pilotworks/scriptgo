@@ -3,6 +3,7 @@ package interpreter
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -800,5 +801,77 @@ func executePerformanceIntrinsic(name string, arguments []string, env map[string
 		return Value{}, fmt.Errorf("unknown performance intrinsic %q", name)
 	}
 }
+
+func executeJsonIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	if len(arguments) != 1 {
+		return Value{}, fmt.Errorf("JSON intrinsic requires 1 argument")
+	}
+	arg, ok := env[arguments[0]]
+	if !ok {
+		return Value{}, fmt.Errorf("unknown argument %q", arguments[0])
+	}
+	switch name {
+	case "__json.stringify_number":
+		if arg.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("JSON.stringify expects a number")
+		}
+		if math.IsNaN(arg.Number) || math.IsInf(arg.Number, 0) {
+			return Value{Type: ir.TypeString, String: "null"}, nil
+		}
+		return Value{Type: ir.TypeString, String: format(arg)}, nil
+	case "__json.stringify_bool":
+		if arg.Type != ir.TypeBool {
+			return Value{}, fmt.Errorf("JSON.stringify expects a boolean")
+		}
+		return Value{Type: ir.TypeString, String: strconv.FormatBool(arg.Bool)}, nil
+	case "__json.stringify_string":
+		if arg.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("JSON.stringify expects a string")
+		}
+		b, err := json.Marshal(arg.String)
+		if err != nil {
+			return Value{}, err
+		}
+		return Value{Type: ir.TypeString, String: string(b)}, nil
+	case "__json.stringify_number_array":
+		if arg.Type != ir.TypeNumberArray {
+			return Value{}, fmt.Errorf("JSON.stringify expects a number array")
+		}
+		parts := make([]string, len(arg.Array))
+		for i, item := range arg.Array {
+			if math.IsNaN(item.Number) || math.IsInf(item.Number, 0) {
+				parts[i] = "null"
+			} else {
+				parts[i] = format(item)
+			}
+		}
+		return Value{Type: ir.TypeString, String: "[" + strings.Join(parts, ",") + "]"}, nil
+	case "__json.stringify_string_array":
+		if arg.Type != ir.TypeStringArray {
+			return Value{}, fmt.Errorf("JSON.stringify expects a string array")
+		}
+		parts := make([]string, len(arg.Array))
+		for i, item := range arg.Array {
+			b, _ := json.Marshal(item.String)
+			parts[i] = string(b)
+		}
+		return Value{Type: ir.TypeString, String: "[" + strings.Join(parts, ",") + "]"}, nil
+	case "__json.parse_string":
+		if arg.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("JSON.parse expects a string")
+		}
+		str := strings.TrimSpace(arg.String)
+		if strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\"") {
+			var unmarshaled string
+			if err := json.Unmarshal([]byte(str), &unmarshaled); err == nil {
+				return Value{Type: ir.TypeString, String: unmarshaled}, nil
+			}
+		}
+		return Value{Type: ir.TypeString, String: str}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown JSON intrinsic %q", name)
+	}
+}
+
 
 

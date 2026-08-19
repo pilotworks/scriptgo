@@ -117,6 +117,45 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 	return "", ir.TypeVoid, nil
 }
 
+func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	if len(call.Expression.Arguments) != 1 {
+		return "", "", fmt.Errorf("JSON.stringify expects exactly 1 argument")
+	}
+	argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	var callee string
+	args := []string{argVal}
+	switch argType {
+	case ir.TypeNumber:
+		callee = "__json.stringify_number"
+	case ir.TypeString:
+		callee = "__json.stringify_string"
+	case ir.TypeBool:
+		callee = "__json.stringify_bool"
+	case ir.TypeNumberArray:
+		callee = "__json.stringify_number_array"
+	case ir.TypeStringArray:
+		callee = "__json.stringify_string_array"
+	default:
+		return "", "", fmt.Errorf("JSON.stringify does not support type %s", argType)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeString,
+		Result: result,
+		Callee: callee,
+		Args:   args,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, ir.TypeString, nil
+}
+
 func initIntrinsics() map[string]BuiltinIntrinsic {
 	m := make(map[string]BuiltinIntrinsic)
 
@@ -145,6 +184,14 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"isNaN", "Number.isNaN"}, CategoryECMAScript, "__number.isNaN", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
 	register([]string{"isFinite", "Number.isFinite"}, CategoryECMAScript, "__number.isFinite", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
 	register([]string{"Number.isInteger"}, CategoryECMAScript, "__number.isInteger", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"JSON.parse"}, CategoryECMAScript, "__json.parse_string", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	m["JSON.stringify"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "JSON.stringify",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower:    lowerJSONStringify,
+	}
 
 	// Web-compatible globals (Category 2: WebCompat)
 	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryWebCompat, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
