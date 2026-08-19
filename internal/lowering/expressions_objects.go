@@ -179,8 +179,6 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 	}
 	var fields []ir.Field
 	var propValues []string
-	shapeName := fmt.Sprintf("__anon_shape_%d", *counter)
-	*counter++
 	for _, prop := range expression.Arguments {
 		val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -193,12 +191,14 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		})
 		propValues = append(propValues, val)
 	}
-	shape := ir.ObjectShape{
-		Name:   shapeName,
-		Span:   toIRSpan(path, expression.Span),
-		Fields: fields,
+	shapeName := anonymousShapeName(fields)
+	if _, ok := shapes[shapeName]; !ok {
+		shapes[shapeName] = ir.ObjectShape{
+			Name:   shapeName,
+			Span:   toIRSpan(path, expression.Span),
+			Fields: fields,
+		}
 	}
-	shapes[shapeName] = shape
 	if result == "" {
 		result = nextTemp(counter)
 	}
@@ -223,6 +223,16 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		})
 	}
 	return result, objType, nil
+}
+
+func anonymousShapeName(fields []ir.Field) string {
+	var parts []string
+	for _, f := range fields {
+		cleanType := strings.ReplaceAll(string(f.Type), ":", "_")
+		cleanType = strings.ReplaceAll(cleanType, "[]", "_arr")
+		parts = append(parts, fmt.Sprintf("%s_%s", f.Name, cleanType))
+	}
+	return "__shape_" + strings.Join(parts, "_")
 }
 
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {

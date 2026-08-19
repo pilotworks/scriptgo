@@ -24,15 +24,23 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 		fileName := filepath.Clean(file.FileName)
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "function" {
-				function := ir.Function{Name: statement.Name, ReturnType: toIRType(statement.Type)}
+				retType := statement.Type
+				if retType == "" && statement.InferredType != "" {
+					retType = statement.InferredType
+				}
+				function := ir.Function{Name: statement.Name, ReturnType: toIRType(retType)}
 				if function.ReturnType == "" {
 					function.ReturnType = ir.TypeVoid
 				}
 				for pIdx, parameter := range statement.Parameters {
-					typ := toIRType(parameter.Type)
+					pType := parameter.Type
+					if pType == "" && parameter.InferredType != "" {
+						pType = parameter.InferredType
+					}
+					typ := toIRType(pType)
 					if parameter.Rest {
 						restParamsIndex[function.Name] = true
-						if parameter.Type == "number[]" {
+						if pType == "number[]" {
 							typ = ir.TypeNumberArray
 						} else {
 							typ = ir.TypeStringArray

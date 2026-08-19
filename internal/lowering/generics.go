@@ -365,6 +365,9 @@ func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string) s
 	if expr == nil {
 		return ""
 	}
+	if expr.InferredType != "" {
+		return expr.InferredType
+	}
 	switch expr.Kind {
 	case "number":
 		return "number"

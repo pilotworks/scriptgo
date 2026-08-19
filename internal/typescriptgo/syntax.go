@@ -1,22 +1,81 @@
 package typescriptgo
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
 )
 
-func syntaxFile(file *ast.SourceFile) SyntaxFile {
+func syntaxFile(file *ast.SourceFile, chk *checker.Checker) SyntaxFile {
 	result := SyntaxFile{FileName: file.FileName()}
 	if file.Statements == nil {
 		return result
 	}
 	for _, statement := range file.Statements.Nodes {
-		if converted, ok := syntaxStatement(statement); ok {
+		if converted, ok := syntaxStatement(statement, chk); ok {
 			result.Statements = append(result.Statements, converted)
 		}
 	}
 	return result
+}
+
+func resolveInferredType(chk *checker.Checker, node *ast.Node) string {
+	if chk == nil || node == nil {
+		return ""
+	}
+	typ := chk.GetTypeAtLocation(node)
+	if typ == nil {
+		return ""
+	}
+	typeStr := chk.TypeToString(typ)
+	return normalizeInferredType(typeStr)
+}
+
+func resolveFunctionReturnType(chk *checker.Checker, node *ast.Node) string {
+	if chk == nil || node == nil {
+		return ""
+	}
+	sig := chk.GetSignatureFromDeclaration(node)
+	if sig == nil {
+		return ""
+	}
+	retType := chk.GetReturnTypeOfSignature(sig)
+	if retType == nil {
+		return ""
+	}
+	return normalizeInferredType(chk.TypeToString(retType))
+}
+
+func normalizeInferredType(typeStr string) string {
+	typeStr = strings.TrimSpace(typeStr)
+	switch typeStr {
+	case "boolean", "true", "false":
+		return "bool"
+	case "number", "string", "void", "any", "unknown", "never", "undefined", "null":
+		return typeStr
+	default:
+		if strings.HasPrefix(typeStr, "\"") && strings.HasSuffix(typeStr, "\"") {
+			return "string"
+		}
+		if _, err := strconv.ParseFloat(typeStr, 64); err == nil {
+			return "number"
+		}
+		if strings.HasPrefix(typeStr, "Array<") && strings.HasSuffix(typeStr, ">") {
+			elem := strings.TrimSuffix(strings.TrimPrefix(typeStr, "Array<"), ">")
+			return normalizeInferredType(elem) + "[]"
+		}
+		if strings.HasPrefix(typeStr, "ReadonlyArray<") && strings.HasSuffix(typeStr, ">") {
+			elem := strings.TrimSuffix(strings.TrimPrefix(typeStr, "ReadonlyArray<"), ">")
+			return normalizeInferredType(elem) + "[]"
+		}
+		if strings.HasSuffix(typeStr, "[]") {
+			elem := strings.TrimSuffix(typeStr, "[]")
+			return normalizeInferredType(elem) + "[]"
+		}
+		return typeStr
+	}
 }
 
 func sourceSpan(node *ast.Node) SourceSpan {

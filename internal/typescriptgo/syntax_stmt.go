@@ -6,61 +6,74 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
 )
 
-func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
+func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, bool) {
 	span := sourceSpan(node)
 	switch node.Kind {
 	case ast.KindVariableStatement:
 		declarations := node.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes
-		return syntaxVariableDeclarations(declarations, span)
+		return syntaxVariableDeclarations(declarations, span, chk)
 	case ast.KindFunctionDeclaration:
+		fnType := syntaxType(node.Type())
+		inferredRetType := resolveFunctionReturnType(chk, node)
+		if fnType == "" && inferredRetType != "" {
+			fnType = inferredRetType
+		}
 		result := SyntaxStatement{
 			Span:           span,
 			Kind:           "function",
 			Name:           node.Name().Text(),
-			Type:           syntaxType(node.Type()),
+			Type:           fnType,
+			InferredType:   inferredRetType,
 			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
 		}
 		for _, parameter := range node.Parameters() {
+			pType := syntaxType(parameter.Type())
+			inferredPType := resolveInferredType(chk, parameter.Name())
+			if inferredPType == "" {
+				inferredPType = resolveInferredType(chk, parameter)
+			}
 			result.Parameters = append(result.Parameters, SyntaxParameter{
-				Span:        parameterSpan(parameter),
-				Name:        parameter.Name().Text(),
-				Type:        syntaxType(parameter.Type()),
-				Rest:        parameter.AsParameterDeclaration().DotDotDotToken != nil,
-				Initializer: syntaxExpression(parameter.Initializer()),
+				Span:         parameterSpan(parameter),
+				Name:         parameter.Name().Text(),
+				Type:         pType,
+				InferredType: inferredPType,
+				Rest:         parameter.AsParameterDeclaration().DotDotDotToken != nil,
+				Initializer:  syntaxExpression(parameter.Initializer(), chk),
 			})
 		}
 		if body := node.Body(); body != nil {
 			for _, statement := range body.Statements() {
-				if converted, ok := syntaxStatement(statement); ok {
+				if converted, ok := syntaxStatement(statement, chk); ok {
 					result.Body = append(result.Body, converted)
 				}
 			}
 		}
 		return result, true
 	case ast.KindClassDeclaration:
-		return syntaxClassDeclaration(node, span)
+		return syntaxClassDeclaration(node, span, chk)
 	case ast.KindReturnStatement:
-		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
+		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression(), chk)}, true
 	case ast.KindThrowStatement:
-		return SyntaxStatement{Span: span, Kind: "throw", Expression: syntaxExpression(node.Expression())}, true
+		return SyntaxStatement{Span: span, Kind: "throw", Expression: syntaxExpression(node.Expression(), chk)}, true
 	case ast.KindTryStatement:
 		tryNode := node.AsTryStatement()
 		res := SyntaxStatement{
 			Span: span,
 			Kind: "try",
-			Body: syntaxBlockStatements(tryNode.TryBlock),
+			Body: syntaxBlockStatements(tryNode.TryBlock, chk),
 		}
 		if tryNode.CatchClause != nil {
 			catchClause := tryNode.CatchClause.AsCatchClause()
 			if catchClause.VariableDeclaration != nil {
 				res.CatchVar = catchClause.VariableDeclaration.Name().Text()
 			}
-			res.Catch = syntaxBlockStatements(catchClause.Block)
+			res.Catch = syntaxBlockStatements(catchClause.Block, chk)
 		}
 		if tryNode.FinallyBlock != nil {
-			res.Finally = syntaxBlockStatements(tryNode.FinallyBlock)
+			res.Finally = syntaxBlockStatements(tryNode.FinallyBlock, chk)
 		}
 		return res, true
 	case ast.KindBreakStatement:
@@ -69,47 +82,52 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		return SyntaxStatement{Span: span, Kind: "continue"}, true
 	case ast.KindIfStatement:
 		ifNode := node.AsIfStatement()
-		result := SyntaxStatement{Span: span, Kind: "if", Expression: syntaxExpression(ifNode.Expression)}
-		result.Then = syntaxBlockStatements(ifNode.ThenStatement)
-		result.Else = syntaxBlockStatements(ifNode.ElseStatement)
+		result := SyntaxStatement{Span: span, Kind: "if", Expression: syntaxExpression(ifNode.Expression, chk)}
+		result.Then = syntaxBlockStatements(ifNode.ThenStatement, chk)
+		result.Else = syntaxBlockStatements(ifNode.ElseStatement, chk)
 		return result, true
 	case ast.KindWhileStatement:
 		whileNode := node.AsWhileStatement()
 		return SyntaxStatement{
 			Span:       span,
 			Kind:       "while",
-			Expression: syntaxExpression(whileNode.Expression),
-			Body:       syntaxBlockStatements(whileNode.Statement),
+			Expression: syntaxExpression(whileNode.Expression, chk),
+			Body:       syntaxBlockStatements(whileNode.Statement, chk),
 		}, true
 	case ast.KindDoStatement:
 		doNode := node.AsDoStatement()
 		return SyntaxStatement{
 			Span:       span,
 			Kind:       "dowhile",
-			Expression: syntaxExpression(doNode.Expression),
-			Body:       syntaxBlockStatements(doNode.Statement),
+			Expression: syntaxExpression(doNode.Expression, chk),
+			Body:       syntaxBlockStatements(doNode.Statement, chk),
 		}, true
 	case ast.KindForOfStatement:
 		forOf := node.AsForInOrOfStatement()
-		var varName, varType string
+		var varName, varType, varInferredType string
 		if forOf.Initializer != nil && forOf.Initializer.Kind == ast.KindVariableDeclarationList {
 			decls := forOf.Initializer.AsVariableDeclarationList().Declarations.Nodes
 			if len(decls) == 1 {
 				varName = decls[0].Name().Text()
 				varType = syntaxType(decls[0].Type())
+				varInferredType = resolveInferredType(chk, decls[0].Name())
+				if varType == "" {
+					varType = varInferredType
+				}
 			}
 		}
 		return SyntaxStatement{
-			Span:       span,
-			Kind:       "forof",
-			Name:       varName,
-			Type:       varType,
-			Expression: syntaxExpression(forOf.Expression),
-			Body:       syntaxBlockStatements(forOf.Statement),
+			Span:         span,
+			Kind:         "forof",
+			Name:         varName,
+			Type:         varType,
+			InferredType: varInferredType,
+			Expression:   syntaxExpression(forOf.Expression, chk),
+			Body:         syntaxBlockStatements(forOf.Statement, chk),
 		}, true
 	case ast.KindSwitchStatement:
 		switchNode := node.AsSwitchStatement()
-		switchExpr := syntaxExpression(switchNode.Expression)
+		switchExpr := syntaxExpression(switchNode.Expression, chk)
 		type caseItem struct {
 			expr  *SyntaxExpression
 			stmts []SyntaxStatement
@@ -119,14 +137,14 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		for _, clause := range switchNode.CaseBlock.AsNode().AsCaseBlock().Clauses.Nodes {
 			caseClause := clause.AsCaseOrDefaultClause()
 			if clause.Kind == ast.KindCaseClause {
-				cExpr := syntaxExpression(caseClause.Expression)
+				cExpr := syntaxExpression(caseClause.Expression, chk)
 				var stmts []SyntaxStatement
 				if caseClause.Statements != nil {
 					for _, s := range caseClause.Statements.Nodes {
 						if s.Kind == ast.KindBreakStatement {
 							continue
 						}
-						if converted, ok := syntaxStatement(s); ok {
+						if converted, ok := syntaxStatement(s, chk); ok {
 							stmts = append(stmts, converted)
 						}
 					}
@@ -138,7 +156,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 						if s.Kind == ast.KindBreakStatement {
 							continue
 						}
-						if converted, ok := syntaxStatement(s); ok {
+						if converted, ok := syntaxStatement(s, chk); ok {
 							defaultStmts = append(defaultStmts, converted)
 						}
 					}
@@ -180,9 +198,9 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 	case ast.KindForStatement:
 		forNode := node.AsForStatement()
 		var bodyStatements []SyntaxStatement
-		bodyStatements = append(bodyStatements, syntaxBlockStatements(forNode.Statement)...)
+		bodyStatements = append(bodyStatements, syntaxBlockStatements(forNode.Statement, chk)...)
 		if forNode.Incrementor != nil {
-			incExpr := syntaxExpression(forNode.Incrementor)
+			incExpr := syntaxExpression(forNode.Incrementor, chk)
 			if incExpr != nil && incExpr.Kind == "binary" && isAssignmentOperator(incExpr.Operator) {
 				if incExpr.Left != nil && incExpr.Left.Kind == "identifier" {
 					valExpr, _ := desugarAssignment(incExpr)
@@ -204,13 +222,13 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		whileStmt := SyntaxStatement{
 			Span:       span,
 			Kind:       "while",
-			Expression: syntaxExpression(forNode.Condition),
+			Expression: syntaxExpression(forNode.Condition, chk),
 			Body:       bodyStatements,
 		}
 		if forNode.Initializer != nil {
 			if forNode.Initializer.Kind == ast.KindVariableDeclarationList {
 				decls := forNode.Initializer.AsVariableDeclarationList().Declarations.Nodes
-				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer))
+				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk)
 				if ok {
 					return SyntaxStatement{
 						Span: span,
@@ -219,7 +237,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 					}, true
 				}
 			} else {
-				initExpr := syntaxExpression(forNode.Initializer)
+				initExpr := syntaxExpression(forNode.Initializer, chk)
 				if initExpr != nil && initExpr.Kind == "binary" && isAssignmentOperator(initExpr.Operator) {
 					if initExpr.Left != nil && initExpr.Left.Kind == "identifier" {
 						valExpr, _ := desugarAssignment(initExpr)
@@ -250,7 +268,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		}
 		return whileStmt, true
 	case ast.KindExpressionStatement:
-		expr := syntaxExpression(node.Expression())
+		expr := syntaxExpression(node.Expression(), chk)
 		if expr != nil && expr.Kind == "binary" && isAssignmentOperator(expr.Operator) && expr.Left != nil {
 			valExpr, _ := desugarAssignment(expr)
 			if expr.Left.Kind == "identifier" {
@@ -292,7 +310,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 			for _, memberNode := range enumDecl.Members.Nodes {
 				member := memberNode.AsEnumMember()
 				memName := member.Name().Text()
-				initExpr := syntaxExpression(member.Initializer)
+				initExpr := syntaxExpression(member.Initializer, chk)
 				m := SyntaxEnumMember{
 					Span:        sourceSpan(memberNode),
 					Name:        memName,
@@ -326,11 +344,11 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 	}
 }
 
-func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxStatement, bool) {
+func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker) (SyntaxStatement, bool) {
 	var stmts []SyntaxStatement
 	for _, declaration := range decls {
 		nameNode := declaration.Name()
-		initExpr := syntaxExpression(declaration.Initializer())
+		initExpr := syntaxExpression(declaration.Initializer(), chk)
 		if nameNode.AsNode().Kind == ast.KindObjectBindingPattern {
 			pattern := nameNode.AsNode().AsBindingPattern()
 			objVar := fmt.Sprintf("__destruct_obj_%d", nameNode.AsNode().Pos())
@@ -352,9 +370,10 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 					propName = binding.PropertyName.Text()
 				}
 				propExpr := &SyntaxExpression{
-					Span: sourceSpan(elem),
-					Kind: "property",
-					Text: propName,
+					Span:         sourceSpan(elem),
+					Kind:         "property",
+					Text:         propName,
+					InferredType: resolveInferredType(chk, elem),
 					Left: &SyntaxExpression{
 						Span: sourceSpan(elem),
 						Kind: "identifier",
@@ -362,10 +381,11 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 					},
 				}
 				stmts = append(stmts, SyntaxStatement{
-					Span:       sourceSpan(elem),
-					Kind:       "variable",
-					Name:       varName,
-					Expression: propExpr,
+					Span:         sourceSpan(elem),
+					Kind:         "variable",
+					Name:         varName,
+					InferredType: resolveInferredType(chk, elem),
+					Expression:   propExpr,
 				})
 			}
 		} else if nameNode.AsNode().Kind == ast.KindArrayBindingPattern {
@@ -389,8 +409,9 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 				varName := binding.Name().Text()
 				if binding.DotDotDotToken != nil {
 					sliceExpr := &SyntaxExpression{
-						Span: sourceSpan(elem),
-						Kind: "call",
+						Span:         sourceSpan(elem),
+						Kind:         "call",
+						InferredType: resolveInferredType(chk, elem),
 						Left: &SyntaxExpression{
 							Span: sourceSpan(elem),
 							Kind: "property",
@@ -398,35 +419,51 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 							Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
 						},
 						Arguments: []*SyntaxExpression{
-							{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
-							{Span: sourceSpan(elem), Kind: "property", Text: "length", Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar}},
+							{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+							{Span: sourceSpan(elem), Kind: "property", Text: "length", Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar}, InferredType: "number"},
 						},
 					}
 					stmts = append(stmts, SyntaxStatement{
-						Span:       sourceSpan(elem),
-						Kind:       "variable",
-						Name:       varName,
-						Expression: sliceExpr,
+						Span:         sourceSpan(elem),
+						Kind:         "variable",
+						Name:         varName,
+						InferredType: resolveInferredType(chk, elem),
+						Expression:   sliceExpr,
 					})
 				} else {
 					idxExpr := &SyntaxExpression{
-						Span:  sourceSpan(elem),
-						Kind:  "index",
-						Left:  &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
-						Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
+						Span:         sourceSpan(elem),
+						Kind:         "index",
+						InferredType: resolveInferredType(chk, elem),
+						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+						Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
 					}
 					stmts = append(stmts, SyntaxStatement{
-						Span:       sourceSpan(elem),
-						Kind:       "variable",
-						Name:       varName,
-						Expression: idxExpr,
+						Span:         sourceSpan(elem),
+						Kind:         "variable",
+						Name:         varName,
+						InferredType: resolveInferredType(chk, elem),
+						Expression:   idxExpr,
 					})
 				}
 			}
 		} else {
-			result := SyntaxStatement{Span: sourceSpan(declaration), Kind: "variable", Name: nameNode.Text()}
-			result.Type = syntaxType(declaration.Type())
-			result.Expression = initExpr
+			inferredVarType := resolveInferredType(chk, nameNode)
+			if inferredVarType == "" {
+				inferredVarType = resolveInferredType(chk, declaration)
+			}
+			varType := syntaxType(declaration.Type())
+			if varType == "" && inferredVarType != "" {
+				varType = inferredVarType
+			}
+			result := SyntaxStatement{
+				Span:         sourceSpan(declaration),
+				Kind:         "variable",
+				Name:         nameNode.Text(),
+				Type:         varType,
+				InferredType: inferredVarType,
+				Expression:   initExpr,
+			}
 			stmts = append(stmts, result)
 		}
 	}
@@ -440,20 +477,20 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 	}, true
 }
 
-func syntaxBlockStatements(node *ast.Node) []SyntaxStatement {
+func syntaxBlockStatements(node *ast.Node, chk *checker.Checker) []SyntaxStatement {
 	if node == nil {
 		return nil
 	}
 	if node.Kind == ast.KindBlock {
 		result := make([]SyntaxStatement, 0, len(node.Statements()))
 		for _, statement := range node.Statements() {
-			if converted, ok := syntaxStatement(statement); ok {
+			if converted, ok := syntaxStatement(statement, chk); ok {
 				result = append(result, converted)
 			}
 		}
 		return result
 	}
-	if converted, ok := syntaxStatement(node); ok {
+	if converted, ok := syntaxStatement(node, chk); ok {
 		return []SyntaxStatement{converted}
 	}
 	return nil
@@ -488,4 +525,3 @@ func desugarAssignment(expr *SyntaxExpression) (*SyntaxExpression, bool) {
 	}
 	return nil, false
 }
-

@@ -226,9 +226,6 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return nil
 	case "array":
-		if len(expression.Arguments) == 0 {
-			return subsetError(fileName, expression.Span, CodeLanguageLowering, "empty array literal")
-		}
 		for _, element := range expression.Arguments {
 			if err := validateExpression(fileName, element); err != nil {
 				return err

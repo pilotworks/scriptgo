@@ -9,15 +9,23 @@ import (
 )
 
 func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
-	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRType(statement.Type)}
+	retType := statement.Type
+	if retType == "" && statement.InferredType != "" {
+		retType = statement.InferredType
+	}
+	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRType(retType)}
 	if function.ReturnType == "" {
 		function.ReturnType = ir.TypeVoid
 	}
 	env := map[string]ir.Type{}
 	for _, parameter := range statement.Parameters {
-		typ := toIRType(parameter.Type)
+		pType := parameter.Type
+		if pType == "" && parameter.InferredType != "" {
+			pType = parameter.InferredType
+		}
+		typ := toIRType(pType)
 		if parameter.Rest {
-			if parameter.Type == "number[]" {
+			if pType == "number[]" {
 				typ = ir.TypeNumberArray
 			} else {
 				typ = ir.TypeStringArray
@@ -429,7 +437,7 @@ func toIRType(value string) ir.Type {
 		return ir.TypeNumber
 	case "string":
 		return ir.TypeString
-	case "bool":
+	case "bool", "boolean":
 		return ir.TypeBool
 	case "number[]":
 		return ir.TypeNumberArray

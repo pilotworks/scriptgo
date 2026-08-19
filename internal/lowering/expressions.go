@@ -40,7 +40,19 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, typ, nil
 	case "array":
 		if len(expression.Arguments) == 0 {
-			return "", "", fmt.Errorf("empty array literal needs an explicit runtime representation")
+			arrType := toIRType(expression.InferredType)
+			if arrType != ir.TypeNumberArray && arrType != ir.TypeStringArray {
+				if varType, ok := env[result]; ok && (varType == ir.TypeNumberArray || varType == ir.TypeStringArray) {
+					arrType = varType
+				} else {
+					arrType = ir.TypeNumberArray
+				}
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, arrType, nil
 		}
 		if result == "" {
 			result = nextTemp(counter)

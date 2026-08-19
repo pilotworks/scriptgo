@@ -1,8 +1,11 @@
 package typescriptgo
 
-import "github.com/microsoft/typescript-go/internal/ast"
+import (
+	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
+)
 
-func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, bool) {
+func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checker) (SyntaxStatement, bool) {
 	classDecl := node.AsClassDeclaration()
 	class := &SyntaxClass{
 		Span:           span,
@@ -45,30 +48,42 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, b
 		switch member.Kind {
 		case ast.KindPropertyDeclaration:
 			property := member.AsPropertyDeclaration()
+			fType := syntaxType(property.Type)
+			inferredFType := resolveInferredType(chk, property.Name())
+			if inferredFType == "" {
+				inferredFType = resolveInferredType(chk, member)
+			}
 			class.Fields = append(class.Fields, SyntaxField{
-				Span:        sourceSpan(member),
-				Name:        property.Name().Text(),
-				Type:        syntaxType(property.Type),
-				Initializer: syntaxExpression(property.Initializer),
-				IsStatic:    ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
-				IsPrivate:   ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
-				IsReadonly:  ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
+				Span:         sourceSpan(member),
+				Name:         property.Name().Text(),
+				Type:         fType,
+				InferredType: inferredFType,
+				Initializer:  syntaxExpression(property.Initializer, chk),
+				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
+				IsPrivate:    ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
+				IsReadonly:   ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
 			})
 		case ast.KindConstructor:
 			var params []SyntaxParameter
 			for _, p := range member.Parameters() {
+				pType := syntaxType(p.Type())
+				inferredPType := resolveInferredType(chk, p.Name())
+				if inferredPType == "" {
+					inferredPType = resolveInferredType(chk, p)
+				}
 				params = append(params, SyntaxParameter{
-					Span:        parameterSpan(p),
-					Name:        p.Name().Text(),
-					Type:        syntaxType(p.Type()),
-					Rest:        p.AsParameterDeclaration().DotDotDotToken != nil,
-					Initializer: syntaxExpression(p.Initializer()),
+					Span:         parameterSpan(p),
+					Name:         p.Name().Text(),
+					Type:         pType,
+					InferredType: inferredPType,
+					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 			}
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s); ok {
+					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
 					}
 				}
@@ -81,26 +96,38 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, b
 		case ast.KindMethodDeclaration:
 			var params []SyntaxParameter
 			for _, p := range member.Parameters() {
+				pType := syntaxType(p.Type())
+				inferredPType := resolveInferredType(chk, p.Name())
+				if inferredPType == "" {
+					inferredPType = resolveInferredType(chk, p)
+				}
 				params = append(params, SyntaxParameter{
-					Span:        parameterSpan(p),
-					Name:        p.Name().Text(),
-					Type:        syntaxType(p.Type()),
-					Rest:        p.AsParameterDeclaration().DotDotDotToken != nil,
-					Initializer: syntaxExpression(p.Initializer()),
+					Span:         parameterSpan(p),
+					Name:         p.Name().Text(),
+					Type:         pType,
+					InferredType: inferredPType,
+					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 			}
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s); ok {
+					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
 					}
 				}
 			}
+			mType := syntaxType(member.Type())
+			inferredMType := resolveFunctionReturnType(chk, member)
+			if mType == "" && inferredMType != "" {
+				mType = inferredMType
+			}
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:           sourceSpan(member),
 				Name:           member.Name().Text(),
-				Type:           syntaxType(member.Type()),
+				Type:           mType,
+				InferredType:   inferredMType,
 				TypeParameters: syntaxTypeParameters(member.TypeParameters()),
 				Parameters:     params,
 				Body:           body,
@@ -112,46 +139,59 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan) (SyntaxStatement, b
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s); ok {
+					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
 					}
 				}
 			}
+			mType := syntaxType(member.Type())
+			inferredMType := resolveFunctionReturnType(chk, member)
+			if mType == "" && inferredMType != "" {
+				mType = inferredMType
+			}
 			class.Methods = append(class.Methods, SyntaxMethod{
-				Span:       sourceSpan(member),
-				Name:       member.Name().Text(),
-				Type:       syntaxType(member.Type()),
-				Body:       body,
-				IsStatic:   ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
-				Kind:       "get",
+				Span:         sourceSpan(member),
+				Name:         member.Name().Text(),
+				Type:         mType,
+				InferredType: inferredMType,
+				Body:         body,
+				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
+				Kind:         "get",
 			})
 		case ast.KindSetAccessor:
 			var params []SyntaxParameter
 			for _, p := range member.Parameters() {
+				pType := syntaxType(p.Type())
+				inferredPType := resolveInferredType(chk, p.Name())
+				if inferredPType == "" {
+					inferredPType = resolveInferredType(chk, p)
+				}
 				params = append(params, SyntaxParameter{
-					Span:        parameterSpan(p),
-					Name:        p.Name().Text(),
-					Type:        syntaxType(p.Type()),
-					Rest:        p.AsParameterDeclaration().DotDotDotToken != nil,
-					Initializer: syntaxExpression(p.Initializer()),
+					Span:         parameterSpan(p),
+					Name:         p.Name().Text(),
+					Type:         pType,
+					InferredType: inferredPType,
+					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 			}
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s); ok {
+					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
 					}
 				}
 			}
 			class.Methods = append(class.Methods, SyntaxMethod{
-				Span:       sourceSpan(member),
-				Name:       member.Name().Text(),
-				Type:       "void",
-				Parameters: params,
-				Body:       body,
-				IsStatic:   ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
-				Kind:       "set",
+				Span:         sourceSpan(member),
+				Name:         member.Name().Text(),
+				Type:         "void",
+				InferredType: "void",
+				Parameters:   params,
+				Body:         body,
+				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
+				Kind:         "set",
 			})
 		default:
 			class.Fields = append(class.Fields, SyntaxField{Span: sourceSpan(member), Name: member.Kind.String()})

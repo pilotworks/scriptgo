@@ -132,8 +132,10 @@ func cloneExpr(expr *typescriptgo.SyntaxExpression) *typescriptgo.SyntaxExpressi
 func cloneAndSubstituteStmt(stmt typescriptgo.SyntaxStatement, subst map[string]string) typescriptgo.SyntaxStatement {
 	res := cloneStatement(stmt)
 	res.Type = substituteType(res.Type, subst)
+	res.InferredType = substituteType(res.InferredType, subst)
 	for i := range res.Parameters {
 		res.Parameters[i].Type = substituteType(res.Parameters[i].Type, subst)
+		res.Parameters[i].InferredType = substituteType(res.Parameters[i].InferredType, subst)
 		if res.Parameters[i].Initializer != nil {
 			res.Parameters[i].Initializer = cloneAndSubstituteExpr(res.Parameters[i].Initializer, subst)
 		}
@@ -170,6 +172,7 @@ func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[strin
 		return nil
 	}
 	res := cloneExpr(expr)
+	res.InferredType = substituteType(res.InferredType, subst)
 	if res.Left != nil {
 		res.Left = cloneAndSubstituteExpr(res.Left, subst)
 	}

@@ -60,6 +60,7 @@ type SyntaxStatement struct {
 	Kind           string
 	Name           string
 	Type           string
+	InferredType   string
 	TypeParameters []string
 	Expression     *SyntaxExpression
 	Left           *SyntaxExpression
@@ -110,6 +111,7 @@ type SyntaxMethod struct {
 	Span           SourceSpan
 	Name           string
 	Type           string
+	InferredType   string
 	TypeParameters []string
 	Parameters     []SyntaxParameter
 	Body           []SyntaxStatement
@@ -119,27 +121,30 @@ type SyntaxMethod struct {
 }
 
 type SyntaxField struct {
-	Span        SourceSpan
-	Name        string
-	Type        string
-	Initializer *SyntaxExpression
-	IsStatic    bool
-	IsPrivate   bool
-	IsReadonly  bool
+	Span         SourceSpan
+	Name         string
+	Type         string
+	InferredType string
+	Initializer  *SyntaxExpression
+	IsStatic     bool
+	IsPrivate    bool
+	IsReadonly   bool
 }
 
 type SyntaxParameter struct {
-	Span        SourceSpan
-	Name        string
-	Type        string
-	Rest        bool
-	Initializer *SyntaxExpression
+	Span         SourceSpan
+	Name         string
+	Type         string
+	InferredType string
+	Rest         bool
+	Initializer  *SyntaxExpression
 }
 
 type SyntaxExpression struct {
 	Span          SourceSpan
 	Kind          string
 	Text          string
+	InferredType  string
 	Operator      string
 	Left          *SyntaxExpression
 	Right         *SyntaxExpression

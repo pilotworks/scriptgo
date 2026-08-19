@@ -9,6 +9,7 @@ import (
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/bundled"
+	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/parser"
@@ -150,6 +151,10 @@ func Check(entryPath string) (ProgramResult, error) {
 		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
 			continue
 		}
+		checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)
+		symbols := fileSymbolsWithChecker(checkerInstance, file)
+		syntax := syntaxFile(file, checkerInstance)
+		done()
 		result.Files = append(result.Files, SourceFile{
 			FileName:       file.FileName(),
 			Source:         file.Text(),
@@ -158,8 +163,8 @@ func Check(entryPath string) (ProgramResult, error) {
 			Imports:        moduleReferences(program, file, cwd),
 			Builtin:        builtinPaths[filepath.Clean(file.FileName())] != "",
 			BuiltinName:    builtinPaths[filepath.Clean(file.FileName())],
-			Symbols:        fileSymbols(program, ctx, file),
-			Syntax:         syntaxFile(file),
+			Symbols:        symbols,
+			Syntax:         syntax,
 		})
 		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
 		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("type", program.GetSemanticDiagnostics(ctx, file))...)
@@ -171,6 +176,10 @@ func Check(entryPath string) (ProgramResult, error) {
 func fileSymbols(program *compiler.Program, ctx context.Context, file *ast.SourceFile) []Symbol {
 	checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)
 	defer done()
+	return fileSymbolsWithChecker(checkerInstance, file)
+}
+
+func fileSymbolsWithChecker(checkerInstance *checker.Checker, file *ast.SourceFile) []Symbol {
 	names := make([]string, 0, len(file.Locals))
 	for name := range file.Locals {
 		names = append(names, name)
