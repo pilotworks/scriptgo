@@ -74,6 +74,28 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		return nil
+	case "block":
+		for _, bodyStatement := range statement.Body {
+			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "assign":
+		if statement.Expression == nil {
+			return subsetError(fileName, statement.Span, CodeLanguageLowering, "assignment without an expression")
+		}
+		return validateExpression(fileName, statement.Expression)
+	case "while":
+		if err := validateExpression(fileName, statement.Expression); err != nil {
+			return err
+		}
+		for _, bodyStatement := range statement.Body {
+			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "if":
 		if err := validateExpression(fileName, statement.Expression); err != nil {
 			return err
@@ -82,12 +104,6 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			if err := validateStatement(fileName, branchStatement); err != nil {
 				return err
 			}
-		}
-		if len(statement.Then) == 0 || statement.Then[len(statement.Then)-1].Kind != "return" {
-			return subsetError(fileName, statement.Span, CodeLanguageLowering, "IfStatement branch without return")
-		}
-		if len(statement.Else) > 0 && statement.Else[len(statement.Else)-1].Kind != "return" {
-			return subsetError(fileName, statement.Span, CodeLanguageLowering, "IfStatement else branch without return")
 		}
 		return nil
 	case "unsupported":
@@ -160,6 +176,13 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return err
 		}
 		return validateExpression(fileName, expression.Right)
+	case "template":
+		for _, argument := range expression.Arguments {
+			if err := validateExpression(fileName, argument); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "conditional":
 		if err := validateExpression(fileName, expression.Left); err != nil {
 			return err

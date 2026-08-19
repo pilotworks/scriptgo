@@ -47,6 +47,20 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{}, fmt.Errorf("string.length requires one string")
 		}
 		return Value{Type: ir.TypeNumber, Number: float64(len(values[0].String))}, nil
+	case "__string.indexOf":
+		if (len(values) != 2 && len(values) != 3) || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.indexOf requires two strings and an optional position")
+		}
+		value := values[0].String
+		start := 0
+		if len(values) == 3 && values[2].Number > 0 {
+			start = minInt(int(values[2].Number), len(value))
+		}
+		idx := strings.Index(value[start:], values[1].String)
+		if idx != -1 {
+			idx += start
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(idx)}, nil
 	case "__string.lastIndexOf":
 		if (len(values) != 2 && len(values) != 3) || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
 			return Value{}, fmt.Errorf("string.lastIndexOf requires two strings and an optional position")
@@ -59,6 +73,26 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 			}
 		}
 		return Value{Type: ir.TypeNumber, Number: float64(strings.LastIndex(value, values[1].String))}, nil
+	case "__string.startsWith":
+		if len(values) != 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.startsWith requires two strings")
+		}
+		return Value{Type: ir.TypeBool, Bool: strings.HasPrefix(values[0].String, values[1].String)}, nil
+	case "__string.endsWith":
+		if len(values) != 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.endsWith requires two strings")
+		}
+		return Value{Type: ir.TypeBool, Bool: strings.HasSuffix(values[0].String, values[1].String)}, nil
+	case "__string.fromNumber":
+		if len(values) != 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("string.fromNumber requires one number")
+		}
+		return Value{Type: ir.TypeString, String: format(values[0])}, nil
+	case "__string.fromBool":
+		if len(values) != 1 || values[0].Type != ir.TypeBool {
+			return Value{}, fmt.Errorf("string.fromBool requires one bool")
+		}
+		return Value{Type: ir.TypeString, String: format(values[0])}, nil
 	case "__string.slice":
 		if len(values) != 3 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeNumber || values[2].Type != ir.TypeNumber {
 			return Value{}, fmt.Errorf("string.slice requires string and two numbers")

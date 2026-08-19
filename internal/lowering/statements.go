@@ -73,6 +73,46 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return err
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+	case "block":
+		for _, s := range statement.Body {
+			if err := lowerStatement(path, s, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+		}
+	case "assign":
+		varType, ok := env[statement.Name]
+		if !ok {
+			return fmt.Errorf("assignment to unknown variable %q", statement.Name)
+		}
+		value, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		if valType != varType {
+			return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: varType, Result: statement.Name, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+	case "while":
+		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
+		condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		if condType != ir.TypeBool {
+			return fmt.Errorf("while condition must be bool")
+		}
+		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpWhile,
+			Type: ir.TypeVoid,
+			Args: []string{condVal},
+			Cond: condFunc.Body,
+			Body: bodyInstructions,
+			Span: toIRSpan(path, statement.Span),
+		})
 	case "if":
 		condition, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {

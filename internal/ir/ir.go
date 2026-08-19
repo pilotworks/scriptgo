@@ -68,6 +68,8 @@ type Instruction struct {
 	Span       SourceSpan
 	Then       []Instruction
 	Else       []Instruction
+	Cond       []Instruction
+	Body       []Instruction
 }
 
 const (
@@ -85,4 +87,6 @@ const (
 	OpFieldGet  = "field.get"
 	OpFieldSet  = "field.set"
 	OpIf        = "if"
+	OpWhile     = "while"
+	OpAssign    = "assign"
 )

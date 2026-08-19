@@ -61,6 +61,78 @@ console.log(chosen);
 `,
 			expected: "12\n",
 		},
+		{
+			name: "template literals with interpolation",
+			source: `
+const userName: string = "World";
+const count: number = 42;
+const greeting: string = ` + "`Hello, ${userName}! The answer is ${count}.`" + `;
+console.log(greeting);
+`,
+			expected: "Hello, World! The answer is 42.\n",
+		},
+		{
+			name: "string methods indexOf startsWith endsWith",
+			source: `
+const str: string = "hello world";
+console.log(str.indexOf("world"));
+console.log(str.indexOf("xyz"));
+console.log(str.startsWith("hello"));
+console.log(str.startsWith("world"));
+console.log(str.endsWith("world"));
+console.log(str.endsWith("hello"));
+`,
+			expected: "6\n-1\ntrue\nfalse\ntrue\nfalse\n",
+		},
+		{
+			name: "mutable variable assignment",
+			source: `
+let countVal: number = 0;
+countVal = countVal + 5;
+countVal += 10;
+countVal -= 3;
+console.log(countVal);
+`,
+			expected: "12\n",
+		},
+		{
+			name: "while loop",
+			source: `
+let sumVal: number = 0;
+let iter: number = 1;
+while (iter <= 5) {
+    sumVal += iter;
+    iter += 1;
+}
+console.log(sumVal);
+`,
+			expected: "15\n",
+		},
+		{
+			name: "for loop",
+			source: `
+let totalSum: number = 0;
+for (let idx: number = 1; idx <= 4; idx += 1) {
+    totalSum += idx * 2;
+}
+console.log(totalSum);
+`,
+			expected: "20\n",
+		},
+		{
+			name: "generalized if else non-returning",
+			source: `
+let flagState: string = "initial";
+const testNum: number = 10;
+if (testNum > 5) {
+    flagState = "greater";
+} else {
+    flagState = "less";
+}
+console.log(flagState);
+`,
+			expected: "greater\n",
+		},
 	}
 
 	for _, tt := range tests {

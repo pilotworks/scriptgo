@@ -46,15 +46,23 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	functions := make(map[string]ir.Function, len(module.Functions))
 	stringsByValue := map[string]string{}
-	for _, function := range module.Functions {
-		functions[function.Name] = function
-		for _, instruction := range function.Body {
+	var collectStrings func(list []ir.Instruction)
+	collectStrings = func(list []ir.Instruction) {
+		for _, instruction := range list {
 			if instruction.Op == ir.OpConst && instruction.Type == ir.TypeString {
 				if _, ok := stringsByValue[instruction.Value]; !ok {
 					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 				}
 			}
+			collectStrings(instruction.Then)
+			collectStrings(instruction.Else)
+			collectStrings(instruction.Cond)
+			collectStrings(instruction.Body)
 		}
+	}
+	for _, function := range module.Functions {
+		functions[function.Name] = function
+		collectStrings(function.Body)
 	}
 	if _, ok := functions["main"]; !ok {
 		return "", fmt.Errorf("module has no main function")
@@ -92,7 +100,12 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_string_concat(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_length(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_index_of(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_last_index(ptr, ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_starts_with(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_ends_with(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_from_number(double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_from_bool(i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_slice(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
 	out.WriteString("declare i32 @strcmp(ptr, ptr)\n\n")
@@ -141,9 +154,18 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		stringsByValue: stringsByValue,
 		debug:          debug,
 		types:          make(map[string]ir.Type, len(function.Parameters)),
+		varSlots:       make(map[string]string),
 	}
 	for _, parameter := range function.Parameters {
 		emitter.types[parameter.Name] = parameter.Type
+	}
+
+	slotted := findSlottedVariables(function.Body)
+	for varName, typ := range slotted {
+		slotName := varName + ".slot"
+		emitter.varSlots[varName] = slotName
+		emitter.types[varName] = typ
+		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
 	}
 
 	for _, instruction := range function.Body {
@@ -177,4 +199,22 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 	out.WriteString("}\n\n")
 	return out.String(), nil
+}
+
+func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
+	slotted := make(map[string]ir.Type)
+	var scan func(list []ir.Instruction)
+	scan = func(list []ir.Instruction) {
+		for _, inst := range list {
+			if inst.Op == ir.OpAssign {
+				slotted[inst.Result] = inst.Type
+			}
+			scan(inst.Then)
+			scan(inst.Else)
+			scan(inst.Cond)
+			scan(inst.Body)
+		}
+	}
+	scan(instructions)
+	return slotted
 }

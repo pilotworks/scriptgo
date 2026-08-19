@@ -74,8 +74,159 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		result.Then = syntaxBlockStatements(ifNode.ThenStatement)
 		result.Else = syntaxBlockStatements(ifNode.ElseStatement)
 		return result, true
+	case ast.KindWhileStatement:
+		whileNode := node.AsWhileStatement()
+		return SyntaxStatement{
+			Span:       span,
+			Kind:       "while",
+			Expression: syntaxExpression(whileNode.Expression),
+			Body:       syntaxBlockStatements(whileNode.Statement),
+		}, true
+	case ast.KindForStatement:
+		forNode := node.AsForStatement()
+		var bodyStatements []SyntaxStatement
+		bodyStatements = append(bodyStatements, syntaxBlockStatements(forNode.Statement)...)
+		if forNode.Incrementor != nil {
+			incExpr := syntaxExpression(forNode.Incrementor)
+			if incExpr != nil && incExpr.Kind == "binary" && (incExpr.Operator == "=" || incExpr.Operator == "+=" || incExpr.Operator == "-=") {
+				if incExpr.Left != nil && incExpr.Left.Kind == "identifier" {
+					valExpr := incExpr.Right
+					if incExpr.Operator == "+=" {
+						valExpr = &SyntaxExpression{
+							Span:     incExpr.Span,
+							Kind:     "binary",
+							Operator: "+",
+							Left:     incExpr.Left,
+							Right:    incExpr.Right,
+						}
+					} else if incExpr.Operator == "-=" {
+						valExpr = &SyntaxExpression{
+							Span:     incExpr.Span,
+							Kind:     "binary",
+							Operator: "-",
+							Left:     incExpr.Left,
+							Right:    incExpr.Right,
+						}
+					}
+					bodyStatements = append(bodyStatements, SyntaxStatement{
+						Span:       sourceSpan(forNode.Incrementor),
+						Kind:       "assign",
+						Name:       incExpr.Left.Text,
+						Expression: valExpr,
+					})
+				}
+			} else {
+				bodyStatements = append(bodyStatements, SyntaxStatement{
+					Span:       sourceSpan(forNode.Incrementor),
+					Kind:       "expression",
+					Expression: incExpr,
+				})
+			}
+		}
+		whileStmt := SyntaxStatement{
+			Span:       span,
+			Kind:       "while",
+			Expression: syntaxExpression(forNode.Condition),
+			Body:       bodyStatements,
+		}
+		if forNode.Initializer != nil {
+			if forNode.Initializer.Kind == ast.KindVariableDeclarationList {
+				decls := forNode.Initializer.AsVariableDeclarationList().Declarations.Nodes
+				if len(decls) == 1 {
+					initDecl := decls[0]
+					initStmt := SyntaxStatement{
+						Span:       sourceSpan(forNode.Initializer),
+						Kind:       "variable",
+						Name:       initDecl.Name().Text(),
+						Type:       syntaxType(initDecl.Type()),
+						Expression: syntaxExpression(initDecl.Initializer()),
+					}
+					return SyntaxStatement{
+						Span: span,
+						Kind: "block",
+						Body: []SyntaxStatement{initStmt, whileStmt},
+					}, true
+				}
+			} else {
+				initExpr := syntaxExpression(forNode.Initializer)
+				if initExpr != nil && initExpr.Kind == "binary" && (initExpr.Operator == "=" || initExpr.Operator == "+=" || initExpr.Operator == "-=") {
+					if initExpr.Left != nil && initExpr.Left.Kind == "identifier" {
+						valExpr := initExpr.Right
+						if initExpr.Operator == "+=" {
+							valExpr = &SyntaxExpression{
+								Span:     initExpr.Span,
+								Kind:     "binary",
+								Operator: "+",
+								Left:     initExpr.Left,
+								Right:    initExpr.Right,
+							}
+						} else if initExpr.Operator == "-=" {
+							valExpr = &SyntaxExpression{
+								Span:     initExpr.Span,
+								Kind:     "binary",
+								Operator: "-",
+								Left:     initExpr.Left,
+								Right:    initExpr.Right,
+							}
+						}
+						initStmt := SyntaxStatement{
+							Span:       sourceSpan(forNode.Initializer),
+							Kind:       "assign",
+							Name:       initExpr.Left.Text,
+							Expression: valExpr,
+						}
+						return SyntaxStatement{
+							Span: span,
+							Kind: "block",
+							Body: []SyntaxStatement{initStmt, whileStmt},
+						}, true
+					}
+				}
+				initStmt := SyntaxStatement{
+					Span:       sourceSpan(forNode.Initializer),
+					Kind:       "expression",
+					Expression: initExpr,
+				}
+				return SyntaxStatement{
+					Span: span,
+					Kind: "block",
+					Body: []SyntaxStatement{initStmt, whileStmt},
+				}, true
+			}
+		}
+		return whileStmt, true
 	case ast.KindExpressionStatement:
-		return SyntaxStatement{Span: span, Kind: "expression", Expression: syntaxExpression(node.Expression())}, true
+		expr := syntaxExpression(node.Expression())
+		if expr != nil && expr.Kind == "binary" && (expr.Operator == "=" || expr.Operator == "+=" || expr.Operator == "-=") {
+			if expr.Left != nil && expr.Left.Kind == "identifier" {
+				valExpr := expr.Right
+				switch expr.Operator {
+				case "+=":
+					valExpr = &SyntaxExpression{
+						Span:     expr.Span,
+						Kind:     "binary",
+						Operator: "+",
+						Left:     expr.Left,
+						Right:    expr.Right,
+					}
+				case "-=":
+					valExpr = &SyntaxExpression{
+						Span:     expr.Span,
+						Kind:     "binary",
+						Operator: "-",
+						Left:     expr.Left,
+						Right:    expr.Right,
+					}
+				}
+				return SyntaxStatement{
+					Span:       span,
+					Kind:       "assign",
+					Name:       expr.Left.Text,
+					Expression: valExpr,
+				}, true
+			}
+		}
+		return SyntaxStatement{Span: span, Kind: "expression", Expression: expr}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	default:
@@ -151,6 +302,26 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			WhenTrue:  syntaxExpression(conditional.WhenTrue),
 			WhenFalse: syntaxExpression(conditional.WhenFalse),
 		}
+	case ast.KindNoSubstitutionTemplateLiteral:
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "string", Text: node.Text()}
+	case ast.KindTemplateExpression:
+		template := node.AsTemplateExpression()
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "template"}
+		if head := template.Head; head != nil && head.Text() != "" {
+			result.Arguments = append(result.Arguments, &SyntaxExpression{Span: sourceSpan(head), Kind: "string", Text: head.Text()})
+		}
+		if spans := template.TemplateSpans; spans != nil {
+			for _, spanNode := range spans.Nodes {
+				span := spanNode.AsTemplateSpan()
+				if span.Expression != nil {
+					result.Arguments = append(result.Arguments, syntaxExpression(span.Expression))
+				}
+				if span.Literal != nil && span.Literal.Text() != "" {
+					result.Arguments = append(result.Arguments, &SyntaxExpression{Span: sourceSpan(span.Literal), Kind: "string", Text: span.Literal.Text()})
+				}
+			}
+		}
+		return result
 	case ast.KindArrayLiteralExpression:
 		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "array"}
 		if elements := node.AsArrayLiteralExpression().Elements; elements != nil {
@@ -228,6 +399,9 @@ func binaryOperator(kind string) string {
 		"AsteriskToken":                "*",
 		"SlashToken":                   "/",
 		"PercentToken":                 "%",
+		"EqualsToken":                  "=",
+		"PlusEqualsToken":              "+=",
+		"MinusEqualsToken":             "-=",
 		"EqualsEqualsToken":            "==",
 		"EqualsEqualsEqualsToken":      "===",
 		"ExclamationEqualsToken":       "!=",

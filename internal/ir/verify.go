@@ -45,7 +45,7 @@ func (f Function) Verify() error {
 			return fmt.Errorf("instruction follows return")
 		}
 		for _, arg := range instruction.Args {
-			if _, ok := known[arg]; !ok && instruction.Op != OpCall && instruction.Op != OpPrint {
+			if _, ok := known[arg]; !ok && instruction.Op != OpCall && instruction.Op != OpPrint && instruction.Op != OpWhile {
 				return fmt.Errorf("unknown value %q", arg)
 			}
 		}
@@ -128,6 +128,18 @@ func (f Function) Verify() error {
 			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" || instruction.FieldIndex < 0 {
 				return fmt.Errorf("field.set requires object, value, and field")
 			}
+		case OpAssign:
+			if len(instruction.Args) != 1 || instruction.Result == "" {
+				return fmt.Errorf("assign instruction requires variable result and one argument")
+			}
+			varType, ok := known[instruction.Result]
+			if !ok {
+				return fmt.Errorf("assign to unknown variable %q", instruction.Result)
+			}
+			valType, ok := known[instruction.Args[0]]
+			if !ok || varType != valType {
+				return fmt.Errorf("assign type mismatch: %s := %s", varType, valType)
+			}
 		case OpIf:
 			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 1 || known[instruction.Args[0]] != TypeBool {
 				return fmt.Errorf("if requires one bool condition")
@@ -139,6 +151,21 @@ func (f Function) Verify() error {
 			}
 			if err := verifyBlock(f, instruction.Else, elseKnown); err != nil {
 				return fmt.Errorf("if else block: %w", err)
+			}
+		case OpWhile:
+			if instruction.Type != TypeVoid || instruction.Result != "" {
+				return fmt.Errorf("while instruction must have void type and empty result")
+			}
+			condKnown := cloneTypes(known)
+			if err := verifyBlock(f, instruction.Cond, condKnown); err != nil {
+				return fmt.Errorf("while cond block: %w", err)
+			}
+			if len(instruction.Args) != 1 || condKnown[instruction.Args[0]] != TypeBool {
+				return fmt.Errorf("while requires one bool condition")
+			}
+			bodyKnown := cloneTypes(condKnown)
+			if err := verifyBlock(f, instruction.Body, bodyKnown); err != nil {
+				return fmt.Errorf("while body block: %w", err)
 			}
 		case OpReturn:
 			if instruction.Type != f.ReturnType {
@@ -177,6 +204,19 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 				return err
 			}
 			if err := verifyBlock(f, instruction.Else, cloneTypes(known)); err != nil {
+				return err
+			}
+			continue
+		}
+		if instruction.Op == OpWhile {
+			condKnown := cloneTypes(known)
+			if err := verifyBlock(f, instruction.Cond, condKnown); err != nil {
+				return err
+			}
+			if len(instruction.Args) != 1 || condKnown[instruction.Args[0]] != TypeBool {
+				return fmt.Errorf("nested while requires one bool condition")
+			}
+			if err := verifyBlock(f, instruction.Body, cloneTypes(condKnown)); err != nil {
 				return err
 			}
 			continue

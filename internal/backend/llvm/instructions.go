@@ -20,6 +20,8 @@ type functionEmitter struct {
 	debug          *debugInfo
 
 	types         map[string]ir.Type
+	varSlots      map[string]string
+	loadCounter   int
 	arrayTypes    []arrayReference
 	objects       []string
 	ownedStrings  []string
@@ -28,37 +30,93 @@ type functionEmitter struct {
 	terminated    bool
 }
 
-func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
-	switch instruction.Op {
-	case ir.OpConst:
-		return e.emitConst(out, instruction)
-	case ir.OpBinary:
-		return e.emitBinary(out, instruction)
-	case ir.OpCompare:
-		return e.emitCompare(out, instruction)
-	case ir.OpSelect:
-		return e.emitSelect(out, instruction)
-	case ir.OpIf:
-		return e.emitIf(out, instruction)
-	case ir.OpPrint:
-		return e.emitPrint(out, instruction)
-	case ir.OpArray:
-		return e.emitArray(out, instruction)
-	case ir.OpIndex:
-		return e.emitIndex(out, instruction)
-	case ir.OpObjectNew:
-		return e.emitObjectNew(out, instruction)
-	case ir.OpFieldSet:
-		return e.emitFieldSet(out, instruction)
-	case ir.OpFieldGet:
-		return e.emitFieldGet(out, instruction)
-	case ir.OpCall:
-		return e.emitCall(out, instruction)
-	case ir.OpReturn:
-		return e.emitReturn(out, instruction)
-	default:
-		return fmt.Errorf("unsupported LLVM instruction %q", instruction.Op)
+func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
+	slot, ok := e.varSlots[arg]
+	if !ok {
+		return arg
 	}
+	typ := e.types[arg]
+	loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
+	e.loadCounter++
+	e.types[loadName] = typ
+	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadName, llvmType(typ), slot))
+	return loadName
+}
+
+func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
+	resolvedArgs := make([]string, len(instruction.Args))
+	for i, arg := range instruction.Args {
+		resolvedArgs[i] = e.resolveArg(out, arg)
+	}
+	inst := instruction
+	inst.Args = resolvedArgs
+
+	targetResult := inst.Result
+	if _, ok := e.varSlots[inst.Result]; ok {
+		inst.Result = fmt.Sprintf("%s.val.%d", inst.Result, e.loadCounter)
+		e.loadCounter++
+	}
+
+	switch inst.Op {
+	case ir.OpConst:
+		if err := e.emitConst(out, inst); err != nil {
+			return err
+		}
+	case ir.OpAssign:
+		typ := e.types[targetResult]
+		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), inst.Args[0], e.varSlots[targetResult]))
+		return nil
+	case ir.OpBinary:
+		if err := e.emitBinary(out, inst); err != nil {
+			return err
+		}
+	case ir.OpCompare:
+		if err := e.emitCompare(out, inst); err != nil {
+			return err
+		}
+	case ir.OpSelect:
+		if err := e.emitSelect(out, inst); err != nil {
+			return err
+		}
+	case ir.OpIf:
+		return e.emitIf(out, inst)
+	case ir.OpWhile:
+		return e.emitWhile(out, inst)
+	case ir.OpPrint:
+		return e.emitPrint(out, inst)
+	case ir.OpArray:
+		if err := e.emitArray(out, inst); err != nil {
+			return err
+		}
+	case ir.OpIndex:
+		if err := e.emitIndex(out, inst); err != nil {
+			return err
+		}
+	case ir.OpObjectNew:
+		if err := e.emitObjectNew(out, inst); err != nil {
+			return err
+		}
+	case ir.OpFieldSet:
+		return e.emitFieldSet(out, inst)
+	case ir.OpFieldGet:
+		if err := e.emitFieldGet(out, inst); err != nil {
+			return err
+		}
+	case ir.OpCall:
+		if err := e.emitCall(out, inst); err != nil {
+			return err
+		}
+	case ir.OpReturn:
+		return e.emitReturn(out, inst)
+	default:
+		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
+	}
+
+	if slot, ok := e.varSlots[targetResult]; ok {
+		typ := e.types[targetResult]
+		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), inst.Result, slot))
+	}
+	return nil
 }
 
 func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruction) error {
@@ -182,21 +240,88 @@ func (e *functionEmitter) emitSelect(out *strings.Builder, instruction ir.Instru
 }
 
 func (e *functionEmitter) emitIf(out *strings.Builder, instruction ir.Instruction) error {
-	if len(instruction.Args) != 1 || e.types[instruction.Args[0]] != ir.TypeBool || len(instruction.Then) != 1 || instruction.Then[0].Op != ir.OpReturn || len(instruction.Else) != 0 {
-		return fmt.Errorf("LLVM if currently requires a returning then branch and empty else branch")
+	if len(instruction.Args) != 1 || e.types[instruction.Args[0]] != ir.TypeBool {
+		return fmt.Errorf("if requires a bool condition")
 	}
 	thenLabel := fmt.Sprintf("if.then.%d", e.labelCounter)
+	elseLabel := fmt.Sprintf("if.else.%d", e.labelCounter)
 	continueLabel := fmt.Sprintf("if.continue.%d", e.labelCounter)
 	e.labelCounter++
-	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", instruction.Args[0], thenLabel, continueLabel))
-	out.WriteString(fmt.Sprintf("%s:\n", thenLabel))
-	branchReturn := instruction.Then[0]
-	if len(branchReturn.Args) == 0 {
-		out.WriteString("  ret void\n")
+
+	hasElse := len(instruction.Else) > 0
+	if hasElse {
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", instruction.Args[0], thenLabel, elseLabel))
 	} else {
-		out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(branchReturn.Type), branchReturn.Args[0]))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", instruction.Args[0], thenLabel, continueLabel))
 	}
-	out.WriteString(fmt.Sprintf("%s:\n", continueLabel))
+
+	out.WriteString(fmt.Sprintf("%s:\n", thenLabel))
+	e.terminated = false
+	for _, inst := range instruction.Then {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	thenTerminated := e.terminated
+	if !thenTerminated {
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", continueLabel))
+	}
+
+	elseTerminated := false
+	if hasElse {
+		out.WriteString(fmt.Sprintf("%s:\n", elseLabel))
+		e.terminated = false
+		for _, inst := range instruction.Else {
+			if err := e.emitInstruction(out, inst); err != nil {
+				return err
+			}
+		}
+		elseTerminated = e.terminated
+		if !elseTerminated {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", continueLabel))
+		}
+	}
+
+	if !thenTerminated || (hasElse && !elseTerminated) || (!hasElse) {
+		out.WriteString(fmt.Sprintf("%s:\n", continueLabel))
+		e.terminated = false
+	} else {
+		e.terminated = true
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruction) error {
+	condLabel := fmt.Sprintf("while.cond.%d", e.labelCounter)
+	bodyLabel := fmt.Sprintf("while.body.%d", e.labelCounter)
+	endLabel := fmt.Sprintf("while.end.%d", e.labelCounter)
+	e.labelCounter++
+
+	out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+	out.WriteString(fmt.Sprintf("%s:\n", condLabel))
+
+	e.terminated = false
+	for _, inst := range instruction.Cond {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	condVal := e.resolveArg(out, instruction.Args[0])
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, bodyLabel, endLabel))
+
+	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
+	e.terminated = false
+	for _, inst := range instruction.Body {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	if !e.terminated {
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+	}
+
+	out.WriteString(fmt.Sprintf("%s:\n", endLabel))
+	e.terminated = false
 	return nil
 }
 
@@ -263,7 +388,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
-		if instruction.Type == ir.TypeString && (instruction.Callee == "__string.slice" || instruction.Callee == "__string.concat") {
+		if instruction.Type == ir.TypeString && (instruction.Callee == "__string.slice" || instruction.Callee == "__string.concat" || instruction.Callee == "__string.fromNumber" || instruction.Callee == "__string.fromBool") {
 			e.ownedStrings = append(e.ownedStrings, instruction.Result)
 		}
 		return nil

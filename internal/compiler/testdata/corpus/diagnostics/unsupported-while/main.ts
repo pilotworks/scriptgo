@@ -1,3 +1,4 @@
-while (true) {
+do {
   console.log(1);
-}
+} while (true);
+

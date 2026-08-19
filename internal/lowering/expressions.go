@@ -167,6 +167,44 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 		return result, leftType, nil
+	case "template":
+		if len(expression.Arguments) == 0 {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: result, Value: "", Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
+		var currentResult string
+		for index, arg := range expression.Arguments {
+			val, valType, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			strVal := val
+			if valType != ir.TypeString {
+				strTemp := nextTemp(counter)
+				callee := "__string.fromNumber"
+				if valType == ir.TypeBool {
+					callee = "__string.fromBool"
+				} else if valType != ir.TypeNumber {
+					return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
+				strVal = strTemp
+			}
+			if index == 0 {
+				currentResult = strVal
+			} else {
+				concatTemp := nextTemp(counter)
+				if index == len(expression.Arguments)-1 && result != "" {
+					concatTemp = result
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeString, Result: concatTemp, Operator: "+", Args: []string{currentResult, strVal}, Span: toIRSpan(path, expression.Span)})
+				currentResult = concatTemp
+			}
+		}
+		return currentResult, ir.TypeString, nil
 	case "conditional":
 		condition, conditionType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -262,6 +300,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			returnType := ir.TypeNumber
 			if method == "slice" {
 				returnType = ir.TypeString
+			} else if method == "startsWith" || method == "endsWith" {
+				returnType = ir.TypeBool
 			}
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + method, Args: args, Span: toIRSpan(path, expression.Span)})
 			return result, returnType, nil
@@ -336,7 +376,7 @@ func stringMethod(expression *typescriptgo.SyntaxExpression) string {
 		return ""
 	}
 	switch expression.Text {
-	case "lastIndexOf", "slice":
+	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith":
 		return expression.Text
 	default:
 		return ""

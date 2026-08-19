@@ -44,46 +44,57 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		env[parameter.Name] = arguments[index]
 	}
 
-	for _, instruction := range function.Body {
+	val, _, err := executeBlock(functions, function.Body, env, output)
+	return val, err
+}
+
+func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env map[string]Value, output *bytes.Buffer) (Value, bool, error) {
+	for _, instruction := range body {
 		switch instruction.Op {
 		case ir.OpConst:
 			value, err := parseConstant(instruction.Type, instruction.Value)
 			if err != nil {
-				return Value{}, fmt.Errorf("%s: %w", instruction.Result, err)
+				return Value{}, false, fmt.Errorf("%s: %w", instruction.Result, err)
 			}
 			env[instruction.Result] = value
+		case ir.OpAssign:
+			val, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, err
+			}
+			env[instruction.Result] = val
 		case ir.OpBinary:
 			left, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			right, err := lookup(env, instruction.Args, 1)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			value, err := binary(instruction.Operator, left, right)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			env[instruction.Result] = value
 		case ir.OpCompare:
 			left, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			right, err := lookup(env, instruction.Args, 1)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			value, err := compare(instruction.Operator, left, right)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			env[instruction.Result] = value
 		case ir.OpSelect:
 			condition, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			selectedName := instruction.Args[2]
 			if condition.Bool {
@@ -91,7 +102,7 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 			}
 			selected, err := lookup(env, []string{selectedName}, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			env[instruction.Result] = selected
 		case ir.OpArray:
@@ -99,7 +110,7 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 			for _, name := range instruction.Args {
 				value, err := lookup(env, []string{name}, 0)
 				if err != nil {
-					return Value{}, err
+					return Value{}, false, err
 				}
 				array = append(array, value)
 			}
@@ -107,18 +118,18 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		case ir.OpIndex:
 			array, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			index, err := lookup(env, instruction.Args, 1)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			if index.Type != ir.TypeNumber || math.Trunc(index.Number) != index.Number || index.Number < 0 {
-				return Value{}, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
+				return Value{}, false, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
 			}
 			position := int(index.Number)
 			if position >= len(array.Array) {
-				return Value{}, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
+				return Value{}, false, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
 			}
 			env[instruction.Result] = array.Array[position]
 		case ir.OpObjectNew:
@@ -126,40 +137,40 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		case ir.OpFieldSet:
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			value, err := lookup(env, instruction.Args, 1)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			if object.Object == nil {
-				return Value{}, fmt.Errorf("field set on non-object value")
+				return Value{}, false, fmt.Errorf("field set on non-object value")
 			}
 			object.Object[instruction.Field] = value
 		case ir.OpFieldGet:
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			value, ok := object.Object[instruction.Field]
 			if !ok {
-				return Value{}, fmt.Errorf("unknown field %q", instruction.Field)
+				return Value{}, false, fmt.Errorf("unknown field %q", instruction.Field)
 			}
 			env[instruction.Result] = value
 		case ir.OpPrint:
 			value, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			if value.Type == ir.TypeNumberArray || value.Type == ir.TypeStringArray {
-				return Value{}, fmt.Errorf("console.log does not support array values yet")
+				return Value{}, false, fmt.Errorf("console.log does not support array values yet")
 			}
 			fmt.Fprintln(output, format(value))
 		case ir.OpCall:
 			if strings.HasPrefix(instruction.Callee, "__Math.") {
 				value, err := executeMathIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
-					return Value{}, err
+					return Value{}, false, err
 				}
 				env[instruction.Result] = value
 				continue
@@ -167,7 +178,7 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 			if strings.HasPrefix(instruction.Callee, "__array.") {
 				value, err := executeArrayIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
-					return Value{}, err
+					return Value{}, false, err
 				}
 				env[instruction.Result] = value
 				continue
@@ -175,56 +186,83 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 			if strings.HasPrefix(instruction.Callee, "__string.") {
 				value, err := executeStringIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
-					return Value{}, err
+					return Value{}, false, err
 				}
 				env[instruction.Result] = value
 				continue
 			}
 			callee, ok := functions[instruction.Callee]
 			if !ok {
-				return Value{}, fmt.Errorf("unknown function %q", instruction.Callee)
+				return Value{}, false, fmt.Errorf("unknown function %q", instruction.Callee)
 			}
 			arguments := make([]Value, 0, len(instruction.Args))
 			for _, name := range instruction.Args {
 				value, ok := env[name]
 				if !ok {
-					return Value{}, fmt.Errorf("unknown call argument %q", name)
+					return Value{}, false, fmt.Errorf("unknown call argument %q", name)
 				}
 				arguments = append(arguments, value)
 			}
 			value, err := executeFunction(functions, callee, arguments, output)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			env[instruction.Result] = value
 		case ir.OpReturn:
 			if len(instruction.Args) == 0 {
-				return Value{Type: ir.TypeVoid}, nil
+				return Value{Type: ir.TypeVoid}, true, nil
 			}
-			return lookup(env, instruction.Args, 0)
+			retVal, err := lookup(env, instruction.Args, 0)
+			return retVal, true, err
 		case ir.OpIf:
 			condition, err := lookup(env, instruction.Args, 0)
 			if err != nil {
-				return Value{}, err
+				return Value{}, false, err
 			}
 			branch := instruction.Else
 			if condition.Bool {
 				branch = instruction.Then
 			}
-			if len(branch) == 1 && branch[0].Op == ir.OpReturn {
-				if len(branch[0].Args) == 0 {
-					return Value{Type: ir.TypeVoid}, nil
+			if len(branch) > 0 {
+				ret, returned, err := executeBlock(functions, branch, env, output)
+				if err != nil {
+					return Value{}, false, err
 				}
-				return lookup(env, branch[0].Args, 0)
+				if returned {
+					return ret, true, nil
+				}
 			}
-			if len(branch) != 0 {
-				return Value{}, fmt.Errorf("interpreter only supports if branches that return")
+		case ir.OpWhile:
+			for {
+				if len(instruction.Cond) > 0 {
+					ret, returned, err := executeBlock(functions, instruction.Cond, env, output)
+					if err != nil {
+						return Value{}, false, err
+					}
+					if returned {
+						return ret, true, nil
+					}
+				}
+				condition, err := lookup(env, instruction.Args, 0)
+				if err != nil {
+					return Value{}, false, err
+				}
+				if !condition.Bool {
+					break
+				}
+				ret, returned, err := executeBlock(functions, instruction.Body, env, output)
+				if err != nil {
+					return Value{}, false, err
+				}
+				if returned {
+					return ret, true, nil
+				}
 			}
 		default:
-			return Value{}, fmt.Errorf("unsupported interpreter instruction %q", instruction.Op)
+			return Value{}, false, fmt.Errorf("unsupported interpreter instruction %q", instruction.Op)
 		}
 	}
-	return Value{Type: ir.TypeVoid}, nil
+	return Value{Type: ir.TypeVoid}, false, nil
 }
 
 func lookup(env map[string]Value, arguments []string, index int) (Value, error) {
