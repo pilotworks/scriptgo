@@ -76,7 +76,7 @@ func (f Function) Verify() error {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
 			}
 			if instruction.Op == OpArray {
-				if instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray {
+				if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray {
 					return fmt.Errorf("array instruction has unsupported type %q", instruction.Type)
 				}
 				for _, argument := range instruction.Args {
@@ -121,10 +121,18 @@ func (f Function) Verify() error {
 				if len(instruction.Args) != 2 {
 					return fmt.Errorf("index instruction requires array and index operands")
 				}
-				if (known[instruction.Args[0]] != TypeNumberArray && known[instruction.Args[0]] != TypeStringArray) || known[instruction.Args[1]] != TypeNumber {
-					return fmt.Errorf("index instruction requires an array and number operands")
+				arrType, ok := known[instruction.Args[0]]
+				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString) {
+					return fmt.Errorf("index instruction requires an array or string operand, got %v", arrType)
 				}
-				if instruction.Type != elementType(known[instruction.Args[0]]) {
+				if known[instruction.Args[1]] != TypeNumber {
+					return fmt.Errorf("index instruction requires number index operand")
+				}
+				if arrType == TypeString {
+					if instruction.Type != TypeString {
+						return fmt.Errorf("index instruction on string must produce string")
+					}
+				} else if instruction.Type != elementType(arrType) {
 					return fmt.Errorf("index instruction has incompatible result type %s", instruction.Type)
 				}
 			}
@@ -154,7 +162,7 @@ func (f Function) Verify() error {
 				return fmt.Errorf("index.set requires array, index, and value operands")
 			}
 			arrType, ok := known[instruction.Args[0]]
-			if !ok || (arrType != TypeNumberArray && arrType != TypeStringArray) {
+			if !ok || !strings.HasSuffix(string(arrType), "[]") {
 				return fmt.Errorf("index.set requires array operand")
 			}
 			if known[instruction.Args[1]] != TypeNumber {
@@ -202,6 +210,12 @@ func (f Function) Verify() error {
 			if err := verifyBlock(f, instruction.Body, bodyKnown); err != nil {
 				return fmt.Errorf("%s body block: %w", instruction.Op, err)
 			}
+			if len(instruction.Step) > 0 {
+				stepKnown := cloneTypes(bodyKnown)
+				if err := verifyBlock(f, instruction.Step, stepKnown); err != nil {
+					return fmt.Errorf("%s step block: %w", instruction.Op, err)
+				}
+			}
 		case OpBreak, OpContinue:
 			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 0 {
 				return fmt.Errorf("%s instruction must have void type and no args", instruction.Op)
@@ -247,6 +261,10 @@ func (f Function) Verify() error {
 }
 
 func elementType(arrayType Type) Type {
+	str := string(arrayType)
+	if strings.HasSuffix(str, "[]") {
+		return Type(strings.TrimSuffix(str, "[]"))
+	}
 	if arrayType == TypeStringArray {
 		return TypeString
 	}
@@ -285,6 +303,11 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 			}
 			if err := verifyBlock(f, instruction.Body, cloneTypes(condKnown)); err != nil {
 				return err
+			}
+			if len(instruction.Step) > 0 {
+				if err := verifyBlock(f, instruction.Step, cloneTypes(condKnown)); err != nil {
+					return err
+				}
 			}
 			continue
 		}

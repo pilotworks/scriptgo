@@ -8,7 +8,7 @@ import (
 )
 
 func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruction) error {
-	if instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray {
+	if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray {
 		return fmt.Errorf("unsupported LLVM array type %s", instruction.Type)
 	}
 	e.types[instruction.Result] = instruction.Type

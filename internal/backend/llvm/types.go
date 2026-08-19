@@ -49,6 +49,10 @@ func llvmType(typ ir.Type) string {
 }
 
 func arrayElementType(arrayType ir.Type) ir.Type {
+	str := string(arrayType)
+	if strings.HasSuffix(str, "[]") {
+		return ir.Type(strings.TrimSuffix(str, "[]"))
+	}
 	if arrayType == ir.TypeStringArray {
 		return ir.TypeString
 	}
@@ -62,6 +66,9 @@ func arrayElementSize(arrayType ir.Type) (int64, error) {
 	case ir.TypeStringArray:
 		return 8, nil // v1 targets use 64-bit opaque pointers.
 	default:
+		if strings.HasSuffix(string(arrayType), "[]") {
+			return 8, nil
+		}
 		return 0, fmt.Errorf("unsupported array element layout %s", arrayType)
 	}
 }

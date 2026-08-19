@@ -42,14 +42,41 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 				return err
 			}
 		}
+		for _, stepStatement := range statement.Step {
+			if err := validateStatement(fileName, stepStatement); err != nil {
+				return err
+			}
+		}
 		return nil
-	case "forof":
+	case "forof", "forin":
 		if err := validateExpression(fileName, statement.Expression); err != nil {
 			return err
 		}
 		for _, bodyStatement := range statement.Body {
 			if err := validateStatement(fileName, bodyStatement); err != nil {
 				return err
+			}
+		}
+		for _, stepStatement := range statement.Step {
+			if err := validateStatement(fileName, stepStatement); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "switch":
+		if err := validateExpression(fileName, statement.Expression); err != nil {
+			return err
+		}
+		for _, c := range statement.Cases {
+			if c.Expression != nil {
+				if err := validateExpression(fileName, c.Expression); err != nil {
+					return err
+				}
+			}
+			for _, stmt := range c.Statements {
+				if err := validateStatement(fileName, stmt); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -153,6 +180,11 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		}
 		for _, bodyStatement := range statement.Body {
 			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		for _, stepStatement := range statement.Step {
+			if err := validateStatement(fileName, stepStatement); err != nil {
 				return err
 			}
 		}

@@ -344,6 +344,9 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 			scan(inst.Else)
 			scan(inst.Cond)
 			scan(inst.Body)
+			scan(inst.Step)
+			scan(inst.Catch)
+			scan(inst.Finally)
 		}
 	}
 	scan(instructions)

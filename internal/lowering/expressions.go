@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -75,13 +76,17 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				if i == 0 {
 					if typ == ir.TypeString {
 						arrType = ir.TypeStringArray
-					} else if typ != ir.TypeNumber {
-						return "", "", fmt.Errorf("array literal currently supports number or string elements only")
+					} else if typ == ir.TypeNumber {
+						arrType = ir.TypeNumberArray
+					} else {
+						arrType = ir.Type(string(typ) + "[]")
 					}
 				} else {
 					expectedElem := ir.TypeNumber
 					if arrType == ir.TypeStringArray {
 						expectedElem = ir.TypeString
+					} else if strings.HasSuffix(string(arrType), "[]") {
+						expectedElem = ir.Type(strings.TrimSuffix(string(arrType), "[]"))
 					}
 					if typ != expectedElem {
 						return "", "", fmt.Errorf("inconsistent element type in array literal")

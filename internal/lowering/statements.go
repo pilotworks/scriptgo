@@ -136,118 +136,21 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: varType, Result: statement.Name, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "while":
-		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-		condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		if condType != ir.TypeBool {
-			return fmt.Errorf("while condition must be bool")
-		}
-		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:   ir.OpWhile,
-			Type: ir.TypeVoid,
-			Args: []string{condVal},
-			Cond: condFunc.Body,
-			Body: bodyInstructions,
-			Span: toIRSpan(path, statement.Span),
-		})
+		return lowerWhile(path, statement, function, env, counter, shapes, signatures)
 	case "if":
-		condition, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		if typ != ir.TypeBool {
-			return fmt.Errorf("if condition must be bool")
-		}
-		thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		elseBody, err := lowerBranch(path, statement.Else, function.ReturnType, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIf, Type: ir.TypeVoid, Args: []string{condition}, Then: thenBody, Else: elseBody, Span: toIRSpan(path, statement.Span)})
+		return lowerIf(path, statement, function, env, counter, shapes, signatures)
 	case "break":
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBreak, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
 	case "continue":
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpContinue, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
 	case "dowhile":
-		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-		condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		if condType != ir.TypeBool {
-			return fmt.Errorf("do-while condition must be bool")
-		}
-		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:   ir.OpDoWhile,
-			Type: ir.TypeVoid,
-			Args: []string{condVal},
-			Cond: condFunc.Body,
-			Body: bodyInstructions,
-			Span: toIRSpan(path, statement.Span),
-		})
+		return lowerDoWhile(path, statement, function, env, counter, shapes, signatures)
 	case "forof":
-		arrVal, arrType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		elemType := ir.TypeNumber
-		if arrType == ir.TypeStringArray {
-			elemType = ir.TypeString
-		}
-		idxName := fmt.Sprintf("__i_%d", *counter)
-		lenName := fmt.Sprintf("__len_%d", *counter)
-		*counter++
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: idxName, Value: "0", Span: toIRSpan(path, statement.Span)})
-		env[idxName] = ir.TypeNumber
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenName, Callee: "__array.length", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
-		env[lenName] = ir.TypeNumber
-
-		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-		condCmp := fmt.Sprintf("__cmp_%d", *counter)
-		*counter++
-		condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condCmp, Operator: "<", Args: []string{idxName, lenName}, Span: toIRSpan(path, statement.Span)})
-
-		bodyEnv := make(map[string]ir.Type, len(env)+2)
-		for k, v := range env {
-			bodyEnv[k] = v
-		}
-		bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: statement.Name, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
-		bodyEnv[statement.Name] = elemType
-
-		for _, bodyStmt := range statement.Body {
-			if err := lowerStatement(path, bodyStmt, &bodyBranch, bodyEnv, counter, shapes, signatures); err != nil {
-				return err
-			}
-		}
-		incVal := fmt.Sprintf("__inc_%d", *counter)
-		oneVal := fmt.Sprintf("__one_%d", *counter)
-		*counter++
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: oneVal, Value: "1", Span: toIRSpan(path, statement.Span)})
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "+", Result: incVal, Args: []string{idxName, oneVal}, Span: toIRSpan(path, statement.Span)})
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxName, Args: []string{incVal}, Span: toIRSpan(path, statement.Span)})
-
-		function.Body = append(function.Body, ir.Instruction{
-			Op:   ir.OpWhile,
-			Type: ir.TypeVoid,
-			Args: []string{condCmp},
-			Cond: condFunc.Body,
-			Body: bodyBranch.Body,
-			Span: toIRSpan(path, statement.Span),
-		})
+		return lowerForOf(path, statement, function, env, counter, shapes, signatures)
+	case "forin":
+		return lowerForIn(path, statement, function, env, counter, shapes, signatures)
+	case "switch":
+		return lowerSwitch(path, statement, function, env, counter, shapes, signatures)
 	case "index_set":
 		arrVal, arrType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -368,44 +271,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Span: toIRSpan(path, statement.Span),
 		})
 	case "try":
-		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		var catchInstructions []ir.Instruction
-		if len(statement.Catch) > 0 {
-			catchEnv := make(map[string]ir.Type, len(env)+1)
-			for k, v := range env {
-				catchEnv[k] = v
-			}
-			if statement.CatchVar != "" {
-				catchEnv[statement.CatchVar] = ir.TypeString
-			}
-			catchBranch := ir.Function{Name: "catch", ReturnType: function.ReturnType}
-			for _, catchStmt := range statement.Catch {
-				if err := lowerStatement(path, catchStmt, &catchBranch, catchEnv, counter, shapes, signatures); err != nil {
-					return err
-				}
-			}
-			catchInstructions = catchBranch.Body
-		}
-		var finallyInstructions []ir.Instruction
-		if len(statement.Finally) > 0 {
-			finallyBranch, err := lowerBranch(path, statement.Finally, function.ReturnType, env, counter, shapes, signatures)
-			if err != nil {
-				return err
-			}
-			finallyInstructions = finallyBranch
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpTry,
-			Type:     ir.TypeVoid,
-			Body:     bodyInstructions,
-			CatchVar: statement.CatchVar,
-			Catch:    catchInstructions,
-			Finally:  finallyInstructions,
-			Span:     toIRSpan(path, statement.Span),
-		})
+		return lowerTry(path, statement, function, env, counter, shapes, signatures)
 	case "module", "enum":
 		return nil
 	default:
@@ -505,6 +371,30 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 			}
 		}
 		return thenReturns && elseReturns
+	case "switch":
+		hasDefault := false
+		fallthroughReturns := false
+		for i := len(stmt.Cases) - 1; i >= 0; i-- {
+			c := stmt.Cases[i]
+			if c.Expression == nil {
+				hasDefault = true
+			}
+			caseReturns := false
+			for _, s := range c.Statements {
+				if statementAlwaysReturns(s) {
+					caseReturns = true
+					break
+				}
+			}
+			if len(c.Statements) == 0 {
+				caseReturns = fallthroughReturns
+			}
+			if !caseReturns {
+				return false
+			}
+			fallthroughReturns = caseReturns
+		}
+		return hasDefault
 	default:
 		return false
 	}

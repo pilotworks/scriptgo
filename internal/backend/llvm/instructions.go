@@ -369,11 +369,17 @@ func (e *functionEmitter) emitIf(out *strings.Builder, instruction ir.Instructio
 func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruction) error {
 	condLabel := fmt.Sprintf("while.cond.%d", e.labelCounter)
 	bodyLabel := fmt.Sprintf("while.body.%d", e.labelCounter)
+	stepLabel := fmt.Sprintf("while.step.%d", e.labelCounter)
 	endLabel := fmt.Sprintf("while.end.%d", e.labelCounter)
 	e.labelCounter++
 
+	targetCont := condLabel
+	if len(instruction.Step) > 0 {
+		targetCont = stepLabel
+	}
+
 	e.loopBreakLabels = append(e.loopBreakLabels, endLabel)
-	e.loopContinueLabels = append(e.loopContinueLabels, condLabel)
+	e.loopContinueLabels = append(e.loopContinueLabels, targetCont)
 	defer func() {
 		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
 		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
@@ -399,7 +405,20 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 		}
 	}
 	if !e.terminated {
-		out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", targetCont))
+	}
+
+	if len(instruction.Step) > 0 {
+		out.WriteString(fmt.Sprintf("%s:\n", stepLabel))
+		e.terminated = false
+		for _, inst := range instruction.Step {
+			if err := e.emitInstruction(out, inst); err != nil {
+				return err
+			}
+		}
+		if !e.terminated {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+		}
 	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", endLabel))
@@ -410,11 +429,17 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instruction) error {
 	bodyLabel := fmt.Sprintf("dowhile.body.%d", e.labelCounter)
 	condLabel := fmt.Sprintf("dowhile.cond.%d", e.labelCounter)
+	stepLabel := fmt.Sprintf("dowhile.step.%d", e.labelCounter)
 	endLabel := fmt.Sprintf("dowhile.end.%d", e.labelCounter)
 	e.labelCounter++
 
+	targetCont := condLabel
+	if len(instruction.Step) > 0 {
+		targetCont = stepLabel
+	}
+
 	e.loopBreakLabels = append(e.loopBreakLabels, endLabel)
-	e.loopContinueLabels = append(e.loopContinueLabels, condLabel)
+	e.loopContinueLabels = append(e.loopContinueLabels, targetCont)
 	defer func() {
 		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
 		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
@@ -430,7 +455,20 @@ func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instr
 		}
 	}
 	if !e.terminated {
-		out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", targetCont))
+	}
+
+	if len(instruction.Step) > 0 {
+		out.WriteString(fmt.Sprintf("%s:\n", stepLabel))
+		e.terminated = false
+		for _, inst := range instruction.Step {
+			if err := e.emitInstruction(out, inst); err != nil {
+				return err
+			}
+		}
+		if !e.terminated {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+		}
 	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", condLabel))

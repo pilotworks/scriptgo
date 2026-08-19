@@ -427,7 +427,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		return Value{}, fmt.Errorf("array intrinsic requires at least one argument")
 	}
 	array, ok := env[arguments[0]]
-	if !ok || (array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray) {
+	if !ok || (!strings.HasSuffix(string(array.Type), "[]") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray) {
 		return Value{}, fmt.Errorf("array intrinsic requires an array")
 	}
 	switch name {

@@ -493,6 +493,15 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if flow == flowBreak {
 					break
 				}
+				if len(instruction.Step) > 0 {
+					ret, returned, flow, err := executeBlock(functions, instruction.Step, env, output)
+					if err != nil {
+						return Value{}, false, flowNormal, err
+					}
+					if returned || flow == flowReturn || flow == flowThrow {
+						return ret, returned, flow, nil
+					}
+				}
 				if flow == flowContinue {
 					continue
 				}
@@ -508,6 +517,15 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				if flow == flowBreak {
 					break
+				}
+				if len(instruction.Step) > 0 {
+					ret, returned, flow, err := executeBlock(functions, instruction.Step, env, output)
+					if err != nil {
+						return Value{}, false, flowNormal, err
+					}
+					if returned || flow == flowReturn || flow == flowThrow {
+						return ret, returned, flow, nil
+					}
 				}
 				if len(instruction.Cond) > 0 {
 					ret, returned, flow, err := executeBlock(functions, instruction.Cond, env, output)

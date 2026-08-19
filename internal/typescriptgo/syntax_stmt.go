@@ -102,6 +102,29 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			Expression: syntaxExpression(doNode.Expression, chk),
 			Body:       syntaxBlockStatements(doNode.Statement, chk),
 		}, true
+	case ast.KindForInStatement:
+		forIn := node.AsForInOrOfStatement()
+		var varName, varType, varInferredType string
+		if forIn.Initializer != nil && forIn.Initializer.Kind == ast.KindVariableDeclarationList {
+			decls := forIn.Initializer.AsVariableDeclarationList().Declarations.Nodes
+			if len(decls) == 1 {
+				varName = decls[0].Name().Text()
+				varType = syntaxType(decls[0].Type())
+				varInferredType = resolveInferredType(chk, decls[0].Name())
+				if varType == "" {
+					varType = varInferredType
+				}
+			}
+		}
+		return SyntaxStatement{
+			Span:         span,
+			Kind:         "forin",
+			Name:         varName,
+			Type:         varType,
+			InferredType: varInferredType,
+			Expression:   syntaxExpression(forIn.Expression, chk),
+			Body:         syntaxBlockStatements(forIn.Statement, chk),
+		}, true
 	case ast.KindForOfStatement:
 		forOf := node.AsForInOrOfStatement()
 		var varName, varType, varInferredType string
@@ -128,83 +151,44 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	case ast.KindSwitchStatement:
 		switchNode := node.AsSwitchStatement()
 		switchExpr := syntaxExpression(switchNode.Expression, chk)
-		type caseItem struct {
-			expr  *SyntaxExpression
-			stmts []SyntaxStatement
-		}
-		var cases []caseItem
-		var defaultStmts []SyntaxStatement
+		var cases []SyntaxSwitchCase
 		for _, clause := range switchNode.CaseBlock.AsNode().AsCaseBlock().Clauses.Nodes {
 			caseClause := clause.AsCaseOrDefaultClause()
+			var cExpr *SyntaxExpression
 			if clause.Kind == ast.KindCaseClause {
-				cExpr := syntaxExpression(caseClause.Expression, chk)
-				var stmts []SyntaxStatement
-				if caseClause.Statements != nil {
-					for _, s := range caseClause.Statements.Nodes {
-						if s.Kind == ast.KindBreakStatement {
-							continue
-						}
-						if converted, ok := syntaxStatement(s, chk); ok {
-							stmts = append(stmts, converted)
-						}
-					}
-				}
-				cases = append(cases, caseItem{expr: cExpr, stmts: stmts})
-			} else if clause.Kind == ast.KindDefaultClause {
-				if caseClause.Statements != nil {
-					for _, s := range caseClause.Statements.Nodes {
-						if s.Kind == ast.KindBreakStatement {
-							continue
-						}
-						if converted, ok := syntaxStatement(s, chk); ok {
-							defaultStmts = append(defaultStmts, converted)
-						}
+				cExpr = syntaxExpression(caseClause.Expression, chk)
+			}
+			var stmts []SyntaxStatement
+			if caseClause.Statements != nil {
+				for _, s := range caseClause.Statements.Nodes {
+					if converted, ok := syntaxStatement(s, chk); ok {
+						stmts = append(stmts, converted)
 					}
 				}
 			}
-		}
-		currentElse := defaultStmts
-		for i := len(cases) - 2; i >= 0; i-- {
-			if len(cases[i].stmts) == 0 {
-				cases[i].stmts = cases[i+1].stmts
-			}
-		}
-		for i := len(cases) - 1; i >= 0; i-- {
-			c := cases[i]
-			condExpr := &SyntaxExpression{
-				Span:     span,
-				Kind:     "binary",
-				Operator: "===",
-				Left:     switchExpr,
-				Right:    c.expr,
-			}
-			ifStmt := SyntaxStatement{
-				Span:       span,
-				Kind:       "if",
-				Expression: condExpr,
-				Then:       c.stmts,
-				Else:       currentElse,
-			}
-			currentElse = []SyntaxStatement{ifStmt}
-		}
-		if len(currentElse) == 1 {
-			return currentElse[0], true
+			cases = append(cases, SyntaxSwitchCase{
+				Span:       sourceSpan(clause),
+				Expression: cExpr,
+				Statements: stmts,
+			})
 		}
 		return SyntaxStatement{
-			Span: span,
-			Kind: "block",
-			Body: currentElse,
+			Span:       span,
+			Kind:       "switch",
+			Expression: switchExpr,
+			Cases:      cases,
 		}, true
 	case ast.KindForStatement:
 		forNode := node.AsForStatement()
 		var bodyStatements []SyntaxStatement
 		bodyStatements = append(bodyStatements, syntaxBlockStatements(forNode.Statement, chk)...)
+		var stepStatements []SyntaxStatement
 		if forNode.Incrementor != nil {
 			incExpr := syntaxExpression(forNode.Incrementor, chk)
 			if incExpr != nil && incExpr.Kind == "binary" && isAssignmentOperator(incExpr.Operator) {
 				if incExpr.Left != nil && incExpr.Left.Kind == "identifier" {
 					valExpr, _ := desugarAssignment(incExpr)
-					bodyStatements = append(bodyStatements, SyntaxStatement{
+					stepStatements = append(stepStatements, SyntaxStatement{
 						Span:       sourceSpan(forNode.Incrementor),
 						Kind:       "assign",
 						Name:       incExpr.Left.Text,
@@ -212,7 +196,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 					})
 				}
 			} else {
-				bodyStatements = append(bodyStatements, SyntaxStatement{
+				stepStatements = append(stepStatements, SyntaxStatement{
 					Span:       sourceSpan(forNode.Incrementor),
 					Kind:       "expression",
 					Expression: incExpr,
@@ -224,6 +208,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			Kind:       "while",
 			Expression: syntaxExpression(forNode.Condition, chk),
 			Body:       bodyStatements,
+			Step:       stepStatements,
 		}
 		if forNode.Initializer != nil {
 			if forNode.Initializer.Kind == ast.KindVariableDeclarationList {

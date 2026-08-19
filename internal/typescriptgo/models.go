@@ -67,13 +67,21 @@ type SyntaxStatement struct {
 	Right          *SyntaxExpression
 	Parameters     []SyntaxParameter
 	Body           []SyntaxStatement
+	Step           []SyntaxStatement
 	Then           []SyntaxStatement
 	Else           []SyntaxStatement
+	Cases          []SyntaxSwitchCase
 	CatchVar       string
 	Catch          []SyntaxStatement
 	Finally        []SyntaxStatement
 	Class          *SyntaxClass
 	Enum           *SyntaxEnum
+}
+
+type SyntaxSwitchCase struct {
+	Span       SourceSpan
+	Expression *SyntaxExpression
+	Statements []SyntaxStatement
 }
 
 type SyntaxEnum struct {

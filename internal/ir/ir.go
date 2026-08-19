@@ -72,6 +72,7 @@ type Instruction struct {
 	Else       []Instruction
 	Cond       []Instruction
 	Body       []Instruction
+	Step       []Instruction
 	CatchVar   string
 	Catch      []Instruction
 	Finally    []Instruction
