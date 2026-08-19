@@ -16,25 +16,42 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind != "function" {
-				continue
-			}
-			function := ir.Function{Name: statement.Name, ReturnType: toIRType(statement.Type)}
-			if function.ReturnType == "" {
-				function.ReturnType = ir.TypeVoid
-			}
-			for _, parameter := range statement.Parameters {
-				typ := toIRType(parameter.Type)
-				if parameter.Rest {
-					typ = ir.TypeStringArray
+			if statement.Kind == "function" {
+				function := ir.Function{Name: statement.Name, ReturnType: toIRType(statement.Type)}
+				if function.ReturnType == "" {
+					function.ReturnType = ir.TypeVoid
 				}
-				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+				for _, parameter := range statement.Parameters {
+					typ := toIRType(parameter.Type)
+					if parameter.Rest {
+						typ = ir.TypeStringArray
+					}
+					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+				}
+				index[function.Name] = function
+				if file.BuiltinName != "" {
+					index[file.BuiltinName+"."+function.Name] = function
+				}
+				functionsByFile[fileName] = append(functionsByFile[fileName], function)
+			} else if statement.Kind == "class" && statement.Class != nil {
+				for _, method := range statement.Class.Methods {
+					mangled := statement.Class.Name + "_" + method.Name
+					function := ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
+					if function.ReturnType == "" {
+						function.ReturnType = ir.TypeVoid
+					}
+					function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + statement.Class.Name)})
+					for _, parameter := range method.Parameters {
+						typ := toIRType(parameter.Type)
+						if parameter.Rest {
+							typ = ir.TypeStringArray
+						}
+						function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+					}
+					index[mangled] = function
+					functionsByFile[fileName] = append(functionsByFile[fileName], function)
+				}
 			}
-			index[function.Name] = function
-			if file.BuiltinName != "" {
-				index[file.BuiltinName+"."+function.Name] = function
-			}
-			functionsByFile[fileName] = append(functionsByFile[fileName], function)
 		}
 	}
 	for _, file := range program.Files {

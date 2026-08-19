@@ -62,3 +62,23 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	}
 	return nil
 }
+
+func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Instruction) error {
+	if len(instruction.Args) != 3 {
+		return fmt.Errorf("index.set instruction requires array, index, and value operands")
+	}
+	arrayType, ok := e.types[instruction.Args[0]]
+	if !ok {
+		return fmt.Errorf("unknown index.set array %q", instruction.Args[0])
+	}
+	elemLLVMType := llvmType(arrayElementType(arrayType))
+	valSlot := fmt.Sprintf("%s.set.slot.%d", instruction.Args[0], e.runtimeStatus)
+	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", valSlot, elemLLVMType))
+	out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemLLVMType, instruction.Args[2], valSlot))
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], valSlot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	return nil
+}
+

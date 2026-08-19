@@ -26,6 +26,41 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		return err
 	}
 	switch statement.Kind {
+	case "break", "continue":
+		return nil
+	case "dowhile":
+		if err := validateExpression(fileName, statement.Expression); err != nil {
+			return err
+		}
+		for _, bodyStatement := range statement.Body {
+			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "forof":
+		if err := validateExpression(fileName, statement.Expression); err != nil {
+			return err
+		}
+		for _, bodyStatement := range statement.Body {
+			if err := validateStatement(fileName, bodyStatement); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "index_set":
+		if err := validateExpression(fileName, statement.Left); err != nil {
+			return err
+		}
+		if err := validateExpression(fileName, statement.Right); err != nil {
+			return err
+		}
+		return validateExpression(fileName, statement.Expression)
+	case "field_set":
+		if err := validateExpression(fileName, statement.Left); err != nil {
+			return err
+		}
+		return validateExpression(fileName, statement.Expression)
 	case "module":
 		return nil
 	case "class":
@@ -42,9 +77,6 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			if field.Initializer != nil {
 				if err := validateExpression(fileName, field.Initializer); err != nil {
 					return err
-				}
-				if field.Initializer == nil {
-					return subsetError(fileName, field.Span, CodeLanguageLowering, "class field without initializer")
 				}
 				if field.Initializer.Kind != "number" && field.Initializer.Kind != "string" && field.Initializer.Kind != "bool" {
 					return subsetError(fileName, field.Span, CodeLanguageLowering, "non-literal class field initializer")
@@ -149,7 +181,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return validateExpression(fileName, expression.Right)
 	case "property":
-		if expression.Left != nil && expression.Left.Kind == "identifier" {
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call") {
 			return nil
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")
@@ -161,9 +193,6 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		if callName(expression.Left) == "" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
-		}
-		if len(expression.Arguments) != 0 {
-			return subsetError(fileName, expression.Span, CodeLanguageLowering, "class constructors with arguments")
 		}
 		return nil
 	case "unary":
@@ -197,7 +226,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 				return err
 			}
 		}
-		if callName(expression.Left) == "" {
+		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && expression.Left.Kind != "property" {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
 		return nil

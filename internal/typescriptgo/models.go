@@ -61,6 +61,8 @@ type SyntaxStatement struct {
 	Name       string
 	Type       string
 	Expression *SyntaxExpression
+	Left       *SyntaxExpression
+	Right      *SyntaxExpression
 	Parameters []SyntaxParameter
 	Body       []SyntaxStatement
 	Then       []SyntaxStatement
@@ -69,9 +71,25 @@ type SyntaxStatement struct {
 }
 
 type SyntaxClass struct {
-	Span   SourceSpan
-	Name   string
-	Fields []SyntaxField
+	Span        SourceSpan
+	Name        string
+	Fields      []SyntaxField
+	Constructor *SyntaxConstructor
+	Methods     []SyntaxMethod
+}
+
+type SyntaxConstructor struct {
+	Span       SourceSpan
+	Parameters []SyntaxParameter
+	Body       []SyntaxStatement
+}
+
+type SyntaxMethod struct {
+	Span       SourceSpan
+	Name       string
+	Type       string
+	Parameters []SyntaxParameter
+	Body       []SyntaxStatement
 }
 
 type SyntaxField struct {

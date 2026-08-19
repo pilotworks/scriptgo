@@ -79,12 +79,32 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bool(i32 %%%s, ptr %%%s)\n", status, boolI32, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-	case "__string.slice":
-		if len(instruction.Args) != 3 || instruction.Type != ir.TypeString {
+	case "__string.slice", "__string.substring":
+		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.slice has invalid signature")
 		}
+		endArg := "-1.0"
+		if len(instruction.Args) == 3 {
+			endArg = "%" + instruction.Args[2]
+		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_slice(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_slice(ptr %%%s, double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], endArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.trim":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.trim has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_trim(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.replace":
+		if len(instruction.Args) != 3 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.replace has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_replace(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__string.concat":

@@ -4,6 +4,7 @@ package lowering
 import (
 	"fmt"
 
+	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -25,7 +26,13 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			}
 			shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
 			for _, field := range statement.Class.Fields {
-				shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: field.Initializer.Text, Span: toIRSpan(file.FileName, field.Span)})
+				val := ""
+				if field.Initializer != nil {
+					val = field.Initializer.Text
+				} else if field.Type == "number" {
+					val = "0"
+				}
+				shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
 			}
 			shapes[shape.Name] = shape
 			module.Shapes = append(module.Shapes, shape)
@@ -49,7 +56,25 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			if statement.Kind == "module" {
 				continue
 			}
-			if statement.Kind == "class" {
+			if statement.Kind == "class" && statement.Class != nil {
+				for _, method := range statement.Class.Methods {
+					mangled := statement.Class.Name + "_" + method.Name
+					methodStmt := typescriptgo.SyntaxStatement{
+						Span: method.Span,
+						Kind: "function",
+						Name: mangled,
+						Type: method.Type,
+						Parameters: append([]typescriptgo.SyntaxParameter{
+							{Name: "this", Type: "object:" + statement.Class.Name},
+						}, method.Parameters...),
+						Body: method.Body,
+					}
+					function, err := lowerFunction(file.FileName, methodStmt, shapes, signatures)
+					if err != nil {
+						return ir.Module{}, fmt.Errorf("lower class method %q: %w", mangled, sourceError(file.FileName, method.Span, err))
+					}
+					module.Functions = append(module.Functions, function)
+				}
 				continue
 			}
 			if err := lowerStatement(file.FileName, statement, &main, env, &counter, shapes, signatures); err != nil {

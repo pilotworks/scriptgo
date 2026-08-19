@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -130,6 +131,132 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return err
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIf, Type: ir.TypeVoid, Args: []string{condition}, Then: thenBody, Else: elseBody, Span: toIRSpan(path, statement.Span)})
+	case "break":
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBreak, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+	case "continue":
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpContinue, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+	case "dowhile":
+		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
+		condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		if condType != ir.TypeBool {
+			return fmt.Errorf("do-while condition must be bool")
+		}
+		bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpDoWhile,
+			Type: ir.TypeVoid,
+			Args: []string{condVal},
+			Cond: condFunc.Body,
+			Body: bodyInstructions,
+			Span: toIRSpan(path, statement.Span),
+		})
+	case "forof":
+		arrVal, arrType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		elemType := ir.TypeNumber
+		if arrType == ir.TypeStringArray {
+			elemType = ir.TypeString
+		}
+		idxName := fmt.Sprintf("__i_%d", *counter)
+		lenName := fmt.Sprintf("__len_%d", *counter)
+		*counter++
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: idxName, Value: "0", Span: toIRSpan(path, statement.Span)})
+		env[idxName] = ir.TypeNumber
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenName, Callee: "__array.length", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
+		env[lenName] = ir.TypeNumber
+
+		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
+		condCmp := fmt.Sprintf("__cmp_%d", *counter)
+		*counter++
+		condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condCmp, Operator: "<", Args: []string{idxName, lenName}, Span: toIRSpan(path, statement.Span)})
+
+		bodyEnv := make(map[string]ir.Type, len(env)+2)
+		for k, v := range env {
+			bodyEnv[k] = v
+		}
+		bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: statement.Name, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+		bodyEnv[statement.Name] = elemType
+
+		for _, bodyStmt := range statement.Body {
+			if err := lowerStatement(path, bodyStmt, &bodyBranch, bodyEnv, counter, shapes, signatures); err != nil {
+				return err
+			}
+		}
+		incVal := fmt.Sprintf("__inc_%d", *counter)
+		oneVal := fmt.Sprintf("__one_%d", *counter)
+		*counter++
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: oneVal, Value: "1", Span: toIRSpan(path, statement.Span)})
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "+", Result: incVal, Args: []string{idxName, oneVal}, Span: toIRSpan(path, statement.Span)})
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxName, Args: []string{incVal}, Span: toIRSpan(path, statement.Span)})
+
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpWhile,
+			Type: ir.TypeVoid,
+			Args: []string{condCmp},
+			Cond: condFunc.Body,
+			Body: bodyBranch.Body,
+			Span: toIRSpan(path, statement.Span),
+		})
+	case "index_set":
+		arrVal, arrType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		idxVal, _, err := lowerExpression(path, statement.Right, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		if (arrType == ir.TypeNumberArray && valType != ir.TypeNumber) || (arrType == ir.TypeStringArray && valType != ir.TypeString) {
+			return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpIndexSet,
+			Type: ir.TypeVoid,
+			Args: []string{arrVal, idxVal, val},
+			Span: toIRSpan(path, statement.Span),
+		})
+	case "field_set":
+		objVal, objType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		shapeName := strings.TrimPrefix(string(objType), string(ir.TypeObject)+":")
+		shape, ok := shapes[shapeName]
+		if !ok {
+			return fmt.Errorf("field set on unknown object shape %q", shapeName)
+		}
+		fIndex := fieldIndex(shape, statement.Name)
+		if fIndex < 0 {
+			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, shapeName)
+		}
+		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		if valType != shape.Fields[fIndex].Type {
+			return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:         ir.OpFieldSet,
+			Type:       ir.TypeVoid,
+			Field:      statement.Name,
+			FieldIndex: fIndex,
+			Args:       []string{objVal, val},
+			Span:       toIRSpan(path, statement.Span),
+		})
 	case "class":
 		return nil
 	default:
@@ -153,6 +280,9 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 }
 
 func toIRType(value string) ir.Type {
+	if strings.HasPrefix(value, "object:") {
+		return ir.Type(value)
+	}
 	switch value {
 	case "number":
 		return ir.TypeNumber
@@ -167,7 +297,7 @@ func toIRType(value string) ir.Type {
 	case "void", "":
 		return ir.TypeVoid
 	default:
-		return ""
+		return ir.Type("object:" + value)
 	}
 }
 

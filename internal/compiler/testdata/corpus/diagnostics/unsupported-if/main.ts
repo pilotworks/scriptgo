@@ -1,6 +1,6 @@
-switch (1) {
-  case 1:
-    console.log(42);
-    break;
+try {
+  console.log(42);
+} catch (e) {
+  console.log(0);
 }
 

@@ -163,6 +163,41 @@ int scriptgo_string_slice(const char *value, double start_value, double end_valu
     return string_copy_range(value, start, end - start, out_value);
 }
 
+int scriptgo_string_trim(const char *value, char **out_value) {
+    size_t start = 0, end;
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    while (value[start] == ' ' || value[start] == '\t' || value[start] == '\n' || value[start] == '\r') {
+        start++;
+    }
+    end = strlen(value);
+    while (end > start && (value[end - 1] == ' ' || value[end - 1] == '\t' || value[end - 1] == '\n' || value[end - 1] == '\r')) {
+        end--;
+    }
+    return string_copy_range(value, start, end - start, out_value);
+}
+
+int scriptgo_string_replace(const char *value, const char *search, const char *replacement, char **out_value) {
+    const char *found;
+    size_t val_len, search_len, rep_len, prefix_len;
+    char *result;
+    if (value == NULL || search == NULL || replacement == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    found = strstr(value, search);
+    if (found == NULL) {
+        return string_copy_range(value, 0, strlen(value), out_value);
+    }
+    prefix_len = (size_t)(found - value);
+    search_len = strlen(search);
+    rep_len = strlen(replacement);
+    val_len = strlen(value);
+    result = malloc(prefix_len + rep_len + (val_len - prefix_len - search_len) + 1);
+    if (result == NULL) return string_fail("scriptgo string allocation failed");
+    memcpy(result, value, prefix_len);
+    memcpy(result + prefix_len, replacement, rep_len);
+    memcpy(result + prefix_len + rep_len, found + search_len, val_len - prefix_len - search_len + 1);
+    *out_value = result;
+    return 0;
+}
+
 int scriptgo_string_release(char *value) {
     free(value);
     return 0;

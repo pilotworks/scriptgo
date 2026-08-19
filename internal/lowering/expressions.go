@@ -297,8 +297,56 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})
 		}
+		for i, argument := range expression.Arguments {
+			if i < len(shape.Fields) {
+				argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				field := shape.Fields[i]
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     className,
+					Field:      field.Name,
+					FieldIndex: i,
+					Args:       []string{result, argVal},
+					Span:       toIRSpan(path, argument.Span),
+				})
+			}
+		}
 		return result, ir.Type("object:" + className), nil
 	case "call":
+		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil {
+			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+			if err == nil && strings.HasPrefix(string(receiverType), "object:") {
+				className := strings.TrimPrefix(string(receiverType), "object:")
+				methodName := expression.Left.Text
+				mangled := className + "_" + methodName
+				if target, ok := signatures[mangled]; ok {
+					args := []string{receiver}
+					for _, argument := range expression.Arguments {
+						argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, argVal)
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   target.ReturnType,
+						Result: result,
+						Callee: mangled,
+						Args:   args,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, target.ReturnType, nil
+				}
+			}
+		}
 		if method := stringMethod(expression.Left); method != "" {
 			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 			if err != nil || receiverType != ir.TypeString {
@@ -316,9 +364,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				result = nextTemp(counter)
 			}
 			returnType := ir.TypeNumber
-			if method == "slice" {
+			switch method {
+			case "slice", "trim", "replace", "substring":
 				returnType = ir.TypeString
-			} else if method == "startsWith" || method == "endsWith" {
+			case "startsWith", "endsWith":
 				returnType = ir.TypeBool
 			}
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + method, Args: args, Span: toIRSpan(path, expression.Span)})
@@ -394,7 +443,7 @@ func stringMethod(expression *typescriptgo.SyntaxExpression) string {
 		return ""
 	}
 	switch expression.Text {
-	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith":
+	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "replace", "substring":
 		return expression.Text
 	default:
 		return ""

@@ -25,9 +25,11 @@ type functionEmitter struct {
 	arrayTypes    []arrayReference
 	objects       []string
 	ownedStrings  []string
-	labelCounter  int
-	runtimeStatus int
-	terminated    bool
+	labelCounter       int
+	loopBreakLabels    []string
+	loopContinueLabels []string
+	runtimeStatus      int
+	terminated         bool
 }
 
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
@@ -82,6 +84,24 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return e.emitIf(out, inst)
 	case ir.OpWhile:
 		return e.emitWhile(out, inst)
+	case ir.OpDoWhile:
+		return e.emitDoWhile(out, inst)
+	case ir.OpBreak:
+		if len(e.loopBreakLabels) == 0 {
+			return fmt.Errorf("break outside of loop")
+		}
+		breakLabel := e.loopBreakLabels[len(e.loopBreakLabels)-1]
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", breakLabel))
+		e.terminated = true
+		return nil
+	case ir.OpContinue:
+		if len(e.loopContinueLabels) == 0 {
+			return fmt.Errorf("continue outside of loop")
+		}
+		continueLabel := e.loopContinueLabels[len(e.loopContinueLabels)-1]
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", continueLabel))
+		e.terminated = true
+		return nil
 	case ir.OpPrint:
 		return e.emitPrint(out, inst)
 	case ir.OpArray:
@@ -92,6 +112,8 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if err := e.emitIndex(out, inst); err != nil {
 			return err
 		}
+	case ir.OpIndexSet:
+		return e.emitIndexSet(out, inst)
 	case ir.OpObjectNew:
 		if err := e.emitObjectNew(out, inst); err != nil {
 			return err
@@ -297,6 +319,13 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 	endLabel := fmt.Sprintf("while.end.%d", e.labelCounter)
 	e.labelCounter++
 
+	e.loopBreakLabels = append(e.loopBreakLabels, endLabel)
+	e.loopContinueLabels = append(e.loopContinueLabels, condLabel)
+	defer func() {
+		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
+		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
+	}()
+
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
 	out.WriteString(fmt.Sprintf("%s:\n", condLabel))
 
@@ -319,6 +348,47 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 	if !e.terminated {
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
 	}
+
+	out.WriteString(fmt.Sprintf("%s:\n", endLabel))
+	e.terminated = false
+	return nil
+}
+
+func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instruction) error {
+	bodyLabel := fmt.Sprintf("dowhile.body.%d", e.labelCounter)
+	condLabel := fmt.Sprintf("dowhile.cond.%d", e.labelCounter)
+	endLabel := fmt.Sprintf("dowhile.end.%d", e.labelCounter)
+	e.labelCounter++
+
+	e.loopBreakLabels = append(e.loopBreakLabels, endLabel)
+	e.loopContinueLabels = append(e.loopContinueLabels, condLabel)
+	defer func() {
+		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
+		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
+	}()
+
+	out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
+	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
+
+	e.terminated = false
+	for _, inst := range instruction.Body {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	if !e.terminated {
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+	}
+
+	out.WriteString(fmt.Sprintf("%s:\n", condLabel))
+	e.terminated = false
+	for _, inst := range instruction.Cond {
+		if err := e.emitInstruction(out, inst); err != nil {
+			return err
+		}
+	}
+	condVal := e.resolveArg(out, instruction.Args[0])
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, bodyLabel, endLabel))
 
 	out.WriteString(fmt.Sprintf("%s:\n", endLabel))
 	e.terminated = false
