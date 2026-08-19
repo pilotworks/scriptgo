@@ -1,10 +1,13 @@
 package interpreter
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"math"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -383,4 +386,67 @@ func executeProcessIntrinsic(name string, arguments []string, env map[string]Val
 		return Value{}, fmt.Errorf("unknown process intrinsic %q", name)
 	}
 }
+
+func executeCryptoIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__crypto.randomUUID":
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return Value{}, err
+		}
+		b[6] = (b[6] & 0x0f) | 0x40
+		b[8] = (b[8] & 0x3f) | 0x80
+		uuid := fmt.Sprintf("%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+			b[0], b[1], b[2], b[3],
+			b[4], b[5],
+			b[6], b[7],
+			b[8], b[9],
+			b[10], b[11], b[12], b[13], b[14], b[15],
+		)
+		return Value{Type: ir.TypeString, String: uuid}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown crypto intrinsic %q", name)
+	}
+}
+
+func executeWebIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__web.btoa":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("btoa requires 1 argument")
+		}
+		val, ok := env[arguments[0]]
+		if !ok || val.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("btoa requires string argument")
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(val.String))
+		return Value{Type: ir.TypeString, String: encoded}, nil
+	case "__web.atob":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("atob requires 1 argument")
+		}
+		val, ok := env[arguments[0]]
+		if !ok || val.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("atob requires string argument")
+		}
+		decoded, err := base64.StdEncoding.DecodeString(val.String)
+		if err != nil {
+			return Value{}, fmt.Errorf("InvalidCharacterError: %w", err)
+		}
+		return Value{Type: ir.TypeString, String: string(decoded)}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown web intrinsic %q", name)
+	}
+}
+
+func executePerformanceIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__performance.now":
+		ms := float64(time.Now().UnixNano()) / 1e6
+		return Value{Type: ir.TypeNumber, Number: ms}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown performance intrinsic %q", name)
+	}
+}
+
 

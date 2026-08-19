@@ -81,6 +81,12 @@ var builtinIntrinsics = map[string]BuiltinIntrinsic{
 	"Math.sin":   {Category: CategoryECMAScript, Name: "Math.sin", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
 	"Math.cos":   {Category: CategoryECMAScript, Name: "Math.cos", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
 
+	// Category 2: Web-compatible globals
+	"crypto.randomUUID": {Category: CategoryWebCompat, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
+	"btoa":              {Category: CategoryWebCompat, Name: "btoa", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerBtoa},
+	"atob":              {Category: CategoryWebCompat, Name: "atob", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerAtob},
+	"performance.now":   {Category: CategoryWebCompat, Name: "performance.now", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerPerformanceNow},
+
 	// Category 3: Node-specific globals
 	"console.log":     {Category: CategoryNodeGlobal, Name: "console.log", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
 	"console.info":    {Category: CategoryNodeGlobal, Name: "console.info", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
@@ -101,6 +107,8 @@ var builtinIntrinsics = map[string]BuiltinIntrinsic{
 	"readFileSync":             {Category: CategoryNodeModule, Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
 	"writeFileSync":            {Category: CategoryNodeModule, Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
 	"existsSync":               {Category: CategoryNodeModule, Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
+	"__scriptgo.randomUUID":    {Category: CategoryNodeModule, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
+	"randomUUID":               {Category: CategoryNodeModule, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
 }
 
 func builtinGlobal(name string) (BuiltinGlobal, bool) {
@@ -239,3 +247,76 @@ func lowerProcessCwd(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.cwd", Args: nil, Span: toIRSpan(call.Path, call.Expression.Span)})
 	return result, ir.TypeString, nil
 }
+
+func lowerCryptoRandomUUID(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeString,
+		Result: result,
+		Callee: "__crypto.randomUUID",
+		Args:   nil,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, ir.TypeString, nil
+}
+
+func lowerBtoa(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeString,
+		Result: result,
+		Callee: "__web.btoa",
+		Args:   args,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, ir.TypeString, nil
+}
+
+func lowerAtob(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeString,
+		Result: result,
+		Callee: "__web.atob",
+		Args:   args,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, ir.TypeString, nil
+}
+
+func lowerPerformanceNow(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeNumber,
+		Result: result,
+		Callee: "__performance.now",
+		Args:   nil,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, ir.TypeNumber, nil
+}
+

@@ -22,6 +22,9 @@ var fsSource string
 //go:embed stdlib/process.ts
 var processSource string
 
+//go:embed stdlib/crypto.ts
+var cryptoSource string
+
 var builtinModules = map[string]BuiltinModule{
 	"path": {
 		Name:    "path",
@@ -38,6 +41,11 @@ var builtinModules = map[string]BuiltinModule{
 		Version: "1",
 		Source:  processSource,
 	},
+	"crypto": {
+		Name:    "crypto",
+		Version: "1",
+		Source:  cryptoSource,
+	},
 }
 
 func BuiltinModuleManifest() []BuiltinModule {
@@ -45,6 +53,7 @@ func BuiltinModuleManifest() []BuiltinModule {
 		builtinModules["path"],
 		builtinModules["fs"],
 		builtinModules["process"],
+		builtinModules["crypto"],
 	}
 }
 
