@@ -192,6 +192,18 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			}
 		}
 		return nil
+	case "object_literal":
+		if len(expression.Arguments) == 0 {
+			return subsetError(fileName, expression.Span, CodeLanguageLowering, "empty object literal")
+		}
+		for _, prop := range expression.Arguments {
+			if prop.Left != nil {
+				if err := validateExpression(fileName, prop.Left); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	case "spread":
 		return validateExpression(fileName, expression.Left)
 	case "optional_index", "index":

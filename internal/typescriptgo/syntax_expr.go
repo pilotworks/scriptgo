@@ -129,6 +129,32 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			}
 		}
 		return result
+	case ast.KindObjectLiteralExpression:
+		objLit := node.AsObjectLiteralExpression()
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "object_literal"}
+		if properties := objLit.Properties; properties != nil {
+			for _, propNode := range properties.Nodes {
+				if propNode.Kind == ast.KindPropertyAssignment {
+					prop := propNode.AsPropertyAssignment()
+					result.Arguments = append(result.Arguments, &SyntaxExpression{
+						Span: sourceSpan(propNode),
+						Kind: "property_assignment",
+						Text: prop.Name().Text(),
+						Left: syntaxExpression(prop.Initializer),
+					})
+				} else if propNode.Kind == ast.KindShorthandPropertyAssignment {
+					prop := propNode.AsShorthandPropertyAssignment()
+					name := prop.Name().Text()
+					result.Arguments = append(result.Arguments, &SyntaxExpression{
+						Span: sourceSpan(propNode),
+						Kind: "property_assignment",
+						Text: name,
+						Left: &SyntaxExpression{Span: sourceSpan(propNode), Kind: "identifier", Text: name},
+					})
+				}
+			}
+		}
+		return result
 	default:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}
 	}

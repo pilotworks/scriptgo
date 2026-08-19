@@ -3,6 +3,7 @@ package lowering
 
 import (
 	"fmt"
+	"sort"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -82,6 +83,13 @@ func Lower(program frontend.Program) (ir.Module, error) {
 			}
 		}
 	}
+	module.Shapes = nil
+	for _, shape := range shapes {
+		module.Shapes = append(module.Shapes, shape)
+	}
+	sort.Slice(module.Shapes, func(i, j int) bool {
+		return module.Shapes[i].Name < module.Shapes[j].Name
+	})
 	main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
 	module.Functions = append([]ir.Function{main}, module.Functions...)
 	if err := module.Verify(); err != nil {

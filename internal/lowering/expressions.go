@@ -464,6 +464,56 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, field.Type, nil
 		}
 		return "", "", fmt.Errorf("unknown field %q on object %q", expression.Text, className)
+	case "object_literal":
+		if len(expression.Arguments) == 0 {
+			return "", "", fmt.Errorf("empty object literal needs explicit type or shape")
+		}
+		var fields []ir.Field
+		var propValues []string
+		shapeName := fmt.Sprintf("__anon_shape_%d", *counter)
+		*counter++
+		for _, prop := range expression.Arguments {
+			val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			fields = append(fields, ir.Field{
+				Name: prop.Text,
+				Type: valType,
+				Span: toIRSpan(path, prop.Span),
+			})
+			propValues = append(propValues, val)
+		}
+		shape := ir.ObjectShape{
+			Name:   shapeName,
+			Span:   toIRSpan(path, expression.Span),
+			Fields: fields,
+		}
+		shapes[shapeName] = shape
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		objType := ir.Type("object:" + shapeName)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:         ir.OpObjectNew,
+			Type:       objType,
+			Result:     result,
+			Callee:     shapeName,
+			FieldCount: len(fields),
+			Span:       toIRSpan(path, expression.Span),
+		})
+		for i, field := range fields {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      field.Name,
+				FieldIndex: i,
+				Args:       []string{result, propValues[i]},
+				Span:       toIRSpan(path, expression.Span),
+			})
+		}
+		return result, objType, nil
 	case "new":
 		className := callName(expression.Left)
 		shape, ok := shapes[className]
