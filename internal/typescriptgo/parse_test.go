@@ -144,8 +144,8 @@ func TestCheckExposesStableFrontendContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Options.Target != "ES2020" || result.Options.Module != "ESNext" || !result.Options.Strict {
-		t.Fatalf("compiler options = %+v, want normalized strict ES2020/ESNext options", result.Options)
+	if result.Options.Target != "ES2022" || result.Options.Module != "ESNext" || !result.Options.Strict {
+		t.Fatalf("compiler options = %+v, want normalized strict ES2022/ESNext options", result.Options)
 	}
 	if len(result.Files) != 2 || result.Files[0].Source == "" {
 		t.Fatalf("source files = %+v, want source text for both reachable files", result.Files)

@@ -210,6 +210,14 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__number.") {
+				value, err := executeNumberIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__array.") {
 				value, err := executeArrayIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {

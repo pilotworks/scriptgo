@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +63,61 @@ func executeMathIntrinsic(name string, arguments []string, env map[string]Value)
 			return Value{}, fmt.Errorf("%s requires 1 argument", name)
 		}
 		return Value{Type: ir.TypeNumber, Number: math.Cos(values[0])}, nil
+	case "__Math.tan":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Tan(values[0])}, nil
+	case "__Math.atan":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Atan(values[0])}, nil
+	case "__Math.atan2":
+		if len(values) != 2 {
+			return Value{}, fmt.Errorf("%s requires 2 arguments", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Atan2(values[0], values[1])}, nil
+	case "__Math.log":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Log(values[0])}, nil
+	case "__Math.log2":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Log2(values[0])}, nil
+	case "__Math.log10":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Log10(values[0])}, nil
+	case "__Math.exp":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Exp(values[0])}, nil
+	case "__Math.sign":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		if math.IsNaN(values[0]) {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		if values[0] > 0 {
+			return Value{Type: ir.TypeNumber, Number: 1}, nil
+		} else if values[0] < 0 {
+			return Value{Type: ir.TypeNumber, Number: -1}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: values[0]}, nil
+	case "__Math.hypot":
+		if len(values) != 2 {
+			return Value{}, fmt.Errorf("%s requires 2 arguments", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Hypot(values[0], values[1])}, nil
+	case "__Math.random":
+		return Value{Type: ir.TypeNumber, Number: 0.5}, nil
 	case "__Math.min":
 		if len(values) != 2 {
 			return Value{}, fmt.Errorf("%s requires 2 arguments", name)
@@ -158,11 +214,116 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{}, fmt.Errorf("string.trim requires one string")
 		}
 		return Value{Type: ir.TypeString, String: strings.TrimSpace(values[0].String)}, nil
+	case "__string.trimStart":
+		if len(values) != 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.trimStart requires one string")
+		}
+		return Value{Type: ir.TypeString, String: strings.TrimLeft(values[0].String, " \t\n\r")}, nil
+	case "__string.trimEnd":
+		if len(values) != 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.trimEnd requires one string")
+		}
+		return Value{Type: ir.TypeString, String: strings.TrimRight(values[0].String, " \t\n\r")}, nil
+	case "__string.charAt":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.charAt requires a string")
+		}
+		pos := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			pos = int(values[1].Number)
+		}
+		if pos < 0 || pos >= len(values[0].String) {
+			return Value{Type: ir.TypeString, String: ""}, nil
+		}
+		return Value{Type: ir.TypeString, String: string(values[0].String[pos])}, nil
+	case "__string.charCodeAt":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.charCodeAt requires a string")
+		}
+		pos := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			pos = int(values[1].Number)
+		}
+		if pos < 0 || pos >= len(values[0].String) {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(values[0].String[pos])}, nil
+	case "__string.includes":
+		if (len(values) != 2 && len(values) != 3) || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.includes requires two strings and optional start position")
+		}
+		start := 0
+		if len(values) == 3 && values[2].Type == ir.TypeNumber && values[2].Number > 0 {
+			start = minInt(int(values[2].Number), len(values[0].String))
+		}
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(values[0].String[start:], values[1].String)}, nil
+	case "__string.toLowerCase":
+		if len(values) != 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.toLowerCase requires one string")
+		}
+		return Value{Type: ir.TypeString, String: strings.ToLower(values[0].String)}, nil
+	case "__string.toUpperCase":
+		if len(values) != 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.toUpperCase requires one string")
+		}
+		return Value{Type: ir.TypeString, String: strings.ToUpper(values[0].String)}, nil
+	case "__string.repeat":
+		if len(values) != 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("string.repeat requires a string and count")
+		}
+		return Value{Type: ir.TypeString, String: strings.Repeat(values[0].String, maxInt(0, int(values[1].Number)))}, nil
 	case "__string.replace":
 		if len(values) != 3 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString || values[2].Type != ir.TypeString {
 			return Value{}, fmt.Errorf("string.replace requires three strings")
 		}
 		return Value{Type: ir.TypeString, String: strings.Replace(values[0].String, values[1].String, values[2].String, 1)}, nil
+	case "__string.replaceAll":
+		if len(values) != 3 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString || values[2].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.replaceAll requires three strings")
+		}
+		return Value{Type: ir.TypeString, String: strings.ReplaceAll(values[0].String, values[1].String, values[2].String)}, nil
+	case "__string.padStart":
+		if len(values) < 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("string.padStart requires string and targetLength")
+		}
+		targetLen := int(values[1].Number)
+		padStr := " "
+		if len(values) >= 3 && values[2].Type == ir.TypeString && values[2].String != "" {
+			padStr = values[2].String
+		}
+		s := values[0].String
+		if len(s) >= targetLen {
+			return Value{Type: ir.TypeString, String: s}, nil
+		}
+		diff := targetLen - len(s)
+		repeats := (diff / len(padStr)) + 1
+		pad := strings.Repeat(padStr, repeats)[:diff]
+		return Value{Type: ir.TypeString, String: pad + s}, nil
+	case "__string.padEnd":
+		if len(values) < 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("string.padEnd requires string and targetLength")
+		}
+		targetLen := int(values[1].Number)
+		padStr := " "
+		if len(values) >= 3 && values[2].Type == ir.TypeString && values[2].String != "" {
+			padStr = values[2].String
+		}
+		s := values[0].String
+		if len(s) >= targetLen {
+			return Value{Type: ir.TypeString, String: s}, nil
+		}
+		diff := targetLen - len(s)
+		repeats := (diff / len(padStr)) + 1
+		pad := strings.Repeat(padStr, repeats)[:diff]
+		return Value{Type: ir.TypeString, String: s + pad}, nil
+	case "__string.concat":
+		var sb strings.Builder
+		for _, v := range values {
+			if v.Type == ir.TypeString {
+				sb.WriteString(v.String)
+			}
+		}
+		return Value{Type: ir.TypeString, String: sb.String()}, nil
 	case "__string.split":
 		if len(values) != 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
 			return Value{}, fmt.Errorf("string.split requires two strings")
@@ -182,6 +343,80 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 		return Value{Type: ir.TypeStringArray, Array: elems}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown string intrinsic %q", name)
+	}
+}
+
+func executeNumberIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	values := make([]Value, 0, len(arguments))
+	for _, arg := range arguments {
+		val, ok := env[arg]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown number intrinsic argument %q", arg)
+		}
+		values = append(values, val)
+	}
+	switch name {
+	case "__number.parseInt":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("parseInt requires a string")
+		}
+		s := strings.TrimSpace(values[0].String)
+		sign := 1
+		if strings.HasPrefix(s, "-") {
+			sign = -1
+			s = s[1:]
+		} else if strings.HasPrefix(s, "+") {
+			s = s[1:]
+		}
+		var n int64
+		parsed := false
+		for _, ch := range s {
+			if ch >= '0' && ch <= '9' {
+				n = n*10 + int64(ch-'0')
+				parsed = true
+			} else {
+				break
+			}
+		}
+		if !parsed {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(int64(sign) * n)}, nil
+	case "__number.parseFloat":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("parseFloat requires a string")
+		}
+		f, err := strconv.ParseFloat(strings.TrimSpace(values[0].String), 64)
+		if err != nil {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: f}, nil
+	case "__number.isNaN":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("isNaN requires a number")
+		}
+		return Value{Type: ir.TypeBool, Bool: math.IsNaN(values[0].Number)}, nil
+	case "__number.isFinite":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("isFinite requires a number")
+		}
+		return Value{Type: ir.TypeBool, Bool: !math.IsNaN(values[0].Number) && !math.IsInf(values[0].Number, 0)}, nil
+	case "__number.isInteger":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("isInteger requires a number")
+		}
+		return Value{Type: ir.TypeBool, Bool: !math.IsNaN(values[0].Number) && !math.IsInf(values[0].Number, 0) && math.Trunc(values[0].Number) == values[0].Number}, nil
+	case "__number.toFixed":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("toFixed requires a number")
+		}
+		digits := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			digits = int(values[1].Number)
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("%.*f", digits, values[0].Number)}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown number intrinsic %q", name)
 	}
 }
 

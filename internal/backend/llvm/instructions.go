@@ -543,12 +543,22 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__number.") {
+		if err := emitNumberIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		if instruction.Type == ir.TypeString {
+			e.ownedStrings = append(e.ownedStrings, instruction.Result)
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__string.") {
 		if err := emitStringIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
-		if instruction.Type == ir.TypeString && (instruction.Callee == "__string.slice" || instruction.Callee == "__string.concat" || instruction.Callee == "__string.fromNumber" || instruction.Callee == "__string.fromBool") {
+		if instruction.Type == ir.TypeString {
 			e.ownedStrings = append(e.ownedStrings, instruction.Result)
 		}
 		return nil

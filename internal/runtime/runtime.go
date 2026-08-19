@@ -28,8 +28,11 @@ var cryptoSource string
 //go:embed native/web/runtime.c
 var webSource string
 
+//go:embed native/numbers/runtime.c
+var numberSource string
+
 //go:embed native/strings/runtime.c
 var stringSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + stringSource + "\n" + fsSource + "\n" + processSource + "\n" + cryptoSource + "\n" + webSource)
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + fsSource + "\n" + processSource + "\n" + cryptoSource + "\n" + webSource)
 

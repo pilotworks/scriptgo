@@ -16,19 +16,13 @@ import (
 type BuiltinCategory string
 
 const (
-	// CategoryECMAScript: Core JavaScript/ECMAScript standard library (Array, Math, Promise, etc.).
 	CategoryECMAScript BuiltinCategory = "ECMAScript"
-	// CategoryWebCompat: WinterCG/Node.js server-compatible Web APIs (fetch, URL, AbortController, etc.).
-	CategoryWebCompat BuiltinCategory = "WebCompat"
-	// CategoryNodeGlobal: Node.js runtime host environment globals (process, Buffer, console, etc.).
+	CategoryWebCompat  BuiltinCategory = "WebCompat"
 	CategoryNodeGlobal BuiltinCategory = "NodeGlobal"
-	// CategoryNodeModule: Node.js standard modules loaded explicitly (node:fs, node:path, node:crypto, etc.).
 	CategoryNodeModule BuiltinCategory = "NodeModule"
 )
 
-// BuiltinGlobal describes a globally available value admitted by the native
-// subset. TypeScript-Go remains responsible for resolving the declaration;
-// this table defines the native representation and constant value.
+// BuiltinGlobal describes a globally available value admitted by the native subset.
 type BuiltinGlobal struct {
 	Category BuiltinCategory
 	Name     string
@@ -36,8 +30,7 @@ type BuiltinGlobal struct {
 	Value    string
 }
 
-// BuiltinIntrinsic describes a small, explicitly promoted intrinsic. The
-// intrinsic name is backend-independent; each backend owns its implementation.
+// BuiltinIntrinsic describes a small, explicitly promoted intrinsic.
 type BuiltinIntrinsic struct {
 	Category      BuiltinCategory
 	Name          string
@@ -63,53 +56,119 @@ type lowerExpressionFunc func(string, *typescriptgo.SyntaxExpression, string, *i
 
 var builtinGlobals = map[string]BuiltinGlobal{
 	// Category 1: ECMAScript built-ins
-	"NaN":      {Category: CategoryECMAScript, Name: "NaN", Type: ir.TypeNumber, Value: "NaN"},
-	"Infinity": {Category: CategoryECMAScript, Name: "Infinity", Type: ir.TypeNumber, Value: "+Inf"},
+	"NaN":                      {Category: CategoryECMAScript, Name: "NaN", Type: ir.TypeNumber, Value: "NaN"},
+	"Infinity":                 {Category: CategoryECMAScript, Name: "Infinity", Type: ir.TypeNumber, Value: "+Inf"},
+	"Math.PI":                  {Category: CategoryECMAScript, Name: "Math.PI", Type: ir.TypeNumber, Value: "3.141592653589793"},
+	"Math.E":                   {Category: CategoryECMAScript, Name: "Math.E", Type: ir.TypeNumber, Value: "2.718281828459045"},
+	"Math.LN2":                 {Category: CategoryECMAScript, Name: "Math.LN2", Type: ir.TypeNumber, Value: "0.6931471805599453"},
+	"Math.LN10":                {Category: CategoryECMAScript, Name: "Math.LN10", Type: ir.TypeNumber, Value: "2.302585092994046"},
+	"Math.LOG2E":               {Category: CategoryECMAScript, Name: "Math.LOG2E", Type: ir.TypeNumber, Value: "1.4426950408889634"},
+	"Math.LOG10E":              {Category: CategoryECMAScript, Name: "Math.LOG10E", Type: ir.TypeNumber, Value: "0.4342944819032518"},
+	"Math.SQRT1_2":             {Category: CategoryECMAScript, Name: "Math.SQRT1_2", Type: ir.TypeNumber, Value: "0.7071067811865476"},
+	"Math.SQRT2":               {Category: CategoryECMAScript, Name: "Math.SQRT2", Type: ir.TypeNumber, Value: "1.4142135623730951"},
+	"Number.MAX_SAFE_INTEGER":  {Category: CategoryECMAScript, Name: "Number.MAX_SAFE_INTEGER", Type: ir.TypeNumber, Value: "9007199254740991"},
+	"Number.MIN_SAFE_INTEGER":  {Category: CategoryECMAScript, Name: "Number.MIN_SAFE_INTEGER", Type: ir.TypeNumber, Value: "-9007199254740991"},
+	"Number.MAX_VALUE":         {Category: CategoryECMAScript, Name: "Number.MAX_VALUE", Type: ir.TypeNumber, Value: "1.7976931348623157e+308"},
+	"Number.MIN_VALUE":         {Category: CategoryECMAScript, Name: "Number.MIN_VALUE", Type: ir.TypeNumber, Value: "5e-324"},
+	"Number.EPSILON":           {Category: CategoryECMAScript, Name: "Number.EPSILON", Type: ir.TypeNumber, Value: "2.220446049250313e-16"},
+	"Number.POSITIVE_INFINITY": {Category: CategoryECMAScript, Name: "Number.POSITIVE_INFINITY", Type: ir.TypeNumber, Value: "+Inf"},
+	"Number.NEGATIVE_INFINITY": {Category: CategoryECMAScript, Name: "Number.NEGATIVE_INFINITY", Type: ir.TypeNumber, Value: "-Inf"},
+	"Number.NaN":               {Category: CategoryECMAScript, Name: "Number.NaN", Type: ir.TypeNumber, Value: "NaN"},
 }
 
-var builtinIntrinsics = map[string]BuiltinIntrinsic{
-	// Category 1: ECMAScript built-ins
-	"Math.abs":   {Category: CategoryECMAScript, Name: "Math.abs", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.ceil":  {Category: CategoryECMAScript, Name: "Math.ceil", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.floor": {Category: CategoryECMAScript, Name: "Math.floor", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.trunc": {Category: CategoryECMAScript, Name: "Math.trunc", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.min":   {Category: CategoryECMAScript, Name: "Math.min", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerMathIntrinsic},
-	"Math.max":   {Category: CategoryECMAScript, Name: "Math.max", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerMathIntrinsic},
-	"Math.pow":   {Category: CategoryECMAScript, Name: "Math.pow", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerMathIntrinsic},
-	"Math.sqrt":  {Category: CategoryECMAScript, Name: "Math.sqrt", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.round": {Category: CategoryECMAScript, Name: "Math.round", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.sin":   {Category: CategoryECMAScript, Name: "Math.sin", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-	"Math.cos":   {Category: CategoryECMAScript, Name: "Math.cos", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerMathIntrinsic},
-
-	// Category 2: Web-compatible globals
-	"crypto.randomUUID": {Category: CategoryWebCompat, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
-	"btoa":              {Category: CategoryWebCompat, Name: "btoa", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerBtoa},
-	"atob":              {Category: CategoryWebCompat, Name: "atob", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerAtob},
-	"performance.now":   {Category: CategoryWebCompat, Name: "performance.now", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerPerformanceNow},
-
-	// Category 3: Node-specific globals
-	"console.log":     {Category: CategoryNodeGlobal, Name: "console.log", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
-	"console.info":    {Category: CategoryNodeGlobal, Name: "console.info", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
-	"console.warn":    {Category: CategoryNodeGlobal, Name: "console.warn", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
-	"console.error":   {Category: CategoryNodeGlobal, Name: "console.error", ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerConsoleIntrinsic},
-	"process.exit":    {Category: CategoryNodeGlobal, Name: "process.exit", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerProcessExit},
-	"process.cwd":     {Category: CategoryNodeGlobal, Name: "process.cwd", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerProcessCwd},
-	"__scriptgo.exit": {Category: CategoryNodeGlobal, Name: "process.exit", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerProcessExit},
-	"__scriptgo.cwd":  {Category: CategoryNodeGlobal, Name: "process.cwd", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerProcessCwd},
-
-	// Category 4: Node built-in modules
-	"fs.readFileSync":          {Category: CategoryNodeModule, Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
-	"fs.writeFileSync":         {Category: CategoryNodeModule, Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
-	"fs.existsSync":            {Category: CategoryNodeModule, Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
-	"__scriptgo.readFileSync":  {Category: CategoryNodeModule, Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
-	"__scriptgo.writeFileSync": {Category: CategoryNodeModule, Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
-	"__scriptgo.existsSync":    {Category: CategoryNodeModule, Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
-	"readFileSync":             {Category: CategoryNodeModule, Name: "fs.readFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsReadFileSync},
-	"writeFileSync":            {Category: CategoryNodeModule, Name: "fs.writeFileSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 2, MaxArgs: 2, Lower: lowerFsWriteFileSync},
-	"existsSync":               {Category: CategoryNodeModule, Name: "fs.existsSync", ArgumentTypes: []ir.Type{ir.TypeString}, MinArgs: 1, MaxArgs: 1, Lower: lowerFsExistsSync},
-	"__scriptgo.randomUUID":    {Category: CategoryNodeModule, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
-	"randomUUID":               {Category: CategoryNodeModule, Name: "crypto.randomUUID", ArgumentTypes: []ir.Type{}, MinArgs: 0, MaxArgs: 0, Lower: lowerCryptoRandomUUID},
+func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
+	return func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+		args, _, err := call.arguments(intrinsic)
+		if err != nil {
+			return "", "", err
+		}
+		result := call.Result
+		if result == "" {
+			result = nextTemp(call.Counter)
+		}
+		target := callee
+		if target == "" {
+			target = "__" + intrinsic.Name
+		}
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   returnType,
+			Result: result,
+			Callee: target,
+			Args:   args,
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		return result, returnType, nil
+	}
 }
+
+func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	args, _, err := call.arguments(intrinsic)
+	if err != nil {
+		return "", "", err
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpPrint,
+		Type:   ir.TypeVoid,
+		Callee: intrinsic.Name,
+		Args:   args,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return "", ir.TypeVoid, nil
+}
+
+func initIntrinsics() map[string]BuiltinIntrinsic {
+	m := make(map[string]BuiltinIntrinsic)
+
+	// Math functions (Category 1: ECMAScript)
+	math1 := []string{"abs", "ceil", "floor", "trunc", "sqrt", "round", "sin", "cos", "tan", "atan", "log", "log2", "log10", "exp", "sign"}
+	for _, fn := range math1 {
+		name := "Math." + fn
+		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerCall("__"+name, ir.TypeNumber)}
+	}
+	math2 := []string{"min", "max", "pow", "atan2", "hypot"}
+	for _, fn := range math2 {
+		name := "Math." + fn
+		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerCall("__"+name, ir.TypeNumber)}
+	}
+	m["Math.random"] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: "Math.random", ArgumentTypes: nil, MinArgs: 0, MaxArgs: 0, Lower: lowerCall("__Math.random", ir.TypeNumber)}
+
+	// Number & Global functions (Category 1: ECMAScript)
+	register := func(aliases []string, cat BuiltinCategory, callee string, argTypes []ir.Type, retType ir.Type, minArgs, maxArgs int) {
+		for _, name := range aliases {
+			m[name] = BuiltinIntrinsic{Category: cat, Name: aliases[0], ArgumentTypes: argTypes, MinArgs: minArgs, MaxArgs: maxArgs, Lower: lowerCall(callee, retType)}
+		}
+	}
+
+	register([]string{"parseInt", "Number.parseInt"}, CategoryECMAScript, "__number.parseInt", []ir.Type{ir.TypeString}, ir.TypeNumber, 1, 1)
+	register([]string{"parseFloat", "Number.parseFloat"}, CategoryECMAScript, "__number.parseFloat", []ir.Type{ir.TypeString}, ir.TypeNumber, 1, 1)
+	register([]string{"isNaN", "Number.isNaN"}, CategoryECMAScript, "__number.isNaN", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"isFinite", "Number.isFinite"}, CategoryECMAScript, "__number.isFinite", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"Number.isInteger"}, CategoryECMAScript, "__number.isInteger", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+
+	// Web-compatible globals (Category 2: WebCompat)
+	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryWebCompat, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
+	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"performance.now"}, CategoryWebCompat, "__performance.now", nil, ir.TypeNumber, 0, 0)
+
+	// Node-specific globals (Category 3: NodeGlobal)
+	for _, logMethod := range []string{"log", "info", "warn", "error"} {
+		name := "console." + logMethod
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerPrint}
+	}
+	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)
+
+	// Node built-in modules (Category 4: NodeModule)
+	register([]string{"fs.readFileSync", "__scriptgo.readFileSync", "readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"fs.writeFileSync", "__scriptgo.writeFileSync", "writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"fs.existsSync", "__scriptgo.existsSync", "existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
+
+	return m
+}
+
+var builtinIntrinsics = initIntrinsics()
 
 func builtinGlobal(name string) (BuiltinGlobal, bool) {
 	global, ok := builtinGlobals[name]
@@ -164,159 +223,3 @@ func (call IntrinsicCall) arguments(intrinsic BuiltinIntrinsic) ([]string, []ir.
 	}
 	return args, types, nil
 }
-
-func lowerMathIntrinsic(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__" + intrinsic.Name, Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeNumber, nil
-}
-
-func lowerConsoleIntrinsic(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpPrint, Type: ir.TypeVoid, Callee: intrinsic.Name, Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return "", ir.TypeVoid, nil
-}
-
-func lowerFsReadFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__fs.readFileSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeString, nil
-}
-
-func lowerFsWriteFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Result: result, Callee: "__fs.writeFileSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeVoid, nil
-}
-
-func lowerFsExistsSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__fs.existsSync", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeBool, nil
-}
-
-func lowerProcessExit(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Result: result, Callee: "__process.exit", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeVoid, nil
-}
-
-func lowerProcessCwd(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.cwd", Args: nil, Span: toIRSpan(call.Path, call.Expression.Span)})
-	return result, ir.TypeString, nil
-}
-
-func lowerCryptoRandomUUID(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeString,
-		Result: result,
-		Callee: "__crypto.randomUUID",
-		Args:   nil,
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	return result, ir.TypeString, nil
-}
-
-func lowerBtoa(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeString,
-		Result: result,
-		Callee: "__web.btoa",
-		Args:   args,
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	return result, ir.TypeString, nil
-}
-
-func lowerAtob(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	args, _, err := call.arguments(intrinsic)
-	if err != nil {
-		return "", "", err
-	}
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeString,
-		Result: result,
-		Callee: "__web.atob",
-		Args:   args,
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	return result, ir.TypeString, nil
-}
-
-func lowerPerformanceNow(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	result := call.Result
-	if result == "" {
-		result = nextTemp(call.Counter)
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeNumber,
-		Result: result,
-		Callee: "__performance.now",
-		Args:   nil,
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	return result, ir.TypeNumber, nil
-}
-
