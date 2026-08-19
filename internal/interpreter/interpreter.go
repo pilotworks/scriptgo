@@ -52,8 +52,12 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		return Value{}, flowNormal, fmt.Errorf("function %q received %d arguments, want %d", function.Name, len(arguments), len(function.Parameters))
 	}
 	for index, parameter := range function.Parameters {
-		if arguments[index].Type != parameter.Type {
-			return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, arguments[index].Type, parameter.Type)
+		argType := arguments[index].Type
+		paramType := parameter.Type
+		if argType != paramType {
+			if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) {
+				return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, argType, paramType)
+			}
 		}
 		env[parameter.Name] = arguments[index]
 	}

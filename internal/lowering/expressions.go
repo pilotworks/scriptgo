@@ -3,7 +3,6 @@ package lowering
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -438,170 +437,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: trueType, Result: result, Args: []string{condition, whenTrue, whenFalse}, Span: toIRSpan(path, expression.Span)})
 		return result, trueType, nil
 	case "property", "optional_property":
-		if expression.Left != nil && expression.Left.Kind == "identifier" {
-			propKey := expression.Left.Text + "." + expression.Text
-			if global, ok := builtinGlobal(propKey); ok {
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   global.Type,
-					Result: result,
-					Value:  global.Value,
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, global.Type, nil
-			}
-			if shape, ok := shapes[expression.Left.Text]; ok {
-				for _, field := range shape.Fields {
-					if field.Name == expression.Text && field.Value != "" {
-						if result == "" {
-							result = nextTemp(counter)
-						}
-						function.Body = append(function.Body, ir.Instruction{
-							Op:     ir.OpConst,
-							Type:   field.Type,
-							Result: result,
-							Value:  field.Value,
-							Span:   toIRSpan(path, expression.Span),
-						})
-						return result, field.Type, nil
-					}
-				}
-			}
-			if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "argv" {
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__process.argv", Args: nil, Span: toIRSpan(path, expression.Span)})
-				return result, ir.TypeStringArray, nil
-			}
-		}
-		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
-			keyTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: keyTemp, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.env", Args: []string{keyTemp}, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeString, nil
-		}
-		object, objectType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray) && expression.Text == "length" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			callee := "__string.length"
-			if objectType != ir.TypeString {
-				callee = "__array.length"
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: callee, Args: []string{object}, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeNumber, nil
-		}
-		className := strings.TrimPrefix(string(objectType), "object:")
-		shape, ok := shapes[className]
-		if !ok {
-			return "", "", fmt.Errorf("unknown object shape %q", className)
-		}
-		for _, field := range shape.Fields {
-			if field.Name != expression.Text {
-				continue
-			}
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: field.Type, Result: result, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{object}, Span: toIRSpan(path, expression.Span)})
-			return result, field.Type, nil
-		}
-		return "", "", fmt.Errorf("unknown field %q on object %q", expression.Text, className)
+		return lowerPropertyExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "object_literal":
-		if len(expression.Arguments) == 0 {
-			return "", "", fmt.Errorf("empty object literal needs explicit type or shape")
-		}
-		var fields []ir.Field
-		var propValues []string
-		shapeName := fmt.Sprintf("__anon_shape_%d", *counter)
-		*counter++
-		for _, prop := range expression.Arguments {
-			val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
-			if err != nil {
-				return "", "", err
-			}
-			fields = append(fields, ir.Field{
-				Name: prop.Text,
-				Type: valType,
-				Span: toIRSpan(path, prop.Span),
-			})
-			propValues = append(propValues, val)
-		}
-		shape := ir.ObjectShape{
-			Name:   shapeName,
-			Span:   toIRSpan(path, expression.Span),
-			Fields: fields,
-		}
-		shapes[shapeName] = shape
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		objType := ir.Type("object:" + shapeName)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:         ir.OpObjectNew,
-			Type:       objType,
-			Result:     result,
-			Callee:     shapeName,
-			FieldCount: len(fields),
-			Span:       toIRSpan(path, expression.Span),
-		})
-		for i, field := range fields {
-			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpFieldSet,
-				Type:       ir.TypeVoid,
-				Callee:     shapeName,
-				Field:      field.Name,
-				FieldIndex: i,
-				Args:       []string{result, propValues[i]},
-				Span:       toIRSpan(path, expression.Span),
-			})
-		}
-		return result, objType, nil
+		return lowerObjectLiteralExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "new":
-		className := callName(expression.Left)
-		shape, ok := shapes[className]
-		if !ok {
-			return "", "", fmt.Errorf("unknown class %q", className)
-		}
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpObjectNew, Type: ir.Type("object:" + className), Result: result, Callee: className, FieldCount: len(shape.Fields), Span: toIRSpan(path, expression.Span)})
-		for _, field := range shape.Fields {
-			initializer := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})
-		}
-		for i, argument := range expression.Arguments {
-			if i < len(shape.Fields) {
-				argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-				if err != nil {
-					return "", "", err
-				}
-				field := shape.Fields[i]
-				function.Body = append(function.Body, ir.Instruction{
-					Op:         ir.OpFieldSet,
-					Type:       ir.TypeVoid,
-					Callee:     className,
-					Field:      field.Name,
-					FieldIndex: i,
-					Args:       []string{result, argVal},
-					Span:       toIRSpan(path, argument.Span),
-				})
-			}
-		}
-		return result, ir.Type("object:" + className), nil
+		return lowerNewExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "call":
 		return lowerCallExpression(path, expression, result, function, env, counter, shapes, signatures)
 	default:

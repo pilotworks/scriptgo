@@ -61,25 +61,43 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			return err
 		}
 		return validateExpression(fileName, statement.Expression)
-	case "module", "enum":
+	case "module", "enum", "interface", "type_alias":
 		return nil
 	case "class":
-		if statement.Class == nil || len(statement.Class.Fields) == 0 {
+		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0) {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "empty class shape")
+		}
+		if statement.Class.Constructor != nil {
+			for _, p := range statement.Class.Constructor.Parameters {
+				if err := validateStaticType(fileName, p.Span, p.Type); err != nil {
+					return err
+				}
+			}
+			for _, stmt := range statement.Class.Constructor.Body {
+				if err := validateStatement(fileName, stmt); err != nil {
+					return err
+				}
+			}
+		}
+		for _, method := range statement.Class.Methods {
+			for _, p := range method.Parameters {
+				if err := validateStaticType(fileName, p.Span, p.Type); err != nil {
+					return err
+				}
+			}
+			for _, stmt := range method.Body {
+				if err := validateStatement(fileName, stmt); err != nil {
+					return err
+				}
+			}
 		}
 		for _, field := range statement.Class.Fields {
 			if err := validateStaticType(fileName, field.Span, field.Type); err != nil {
 				return err
 			}
-			if field.Type != "number" && field.Type != "string" {
-				return subsetError(fileName, field.Span, CodeStructuralFlow, "class field type "+field.Type)
-			}
 			if field.Initializer != nil {
 				if err := validateExpression(fileName, field.Initializer); err != nil {
 					return err
-				}
-				if field.Initializer.Kind != "number" && field.Initializer.Kind != "string" && field.Initializer.Kind != "bool" {
-					return subsetError(fileName, field.Span, CodeLanguageLowering, "non-literal class field initializer")
 				}
 			}
 		}

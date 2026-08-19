@@ -19,22 +19,28 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
 	}
+	hierarchy := buildClassHierarchy(program)
 	shapes := map[string]ir.ObjectShape{}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "class" && statement.Class != nil {
 				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
-				for _, field := range statement.Class.Fields {
+				allFields := getInheritedFields(statement.Class.Name, hierarchy)
+				for _, field := range allFields {
 					val := ""
 					if field.Initializer != nil {
 						val = field.Initializer.Text
 					} else if field.Type == "number" {
 						val = "0"
+					} else if field.Type == "bool" {
+						val = "false"
 					}
 					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
 				}
-				shapes[shape.Name] = shape
-				module.Shapes = append(module.Shapes, shape)
+				if len(shape.Fields) > 0 {
+					shapes[shape.Name] = shape
+					module.Shapes = append(module.Shapes, shape)
+				}
 			} else if statement.Kind == "enum" && statement.Enum != nil {
 				shape := ir.ObjectShape{Name: statement.Enum.Name, Span: toIRSpan(file.FileName, statement.Enum.Span)}
 				for _, member := range statement.Enum.Members {
@@ -69,21 +75,60 @@ func Lower(program frontend.Program) (ir.Module, error) {
 				module.Functions = append(module.Functions, function)
 				continue
 			}
-			if statement.Kind == "module" || statement.Kind == "enum" {
+			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" {
 				continue
 			}
 			if statement.Kind == "class" && statement.Class != nil {
-				for _, method := range statement.Class.Methods {
-					mangled := statement.Class.Name + "_" + method.Name
-					methodStmt := typescriptgo.SyntaxStatement{
-						Span: method.Span,
+				// Lower constructor if present
+				if statement.Class.Constructor != nil {
+					ctorMangled := statement.Class.Name + "_constructor"
+					ctorStmt := typescriptgo.SyntaxStatement{
+						Span: statement.Class.Constructor.Span,
 						Kind: "function",
-						Name: mangled,
-						Type: method.Type,
+						Name: ctorMangled,
+						Type: "void",
 						Parameters: append([]typescriptgo.SyntaxParameter{
 							{Name: "this", Type: "object:" + statement.Class.Name},
-						}, method.Parameters...),
-						Body: method.Body,
+						}, statement.Class.Constructor.Parameters...),
+						Body: statement.Class.Constructor.Body,
+					}
+					function, err := lowerFunction(file.FileName, ctorStmt, shapes, signatures)
+					if err != nil {
+						return ir.Module{}, fmt.Errorf("lower class constructor %q: %w", ctorMangled, sourceError(file.FileName, statement.Class.Constructor.Span, err))
+					}
+					module.Functions = append(module.Functions, function)
+				}
+
+				// Lower methods, static methods, getters, setters
+				allMethods := getInheritedMethods(statement.Class.Name, hierarchy)
+				for _, method := range allMethods {
+					if method.IsAbstract || len(method.Body) == 0 {
+						continue
+					}
+					var mangled string
+					var params []typescriptgo.SyntaxParameter
+					retType := method.Type
+					if method.IsStatic {
+						mangled = statement.Class.Name + "_" + method.Name
+						params = method.Parameters
+					} else if method.Kind == "get" {
+						mangled = statement.Class.Name + "_get_" + method.Name
+						params = []typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}
+					} else if method.Kind == "set" {
+						mangled = statement.Class.Name + "_set_" + method.Name
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, method.Parameters...)
+						retType = "void"
+					} else {
+						mangled = statement.Class.Name + "_" + method.Name
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, method.Parameters...)
+					}
+					methodStmt := typescriptgo.SyntaxStatement{
+						Span:       method.Span,
+						Kind:       "function",
+						Name:       mangled,
+						Type:       retType,
+						Parameters: params,
+						Body:       method.Body,
 					}
 					function, err := lowerFunction(file.FileName, methodStmt, shapes, signatures)
 					if err != nil {

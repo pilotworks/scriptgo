@@ -31,16 +31,23 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 	if !ok {
 		return fmt.Errorf("unknown object field value %q", instruction.Args[1])
 	}
-	switch valueType {
-	case ir.TypeNumber:
+	switch {
+	case valueType == ir.TypeNumber:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 %d, double %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-	case ir.TypeString:
+	case valueType == ir.TypeBool:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		boolI32 := fmt.Sprintf("obj.bool.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolI32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %%%s, i64 %d, i32 %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, boolI32))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	case valueType == ir.TypeString || valueType == ir.TypeNumberArray || valueType == ir.TypeStringArray || strings.HasPrefix(string(valueType), "object:"):
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_string_set(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
 		return fmt.Errorf("unsupported object field type %s", valueType)
@@ -54,19 +61,28 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 	}
 	e.types[instruction.Result] = instruction.Type
 	slot := instruction.Result + ".slot"
-	switch instruction.Type {
-	case ir.TypeNumber:
+	switch {
+	case instruction.Type == ir.TypeNumber:
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
-	case ir.TypeString:
+	case instruction.Type == ir.TypeBool:
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		boolI32 := instruction.Result + ".i32"
+		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", boolI32, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, boolI32))
+	case instruction.Type == ir.TypeString || instruction.Type == ir.TypeNumberArray || instruction.Type == ir.TypeStringArray || strings.HasPrefix(string(instruction.Type), "object:"):
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_string_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_get(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	default:

@@ -101,8 +101,7 @@ func lowerCallExpression(
 			}
 			if strings.HasPrefix(string(receiverType), "object:") {
 				className := strings.TrimPrefix(string(receiverType), "object:")
-				mangled := className + "_" + methodName
-				if target, ok := signatures[mangled]; ok {
+				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 					args := []string{receiver}
 					for _, argument := range expression.Arguments {
 						argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -127,6 +126,105 @@ func lowerCallExpression(
 			}
 		}
 	}
+
+	// super(...) call in constructor
+	if expression.Left != nil && expression.Left.Kind == "identifier" && expression.Left.Text == "super" {
+		thisType, ok := env["this"]
+		if !ok {
+			return "", "", fmt.Errorf("super() can only be used inside a class constructor")
+		}
+		currentClass := strings.TrimPrefix(string(thisType), "object:")
+		meta := classHierarchy[currentClass]
+		if meta.Extends == "" {
+			return "", "", fmt.Errorf("super() called in class %q with no base class", currentClass)
+		}
+		ctor, ctorName, found := findConstructorInHierarchy(meta.Extends, signatures, classHierarchy)
+		if !found {
+			return "", "", fmt.Errorf("super constructor not found for base class %q", meta.Extends)
+		}
+		args := []string{"this"}
+		for _, argument := range expression.Arguments {
+			val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, val)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ctor.ReturnType,
+			Callee: ctorName,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return "", ir.TypeVoid, nil
+	}
+
+	// super.method(...) call
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil && expression.Left.Left.Text == "super" {
+		thisType, ok := env["this"]
+		if !ok {
+			return "", "", fmt.Errorf("super.method() can only be used inside a class method")
+		}
+		currentClass := strings.TrimPrefix(string(thisType), "object:")
+		meta := classHierarchy[currentClass]
+		if meta.Extends == "" {
+			return "", "", fmt.Errorf("super.%s called in class %q with no base class", expression.Left.Text, currentClass)
+		}
+		target, mangled, found := findMethodInHierarchy(meta.Extends, expression.Left.Text, signatures, classHierarchy)
+		if !found {
+			return "", "", fmt.Errorf("super method %q not found in base class %q", expression.Left.Text, meta.Extends)
+		}
+		args := []string{"this"}
+		for _, argument := range expression.Arguments {
+			val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, val)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   target.ReturnType,
+			Result: result,
+			Callee: mangled,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, target.ReturnType, nil
+	}
+
+	// Static method call ClassName.method(...)
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" {
+		className := expression.Left.Left.Text
+		methodName := expression.Left.Text
+		if target, mangled, found := findMethodInHierarchy(className, methodName, signatures, classHierarchy); found && (len(target.Parameters) == 0 || target.Parameters[0].Name != "this") {
+			args := make([]string, 0, len(expression.Arguments))
+			for _, argument := range expression.Arguments {
+				val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, val)
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   target.ReturnType,
+				Result: result,
+				Callee: mangled,
+				Args:   args,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, target.ReturnType, nil
+		}
+	}
+
 	callee := callName(expression.Left)
 	if intrinsic, ok := builtinIntrinsic(callee); ok {
 		return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)

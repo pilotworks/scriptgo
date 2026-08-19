@@ -90,6 +90,9 @@ type SyntaxEnumMember struct {
 type SyntaxClass struct {
 	Span        SourceSpan
 	Name        string
+	Extends     string
+	Implements  []string
+	IsAbstract  bool
 	Fields      []SyntaxField
 	Constructor *SyntaxConstructor
 	Methods     []SyntaxMethod
@@ -107,6 +110,9 @@ type SyntaxMethod struct {
 	Type       string
 	Parameters []SyntaxParameter
 	Body       []SyntaxStatement
+	IsStatic   bool
+	IsAbstract bool
+	Kind       string
 }
 
 type SyntaxField struct {
@@ -114,6 +120,9 @@ type SyntaxField struct {
 	Name        string
 	Type        string
 	Initializer *SyntaxExpression
+	IsStatic    bool
+	IsPrivate   bool
+	IsReadonly  bool
 }
 
 type SyntaxParameter struct {

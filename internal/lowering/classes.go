@@ -1,0 +1,157 @@
+package lowering
+
+import (
+	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
+)
+
+type ClassMeta struct {
+	Name       string
+	Extends    string
+	Implements []string
+	IsAbstract bool
+	Fields     []typescriptgo.SyntaxField
+	Statics    map[string]typescriptgo.SyntaxField
+	HasCtor    bool
+}
+
+var classHierarchy = map[string]ClassMeta{}
+var classSyntax = map[string]typescriptgo.SyntaxClass{}
+
+func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
+	hierarchy := map[string]ClassMeta{}
+	syntax := map[string]typescriptgo.SyntaxClass{}
+	for _, file := range program.Files {
+		for _, stmt := range file.Syntax.Statements {
+			if stmt.Kind == "class" && stmt.Class != nil {
+				syntax[stmt.Class.Name] = *stmt.Class
+				meta := ClassMeta{
+					Name:       stmt.Class.Name,
+					Extends:    stmt.Class.Extends,
+					Implements: stmt.Class.Implements,
+					IsAbstract: stmt.Class.IsAbstract,
+					Statics:    map[string]typescriptgo.SyntaxField{},
+					HasCtor:    stmt.Class.Constructor != nil,
+				}
+				for _, f := range stmt.Class.Fields {
+					if f.IsStatic {
+						meta.Statics[f.Name] = f
+					} else {
+						meta.Fields = append(meta.Fields, f)
+					}
+				}
+				hierarchy[stmt.Class.Name] = meta
+			}
+		}
+	}
+	classHierarchy = hierarchy
+	classSyntax = syntax
+	return hierarchy
+}
+
+func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxMethod {
+	meta, ok := hierarchy[className]
+	if !ok {
+		return nil
+	}
+	stmtClass, hasStmt := classSyntax[className]
+	if !hasStmt {
+		return nil
+	}
+	var inherited []typescriptgo.SyntaxMethod
+	if meta.Extends != "" {
+		inherited = getInheritedMethods(meta.Extends, hierarchy)
+	}
+	methodMap := map[string]typescriptgo.SyntaxMethod{}
+	for _, m := range inherited {
+		if !m.IsStatic {
+			methodMap[m.Name] = m
+		}
+	}
+	for _, m := range stmtClass.Methods {
+		methodMap[m.Name] = m
+	}
+	var result []typescriptgo.SyntaxMethod
+	for _, m := range methodMap {
+		result = append(result, m)
+	}
+	return result
+}
+
+func getInheritedFields(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxField {
+	meta, ok := hierarchy[className]
+	if !ok {
+		return nil
+	}
+	var fields []typescriptgo.SyntaxField
+	if meta.Extends != "" {
+		fields = append(fields, getInheritedFields(meta.Extends, hierarchy)...)
+	}
+	fields = append(fields, meta.Fields...)
+	return fields
+}
+
+func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		mangled := curr + "_" + methodName
+		if fn, ok := signatures[mangled]; ok {
+			return fn, mangled, true
+		}
+		if meta, ok := hierarchy[curr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return ir.Function{}, "", false
+}
+
+func findGetterInHierarchy(className, propName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		mangled := curr + "_get_" + propName
+		if fn, ok := signatures[mangled]; ok {
+			return fn, mangled, true
+		}
+		if meta, ok := hierarchy[curr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return ir.Function{}, "", false
+}
+
+func findSetterInHierarchy(className, propName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		mangled := curr + "_set_" + propName
+		if fn, ok := signatures[mangled]; ok {
+			return fn, mangled, true
+		}
+		if meta, ok := hierarchy[curr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return ir.Function{}, "", false
+}
+
+func findConstructorInHierarchy(className string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		mangled := curr + "_constructor"
+		if fn, ok := signatures[mangled]; ok {
+			return fn, mangled, true
+		}
+		if meta, ok := hierarchy[curr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return ir.Function{}, "", false
+}

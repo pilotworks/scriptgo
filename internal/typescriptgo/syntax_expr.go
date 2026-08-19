@@ -23,10 +23,12 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bool", Text: "true"}
 	case ast.KindFalseKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bool", Text: "false"}
-	case ast.KindIdentifier:
+	case ast.KindIdentifier, ast.KindPrivateIdentifier:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: node.Text()}
 	case ast.KindThisKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
+	case ast.KindSuperKeyword:
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
 	case ast.KindParenthesizedExpression, ast.KindNonNullExpression:
 		return syntaxExpression(node.Expression())
 	case ast.KindBinaryExpression:

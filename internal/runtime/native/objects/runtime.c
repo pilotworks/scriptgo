@@ -56,6 +56,38 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
     return 0;
 }
 
+int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        return object_fail("scriptgo object field access failed");
+    }
+    ((scriptgo_object *)handle)->fields[index] = (uintptr_t)(value != 0 ? 1 : 0);
+    return 0;
+}
+
+int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
+    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        return object_fail("scriptgo object field access failed");
+    }
+    *out_value = (int32_t)((scriptgo_object *)handle)->fields[index];
+    return 0;
+}
+
+int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        return object_fail("scriptgo object field access failed");
+    }
+    ((scriptgo_object *)handle)->fields[index] = (uintptr_t)value;
+    return 0;
+}
+
+int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
+    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        return object_fail("scriptgo object field access failed");
+    }
+    *out_value = (void *)((scriptgo_object *)handle)->fields[index];
+    return 0;
+}
+
 int scriptgo_object_release(void *handle) {
     if (handle == NULL) {
         return 0;

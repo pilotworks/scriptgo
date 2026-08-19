@@ -50,7 +50,17 @@ func (f Function) Verify() error {
 			}
 		}
 		switch instruction.Op {
-		case OpConst, OpBinary, OpCompare, OpSelect, OpCall, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
+		case OpCall:
+			if instruction.Type == "" {
+				return fmt.Errorf("%s instruction must define type", instruction.Op)
+			}
+			if instruction.Type != TypeVoid && instruction.Result == "" {
+				return fmt.Errorf("%s instruction with return type %s must define result", instruction.Op, instruction.Type)
+			}
+			if instruction.Result != "" {
+				known[instruction.Result] = instruction.Type
+			}
+		case OpConst, OpBinary, OpCompare, OpSelect, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
 			}

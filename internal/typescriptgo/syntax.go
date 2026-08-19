@@ -43,6 +43,8 @@ func syntaxType(node *ast.Node) string {
 		return "bool"
 	case ast.KindVoidKeyword:
 		return "void"
+	case ast.KindTypeReference:
+		return node.AsTypeReferenceNode().TypeName.Text()
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"

@@ -34,72 +34,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		}
 		return result, true
 	case ast.KindClassDeclaration:
-		class := &SyntaxClass{Span: span, Name: node.Name().Text()}
-		for _, member := range node.Members() {
-			switch member.Kind {
-			case ast.KindPropertyDeclaration:
-				property := member.AsPropertyDeclaration()
-				class.Fields = append(class.Fields, SyntaxField{
-					Span:        sourceSpan(member),
-					Name:        property.Name().Text(),
-					Type:        syntaxType(property.Type),
-					Initializer: syntaxExpression(property.Initializer),
-				})
-			case ast.KindConstructor:
-				var params []SyntaxParameter
-				for _, p := range member.Parameters() {
-					params = append(params, SyntaxParameter{
-						Span:        parameterSpan(p),
-						Name:        p.Name().Text(),
-						Type:        syntaxType(p.Type()),
-						Rest:        p.AsParameterDeclaration().DotDotDotToken != nil,
-						Initializer: syntaxExpression(p.Initializer()),
-					})
-				}
-				var body []SyntaxStatement
-				if b := member.Body(); b != nil {
-					for _, s := range b.Statements() {
-						if converted, ok := syntaxStatement(s); ok {
-							body = append(body, converted)
-						}
-					}
-				}
-				class.Constructor = &SyntaxConstructor{
-					Span:       sourceSpan(member),
-					Parameters: params,
-					Body:       body,
-				}
-			case ast.KindMethodDeclaration:
-				var params []SyntaxParameter
-				for _, p := range member.Parameters() {
-					params = append(params, SyntaxParameter{
-						Span:        parameterSpan(p),
-						Name:        p.Name().Text(),
-						Type:        syntaxType(p.Type()),
-						Rest:        p.AsParameterDeclaration().DotDotDotToken != nil,
-						Initializer: syntaxExpression(p.Initializer()),
-					})
-				}
-				var body []SyntaxStatement
-				if b := member.Body(); b != nil {
-					for _, s := range b.Statements() {
-						if converted, ok := syntaxStatement(s); ok {
-							body = append(body, converted)
-						}
-					}
-				}
-				class.Methods = append(class.Methods, SyntaxMethod{
-					Span:       sourceSpan(member),
-					Name:       member.Name().Text(),
-					Type:       syntaxType(member.Type()),
-					Parameters: params,
-					Body:       body,
-				})
-			default:
-				class.Fields = append(class.Fields, SyntaxField{Span: sourceSpan(member), Name: member.Kind.String()})
-			}
-		}
-		return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
+		return syntaxClassDeclaration(node, span)
 	case ast.KindReturnStatement:
 		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
 	case ast.KindThrowStatement:
@@ -374,6 +309,12 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindModuleDeclaration:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
+	case ast.KindInterfaceDeclaration, ast.KindTypeAliasDeclaration:
+		name := ""
+		if node.Name() != nil {
+			name = node.Name().Text()
+		}
+		return SyntaxStatement{Span: span, Kind: "interface", Name: name}, true
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}

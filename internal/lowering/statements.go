@@ -263,18 +263,73 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Span: toIRSpan(path, statement.Span),
 		})
 	case "field_set":
+		if statement.Left != nil && statement.Left.Kind == "identifier" {
+			className := statement.Left.Text
+			if meta, isClass := classHierarchy[className]; isClass {
+				// Check static setter
+				if _, setterName, ok := findSetterInHierarchy(className, statement.Name, signatures, classHierarchy); ok {
+					val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return err
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: setterName,
+						Args:   []string{val},
+						Span:   toIRSpan(path, statement.Span),
+					})
+					return nil
+				}
+				// Static field assignment
+				if _, isStatic := meta.Statics[statement.Name]; isStatic {
+					staticVar := className + "_" + statement.Name
+					val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return err
+					}
+					env[staticVar] = valType
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpAssign,
+						Type:   valType,
+						Result: staticVar,
+						Args:   []string{val},
+						Span:   toIRSpan(path, statement.Span),
+					})
+					return nil
+				}
+			}
+		}
+
 		objVal, objType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
-		shapeName := strings.TrimPrefix(string(objType), string(ir.TypeObject)+":")
-		shape, ok := shapes[shapeName]
+		className := strings.TrimPrefix(string(objType), string(ir.TypeObject)+":")
+
+		// Check instance setter in hierarchy
+		if _, setterName, ok := findSetterInHierarchy(className, statement.Name, signatures, classHierarchy); ok {
+			val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeVoid,
+				Callee: setterName,
+				Args:   []string{objVal, val},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
+		}
+
+		shape, ok := shapes[className]
 		if !ok {
-			return fmt.Errorf("field set on unknown object shape %q", shapeName)
+			return fmt.Errorf("field set on unknown object shape %q", className)
 		}
 		fIndex := fieldIndex(shape, statement.Name)
 		if fIndex < 0 {
-			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, shapeName)
+			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, className)
 		}
 		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
