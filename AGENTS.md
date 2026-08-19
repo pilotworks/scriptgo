@@ -20,6 +20,11 @@ general TypeScript-Go and LLVM behavior.
 
 - Preserve the package ownership and dependency direction documented in
   [`docs/application-structure.md`](docs/application-structure.md).
+- Always choose solutions that are sustainable, scalable, and aligned with the
+  long-term architecture. Avoid short-term workarounds, special cases, and
+  patches that shift complexity into a later stage; if a temporary workaround
+  is unavoidable, document its scope, trade-offs, removal criteria, and
+  follow-up path.
 - Treat the module ownership rules below as hard boundaries. Do not move logic
   across a boundary merely because the destination package is convenient.
   Always perform a module responsibility review before and after adding features
