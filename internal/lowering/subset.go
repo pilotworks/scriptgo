@@ -215,7 +215,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return nil
 	case "unary":
-		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" {
+		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "unary operator "+expression.Operator)
 		}
 		return validateExpression(fileName, expression.Left)

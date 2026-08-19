@@ -35,7 +35,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		if err := lowerStatement(path, bodyStatement, &function, env, &counter, shapes, signatures); err != nil {
 			return ir.Function{}, sourceError(path, bodyStatement.Span, err)
 		}
-		if bodyStatement.Kind == "return" || bodyStatement.Kind == "throw" {
+		if statementAlwaysReturns(bodyStatement) {
 			returned = true
 		}
 	}
@@ -404,3 +404,39 @@ func sourceError(path string, span typescriptgo.SourceSpan, err error) error {
 	}
 	return fmt.Errorf("%s:%d+%d: %w", path, span.Start, span.Length, err)
 }
+
+func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
+	switch stmt.Kind {
+	case "return", "throw":
+		return true
+	case "block":
+		for _, s := range stmt.Body {
+			if statementAlwaysReturns(s) {
+				return true
+			}
+		}
+		return false
+	case "if":
+		if len(stmt.Then) == 0 || len(stmt.Else) == 0 {
+			return false
+		}
+		thenReturns := false
+		for _, s := range stmt.Then {
+			if statementAlwaysReturns(s) {
+				thenReturns = true
+				break
+			}
+		}
+		elseReturns := false
+		for _, s := range stmt.Else {
+			if statementAlwaysReturns(s) {
+				elseReturns = true
+				break
+			}
+		}
+		return thenReturns && elseReturns
+	default:
+		return false
+	}
+}
+

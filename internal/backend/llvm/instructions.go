@@ -197,13 +197,54 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	if leftType != ir.TypeNumber {
 		return fmt.Errorf("LLVM binary operator %q only supports number, bool, or string concatenation", instruction.Operator)
 	}
-	op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]
-	if !ok {
-		return fmt.Errorf("unsupported LLVM binary operator %q", instruction.Operator)
+	if instruction.Operator == "**" {
+		e.types[instruction.Result] = instruction.Type
+		out.WriteString(fmt.Sprintf("  %%%s = call double @llvm.pow.f64(double %%%s, double %%%s)\n", instruction.Result, instruction.Args[0], instruction.Args[1]))
+		return nil
 	}
-	e.types[instruction.Result] = instruction.Type
-	out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
-	return nil
+	if op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]; ok {
+		e.types[instruction.Result] = instruction.Type
+		out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
+	if bitOp, ok := map[string]string{"&": "and", "|": "or", "^": "xor"}[instruction.Operator]; ok {
+		e.types[instruction.Result] = instruction.Type
+		lI32 := instruction.Result + ".l_i32"
+		rI32 := instruction.Result + ".r_i32"
+		resI32 := instruction.Result + ".res_i32"
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, bitOp, lI32, rI32))
+		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
+		return nil
+	}
+	if shiftOp, ok := map[string]string{"<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
+		e.types[instruction.Result] = instruction.Type
+		lI32 := instruction.Result + ".l_i32"
+		rI32 := instruction.Result + ".r_i32"
+		shift := instruction.Result + ".shift"
+		resI32 := instruction.Result + ".res_i32"
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rI32))
+		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, shiftOp, lI32, shift))
+		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
+		return nil
+	}
+	if instruction.Operator == ">>>" {
+		e.types[instruction.Result] = instruction.Type
+		lU32 := instruction.Result + ".l_u32"
+		rU32 := instruction.Result + ".r_u32"
+		shift := instruction.Result + ".shift"
+		resU32 := instruction.Result + ".res_u32"
+		out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i32\n", lU32, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i32\n", rU32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rU32))
+		out.WriteString(fmt.Sprintf("  %%%s = lshr i32 %%%s, %%%s\n", resU32, lU32, shift))
+		out.WriteString(fmt.Sprintf("  %%%s = uitofp i32 %%%s to double\n", instruction.Result, resU32))
+		return nil
+	}
+	return fmt.Errorf("unsupported LLVM binary operator %q", instruction.Operator)
 }
 
 func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instruction) error {

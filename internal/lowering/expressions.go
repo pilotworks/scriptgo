@@ -245,6 +245,18 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			return value, ir.TypeNumber, nil
 		}
+		if expression.Operator == "~" {
+			if valType != ir.TypeNumber {
+				return "", "", fmt.Errorf("unary ~ requires a number operand")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			minusOneConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: minusOneConst, Value: "-1", Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "^", Args: []string{value, minusOneConst}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeNumber, nil
+		}
 		return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
 	case "binary":
 		if expression.Operator == "??" {
@@ -308,6 +320,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		if leftType != ir.TypeNumber && leftType != ir.TypeString {
 			return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+		}
+		if leftType == ir.TypeString {
+			if expression.Operator != "+" && !isComparison(expression.Operator) {
+				return "", "", fmt.Errorf("operator %q does not support string operands", expression.Operator)
+			}
 		}
 		if isComparison(expression.Operator) {
 			if result == "" {

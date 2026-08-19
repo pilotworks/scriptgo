@@ -74,6 +74,23 @@ func binary(operator string, left, right Value) (Value, error) {
 		return Value{Type: ir.TypeNumber, Number: left.Number / right.Number}, nil
 	case "%":
 		return Value{Type: ir.TypeNumber, Number: float64(int64(left.Number) % int64(right.Number))}, nil
+	case "**":
+		return Value{Type: ir.TypeNumber, Number: math.Pow(left.Number, right.Number)}, nil
+	case "&":
+		return Value{Type: ir.TypeNumber, Number: float64(int32(int64(left.Number)) & int32(int64(right.Number)))}, nil
+	case "|":
+		return Value{Type: ir.TypeNumber, Number: float64(int32(int64(left.Number)) | int32(int64(right.Number)))}, nil
+	case "^":
+		return Value{Type: ir.TypeNumber, Number: float64(int32(int64(left.Number)) ^ int32(int64(right.Number)))}, nil
+	case "<<":
+		shift := uint32(uint64(int64(right.Number))) & 0x1F
+		return Value{Type: ir.TypeNumber, Number: float64(int32(int64(left.Number)) << shift)}, nil
+	case ">>":
+		shift := uint32(uint64(int64(right.Number))) & 0x1F
+		return Value{Type: ir.TypeNumber, Number: float64(int32(int64(left.Number)) >> shift)}, nil
+	case ">>>":
+		shift := uint32(uint64(int64(right.Number))) & 0x1F
+		return Value{Type: ir.TypeNumber, Number: float64(uint32(uint64(int64(left.Number))) >> shift)}, nil
 	default:
 		return Value{}, fmt.Errorf("operator %q is unsupported for number", operator)
 	}

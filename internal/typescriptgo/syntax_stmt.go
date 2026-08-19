@@ -2,6 +2,7 @@ package typescriptgo
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 )
@@ -203,6 +204,11 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 			}
 		}
 		currentElse := defaultStmts
+		for i := len(cases) - 2; i >= 0; i-- {
+			if len(cases[i].stmts) == 0 {
+				cases[i].stmts = cases[i+1].stmts
+			}
+		}
 		for i := len(cases) - 1; i >= 0; i-- {
 			c := cases[i]
 			condExpr := &SyntaxExpression{
@@ -235,26 +241,9 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		bodyStatements = append(bodyStatements, syntaxBlockStatements(forNode.Statement)...)
 		if forNode.Incrementor != nil {
 			incExpr := syntaxExpression(forNode.Incrementor)
-			if incExpr != nil && incExpr.Kind == "binary" && (incExpr.Operator == "=" || incExpr.Operator == "+=" || incExpr.Operator == "-=") {
+			if incExpr != nil && incExpr.Kind == "binary" && isAssignmentOperator(incExpr.Operator) {
 				if incExpr.Left != nil && incExpr.Left.Kind == "identifier" {
-					valExpr := incExpr.Right
-					if incExpr.Operator == "+=" {
-						valExpr = &SyntaxExpression{
-							Span:     incExpr.Span,
-							Kind:     "binary",
-							Operator: "+",
-							Left:     incExpr.Left,
-							Right:    incExpr.Right,
-						}
-					} else if incExpr.Operator == "-=" {
-						valExpr = &SyntaxExpression{
-							Span:     incExpr.Span,
-							Kind:     "binary",
-							Operator: "-",
-							Left:     incExpr.Left,
-							Right:    incExpr.Right,
-						}
-					}
+					valExpr, _ := desugarAssignment(incExpr)
 					bodyStatements = append(bodyStatements, SyntaxStatement{
 						Span:       sourceSpan(forNode.Incrementor),
 						Kind:       "assign",
@@ -289,26 +278,9 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 				}
 			} else {
 				initExpr := syntaxExpression(forNode.Initializer)
-				if initExpr != nil && initExpr.Kind == "binary" && (initExpr.Operator == "=" || initExpr.Operator == "+=" || initExpr.Operator == "-=") {
+				if initExpr != nil && initExpr.Kind == "binary" && isAssignmentOperator(initExpr.Operator) {
 					if initExpr.Left != nil && initExpr.Left.Kind == "identifier" {
-						valExpr := initExpr.Right
-						if initExpr.Operator == "+=" {
-							valExpr = &SyntaxExpression{
-								Span:     initExpr.Span,
-								Kind:     "binary",
-								Operator: "+",
-								Left:     initExpr.Left,
-								Right:    initExpr.Right,
-							}
-						} else if initExpr.Operator == "-=" {
-							valExpr = &SyntaxExpression{
-								Span:     initExpr.Span,
-								Kind:     "binary",
-								Operator: "-",
-								Left:     initExpr.Left,
-								Right:    initExpr.Right,
-							}
-						}
+						valExpr, _ := desugarAssignment(initExpr)
 						initStmt := SyntaxStatement{
 							Span:       sourceSpan(forNode.Initializer),
 							Kind:       "assign",
@@ -337,91 +309,33 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		return whileStmt, true
 	case ast.KindExpressionStatement:
 		expr := syntaxExpression(node.Expression())
-		if expr != nil && expr.Kind == "binary" && (expr.Operator == "=" || expr.Operator == "+=" || expr.Operator == "-=") {
-			if expr.Left != nil {
-				if expr.Left.Kind == "identifier" {
-					valExpr := expr.Right
-					switch expr.Operator {
-					case "+=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "+",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					case "-=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "-",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					}
-					return SyntaxStatement{
-						Span:       span,
-						Kind:       "assign",
-						Name:       expr.Left.Text,
-						Expression: valExpr,
-					}, true
-				}
-				if expr.Left.Kind == "index" {
-					valExpr := expr.Right
-					switch expr.Operator {
-					case "+=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "+",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					case "-=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "-",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					}
-					return SyntaxStatement{
-						Span:       span,
-						Kind:       "index_set",
-						Left:       expr.Left.Left,
-						Right:      expr.Left.Right,
-						Expression: valExpr,
-					}, true
-				}
-				if expr.Left.Kind == "property" {
-					valExpr := expr.Right
-					switch expr.Operator {
-					case "+=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "+",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					case "-=":
-						valExpr = &SyntaxExpression{
-							Span:     expr.Span,
-							Kind:     "binary",
-							Operator: "-",
-							Left:     expr.Left,
-							Right:    expr.Right,
-						}
-					}
-					return SyntaxStatement{
-						Span:       span,
-						Kind:       "field_set",
-						Left:       expr.Left.Left,
-						Name:       expr.Left.Text,
-						Expression: valExpr,
-					}, true
-				}
+		if expr != nil && expr.Kind == "binary" && isAssignmentOperator(expr.Operator) && expr.Left != nil {
+			valExpr, _ := desugarAssignment(expr)
+			if expr.Left.Kind == "identifier" {
+				return SyntaxStatement{
+					Span:       span,
+					Kind:       "assign",
+					Name:       expr.Left.Text,
+					Expression: valExpr,
+				}, true
+			}
+			if expr.Left.Kind == "index" {
+				return SyntaxStatement{
+					Span:       span,
+					Kind:       "index_set",
+					Left:       expr.Left.Left,
+					Right:      expr.Left.Right,
+					Expression: valExpr,
+				}, true
+			}
+			if expr.Left.Kind == "property" {
+				return SyntaxStatement{
+					Span:       span,
+					Kind:       "field_set",
+					Left:       expr.Left.Left,
+					Name:       expr.Left.Text,
+					Expression: valExpr,
+				}, true
 			}
 		}
 		return SyntaxStatement{Span: span, Kind: "expression", Expression: expr}, true
@@ -564,3 +478,34 @@ func syntaxBlockStatements(node *ast.Node) []SyntaxStatement {
 	}
 	return nil
 }
+
+func isAssignmentOperator(op string) bool {
+	if op == "=" {
+		return true
+	}
+	if strings.HasSuffix(op, "=") && op != "==" && op != "===" && op != "!=" && op != "!==" && op != "<=" && op != ">=" {
+		return true
+	}
+	return false
+}
+
+func desugarAssignment(expr *SyntaxExpression) (*SyntaxExpression, bool) {
+	if expr == nil || expr.Kind != "binary" {
+		return nil, false
+	}
+	if expr.Operator == "=" {
+		return expr.Right, true
+	}
+	if isAssignmentOperator(expr.Operator) {
+		baseOp := strings.TrimSuffix(expr.Operator, "=")
+		return &SyntaxExpression{
+			Span:     expr.Span,
+			Kind:     "binary",
+			Operator: baseOp,
+			Left:     expr.Left,
+			Right:    expr.Right,
+		}, true
+	}
+	return nil, false
+}
+

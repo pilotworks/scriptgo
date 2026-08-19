@@ -137,25 +137,45 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 func binaryOperator(kind string) string {
 	kind = strings.TrimPrefix(kind, "Kind")
 	operators := map[string]string{
-		"PlusToken":                    "+",
-		"MinusToken":                   "-",
-		"AsteriskToken":                "*",
-		"SlashToken":                   "/",
-		"PercentToken":                 "%",
-		"EqualsToken":                  "=",
-		"PlusEqualsToken":              "+=",
-		"MinusEqualsToken":             "-=",
-		"EqualsEqualsToken":            "==",
-		"EqualsEqualsEqualsToken":      "===",
-		"ExclamationEqualsToken":       "!=",
-		"ExclamationEqualsEqualsToken": "!==",
-		"LessThanToken":                "<",
-		"LessThanEqualsToken":          "<=",
-		"GreaterThanToken":             ">",
-		"GreaterThanEqualsToken":       ">=",
-		"AmpersandAmpersandToken":      "&&",
-		"BarBarToken":                  "||",
-		"QuestionQuestionToken":        "??",
+		"PlusToken":                                   "+",
+		"MinusToken":                                  "-",
+		"AsteriskToken":                               "*",
+		"SlashToken":                                  "/",
+		"PercentToken":                                "%",
+		"AsteriskAsteriskToken":                       "**",
+		"AmpersandToken":                              "&",
+		"BarToken":                                    "|",
+		"CaretToken":                                  "^",
+		"LessThanLessThanToken":                       "<<",
+		"GreaterThanGreaterThanToken":                 ">>",
+		"GreaterThanGreaterThanGreaterThanToken":      ">>>",
+		"EqualsToken":                                 "=",
+		"PlusEqualsToken":                             "+=",
+		"MinusEqualsToken":                            "-=",
+		"AsteriskEqualsToken":                         "*=",
+		"SlashEqualsToken":                            "/=",
+		"PercentEqualsToken":                          "%=",
+		"AsteriskAsteriskEqualsToken":                 "**=",
+		"AmpersandEqualsToken":                        "&=",
+		"BarEqualsToken":                              "|=",
+		"CaretEqualsToken":                            "^=",
+		"LessThanLessThanEqualsToken":                 "<<=",
+		"GreaterThanGreaterThanEqualsToken":           ">>=",
+		"GreaterThanGreaterThanGreaterThanEqualsToken": ">>>=",
+		"AmpersandAmpersandEqualsToken":               "&&=",
+		"BarBarEqualsToken":                           "||=",
+		"QuestionQuestionEqualsToken":                 "??=",
+		"EqualsEqualsToken":                           "==",
+		"EqualsEqualsEqualsToken":                     "===",
+		"ExclamationEqualsToken":                      "!=",
+		"ExclamationEqualsEqualsToken":                "!==",
+		"LessThanToken":                               "<",
+		"LessThanEqualsToken":                         "<=",
+		"GreaterThanToken":                            ">",
+		"GreaterThanEqualsToken":                      ">=",
+		"AmpersandAmpersandToken":                     "&&",
+		"BarBarToken":                                 "||",
+		"QuestionQuestionToken":                       "??",
 	}
 	if operator, ok := operators[kind]; ok {
 		return operator
@@ -171,6 +191,8 @@ func prefixUnaryOperator(kind ast.Kind) string {
 		return "-"
 	case ast.KindPlusToken:
 		return "+"
+	case ast.KindTildeToken:
+		return "~"
 	default:
 		return kind.String()
 	}
