@@ -1,7 +1,7 @@
-import * as path from "path";
+import * as p from "path";
 
-console.log(path.join("a", "b", "c"));
-console.log(path.join("a", "b", "c", "d"));
-console.log(path.dirname("a/b.txt"));
-console.log(path.basename("a/b.txt"));
-console.log(path.extname("a/b.txt"));
+console.log(p.join("a", "b", "c"));
+console.log(p.join("a", "b", "c", "d"));
+console.log(p.dirname("a/b.txt"));
+console.log(p.basename("a/b.txt"));
+console.log(p.extname("a/b.txt"));

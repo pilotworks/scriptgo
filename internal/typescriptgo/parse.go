@@ -37,6 +37,7 @@ type SourceFile struct {
 	Symbols        []Symbol
 	Syntax         SyntaxFile
 	Builtin        bool
+	BuiltinName    string
 }
 
 // Symbol is stable declaration metadata for frontend consumers. TypeScript-Go
@@ -53,6 +54,7 @@ type Symbol struct {
 type ModuleReference struct {
 	Specifier        string
 	ResolvedFileName string
+	LocalName        string
 	Span             SourceSpan
 	Builtin          bool
 }
@@ -176,11 +178,12 @@ func Check(entryPath string) (ProgramResult, error) {
 	cwd := filepath.Dir(absoluteEntry)
 	baseFS := bundled.WrapFS(osvfs.FS())
 	fs := baseFS
-	stdlibRoot := filepath.Join(cwd, "node_modules", "path")
 	virtualFiles := map[string]string{}
+	builtinPaths := map[string]string{}
 	for name, module := range builtinModules {
 		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
 		virtualFiles[virtualPath] = module.Source
+		builtinPaths[virtualPath] = name
 	}
 	fs = wrapvfs.Wrap(fs, wrapvfs.Replacements{
 		FileExists: func(path string) bool {
@@ -197,7 +200,12 @@ func Check(entryPath string) (ProgramResult, error) {
 		},
 		DirectoryExists: func(path string) bool {
 			clean := filepath.Clean(path)
-			if clean == stdlibRoot || clean == filepath.Dir(stdlibRoot) || clean == filepath.Dir(filepath.Dir(stdlibRoot)) {
+			for virtualPath := range virtualFiles {
+				if clean == filepath.Dir(virtualPath) || clean == filepath.Dir(filepath.Dir(virtualPath)) {
+					return true
+				}
+			}
+			if clean == cwd {
 				return true
 			}
 			return baseFS.DirectoryExists(path)
@@ -247,7 +255,8 @@ func Check(entryPath string) (ProgramResult, error) {
 			StatementCount: statementCount(file),
 			Span:           sourceSpan(&file.Node),
 			Imports:        moduleReferences(program, file),
-			Builtin:        isBuiltinFile(file.FileName(), stdlibRoot),
+			Builtin:        builtinPaths[filepath.Clean(file.FileName())] != "",
+			BuiltinName:    builtinPaths[filepath.Clean(file.FileName())],
 			Symbols:        fileSymbols(program, ctx, file),
 			Syntax:         syntaxFile(file),
 		})
@@ -327,13 +336,14 @@ func symbolKind(flags ast.SymbolFlags) string {
 func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleReference {
 	result := make([]ModuleReference, 0, len(file.Imports()))
 	for _, specifier := range file.Imports() {
+		localName := namespaceImportName(specifier.AsNode())
 		if _, ok := builtinModule(specifier.Text()); ok {
 			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 			resolvedFileName := ""
 			if resolved != nil {
 				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
 			}
-			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, Span: sourceSpan(specifier), Builtin: true})
+			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, LocalName: localName, Span: sourceSpan(specifier), Builtin: true})
 			continue
 		}
 		resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
@@ -343,15 +353,22 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleR
 		result = append(result, ModuleReference{
 			Specifier:        specifier.Text(),
 			ResolvedFileName: filepath.Clean(resolved.ResolvedFileName),
+			LocalName:        localName,
 			Span:             sourceSpan(specifier),
 		})
 	}
 	return result
 }
 
-func isBuiltinFile(fileName, stdlibRoot string) bool {
-	clean := filepath.Clean(fileName)
-	return filepath.Dir(clean) == filepath.Clean(stdlibRoot)
+func namespaceImportName(specifier *ast.Node) string {
+	if specifier == nil || specifier.Parent == nil || specifier.Parent.Kind != ast.KindImportDeclaration {
+		return ""
+	}
+	clause := specifier.Parent.ImportClause()
+	if clause == nil || clause.AsImportClause().NamedBindings == nil || !ast.IsNamespaceImport(clause.AsImportClause().NamedBindings) {
+		return ""
+	}
+	return clause.AsImportClause().NamedBindings.AsNamespaceImport().Name().Text()
 }
 
 // orderedSourceFiles returns reachable local files in dependency-first order.

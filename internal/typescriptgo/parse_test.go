@@ -41,7 +41,7 @@ func TestCheckResolvesLocalModules(t *testing.T) {
 
 func TestCheckResolvesBuiltinPathModule(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
-	source := "import * as path from 'path';\nconsole.log(path.basename('a/b.txt'));\n"
+	source := "import * as p from 'path';\nconsole.log(p.basename('a/b.txt'));\n"
 	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -56,12 +56,12 @@ func TestCheckResolvesBuiltinPathModule(t *testing.T) {
 	if len(result.Files) != 2 || len(result.Files[1].Imports) != 1 {
 		t.Fatalf("resolved files/imports = %+v, want builtin and entry files", result.Files)
 	}
-	if !result.Files[0].Builtin || result.Files[1].FileName != entry {
+	if !result.Files[0].Builtin || result.Files[0].BuiltinName != "path" || result.Files[1].FileName != entry {
 		t.Fatalf("resolved builtin files = %+v, want builtin before entry", result.Files)
 	}
 	imported := result.Files[1].Imports[0]
-	if imported.Specifier != "path" || !imported.Builtin {
-		t.Fatalf("path import = %+v, want builtin path reference", imported)
+	if imported.Specifier != "path" || imported.LocalName != "p" || !imported.Builtin {
+		t.Fatalf("path import = %+v, want builtin path reference with namespace alias", imported)
 	}
 	if manifest := BuiltinModuleManifest(); len(manifest) != 1 || manifest[0].Name != "path" || manifest[0].Version == "" {
 		t.Fatalf("builtin manifest = %+v, want versioned path module", manifest)

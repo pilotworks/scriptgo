@@ -3,7 +3,6 @@ package lowering
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -38,7 +37,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 
 	main := ir.Function{Name: "main", ReturnType: ir.TypeVoid}
 	env := map[string]ir.Type{}
-	signatures := functionSignatures(program)
+	signatures := buildFunctionIndex(program)
 	counter := 0
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
@@ -67,34 +66,6 @@ func Lower(program frontend.Program) (ir.Module, error) {
 		return ir.Module{}, err
 	}
 	return module, nil
-}
-
-func functionSignatures(program frontend.Program) map[string]ir.Function {
-	result := map[string]ir.Function{}
-	for _, file := range program.Files {
-		for _, statement := range file.Syntax.Statements {
-			if statement.Kind != "function" {
-				continue
-			}
-			function := ir.Function{Name: statement.Name, ReturnType: toIRType(statement.Type)}
-			if function.ReturnType == "" {
-				function.ReturnType = ir.TypeVoid
-			}
-			for _, parameter := range statement.Parameters {
-				typ := toIRType(parameter.Type)
-				if parameter.Rest {
-					typ = ir.TypeStringArray
-				}
-				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-			}
-			result[function.Name] = function
-			if file.Builtin {
-				namespace := filepath.Base(filepath.Dir(file.FileName))
-				result[namespace+"."+function.Name] = function
-			}
-		}
-	}
-	return result
 }
 
 func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
