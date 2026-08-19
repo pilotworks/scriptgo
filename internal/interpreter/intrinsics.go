@@ -539,6 +539,123 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 		}
 		return Value{Type: ir.TypeBool, Bool: found}, nil
+	case "__array.at":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("array.at requires index")
+		}
+		idxVal, ok := env[arguments[1]]
+		if !ok || idxVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("array.at index must be a number")
+		}
+		idx := int(idxVal.Number)
+		if idx < 0 {
+			idx = len(array.Array) + idx
+		}
+		if idx < 0 || idx >= len(array.Array) {
+			if array.Type == ir.TypeNumberArray {
+				return Value{Type: ir.TypeNumber, Number: 0}, nil
+			}
+			return Value{Type: ir.TypeString, String: ""}, nil
+		}
+		return array.Array[idx], nil
+	case "__array.shift":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("array.shift requires 1 argument")
+		}
+		if len(array.Array) == 0 {
+			if array.Type == ir.TypeNumberArray {
+				return Value{Type: ir.TypeNumber, Number: 0}, nil
+			}
+			return Value{Type: ir.TypeString, String: ""}, nil
+		}
+		first := array.Array[0]
+		array.Array = array.Array[1:]
+		env[arguments[0]] = array
+		return first, nil
+	case "__array.unshift":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("array.unshift requires array and element")
+		}
+		elem, ok := env[arguments[1]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown unshift argument %q", arguments[1])
+		}
+		array.Array = append([]Value{elem}, array.Array...)
+		env[arguments[0]] = array
+		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
+	case "__array.reverse":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("array.reverse requires 1 argument")
+		}
+		for i, j := 0, len(array.Array)-1; i < j; i, j = i+1, j-1 {
+			array.Array[i], array.Array[j] = array.Array[j], array.Array[i]
+		}
+		env[arguments[0]] = array
+		return array, nil
+	case "__array.concat":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("array.concat requires other array")
+		}
+		other, ok := env[arguments[1]]
+		if !ok || other.Type != array.Type {
+			return Value{}, fmt.Errorf("array.concat requires matching array type")
+		}
+		newItems := make([]Value, 0, len(array.Array)+len(other.Array))
+		newItems = append(newItems, array.Array...)
+		newItems = append(newItems, other.Array...)
+		return Value{Type: array.Type, Array: newItems}, nil
+	case "__array.splice":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.splice requires start")
+		}
+		startVal, ok := env[arguments[1]]
+		if !ok || startVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("array.splice start must be number")
+		}
+		start := int(startVal.Number)
+		if start < 0 {
+			start = len(array.Array) + start
+			if start < 0 {
+				start = 0
+			}
+		} else if start > len(array.Array) {
+			start = len(array.Array)
+		}
+		deleteCount := len(array.Array) - start
+		if len(arguments) >= 3 {
+			dcVal, ok := env[arguments[2]]
+			if ok && dcVal.Type == ir.TypeNumber {
+				if dcVal.Number < 0 {
+					deleteCount = 0
+				} else {
+					deleteCount = int(dcVal.Number)
+					if start+deleteCount > len(array.Array) {
+						deleteCount = len(array.Array) - start
+					}
+				}
+			}
+		}
+		deleted := append([]Value(nil), array.Array[start:start+deleteCount]...)
+		array.Array = append(array.Array[:start], array.Array[start+deleteCount:]...)
+		env[arguments[0]] = array
+		return Value{Type: array.Type, Array: deleted}, nil
+	case "__array.join":
+		sep := ","
+		if len(arguments) >= 2 {
+			sepVal, ok := env[arguments[1]]
+			if ok && sepVal.Type == ir.TypeString {
+				sep = sepVal.String
+			}
+		}
+		parts := make([]string, len(array.Array))
+		for i, item := range array.Array {
+			if item.Type == ir.TypeNumber {
+				parts[i] = format(item)
+			} else {
+				parts[i] = item.String
+			}
+		}
+		return Value{Type: ir.TypeString, String: strings.Join(parts, sep)}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown array intrinsic %q", name)
 	}

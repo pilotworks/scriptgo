@@ -81,11 +81,15 @@ func lowerCallExpression(
 				}
 				returnType := ir.TypeNumber
 				switch methodName {
-				case "slice":
+				case "slice", "reverse", "concat", "splice":
 					returnType = receiverType
 				case "includes":
 					returnType = ir.TypeBool
-				case "pop":
+				case "join":
+					returnType = ir.TypeString
+				case "push", "unshift", "indexOf":
+					returnType = ir.TypeNumber
+				case "pop", "shift", "at":
 					if receiverType == ir.TypeNumberArray {
 						returnType = ir.TypeNumber
 					} else {
@@ -201,7 +205,7 @@ func isStringMethod(name string) bool {
 
 func isArrayMethod(name string) bool {
 	switch name {
-	case "push", "pop", "slice", "indexOf", "includes":
+	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at":
 		return true
 	default:
 		return false

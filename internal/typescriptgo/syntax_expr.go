@@ -27,7 +27,7 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: node.Text()}
 	case ast.KindThisKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
-	case ast.KindParenthesizedExpression:
+	case ast.KindParenthesizedExpression, ast.KindNonNullExpression:
 		return syntaxExpression(node.Expression())
 	case ast.KindBinaryExpression:
 		binary := node.AsBinaryExpression()
