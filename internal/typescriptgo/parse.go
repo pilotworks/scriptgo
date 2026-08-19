@@ -67,6 +67,14 @@ func Check(entryPath string) (ProgramResult, error) {
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
 	}
+
+	var nodeTypesDts strings.Builder
+	for name := range builtinModules {
+		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n}\n", name, name))
+	}
+	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
+	virtualFiles[nodeTypesPath] = nodeTypesDts.String()
+
 	fs = wrapvfs.Wrap(fs, wrapvfs.Replacements{
 		FileExists: func(path string) bool {
 			if _, ok := virtualFiles[filepath.Clean(path)]; ok {
@@ -86,13 +94,15 @@ func Check(entryPath string) (ProgramResult, error) {
 		},
 		DirectoryExists: func(path string) bool {
 			clean := filepath.Clean(path)
-			for virtualPath := range virtualFiles {
-				if clean == filepath.Dir(virtualPath) || clean == filepath.Dir(filepath.Dir(virtualPath)) {
-					return true
-				}
-			}
 			if clean == cwd {
 				return true
+			}
+			for virtualPath := range virtualFiles {
+				for dir := filepath.Dir(virtualPath); dir != "." && dir != "/" && len(dir) >= len(cwd); dir = filepath.Dir(dir) {
+					if clean == dir {
+						return true
+					}
+				}
 			}
 			return baseFS.DirectoryExists(path)
 		},

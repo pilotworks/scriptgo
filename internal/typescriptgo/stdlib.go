@@ -1,7 +1,11 @@
+//go:generate go run ./cmd/gendts
+
 package typescriptgo
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,107 +24,91 @@ type BuiltinModule struct {
 	Source  string
 }
 
+//go:embed stdlib/*
+var embeddedStdlibFS embed.FS
+
 var (
 	stdlibMu       sync.RWMutex
-	loadedDir      string
 	builtinModules = map[string]BuiltinModule{}
 	globalsSource  string
+	loaded         bool
 )
 
-// ResolveStdlibDir finds the directory containing the standard library for a version.
-func ResolveStdlibDir(version string) (string, error) {
-	if version == "" {
-		if v := os.Getenv("SCRIPTGO_VERSION"); v != "" {
-			version = v
-		} else {
-			version = DefaultVersion
-		}
-	}
-
-	// 1. Direct override via SCRIPTGO_STDLIB_PATH
-	if customPath := os.Getenv("SCRIPTGO_STDLIB_PATH"); customPath != "" {
-		if info, err := os.Stat(customPath); err == nil && info.IsDir() {
-			return filepath.Clean(customPath), nil
-		}
-	}
-
-	// 2. User versioned directory: ~/.scriptgo/versions/<version>/stdlib
-	homeDir, err := os.UserHomeDir()
-	if homeDir != "" {
-		versionDir := filepath.Join(homeDir, ".scriptgo", "versions", version, "stdlib")
-		if info, err := os.Stat(versionDir); err == nil && info.IsDir() {
-			return versionDir, nil
-		}
-	}
-
-	// 3. Fallback to local workspace repository stdlib/ if present
-	for _, candidate := range []string{
-		"stdlib",
-		"../stdlib",
-		"../../stdlib",
-		"../../../stdlib",
-	} {
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			abs, err := filepath.Abs(candidate)
-			if err == nil {
-				// Seed into ~/.scriptgo/versions/<version>/stdlib if user home is available
-				if homeDir != "" {
-					versionDir := filepath.Join(homeDir, ".scriptgo", "versions", version, "stdlib")
-					_ = copyDir(abs, versionDir)
-					if info, err := os.Stat(versionDir); err == nil && info.IsDir() {
-						return versionDir, nil
-					}
-				}
-				return abs, nil
-			}
-		}
-	}
-
-	if homeDir != "" {
-		versionDir := filepath.Join(homeDir, ".scriptgo", "versions", version, "stdlib")
-		return "", fmt.Errorf("stdlib not found in %s or workspace repository", versionDir)
-	}
-	return "", fmt.Errorf("stdlib for version %s could not be resolved: %w", version, err)
+func init() {
+	_ = loadEmbeddedStdlib(DefaultVersion)
 }
 
-func copyDir(src, dst string) error {
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(src)
+func loadEmbeddedStdlib(version string) error {
+	stdlibMu.Lock()
+	defer stdlibMu.Unlock()
+
+	newModules := map[string]BuiltinModule{}
+	var newGlobals string
+
+	entries, err := embeddedStdlibFS.ReadDir("stdlib")
 	if err != nil {
-		return err
+		return fmt.Errorf("read embedded stdlib: %w", err)
 	}
+
 	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
-				return err
-			}
-		} else {
-			data, err := os.ReadFile(srcPath)
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(dstPath, data, 0o644); err != nil {
-				return err
+			continue
+		}
+		name := entry.Name()
+		content, err := embeddedStdlibFS.ReadFile(filepath.Join("stdlib", name))
+		if err != nil {
+			return fmt.Errorf("read embedded stdlib file %s: %w", name, err)
+		}
+
+		if name == "globals.d.ts" {
+			newGlobals = string(content)
+			continue
+		}
+
+		if strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".d.ts") {
+			modName := strings.TrimSuffix(name, ".ts")
+			newModules[modName] = BuiltinModule{
+				Name:    modName,
+				Version: version,
+				Source:  string(content),
 			}
 		}
 	}
+
+	builtinModules = newModules
+	globalsSource = newGlobals
+	loaded = true
 	return nil
 }
 
-// LoadStdlibFromDir reads all .ts / .d.ts files from the given directory into memory.
+// EnsureStdlib ensures that standard library modules are loaded in memory.
+func EnsureStdlib(version string) error {
+	stdlibMu.RLock()
+	if loaded && len(builtinModules) > 0 && globalsSource != "" {
+		stdlibMu.RUnlock()
+		return nil
+	}
+	stdlibMu.RUnlock()
+
+	// 1. Direct override via SCRIPTGO_STDLIB_PATH if set
+	if customPath := os.Getenv("SCRIPTGO_STDLIB_PATH"); customPath != "" {
+		if info, err := os.Stat(customPath); err == nil && info.IsDir() {
+			return LoadStdlibFromDir(customPath, version)
+		}
+	}
+
+	if version == "" {
+		version = DefaultVersion
+	}
+	return loadEmbeddedStdlib(version)
+}
+
+// LoadStdlibFromDir reads .ts / .d.ts files from the given directory into memory (for local overrides).
 func LoadStdlibFromDir(dir string, version string) error {
 	stdlibMu.Lock()
 	defer stdlibMu.Unlock()
 
 	cleanDir := filepath.Clean(dir)
-	if loadedDir == cleanDir && len(builtinModules) > 0 {
-		return nil
-	}
-
 	entries, err := os.ReadDir(cleanDir)
 	if err != nil {
 		return fmt.Errorf("read stdlib directory %s: %w", cleanDir, err)
@@ -157,27 +145,74 @@ func LoadStdlibFromDir(dir string, version string) error {
 
 	builtinModules = newModules
 	globalsSource = newGlobals
-	loadedDir = cleanDir
+	loaded = true
 	return nil
 }
 
-// EnsureStdlib ensures that standard library modules are loaded for the requested version.
-func EnsureStdlib(version string) error {
-	stdlibMu.RLock()
-	if len(builtinModules) > 0 && globalsSource != "" && (version == "" || version == DefaultVersion) {
-		stdlibMu.RUnlock()
-		return nil
-	}
-	stdlibMu.RUnlock()
-
-	dir, err := ResolveStdlibDir(version)
-	if err != nil {
-		return err
-	}
+// SeedVersionDeclarations writes ONLY the .d.ts declaration files for a version
+// to the target directory (e.g. ~/.scriptgo/versions/<version>/ or custom target)
+// for IDE IntelliSense support. It never writes implementation .ts files.
+func SeedVersionDeclarations(version string, targetDir string) error {
 	if version == "" {
 		version = DefaultVersion
 	}
-	return LoadStdlibFromDir(dir, version)
+	if targetDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil || homeDir == "" {
+			return fmt.Errorf("resolve user home directory: %w", err)
+		}
+		targetDir = filepath.Join(homeDir, ".scriptgo", "versions", version)
+	}
+
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create version directory %s: %w", targetDir, err)
+	}
+
+	entries, err := embeddedStdlibFS.ReadDir("stdlib")
+	if err != nil {
+		return fmt.Errorf("read embedded stdlib: %w", err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		// Strictly only export .d.ts declaration files
+		if !strings.HasSuffix(name, ".d.ts") {
+			continue
+		}
+		content, err := embeddedStdlibFS.ReadFile(filepath.Join("stdlib", name))
+		if err != nil {
+			return fmt.Errorf("read embedded declaration %s: %w", name, err)
+		}
+		dstPath := filepath.Join(targetDir, name)
+		if err := os.WriteFile(dstPath, content, 0o644); err != nil {
+			return fmt.Errorf("write declaration %s: %w", dstPath, err)
+		}
+	}
+
+	return nil
+}
+
+// ResolveVersionDir returns the version directory containing .d.ts declarations,
+// automatically seeding it with .d.ts files if needed.
+func ResolveVersionDir(version string) (string, error) {
+	if version == "" {
+		if v := os.Getenv("SCRIPTGO_VERSION"); v != "" {
+			version = v
+		} else {
+			version = DefaultVersion
+		}
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		return "", fmt.Errorf("resolve home directory: %w", err)
+	}
+
+	versionDir := filepath.Join(homeDir, ".scriptgo", "versions", version)
+	if err := SeedVersionDeclarations(version, versionDir); err != nil {
+		return "", err
+	}
+	return versionDir, nil
 }
 
 // BuiltinModuleManifest returns the loaded standard library modules.
@@ -209,3 +244,7 @@ func builtinModule(name string) (BuiltinModule, bool) {
 	return module, ok
 }
 
+// EmbeddedFS returns the embedded filesystem containing stdlib sources and declarations.
+func EmbeddedFS() fs.FS {
+	return embeddedStdlibFS
+}

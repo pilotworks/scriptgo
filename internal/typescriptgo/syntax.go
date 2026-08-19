@@ -59,6 +59,9 @@ func statementCount(file *ast.SourceFile) int {
 }
 
 func isTypeScriptSource(fileName string) bool {
+	if strings.HasSuffix(fileName, ".d.ts") {
+		return false
+	}
 	for _, extension := range []string{".ts", ".tsx", ".mts", ".cts"} {
 		if strings.HasSuffix(fileName, extension) {
 			return true
