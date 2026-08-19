@@ -2,17 +2,27 @@
 
 int scriptgo_runtime_set_error(const char *message);
 
-int scriptgo_print_number(double value) {
-    if (printf("%g\n", value) < 0) return scriptgo_runtime_set_error("scriptgo number output failed");
+static int scriptgo_console_number(FILE *stream, double value) {
+    if (fprintf(stream, "%g\n", value) < 0) return scriptgo_runtime_set_error("scriptgo number output failed");
     return 0;
 }
 
-int scriptgo_print_string(const char *value) {
-    if (value == NULL || puts(value) == EOF) return scriptgo_runtime_set_error("scriptgo string output failed");
+static int scriptgo_console_string(FILE *stream, const char *value) {
+    if (value == NULL || fputs(value, stream) == EOF || fputc('\n', stream) == EOF) return scriptgo_runtime_set_error("scriptgo string output failed");
     return 0;
 }
 
-int scriptgo_print_bool(int value) {
-    if (puts(value ? "true" : "false") == EOF) return scriptgo_runtime_set_error("scriptgo boolean output failed");
+static int scriptgo_console_bool(FILE *stream, int value) {
+    if (fputs(value ? "true\n" : "false\n", stream) == EOF) return scriptgo_runtime_set_error("scriptgo boolean output failed");
     return 0;
 }
+
+#define SCRIPTGO_CONSOLE_METHOD(name, stream) \
+    int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
+    int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
+    int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); }
+
+SCRIPTGO_CONSOLE_METHOD(log, stdout)
+SCRIPTGO_CONSOLE_METHOD(info, stdout)
+SCRIPTGO_CONSOLE_METHOD(warn, stderr)
+SCRIPTGO_CONSOLE_METHOD(error, stderr)

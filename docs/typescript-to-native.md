@@ -325,8 +325,8 @@ validated integer lowering later.
 ## Runtime and Object Model
 
 Native code needs a runtime for features that are not directly expressible as
-machine instructions. The current MVP calls the host C ABI for `printf` and
-`scriptgo_print_*` and links generic array, string, and static-object operations from
+machine instructions. The current MVP lowers the console intrinsic to
+`scriptgo_console_*` and links generic array, string, and static-object operations from
 `internal/runtime/native/{arrays,strings,objects}`; the reference interpreter remains separate
 under `internal/interpreter`. The runtime is organized by ABI and value family
 so future managed values can be added without moving frontend or lowering

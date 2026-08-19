@@ -15,9 +15,9 @@ used by the native backend and its ABI harness.
 | Area | MVP status | Current implementation |
 | --- | --- | --- |
 | Process startup | Implemented by the host toolchain | Clang supplies the platform entry point and calls generated `main` |
-| Numeric output | `scriptgo_print_number` | Runtime uses `printf("%g\\n", value)` internally |
-| String output | `scriptgo_print_string` | Runtime uses `puts(value)` internally |
-| Boolean output | `scriptgo_print_bool` | Runtime selects `true`/`false` and calls libc internally |
+| Numeric console output | `scriptgo_console_{log,info,warn,error}_number` | Runtime formats with `%g`; log/info use stdout, warn/error use stderr |
+| String console output | `scriptgo_console_{log,info,warn,error}_string` | Runtime writes the value plus `\\n`; log/info use stdout, warn/error use stderr |
+| Boolean console output | `scriptgo_console_{log,info,warn,error}_bool` | Runtime writes `true`/`false`; log/info use stdout, warn/error use stderr |
 | Managed values | Generic primitive arrays and static object fields | Compiler-selected element layouts use one linked array runtime |
 | Ownership and cleanup | Explicit owned results | Allocating string/array/object operations return one owned value; release consumes it |
 | Runtime errors | Status + thread/process-local diagnostic | Negative status stores an error; generated code calls `scriptgo_runtime_abort_if_failed` |
@@ -225,16 +225,19 @@ remainder is treated as a fully portable runtime behavior.
 
 ### Output operations
 
-`console.log` is the only source-level operation that currently crosses the
-runtime boundary. Lowering accepts exactly one argument and emits an `OpPrint`
-instruction. The LLVM backend selects a `scriptgo_print_*` operation from the
+Console output is a source-level operation that crosses the runtime boundary.
+Lowering accepts exactly one argument and emits an `OpPrint` instruction. The
+LLVM backend selects a `scriptgo_console_{method}_{type}` operation from the
 checked IR value type:
 
 | Source value | Generated operation | Observable output |
 | --- | --- | --- |
-| `number` | `scriptgo_print_number(value)` | Decimal formatting using C `%g`, followed by `\\n` |
-| `string` | `scriptgo_print_string(value)` | Bytes up to the first NUL, followed by `\\n` |
-| `bool` | `scriptgo_print_bool(value)` | `true\\n` or `false\\n` |
+| `number` | `scriptgo_console_{method}_number(value)` | Decimal formatting using C `%g`, followed by `\\n` |
+| `string` | `scriptgo_console_{method}_string(value)` | Bytes up to the first NUL, followed by `\\n` |
+| `bool` | `scriptgo_console_{method}_bool(value)` | `true\\n` or `false\\n` |
+
+`method` is one of `log`, `info`, `warn`, or `error`. `log` and `info` target
+stdout; `warn` and `error` target stderr.
 
 The compiler creates these private LLVM constants:
 
@@ -248,7 +251,7 @@ String literals are emitted as private, NUL-terminated byte arrays. Their
 length is based on UTF-8 encoded bytes, not Unicode scalar count. `puts` is a
 C string API, so embedded NUL bytes cannot be represented faithfully in the
 current output path. There is no flushing, error propagation, formatting
-options, or multi-argument `console.log` contract yet.
+options, or multi-argument console contract yet.
 
 The return value of both `printf` and `puts` is intentionally discarded. A
 negative C-library return value therefore does not become a Scriptgo runtime
@@ -307,7 +310,7 @@ The following are intentionally outside the MVP ABI:
   ownership and release for allocated values;
 - Node.js APIs, npm packages, filesystem, networking, and FFI in the MVP ABI;
   these remain compatibility roadmap work rather than permanent non-goals;
-- variadic or multi-argument `console.log` behavior.
+- variadic or multi-argument console behavior.
 
 Unsupported features must be rejected by the native subset gate before backend
 generation. They must not be silently represented as C pointers or host calls.

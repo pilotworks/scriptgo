@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -115,5 +116,32 @@ func TestLowerRejectsAnyInStaticMode(t *testing.T) {
 	_, err = Lower(program)
 	if err == nil || !strings.Contains(err.Error(), "SG1001") || !strings.Contains(err.Error(), "any type") {
 		t.Fatalf("Lower error = %v, want SG1001 for any in Static mode", err)
+	}
+}
+
+func TestLowerConsoleIntrinsics(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "console.log(1); console.info(2); console.warn(3); console.error(4);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := Lower(program)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"console.log", "console.info", "console.warn", "console.error"}
+	var got []string
+	for _, instruction := range module.Functions[0].Body {
+		if instruction.Op == ir.OpPrint {
+			got = append(got, instruction.Callee)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("console intrinsic callees = %v, want %v", got, want)
 	}
 }

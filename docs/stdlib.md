@@ -21,10 +21,21 @@ code (see [`compilation-tiers.md`](compilation-tiers.md)):
   compilation fails with a source-anchored diagnostic.
 
 `console` is a language-facing builtin stdlib surface, not a general-purpose
-libc escape hatch. `console.log` may lower to a small `scriptgo_print_*` runtime
-primitive for Static code; formatting, timers, streams, and other Node console
-behavior need their own semantic contract. The C runtime remains below the
-core TypeScript stdlib boundary.
+libc escape hatch. Its Static path is:
+
+```text
+TypeScript-Go declarations
+    -> builtin global/intrinsic registry
+    -> console intrinsic lowering
+    -> scriptgo_console_* ABI
+    -> stdout/stderr
+```
+
+`console.log`, `console.info`, `console.warn`, and `console.error` currently
+share the same intrinsic lowering and typed ABI family. `log`/`info` write to
+stdout; `warn`/`error` write to stderr. Formatting, timers, streams, and other
+Node console behavior need their own semantic contract. The C runtime remains
+below the core TypeScript stdlib boundary.
 
 An npm package being written in JavaScript does not automatically make the
 whole program Dynamic: native-eligible local code remains Static, while the
@@ -88,7 +99,7 @@ The status below describes the intended order, not an implementation promise.
 
 | Node.js area                                | Initial scriptgo surface                                               | Status and constraints                                                                                                               |
 | ------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `console`                                   | `console.log(value)`                                                   | Supported now for one typed argument: `number`, `string`, or `boolean`. Multi-argument formatting, timers, and streams are deferred. |
+| `console`                                   | `log`, `info`, `warn`, `error` with one value                            | Supported for one typed argument: `number`, `string`, or `boolean`; `log`/`info` use stdout and `warn`/`error` use stderr. Multi-argument formatting, timers, and streams are deferred. |
 | `path`                                      | `join`, `dirname`, `basename`, `extname`                               | Implemented as versioned TypeScript stdlib source for the host POSIX target. `resolve`, `parse`, `format`, and `path.win32` remain deferred. |
 | `process`                                   | Read-only `argv`, `env`, `cwd`, `platform`, `arch`                     | Planned. Startup data and environment ownership must be defined by the runtime ABI; mutation and event APIs are deferred.            |
 | `os`                                        | `platform`, `arch`, `EOL`, `tmpdir`                                    | Planned target adapter. Results are target-dependent and must not be fabricated by the interpreter.                                  |

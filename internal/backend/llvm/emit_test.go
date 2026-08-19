@@ -24,7 +24,7 @@ func TestEmitArithmeticAndPrint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"define i32 @main()", "fadd double", "@scriptgo_print_number", "ret i32 0"} {
+	for _, expected := range []string{"define i32 @main()", "fadd double", "@scriptgo_console_log_number", "ret i32 0"} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("LLVM output does not contain %q:\n%s", expected, output)
 		}

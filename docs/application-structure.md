@@ -175,7 +175,7 @@ The IR is the contract between language-facing analysis and native backends.
 Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
 
-The current LLVM MVP calls project-owned `scriptgo_print_*` wrappers for
+The current LLVM MVP calls project-owned `scriptgo_console_*` wrappers for
 primitive output and links the generic array, string, and static-object
 runtime families from
 `internal/runtime/native/{arrays,strings,objects}`. `internal/runtime` owns the

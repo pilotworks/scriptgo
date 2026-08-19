@@ -376,36 +376,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		callee := callName(expression.Left)
 		if intrinsic, ok := builtinIntrinsic(callee); ok {
-			if len(expression.Arguments) < intrinsic.MinArgs || len(expression.Arguments) > intrinsic.MaxArgs {
-				return "", "", fmt.Errorf("builtin %s expects %d argument(s)", callee, intrinsic.MinArgs)
-			}
-			args := make([]string, 0, len(expression.Arguments))
-			for _, argument := range expression.Arguments {
-				value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-				if err != nil {
-					return "", "", err
-				}
-				if typ != intrinsic.Argument {
-					return "", "", fmt.Errorf("builtin %s requires %s arguments", callee, intrinsic.Argument)
-				}
-				args = append(args, value)
-			}
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: intrinsic.ResultType, Result: result, Callee: "__" + callee, Args: args, Span: toIRSpan(path, expression.Span)})
-			return result, intrinsic.ResultType, nil
-		}
-		if callee == "console.log" {
-			if len(expression.Arguments) != 1 {
-				return "", "", fmt.Errorf("console.log requires one argument")
-			}
-			argument, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
-			if err != nil {
-				return "", "", err
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpPrint, Type: ir.TypeVoid, Callee: callee, Args: []string{argument}, Span: toIRSpan(path, expression.Span)})
-			return "", ir.TypeVoid, nil
+			return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
 		}
 		if callee == "" {
 			return "", "", fmt.Errorf("unsupported call target")

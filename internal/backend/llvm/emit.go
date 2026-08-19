@@ -10,6 +10,21 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
+	if method != "log" && method != "info" && method != "warn" && method != "error" {
+		return "", false
+	}
+	suffix := map[ir.Type]string{
+		ir.TypeNumber: "number",
+		ir.TypeString: "string",
+		ir.TypeBool:   "bool",
+	}[typ]
+	if suffix == "" {
+		return "", false
+	}
+	return "scriptgo_console_" + method + "_" + suffix, true
+}
+
 // Options controls deterministic LLVM artifact metadata.
 type Options struct {
 	CompilerVersion string
@@ -71,9 +86,12 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
 	}
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n\n")
-	out.WriteString("declare i32 @scriptgo_print_number(double)\n")
-	out.WriteString("declare i32 @scriptgo_print_string(ptr)\n")
-	out.WriteString("declare i32 @scriptgo_print_bool(i32)\n\n")
+	for _, method := range []string{"log", "info", "warn", "error"} {
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_string(ptr)\n", method))
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bool(i32)\n", method))
+	}
+	out.WriteString("\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")
 	out.WriteString("declare double @llvm.ceil.f64(double)\n")
 	out.WriteString("declare double @llvm.floor.f64(double)\n")
@@ -239,23 +257,33 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			if !ok {
 				return "", fmt.Errorf("unknown print value %q", instruction.Args[0])
 			}
+			method := "log"
+			if instruction.Callee != "" {
+				method = strings.TrimPrefix(instruction.Callee, "console.")
+			}
+			if _, ok := consoleRuntimeName(method, valueType); !ok {
+				return "", fmt.Errorf("unsupported console intrinsic %q for %s", instruction.Callee, valueType)
+			}
 			switch valueType {
 			case ir.TypeNumber:
 				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
 				runtimeStatus++
-				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_number(double %%%s)\n", status, instruction.Args[0]))
+				name, _ := consoleRuntimeName(method, valueType)
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(double %%%s)\n", status, name, instruction.Args[0]))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			case ir.TypeString:
 				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
 				runtimeStatus++
-				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_string(ptr %%%s)\n", status, instruction.Args[0]))
+				name, _ := consoleRuntimeName(method, valueType)
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s)\n", status, name, instruction.Args[0]))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			case ir.TypeBool:
 				status := fmt.Sprintf("runtime.status.%d", runtimeStatus)
 				boolValue := fmt.Sprintf("print.bool.%d", runtimeStatus)
 				runtimeStatus++
 				out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolValue, instruction.Args[0]))
-				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_print_bool(i32 %%%s)\n", status, boolValue))
+				name, _ := consoleRuntimeName(method, valueType)
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i32 %%%s)\n", status, name, boolValue))
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			default:
 				return "", fmt.Errorf("unsupported print type %s", valueType)
