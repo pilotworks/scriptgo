@@ -189,3 +189,23 @@ func TestCheckNormalizesUnaryAndLogicalExpressions(t *testing.T) {
 	}
 }
 
+func TestCheckSupportsGlobalProcess(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const cwd: string = process.cwd();\nconst args: string[] = process.argv;\nprocess.exit(0);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for global process: %+v", result.Diagnostics)
+	}
+	if len(result.Files) != 1 {
+		t.Fatalf("Check returned %d files, want 1 entry file", len(result.Files))
+	}
+}
+
+

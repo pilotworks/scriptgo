@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/bundled"
@@ -73,7 +74,11 @@ func Check(entryPath string) (ProgramResult, error) {
 			if contents, ok := virtualFiles[filepath.Clean(path)]; ok {
 				return contents, true
 			}
-			return baseFS.ReadFile(path)
+			contents, ok := baseFS.ReadFile(path)
+			if ok && strings.HasPrefix(filepath.Clean(path), filepath.Clean(bundled.LibPath())) && (strings.HasSuffix(path, "lib.es5.d.ts") || strings.HasSuffix(path, "lib.d.ts")) {
+				return contents + "\n" + globalsSource, true
+			}
+			return contents, ok
 		},
 		DirectoryExists: func(path string) bool {
 			clean := filepath.Clean(path)

@@ -25,6 +25,9 @@ var processSource string
 //go:embed stdlib/crypto.ts
 var cryptoSource string
 
+//go:embed stdlib/globals.d.ts
+var globalsSource string
+
 var builtinModules = map[string]BuiltinModule{
 	"path": {
 		Name:    "path",
