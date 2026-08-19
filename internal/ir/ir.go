@@ -103,4 +103,5 @@ const (
 	OpTry         = "try"
 	OpClosure     = "closure"
 	OpClosureCall = "closure.call"
+	OpInstanceOf  = "instanceof"
 )

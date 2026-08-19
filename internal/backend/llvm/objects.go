@@ -20,6 +20,14 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", status, instruction.FieldCount, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+	if instruction.Value != "" {
+		if strGlobal, ok := e.stringsByValue[instruction.Value]; ok {
+			typeStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_type_set(ptr %%%s, ptr %s)\n", typeStatus, instruction.Result, strGlobal))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", typeStatus))
+		}
+	}
 	return nil
 }
 
@@ -88,5 +96,23 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 	default:
 		return fmt.Errorf("unsupported object field type %s", instruction.Type)
 	}
+	return nil
+}
+
+func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.Instruction) error {
+	e.types[instruction.Result] = ir.TypeBool
+	slot := instruction.Result + ".slot"
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+	strGlobal, ok := e.stringsByValue[instruction.Value]
+	if !ok {
+		return fmt.Errorf("unknown string literal %q for instanceof", instruction.Value)
+	}
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_instanceof(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], strGlobal, slot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	i32Val := instruction.Result + ".i32"
+	out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", i32Val, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val))
 	return nil
 }

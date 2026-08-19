@@ -1,9 +1,11 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef struct {
     int64_t field_count;
+    const char *type_name;
     uintptr_t fields[];
 } scriptgo_object;
 
@@ -85,6 +87,41 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
         return object_fail("scriptgo object field access failed");
     }
     *out_value = (void *)((scriptgo_object *)handle)->fields[index];
+    return 0;
+}
+
+int scriptgo_object_type_set(void *handle, const char *type_name) {
+    if (handle == NULL) {
+        return object_fail("scriptgo object type set failed");
+    }
+    ((scriptgo_object *)handle)->type_name = type_name;
+    return 0;
+}
+
+int scriptgo_object_type_get(void *handle, const char **out_type) {
+    if (handle == NULL || out_type == NULL) {
+        return object_fail("scriptgo object type get failed");
+    }
+    *out_type = ((scriptgo_object *)handle)->type_name;
+    return 0;
+}
+
+int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result) {
+    if (out_result == NULL) {
+        return object_fail("scriptgo instanceof null output");
+    }
+    if (handle == NULL || class_name == NULL) {
+        *out_result = 0;
+        return 0;
+    }
+    scriptgo_object *obj = (scriptgo_object *)handle;
+    if (obj->type_name == NULL) {
+        *out_result = 0;
+        return 0;
+    }
+    char needle[256];
+    snprintf(needle, sizeof(needle), ":%s:", class_name);
+    *out_result = (strstr(obj->type_name, needle) != NULL) ? 1 : 0;
     return 0;
 }
 

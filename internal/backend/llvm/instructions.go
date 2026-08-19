@@ -142,6 +142,8 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return e.emitThrow(out, inst)
 	case ir.OpTry:
 		return e.emitTry(out, inst)
+	case ir.OpInstanceOf:
+		return e.emitInstanceOf(out, inst)
 	default:
 		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
 	}

@@ -245,11 +245,13 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		result = nextTemp(counter)
 	}
 	objType := ir.Type("object:" + className)
+	tag := getHierarchyTag(className, classHierarchy)
 	function.Body = append(function.Body, ir.Instruction{
 		Op:         ir.OpObjectNew,
 		Type:       objType,
 		Result:     result,
 		Callee:     className,
+		Value:      tag,
 		FieldCount: len(shape.Fields),
 		Span:       toIRSpan(path, expression.Span),
 	})

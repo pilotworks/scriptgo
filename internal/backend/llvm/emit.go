@@ -49,7 +49,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
-			if instruction.Op == ir.OpConst && instruction.Type == ir.TypeString {
+			if (instruction.Op == ir.OpConst && instruction.Type == ir.TypeString) || (instruction.Op == ir.OpObjectNew && instruction.Value != "") || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
 				if _, ok := stringsByValue[instruction.Value]; !ok {
 					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 				}
@@ -140,6 +140,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_bool_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_set(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_get(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_type_get(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_instanceof(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_bool(i32, ptr)\n")

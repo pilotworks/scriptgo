@@ -41,7 +41,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
 	case ast.KindSuperKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
-	case ast.KindParenthesizedExpression, ast.KindNonNullExpression:
+	case ast.KindParenthesizedExpression, ast.KindNonNullExpression, ast.KindAsExpression, ast.KindTypeAssertionExpression:
 		return syntaxExpression(node.Expression(), chk)
 	case ast.KindBinaryExpression:
 		binary := node.AsBinaryExpression()
@@ -302,6 +302,8 @@ func binaryOperator(kind string) string {
 		"AmpersandAmpersandToken":                     "&&",
 		"BarBarToken":                                 "||",
 		"QuestionQuestionToken":                       "??",
+		"InstanceOfKeyword":                           "instanceof",
+		"InKeyword":                                   "in",
 	}
 	if operator, ok := operators[kind]; ok {
 		return operator

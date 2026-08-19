@@ -242,7 +242,21 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			array.Array[position] = val
 		case ir.OpObjectNew:
-			env[instruction.Result] = Value{Type: instruction.Type, Object: map[string]Value{}}
+			env[instruction.Result] = Value{Type: instruction.Type, Object: map[string]Value{}, String: instruction.Value}
+		case ir.OpInstanceOf:
+			object, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			isInstance := false
+			if object.Type != "" {
+				if object.String != "" && strings.Contains(object.String, ":"+instruction.Value+":") {
+					isInstance = true
+				} else if strings.HasPrefix(string(object.Type), "object:"+instruction.Value) {
+					isInstance = true
+				}
+			}
+			env[instruction.Result] = Value{Type: ir.TypeBool, Bool: isInstance}
 		case ir.OpFieldSet:
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {

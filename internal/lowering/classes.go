@@ -1,6 +1,8 @@
 package lowering
 
 import (
+	"strings"
+
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -154,4 +156,52 @@ func findConstructorInHierarchy(className string, signatures map[string]ir.Funct
 		}
 	}
 	return ir.Function{}, "", false
+}
+
+func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
+	if className == "" {
+		return ""
+	}
+	chain := []string{className}
+	curr := className
+	for {
+		meta, ok := hierarchy[curr]
+		if !ok || meta.Extends == "" {
+			break
+		}
+		chain = append(chain, meta.Extends)
+		curr = meta.Extends
+	}
+	return ":" + strings.Join(chain, ":") + ":"
+}
+
+func isSubclassOf(derived, base string, hierarchy map[string]ClassMeta) bool {
+	if derived == base {
+		return true
+	}
+	curr := derived
+	for {
+		meta, ok := hierarchy[curr]
+		if !ok || meta.Extends == "" {
+			break
+		}
+		if meta.Extends == base {
+			return true
+		}
+		curr = meta.Extends
+	}
+	return false
+}
+
+func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []string {
+	var result []string
+	for name := range hierarchy {
+		if name != baseClass && isSubclassOf(name, baseClass, hierarchy) {
+			mangled := name + "_" + methodName
+			if _, ok := signatures[mangled]; ok {
+				result = append(result, name)
+			}
+		}
+	}
+	return result
 }

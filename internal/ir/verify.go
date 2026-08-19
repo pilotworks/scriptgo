@@ -71,9 +71,14 @@ func (f Function) Verify() error {
 				return fmt.Errorf("closure instruction must define result and closure type")
 			}
 			known[instruction.Result] = TypeClosure
-		case OpConst, OpBinary, OpCompare, OpSelect, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
+		case OpConst, OpBinary, OpCompare, OpSelect, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet, OpInstanceOf:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
+			}
+			if instruction.Op == OpInstanceOf {
+				if len(instruction.Args) != 1 || instruction.Type != TypeBool || instruction.Value == "" {
+					return fmt.Errorf("instanceof requires one object operand, target class value, and bool result")
+				}
 			}
 			if instruction.Op == OpArray {
 				if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray {

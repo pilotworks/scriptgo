@@ -163,6 +163,81 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		return result, arrType, nil
 	case "index", "optional_index":
+		if expression.Left != nil && expression.Left.Kind == "identifier" {
+			if shape, isShape := shapes[expression.Left.Text]; isShape {
+				// Static constant index (e.g. Color[0])
+				if expression.Right != nil && expression.Right.Kind == "number" {
+					for _, field := range shape.Fields {
+						if field.Value == expression.Right.Text {
+							if result == "" {
+								result = nextTemp(counter)
+							}
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpConst,
+								Type:   ir.TypeString,
+								Result: result,
+								Value:  field.Name,
+								Span:   toIRSpan(path, expression.Span),
+							})
+							return result, ir.TypeString, nil
+						}
+					}
+				}
+				// Dynamic variable index on enum (e.g. Color[val])
+				idxVal, idxType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+				if err == nil && (idxType == ir.TypeNumber || idxType == ir.TypeString) {
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   ir.TypeString,
+						Result: result,
+						Value:  "",
+						Span:   toIRSpan(path, expression.Span),
+					})
+					for _, field := range shape.Fields {
+						if field.Value != "" {
+							targetVal := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpConst,
+								Type:   field.Type,
+								Result: targetVal,
+								Value:  field.Value,
+								Span:   toIRSpan(path, expression.Span),
+							})
+							cmpRes := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:       ir.OpCompare,
+								Type:     ir.TypeBool,
+								Operator: "==",
+								Result:   cmpRes,
+								Args:     []string{idxVal, targetVal},
+								Span:     toIRSpan(path, expression.Span),
+							})
+							valStr := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpConst,
+								Type:   ir.TypeString,
+								Result: valStr,
+								Value:  field.Name,
+								Span:   toIRSpan(path, expression.Span),
+							})
+							selectRes := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpSelect,
+								Type:   ir.TypeString,
+								Result: selectRes,
+								Args:   []string{cmpRes, valStr, result},
+								Span:   toIRSpan(path, expression.Span),
+							})
+							result = selectRes
+						}
+					}
+					return result, ir.TypeString, nil
+				}
+			}
+		}
 		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
 			keyVal, keyType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 			if err != nil || keyType != ir.TypeString {
@@ -356,6 +431,30 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftTyp, Result: result, Args: []string{cond, leftVal, rightVal}, Span: toIRSpan(path, expression.Span)})
 			return result, leftTyp, nil
+		}
+		if expression.Operator == "instanceof" {
+			left, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			targetClass := ""
+			if expression.Right != nil && (expression.Right.Kind == "identifier" || expression.Right.Kind == "type") {
+				targetClass = expression.Right.Text
+			} else {
+				return "", "", fmt.Errorf("instanceof requires a class identifier on the right")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpInstanceOf,
+				Type:   ir.TypeBool,
+				Result: result,
+				Args:   []string{left},
+				Value:  targetClass,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
 		}
 		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {

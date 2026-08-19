@@ -115,14 +115,87 @@ func lowerCallExpression(
 					if result == "" {
 						result = nextTemp(counter)
 					}
-					function.Body = append(function.Body, ir.Instruction{
+
+					overrides := findOverridingSubclasses(className, methodName, classHierarchy, signatures)
+					if len(overrides) == 0 {
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   target.ReturnType,
+							Result: result,
+							Callee: mangled,
+							Args:   args,
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, target.ReturnType, nil
+					}
+
+					if target.ReturnType != ir.TypeVoid {
+						env[result] = target.ReturnType
+					}
+					var elseBody []ir.Instruction
+					baseCallRes := nextTemp(counter)
+					elseBody = append(elseBody, ir.Instruction{
 						Op:     ir.OpCall,
 						Type:   target.ReturnType,
-						Result: result,
+						Result: baseCallRes,
 						Callee: mangled,
 						Args:   args,
 						Span:   toIRSpan(path, expression.Span),
 					})
+					if target.ReturnType != ir.TypeVoid {
+						elseBody = append(elseBody, ir.Instruction{
+							Op:     ir.OpAssign,
+							Type:   target.ReturnType,
+							Result: result,
+							Args:   []string{baseCallRes},
+							Span:   toIRSpan(path, expression.Span),
+						})
+					}
+
+					currElse := elseBody
+					for _, sub := range overrides {
+						subMangled := sub + "_" + methodName
+						instCheck := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpInstanceOf,
+							Type:   ir.TypeBool,
+							Result: instCheck,
+							Args:   []string{receiver},
+							Value:  sub,
+							Span:   toIRSpan(path, expression.Span),
+						})
+
+						var thenBody []ir.Instruction
+						subCallRes := nextTemp(counter)
+						thenBody = append(thenBody, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   target.ReturnType,
+							Result: subCallRes,
+							Callee: subMangled,
+							Args:   args,
+							Span:   toIRSpan(path, expression.Span),
+						})
+						if target.ReturnType != ir.TypeVoid {
+							thenBody = append(thenBody, ir.Instruction{
+								Op:     ir.OpAssign,
+								Type:   target.ReturnType,
+								Result: result,
+								Args:   []string{subCallRes},
+								Span:   toIRSpan(path, expression.Span),
+							})
+						}
+
+						ifInst := ir.Instruction{
+							Op:   ir.OpIf,
+							Type: ir.TypeVoid,
+							Args: []string{instCheck},
+							Then: thenBody,
+							Else: currElse,
+							Span: toIRSpan(path, expression.Span),
+						}
+						currElse = []ir.Instruction{ifInst}
+					}
+					function.Body = append(function.Body, currElse...)
 					return result, target.ReturnType, nil
 				}
 			}
@@ -142,6 +215,9 @@ func lowerCallExpression(
 		}
 		ctor, ctorName, found := findConstructorInHierarchy(meta.Extends, signatures, classHierarchy)
 		if !found {
+			if len(expression.Arguments) == 0 {
+				return "", ir.TypeVoid, nil
+			}
 			return "", "", fmt.Errorf("super constructor not found for base class %q", meta.Extends)
 		}
 		args := []string{"this"}
