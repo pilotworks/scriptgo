@@ -61,7 +61,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			return err
 		}
 		return validateExpression(fileName, statement.Expression)
-	case "module":
+	case "module", "enum":
 		return nil
 	case "class":
 		if statement.Class == nil || len(statement.Class.Fields) == 0 {
@@ -182,6 +182,20 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	switch expression.Kind {
 	case "number", "string", "bool", "identifier", "null", "undefined":
 		return nil
+	case "arrow_function":
+		if expression.Function != nil {
+			for _, p := range expression.Function.Parameters {
+				if err := validateStaticType(fileName, p.Span, p.Type); err != nil {
+					return err
+				}
+			}
+			for _, stmt := range expression.Function.Body {
+				if err := validateStatement(fileName, stmt); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	case "array":
 		if len(expression.Arguments) == 0 {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "empty array literal")
@@ -226,6 +240,8 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
 		}
 		return nil
+	case "typeof":
+		return validateExpression(fileName, expression.Left)
 	case "unary":
 		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "unary operator "+expression.Operator)

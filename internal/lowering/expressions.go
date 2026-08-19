@@ -258,6 +258,43 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeNumber, nil
 		}
 		return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
+	case "typeof":
+		_, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			if expression.Left != nil && expression.Left.Kind == "identifier" && expression.Left.Text == "undefined" {
+				valType = ir.TypeVoid
+			} else {
+				return "", "", err
+			}
+		}
+		var typeStr string
+		if expression.Left != nil && expression.Left.Kind == "null" {
+			typeStr = "object"
+		} else {
+			switch valType {
+			case ir.TypeNumber:
+				typeStr = "number"
+			case ir.TypeString:
+				typeStr = "string"
+			case ir.TypeBool:
+				typeStr = "boolean"
+			case ir.TypeVoid:
+				typeStr = "undefined"
+			default:
+				typeStr = "object"
+			}
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:    ir.OpConst,
+			Type:  ir.TypeString,
+			Result: result,
+			Value: typeStr,
+			Span:  toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeString, nil
 	case "binary":
 		if expression.Operator == "??" {
 			leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
@@ -415,6 +452,23 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					Span:   toIRSpan(path, expression.Span),
 				})
 				return result, global.Type, nil
+			}
+			if shape, ok := shapes[expression.Left.Text]; ok {
+				for _, field := range shape.Fields {
+					if field.Name == expression.Text && field.Value != "" {
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   field.Type,
+							Result: result,
+							Value:  field.Value,
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, field.Type, nil
+					}
+				}
 			}
 			if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "argv" {
 				if result == "" {

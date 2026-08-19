@@ -22,21 +22,36 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	shapes := map[string]ir.ObjectShape{}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind != "class" || statement.Class == nil {
-				continue
-			}
-			shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
-			for _, field := range statement.Class.Fields {
-				val := ""
-				if field.Initializer != nil {
-					val = field.Initializer.Text
-				} else if field.Type == "number" {
-					val = "0"
+			if statement.Kind == "class" && statement.Class != nil {
+				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
+				for _, field := range statement.Class.Fields {
+					val := ""
+					if field.Initializer != nil {
+						val = field.Initializer.Text
+					} else if field.Type == "number" {
+						val = "0"
+					}
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
 				}
-				shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
+				shapes[shape.Name] = shape
+				module.Shapes = append(module.Shapes, shape)
+			} else if statement.Kind == "enum" && statement.Enum != nil {
+				shape := ir.ObjectShape{Name: statement.Enum.Name, Span: toIRSpan(file.FileName, statement.Enum.Span)}
+				for _, member := range statement.Enum.Members {
+					typ := ir.TypeNumber
+					if member.Initializer != nil && member.Initializer.Kind == "string" {
+						typ = ir.TypeString
+					}
+					shape.Fields = append(shape.Fields, ir.Field{
+						Name:  member.Name,
+						Type:  typ,
+						Value: member.Value,
+						Span:  toIRSpan(file.FileName, member.Span),
+					})
+				}
+				shapes[shape.Name] = shape
+				module.Shapes = append(module.Shapes, shape)
 			}
-			shapes[shape.Name] = shape
-			module.Shapes = append(module.Shapes, shape)
 		}
 	}
 
@@ -54,7 +69,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 				module.Functions = append(module.Functions, function)
 				continue
 			}
-			if statement.Kind == "module" {
+			if statement.Kind == "module" || statement.Kind == "enum" {
 				continue
 			}
 			if statement.Kind == "class" && statement.Class != nil {

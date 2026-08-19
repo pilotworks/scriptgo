@@ -44,6 +44,12 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
 		return result
+	case ast.KindTypeOfExpression:
+		return &SyntaxExpression{
+			Span: sourceSpan(node),
+			Kind: "typeof",
+			Left: syntaxExpression(node.Expression()),
+		}
 	case ast.KindPrefixUnaryExpression:
 		prefix := node.AsPrefixUnaryExpression()
 		return &SyntaxExpression{
@@ -155,6 +161,51 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			}
 		}
 		return result
+	case ast.KindArrowFunction, ast.KindFunctionExpression:
+		span := sourceSpan(node)
+		var name string
+		if node.Name() != nil {
+			name = node.Name().Text()
+		}
+		var params []SyntaxParameter
+		for _, parameter := range node.Parameters() {
+			params = append(params, SyntaxParameter{
+				Span:        parameterSpan(parameter),
+				Name:        parameter.Name().Text(),
+				Type:        syntaxType(parameter.Type()),
+				Rest:        parameter.AsParameterDeclaration().DotDotDotToken != nil,
+				Initializer: syntaxExpression(parameter.Initializer()),
+			})
+		}
+		var body []SyntaxStatement
+		if b := node.Body(); b != nil {
+			if b.Kind == ast.KindBlock {
+				for _, statement := range b.Statements() {
+					if converted, ok := syntaxStatement(statement); ok {
+						body = append(body, converted)
+					}
+				}
+			} else {
+				body = append(body, SyntaxStatement{
+					Span:       sourceSpan(b),
+					Kind:       "return",
+					Expression: syntaxExpression(b),
+				})
+			}
+		}
+		fnStmt := &SyntaxStatement{
+			Span:       span,
+			Kind:       "function",
+			Name:       name,
+			Type:       syntaxType(node.Type()),
+			Parameters: params,
+			Body:       body,
+		}
+		return &SyntaxExpression{
+			Span:     span,
+			Kind:     "arrow_function",
+			Function: fnStmt,
+		}
 	default:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}
 	}

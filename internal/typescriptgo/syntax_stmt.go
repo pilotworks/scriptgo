@@ -2,6 +2,7 @@ package typescriptgo
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -339,6 +340,38 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 			}
 		}
 		return SyntaxStatement{Span: span, Kind: "expression", Expression: expr}, true
+	case ast.KindEnumDeclaration:
+		enumDecl := node.AsEnumDeclaration()
+		enumObj := &SyntaxEnum{
+			Span: span,
+			Name: node.Name().Text(),
+		}
+		var currentNumericVal float64 = 0
+		if enumDecl.Members != nil {
+			for _, memberNode := range enumDecl.Members.Nodes {
+				member := memberNode.AsEnumMember()
+				memName := member.Name().Text()
+				initExpr := syntaxExpression(member.Initializer)
+				m := SyntaxEnumMember{
+					Span:        sourceSpan(memberNode),
+					Name:        memName,
+					Initializer: initExpr,
+				}
+				if initExpr == nil {
+					m.Value = strconv.FormatFloat(currentNumericVal, 'f', -1, 64)
+					currentNumericVal++
+				} else if initExpr.Kind == "number" {
+					if v, err := strconv.ParseFloat(initExpr.Text, 64); err == nil {
+						currentNumericVal = v + 1
+						m.Value = initExpr.Text
+					}
+				} else if initExpr.Kind == "string" {
+					m.Value = initExpr.Text
+				}
+				enumObj.Members = append(enumObj.Members, m)
+			}
+		}
+		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindModuleDeclaration:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	default:
@@ -444,10 +477,17 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 				}
 			}
 		} else {
-			result := SyntaxStatement{Span: sourceSpan(declaration), Kind: "variable", Name: nameNode.Text()}
-			result.Type = syntaxType(declaration.Type())
-			result.Expression = initExpr
-			stmts = append(stmts, result)
+			if initExpr != nil && initExpr.Kind == "arrow_function" && initExpr.Function != nil {
+				fn := *initExpr.Function
+				fn.Span = sourceSpan(declaration)
+				fn.Name = nameNode.Text()
+				stmts = append(stmts, fn)
+			} else {
+				result := SyntaxStatement{Span: sourceSpan(declaration), Kind: "variable", Name: nameNode.Text()}
+				result.Type = syntaxType(declaration.Type())
+				result.Expression = initExpr
+				stmts = append(stmts, result)
+			}
 		}
 	}
 	if len(stmts) == 1 {

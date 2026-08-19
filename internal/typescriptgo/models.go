@@ -71,6 +71,20 @@ type SyntaxStatement struct {
 	Catch      []SyntaxStatement
 	Finally    []SyntaxStatement
 	Class      *SyntaxClass
+	Enum       *SyntaxEnum
+}
+
+type SyntaxEnum struct {
+	Span    SourceSpan
+	Name    string
+	Members []SyntaxEnumMember
+}
+
+type SyntaxEnumMember struct {
+	Span        SourceSpan
+	Name        string
+	Value       string
+	Initializer *SyntaxExpression
 }
 
 type SyntaxClass struct {
@@ -120,6 +134,7 @@ type SyntaxExpression struct {
 	Arguments []*SyntaxExpression
 	WhenTrue  *SyntaxExpression
 	WhenFalse *SyntaxExpression
+	Function  *SyntaxStatement
 }
 
 // ProgramResult contains the resolved files and all frontend diagnostics.

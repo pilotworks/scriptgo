@@ -1,5 +1,1 @@
-enum Color {
-  Red,
-  Green,
-  Blue,
-}
+class Empty {}

@@ -343,6 +343,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Finally:  finallyInstructions,
 			Span:     toIRSpan(path, statement.Span),
 		})
+	case "module", "enum":
+		return nil
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)
 	}
