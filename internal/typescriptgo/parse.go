@@ -2,6 +2,7 @@ package typescriptgo
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -48,6 +49,9 @@ func Parse(fileName, source string) (ParseResult, error) {
 // Check creates a TypeScript-Go program. Program creation performs local module
 // resolution and binds/checks the complete reachable source graph.
 func Check(entryPath string) (ProgramResult, error) {
+	if err := EnsureStdlib(""); err != nil {
+		return ProgramResult{}, fmt.Errorf("load stdlib: %w", err)
+	}
 	absoluteEntry, err := filepath.Abs(entryPath)
 	if err != nil {
 		return ProgramResult{}, err
@@ -104,7 +108,12 @@ func Check(entryPath string) (ProgramResult, error) {
 		CurrentDirectory:          cwd,
 		UseCaseSensitiveFileNames: fs.UseCaseSensitiveFileNames(),
 	}
-	config := tsoptions.NewParsedCommandLine(options, []string{absoluteEntry}, comparePaths)
+	rootFileNames := []string{absoluteEntry}
+	for virtualPath := range virtualFiles {
+		rootFileNames = append(rootFileNames, virtualPath)
+	}
+	sort.Strings(rootFileNames[1:])
+	config := tsoptions.NewParsedCommandLine(options, rootFileNames, comparePaths)
 	host := compiler.NewCompilerHost(cwd, fs, bundled.LibPath(), nil, nil)
 	program := compiler.NewProgram(compiler.ProgramOptions{
 		Config:         config,
@@ -127,7 +136,7 @@ func Check(entryPath string) (ProgramResult, error) {
 		}
 		files[filepath.Clean(file.FileName())] = file
 	}
-	for _, file := range orderedSourceFiles(files, absoluteEntry, program) {
+	for _, file := range orderedSourceFiles(files, absoluteEntry, program, builtinPaths) {
 		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
 			continue
 		}
@@ -136,7 +145,7 @@ func Check(entryPath string) (ProgramResult, error) {
 			Source:         file.Text(),
 			StatementCount: statementCount(file),
 			Span:           sourceSpan(&file.Node),
-			Imports:        moduleReferences(program, file),
+			Imports:        moduleReferences(program, file, cwd),
 			Builtin:        builtinPaths[filepath.Clean(file.FileName())] != "",
 			BuiltinName:    builtinPaths[filepath.Clean(file.FileName())],
 			Symbols:        fileSymbols(program, ctx, file),
@@ -215,15 +224,17 @@ func symbolKind(flags ast.SymbolFlags) string {
 	return "symbol"
 }
 
-func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleReference {
+func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd string) []ModuleReference {
 	result := make([]ModuleReference, 0, len(file.Imports()))
 	for _, specifier := range file.Imports() {
 		localName := namespaceImportName(specifier.AsNode())
-		if _, ok := builtinModule(specifier.Text()); ok {
+		if module, ok := builtinModule(specifier.Text()); ok {
 			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 			resolvedFileName := ""
-			if resolved != nil {
+			if resolved != nil && resolved.ResolvedFileName != "" && !strings.HasSuffix(resolved.ResolvedFileName, ".d.ts") {
 				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
+			} else {
+				resolvedFileName = filepath.Clean(filepath.Join(cwd, "node_modules", module.Name, "index.ts"))
 			}
 			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, LocalName: localName, Span: sourceSpan(specifier), Builtin: true})
 			continue
@@ -254,7 +265,8 @@ func namespaceImportName(specifier *ast.Node) string {
 }
 
 // orderedSourceFiles returns reachable local files in dependency-first order.
-func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program *compiler.Program) []*ast.SourceFile {
+func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program *compiler.Program, builtinPaths map[string]string) []*ast.SourceFile {
+	cwd := filepath.Dir(entry)
 	ordered := make([]*ast.SourceFile, 0, len(files))
 	visited := make(map[string]bool, len(files))
 	var visit func(string)
@@ -268,7 +280,7 @@ func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program 
 			return
 		}
 		visited[fileName] = true
-		for _, reference := range moduleReferences(program, file) {
+		for _, reference := range moduleReferences(program, file, cwd) {
 			visit(reference.ResolvedFileName)
 		}
 		ordered = append(ordered, file)
@@ -279,7 +291,7 @@ func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program 
 	// disconnected source file in a future TypeScript-Go revision.
 	remaining := make([]string, 0, len(files)-len(ordered))
 	for fileName := range files {
-		if !visited[fileName] {
+		if !visited[fileName] && builtinPaths[fileName] == "" {
 			remaining = append(remaining, fileName)
 		}
 	}

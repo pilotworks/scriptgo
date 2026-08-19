@@ -63,8 +63,15 @@ func TestCheckResolvesBuiltinPathModule(t *testing.T) {
 	if imported.Specifier != "path" || imported.LocalName != "p" || !imported.Builtin {
 		t.Fatalf("path import = %+v, want builtin path reference with namespace alias", imported)
 	}
-	if manifest := BuiltinModuleManifest(); len(manifest) < 1 || manifest[0].Name != "path" || manifest[0].Version == "" {
-		t.Fatalf("builtin manifest = %+v, want versioned path module", manifest)
+	foundPath := false
+	for _, m := range BuiltinModuleManifest() {
+		if m.Name == "path" && m.Version != "" {
+			foundPath = true
+			break
+		}
+	}
+	if !foundPath {
+		t.Fatalf("builtin manifest = %+v, want versioned path module", BuiltinModuleManifest())
 	}
 }
 
@@ -207,5 +214,49 @@ func TestCheckSupportsGlobalProcess(t *testing.T) {
 		t.Fatalf("Check returned %d files, want 1 entry file", len(result.Files))
 	}
 }
+
+func TestCheckResolvesNodePrefixedBuiltinModules(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "import * as fs from 'node:fs';\nimport * as path from 'node:path';\nimport * as crypto from 'node:crypto';\nimport * as process from 'node:process';\nconsole.log(path.join('a', 'b'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for node: imports: %+v", result.Diagnostics)
+	}
+	if len(result.Files[len(result.Files)-1].Imports) != 4 {
+		t.Fatalf("entry imports = %+v, want 4 node: imports", result.Files[len(result.Files)-1].Imports)
+	}
+	for _, imp := range result.Files[len(result.Files)-1].Imports {
+		if !imp.Builtin {
+			t.Fatalf("import %+v expected to be marked as Builtin", imp)
+		}
+		if !strings.HasSuffix(imp.ResolvedFileName, "index.ts") {
+			t.Fatalf("import %+v resolved filename %s does not point to builtin index.ts", imp, imp.ResolvedFileName)
+		}
+	}
+}
+
+func TestCheckResolvesNodePrefixedNamedImports(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "import { join, dirname } from 'node:path';\nimport { randomUUID } from 'node:crypto';\nimport { exit } from 'node:process';\nconsole.log(join('a', 'b'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for named node: imports: %+v", result.Diagnostics)
+	}
+}
+
 
 
