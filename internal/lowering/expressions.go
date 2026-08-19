@@ -76,6 +76,24 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "identifier":
 		typ, ok := env[expression.Text]
 		if ok {
+			if result != "" && result != expression.Text {
+				if typ == ir.TypeNumber {
+					zeroConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{expression.Text, zeroConst}, Span: toIRSpan(path, expression.Span)})
+					return result, typ, nil
+				}
+				if typ == ir.TypeString {
+					emptyStr := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{expression.Text, emptyStr}, Span: toIRSpan(path, expression.Span)})
+					return result, typ, nil
+				}
+				if typ == ir.TypeBool {
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "||", Args: []string{expression.Text, expression.Text}, Span: toIRSpan(path, expression.Span)})
+					return result, typ, nil
+				}
+			}
 			return expression.Text, typ, nil
 		}
 		global, ok := builtinGlobal(expression.Text)

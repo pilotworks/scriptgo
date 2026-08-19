@@ -22,6 +22,8 @@ general TypeScript-Go and LLVM behavior.
   [`docs/application-structure.md`](docs/application-structure.md).
 - Treat the module ownership rules below as hard boundaries. Do not move logic
   across a boundary merely because the destination package is convenient.
+  Always perform a module responsibility review before and after adding features
+  to ensure no package violates its boundaries or takes on forbidden responsibilities.
 - Keep the frontend-to-IR boundary independent from any one native backend.
 - Make JavaScript/TypeScript semantic differences explicit in the native subset
   policy, runtime ABI, diagnostics, and tests.
@@ -33,8 +35,12 @@ general TypeScript-Go and LLVM behavior.
 - Do not create catch-all `helpers`, `utils`, or `common` packages. Put a helper
   beside the boundary that owns its behavior, or document why it is genuinely
   cross-cutting.
-- Prefer small vertical changes: update one pipeline boundary, add focused tests,
-  then run `go test ./...` and `go build ./cmd/scriptgo`.
+- Always add corpus test cases under `internal/compiler/testdata/corpus/`
+  (`main.ts` with `run.expected`, `run.err`, or `check.err`) for every newly implemented
+  feature, syntax construct, operator, or standard library function.
+- Always run full regression tests and build verification on every change:
+  run `go test -count=1 ./...`, `go test -count=1 ./internal/typescriptgo/...`,
+  and `go build ./cmd/scriptgo`.
 - Keep the current CLI contract stable unless a documented roadmap item requires
   a breaking change.
 
