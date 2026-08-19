@@ -25,16 +25,17 @@ int scriptgo_web_btoa(const char *input, char **out_base64) {
 
     size_t i = 0, j = 0;
     for (i = 0; i < in_len;) {
-        unsigned char octet_a = i < in_len ? (unsigned char)input[i++] : 0;
-        unsigned char octet_b = i < in_len ? (unsigned char)input[i++] : 0;
-        unsigned char octet_c = i < in_len ? (unsigned char)input[i++] : 0;
+        size_t remaining = in_len - i;
+        unsigned char octet_a = (unsigned char)input[i++];
+        unsigned char octet_b = remaining > 1 ? (unsigned char)input[i++] : 0;
+        unsigned char octet_c = remaining > 2 ? (unsigned char)input[i++] : 0;
 
         uint32_t triple = ((uint32_t)octet_a << 16) | ((uint32_t)octet_b << 8) | octet_c;
 
         encoded[j++] = b64_table[(triple >> 18) & 0x3F];
         encoded[j++] = b64_table[(triple >> 12) & 0x3F];
-        encoded[j++] = (i > in_len + 1) ? '=' : b64_table[(triple >> 6) & 0x3F];
-        encoded[j++] = (i > in_len) ? '=' : b64_table[triple & 0x3F];
+        encoded[j++] = remaining > 1 ? b64_table[(triple >> 6) & 0x3F] : '=';
+        encoded[j++] = remaining > 2 ? b64_table[triple & 0x3F] : '=';
     }
     encoded[out_len] = '\0';
     *out_base64 = encoded;

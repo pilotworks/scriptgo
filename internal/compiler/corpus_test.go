@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,6 +29,23 @@ func TestCorpus(t *testing.T) {
 				}
 				if got != expected {
 					t.Fatalf("Run output = %q, want %q", got, expected)
+				}
+			}
+			if expected, ok := readCorpusFile(t, casePath, "native.expected"); ok {
+				expectations++
+				if _, err := exec.LookPath("clang"); err != nil {
+					t.Skip("clang is not installed")
+				}
+				outputPath := filepath.Join(t.TempDir(), "main")
+				if err := Build(entry, outputPath); err != nil {
+					t.Fatalf("Build failed: %v", err)
+				}
+				got, err := exec.Command(outputPath).CombinedOutput()
+				if err != nil {
+					t.Fatalf("native executable failed: %v\n%s", err, got)
+				}
+				if string(got) != expected {
+					t.Fatalf("native output = %q, want %q", got, expected)
 				}
 			}
 			if expected, ok := readCorpusFile(t, casePath, "run.err"); ok {

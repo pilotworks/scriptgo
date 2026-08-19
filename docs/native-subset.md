@@ -24,12 +24,12 @@ only when the dynamic runtime explicitly supports it.
 | Area | Supported | Rejected for the MVP |
 | --- | --- | --- |
 | Files | Closed local `.ts` module graph | npm/package graphs, `.js` execution, dynamic imports |
-| Statements | One variable declaration, expression statement, function declaration, static class declaration, `return` | Branches, loops, `try`/`catch`, `throw`, enums |
-| Values | Primitive literals/identifiers, promoted globals, dense primitive arrays, static objects | `null`, `undefined`, dynamic objects, prototypes, function values |
-| Operators | Numeric arithmetic/comparison and string `+` where semantics are proven | Operators requiring JavaScript coercion or unsupported runtime values |
-| Calls | User functions, `console.log` with one typed argument, and promoted intrinsics `Math.abs`, `Math.ceil`, `Math.floor`, `Math.trunc` | Methods, constructors, dynamic call targets, unlisted Node APIs |
-| Classes | Final static shapes with literal number/string field initializers and zero-argument `new` | Inheritance, methods, constructors with arguments, mutable field assignment |
-| Functions | Synchronous functions with typed parameters and returns | Async/generator functions, overloads, closures |
+| Statements | Variables, expressions, functions, blocks, `if`/`else`, loops, `break`/`continue`, `return`, `throw`, `try`/`catch`/`finally`, and module declarations | Enums, async/generator control flow, dynamic imports |
+| Values | Typed primitive literals/identifiers, `null`/`undefined` in supported nullish expressions, promoted globals, dense primitive arrays, and static objects | Unresolved `any`/`unknown`, prototypes, sparse/dynamic objects, and function values |
+| Operators | Numeric and boolean arithmetic/comparison, logical operators, unary operators, conditional expressions, string `+`, nullish access, and supported array/object mutation | Operators requiring unproven JavaScript coercion or unsupported runtime values |
+| Calls | User functions, typed string/array methods, `console` methods, promoted `Math`/Web/Node intrinsics, and registered built-in modules | Dynamic call targets, constructors outside static classes, and unlisted Node APIs |
+| Classes | Static shapes with typed fields, literal initializers, supported methods, constructors, zero-argument `new`, and field mutation | Inheritance, dynamic property/prototype behavior, and unresolved layouts |
+| Functions | Synchronous typed functions, parameters, return values, rest/default parameters, and structured control flow | Async/generator functions, overload-only declarations, closures, and unresolved function values |
 
 Unsupported constructs are rejected before IR verification or native backend
 generation. Static subset diagnostics use the `SGxxxx` catalog in
@@ -39,6 +39,9 @@ native layout and must produce `SG1001` in Static mode rather than being
 silently treated as a pointer or boxed C value.
 
 The rejected column describes the current MVP, not a permanent language ban.
+The table is intentionally conservative about JavaScript edge cases: a syntax
+construct can be accepted only where its checked types, runtime representation,
+interpreter behavior, and LLVM behavior agree.
 Features such as `null`/`undefined`, narrowed unions, monomorphized generics,
 `Date`, `Map`, `Set`, and additional standard-library APIs can become Static
 when their representation, JavaScript behavior, target support, and parity
