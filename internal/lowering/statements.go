@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -314,11 +315,36 @@ func toIRType(value string) ir.Type {
 	case "void", "":
 		return ir.TypeVoid
 	default:
+		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+			if fields, ok := tupleFields(value); ok {
+				return ir.Type("object:" + anonymousShapeName(fields))
+			}
+		}
 		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
 			return ir.TypeClosure
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+func tupleFields(typeStr string) ([]ir.Field, bool) {
+	if !strings.HasPrefix(typeStr, "[") || !strings.HasSuffix(typeStr, "]") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(typeStr[1 : len(typeStr)-1])
+	if inner == "" {
+		return nil, false
+	}
+	parts := strings.Split(inner, ",")
+	var fields []ir.Field
+	for i, part := range parts {
+		elemType := toIRType(strings.TrimSpace(part))
+		fields = append(fields, ir.Field{
+			Name: strconv.Itoa(i),
+			Type: elemType,
+		})
+	}
+	return fields, true
 }
 
 func toIRSpan(path string, span typescriptgo.SourceSpan) ir.SourceSpan {

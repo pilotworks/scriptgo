@@ -122,6 +122,16 @@ func syntaxType(node *ast.Node) string {
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"
+	case ast.KindTupleType:
+		tuple := node.AsTupleTypeNode()
+		if tuple != nil && tuple.Elements != nil {
+			var elements []string
+			for _, elem := range tuple.Elements.Nodes {
+				elements = append(elements, syntaxType(elem))
+			}
+			return "[" + strings.Join(elements, ", ") + "]"
+		}
+		return "object"
 	case ast.KindFunctionType:
 		return "closure"
 	default:

@@ -67,35 +67,68 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		if !hasSpread {
 			arguments := make([]string, 0, len(expression.Arguments))
-			var arrType ir.Type = ir.TypeNumberArray
+			types := make([]ir.Type, 0, len(expression.Arguments))
+			isHomogeneous := true
 			for i, element := range expression.Arguments {
 				value, typ, err := lowerExpression(path, element, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return "", "", err
 				}
-				if i == 0 {
-					if typ == ir.TypeString {
-						arrType = ir.TypeStringArray
-					} else if typ == ir.TypeNumber {
-						arrType = ir.TypeNumberArray
-					} else {
-						arrType = ir.Type(string(typ) + "[]")
-					}
-				} else {
-					expectedElem := ir.TypeNumber
-					if arrType == ir.TypeStringArray {
-						expectedElem = ir.TypeString
-					} else if strings.HasSuffix(string(arrType), "[]") {
-						expectedElem = ir.Type(strings.TrimSuffix(string(arrType), "[]"))
-					}
-					if typ != expectedElem {
-						return "", "", fmt.Errorf("inconsistent element type in array literal")
-					}
-				}
 				arguments = append(arguments, value)
+				types = append(types, typ)
+				if i > 0 && typ != types[0] {
+					isHomogeneous = false
+				}
 			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
-			return result, arrType, nil
+			if isHomogeneous {
+				var arrType ir.Type = ir.TypeNumberArray
+				if len(types) > 0 && types[0] == ir.TypeString {
+					arrType = ir.TypeStringArray
+				} else if len(types) > 0 && types[0] != ir.TypeNumber {
+					arrType = ir.Type(string(types[0]) + "[]")
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+				return result, arrType, nil
+			}
+
+			// Heterogeneous elements -> lower as anonymous tuple object
+			var fields []ir.Field
+			for i, typ := range types {
+				fields = append(fields, ir.Field{
+					Name: strconv.Itoa(i),
+					Type: typ,
+					Span: toIRSpan(path, expression.Arguments[i].Span),
+				})
+			}
+			shapeName := anonymousShapeName(fields)
+			if _, ok := shapes[shapeName]; !ok {
+				shapes[shapeName] = ir.ObjectShape{
+					Name:   shapeName,
+					Span:   toIRSpan(path, expression.Span),
+					Fields: fields,
+				}
+			}
+			objType := ir.Type("object:" + shapeName)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpObjectNew,
+				Type:       objType,
+				Result:     result,
+				Callee:     shapeName,
+				FieldCount: len(fields),
+				Span:       toIRSpan(path, expression.Span),
+			})
+			for i, field := range fields {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     shapeName,
+					Field:      field.Name,
+					FieldIndex: i,
+					Args:       []string{result, arguments[i]},
+					Span:       toIRSpan(path, expression.Span),
+				})
+			}
+			return result, objType, nil
 		}
 		var arrType ir.Type = ir.TypeNumberArray
 		for _, elem := range expression.Arguments {
@@ -252,6 +285,31 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		array, arrayType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
+		}
+		if strings.HasPrefix(string(arrayType), "object:") {
+			shapeName := strings.TrimPrefix(string(arrayType), "object:")
+			if shape, ok := shapes[shapeName]; ok {
+				if expression.Right != nil && expression.Right.Kind == "number" {
+					fieldIdx, _ := strconv.Atoi(expression.Right.Text)
+					if fieldIdx >= 0 && fieldIdx < len(shape.Fields) {
+						field := shape.Fields[fieldIdx]
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:         ir.OpFieldGet,
+							Type:       field.Type,
+							Result:     result,
+							Callee:     shapeName,
+							Field:      field.Name,
+							FieldIndex: fieldIdx,
+							Args:       []string{array},
+							Span:       toIRSpan(path, expression.Span),
+						})
+						return result, field.Type, nil
+					}
+				}
+			}
 		}
 		index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 		if err != nil {

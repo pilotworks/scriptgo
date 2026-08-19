@@ -237,26 +237,29 @@ golden artifact.
 
 ## CLI To Folder Mapping
 
-The current CLI supports one entry point and optional output:
+The current CLI supports dedicated subcommands:
 
 ```sh
-go run ./cmd/scriptgo examples/hello.ts
-go run ./cmd/scriptgo -emit run examples/hello.ts
-go run ./cmd/scriptgo -emit llvm-ir -o out.ll examples/hello.ts
-go run ./cmd/scriptgo -emit exe -o hello examples/hello.ts
+scriptgo run examples/hello.ts
+scriptgo run --native examples/hello.ts
+scriptgo build examples/hello.ts -o hello
+scriptgo check examples/hello.ts
+scriptgo emit examples/hello.ts --mode typed-ir
+scriptgo emit examples/hello.ts --mode llvm-ir -o out.ll
 ```
 
-Implemented modes map to pipeline boundaries rather than packages:
+Implemented commands map to pipeline boundaries:
 
-| Command/artifact | Boundary | Purpose |
+| Command | Boundary | Purpose |
 | --- | --- | --- |
-| `--emit run` | frontend -> IR -> interpreter | Execute reference semantics |
-| `--emit llvm-ir` | IR -> LLVM backend | Inspect LLVM IR before toolchain invocation |
-| `--emit exe` | IR -> LLVM -> Clang | Produce a native executable |
-| `check`, `lower`, `--emit typed-ir` | Planned boundaries | Add when their CLI artifacts have stable contracts |
+| `scriptgo run` | frontend -> IR -> interpreter | Execute reference semantics |
+| `scriptgo run --native` | frontend -> IR -> LLVM -> Clang | Compile and run standalone native binary |
+| `scriptgo build` | frontend -> IR -> LLVM -> Clang | Produce a native executable |
+| `scriptgo check` | frontend -> subset validator | Validate syntax, types, and subset |
+| `scriptgo emit --mode=typed-ir` | frontend -> IR | Inspect typed IR |
+| `scriptgo emit --mode=llvm-ir` | IR -> LLVM backend | Inspect LLVM IR before toolchain invocation |
+| `scriptgo version` | metadata | Print compiler and runtime version |
 
-The CLI currently accepts one entry point and keeps these modes stable while
-the roadmap expands the available artifacts.
 
 ## Adding A New Component
 

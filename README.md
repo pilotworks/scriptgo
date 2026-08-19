@@ -38,17 +38,24 @@ eligible code directly to native code; Dynamic is planned behind an explicit
 code and `any`; Unsupported constructs produce a compile error. The current
 MVP is Static-only, so it does not yet accept `--dynamic`.
 
-## Run
+## CLI Usage
 
 ```sh
-go run ./cmd/scriptgo examples/hello.ts
-go run ./cmd/scriptgo -emit run examples/hello.ts
-go run ./cmd/scriptgo -emit llvm-ir -o out.ll examples/hello.ts
-go run ./cmd/scriptgo -emit exe -o hello examples/hello.ts
+# Run a TypeScript program (interpreter or native)
+scriptgo run examples/hello.ts
+scriptgo run --native examples/hello.ts
+
+# Build a standalone native binary
+scriptgo build examples/hello.ts -o hello
+
+# Type-check and validate program subset
+scriptgo check examples/hello.ts
+
+# Emit intermediate representations (LLVM IR or Typed IR)
+scriptgo emit examples/hello.ts
+scriptgo emit examples/hello.ts --mode typed-ir -o out.ir
 ```
 
-`-emit run` uses the reference interpreter. `-emit llvm-ir` writes LLVM IR, and
-`-emit exe` invokes the host `clang` to produce a native executable.
 
 Native builds accept `-target native` (or a Clang target triple), `-debug` for
 source debug metadata, and `-sanitize address,undefined,leak` for opt-in Clang

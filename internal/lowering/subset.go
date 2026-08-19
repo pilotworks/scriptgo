@@ -284,8 +284,8 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return validateExpression(fileName, expression.Right)
 	case "optional_property", "property":
-		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") {
-			return nil
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal") {
+			return validateExpression(fileName, expression.Left)
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")
 	case "new":

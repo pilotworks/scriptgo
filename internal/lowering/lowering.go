@@ -65,6 +65,14 @@ func Lower(program frontend.Program) (ir.Module, error) {
 				shapes[shape.Name] = shape
 				module.Shapes = append(module.Shapes, shape)
 			}
+			if fields, ok := tupleFields(statement.Type); ok {
+				shapeName := anonymousShapeName(fields)
+				if _, exists := shapes[shapeName]; !exists {
+					shape := ir.ObjectShape{Name: shapeName, Fields: fields}
+					shapes[shapeName] = shape
+					module.Shapes = append(module.Shapes, shape)
+				}
+			}
 		}
 	}
 

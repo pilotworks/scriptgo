@@ -175,3 +175,17 @@ func Run(entryPath string) (string, error) {
 	}
 	return result.Output, nil
 }
+
+// Check parses, type checks, and validates the native subset for an entry point.
+func Check(entryPath string) error {
+	source, err := os.ReadFile(entryPath)
+	if err != nil {
+		return fmt.Errorf("read entry point %q: %w", entryPath, err)
+	}
+	program, err := frontend.NewProgram(entryPath, string(source))
+	if err != nil {
+		return err
+	}
+	return lowering.ValidateSubset(program)
+}
+
