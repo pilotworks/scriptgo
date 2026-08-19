@@ -63,6 +63,8 @@ func syntaxType(node *ast.Node) string {
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"
+	case ast.KindFunctionType:
+		return "closure"
 	default:
 		return node.Kind.String()
 	}

@@ -33,6 +33,7 @@ type Function struct {
 	Name       string
 	Span       SourceSpan
 	Parameters []Parameter
+	Captured   []Parameter
 	ReturnType Type
 	Body       []Instruction
 }
@@ -52,6 +53,7 @@ const (
 	TypeNumberArray Type = "number[]"
 	TypeStringArray Type = "string[]"
 	TypeObject      Type = "object"
+	TypeClosure     Type = "closure"
 )
 
 type Instruction struct {
@@ -95,7 +97,9 @@ const (
 	OpDoWhile   = "dowhile"
 	OpBreak     = "break"
 	OpContinue  = "continue"
-	OpAssign    = "assign"
-	OpThrow     = "throw"
-	OpTry       = "try"
+	OpAssign      = "assign"
+	OpThrow       = "throw"
+	OpTry         = "try"
+	OpClosure     = "closure"
+	OpClosureCall = "closure.call"
 )

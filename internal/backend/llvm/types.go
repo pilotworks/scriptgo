@@ -32,6 +32,8 @@ func llvmType(typ ir.Type) string {
 		return "ptr"
 	case ir.TypeNumberArray, ir.TypeStringArray:
 		return "ptr"
+	case ir.TypeClosure:
+		return "ptr"
 	case ir.TypeBool:
 		return "i1"
 	case ir.TypeVoid:

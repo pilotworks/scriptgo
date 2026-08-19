@@ -220,6 +220,13 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			Kind:     "arrow_function",
 			Function: fnStmt,
 		}
+	case ast.KindAwaitExpression:
+		awaitNode := node.AsAwaitExpression()
+		return &SyntaxExpression{
+			Span: sourceSpan(node),
+			Kind: "await",
+			Left: syntaxExpression(awaitNode.Expression),
+		}
 	default:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}
 	}

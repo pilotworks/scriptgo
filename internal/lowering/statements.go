@@ -435,9 +435,14 @@ func toIRType(value string) ir.Type {
 		return ir.TypeNumberArray
 	case "string[]":
 		return ir.TypeStringArray
+	case "closure", "function":
+		return ir.TypeClosure
 	case "void", "":
 		return ir.TypeVoid
 	default:
+		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
+			return ir.TypeClosure
+		}
 		return ir.Type("object:" + value)
 	}
 }

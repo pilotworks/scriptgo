@@ -195,6 +195,24 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare double @scriptgo_exception_get_number(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_exception_get_bool(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_rethrow(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_closure_create(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_string(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_filter_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_filter_string(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_for_each_number(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_for_each_string(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_reduce_number(ptr, ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_find_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_some_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_every_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_queue_microtask(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_create(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_number(ptr, double)\n")
+	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_event_loop_run()\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))
@@ -251,12 +269,33 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		emitter.types[parameter.Name] = parameter.Type
 	}
 
+	if len(function.Captured) > 0 {
+		fieldTypes := make([]string, len(function.Captured))
+		for i, c := range function.Captured {
+			fieldTypes[i] = llvmType(c.Type)
+		}
+		structType := fmt.Sprintf("{ %s }", strings.Join(fieldTypes, ", "))
+		for i, c := range function.Captured {
+			slotName := c.Name + ".slot"
+			emitter.varSlots[c.Name] = slotName
+			emitter.types[c.Name] = c.Type
+			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(c.Type)))
+			fieldPtr := fmt.Sprintf("%s.field.%d", c.Name, i)
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%__env_ctx, i32 0, i32 %d\n", fieldPtr, structType, i))
+			loadedVal := fmt.Sprintf("%s.val.%d", c.Name, i)
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadedVal, llvmType(c.Type), fieldPtr))
+			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(c.Type), loadedVal, slotName))
+		}
+	}
+
 	slotted := findSlottedVariables(function.Body)
 	for varName, typ := range slotted {
-		slotName := varName + ".slot"
-		emitter.varSlots[varName] = slotName
-		emitter.types[varName] = typ
-		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
+		if _, ok := emitter.varSlots[varName]; !ok {
+			slotName := varName + ".slot"
+			emitter.varSlots[varName] = slotName
+			emitter.types[varName] = typ
+			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
+		}
 	}
 
 	for _, instruction := range function.Body {
@@ -281,6 +320,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 		}
 		if function.Name == "main" {
+			out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
 			out.WriteString("  ret i32 0\n")
 		} else if function.ReturnType == ir.TypeVoid {
 			out.WriteString("  ret void\n")

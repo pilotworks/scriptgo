@@ -269,7 +269,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
 		}
 		return nil
-	case "typeof":
+	case "typeof", "await":
 		return validateExpression(fileName, expression.Left)
 	case "unary":
 		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" {

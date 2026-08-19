@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -421,7 +422,7 @@ func executeNumberIntrinsic(name string, arguments []string, env map[string]Valu
 	}
 }
 
-func executeArrayIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+func executeArrayIntrinsic(name string, arguments []string, env map[string]Value, functions map[string]ir.Function, output *bytes.Buffer) (Value, error) {
 	if len(arguments) == 0 {
 		return Value{}, fmt.Errorf("array intrinsic requires at least one argument")
 	}
@@ -657,6 +658,157 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 		}
 		return Value{Type: ir.TypeString, String: strings.Join(parts, sep)}, nil
+	case "__array.map":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.map requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.map callback must be a closure")
+		}
+		mapped := make([]Value, 0, len(array.Array))
+		for i, item := range array.Array {
+			res, flow, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if flow == flowThrow {
+				return res, fmt.Errorf("uncaught exception in array.map")
+			}
+			mapped = append(mapped, res)
+		}
+		retType := array.Type
+		if len(mapped) > 0 {
+			if mapped[0].Type == ir.TypeString {
+				retType = ir.TypeStringArray
+			} else {
+				retType = ir.TypeNumberArray
+			}
+		}
+		return Value{Type: retType, Array: mapped}, nil
+	case "__array.filter":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.filter requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.filter callback must be a closure")
+		}
+		filtered := make([]Value, 0)
+		for i, item := range array.Array {
+			res, flow, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if flow == flowThrow {
+				return res, fmt.Errorf("uncaught exception in array.filter")
+			}
+			if res.Bool {
+				filtered = append(filtered, item)
+			}
+		}
+		return Value{Type: array.Type, Array: filtered}, nil
+	case "__array.forEach":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.forEach requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.forEach callback must be a closure")
+		}
+		for i, item := range array.Array {
+			_, flow, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if flow == flowThrow {
+				return Value{}, fmt.Errorf("uncaught exception in array.forEach")
+			}
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__array.reduce":
+		if len(arguments) < 3 {
+			return Value{}, fmt.Errorf("array.reduce requires callback closure and initial value")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.reduce callback must be a closure")
+		}
+		acc, ok := env[arguments[2]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown reduce initial value")
+		}
+		for i, item := range array.Array {
+			res, flow, err := executeClosure(functions, closureVal.Closure, []Value{acc, item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if flow == flowThrow {
+				return res, fmt.Errorf("uncaught exception in array.reduce")
+			}
+			acc = res
+		}
+		return acc, nil
+	case "__array.find":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.find requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.find callback must be a closure")
+		}
+		for i, item := range array.Array {
+			res, flow, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if flow == flowThrow {
+				return res, fmt.Errorf("uncaught exception in array.find")
+			}
+			if res.Bool {
+				return item, nil
+			}
+		}
+		if array.Type == ir.TypeNumberArray {
+			return Value{Type: ir.TypeNumber, Number: 0}, nil
+		}
+		return Value{Type: ir.TypeString, String: ""}, nil
+	case "__array.some":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.some requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.some callback must be a closure")
+		}
+		for i, item := range array.Array {
+			res, _, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if res.Bool {
+				return Value{Type: ir.TypeBool, Bool: true}, nil
+			}
+		}
+		return Value{Type: ir.TypeBool, Bool: false}, nil
+	case "__array.every":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.every requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.every callback must be a closure")
+		}
+		for i, item := range array.Array {
+			res, _, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if !res.Bool {
+				return Value{Type: ir.TypeBool, Bool: false}, nil
+			}
+		}
+		return Value{Type: ir.TypeBool, Bool: true}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown array intrinsic %q", name)
 	}
@@ -872,6 +1024,86 @@ func executeJsonIntrinsic(name string, arguments []string, env map[string]Value)
 		return Value{}, fmt.Errorf("unknown JSON intrinsic %q", name)
 	}
 }
+
+type microtaskItem struct {
+	closure *Closure
+	arg     Value
+}
+
+var microtasks []microtaskItem
+
+func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value, functions map[string]ir.Function, output *bytes.Buffer) (Value, error) {
+	switch name {
+	case "__async.queueMicrotask":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("queueMicrotask requires 1 argument")
+		}
+		closureVal, ok := env[arguments[0]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("queueMicrotask argument must be a closure")
+		}
+		microtasks = append(microtasks, microtaskItem{closure: closureVal.Closure})
+		return Value{Type: ir.TypeVoid}, nil
+	case "__async.promise_resolve":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("Promise.resolve requires 1 argument")
+		}
+		val, ok := env[arguments[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown argument %q", arguments[0])
+		}
+		return Value{Type: ir.TypeObject, Object: map[string]Value{"__state": {Type: ir.TypeNumber, Number: 1}, "__value": val}}, nil
+	case "__async.promise_then":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("promise.then requires promise and callback")
+		}
+		promiseVal, ok := env[arguments[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown promise %q", arguments[0])
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("promise.then callback must be a closure")
+		}
+		var val Value
+		if promiseVal.Object != nil {
+			val = promiseVal.Object["__value"]
+		}
+		microtasks = append(microtasks, microtaskItem{closure: closureVal.Closure, arg: val})
+		return promiseVal, nil
+	case "__async.await":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("await requires 1 argument")
+		}
+		promiseVal, ok := env[arguments[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown await argument %q", arguments[0])
+		}
+		if promiseVal.Type == ir.TypeObject && promiseVal.Object != nil {
+			return promiseVal.Object["__value"], nil
+		}
+		return promiseVal, nil
+	default:
+		return Value{}, fmt.Errorf("unknown async intrinsic %q", name)
+	}
+}
+
+func drainMicrotasks(functions map[string]ir.Function, output *bytes.Buffer) error {
+	for len(microtasks) > 0 {
+		task := microtasks[0]
+		microtasks = microtasks[1:]
+		var args []Value
+		if task.arg.Type != "" {
+			args = []Value{task.arg}
+		}
+		_, _, err := executeClosure(functions, task.closure, args, output)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 
 
 

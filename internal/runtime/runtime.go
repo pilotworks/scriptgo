@@ -37,5 +37,11 @@ var numberSource string
 //go:embed native/strings/runtime.c
 var stringSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + fsSource + "\n" + processSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource)
+//go:embed native/closures/runtime.c
+var closureSource string
+
+//go:embed native/async/runtime.c
+var asyncSource string
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource)
 

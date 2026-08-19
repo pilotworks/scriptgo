@@ -8,13 +8,19 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+type Closure struct {
+	Function ir.Function
+	Env      map[string]Value
+}
+
 type Value struct {
-	Type   ir.Type
-	Number float64
-	String string
-	Bool   bool
-	Array  []Value
-	Object map[string]Value
+	Type    ir.Type
+	Number  float64
+	String  string
+	Bool    bool
+	Array   []Value
+	Object  map[string]Value
+	Closure *Closure
 }
 
 type Result struct {

@@ -81,20 +81,22 @@ func lowerCallExpression(
 				}
 				returnType := ir.TypeNumber
 				switch methodName {
-				case "slice", "reverse", "concat", "splice":
+				case "slice", "reverse", "concat", "splice", "map", "filter":
 					returnType = receiverType
-				case "includes":
+				case "includes", "some", "every":
 					returnType = ir.TypeBool
 				case "join":
 					returnType = ir.TypeString
-				case "push", "unshift", "indexOf":
+				case "push", "unshift", "indexOf", "reduce":
 					returnType = ir.TypeNumber
-				case "pop", "shift", "at":
+				case "pop", "shift", "at", "find":
 					if receiverType == ir.TypeNumberArray {
 						returnType = ir.TypeNumber
 					} else {
 						returnType = ir.TypeString
 					}
+				case "forEach":
+					returnType = ir.TypeVoid
 				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__array." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, returnType, nil
@@ -225,7 +227,58 @@ func lowerCallExpression(
 		}
 	}
 
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Text == "then" {
+		receiverVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		cbVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:Promise"),
+			Result: result,
+			Callee: "__async.promise_then",
+			Args:   []string{receiverVal, cbVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:Promise"), nil
+	}
+
 	callee := callName(expression.Left)
+	if calleeType, ok := env[callee]; ok && calleeType == ir.TypeClosure {
+		args := make([]string, 0, len(expression.Arguments))
+		for _, argument := range expression.Arguments {
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, value)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeNumber
+		if rt, ok := env[callee+".retType"]; ok && rt != "" {
+			retType = rt
+		} else if target, ok := signatures[callee]; ok && target.ReturnType != "" {
+			retType = target.ReturnType
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpClosureCall,
+			Type:   retType,
+			Result: result,
+			Callee: callee,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
 	if intrinsic, ok := builtinIntrinsic(callee); ok {
 		return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
 	}
@@ -303,7 +356,7 @@ func isStringMethod(name string) bool {
 
 func isArrayMethod(name string) bool {
 	switch name {
-	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at":
+	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at", "map", "filter", "forEach", "reduce", "find", "some", "every":
 		return true
 	default:
 		return false

@@ -128,6 +128,14 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if err := e.emitCall(out, inst); err != nil {
 			return err
 		}
+	case ir.OpClosure:
+		if err := e.emitClosure(out, inst); err != nil {
+			return err
+		}
+	case ir.OpClosureCall:
+		if err := e.emitClosureCall(out, inst); err != nil {
+			return err
+		}
 	case ir.OpReturn:
 		return e.emitReturn(out, inst)
 	case ir.OpThrow:
@@ -516,6 +524,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__async.") {
+		if err := e.emitAsyncIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__crypto.") {
 		if err := e.emitCryptoIntrinsic(out, instruction); err != nil {
 			return err
@@ -618,6 +635,7 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 		}
 	}
 	if e.function.Name == "main" {
+		out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
 		out.WriteString("  ret i32 0\n")
 	} else if len(instruction.Args) == 0 {
 		out.WriteString("  ret void\n")
@@ -769,3 +787,137 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 	}
 	return nil
 }
+
+func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instruction) error {
+	e.types[instruction.Result] = ir.TypeClosure
+	slot := instruction.Result + ".slot"
+	out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+
+	var envPtr string
+	if len(instruction.Args) == 0 {
+		envPtr = "null"
+	} else {
+		typesList := make([]string, len(instruction.Args))
+		for i, arg := range instruction.Args {
+			typ, ok := e.types[arg]
+			if !ok {
+				typ = ir.TypeNumber
+			}
+			typesList[i] = llvmType(typ)
+		}
+		structType := fmt.Sprintf("{ %s }", strings.Join(typesList, ", "))
+		envAlloc := fmt.Sprintf("%s.env.%d", instruction.Result, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", envAlloc, structType))
+		for i, arg := range instruction.Args {
+			typ, ok := e.types[arg]
+			if !ok {
+				typ = ir.TypeNumber
+			}
+			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
+			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), arg, fieldPtr))
+		}
+		envPtr = "%" + envAlloc
+	}
+
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr @%s, ptr %s, ptr %%%s)\n", status, instruction.Callee, envPtr, slot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+	return nil
+}
+
+func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.Instruction) error {
+	closureVar := instruction.Callee
+	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, e.loadCounter)
+	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
+	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)
+	envCtx := fmt.Sprintf("%s.env_ctx.%d", instruction.Result, e.loadCounter)
+	e.loadCounter++
+
+	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 0\n", fnPtrSlot, closureVar))
+	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", fnPtr, fnPtrSlot))
+	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 1\n", envSlot, closureVar))
+	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", envCtx, envSlot))
+
+	var callArgs []string
+	callArgs = append(callArgs, fmt.Sprintf("ptr %%%s", envCtx))
+
+	for _, arg := range instruction.Args {
+		typ, ok := e.types[arg]
+		if !ok {
+			typ = ir.TypeNumber
+		}
+		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", llvmType(typ), arg))
+	}
+
+	retType := llvmType(instruction.Type)
+	if instruction.Type != ir.TypeVoid && instruction.Result != "" {
+		e.types[instruction.Result] = instruction.Type
+		out.WriteString(fmt.Sprintf("  %%%s = call %s %%%s(%s)\n", instruction.Result, retType, fnPtr, strings.Join(callArgs, ", ")))
+	} else {
+		out.WriteString(fmt.Sprintf("  call void %%%s(%s)\n", fnPtr, strings.Join(callArgs, ", ")))
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Callee {
+	case "__async.queueMicrotask":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("queueMicrotask requires 1 argument")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_queue_microtask(ptr %%%s, ptr null)\n", status, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	case "__async.promise_resolve":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("Promise.resolve requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_create(ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		pVal := fmt.Sprintf("%s.p", instruction.Result)
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
+		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__async.promise_then":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("promise.then requires promise and callback")
+		}
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__async.await":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("await requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_number(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	default:
+		return fmt.Errorf("unknown async intrinsic %q", instruction.Callee)
+	}
+}
+

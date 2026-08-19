@@ -12,6 +12,8 @@ import (
 
 // Lower lowers the currently supported synchronous TypeScript subset.
 func Lower(program frontend.Program) (ir.Module, error) {
+	extraFunctions = nil
+	closureCounter = 0
 	var err error
 	program, err = SpecializeGenerics(program)
 	if err != nil {
@@ -157,6 +159,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	})
 	main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
 	module.Functions = append([]ir.Function{main}, module.Functions...)
+	module.Functions = append(module.Functions, extraFunctions...)
 	if err := module.Verify(); err != nil {
 		return ir.Module{}, err
 	}

@@ -283,6 +283,80 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
 		return nil
+	case "__array.map":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		fnName := "scriptgo_array_map_number"
+		if arrayType == ir.TypeStringArray {
+			fnName = "scriptgo_array_map_string"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.filter":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		fnName := "scriptgo_array_filter_number"
+		if arrayType == ir.TypeStringArray {
+			fnName = "scriptgo_array_filter_string"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.forEach":
+		fnName := "scriptgo_array_for_each_number"
+		if arrayType == ir.TypeStringArray {
+			fnName = "scriptgo_array_for_each_string"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	case "__array.reduce":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.find":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_find_number(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.some":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_some_number(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s.i32 = load i32, ptr %%%s\n", instruction.Result, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s.i32, 0\n", instruction.Result, instruction.Result))
+		return nil
+	case "__array.every":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_every_number(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s.i32 = load i32, ptr %%%s\n", instruction.Result, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s.i32, 0\n", instruction.Result, instruction.Result))
+		return nil
 	default:
 		return fmt.Errorf("unknown array intrinsic %q", instruction.Callee)
 	}

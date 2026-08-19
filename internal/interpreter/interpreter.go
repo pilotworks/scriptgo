@@ -32,6 +32,9 @@ func Execute(module ir.Module) (Result, error) {
 	if flow == flowThrow {
 		return Result{}, fmt.Errorf("uncaught exception: %s", format(value))
 	}
+	if err := drainMicrotasks(functions, &output); err != nil {
+		return Result{}, err
+	}
 	return Result{Output: output.String(), Return: value}, nil
 }
 
@@ -66,9 +69,76 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 	return val, flow, err
 }
 
+func executeClosure(functions map[string]ir.Function, closure *Closure, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
+	if closure == nil {
+		return Value{}, flowNormal, fmt.Errorf("cannot execute nil closure")
+	}
+	env := make(map[string]Value)
+	for k, v := range closure.Env {
+		env[k] = v
+	}
+	userParams := closure.Function.Parameters
+	if len(userParams) > 0 && userParams[0].Name == "__env_ctx" {
+		userParams = userParams[1:]
+	}
+	for index, parameter := range userParams {
+		if index < len(arguments) {
+			env[parameter.Name] = arguments[index]
+		}
+	}
+	val, _, flow, err := executeBlock(functions, closure.Function.Body, env, output)
+	return val, flow, err
+}
+
 func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env map[string]Value, output *bytes.Buffer) (Value, bool, controlFlow, error) {
 	for _, instruction := range body {
 		switch instruction.Op {
+		case ir.OpClosure:
+			targetFn, ok := functions[instruction.Callee]
+			if !ok {
+				return Value{}, false, flowNormal, fmt.Errorf("unknown function for closure %q", instruction.Callee)
+			}
+			captured := make(map[string]Value, len(instruction.Args))
+			for _, argName := range instruction.Args {
+				val, err := lookup(env, []string{argName}, 0)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				captured[argName] = val
+			}
+			env[instruction.Result] = Value{
+				Type: ir.TypeClosure,
+				Closure: &Closure{
+					Function: targetFn,
+					Env:      captured,
+				},
+			}
+		case ir.OpClosureCall:
+			closureVal, err := lookup(env, []string{instruction.Callee}, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			if closureVal.Closure == nil {
+				return Value{}, false, flowNormal, fmt.Errorf("%q is not a callable closure", instruction.Callee)
+			}
+			args := make([]Value, 0, len(instruction.Args))
+			for _, argName := range instruction.Args {
+				val, err := lookup(env, []string{argName}, 0)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				args = append(args, val)
+			}
+			val, flow, err := executeClosure(functions, closureVal.Closure, args, output)
+			if err != nil {
+				return Value{}, false, flow, err
+			}
+			if flow != flowNormal && flow != flowReturn {
+				return val, true, flow, nil
+			}
+			if instruction.Result != "" {
+				env[instruction.Result] = val
+			}
 		case ir.OpConst:
 			value, err := parseConstant(instruction.Type, instruction.Value)
 			if err != nil {
@@ -223,11 +293,21 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__array.") {
-				value, err := executeArrayIntrinsic(instruction.Callee, instruction.Args, env)
+				value, err := executeArrayIntrinsic(instruction.Callee, instruction.Args, env, functions, output)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
 				env[instruction.Result] = value
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__async.") {
+				value, err := executeAsyncIntrinsic(instruction.Callee, instruction.Args, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__fs.") {

@@ -200,6 +200,20 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			return expression.Text, typ, nil
 		}
+		if sig, ok := signatures[expression.Text]; ok {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpClosure,
+				Type:   ir.TypeClosure,
+				Result: result,
+				Callee: sig.Name,
+				Args:   nil,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeClosure, nil
+		}
 		global, ok := builtinGlobal(expression.Text)
 		if !ok {
 			return "", "", fmt.Errorf("unknown identifier %q", expression.Text)
@@ -444,6 +458,32 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return lowerNewExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "call":
 		return lowerCallExpression(path, expression, result, function, env, counter, shapes, signatures)
+	case "arrow_function":
+		if expression.Function != nil {
+			return lowerClosureExpression(path, expression.Function, result, function, env, counter, shapes, signatures)
+		}
+		return "", "", fmt.Errorf("arrow function expression missing body")
+	case "await":
+		val, typ, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeNumber
+		if typ == ir.TypeString {
+			retType = ir.TypeString
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   retType,
+			Result: result,
+			Callee: "__async.await",
+			Args:   []string{val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
 	default:
 		return "", "", fmt.Errorf("unsupported expression %q", expression.Kind)
 	}

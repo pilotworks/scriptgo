@@ -39,6 +39,12 @@ func (f Function) Verify() error {
 		}
 		known[parameter.Name] = parameter.Type
 	}
+	for _, captured := range f.Captured {
+		if captured.Name == "" || captured.Type == "" {
+			return fmt.Errorf("invalid captured variable")
+		}
+		known[captured.Name] = captured.Type
+	}
 	terminated := false
 	for _, instruction := range f.Body {
 		if terminated {
@@ -50,7 +56,7 @@ func (f Function) Verify() error {
 			}
 		}
 		switch instruction.Op {
-		case OpCall:
+		case OpCall, OpClosureCall:
 			if instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define type", instruction.Op)
 			}
@@ -60,6 +66,11 @@ func (f Function) Verify() error {
 			if instruction.Result != "" {
 				known[instruction.Result] = instruction.Type
 			}
+		case OpClosure:
+			if instruction.Result == "" || instruction.Type != TypeClosure {
+				return fmt.Errorf("closure instruction must define result and closure type")
+			}
+			known[instruction.Result] = TypeClosure
 		case OpConst, OpBinary, OpCompare, OpSelect, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)

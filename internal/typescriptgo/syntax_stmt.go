@@ -424,17 +424,10 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan) (SyntaxState
 				}
 			}
 		} else {
-			if initExpr != nil && initExpr.Kind == "arrow_function" && initExpr.Function != nil {
-				fn := *initExpr.Function
-				fn.Span = sourceSpan(declaration)
-				fn.Name = nameNode.Text()
-				stmts = append(stmts, fn)
-			} else {
-				result := SyntaxStatement{Span: sourceSpan(declaration), Kind: "variable", Name: nameNode.Text()}
-				result.Type = syntaxType(declaration.Type())
-				result.Expression = initExpr
-				stmts = append(stmts, result)
-			}
+			result := SyntaxStatement{Span: sourceSpan(declaration), Kind: "variable", Name: nameNode.Text()}
+			result.Type = syntaxType(declaration.Type())
+			result.Expression = initExpr
+			stmts = append(stmts, result)
 		}
 	}
 	if len(stmts) == 1 {
