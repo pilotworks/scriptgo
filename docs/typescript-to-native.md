@@ -45,6 +45,8 @@ not a replacement for that reference.
 - Make ECMAScript and Node.js observable behavior the long-term compatibility
   contract, so native compilation can consume npm packages without semantic
   rewrites.
+- Classify every source site as Static, Dynamic, or Unsupported. Never hide a
+  JavaScript engine behind the default native path.
 
 ## Current MVP Limitations
 
@@ -56,6 +58,10 @@ not a replacement for that reference.
 
 ## High-Level Pipeline
 
+The compilation decision is deliberately three-tiered. The current MVP
+implements Static only; Dynamic is a planned opt-in mode described in
+[`compilation-tiers.md`](compilation-tiers.md).
+
 ```text
 TypeScript source
        |
@@ -64,10 +70,14 @@ TypeScript-Go front end
        |
        | parse, bind, resolve, typecheck
        v
-Native adapter + lowering
+Native adapter + tier gate
+       |                 \
+       |                  \-- Dynamic island (only with --dynamic)
+       |                         |
+       |                         \-- embedded QuickJS-ng
        |
        v
-Typed IR
+Static lowering -> Typed IR
    |        |
    v        v
 LLVM IR    C code
@@ -235,8 +245,21 @@ Program
   - source locations
 ```
 
-Compilation must stop, or switch to an explicitly dynamic mode, when type
-checking produces errors that affect native lowering.
+Compilation must stop when type checking produces errors that affect native
+lowering. Type checking success is not sufficient for Static eligibility:
+`any`, JavaScript package code, and reflection-heavy operations require an
+explicit Dynamic classification or an Unsupported diagnostic.
+
+The tier gate classifies each reachable site and its module dependencies:
+
+| Classification | Lowering and linking behavior |
+| --- | --- |
+| Static | Lower to Typed IR and native code. The default executable has no JavaScript engine. |
+| Dynamic | With `--dynamic`, lower a boundary call and execute the site in embedded QuickJS-ng. Validate values crossing the boundary. |
+| Unsupported | Stop before backend emission with a stable, source-anchored diagnostic. |
+
+Compilation must never silently switch Static code to Dynamic code. If
+`--dynamic` is off, a site that is not Static is Unsupported.
 
 ### 2. Lowering
 
@@ -324,8 +347,10 @@ The compiler should distinguish two object modes:
 
 1. **Static layout mode:** classes and object shapes proven stable by the type
    checker use native fields and direct loads/stores.
-2. **Dynamic compatibility mode:** objects that need arbitrary properties,
-   prototype behavior, or reflective access use runtime-managed objects.
+2. **Dynamic compatibility mode:** with `--dynamic`, objects that need arbitrary
+   properties, prototype behavior, or reflective access execute in a QuickJS-ng
+   island. The ABI must define boxing, validation, ownership, and exception
+   transfer for every native/dynamic boundary.
 
 This split allows performance work without pretending that every TypeScript
 object is a C struct.
@@ -372,14 +397,17 @@ program entry point and classify imports into:
 
 - **AOT modules:** compiled into Typed IR and linked into the executable;
 - **runtime modules:** implemented by the native runtime;
+- **dynamic modules:** JavaScript or npm modules executed by QuickJS-ng only
+  when `--dynamic` is enabled;
 - **unsupported modules:** rejected with an actionable diagnostic;
 - **foreign modules:** explicitly declared native or C/LLVM bindings.
 
-The first release should support local TypeScript modules and the explicitly
+The current release should support local TypeScript modules and the explicitly
 promoted standard-library surface defined in [`stdlib.md`](stdlib.md). npm
 compatibility is a staged roadmap: package resolution, JavaScript execution,
 CommonJS/ESM interop, Node APIs, dynamic loading, browser globals, and eval
-must each acquire explicit semantics and parity tests before promotion.
+must each acquire explicit semantics and parity tests before promotion to
+Dynamic or Static.
 
 ## Errors, Diagnostics, and Debugging
 
@@ -424,6 +452,8 @@ Useful output modes include:
 - `--emit c` for deferred C backend debugging;
 - `--print-runtime` for the runtime library and ABI version;
 - `--diagnostics` for lowering and representation decisions.
+- `--dynamic` to opt into QuickJS-ng dynamic islands (planned; disabled in the
+  current MVP).
 
 ## MVP Scope
 
@@ -449,6 +479,7 @@ Recommended MVP constraints:
 - LLVM backend first; defer the C backend until LLVM/runtime parity is stable;
 - a small native `console.log` implementation;
 - deterministic diagnostics for unsupported syntax or APIs.
+- Static-only behavior by default; no implicit dynamic fallback.
 
 ## Implementation Roadmap
 
@@ -504,7 +535,7 @@ while shared semantic tests verify that both backends agree.
 
 | Risk | Consequence | Mitigation |
 | --- | --- | --- |
-| JavaScript semantics are more dynamic than native layouts | Incorrect behavior or excessive runtime calls | Start with a documented subset and explicit dynamic fallback |
+| JavaScript semantics are more dynamic than native layouts | Incorrect behavior or excessive runtime calls | Use the three-tier gate and make Dynamic boundaries explicit |
 | `number` differs from native integers | Overflow and comparison bugs | Use `f64` by default; require explicit integer semantics |
 | TypeScript types are erased at runtime | Missing checks or invalid assumptions | Add representation metadata only where runtime behavior needs it |
 | npm and Node.js compatibility is broad | Scope expands beyond a compiler backend | Stage package resolution, JavaScript semantics, Node APIs, and native optimization behind parity gates |
@@ -528,7 +559,9 @@ meaning discovered by parsing and type checking while exposing enough runtime
 detail for multiple backends. LLVM should be implemented first because it gives
 the initial compiler a direct path to optimization, debugging, and native
 targets. A C backend can follow as a deferred portability and bootstrap option.
-The project should grow from a small, tested synchronous subset with an
-explicit runtime. Full JavaScript and npm compatibility is not a first-release
-claim, but it is the direction that governs representation and boundary
-decisions from the beginning.
+The project should grow from a small, tested synchronous Static subset with an
+explicit runtime. Dynamic QuickJS-ng execution is an opt-in compatibility
+track, and Unsupported constructs must remain visible compile errors. Full
+JavaScript and npm compatibility is not a first-release claim, but it is the
+direction that governs representation and boundary decisions from the
+beginning.

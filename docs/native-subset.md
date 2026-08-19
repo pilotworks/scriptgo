@@ -1,10 +1,25 @@
 # scriptgo Native Subset And Compatibility Modes
 
 This document defines the current synchronous MVP subset accepted by native
-lowering. It is an implementation boundary, not the product semantic
-definition. JavaScript and Node.js behavior are the compatibility target;
-TypeScript-Go remains the source of truth for parsing, binding, module
+lowering. It is the Static tier described in
+[`compilation-tiers.md`](compilation-tiers.md), not the complete product
+semantic definition. JavaScript and Node.js behavior are the compatibility
+target; TypeScript-Go remains the source of truth for parsing, binding, module
 resolution, and type checking.
+
+`scriptgo` has three explicit outcomes for every reachable source site:
+
+1. **Static**: compile directly to native code. This is the default and the
+   only tier implemented by the current MVP.
+2. **Dynamic**: with the planned `--dynamic` mode, execute an eligible dynamic
+   island through embedded QuickJS-ng. Dynamic mode is opt-in and is never
+   linked implicitly.
+3. **Unsupported**: emit a source-anchored compile error when neither static
+   lowering nor the dynamic contract can preserve JavaScript semantics.
+
+The native subset table below is therefore a Static eligibility table. A
+construct listed as rejected is not automatically Dynamic; it becomes Dynamic
+only when the dynamic runtime explicitly supports it.
 
 | Area | Supported | Rejected for the MVP |
 | --- | --- | --- |
@@ -17,7 +32,19 @@ resolution, and type checking.
 | Functions | Synchronous functions with typed parameters and returns | Async/generator functions, overloads, closures |
 
 Unsupported constructs are rejected before IR verification or native backend
-generation. Diagnostics identify the source file and the unsupported feature.
+generation. Static subset diagnostics use the `SGxxxx` catalog in
+[`compilation-tiers.md`](compilation-tiers.md); diagnostics identify the code,
+source file, source span, and unsupported feature. For example, `any` is not a
+native layout and must produce `SG1001` in Static mode rather than being
+silently treated as a pointer or boxed C value.
+
+The rejected column describes the current MVP, not a permanent language ban.
+Features such as `null`/`undefined`, narrowed unions, monomorphized generics,
+`Date`, `Map`, `Set`, and additional standard-library APIs can become Static
+when their representation, JavaScript behavior, target support, and parity
+tests are defined. Features requiring dynamic property/prototype behavior,
+unresolved function dispatch, or JavaScript package execution remain Dynamic
+or Unsupported according to the selected mode.
 
 ## Builtin Semantics
 

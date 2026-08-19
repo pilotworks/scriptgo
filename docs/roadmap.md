@@ -12,6 +12,11 @@ The first release targets synchronous local programs on macOS ARM64 with LLVM
 and Clang. Full JavaScript and npm compatibility are deferred from the MVP and
 remain the product direction.
 
+The compatibility policy is three-tiered: Static native compilation by
+default, Dynamic QuickJS-ng execution only with `--dynamic`, and Unsupported
+compile errors when neither path can preserve JavaScript semantics. The current
+MVP implements Static only.
+
 ## Current Baseline
 
 - [x] CLI accepts one `.ts` entry point and an optional `-o` output path.
@@ -20,6 +25,7 @@ remain the product direction.
 - [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
 - [ ] Exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP; these are roadmap work, not permanent non-goals.
+- [x] Static/Dynamic/Unsupported policy is documented; Dynamic execution and `--dynamic` remain unimplemented roadmap work.
 
 ## Milestones
 
@@ -164,6 +170,32 @@ subset and the expanded feature set has documented runtime costs.
 Dependencies: Checkpoint B and Milestone 5. Estimated scope: XL; split each
 backend/runtime feature into separate implementation tasks.
 
+### Milestone 7: Explicit Dynamic Compatibility Tier
+
+Add opt-in JavaScript execution without weakening the Static default or hiding
+semantic gaps behind native code generation.
+
+- [ ] Add `--dynamic`, disabled by default, and record the selected tier in build metadata.
+- [ ] Embed QuickJS-ng only for Dynamic builds; static binaries must not link a JavaScript engine.
+- [ ] Define the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
+- [ ] Resolve eligible JavaScript/npm dependencies and `any` sites into explicit Dynamic islands.
+- [ ] Reject missing Node APIs and unsupported dynamic behavior with stable codes, spans, code frames, and rewrite hints.
+- [ ] Emit Static/Dynamic/Unsupported coverage reports for reachable source sites.
+- [ ] Add Node reference, QuickJS-ng, interpreter, and native boundary parity tests.
+
+Acceptance: a program with a Static entry point and an eligible JavaScript npm
+dependency builds only with `--dynamic`, runs the dependency through QuickJS-ng,
+and reports the boundary; the same program without the flag fails clearly.
+
+Dependencies: Milestones 1, 3, 4, and 5. Estimated scope: XL; split runtime,
+module loading, diagnostics, and coverage into separate increments.
+
+Static expansion must be tracked separately from Dynamic expansion. The next
+Static candidates are nullish values, narrowing-aware unions, monomorphized
+generics, tuples, selected `Date`/`Map`/`Set` operations, and promoted standard
+library members. Each candidate needs a representation decision and Node parity
+fixtures before its `SGxxxx` rejection code is removed.
+
 ### Standard Library Compatibility Slice
 
 The standard library follows the Node.js-compatible policy in
@@ -191,8 +223,8 @@ semantic gates rather than by widening the native subset table informally:
    closures, and the minimum runtime needed by real npm packages.
 4. **Node runtime:** `process`, filesystem, buffers, streams, timers, and
    platform-specific builtins with explicit target adapters.
-5. **Native optimization:** specialize proven hot paths while retaining a
-   JavaScript-compatible fallback for dynamic cases.
+5. **Native optimization:** specialize proven hot paths while retaining an
+   explicit QuickJS-ng Dynamic island for cases that need JavaScript semantics.
 
 Each gate requires Node.js reference fixtures, interpreter parity, native
 executable parity, and explicit rejection diagnostics for unsupported cases.

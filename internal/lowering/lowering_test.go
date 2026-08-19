@@ -96,9 +96,24 @@ func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	_, err = Lower(program)
 	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "IfStatement") || !strings.Contains(err.Error(), "at offset 0") || !strings.Contains(err.Error(), entry) {
 		t.Fatalf("Lower error = %v, want actionable native subset diagnostic", err)
+	}
+}
+
+func TestLowerRejectsAnyInStaticMode(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const value: any = 1;\nconsole.log(value);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Lower(program)
+	if err == nil || !strings.Contains(err.Error(), "SG1001") || !strings.Contains(err.Error(), "any type") {
+		t.Fatalf("Lower error = %v, want SG1001 for any in Static mode", err)
 	}
 }

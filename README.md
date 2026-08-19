@@ -12,6 +12,8 @@ for the native middle/backend path.
   layout, ownership, and dependency direction.
 - [`docs/typescript-to-native.md`](docs/typescript-to-native.md) - compiler
   architecture, pipeline boundaries, and native subset policy.
+- [`docs/compilation-tiers.md`](docs/compilation-tiers.md) - Static, Dynamic,
+  and Unsupported compilation policy.
 - [`docs/roadmap.md`](docs/roadmap.md) - milestones and acceptance criteria.
 - [`docs/stdlib.md`](docs/stdlib.md) - Node.js-compatible standard-library policy and scope.
 
@@ -29,6 +31,12 @@ an executable through Clang. Dense `number[]` arrays and static number/string
 class fields are supported; `null`, `undefined`, exceptions, async code, npm
 resolution, and full JavaScript compatibility are deferred from the MVP, not
 the long-term compatibility direction.
+
+Compilation follows three explicit tiers: Static is the default and compiles
+eligible code directly to native code; Dynamic is planned behind an explicit
+`--dynamic` flag and will use embedded QuickJS-ng for eligible JavaScript/npm
+code and `any`; Unsupported constructs produce a compile error. The current
+MVP is Static-only, so it does not yet accept `--dynamic`.
 
 ## Run
 

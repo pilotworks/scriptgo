@@ -8,6 +8,30 @@ TypeScript-Go remains responsible for parsing, binding, module resolution, and
 type checking; `scriptgo` owns native eligibility, runtime mapping, and parity
 verification against Node.js.
 
+## Three-Tier Eligibility
+
+The standard library participates in the same three-tier policy as application
+code (see [`compilation-tiers.md`](compilation-tiers.md)):
+
+- **Static:** pure TypeScript stdlib or a versioned native primitive whose
+  behavior is proven and compiled directly into the executable.
+- **Dynamic:** JavaScript/npm library code that requires JavaScript values or
+  reflection, executed through embedded QuickJS-ng only with `--dynamic`.
+- **Unsupported:** an API with no implemented Static or Dynamic contract;
+  compilation fails with a source-anchored diagnostic.
+
+`console` is a language-facing builtin stdlib surface, not a general-purpose
+libc escape hatch. `console.log` may lower to a small `scriptgo_print_*` runtime
+primitive for Static code; formatting, timers, streams, and other Node console
+behavior need their own semantic contract. The C runtime remains below the
+core TypeScript stdlib boundary.
+
+An npm package being written in JavaScript does not automatically make the
+whole program Dynamic: native-eligible local code remains Static, while the
+package import is a Dynamic island when `--dynamic` is enabled. Without that
+flag, the import is Unsupported rather than silently interpreted or compiled
+with guessed semantics.
+
 ## Compatibility Contract
 
 Compatibility priority is ECMAScript behavior first, Node.js observable behavior
