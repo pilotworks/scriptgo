@@ -101,8 +101,17 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		e.ownedStrings = append(e.ownedStrings, instruction.Result)
 		return nil
 	}
+	if leftType == ir.TypeBool {
+		op, ok := map[string]string{"&&": "and", "||": "or"}[instruction.Operator]
+		if !ok {
+			return fmt.Errorf("unsupported LLVM binary bool operator %q", instruction.Operator)
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		out.WriteString(fmt.Sprintf("  %%%s = %s i1 %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
 	if leftType != ir.TypeNumber {
-		return fmt.Errorf("LLVM binary operator %q only supports number or string concatenation", instruction.Operator)
+		return fmt.Errorf("LLVM binary operator %q only supports number, bool, or string concatenation", instruction.Operator)
 	}
 	op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]
 	if !ok {
@@ -118,10 +127,43 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 	if !ok || e.types[instruction.Args[1]] != leftType {
 		return fmt.Errorf("unknown or mismatched compare operands")
 	}
-	if leftType != ir.TypeNumber {
-		return fmt.Errorf("LLVM compare only supports number operands")
+	if leftType == ir.TypeString {
+		cmpResult := instruction.Result + ".cmp"
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @strcmp(ptr %%%s, ptr %%%s)\n", cmpResult, instruction.Args[0], instruction.Args[1]))
+		predicate, ok := map[string]string{
+			"==": "eq", "===": "eq",
+			"!=": "ne", "!==": "ne",
+			"<": "slt", "<=": "sle",
+			">": "sgt", ">=": "sge",
+		}[instruction.Operator]
+		if !ok {
+			return fmt.Errorf("unsupported LLVM string compare operator %q", instruction.Operator)
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i32 %%%s, 0\n", instruction.Result, predicate, cmpResult))
+		return nil
 	}
-	predicate, ok := map[string]string{"==": "oeq", "!==": "une", "<": "olt", "<=": "ole", ">": "ogt", ">=": "oge"}[instruction.Operator]
+	if leftType == ir.TypeBool {
+		predicate, ok := map[string]string{
+			"==": "eq", "===": "eq",
+			"!=": "ne", "!==": "ne",
+		}[instruction.Operator]
+		if !ok {
+			return fmt.Errorf("unsupported LLVM bool compare operator %q", instruction.Operator)
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i1 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
+	if leftType != ir.TypeNumber {
+		return fmt.Errorf("LLVM compare only supports number, string, or bool operands")
+	}
+	predicate, ok := map[string]string{
+		"==": "oeq", "===": "oeq",
+		"!=": "une", "!==": "une",
+		"<": "olt", "<=": "ole",
+		">": "ogt", ">=": "oge",
+	}[instruction.Operator]
 	if !ok {
 		return fmt.Errorf("unsupported LLVM compare operator %q", instruction.Operator)
 	}

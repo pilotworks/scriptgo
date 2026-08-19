@@ -64,11 +64,29 @@ func (f Function) Verify() error {
 					}
 				}
 			}
+			if instruction.Op == OpBinary {
+				if len(instruction.Args) != 2 {
+					return fmt.Errorf("binary instruction requires two operands")
+				}
+				leftType := known[instruction.Args[0]]
+				rightType := known[instruction.Args[1]]
+				if leftType != rightType {
+					return fmt.Errorf("binary operands must have the same type")
+				}
+				if leftType == TypeBool {
+					if instruction.Operator != "&&" && instruction.Operator != "||" {
+						return fmt.Errorf("binary bool instruction has unsupported operator %q", instruction.Operator)
+					}
+					if instruction.Type != TypeBool {
+						return fmt.Errorf("binary bool instruction must have bool result type")
+					}
+				}
+			}
 			if instruction.Op == OpCompare {
 				if len(instruction.Args) != 2 || instruction.Type != TypeBool {
 					return fmt.Errorf("compare instruction requires two operands and bool result")
 				}
-				if instruction.Operator != "==" && instruction.Operator != "!==" && instruction.Operator != "<" && instruction.Operator != "<=" && instruction.Operator != ">" && instruction.Operator != ">=" {
+				if instruction.Operator != "==" && instruction.Operator != "===" && instruction.Operator != "!=" && instruction.Operator != "!==" && instruction.Operator != "<" && instruction.Operator != "<=" && instruction.Operator != ">" && instruction.Operator != ">=" {
 					return fmt.Errorf("compare instruction has unsupported operator %q", instruction.Operator)
 				}
 				if known[instruction.Args[0]] != known[instruction.Args[1]] {

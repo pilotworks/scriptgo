@@ -157,3 +157,35 @@ func TestCheckExposesStableFrontendContract(t *testing.T) {
 		t.Fatalf("import references = %+v, want source-anchored module edge", result.Files[1].Imports)
 	}
 }
+
+func TestCheckNormalizesUnaryAndLogicalExpressions(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const x: number = 1;\nconst y: number = 2;\nconst a: boolean = !false && (x === 1 || y !== 3);\nconst b: number = -5;\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics: %+v", result.Diagnostics)
+	}
+	if len(result.Files) != 1 || len(result.Files[0].Syntax.Statements) != 4 {
+		t.Fatalf("unexpected syntax files: %+v", result.Files)
+	}
+	first := result.Files[0].Syntax.Statements[2]
+	if first.Expression == nil || first.Expression.Kind != "binary" || first.Expression.Operator != "&&" {
+		t.Fatalf("first statement expression = %+v, want binary &&", first.Expression)
+	}
+	leftUnary := first.Expression.Left
+	if leftUnary == nil || leftUnary.Kind != "unary" || leftUnary.Operator != "!" {
+		t.Fatalf("left unary = %+v, want unary !", leftUnary)
+	}
+	second := result.Files[0].Syntax.Statements[3]
+	if second.Expression == nil || second.Expression.Kind != "unary" || second.Expression.Operator != "-" {
+		t.Fatalf("second statement expression = %+v, want unary -", second.Expression)
+	}
+}
+

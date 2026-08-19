@@ -94,7 +94,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_length(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_last_index(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_slice(ptr, double, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
+	out.WriteString("declare i32 @strcmp(ptr, ptr)\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))

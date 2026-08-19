@@ -1,0 +1,11 @@
+const a: number = 42;
+const b: number = 42;
+const c: number = 10;
+console.log(a === b);
+console.log(a !== c);
+console.log(a == b);
+console.log(a != c);
+console.log(a > c);
+console.log(c < a);
+console.log(a >= b);
+console.log(c <= a);

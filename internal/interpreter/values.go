@@ -50,6 +50,16 @@ func binary(operator string, left, right Value) (Value, error) {
 	if left.Type == ir.TypeString && operator == "+" {
 		return Value{Type: ir.TypeString, String: left.String + right.String}, nil
 	}
+	if left.Type == ir.TypeBool {
+		switch operator {
+		case "&&":
+			return Value{Type: ir.TypeBool, Bool: left.Bool && right.Bool}, nil
+		case "||":
+			return Value{Type: ir.TypeBool, Bool: left.Bool || right.Bool}, nil
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for bool", operator)
+		}
+	}
 	if left.Type != ir.TypeNumber {
 		return Value{}, fmt.Errorf("operator %q is unsupported for %s", operator, left.Type)
 	}
@@ -77,9 +87,9 @@ func compare(operator string, left, right Value) (Value, error) {
 	switch left.Type {
 	case ir.TypeNumber:
 		switch operator {
-		case "==":
+		case "==", "===":
 			result = left.Number == right.Number
-		case "!==":
+		case "!=", "!==":
 			result = left.Number != right.Number
 		case "<":
 			result = left.Number < right.Number
@@ -89,12 +99,14 @@ func compare(operator string, left, right Value) (Value, error) {
 			result = left.Number > right.Number
 		case ">=":
 			result = left.Number >= right.Number
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for number comparison", operator)
 		}
 	case ir.TypeString:
 		switch operator {
-		case "==":
+		case "==", "===":
 			result = left.String == right.String
-		case "!==":
+		case "!=", "!==":
 			result = left.String != right.String
 		case "<":
 			result = left.String < right.String
@@ -104,6 +116,17 @@ func compare(operator string, left, right Value) (Value, error) {
 			result = left.String > right.String
 		case ">=":
 			result = left.String >= right.String
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for string comparison", operator)
+		}
+	case ir.TypeBool:
+		switch operator {
+		case "==", "===":
+			result = left.Bool == right.Bool
+		case "!=", "!==":
+			result = left.Bool != right.Bool
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for bool comparison", operator)
 		}
 	default:
 		return Value{}, fmt.Errorf("compare is unsupported for %s", left.Type)

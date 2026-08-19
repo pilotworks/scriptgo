@@ -134,6 +134,14 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
 		return result
+	case ast.KindPrefixUnaryExpression:
+		prefix := node.AsPrefixUnaryExpression()
+		return &SyntaxExpression{
+			Span:     sourceSpan(node),
+			Kind:     "unary",
+			Operator: prefixUnaryOperator(prefix.Operator),
+			Left:     syntaxExpression(prefix.Operand),
+		}
 	case ast.KindConditionalExpression:
 		conditional := node.AsConditionalExpression()
 		return &SyntaxExpression{
@@ -215,22 +223,39 @@ func syntaxType(node *ast.Node) string {
 func binaryOperator(kind string) string {
 	kind = strings.TrimPrefix(kind, "Kind")
 	operators := map[string]string{
-		"PlusToken":               "+",
-		"MinusToken":              "-",
-		"AsteriskToken":           "*",
-		"SlashToken":              "/",
-		"PercentToken":            "%",
-		"EqualsEqualsToken":       "==",
-		"EqualsEqualsEqualsToken": "===",
-		"LessThanToken":           "<",
-		"LessThanEqualsToken":     "<=",
-		"GreaterThanToken":        ">",
-		"GreaterThanEqualsToken":  ">=",
+		"PlusToken":                    "+",
+		"MinusToken":                   "-",
+		"AsteriskToken":                "*",
+		"SlashToken":                   "/",
+		"PercentToken":                 "%",
+		"EqualsEqualsToken":            "==",
+		"EqualsEqualsEqualsToken":      "===",
+		"ExclamationEqualsToken":       "!=",
+		"ExclamationEqualsEqualsToken": "!==",
+		"LessThanToken":                "<",
+		"LessThanEqualsToken":          "<=",
+		"GreaterThanToken":             ">",
+		"GreaterThanEqualsToken":       ">=",
+		"AmpersandAmpersandToken":      "&&",
+		"BarBarToken":                  "||",
 	}
 	if operator, ok := operators[kind]; ok {
 		return operator
 	}
 	return kind
+}
+
+func prefixUnaryOperator(kind ast.Kind) string {
+	switch kind {
+	case ast.KindExclamationToken:
+		return "!"
+	case ast.KindMinusToken:
+		return "-"
+	case ast.KindPlusToken:
+		return "+"
+	default:
+		return kind.String()
+	}
 }
 
 func statementCount(file *ast.SourceFile) int {

@@ -87,6 +87,42 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: result, Value: global.Value, Span: toIRSpan(path, expression.Span)})
 		return result, global.Type, nil
+	case "unary":
+		value, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if expression.Operator == "!" {
+			if valType != ir.TypeBool {
+				return "", "", fmt.Errorf("unary ! requires a bool operand")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			falseConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: falseConst, Value: "false", Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: "==", Args: []string{value, falseConst}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeBool, nil
+		}
+		if expression.Operator == "-" {
+			if valType != ir.TypeNumber {
+				return "", "", fmt.Errorf("unary - requires a number operand")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			zeroConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "-", Args: []string{zeroConst, value}, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Operator == "+" {
+			if valType != ir.TypeNumber {
+				return "", "", fmt.Errorf("unary + requires a number operand")
+			}
+			return value, ir.TypeNumber, nil
+		}
+		return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
 	case "binary":
 		left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -96,7 +132,27 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if err != nil {
 			return "", "", err
 		}
-		if leftType != rightType || (leftType != ir.TypeNumber && leftType != ir.TypeString) {
+		if leftType != rightType {
+			return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+		}
+		if leftType == ir.TypeBool {
+			if expression.Operator == "&&" || expression.Operator == "||" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
+				return result, ir.TypeBool, nil
+			}
+			if isComparison(expression.Operator) {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
+				return result, ir.TypeBool, nil
+			}
+			return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
+		}
+		if leftType != ir.TypeNumber && leftType != ir.TypeString {
 			return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 		}
 		if isComparison(expression.Operator) {
@@ -272,7 +328,7 @@ func nextTemp(counter *int) string {
 }
 
 func isComparison(operator string) bool {
-	return operator == "==" || operator == "!==" || operator == "<" || operator == "<=" || operator == ">" || operator == ">="
+	return operator == "==" || operator == "===" || operator == "!=" || operator == "!==" || operator == "<" || operator == "<=" || operator == ">" || operator == ">="
 }
 
 func stringMethod(expression *typescriptgo.SyntaxExpression) string {

@@ -70,3 +70,53 @@ func TestExecuteRejectsArrayIndexOutOfBounds(t *testing.T) {
 		t.Fatalf("Execute error = %v, want bounds diagnostic", err)
 	}
 }
+
+func TestExecuteLogicalAndComparisonOps(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "a", Value: "10"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "b", Value: "10"},
+			{Op: ir.OpCompare, Type: ir.TypeBool, Result: "cmp1", Operator: "===", Args: []string{"a", "b"}},
+			{Op: ir.OpConst, Type: ir.TypeString, Result: "s1", Value: "hello"},
+			{Op: ir.OpConst, Type: ir.TypeString, Result: "s2", Value: "world"},
+			{Op: ir.OpCompare, Type: ir.TypeBool, Result: "cmp2", Operator: "!==", Args: []string{"s1", "s2"}},
+			{Op: ir.OpBinary, Type: ir.TypeBool, Result: "both", Operator: "&&", Args: []string{"cmp1", "cmp2"}},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"both"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	result, err := Execute(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "true\n" {
+		t.Fatalf("output = %q, want %q", result.Output, "true\n")
+	}
+}
+
+func TestExecuteSelectOp(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeBool, Result: "cond", Value: "true"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "whenTrue", Value: "42"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "whenFalse", Value: "100"},
+			{Op: ir.OpSelect, Type: ir.TypeNumber, Result: "chosen", Args: []string{"cond", "whenTrue", "whenFalse"}},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"chosen"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	result, err := Execute(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "42\n" {
+		t.Fatalf("select output = %q, want %q", result.Output, "42\n")
+	}
+}
+
