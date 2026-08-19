@@ -90,9 +90,9 @@ cmd/scriptgo/main.go
 
 The current implementation checks the reachable local module graph, lowers the
 supported synchronous subset, and emits LLVM IR or runs the reference
-interpreter. Primitive output uses host `printf`/`puts`; dense `number[]`
-operations use the linked runtime under `internal/runtime/native/arrays`.
-Managed strings, objects, and exceptions remain planned.
+interpreter. Primitive output uses host `printf`/`puts`; dense `number[]`,
+string, and static-object operations use linked runtime families under
+`internal/runtime/native/{arrays,strings,objects}`. Exceptions remain planned.
 
 ## Target Repository Layout
 
@@ -176,11 +176,12 @@ Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
 ABI decisions are explicit inputs to lowering and linking.
 
 The current LLVM MVP calls the host C ABI (`printf` and `puts`) directly for
-primitive output and links the focused number-array runtime from
-`internal/runtime/native/arrays`. `internal/runtime` owns the ABI and native
-runtime implementations by value family. Managed values or startup services
-must not be added to lowering before their representation and ownership
-contract is tested. The package must not absorb
+primitive output and links the focused number-array, string, and static-object
+runtime families from
+`internal/runtime/native/{arrays,strings,objects}`. `internal/runtime` owns the
+ABI and native runtime implementations by value family. Startup services must
+not be added to lowering before their representation and ownership contract is
+tested. The package must not absorb
 the reference interpreter or become a general utility package.
 
 Rules for imports:

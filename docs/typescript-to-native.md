@@ -301,8 +301,8 @@ validated integer lowering later.
 
 Native code needs a runtime for features that are not directly expressible as
 machine instructions. The current MVP calls the host C ABI for `printf` and
-`puts` and links dense number-array operations from
-`internal/runtime/native/arrays`; the reference interpreter remains separate
+`puts` and links dense number-array, string, and static-object operations from
+`internal/runtime/native/{arrays,strings,objects}`; the reference interpreter remains separate
 under `internal/interpreter`. The runtime is organized by ABI and value family
 so future managed values can be added without moving frontend or lowering
 responsibilities.

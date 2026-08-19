@@ -39,6 +39,35 @@ func TestCheckResolvesLocalModules(t *testing.T) {
 	}
 }
 
+func TestCheckResolvesBuiltinPathModule(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "import * as path from 'path';\nconsole.log(path.basename('a/b.txt'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics: %+v", result.Diagnostics)
+	}
+	if len(result.Files) != 2 || len(result.Files[1].Imports) != 1 {
+		t.Fatalf("resolved files/imports = %+v, want builtin and entry files", result.Files)
+	}
+	if !result.Files[0].Builtin || result.Files[1].FileName != entry {
+		t.Fatalf("resolved builtin files = %+v, want builtin before entry", result.Files)
+	}
+	imported := result.Files[1].Imports[0]
+	if imported.Specifier != "path" || !imported.Builtin {
+		t.Fatalf("path import = %+v, want builtin path reference", imported)
+	}
+	if manifest := BuiltinModuleManifest(); len(manifest) != 1 || manifest[0].Name != "path" || manifest[0].Version == "" {
+		t.Fatalf("builtin manifest = %+v, want versioned path module", manifest)
+	}
+}
+
 func TestCheckReportsSemanticDiagnostics(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	if err := os.WriteFile(entry, []byte("const answer: number = 'not a number';\n"), 0o644); err != nil {

@@ -48,7 +48,7 @@ The status below describes the intended order, not an implementation promise.
 | Node.js area                                | Initial scriptgo surface                                               | Status and constraints                                                                                                               |
 | ------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `console`                                   | `console.log(value)`                                                   | Supported now for one typed argument: `number`, `string`, or `boolean`. Multi-argument formatting, timers, and streams are deferred. |
-| `path`                                      | `join`, `resolve`, `dirname`, `basename`, `extname`, `parse`, `format` | First planned pure module. Start with the host POSIX target; `path.posix` and `path.win32` differences must be explicit.             |
+| `path`                                      | `join`, `dirname`, `basename`, `extname`                               | Implemented as versioned TypeScript stdlib source for the host POSIX target. `resolve`, `parse`, `format`, and `path.win32` remain deferred. |
 | `process`                                   | Read-only `argv`, `env`, `cwd`, `platform`, `arch`                     | Planned. Startup data and environment ownership must be defined by the runtime ABI; mutation and event APIs are deferred.            |
 | `os`                                        | `platform`, `arch`, `EOL`, `tmpdir`                                    | Planned target adapter. Results are target-dependent and must not be fabricated by the interpreter.                                  |
 | `url`                                       | URL parsing and selected encoding helpers                              | Deferred until string/object representations and error behavior are available.                                                       |
@@ -58,9 +58,52 @@ The status below describes the intended order, not an implementation promise.
 | `events`, `stream`, `http`, `https`, `net`  | No initial surface                                                     | Deferred until objects, callbacks, async scheduling, and shutdown semantics exist.                                                   |
 | `crypto`, `child_process`, `worker_threads` | No initial surface                                                     | Deferred for security, portability, and process-model reasons.                                                                       |
 
-The first useful expansion should be pure, synchronous, deterministic modules
-such as `path`. Filesystem, process, network, and asynchronous APIs require
-explicit target/runtime policies and must not enter the subset by accident.
+The first useful expansion is the pure, synchronous `path` module. Filesystem,
+process, network, and asynchronous APIs require explicit target/runtime policies
+and must not enter the subset by accident.
+
+## Stdlib Implementation Rule
+
+Implement standard-library functionality in this order:
+
+```text
+C primitives -> core TypeScript stdlib -> higher-level TypeScript stdlib
+```
+
+Use the following rule when choosing between C and TypeScript:
+
+- Use TypeScript when the logic can be implemented entirely with primitives
+  already provided by the language and runtime.
+- Use C when the implementation needs OS access, syscalls, an ABI boundary,
+  native memory, platform-specific APIs, or a primitive that TypeScript cannot
+  yet represent efficiently.
+- Prefer higher-level APIs in TypeScript, calling C only through a small native
+  boundary.
+- Keep C runtime code minimal; do not put business or library logic in the
+  runtime when it can be written in TypeScript.
+- As the compiler gains features, gradually move implementations from C to
+  TypeScript to dogfood the compiler.
+
+The current repository layout is:
+
+```text
+internal/
+|-- typescriptgo/
+|   `-- stdlib/
+|       `-- path.ts              # pure TypeScript stdlib
+`-- runtime/
+    |-- runtime.go               # embeds native sources for linking
+    |-- abi/README.md            # ABI contract
+    |-- values/README.md         # managed-value policies
+    `-- native/
+        |-- arrays/runtime.c    # number-array primitives
+        |-- strings/runtime.c   # string primitives
+        `-- objects/runtime.c   # object primitives
+```
+
+Future modules such as `fs.ts`, `os.ts`, and `process.ts` may be TypeScript
+wrappers over new native service families, but they are not part of the current
+tree.
 
 ## Runtime Ownership
 

@@ -10,4 +10,7 @@ var arraySource string
 //go:embed native/objects/runtime.c
 var objectSource string
 
-var Source = []byte(arraySource + "\n" + objectSource)
+//go:embed native/strings/runtime.c
+var stringSource string
+
+var Source = []byte(arraySource + "\n" + objectSource + "\n" + stringSource)

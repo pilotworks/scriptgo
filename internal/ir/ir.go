@@ -55,6 +55,7 @@ const (
 	TypeNumber      Type = "number"
 	TypeString      Type = "string"
 	TypeNumberArray Type = "number[]"
+	TypeStringArray Type = "string[]"
 	TypeObject      Type = "object"
 )
 
@@ -70,11 +71,15 @@ type Instruction struct {
 	FieldCount int
 	Args       []string
 	Span       SourceSpan
+	Then       []Instruction
+	Else       []Instruction
 }
 
 const (
 	OpConst     = "const"
 	OpBinary    = "binary"
+	OpCompare   = "compare"
+	OpSelect    = "select"
 	OpCall      = "call"
 	OpPrint     = "print"
 	OpParam     = "param"
@@ -84,6 +89,7 @@ const (
 	OpObjectNew = "object.new"
 	OpFieldGet  = "field.get"
 	OpFieldSet  = "field.set"
+	OpIf        = "if"
 )
 
 // Verify checks the invariants required by every native backend.
@@ -131,29 +137,43 @@ func (f Function) Verify() error {
 			}
 		}
 		switch instruction.Op {
-		case OpConst, OpBinary, OpCall, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
+		case OpConst, OpBinary, OpCompare, OpSelect, OpCall, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
 			}
 			if instruction.Op == OpArray {
-				if instruction.Type != TypeNumberArray {
+				if instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray {
 					return fmt.Errorf("array instruction has unsupported type %q", instruction.Type)
 				}
 				for _, argument := range instruction.Args {
-					if known[argument] != TypeNumber {
-						return fmt.Errorf("array element %q is not a number", argument)
+					if known[argument] != elementType(instruction.Type) {
+						return fmt.Errorf("array element %q has type %s, want %s", argument, known[argument], elementType(instruction.Type))
 					}
 				}
+			}
+			if instruction.Op == OpCompare {
+				if len(instruction.Args) != 2 || instruction.Type != TypeBool {
+					return fmt.Errorf("compare instruction requires two operands and bool result")
+				}
+				if instruction.Operator != "==" && instruction.Operator != "!==" && instruction.Operator != "<" && instruction.Operator != "<=" && instruction.Operator != ">" && instruction.Operator != ">=" {
+					return fmt.Errorf("compare instruction has unsupported operator %q", instruction.Operator)
+				}
+				if known[instruction.Args[0]] != known[instruction.Args[1]] {
+					return fmt.Errorf("compare operands must have the same type")
+				}
+			}
+			if instruction.Op == OpSelect && (len(instruction.Args) != 3 || known[instruction.Args[0]] != TypeBool || known[instruction.Args[1]] != instruction.Type || known[instruction.Args[2]] != instruction.Type) {
+				return fmt.Errorf("select requires bool condition and matching values")
 			}
 			if instruction.Op == OpIndex {
 				if len(instruction.Args) != 2 {
 					return fmt.Errorf("index instruction requires array and index operands")
 				}
-				if known[instruction.Args[0]] != TypeNumberArray || known[instruction.Args[1]] != TypeNumber {
-					return fmt.Errorf("index instruction requires number[] and number operands")
+				if (known[instruction.Args[0]] != TypeNumberArray && known[instruction.Args[0]] != TypeStringArray) || known[instruction.Args[1]] != TypeNumber {
+					return fmt.Errorf("index instruction requires an array and number operands")
 				}
-				if instruction.Type != TypeNumber {
-					return fmt.Errorf("index instruction must produce a number")
+				if instruction.Type != elementType(known[instruction.Args[0]]) {
+					return fmt.Errorf("index instruction has incompatible result type %s", instruction.Type)
 				}
 			}
 			if instruction.Op == OpObjectNew && !strings.HasPrefix(string(instruction.Type), string(TypeObject)+":") {
@@ -177,6 +197,18 @@ func (f Function) Verify() error {
 			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" || instruction.FieldIndex < 0 {
 				return fmt.Errorf("field.set requires object, value, and field")
 			}
+		case OpIf:
+			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 1 || known[instruction.Args[0]] != TypeBool {
+				return fmt.Errorf("if requires one bool condition")
+			}
+			thenKnown := cloneTypes(known)
+			elseKnown := cloneTypes(known)
+			if err := verifyBlock(f, instruction.Then, thenKnown); err != nil {
+				return fmt.Errorf("if then block: %w", err)
+			}
+			if err := verifyBlock(f, instruction.Else, elseKnown); err != nil {
+				return fmt.Errorf("if else block: %w", err)
+			}
 		case OpReturn:
 			if instruction.Type != f.ReturnType {
 				return fmt.Errorf("return type %q does not match function return type %q", instruction.Type, f.ReturnType)
@@ -184,6 +216,48 @@ func (f Function) Verify() error {
 			terminated = true
 		default:
 			return fmt.Errorf("unknown instruction %q", instruction.Op)
+		}
+	}
+	return nil
+}
+
+func elementType(arrayType Type) Type {
+	if arrayType == TypeStringArray {
+		return TypeString
+	}
+	return TypeNumber
+}
+
+func cloneTypes(types map[string]Type) map[string]Type {
+	clone := make(map[string]Type, len(types))
+	for name, typ := range types {
+		clone[name] = typ
+	}
+	return clone
+}
+
+func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
+	for _, instruction := range body {
+		if instruction.Op == OpIf {
+			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 1 || known[instruction.Args[0]] != TypeBool {
+				return fmt.Errorf("nested if requires one bool condition")
+			}
+			if err := verifyBlock(f, instruction.Then, cloneTypes(known)); err != nil {
+				return err
+			}
+			if err := verifyBlock(f, instruction.Else, cloneTypes(known)); err != nil {
+				return err
+			}
+			continue
+		}
+		if instruction.Op == OpReturn {
+			if instruction.Type != f.ReturnType {
+				return fmt.Errorf("return type %q does not match function return type %q", instruction.Type, f.ReturnType)
+			}
+			continue
+		}
+		if instruction.Result != "" && instruction.Type != "" {
+			known[instruction.Result] = instruction.Type
 		}
 	}
 	return nil

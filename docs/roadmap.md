@@ -94,6 +94,12 @@ allocation beyond the documented array runtime, and runtime-managed errors
 require subsequent ABI work and must not be enabled by the native subset until
 their layouts and ownership rules are specified.
 
+The MVP acceptance list above describes the primitive compiler/runtime
+baseline. Milestone 4 is a post-baseline expansion: its object/class items are
+tracked separately even when the current tree already contains the initial
+static-shape implementation. The native path module is likewise a TypeScript
+stdlib layer, not a new path-specific ABI service.
+
 ### Milestone 4: Modules, Arrays, and Static Objects
 
 Expand the useful strict subset while keeping runtime behavior explicit.
@@ -119,6 +125,9 @@ Dependencies: Milestone 3. Estimated scope: Large.
 - [x] Runtime ABI version and target assumptions are explicit.
 - [x] Diagnostics and test fixtures cover every supported MVP construct.
 - [x] Benchmark and smoke-test results are recorded.
+
+This checkpoint freezes the primitive host-C boundary. It does not imply that
+the later object/class, process, async, or backend contracts are complete.
 
 ### Milestone 5: Errors, Debugging, and Tooling
 
@@ -159,7 +168,8 @@ The standard library follows the Node.js-compatible policy in
 [`docs/stdlib.md`](stdlib.md). Implement it in this order:
 
 1. Define a versioned built-in module manifest and canonical built-in names.
-2. Promote pure synchronous modules, starting with `path`.
+2. Promote pure synchronous modules, starting with the implemented TypeScript
+   `path` module (`join`, `dirname`, `basename`, and `extname`).
 3. Add deterministic Node-reference, interpreter, and native differential tests.
 4. Add process/environment and filesystem APIs only after startup, ownership,
    encoding, and failure behavior are documented in the runtime ABI.
@@ -173,7 +183,8 @@ The standard library follows the Node.js-compatible policy in
 3. Functions/control flow plus interpreter.
 4. Runtime ABI and LLVM code generation for the MVP.
 5. CLI emit/build modes and end-to-end executable tests.
-6. Modules, arrays, objects, and debugging artifacts.
+6. Modules, arrays, static objects, and debugging artifacts; treat the object
+   work as the Milestone 4 expansion rather than a primitive MVP guarantee.
 7. C backend, FFI, exceptions, and async features.
 
 Each item should leave the repository passing `go test ./...` and building with

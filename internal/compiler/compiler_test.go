@@ -125,6 +125,94 @@ func TestRunResolvesLocalModuleAndCallsRuntime(t *testing.T) {
 	}
 }
 
+func TestRunSupportsBuiltinPathFunctions(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "import * as path from 'path';\nconsole.log(path.join('a', 'b'));\nconsole.log(path.dirname('a/b.txt'));\nconsole.log(path.basename('a/b.txt'));\nconsole.log(path.extname('a/b.txt'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	output, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output != "a/b\na\nb.txt\n.txt\n" {
+		t.Fatalf("path output = %q, want basic path behavior", output)
+	}
+}
+
+func TestBuildSupportsBuiltinPathFunctions(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	output := filepath.Join(dir, "main")
+	source := "import * as path from 'path';\nconsole.log(path.join('a', 'b'));\nconsole.log(path.dirname('a/b.txt'));\nconsole.log(path.basename('a/b.txt'));\nconsole.log(path.extname('a/b.txt'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("path executable failed: %v\n%s", err, result)
+	}
+	if string(result) != "a/b\na\nb.txt\n.txt\n" {
+		t.Fatalf("native path output = %q, want basic path behavior", result)
+	}
+}
+
+func TestBuiltinPathMatchesNodeReference(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	source := "import * as path from 'path';\n" +
+		"console.log(path.join('a', 'b'));\n" +
+		"console.log(path.join('a', 'b', 'c'));\n" +
+		"console.log(path.join('a', 'b', 'c', 'd'));\n" +
+		"console.log(path.join('a/', '/b'));\n" +
+		"console.log(path.join('', 'a'));\n" +
+		"console.log(path.join('a', ''));\n" +
+		"console.log(path.dirname('a/b.txt'));\n" +
+		"console.log(path.dirname('a/b/'));\n" +
+		"console.log(path.dirname('/'));\n" +
+		"console.log(path.dirname('/foo'));\n" +
+		"console.log(path.basename('a/b.txt'));\n" +
+		"console.log(path.basename('a/b/'));\n" +
+		"console.log(path.basename('//'));\n" +
+		"console.log(path.extname('a/b.txt'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nodeScript := "const path = require('path'); console.log(path.join('a', 'b')); console.log(path.join('a', 'b', 'c')); console.log(path.join('a', 'b', 'c', 'd')); console.log(path.join('a/', '/b')); console.log(path.join('', 'a')); console.log(path.join('a', '')); console.log(path.dirname('a/b.txt')); console.log(path.dirname('a/b/')); console.log(path.dirname('/')); console.log(path.dirname('/foo')); console.log(path.basename('a/b.txt')); console.log(path.basename('a/b/')); console.log(path.basename('//')); console.log(path.extname('a/b.txt'));"
+	reference, err := exec.Command("node", "-e", nodeScript).CombinedOutput()
+	if err != nil {
+		t.Fatalf("node reference failed: %v\n%s", err, reference)
+	}
+	interpreted, err := Run(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if interpreted != string(reference) {
+		t.Fatalf("interpreter path output = %q, Node reference = %q", interpreted, reference)
+	}
+
+	output := filepath.Join(dir, "main")
+	if err := Build(entry, output); err != nil {
+		t.Fatal(err)
+	}
+	native, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("native path executable failed: %v\n%s", err, native)
+	}
+	if string(native) != string(reference) {
+		t.Fatalf("native path output = %q, Node reference = %q", native, reference)
+	}
+}
+
 func TestRunInitializesLocalModulesBeforeEntry(t *testing.T) {
 	dir := t.TempDir()
 	dependency := filepath.Join(dir, "dependency.ts")

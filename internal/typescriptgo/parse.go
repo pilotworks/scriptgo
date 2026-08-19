@@ -14,6 +14,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs/osvfs"
+	"github.com/microsoft/typescript-go/internal/vfs/wrapvfs"
 )
 
 // Diagnostic is the stable diagnostic shape exposed to scriptgo.
@@ -35,6 +36,7 @@ type SourceFile struct {
 	Imports        []ModuleReference
 	Symbols        []Symbol
 	Syntax         SyntaxFile
+	Builtin        bool
 }
 
 // Symbol is stable declaration metadata for frontend consumers. TypeScript-Go
@@ -52,6 +54,7 @@ type ModuleReference struct {
 	Specifier        string
 	ResolvedFileName string
 	Span             SourceSpan
+	Builtin          bool
 }
 
 type SourceSpan struct {
@@ -75,6 +78,8 @@ type SyntaxStatement struct {
 	Expression *SyntaxExpression
 	Parameters []SyntaxParameter
 	Body       []SyntaxStatement
+	Then       []SyntaxStatement
+	Else       []SyntaxStatement
 	Class      *SyntaxClass
 }
 
@@ -95,6 +100,7 @@ type SyntaxParameter struct {
 	Span SourceSpan
 	Name string
 	Type string
+	Rest bool
 }
 
 type SyntaxExpression struct {
@@ -105,6 +111,8 @@ type SyntaxExpression struct {
 	Left      *SyntaxExpression
 	Right     *SyntaxExpression
 	Arguments []*SyntaxExpression
+	WhenTrue  *SyntaxExpression
+	WhenFalse *SyntaxExpression
 }
 
 // ProgramResult contains the resolved files and all frontend diagnostics.
@@ -166,7 +174,35 @@ func Check(entryPath string) (ProgramResult, error) {
 	}
 	absoluteEntry = filepath.Clean(absoluteEntry)
 	cwd := filepath.Dir(absoluteEntry)
-	fs := bundled.WrapFS(osvfs.FS())
+	baseFS := bundled.WrapFS(osvfs.FS())
+	fs := baseFS
+	stdlibRoot := filepath.Join(cwd, "node_modules", "path")
+	virtualFiles := map[string]string{}
+	for name, module := range builtinModules {
+		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
+		virtualFiles[virtualPath] = module.Source
+	}
+	fs = wrapvfs.Wrap(fs, wrapvfs.Replacements{
+		FileExists: func(path string) bool {
+			if _, ok := virtualFiles[filepath.Clean(path)]; ok {
+				return true
+			}
+			return baseFS.FileExists(path)
+		},
+		ReadFile: func(path string) (string, bool) {
+			if contents, ok := virtualFiles[filepath.Clean(path)]; ok {
+				return contents, true
+			}
+			return baseFS.ReadFile(path)
+		},
+		DirectoryExists: func(path string) bool {
+			clean := filepath.Clean(path)
+			if clean == stdlibRoot || clean == filepath.Dir(stdlibRoot) || clean == filepath.Dir(filepath.Dir(stdlibRoot)) {
+				return true
+			}
+			return baseFS.DirectoryExists(path)
+		},
+	})
 	options := &core.CompilerOptions{
 		Target:           core.ScriptTargetES2020,
 		Module:           core.ModuleKindESNext,
@@ -211,6 +247,7 @@ func Check(entryPath string) (ProgramResult, error) {
 			StatementCount: statementCount(file),
 			Span:           sourceSpan(&file.Node),
 			Imports:        moduleReferences(program, file),
+			Builtin:        isBuiltinFile(file.FileName(), stdlibRoot),
 			Symbols:        fileSymbols(program, ctx, file),
 			Syntax:         syntaxFile(file),
 		})
@@ -290,6 +327,15 @@ func symbolKind(flags ast.SymbolFlags) string {
 func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleReference {
 	result := make([]ModuleReference, 0, len(file.Imports()))
 	for _, specifier := range file.Imports() {
+		if _, ok := builtinModule(specifier.Text()); ok {
+			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
+			resolvedFileName := ""
+			if resolved != nil {
+				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
+			}
+			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, Span: sourceSpan(specifier), Builtin: true})
+			continue
+		}
 		resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 		if resolved == nil || resolved.ResolvedFileName == "" || resolved.IsExternalLibraryImport {
 			continue
@@ -301,6 +347,11 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile) []ModuleR
 		})
 	}
 	return result
+}
+
+func isBuiltinFile(fileName, stdlibRoot string) bool {
+	clean := filepath.Clean(fileName)
+	return filepath.Dir(clean) == filepath.Clean(stdlibRoot)
 }
 
 // orderedSourceFiles returns reachable local files in dependency-first order.
@@ -373,6 +424,7 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 				Span: parameterSpan(parameter),
 				Name: parameter.Name().Text(),
 				Type: syntaxType(parameter.Type()),
+				Rest: parameter.AsParameterDeclaration().DotDotDotToken != nil,
 			})
 		}
 		if body := node.Body(); body != nil {
@@ -401,6 +453,12 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 		return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
 	case ast.KindReturnStatement:
 		return SyntaxStatement{Span: span, Kind: "return", Expression: syntaxExpression(node.Expression())}, true
+	case ast.KindIfStatement:
+		ifNode := node.AsIfStatement()
+		result := SyntaxStatement{Span: span, Kind: "if", Expression: syntaxExpression(ifNode.Expression)}
+		result.Then = syntaxBlockStatements(ifNode.ThenStatement)
+		result.Else = syntaxBlockStatements(ifNode.ElseStatement)
+		return result, true
 	case ast.KindExpressionStatement:
 		return SyntaxStatement{Span: span, Kind: "expression", Expression: syntaxExpression(node.Expression())}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration:
@@ -408,6 +466,25 @@ func syntaxStatement(node *ast.Node) (SyntaxStatement, bool) {
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}
+}
+
+func syntaxBlockStatements(node *ast.Node) []SyntaxStatement {
+	if node == nil {
+		return nil
+	}
+	if node.Kind == ast.KindBlock {
+		result := make([]SyntaxStatement, 0, len(node.Statements()))
+		for _, statement := range node.Statements() {
+			if converted, ok := syntaxStatement(statement); ok {
+				result = append(result, converted)
+			}
+		}
+		return result
+	}
+	if converted, ok := syntaxStatement(node); ok {
+		return []SyntaxStatement{converted}
+	}
+	return nil
 }
 
 func syntaxExpression(node *ast.Node) *SyntaxExpression {
@@ -442,6 +519,15 @@ func syntaxExpression(node *ast.Node) *SyntaxExpression {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument))
 		}
 		return result
+	case ast.KindConditionalExpression:
+		conditional := node.AsConditionalExpression()
+		return &SyntaxExpression{
+			Span:      sourceSpan(node),
+			Kind:      "conditional",
+			Left:      syntaxExpression(conditional.Condition),
+			WhenTrue:  syntaxExpression(conditional.WhenTrue),
+			WhenFalse: syntaxExpression(conditional.WhenFalse),
+		}
 	case ast.KindArrayLiteralExpression:
 		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "array"}
 		if elements := node.AsArrayLiteralExpression().Elements; elements != nil {
