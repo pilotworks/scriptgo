@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ['1.24.x']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Setup Node.js (for Parity Oracle)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Clang / LLVM
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm
+
+      - name: Build scriptgo CLI
+        run: go build -v ./cmd/scriptgo
+
+      - name: Run Full Test Suite
+        run: go test -v -count=1 ./...
+
+      - name: Run TypeScript-Go Frontend Tests
+        run: go test -v -count=1 ./internal/typescriptgo/...
+
+      - name: Run Node.js Parity Benchmark
+        run: go run ./cmd/parity
+
+      # Native Memory Leak & Address Sanitizer Verification
+      - name: Native Memory Leak & Address Sanitizer Check (Linux)
+        if: runner.os == 'Linux'
+        env:
+          ASAN_OPTIONS: 'detect_leaks=1'
+        run: |
+          mkdir -p bin_sanitizer
+          ./scriptgo build --sanitize address,undefined,leak examples/fibonacci.ts -o bin_sanitizer/fib
+          ./bin_sanitizer/fib
+          ./scriptgo build --sanitize address,undefined,leak examples/classes_oop.ts -o bin_sanitizer/oop
+          ./bin_sanitizer/oop
+          ./scriptgo build --sanitize address,undefined,leak examples/functional_arrays.ts -o bin_sanitizer/arr
+          ./bin_sanitizer/arr
+          rm -rf bin_sanitizer
+
+      - name: Native Memory Sanitizer Check (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p bin_sanitizer
+          ./scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_sanitizer/fib
+          ./bin_sanitizer/fib
+          ./scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_sanitizer/oop
+          ./bin_sanitizer/oop
+          ./scriptgo build --sanitize address,undefined examples/functional_arrays.ts -o bin_sanitizer/arr
+          ./bin_sanitizer/arr
+          rm -rf bin_sanitizer
+
+  lint:
+    name: Lint (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m

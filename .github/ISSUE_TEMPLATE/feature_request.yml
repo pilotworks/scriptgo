@@ -1,0 +1,43 @@
+name: 💡 Feature / API Request
+description: Propose a new TypeScript syntax, operator, or Node.js standard library API
+title: "[Feature]: "
+labels: ["enhancement", "proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement or new feature for ScriptGo!
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: What language feature or standard library API do you want supported?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation & Use Case
+      description: Why is this feature needed, and what problems does it solve?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example TypeScript Code
+      description: Show how the requested feature would look in a TypeScript program.
+      render: typescript
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      options:
+        - "Language Syntax / Control Flow"
+        - "Type System / Types"
+        - "Node.js Standard Library (fs, path, os, crypto, etc.)"
+        - "CLI / Toolchain / Cross-Compilation"
+        - "Performance Optimization"
+    validations:
+      required: true

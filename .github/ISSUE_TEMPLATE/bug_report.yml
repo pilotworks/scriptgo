@@ -1,0 +1,63 @@
+name: 🐛 Bug Report
+description: Report a compiler bug, incorrect runtime behavior, or crash
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in ScriptGo!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: TypeScript Reproduction Code
+      description: Provide a minimal TypeScript sample that reproduces the issue.
+      render: typescript
+      placeholder: |
+        // Minimal reproducing example
+        function test() {
+          // ...
+        }
+        test();
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior (e.g. Node.js output)
+      description: What output or behavior was expected when running with Node.js?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior (ScriptGo output or error)
+      description: What did `scriptgo run` or `scriptgo build` produce?
+    validations:
+      required: true
+  - type: dropdown
+    id: execution_mode
+    attributes:
+      label: Execution Mode
+      description: Which execution mode is affected?
+      options:
+        - "Both (Interpreter & Native Binary)"
+        - "Native Binary (`scriptgo run --native` / `scriptgo build`)"
+        - "Reference Interpreter (`scriptgo run`)"
+        - "Type Checker (`scriptgo check`)"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment Info
+      description: "Operating system, Architecture, Clang/Zig version (e.g., macOS ARM64 / Clang 17 / Zig 0.13)"
+    validations:
+      required: true

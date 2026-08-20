@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions & Questions
+    url: https://github.com/pilotworks/scriptgo/discussions
+    about: Ask questions, share ideas, or get help with ScriptGo.
+  - name: 🔒 Security Vulnerability Report
+    url: https://github.com/pilotworks/scriptgo/security/advisories/new
+    about: Privately report a security vulnerability.
