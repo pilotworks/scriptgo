@@ -43,6 +43,15 @@ func (e *functionEmitter) emitFsIntrinsic(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  %%%s.f64 = load double, ptr %%%s\n", instruction.Result, slot)
 		fmt.Fprintf(out, "  %%%s = fcmp one double %%%s.f64, 0.0\n", instruction.Result, instruction.Result)
 		return nil
+	case "__fs.unlinkSync":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeVoid {
+			return fmt.Errorf("fs.unlinkSync has invalid signature")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_unlink_sync(ptr %%%s)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
 	default:
 		return fmt.Errorf("unknown fs intrinsic %q", instruction.Callee)
 	}
@@ -111,8 +120,79 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__crypto.hashDigest":
+		if len(instruction.Args) < 2 || len(instruction.Args) > 3 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("crypto.hashDigest has invalid signature")
+		}
+		encodingArg := "null"
+		if len(instruction.Args) == 3 {
+			encodingArg = fmt.Sprintf("%%%s", instruction.Args[2])
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_hash_digest(ptr %%%s, ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], encodingArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	default:
 		return fmt.Errorf("unknown crypto intrinsic %q", instruction.Callee)
+	}
+}
+
+func (e *functionEmitter) emitDateIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Callee {
+	case "__date.now":
+		if len(instruction.Args) != 0 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("date.now has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_now(ptr %%%s)\n", status, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toISOString":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("date.toISOString has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_iso_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toString", "__date.toUTCString":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("date.toString has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.parse":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("date.parse has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_parse(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	default:
+		return fmt.Errorf("unknown date intrinsic %q", instruction.Callee)
 	}
 }
 

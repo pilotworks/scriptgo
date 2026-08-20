@@ -2,6 +2,7 @@ declare namespace __scriptgo {
     function readFileSync(path: string, encoding?: string): string;
     function writeFileSync(path: string, data: string): void;
     function existsSync(path: string): boolean;
+    function unlinkSync(path: string): void;
 }
 
 export function readFileSync(path: string, encoding?: string): string {
@@ -15,3 +16,8 @@ export function writeFileSync(path: string, data: string): void {
 export function existsSync(path: string): boolean {
     return __scriptgo.existsSync(path);
 }
+
+export function unlinkSync(path: string): void {
+    __scriptgo.unlinkSync(path);
+}
+

@@ -205,6 +205,9 @@ func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[strin
 	}
 	res := cloneExpr(expr)
 	res.InferredType = substituteType(res.InferredType, subst)
+	if res.Kind == "as" {
+		res.Text = substituteType(res.Text, subst)
+	}
 	for i := range res.TypeArguments {
 		res.TypeArguments[i] = substituteType(res.TypeArguments[i], subst)
 	}

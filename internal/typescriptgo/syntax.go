@@ -154,7 +154,9 @@ func syntaxType(node *ast.Node) string {
 				return "true"
 			case ast.KindFalseKeyword:
 				return "false"
-			case ast.KindStringLiteral, ast.KindNumericLiteral:
+			case ast.KindStringLiteral:
+				return strconv.Quote(lit.Literal.Text())
+			case ast.KindNumericLiteral:
 				return lit.Literal.Text()
 			default:
 				return lit.Literal.Kind.String()

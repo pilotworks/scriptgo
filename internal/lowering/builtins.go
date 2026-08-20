@@ -258,6 +258,125 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 	return "", ir.TypeVoid, nil
 }
 
+func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.ObjectShape) (string, ir.Type, error) {
+	curr := nextTemp(call.Counter)
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpConst,
+		Type:   ir.TypeString,
+		Result: curr,
+		Value:  "{",
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+
+	for i, f := range shape.Fields {
+		prefix := fmt.Sprintf("\"%s\":", f.Name)
+		if i > 0 {
+			prefix = "," + prefix
+		}
+		prefConst := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
+			Result: prefConst,
+			Value:  prefix,
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		afterPref := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:       ir.OpBinary,
+			Type:     ir.TypeString,
+			Result:   afterPref,
+			Operator: "+",
+			Args:     []string{curr, prefConst},
+			Span:     toIRSpan(call.Path, call.Expression.Span),
+		})
+		curr = afterPref
+
+		fVal := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:         ir.OpFieldGet,
+			Type:       f.Type,
+			Result:     fVal,
+			Callee:     shape.Name,
+			Field:      f.Name,
+			FieldIndex: i,
+			Args:       []string{argVal},
+			Span:       toIRSpan(call.Path, call.Expression.Span),
+		})
+
+		fStr := nextTemp(call.Counter)
+		switch f.Type {
+		case ir.TypeString:
+			qConst := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: qConst, Value: "\"", Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			q1 := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpBinary, Type: ir.TypeString, Result: q1, Operator: "+", Args: []string{qConst, fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpBinary, Type: ir.TypeString, Result: fStr, Operator: "+", Args: []string{q1, qConst}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+		case ir.TypeNumber:
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: "__string.fromNumber", Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+		case ir.TypeBool:
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: "__string.fromBool", Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+		default:
+			if strings.HasSuffix(string(f.Type), "[]") || f.Type == ir.TypeNumberArray || f.Type == ir.TypeStringArray {
+				callee := "__json.stringify_string_array"
+				if f.Type == ir.TypeNumberArray {
+					callee = "__json.stringify_number_array"
+				}
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: callee, Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+			} else {
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: "__string.fromNumber", Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+			}
+		}
+
+		afterVal := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:       ir.OpBinary,
+			Type:     ir.TypeString,
+			Result:   afterVal,
+			Operator: "+",
+			Args:     []string{curr, fStr},
+			Span:     toIRSpan(call.Path, call.Expression.Span),
+		})
+		curr = afterVal
+	}
+
+	closeConst := nextTemp(call.Counter)
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpConst,
+		Type:   ir.TypeString,
+		Result: closeConst,
+		Value:  "}",
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	res := call.Result
+	if res == "" {
+		res = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:       ir.OpBinary,
+		Type:     ir.TypeString,
+		Result:   res,
+		Operator: "+",
+		Args:     []string{curr, closeConst},
+		Span:     toIRSpan(call.Path, call.Expression.Span),
+	})
+	return res, ir.TypeString, nil
+}
+
 func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) != 1 {
 		return "", "", fmt.Errorf("JSON.stringify expects exactly 1 argument")
@@ -265,6 +384,14 @@ func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 	argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	if err != nil {
 		return "", "", err
+	}
+	if strings.HasPrefix(string(argType), "object:") {
+		shapeName := strings.TrimPrefix(string(argType), "object:")
+		shape, ok := call.Shapes[shapeName]
+		if !ok {
+			return "", "", fmt.Errorf("unknown shape %q for JSON.stringify", shapeName)
+		}
+		return lowerJSONStringifyObject(call, argVal, shape)
 	}
 	result := call.Result
 	if result == "" {
@@ -496,6 +623,10 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 		},
 	}
 
+	// Date globals (Category 1: ECMAScript)
+	register([]string{"Date.now", "__date.now"}, CategoryECMAScript, "__date.now", nil, ir.TypeNumber, 0, 0)
+	register([]string{"Date.parse", "__date.parse"}, CategoryECMAScript, "__date.parse", []ir.Type{ir.TypeString}, ir.TypeNumber, 1, 1)
+
 	// Web-compatible globals (Category 2: WebCompat)
 	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
@@ -515,7 +646,9 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"fs.readFileSync", "__scriptgo.readFileSync", "readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeString, 1, 2)
 	register([]string{"fs.writeFileSync", "__scriptgo.writeFileSync", "writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
 	register([]string{"fs.existsSync", "__scriptgo.existsSync", "existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
+	register([]string{"fs.unlinkSync", "__scriptgo.unlinkSync", "unlinkSync"}, CategoryNodeModule, "__fs.unlinkSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 1, 1)
 	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryNodeModule, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
+	register([]string{"crypto.hashDigest", "__scriptgo.hashDigest", "hashDigest"}, CategoryNodeModule, "__crypto.hashDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 2, 3)
 	register([]string{"os.platform", "__scriptgo.platform", "platform"}, CategoryNodeModule, "__os.platform", nil, ir.TypeString, 0, 0)
 	register([]string{"os.arch", "__scriptgo.arch", "arch"}, CategoryNodeModule, "__os.arch", nil, ir.TypeString, 0, 0)
 	register([]string{"os.homedir", "__scriptgo.homedir", "homedir"}, CategoryNodeModule, "__os.homedir", nil, ir.TypeString, 0, 0)
@@ -524,6 +657,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"os.freemem", "__scriptgo.freemem", "freemem"}, CategoryNodeModule, "__os.freemem", nil, ir.TypeNumber, 0, 0)
 	register([]string{"os.type", "__scriptgo.type", "type"}, CategoryNodeModule, "__os.type", nil, ir.TypeString, 0, 0)
 	register([]string{"os.release", "__scriptgo.release", "release"}, CategoryNodeModule, "__os.release", nil, ir.TypeString, 0, 0)
+	register([]string{"os.tmpdir", "__scriptgo.tmpdir", "tmpdir"}, CategoryNodeModule, "__os.tmpdir", nil, ir.TypeString, 0, 0)
 
 	return m
 }

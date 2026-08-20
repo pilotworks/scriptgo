@@ -163,3 +163,22 @@ int scriptgo_os_freemem(double *out_val) {
 #endif
     return 0;
 }
+
+int scriptgo_os_tmpdir(char **out_str) {
+    if (out_str == NULL) {
+        return os_fail("scriptgo os invalid argument");
+    }
+    const char *tmp = getenv("TMPDIR");
+    if (tmp == NULL || strlen(tmp) == 0) {
+        tmp = getenv("TMP");
+    }
+    if (tmp == NULL || strlen(tmp) == 0) {
+        tmp = getenv("TEMP");
+    }
+    if (tmp == NULL || strlen(tmp) == 0) {
+        tmp = "/tmp";
+    }
+    *out_str = strdup(tmp);
+    return 0;
+}
+

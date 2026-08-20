@@ -92,3 +92,70 @@ declare var Symbol: SymbolConstructor;
 interface TemplateStringsArray extends Array<string> {
     readonly raw: readonly string[];
 }
+
+interface Error {
+    name: string;
+    message: string;
+    stack?: string;
+    toString(): string;
+}
+
+interface ErrorConstructor {
+    new(message?: string): Error;
+    (message?: string): Error;
+    readonly prototype: Error;
+}
+
+declare var Error: ErrorConstructor;
+
+interface TypeError extends Error {}
+interface TypeErrorConstructor {
+    new(message?: string): TypeError;
+    (message?: string): TypeError;
+    readonly prototype: TypeError;
+}
+declare var TypeError: TypeErrorConstructor;
+
+interface RangeError extends Error {}
+interface RangeErrorConstructor {
+    new(message?: string): RangeError;
+    (message?: string): RangeError;
+    readonly prototype: RangeError;
+}
+declare var RangeError: RangeErrorConstructor;
+
+interface SyntaxError extends Error {}
+interface SyntaxErrorConstructor {
+    new(message?: string): SyntaxError;
+    (message?: string): SyntaxError;
+    readonly prototype: SyntaxError;
+}
+declare var SyntaxError: SyntaxErrorConstructor;
+
+interface Date {
+    toString(): string;
+    toISOString(): string;
+    toUTCString(): string;
+    getTime(): number;
+    getFullYear(): number;
+    getMonth(): number;
+    getDate(): number;
+    getDay(): number;
+    getHours(): number;
+    getMinutes(): number;
+    getSeconds(): number;
+    getMilliseconds(): number;
+    getTimezoneOffset(): number;
+}
+
+interface DateConstructor {
+    new(): Date;
+    new(value: number | string | Date): Date;
+    (value?: any): string;
+    now(): number;
+    parse(s: string): number;
+    UTC(year: number, monthIndex?: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
+}
+
+declare var Date: DateConstructor;
+

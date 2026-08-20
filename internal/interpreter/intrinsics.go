@@ -3,7 +3,9 @@ package interpreter
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -873,6 +875,16 @@ func executeFsIntrinsic(name string, arguments []string, env map[string]Value) (
 		}
 		_, err := os.Stat(pathVal.String)
 		return Value{Type: ir.TypeBool, Bool: err == nil}, nil
+	case "__fs.unlinkSync":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("fs.unlinkSync requires 1 argument")
+		}
+		pathVal, ok := env[arguments[0]]
+		if !ok || pathVal.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("fs.unlinkSync requires a string path")
+		}
+		_ = os.Remove(pathVal.String)
+		return Value{Type: ir.TypeVoid}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown fs intrinsic %q", name)
 	}
@@ -926,8 +938,88 @@ func executeCryptoIntrinsic(name string, arguments []string, env map[string]Valu
 			b[10], b[11], b[12], b[13], b[14], b[15],
 		)
 		return Value{Type: ir.TypeString, String: uuid}, nil
+	case "__crypto.hashDigest":
+		if len(arguments) < 2 || len(arguments) > 3 {
+			return Value{}, fmt.Errorf("crypto.hashDigest requires 2 or 3 arguments")
+		}
+		algoVal, ok := env[arguments[0]]
+		if !ok || algoVal.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("crypto.hashDigest requires a string algorithm")
+		}
+		dataVal, ok := env[arguments[1]]
+		if !ok || dataVal.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("crypto.hashDigest requires a string data")
+		}
+		encoding := "hex"
+		if len(arguments) == 3 {
+			encVal, ok := env[arguments[2]]
+			if ok && encVal.Type == ir.TypeString && encVal.String != "" {
+				encoding = encVal.String
+			}
+		}
+		var hashBytes []byte
+		switch strings.ToLower(algoVal.String) {
+		case "sha256":
+			h := sha256.Sum256([]byte(dataVal.String))
+			hashBytes = h[:]
+		default:
+			h := sha256.Sum256([]byte(dataVal.String))
+			hashBytes = h[:]
+		}
+		var outStr string
+		switch strings.ToLower(encoding) {
+		case "hex":
+			outStr = hex.EncodeToString(hashBytes)
+		case "base64":
+			outStr = base64.StdEncoding.EncodeToString(hashBytes)
+		default:
+			outStr = hex.EncodeToString(hashBytes)
+		}
+		return Value{Type: ir.TypeString, String: outStr}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown crypto intrinsic %q", name)
+	}
+}
+
+func executeDateIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__date.now":
+		return Value{Type: ir.TypeNumber, Number: float64(time.Now().UnixMilli())}, nil
+	case "__date.toISOString":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("date.toISOString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toISOString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number)).UTC()
+		return Value{Type: ir.TypeString, String: t.Format("2006-01-02T15:04:05.000Z")}, nil
+	case "__date.toString", "__date.toUTCString":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("date.toString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number))
+		return Value{Type: ir.TypeString, String: t.Format("Mon Jan 02 2006 15:04:05")}, nil
+	case "__date.parse":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("date.parse requires 1 argument")
+		}
+		sVal, ok := env[arguments[0]]
+		if !ok || sVal.Type != ir.TypeString {
+			return Value{}, fmt.Errorf("date.parse requires a string date")
+		}
+		t, err := time.Parse(time.RFC3339, sVal.String)
+		if err != nil {
+			t, _ = time.Parse("2006-01-02", sVal.String)
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(t.UnixMilli())}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown date intrinsic %q", name)
 	}
 }
 
@@ -966,6 +1058,8 @@ func executeOsIntrinsic(name string, arguments []string, env map[string]Value) (
 		return Value{Type: ir.TypeNumber, Number: 16.0 * 1024 * 1024 * 1024}, nil
 	case "__os.freemem":
 		return Value{Type: ir.TypeNumber, Number: 8.0 * 1024 * 1024 * 1024}, nil
+	case "__os.tmpdir":
+		return Value{Type: ir.TypeString, String: os.TempDir()}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown os intrinsic %q", name)
 	}

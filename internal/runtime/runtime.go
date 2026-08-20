@@ -52,5 +52,9 @@ var regexSource string
 //go:embed native/symbol/runtime.c
 var symbolSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource)
+//go:embed native/date/runtime.c
+var dateSource string
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource)
+
 

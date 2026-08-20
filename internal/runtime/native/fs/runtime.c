@@ -79,3 +79,12 @@ int scriptgo_fs_exists_sync(const char *path, double *out_bool) {
     }
     return 0;
 }
+
+int scriptgo_fs_unlink_sync(const char *path) {
+    if (path == NULL) {
+        return fs_fail("scriptgo fs invalid arguments");
+    }
+    remove(path);
+    return 0;
+}
+

@@ -271,10 +271,42 @@ func anonymousShapeName(fields []ir.Field) string {
 	return "__shape_" + strings.Join(parts, "_")
 }
 
+func ensureDateShape(shapes map[string]ir.ObjectShape) {
+	if _, ok := shapes["Date"]; !ok {
+		shapes["Date"] = ir.ObjectShape{
+			Name: "Date",
+			Fields: []ir.Field{
+				{Name: "time", Type: ir.TypeNumber},
+			},
+		}
+	}
+}
+
+func ensureErrorShape(shapes map[string]ir.ObjectShape, name string) {
+	if name == "" {
+		name = "Error"
+	}
+	if _, ok := shapes[name]; !ok {
+		shapes[name] = ir.ObjectShape{
+			Name: name,
+			Fields: []ir.Field{
+				{Name: "message", Type: ir.TypeString},
+				{Name: "name", Type: ir.TypeString},
+			},
+		}
+	}
+}
+
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	className := callName(expression.Left)
 	if className == "RegExp" {
 		ensureRegExpShape(shapes)
+	}
+	if className == "Date" {
+		ensureDateShape(shapes)
+	}
+	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
+		ensureErrorShape(shapes, className)
 	}
 	shape, ok := shapes[className]
 	if !ok {
@@ -294,6 +326,57 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		FieldCount: len(shape.Fields),
 		Span:       toIRSpan(path, expression.Span),
 	})
+	if className == "Date" {
+		timeVal := nextTemp(counter)
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeNumber, Result: timeVal, Callee: "__date.now", Span: toIRSpan(path, expression.Span),
+			})
+		} else {
+			argVal, argType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if argType == ir.TypeNumber {
+				timeVal = argVal
+			} else if argType == ir.TypeString {
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeNumber, Result: timeVal, Callee: "__date.parse", Args: []string{argVal}, Span: toIRSpan(path, expression.Span),
+				})
+			} else {
+				timeVal = argVal
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{result, timeVal}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
+	}
+	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
+		msgVal := nextTemp(counter)
+		if len(expression.Arguments) > 0 {
+			mv, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			msgVal = mv
+		} else {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: msgVal, Value: "", Span: toIRSpan(path, expression.Span),
+			})
+		}
+		nameVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: className, Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{result, msgVal}, Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{result, nameVal}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
+	}
 	for _, field := range shape.Fields {
 		if strings.HasSuffix(string(field.Type), "[]") || field.Type == ir.TypeNumberArray || field.Type == ir.TypeStringArray || field.Type == ir.TypeBoolArray || field.Type == ir.TypeBigIntArray {
 			arrTemp := nextTemp(counter)

@@ -635,7 +635,25 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if trueType != falseType {
-			return "", "", fmt.Errorf("conditional branches must have the same type")
+			if expression.WhenFalse != nil && (expression.WhenFalse.Kind == "null" || expression.WhenFalse.Kind == "undefined") {
+				falseType = trueType
+				whenFalse = nextTemp(counter)
+				zeroVal := "0"
+				if trueType == ir.TypeString {
+					zeroVal = "null"
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: trueType, Result: whenFalse, Value: zeroVal, Span: toIRSpan(path, expression.WhenFalse.Span)})
+			} else if expression.WhenTrue != nil && (expression.WhenTrue.Kind == "null" || expression.WhenTrue.Kind == "undefined") {
+				trueType = falseType
+				whenTrue = nextTemp(counter)
+				zeroVal := "0"
+				if falseType == ir.TypeString {
+					zeroVal = "null"
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})
+			} else {
+				return "", "", fmt.Errorf("conditional branches must have the same type")
+			}
 		}
 		if result == "" {
 			result = nextTemp(counter)

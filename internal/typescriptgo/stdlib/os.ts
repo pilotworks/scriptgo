@@ -7,6 +7,7 @@ declare namespace __scriptgo {
     function freemem(): number;
     function type(): string;
     function release(): string;
+    function tmpdir(): string;
 }
 
 export function platform(): string {
@@ -40,3 +41,8 @@ export function type(): string {
 export function release(): string {
     return __scriptgo.release();
 }
+
+export function tmpdir(): string {
+    return __scriptgo.tmpdir();
+}
+

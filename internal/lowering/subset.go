@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -261,13 +262,27 @@ func isHeterogeneousUnion(typ string) bool {
 	if len(nonNullish) <= 1 {
 		return false
 	}
-	first := nonNullish[0]
+	first := toPrimitiveCategory(nonNullish[0])
 	for _, other := range nonNullish[1:] {
-		if other != first {
+		if toPrimitiveCategory(other) != first {
 			return true
 		}
 	}
 	return false
+}
+
+func toPrimitiveCategory(t string) string {
+	t = strings.TrimSpace(t)
+	if (strings.HasPrefix(t, "\"") && strings.HasSuffix(t, "\"")) || (strings.HasPrefix(t, "'") && strings.HasSuffix(t, "'")) || t == "string" {
+		return "string"
+	}
+	if _, err := strconv.ParseFloat(t, 64); err == nil || t == "number" {
+		return "number"
+	}
+	if t == "boolean" || t == "bool" || t == "true" || t == "false" {
+		return "bool"
+	}
+	return t
 }
 
 func isUnknownType(typ string) bool {

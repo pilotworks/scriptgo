@@ -414,9 +414,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "class":
 		return nil
 	case "throw":
-		val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
+		}
+		if strings.HasPrefix(string(valType), "object:Error") || valType == "object:TypeError" || valType == "object:RangeError" || valType == "object:SyntaxError" {
+			msgVal := nextTemp(counter)
+			className := strings.TrimPrefix(string(valType), "object:")
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldGet,
+				Type:       ir.TypeString,
+				Result:     msgVal,
+				Callee:     className,
+				Field:      "message",
+				FieldIndex: 0,
+				Args:       []string{val},
+				Span:       toIRSpan(path, statement.Span),
+			})
+			val = msgVal
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:   ir.OpThrow,
@@ -449,6 +464,10 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 }
 
 func toIRType(value string) ir.Type {
+	value = strings.TrimSpace(value)
+	if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+		return ir.TypeString
+	}
 	if strings.Contains(value, "|") {
 		parts := strings.Split(value, "|")
 		var nonNullish []string

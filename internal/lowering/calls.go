@@ -54,6 +54,33 @@ func lowerCallExpression(
 					return result, ir.TypeStringArray, nil
 				}
 			}
+			if receiverType == "object:Date" {
+				if methodName == "toISOString" {
+					timeVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__date.toISOString", Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeString, nil
+				}
+				if methodName == "getTime" {
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: result, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeNumber, nil
+				}
+				if methodName == "toString" || methodName == "toUTCString" {
+					timeVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__date.toString", Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeString, nil
+				}
+			}
 			if receiverType == ir.TypeBigInt && methodName == "toString" {
 				if result == "" {
 					result = nextTemp(counter)

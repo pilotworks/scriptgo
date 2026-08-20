@@ -110,6 +110,32 @@ func main() {
 				}
 				continue
 			}
+
+			// 5. Exported classes
+			if stmt.Kind == ast.KindClassDeclaration {
+				if hasExportModifier(stmt.Modifiers()) {
+					classDecl := stmt.AsClassDeclaration()
+					className := classDecl.Name().Text()
+					var memberLines []string
+					for _, member := range classDecl.Members.Nodes {
+						if member.Kind == ast.KindConstructor {
+							sig := formatConstructorSignature(member, source)
+							if sig != "" {
+								memberLines = append(memberLines, "    "+sig)
+							}
+						} else if member.Kind == ast.KindMethodDeclaration {
+							if !hasPrivateModifier(member.Modifiers()) {
+								sig := formatFunctionSignature(member, source)
+								if sig != "" {
+									memberLines = append(memberLines, "    "+sig)
+								}
+							}
+						}
+					}
+					lines = append(lines, fmt.Sprintf("export class %s {\n%s\n}", className, strings.Join(memberLines, "\n")))
+				}
+				continue
+			}
 		}
 
 		dtsContent := strings.Join(lines, "\n") + "\n"
@@ -134,6 +160,32 @@ func hasExportModifier(modifiers *ast.ModifierList) bool {
 		}
 	}
 	return false
+}
+
+func hasPrivateModifier(modifiers *ast.ModifierList) bool {
+	if modifiers == nil {
+		return false
+	}
+	for _, m := range modifiers.Nodes {
+		if m.Kind == ast.KindPrivateKeyword {
+			return true
+		}
+	}
+	return false
+}
+
+func formatConstructorSignature(stmt *ast.Node, src string) string {
+	startPos := stmt.Pos()
+	if body := stmt.Body(); body != nil {
+		bodyPos := body.Pos()
+		sig := strings.TrimSpace(src[startPos:bodyPos])
+		return sig + ";"
+	}
+	sig := strings.TrimSpace(src[startPos:stmt.End()])
+	if !strings.HasSuffix(sig, ";") {
+		sig += ";"
+	}
+	return sig
 }
 
 func formatFunctionSignature(stmt *ast.Node, src string) string {
