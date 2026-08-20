@@ -123,6 +123,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			if mType == "" && inferredMType != "" {
 				mType = inferredMType
 			}
+			isGen := member.BodyData() != nil && member.BodyData().AsteriskToken != nil
+			isAsync := ast.HasSyntacticModifier(member, ast.ModifierFlagsAsync)
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:           sourceSpan(member),
 				Name:           member.Name().Text(),
@@ -134,6 +136,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				IsStatic:       ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 				IsAbstract:     ast.HasSyntacticModifier(member, ast.ModifierFlagsAbstract),
 				Kind:           "method",
+				IsGenerator:    isGen,
+				IsAsync:        isAsync,
 			})
 		case ast.KindGetAccessor:
 			var body []SyntaxStatement

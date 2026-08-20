@@ -99,14 +99,74 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		}
 	case ast.KindCallExpression:
 		callExpr := node.AsCallExpression()
+		kind := "call"
+		if callExpr.QuestionDotToken != nil {
+			kind = "optional_call"
+		}
 		result := &SyntaxExpression{
 			Span:          sourceSpan(node),
-			Kind:          "call",
+			Kind:          kind,
 			Left:          syntaxExpression(callExpr.Expression, chk),
 			TypeArguments: syntaxTypeArguments(callExpr.TypeArguments),
 		}
 		for _, argument := range node.Arguments() {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument, chk))
+		}
+		return result
+	case ast.KindTaggedTemplateExpression:
+		tagged := node.AsTaggedTemplateExpression()
+		result := &SyntaxExpression{
+			Span:          sourceSpan(node),
+			Kind:          "tagged_template",
+			Left:          syntaxExpression(tagged.Tag, chk),
+			TypeArguments: syntaxTypeArguments(tagged.TypeArguments),
+		}
+		stringsArray := &SyntaxExpression{
+			Span:         sourceSpan(tagged.Template),
+			Kind:         "array",
+			InferredType: "string[]",
+		}
+		if tagged.Template.Kind == ast.KindNoSubstitutionTemplateLiteral {
+			stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
+				Span:         sourceSpan(tagged.Template),
+				Kind:         "string",
+				Text:         tagged.Template.Text(),
+				InferredType: "string",
+			})
+			result.Arguments = append(result.Arguments, stringsArray)
+		} else if tagged.Template.Kind == ast.KindTemplateExpression {
+			tpl := tagged.Template.AsTemplateExpression()
+			headText := ""
+			if tpl.Head != nil {
+				headText = tpl.Head.Text()
+			}
+			stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
+				Span:         sourceSpan(tpl.Head),
+				Kind:         "string",
+				Text:         headText,
+				InferredType: "string",
+			})
+			var rawValues []*SyntaxExpression
+			if spans := tpl.TemplateSpans; spans != nil {
+				for _, spanNode := range spans.Nodes {
+					span := spanNode.AsTemplateSpan()
+					if span.Expression != nil {
+						rawValues = append(rawValues, syntaxExpression(span.Expression, chk))
+					}
+					litText := ""
+					if span.Literal != nil {
+						litText = span.Literal.Text()
+					}
+					stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
+						Span:         sourceSpan(span.Literal),
+						Kind:         "string",
+						Text:         litText,
+						InferredType: "string",
+					})
+				}
+			}
+			result.Arguments = append(result.Arguments, stringsArray)
+			result.Arguments = append(result.Arguments, rawValues...)
 		}
 		return result
 	case ast.KindTypeOfExpression:
@@ -308,6 +368,21 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Span: sourceSpan(node),
 			Kind: "await",
 			Left: syntaxExpression(awaitNode.Expression, chk),
+		}
+	case ast.KindYieldExpression:
+		yieldNode := node.AsYieldExpression()
+		kind := "yield"
+		if yieldNode.AsteriskToken != nil {
+			kind = "yield_star"
+		}
+		var inner *SyntaxExpression
+		if yieldNode.Expression != nil {
+			inner = syntaxExpression(yieldNode.Expression, chk)
+		}
+		return &SyntaxExpression{
+			Span: sourceSpan(node),
+			Kind: kind,
+			Left: inner,
 		}
 	default:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "unsupported", Text: node.Kind.String()}

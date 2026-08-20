@@ -394,7 +394,7 @@ func toIRType(value string) ir.Type {
 		return ir.TypeBool
 	case "number[]":
 		return ir.TypeNumberArray
-	case "string[]":
+	case "string[]", "TemplateStringsArray":
 		return ir.TypeStringArray
 	case "closure", "function":
 		return ir.TypeClosure

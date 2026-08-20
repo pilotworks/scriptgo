@@ -18,7 +18,7 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
-	if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") && expression.Left.Left != nil {
 		methodName := expression.Left.Text
 		receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 		if err == nil {
@@ -523,7 +523,7 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 	if expression.Kind == "identifier" {
 		return expression.Text
 	}
-	if expression.Kind == "property" && expression.Left != nil && expression.Left.Kind == "identifier" {
+	if (expression.Kind == "property" || expression.Kind == "optional_property") && expression.Left != nil && expression.Left.Kind == "identifier" {
 		return expression.Left.Text + "." + expression.Text
 	}
 	return ""
@@ -548,7 +548,7 @@ func isArrayMethod(name string) bool {
 }
 
 func stringMethod(expression *typescriptgo.SyntaxExpression) string {
-	if expression == nil || expression.Kind != "property" || expression.Left == nil {
+	if expression == nil || (expression.Kind != "property" && expression.Kind != "optional_property") || expression.Left == nil {
 		return ""
 	}
 	if isStringMethod(expression.Text) {
@@ -558,7 +558,7 @@ func stringMethod(expression *typescriptgo.SyntaxExpression) string {
 }
 
 func arrayMethod(expression *typescriptgo.SyntaxExpression) string {
-	if expression == nil || expression.Kind != "property" || expression.Left == nil {
+	if expression == nil || (expression.Kind != "property" && expression.Kind != "optional_property") || expression.Left == nil {
 		return ""
 	}
 	if isArrayMethod(expression.Text) {

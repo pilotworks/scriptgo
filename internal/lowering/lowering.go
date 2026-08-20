@@ -77,13 +77,31 @@ func Lower(program frontend.Program) (ir.Module, error) {
 		}
 	}
 
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
+			if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
+				RegisterGeneratorStatement(statement.Name, statement)
+			}
+		}
+	}
+
 	main := ir.Function{Name: "main", ReturnType: ir.TypeVoid}
 	env := map[string]ir.Type{}
 	signatures := buildFunctionIndex(program)
 	counter := 0
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "function" {
+			if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
+				factoryFn, extraFns, newShapes, err := lowerGeneratorFunction(file.FileName, statement, shapes, signatures)
+				if err != nil {
+					return ir.Module{}, fmt.Errorf("lower generator %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))
+				}
+				module.Functions = append(module.Functions, factoryFn)
+				module.Functions = append(module.Functions, extraFns...)
+				module.Shapes = append(module.Shapes, newShapes...)
+				continue
+			}
+			if statement.Kind == "function" || statement.Kind == "async_function" {
 				function, err := lowerFunction(file.FileName, statement, shapes, signatures)
 				if err != nil {
 					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))

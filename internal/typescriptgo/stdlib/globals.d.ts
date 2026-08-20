@@ -88,3 +88,7 @@ interface SymbolConstructor {
 }
 
 declare var Symbol: SymbolConstructor;
+
+interface TemplateStringsArray extends Array<string> {
+    readonly raw: readonly string[];
+}

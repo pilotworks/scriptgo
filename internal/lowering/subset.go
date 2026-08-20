@@ -27,7 +27,7 @@ func ValidateSubset(program frontend.Program) error {
 }
 
 func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) error {
-	if statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type) {
+	if (statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type)) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
 		if err := validateStaticType(fileName, statement.Span, statement.Type); err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			return nil
 		}
 		return validateExpression(fileName, statement.Expression)
-	case "function":
+	case "function", "generator_function", "async_function", "async_generator_function":
 		if len(statement.TypeParameters) > 0 {
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic function %q", statement.Name))
 		}
@@ -244,6 +244,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 
 func isHeterogeneousUnion(typ string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
+	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") {
+		return false
+	}
 	if !strings.Contains(normalized, "|") {
 		return false
 	}
@@ -383,7 +386,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return validateExpression(fileName, expression.Right)
 	case "optional_property", "property":
-		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal") {
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal") {
 			return validateExpression(fileName, expression.Left)
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")
@@ -397,8 +400,11 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
 		}
 		return nil
-	case "typeof", "await":
-		return validateExpression(fileName, expression.Left)
+	case "typeof", "await", "yield", "yield_star":
+		if expression.Left != nil {
+			return validateExpression(fileName, expression.Left)
+		}
+		return nil
 	case "unary":
 		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" && expression.Operator != "++" && expression.Operator != "--" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "unary operator "+expression.Operator)
@@ -414,7 +420,12 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return err
 		}
 		return validateExpression(fileName, expression.Right)
-	case "template":
+	case "template", "tagged_template":
+		if expression.Left != nil {
+			if err := validateExpression(fileName, expression.Left); err != nil {
+				return err
+			}
+		}
 		for _, argument := range expression.Arguments {
 			if err := validateExpression(fileName, argument); err != nil {
 				return err
@@ -429,13 +440,13 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return err
 		}
 		return validateExpression(fileName, expression.WhenFalse)
-	case "call":
+	case "call", "optional_call":
 		for _, argument := range expression.Arguments {
 			if err := validateExpression(fileName, argument); err != nil {
 				return err
 			}
 		}
-		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" {
+		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" && expression.Left.Kind != "optional_property" {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
 		return nil

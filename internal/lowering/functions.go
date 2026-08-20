@@ -23,10 +23,13 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "function" {
+			if statement.Kind == "function" || statement.Kind == "generator_function" || statement.Kind == "async_function" || statement.Kind == "async_generator_function" || statement.IsGenerator || statement.IsAsync {
 				retType := statement.Type
 				if retType == "" && statement.InferredType != "" {
 					retType = statement.InferredType
+				}
+				if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
+					retType = "object:Generator_" + statement.Name
 				}
 				function := ir.Function{Name: statement.Name, ReturnType: toIRType(retType)}
 				if function.ReturnType == "" {

@@ -579,6 +579,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return lowerNewExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "call":
 		return lowerCallExpression(path, expression, result, function, env, counter, shapes, signatures)
+	case "optional_call":
+		return lowerOptionalCallExpression(path, expression, result, function, env, counter, shapes, signatures)
+	case "tagged_template":
+		return lowerTaggedTemplate(path, expression, result, function, env, counter, shapes, signatures)
 	case "arrow_function":
 		if expression.Function != nil {
 			return lowerClosureExpression(path, expression.Function, result, function, env, counter, shapes, signatures)
@@ -605,6 +609,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, retType, nil
+	case "yield", "yield_star":
+		if expression.Left != nil {
+			return lowerExpression(path, expression.Left, result, function, env, counter, shapes, signatures)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: result, Value: "0", Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeNumber, nil
 	default:
 		return "", "", fmt.Errorf("unsupported expression %q", expression.Kind)
 	}

@@ -21,13 +21,27 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		if fnType == "" && inferredRetType != "" {
 			fnType = inferredRetType
 		}
+		isGen := node.BodyData() != nil && node.BodyData().AsteriskToken != nil
+		isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)
+		kind := "function"
+		if isGen {
+			if isAsync {
+				kind = "async_generator_function"
+			} else {
+				kind = "generator_function"
+			}
+		} else if isAsync {
+			kind = "async_function"
+		}
 		result := SyntaxStatement{
 			Span:           span,
-			Kind:           "function",
+			Kind:           kind,
 			Name:           node.Name().Text(),
 			Type:           fnType,
 			InferredType:   inferredRetType,
 			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
+			IsGenerator:    isGen,
+			IsAsync:        isAsync,
 		}
 		for _, parameter := range node.Parameters() {
 			pType := syntaxType(parameter.Type())

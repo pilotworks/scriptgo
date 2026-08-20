@@ -77,6 +77,8 @@ type SyntaxStatement struct {
 	Finally        []SyntaxStatement
 	Class          *SyntaxClass
 	Enum           *SyntaxEnum
+	IsGenerator    bool
+	IsAsync        bool
 }
 
 type SyntaxSwitchCase struct {
@@ -128,6 +130,8 @@ type SyntaxMethod struct {
 	IsStatic       bool
 	IsAbstract     bool
 	Kind           string
+	IsGenerator    bool
+	IsAsync        bool
 }
 
 type SyntaxField struct {

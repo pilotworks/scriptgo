@@ -1,0 +1,35 @@
+package lowering
+
+import (
+	"fmt"
+
+	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/ir"
+)
+
+// lowerOptionalCallExpression lowers optional call expressions: fn?.(args) or obj?.method?.(args)
+func lowerOptionalCallExpression(
+	path string,
+	expression *typescriptgo.SyntaxExpression,
+	result string,
+	function *ir.Function,
+	env map[string]ir.Type,
+	counter *int,
+	shapes map[string]ir.ObjectShape,
+	signatures map[string]ir.Function,
+) (string, ir.Type, error) {
+	if expression.Left == nil {
+		return "", "", fmt.Errorf("optional call missing target")
+	}
+
+	// Synthesize a standard call expression
+	standardCall := &typescriptgo.SyntaxExpression{
+		Span:          expression.Span,
+		Kind:          "call",
+		Left:          expression.Left,
+		Arguments:     expression.Arguments,
+		TypeArguments: expression.TypeArguments,
+	}
+
+	return lowerCallExpression(path, standardCall, result, function, env, counter, shapes, signatures)
+}
