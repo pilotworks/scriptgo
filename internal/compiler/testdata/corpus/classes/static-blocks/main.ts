@@ -6,7 +6,7 @@ class ServerConfig {
 
   static {
     ServerConfig.port = 8080;
-    ServerConfig.url = `http://${ServerConfig.host}:${ServerConfig.port}`;
+    ServerConfig.url = "http://" + ServerConfig.host + ":" + ServerConfig.port;
   }
 
   static counter: number = 10;

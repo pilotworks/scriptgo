@@ -602,7 +602,34 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if leftType != rightType {
-			return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+			if expression.Operator == "+" && (leftType == ir.TypeString || rightType == ir.TypeString) {
+				if leftType != ir.TypeString {
+					strTemp := nextTemp(counter)
+					callee := "__string.fromNumber"
+					if leftType == ir.TypeBool {
+						callee = "__string.fromBool"
+					} else if leftType != ir.TypeNumber {
+						return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{left}, Span: toIRSpan(path, expression.Span)})
+					left = strTemp
+					leftType = ir.TypeString
+				}
+				if rightType != ir.TypeString {
+					strTemp := nextTemp(counter)
+					callee := "__string.fromNumber"
+					if rightType == ir.TypeBool {
+						callee = "__string.fromBool"
+					} else if rightType != ir.TypeNumber {
+						return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{right}, Span: toIRSpan(path, expression.Span)})
+					right = strTemp
+					rightType = ir.TypeString
+				}
+			} else {
+				return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+			}
 		}
 		if leftType == ir.TypeBool {
 			if expression.Operator == "&&" || expression.Operator == "||" {
