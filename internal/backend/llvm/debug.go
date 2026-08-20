@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -63,17 +64,18 @@ func (info *debugInfo) metadata(module ir.Module, compilerVersion string) string
 		paths = append(paths, path)
 	}
 	sort.Slice(paths, func(i, j int) bool { return info.files[paths[i]] < info.files[paths[j]] })
-	text := "\n!llvm.dbg.cu = !{!0}\n"
-	text += fmt.Sprintf("!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !%d, producer: %q, isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)\n", info.moduleFile, "scriptgo "+compilerVersion)
+	var text strings.Builder
+	text.WriteString("\n!llvm.dbg.cu = !{!0}\n")
+	text.WriteString(fmt.Sprintf("!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !%d, producer: %q, isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)\n", info.moduleFile, "scriptgo "+compilerVersion))
 	for _, path := range paths {
-		text += fmt.Sprintf("!%d = !DIFile(filename: %q, directory: \".\")\n", info.files[path], filepath.Base(path))
+		text.WriteString(fmt.Sprintf("!%d = !DIFile(filename: %q, directory: \".\")\n", info.files[path], filepath.Base(path)))
 	}
-	text += "!3 = !DISubroutineType(types: !{})\n"
+	text.WriteString("!3 = !DISubroutineType(types: !{})\n")
 	for _, functionPath := range module.Functions {
-		text += info.functionMetadata(functionPath, module) + "\n"
+		text.WriteString(info.functionMetadata(functionPath, module) + "\n")
 	}
-	text += "!llvm.module.flags = !{!1}\n!1 = !{i32 2, !\"Debug Info Version\", i32 3}\n"
-	return text
+	text.WriteString("!llvm.module.flags = !{!1}\n!1 = !{i32 2, !\"Debug Info Version\", i32 3}\n")
+	return text.String()
 }
 
 func sourceLine(source string, offset int) int {

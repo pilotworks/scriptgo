@@ -230,78 +230,78 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				if shape, isShape := shapes[expression.Left.Text]; isShape {
 					// Static constant index (e.g. Color[0])
 					if expression.Right != nil && expression.Right.Kind == "number" {
-					for _, field := range shape.Fields {
-						if field.Value == expression.Right.Text {
-							if result == "" {
-								result = nextTemp(counter)
+						for _, field := range shape.Fields {
+							if field.Value == expression.Right.Text {
+								if result == "" {
+									result = nextTemp(counter)
+								}
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpConst,
+									Type:   ir.TypeString,
+									Result: result,
+									Value:  field.Name,
+									Span:   toIRSpan(path, expression.Span),
+								})
+								return result, ir.TypeString, nil
 							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeString,
-								Result: result,
-								Value:  field.Name,
-								Span:   toIRSpan(path, expression.Span),
-							})
-							return result, ir.TypeString, nil
 						}
 					}
-				}
-				// Dynamic variable index on enum (e.g. Color[val])
-				idxVal, idxType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
-				if err == nil && (idxType == ir.TypeNumber || idxType == ir.TypeString) {
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpConst,
-						Type:   ir.TypeString,
-						Result: result,
-						Value:  "",
-						Span:   toIRSpan(path, expression.Span),
-					})
-					for _, field := range shape.Fields {
-						if field.Value != "" {
-							targetVal := nextTemp(counter)
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   field.Type,
-								Result: targetVal,
-								Value:  field.Value,
-								Span:   toIRSpan(path, expression.Span),
-							})
-							cmpRes := nextTemp(counter)
-							function.Body = append(function.Body, ir.Instruction{
-								Op:       ir.OpCompare,
-								Type:     ir.TypeBool,
-								Operator: "==",
-								Result:   cmpRes,
-								Args:     []string{idxVal, targetVal},
-								Span:     toIRSpan(path, expression.Span),
-							})
-							valStr := nextTemp(counter)
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeString,
-								Result: valStr,
-								Value:  field.Name,
-								Span:   toIRSpan(path, expression.Span),
-							})
-							selectRes := nextTemp(counter)
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpSelect,
-								Type:   ir.TypeString,
-								Result: selectRes,
-								Args:   []string{cmpRes, valStr, result},
-								Span:   toIRSpan(path, expression.Span),
-							})
-							result = selectRes
+					// Dynamic variable index on enum (e.g. Color[val])
+					idxVal, idxType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+					if err == nil && (idxType == ir.TypeNumber || idxType == ir.TypeString) {
+						if result == "" {
+							result = nextTemp(counter)
 						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeString,
+							Result: result,
+							Value:  "",
+							Span:   toIRSpan(path, expression.Span),
+						})
+						for _, field := range shape.Fields {
+							if field.Value != "" {
+								targetVal := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpConst,
+									Type:   field.Type,
+									Result: targetVal,
+									Value:  field.Value,
+									Span:   toIRSpan(path, expression.Span),
+								})
+								cmpRes := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:       ir.OpCompare,
+									Type:     ir.TypeBool,
+									Operator: "==",
+									Result:   cmpRes,
+									Args:     []string{idxVal, targetVal},
+									Span:     toIRSpan(path, expression.Span),
+								})
+								valStr := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpConst,
+									Type:   ir.TypeString,
+									Result: valStr,
+									Value:  field.Name,
+									Span:   toIRSpan(path, expression.Span),
+								})
+								selectRes := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpSelect,
+									Type:   ir.TypeString,
+									Result: selectRes,
+									Args:   []string{cmpRes, valStr, result},
+									Span:   toIRSpan(path, expression.Span),
+								})
+								result = selectRes
+							}
+						}
+						return result, ir.TypeString, nil
 					}
-					return result, ir.TypeString, nil
 				}
 			}
 		}
-	}
 		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
 			keyVal, keyType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 			if err != nil || keyType != ir.TypeString {
@@ -338,8 +338,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			})
 			return result, ir.TypeString, nil
 		}
-		if strings.HasPrefix(string(arrayType), "object:") {
-			shapeName := strings.TrimPrefix(string(arrayType), "object:")
+		if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok {
+			shapeName := after
 			if shape, ok := shapes[shapeName]; ok {
 				if expression.Right != nil && expression.Right.Kind == "number" {
 					fieldIdx, _ := strconv.Atoi(expression.Right.Text)
@@ -398,8 +398,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			elemType = ir.TypeString
 		} else if arrayType == ir.TypeBoolArray || arrayType == "boolean[]" || arrayType == "bool[]" {
 			elemType = ir.TypeBool
-		} else if strings.HasSuffix(string(arrayType), "[]") {
-			elemName := strings.TrimSuffix(string(arrayType), "[]")
+		} else if before, ok := strings.CutSuffix(string(arrayType), "[]"); ok {
+			elemName := before
 			if elemName == "boolean" {
 				elemType = ir.TypeBool
 			} else {
@@ -431,8 +431,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				if expression.InferredType != "" {
 					if _, isShape := shapes[expression.InferredType]; isShape {
 						typ = ir.Type("object:" + expression.InferredType)
-					} else if strings.HasPrefix(expression.InferredType, "object:") {
-						shapeName := strings.TrimPrefix(expression.InferredType, "object:")
+					} else if after, ok0 := strings.CutPrefix(expression.InferredType, "object:"); ok0 {
+						shapeName := after
 						if _, isShape := shapes[shapeName]; isShape {
 							typ = ir.Type(expression.InferredType)
 						}
@@ -729,6 +729,3 @@ func nextTemp(counter *int) string {
 func isComparison(operator string) bool {
 	return operator == "==" || operator == "===" || operator == "!=" || operator == "!==" || operator == "<" || operator == "<=" || operator == ">" || operator == ">="
 }
-
-
-

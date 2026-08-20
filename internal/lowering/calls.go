@@ -240,8 +240,8 @@ func lowerCallExpression(
 						returnType = ir.TypeBool
 					} else if receiverType == ir.TypeBigIntArray {
 						returnType = ir.TypeBigInt
-					} else if strings.HasSuffix(string(receiverType), "[]") {
-						elemTypeStr := strings.TrimSuffix(string(receiverType), "[]")
+					} else if before, ok := strings.CutSuffix(string(receiverType), "[]"); ok {
+						elemTypeStr := before
 						returnType = toIRType(elemTypeStr)
 					} else {
 						returnType = ir.TypeString
@@ -252,8 +252,8 @@ func lowerCallExpression(
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__array." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, returnType, nil
 			}
-			if strings.HasPrefix(string(receiverType), "object:") {
-				className := strings.TrimPrefix(string(receiverType), "object:")
+			if after, ok := strings.CutPrefix(string(receiverType), "object:"); ok {
+				className := after
 				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 					args := []string{receiver}
 					for _, argument := range expression.Arguments {

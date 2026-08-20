@@ -2,6 +2,8 @@ package lowering
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -320,8 +322,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(string(arrType), "object:") {
-			shapeName := strings.TrimPrefix(string(arrType), "object:")
+		if after, ok := strings.CutPrefix(string(arrType), "object:"); ok {
+			shapeName := after
 			if shape, ok := shapes[shapeName]; ok {
 				if statement.Right != nil && statement.Right.Kind == "number" {
 					fieldIdx, _ := strconv.Atoi(statement.Right.Text)
@@ -387,8 +389,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			expectedElemType = ir.TypeString
 		} else if arrType == ir.TypeBoolArray || arrType == "boolean[]" || arrType == "bool[]" {
 			expectedElemType = ir.TypeBool
-		} else if strings.HasSuffix(string(arrType), "[]") {
-			elemName := strings.TrimSuffix(string(arrType), "[]")
+		} else if before, ok := strings.CutSuffix(string(arrType), "[]"); ok {
+			elemName := before
 			if elemName == "boolean" {
 				expectedElemType = ir.TypeBool
 			} else {
@@ -542,9 +544,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnType ir.Type, parentEnv map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]ir.Instruction, error) {
 	branch := ir.Function{Name: "branch", ReturnType: returnType}
 	env := make(map[string]ir.Type, len(parentEnv))
-	for name, typ := range parentEnv {
-		env[name] = typ
-	}
+	maps.Copy(env, parentEnv)
 	for _, statement := range statements {
 		if err := lowerStatement(path, statement, &branch, env, counter, shapes, signatures); err != nil {
 			return nil, err
@@ -616,8 +616,8 @@ func toIRType(value string) ir.Type {
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
-		if strings.HasSuffix(value, "[]") {
-			elem := strings.TrimSuffix(value, "[]")
+		if before, ok := strings.CutSuffix(value, "[]"); ok {
+			elem := before
 			return ir.Type(string(toIRType(elem)) + "[]")
 		}
 		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
@@ -681,30 +681,13 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 	case "return", "throw":
 		return true
 	case "block":
-		for _, s := range stmt.Body {
-			if statementAlwaysReturns(s) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(stmt.Body, statementAlwaysReturns)
 	case "if":
 		if len(stmt.Then) == 0 || len(stmt.Else) == 0 {
 			return false
 		}
-		thenReturns := false
-		for _, s := range stmt.Then {
-			if statementAlwaysReturns(s) {
-				thenReturns = true
-				break
-			}
-		}
-		elseReturns := false
-		for _, s := range stmt.Else {
-			if statementAlwaysReturns(s) {
-				elseReturns = true
-				break
-			}
-		}
+		thenReturns := slices.ContainsFunc(stmt.Then, statementAlwaysReturns)
+		elseReturns := slices.ContainsFunc(stmt.Else, statementAlwaysReturns)
 		return thenReturns && elseReturns
 	case "switch":
 		hasDefault := false
@@ -714,13 +697,7 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 			if c.Expression == nil {
 				hasDefault = true
 			}
-			caseReturns := false
-			for _, s := range c.Statements {
-				if statementAlwaysReturns(s) {
-					caseReturns = true
-					break
-				}
-			}
+			caseReturns := slices.ContainsFunc(c.Statements, statementAlwaysReturns)
 			if len(c.Statements) == 0 {
 				caseReturns = fallthroughReturns
 			}
@@ -734,4 +711,3 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 		return false
 	}
 }
-

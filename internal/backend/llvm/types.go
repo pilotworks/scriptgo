@@ -65,8 +65,8 @@ func llvmType(typ ir.Type) string {
 
 func arrayElementType(arrayType ir.Type) ir.Type {
 	str := string(arrayType)
-	if strings.HasSuffix(str, "[]") {
-		elem := strings.TrimSuffix(str, "[]")
+	if before, ok := strings.CutSuffix(str, "[]"); ok {
+		elem := before
 		if elem == "boolean" {
 			return ir.TypeBool
 		}

@@ -2,6 +2,7 @@ package ir
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -286,8 +287,8 @@ func (f Function) Verify() error {
 
 func elementType(arrayType Type) Type {
 	str := string(arrayType)
-	if strings.HasSuffix(str, "[]") {
-		elem := strings.TrimSuffix(str, "[]")
+	if before, ok := strings.CutSuffix(str, "[]"); ok {
+		elem := before
 		if elem == "boolean" {
 			return TypeBool
 		}
@@ -304,9 +305,7 @@ func elementType(arrayType Type) Type {
 
 func cloneTypes(types map[string]Type) map[string]Type {
 	clone := make(map[string]Type, len(types))
-	for name, typ := range types {
-		clone[name] = typ
-	}
+	maps.Copy(clone, types)
 	return clone
 }
 

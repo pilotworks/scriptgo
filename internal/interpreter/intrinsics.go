@@ -477,10 +477,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		start := int(startVal.Number)
 		if start < 0 {
-			start = len(array.Array) + start
-			if start < 0 {
-				start = 0
-			}
+			start = max(len(array.Array)+start, 0)
 		} else if start > len(array.Array) {
 			start = len(array.Array)
 		}
@@ -492,10 +489,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 			end = int(endVal.Number)
 			if end < 0 {
-				end = len(array.Array) + end
-				if end < 0 {
-					end = 0
-				}
+				end = max(len(array.Array)+end, 0)
 			} else if end > len(array.Array) {
 				end = len(array.Array)
 			}
@@ -628,10 +622,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		start := int(startVal.Number)
 		if start < 0 {
-			start = len(array.Array) + start
-			if start < 0 {
-				start = 0
-			}
+			start = max(len(array.Array)+start, 0)
 		} else if start > len(array.Array) {
 			start = len(array.Array)
 		}
@@ -1248,7 +1239,3 @@ func drainMicrotasks(functions map[string]ir.Function, output *bytes.Buffer) err
 	}
 	return nil
 }
-
-
-
-

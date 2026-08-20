@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -116,9 +117,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: condConst, Value: "true", Span: toIRSpan(path, statement.Span)})
 
 			bodyEnv := make(map[string]ir.Type, len(env)+2)
-			for k, v := range env {
-				bodyEnv[k] = v
-			}
+			maps.Copy(bodyEnv, env)
 			bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
 
 			resVal := nextTemp(counter)
@@ -195,8 +194,8 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	var elemType ir.Type
 	if isString {
 		elemType = ir.TypeString
-	} else if strings.HasSuffix(string(arrType), "[]") {
-		elemType = ir.Type(strings.TrimSuffix(string(arrType), "[]"))
+	} else if before, ok := strings.CutSuffix(string(arrType), "[]"); ok {
+		elemType = ir.Type(before)
 	} else if arrType == ir.TypeStringArray {
 		elemType = ir.TypeString
 	} else if arrType == ir.TypeNumberArray {
@@ -223,9 +222,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condCmp, Operator: "<", Args: []string{idxName, lenName}, Span: toIRSpan(path, statement.Span)})
 
 	bodyEnv := make(map[string]ir.Type, len(env)+2)
-	for k, v := range env {
-		bodyEnv[k] = v
-	}
+	maps.Copy(bodyEnv, env)
 	bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
 	if statement.Kind == "forawaitof" {
 		if isString {
@@ -313,9 +310,7 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 		condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condCmp, Operator: "<", Args: []string{idxName, lenName}, Span: toIRSpan(path, statement.Span)})
 
 		bodyEnv := make(map[string]ir.Type, len(env)+2)
-		for k, v := range env {
-			bodyEnv[k] = v
-		}
+		maps.Copy(bodyEnv, env)
 		bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
 		keyType := toIRType(statement.Type)
 		if keyType == "" && statement.InferredType != "" {
@@ -354,17 +349,15 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 			Span:  toIRSpan(path, statement.Span),
 		})
 		return nil
-	} else if strings.HasPrefix(string(objType), "object:") {
-		shapeName := strings.TrimPrefix(string(objType), "object:")
+	} else if after, ok := strings.CutPrefix(string(objType), "object:"); ok {
+		shapeName := after
 		shape, ok := shapes[shapeName]
 		if !ok {
 			return fmt.Errorf("unknown shape %q for for...in", shapeName)
 		}
 		for _, f := range shape.Fields {
 			fieldEnv := make(map[string]ir.Type, len(env)+1)
-			for k, v := range env {
-				fieldEnv[k] = v
-			}
+			maps.Copy(fieldEnv, env)
 			fieldEnv[statement.Name] = ir.TypeString
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
@@ -427,9 +420,7 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 	})
 
 	switchEnv := make(map[string]ir.Type, len(env)+2)
-	for k, v := range env {
-		switchEnv[k] = v
-	}
+	maps.Copy(switchEnv, env)
 	switchBranch := ir.Function{Name: "switch_body", ReturnType: function.ReturnType}
 
 	var normalCases []typescriptgo.SyntaxSwitchCase
@@ -528,9 +519,7 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 	var catchInstructions []ir.Instruction
 	if len(statement.Catch) > 0 {
 		catchEnv := make(map[string]ir.Type, len(env)+1)
-		for k, v := range env {
-			catchEnv[k] = v
-		}
+		maps.Copy(catchEnv, env)
 		if statement.CatchVar != "" {
 			catchEnv[statement.CatchVar] = ir.TypeString
 		}

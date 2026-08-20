@@ -5,6 +5,7 @@ package interpreter
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -56,12 +57,10 @@ type controlFlow struct {
 }
 
 var (
-	flowNormal   = controlFlow{kind: kindNormal}
-	flowReturn   = controlFlow{kind: kindReturn}
-	flowBreak    = controlFlow{kind: kindBreak}
-	flowContinue = controlFlow{kind: kindContinue}
-	flowThrow    = controlFlow{kind: kindThrow}
-	flowExit     = controlFlow{kind: kindExit}
+	flowNormal = controlFlow{kind: kindNormal}
+	flowReturn = controlFlow{kind: kindReturn}
+	flowThrow  = controlFlow{kind: kindThrow}
+	flowExit   = controlFlow{kind: kindExit}
 )
 
 func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
@@ -89,9 +88,7 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 		return Value{}, flowNormal, fmt.Errorf("cannot execute nil closure")
 	}
 	env := make(map[string]Value)
-	for k, v := range closure.Env {
-		env[k] = v
-	}
+	maps.Copy(env, closure.Env)
 	userParams := closure.Function.Parameters
 	if len(userParams) > 0 && userParams[0].Name == "__env_ctx" {
 		userParams = userParams[1:]

@@ -291,7 +291,6 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		}
 		return retVal, fieldType, nil
 
-
 	case "index":
 		arrVal, arrType, err := lowerExpression(path, lvalue.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -406,8 +405,8 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 	}
 
 	// 2. Object shape / Class check: "prop" in obj
-	if strings.HasPrefix(string(rightType), "object:") {
-		className := strings.TrimPrefix(string(rightType), "object:")
+	if after, ok := strings.CutPrefix(string(rightType), "object:"); ok {
+		className := after
 		shape, ok := shapes[className]
 		if !ok {
 			return "", "", fmt.Errorf("unknown object shape %q for \"in\" operator", className)

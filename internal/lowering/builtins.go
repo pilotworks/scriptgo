@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -117,8 +118,6 @@ func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinInt
 	}
 }
 
-
-
 func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.ObjectShape) (string, ir.Type, error) {
 	curr := nextTemp(call.Counter)
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -188,8 +187,8 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 				Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: "__string.fromBool", Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 		default:
-			if strings.HasPrefix(string(f.Type), "object:") {
-				nestedShapeName := strings.TrimPrefix(string(f.Type), "object:")
+			if after, ok := strings.CutPrefix(string(f.Type), "object:"); ok {
+				nestedShapeName := after
 				if nestedShape, ok := call.Shapes[nestedShapeName]; ok {
 					nestedStr, _, err := lowerJSONStringifyObject(call, fVal, nestedShape)
 					if err != nil {
@@ -261,8 +260,8 @@ func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 	if err != nil {
 		return "", "", err
 	}
-	if strings.HasPrefix(string(argType), "object:") {
-		shapeName := strings.TrimPrefix(string(argType), "object:")
+	if after, ok := strings.CutPrefix(string(argType), "object:"); ok {
+		shapeName := after
 		shape, ok := call.Shapes[shapeName]
 		if !ok {
 			return "", "", fmt.Errorf("unknown shape %q for JSON.stringify", shapeName)
@@ -590,13 +589,7 @@ func (call IntrinsicCall) arguments(intrinsic BuiltinIntrinsic) ([]string, []ir.
 		if err != nil {
 			return nil, nil, err
 		}
-		accepted := false
-		for _, allowed := range intrinsic.ArgumentTypes {
-			if typ == allowed {
-				accepted = true
-				break
-			}
-		}
+		accepted := slices.Contains(intrinsic.ArgumentTypes, typ)
 		if !accepted {
 			return nil, nil, fmt.Errorf("builtin %s does not support %s", intrinsic.Name, typ)
 		}

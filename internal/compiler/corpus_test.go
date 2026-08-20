@@ -23,7 +23,6 @@ func TestCorpus(t *testing.T) {
 	}
 
 	for _, casePath := range cases {
-		casePath := casePath
 		t.Run(filepath.ToSlash(casePath), func(t *testing.T) {
 			t.Parallel()
 			entry := filepath.Join(casePath, "main.ts")
