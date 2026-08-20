@@ -37,7 +37,7 @@ represented without allocation in the current typed IR:
 
 ### Target and calling convention
 
-The initial v1 target is macOS ARM64 using the target selected by Clang. Runtime
+The initial v1 target is macOS ARM64 using the target selected by Clang or `zig cc`. Runtime
 functions use the platform C calling convention and opaque pointers in LLVM IR.
 Generated code must obtain the target triple and data layout from the selected
 toolchain; it must not hard-code register assignments, pointer width, alignment,
@@ -47,9 +47,9 @@ The runtime ABI identifier is `scriptgo.runtime.v1`. A linked runtime must expos
 its ABI identifier through build metadata so the compiler can reject a runtime
 with an incompatible major version before linking.
 
-Supported target policy for v1 is the platform C ABI selected by Clang on
+Supported target policy for v1 is the platform C ABI selected by Clang or `zig cc` on
 macOS, Linux, and Windows for ARM64 and x86-64. The compiler passes the target
-triple to Clang and never hard-codes pointer width, alignment, endianness, or
+triple to the toolchain driver and never hard-codes pointer width, alignment, endianness, or
 LLVM data layout. A target is supported only when the runtime C source and the
 generated LLVM module compile and link together for that triple.
 

@@ -462,7 +462,72 @@ func TestCompileRejectsTypeScriptSyntaxErrors(t *testing.T) {
 
 func TestResolveClangReportsMissingToolchain(t *testing.T) {
 	t.Setenv("PATH", "")
-	if _, err := resolveClang(); err == nil || !strings.Contains(err.Error(), "requires clang in PATH") {
+	if _, err := resolveClang(); err == nil || !strings.Contains(err.Error(), "requires \"clang\" in PATH") {
 		t.Fatalf("resolveClang error = %v, want missing-toolchain diagnostic", err)
+	}
+}
+
+func TestBuildOptionsDefaultsAndEnvironment(t *testing.T) {
+	// Default values when neither struct fields nor env vars are set
+	t.Setenv("SCRIPTGO_CC", "")
+	t.Setenv("SCRIPTGO_TARGET", "")
+	t.Setenv("CC", "ignored-generic-cc")
+	t.Setenv("TARGET", "ignored-generic-target")
+	opts := BuildOptions{}.normalized()
+	if opts.CC != "clang" {
+		t.Errorf("default CC = %q, want %q", opts.CC, "clang")
+	}
+	if opts.Target != "native" {
+		t.Errorf("default Target = %q, want %q", opts.Target, "native")
+	}
+
+	// SCRIPTGO_CC / SCRIPTGO_TARGET environment variables
+	t.Setenv("SCRIPTGO_CC", "zig cc")
+	t.Setenv("SCRIPTGO_TARGET", "x86_64-linux-gnu")
+	envOpts := BuildOptions{}.normalized()
+	if envOpts.CC != "zig cc" {
+		t.Errorf("env CC = %q, want %q", envOpts.CC, "zig cc")
+	}
+	if envOpts.Target != "x86_64-linux-gnu" {
+		t.Errorf("env Target = %q, want %q", envOpts.Target, "x86_64-linux-gnu")
+	}
+
+	// Explicit struct field overrides environment variables
+	explicitOpts := BuildOptions{CC: "gcc", Target: "aarch64-macos"}.normalized()
+	if explicitOpts.CC != "gcc" {
+		t.Errorf("explicit CC = %q, want %q", explicitOpts.CC, "gcc")
+	}
+	if explicitOpts.Target != "aarch64-macos" {
+		t.Errorf("explicit Target = %q, want %q", explicitOpts.Target, "aarch64-macos")
+	}
+}
+
+func TestResolveCC(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err == nil {
+		parts, err := resolveCC("clang")
+		if err != nil {
+			t.Fatalf("resolveCC(clang) error = %v", err)
+		}
+		if len(parts) != 1 || !strings.Contains(parts[0], "clang") {
+			t.Errorf("resolveCC(clang) = %v", parts)
+		}
+	}
+
+	if _, err := exec.LookPath("zig"); err == nil {
+		parts, err := resolveCC("zigcc")
+		if err != nil {
+			t.Fatalf("resolveCC(zigcc) error = %v", err)
+		}
+		if len(parts) < 2 || !strings.Contains(parts[0], "zig") || parts[1] != "cc" {
+			t.Errorf("resolveCC(zigcc) = %v, want [zig cc]", parts)
+		}
+	}
+
+	t.Setenv("PATH", "")
+	if _, err := resolveCC("nonexistent_compiler_123"); err == nil || !strings.Contains(err.Error(), "requires \"nonexistent_compiler_123\" in PATH") {
+		t.Fatalf("resolveCC error = %v, want missing-toolchain diagnostic", err)
+	}
+	if _, err := resolveCC("clang"); err == nil || !strings.Contains(err.Error(), "requires \"clang\" or \"zig\" in PATH") {
+		t.Fatalf("resolveCC(clang) with empty PATH error = %v, want missing-toolchain diagnostic", err)
 	}
 }

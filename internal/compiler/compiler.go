@@ -122,7 +122,7 @@ func Build(entryPath, outputPath string) error {
 // BuildWithOptions compiles a native executable with deterministic inputs.
 func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error {
 	options = options.normalized()
-	clang, err := resolveClang()
+	ccParts, err := resolveCC(options.CC)
 	if err != nil {
 		return err
 	}
@@ -160,17 +160,52 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = append(args, "-fsanitize="+strings.Join(options.Sanitizers, ","))
 	}
 	args = append(args, "-o", filepath.Clean(outputPath))
-	command := exec.Command(clang, args...)
+	cmdArgs := append(ccParts[1:], args...)
+	command := exec.Command(ccParts[0], cmdArgs...)
 	if diagnostic, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("clang: %w: %s", err, diagnostic)
+		driverName := filepath.Base(ccParts[0])
+		return fmt.Errorf("%s: %w: %s", driverName, err, diagnostic)
 	}
 	return nil
+}
+
+func resolveCC(cc string) ([]string, error) {
+	cc = strings.TrimSpace(cc)
+	if cc == "" || cc == "clang" {
+		if bin, err := exec.LookPath("clang"); err == nil {
+			return []string{bin}, nil
+		}
+		if bin, err := exec.LookPath("zig"); err == nil {
+			return []string{bin, "cc"}, nil
+		}
+		return nil, fmt.Errorf("native backend requires \"clang\" or \"zig\" in PATH")
+	}
+
+	parts := strings.Fields(cc)
+	if len(parts) == 0 {
+		return resolveCC("")
+	}
+	if parts[0] == "zigcc" {
+		if bin, err := exec.LookPath("zigcc"); err == nil {
+			parts[0] = bin
+			return parts, nil
+		}
+		if bin, err := exec.LookPath("zig"); err == nil {
+			return append([]string{bin, "cc"}, parts[1:]...), nil
+		}
+	}
+	bin, err := exec.LookPath(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("native backend requires %q in PATH: %w", parts[0], err)
+	}
+	parts[0] = bin
+	return parts, nil
 }
 
 func resolveClang() (string, error) {
 	clang, err := exec.LookPath("clang")
 	if err != nil {
-		return "", fmt.Errorf("native backend llvm requires clang in PATH: %w", err)
+		return "", fmt.Errorf("native backend llvm requires \"clang\" in PATH: %w", err)
 	}
 	return clang, nil
 }

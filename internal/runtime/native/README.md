@@ -19,10 +19,20 @@ interpreter packages.
 ## Runtime Benchmarks
 
 The standalone benchmark covers representative array search, string splitting,
-and base64 workloads. Build and run it from the repository root:
+and base64 workloads. Build and run it from the repository root using Clang or `zig cc`:
 
 ```sh
+# Using Clang
 clang -O2 \
+  internal/runtime/native/bench/main.c \
+  internal/runtime/native/errors/runtime.c \
+  internal/runtime/native/arrays/runtime.c \
+  internal/runtime/native/strings/runtime.c \
+  internal/runtime/native/web/runtime.c \
+  -o /tmp/scriptgo-runtime-bench && /tmp/scriptgo-runtime-bench
+
+# Using Zig CC
+zig cc -O2 \
   internal/runtime/native/bench/main.c \
   internal/runtime/native/errors/runtime.c \
   internal/runtime/native/arrays/runtime.c \

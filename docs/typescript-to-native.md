@@ -210,12 +210,12 @@ original TypeScript span rather than surfacing later as an opaque backend or
 linker failure.
 
 The LLVM and C paths are alternative backends. They should consume the same
-Typed IR and share the same runtime and ABI definitions. `clang` can consume
-LLVM IR directly or compile generated C, so it is the common toolchain boundary
-in this proposal. LLVM is the primary backend for the initial implementation
-because it provides the strongest path to optimization, target selection, and
-debug information. The C backend remains a deferred portability and bootstrap
-backend that can be added after the LLVM path is stable.
+Typed IR and share the same runtime and ABI definitions. `clang` and compatible
+drivers such as `zig cc` can consume LLVM IR directly or compile generated C, so
+they form the common toolchain boundary in this proposal. LLVM is the primary backend
+for the initial implementation because it provides the strongest path to optimization,
+target selection, and debug information. The C backend remains a deferred portability
+and bootstrap backend that can be added after the LLVM path is stable.
 
 ## Compiler Stages
 
@@ -389,6 +389,69 @@ allocation, and exception paths.
 
 The C backend is not merely a pretty-printer. It must implement the same
 semantics as the LLVM backend, including evaluation order and runtime checks.
+
+## Native Toolchain Drivers and Cross-Compilation (Clang & Zig CC)
+
+Native compilation lowers TypeScript to LLVM IR and compiles it alongside the
+native C runtime into a machine executable. This step requires an LLVM-compatible
+C compiler and linker driver.
+
+### Supported Compiler Drivers
+
+- **Clang (`clang`)**: The standard default driver. Used for native compilation
+  and debugging on macOS, Linux, and Windows.
+- **Zig CC (`zig cc`)**: A fully compatible drop-in C/LLVM driver. `zig cc` embeds
+  LLVM/Clang along with standard C libraries (glibc, musl, MinGW, and macOS libSystem)
+  for out-of-the-box, zero-dependency cross-compilation.
+
+### Configuring Compiler Driver and Target
+
+`scriptgo build` and `scriptgo run --native` default to `clang` as the compiler driver and `native` as the target triple. You can override these defaults either via CLI flags or environment variables:
+
+- **CLI flags:** `--cc <driver>` (e.g. `--cc zigcc` or `--cc "zig cc"`) and `--target <triple>` (e.g. `--target x86_64-linux-gnu`).
+- **Environment variables:** `$SCRIPTGO_CC` (e.g. `export SCRIPTGO_CC="zigcc"`) and `$SCRIPTGO_TARGET` (e.g. `export SCRIPTGO_TARGET="x86_64-linux-gnu"`).
+
+```sh
+# Building with zig cc and explicit target via flags
+scriptgo build src/main.ts --cc zigcc --target x86_64-linux-gnu -o main-linux
+
+# Running natively with zig cc
+scriptgo run --native --cc zigcc src/main.ts
+
+# Using environment variables
+SCRIPTGO_CC="zigcc" SCRIPTGO_TARGET="aarch64-macos" scriptgo build src/main.ts -o main-macos
+```
+
+### Manual Toolchain Invocation Syntax
+
+Both drivers accept the same argument patterns for compiling emitted LLVM IR and C runtime sources:
+
+```sh
+# Compiling with Clang
+clang -O2 -x ir module.ll -x c internal/runtime/runtime.c -o output
+
+# Compiling with Zig CC
+zig cc -O2 -x ir module.ll -x c internal/runtime/runtime.c -o output
+```
+
+### Cross-Compilation Workflow with `zig cc`
+
+Cross-compiling `scriptgo` output to multiple operating systems and architectures:
+
+```sh
+# 1. Emit LLVM IR
+scriptgo emit src/main.ts -o module.ll
+
+# 2. Target Linux (x86-64 glibc or musl)
+zig cc -target x86_64-linux-gnu -O2 -x ir module.ll -x c internal/runtime/runtime.c -o main-linux-gnu
+zig cc -target x86_64-linux-musl -O2 -x ir module.ll -x c internal/runtime/runtime.c -o main-linux-musl
+
+# 3. Target macOS (ARM64 Apple Silicon)
+zig cc -target aarch64-macos -O2 -x ir module.ll -x c internal/runtime/runtime.c -o main-macos-arm64
+
+# 4. Target Windows (x86-64 MinGW)
+zig cc -target x86_64-windows-gnu -O2 -x ir module.ll -x c internal/runtime/runtime.c -o main-windows.exe
+```
 
 ## Modules, Packages, and the Standard Library
 

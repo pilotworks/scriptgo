@@ -257,21 +257,21 @@ Each item should leave the repository passing `go test ./...` and building with
 ## Open Questions
 
 - Should `check`, `lower`, and `build` be separate subcommands, or should the current single-entry CLI remain the compatibility surface?
-- Is Clang/LLVM 18 available in every supported development and CI environment?
+- Is Clang/LLVM 18 or `zig cc` available in every supported development and CI environment?
 - Which memory strategy is acceptable for the first object runtime: ownership, reference counting, or garbage collection?
 - Which strict TypeScript constructs are required for the first real user program beyond the documented `add` example?
 
 ## Current Target Assumptions
 
 - Development and MVP smoke tests target macOS ARM64 (`darwin/arm64`).
-- Native builds use the `clang` executable available in `PATH`; the current
-  verification host uses Apple Clang 21.
+- Native builds use the `clang` executable available in `PATH` (or a `zig cc` wrapper script); the current
+  verification host uses Apple Clang 21, and `zig cc` is supported for cross-platform builds.
 - LLVM output uses opaque pointers and the host C ABI; target selection and
   cross-compilation are exposed through `--target`, while `native` remains the
   default host target.
 - `--debug` emits stable LLVM debug metadata using source basenames and a
   reproducible compilation directory. `--sanitize` passes a comma-separated
-  sanitizer list to Clang.
+  sanitizer list to Clang or `zig cc`.
 - The standard smoke fixture is `console.log(20 + 22)`, and the native build
   benchmark is `BenchmarkBuildNative` in `internal/compiler/compiler_test.go`.
 - Run `go test ./...`, `go build ./cmd/scriptgo`, and

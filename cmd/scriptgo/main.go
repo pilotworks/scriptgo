@@ -68,7 +68,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -107,7 +107,8 @@ func handleRun(args []string) {
 	fs.Usage = printRunUsage
 	eval := fs.String("e", "", "evaluate inline script string")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
-	target := fs.String("target", "native", "native target triple, or native for the host")
+	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
+	cc := fs.String("cc", "", "C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)")
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	native := fs.Bool("native", false, "compile to native executable and execute directly")
@@ -148,6 +149,7 @@ func handleRun(args []string) {
 	}
 
 	options := compiler.BuildOptions{
+		CC:               *cc,
 		Target:           *target,
 		Debug:            *debug,
 		Sanitizers:       splitList(*sanitize),
@@ -202,7 +204,8 @@ func handleBuild(args []string) {
 	fs.Usage = printBuildUsage
 	output := fs.String("o", "", "write generated binary to this path (default: ./<entry_name>)")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
-	target := fs.String("target", "native", "native target triple, or native for the host")
+	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
+	cc := fs.String("cc", "", "C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)")
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
@@ -240,6 +243,7 @@ func handleBuild(args []string) {
 	}
 
 	options := compiler.BuildOptions{
+		CC:               *cc,
 		Target:           *target,
 		Debug:            *debug,
 		Sanitizers:       splitList(*sanitize),
@@ -306,7 +310,7 @@ func handleEmit(args []string) {
 	mode := fs.String("mode", "llvm-ir", "output mode: llvm-ir, typed-ir")
 	output := fs.String("o", "", "write output to this path (default: stdout)")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
-	target := fs.String("target", "native", "native target triple, or native for the host")
+	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
@@ -385,7 +389,8 @@ Commands:
 
 Global Flags:
   -v                     Verbose output
-  --target <triple>      Target architecture triple (default: native)
+  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   --debug                Emit native DWARF debug symbols
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
@@ -407,7 +412,8 @@ Flags:
   -e <string>            Evaluate inline script string
   --native               Compile to native executable and execute directly on host
   -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: native)
+  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   --debug                Include DWARF debug symbols
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
@@ -419,6 +425,7 @@ Examples:
   scriptgo run "console.log(1231)"
   scriptgo run -e "console.log('hello ' + 42)"
   scriptgo run --native "console.log(100 * 20)"
+  scriptgo run --native --cc "zig cc" app.ts
   scriptgo run app.ts -- arg1 arg2`)
 }
 
@@ -433,7 +440,8 @@ Description:
 Flags:
   -o <path>              Output binary path (default: ./<entry_name>)
   -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: native)
+  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   --debug                Include DWARF debug symbols (O0 with debug metadata)
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
@@ -444,6 +452,7 @@ Examples:
   scriptgo build server.ts
   scriptgo build "console.log('built natively')" -o hello
   scriptgo build server.ts -o /usr/local/bin/server
+  scriptgo build cli.ts --cc "zig cc" --target x86_64-linux-gnu -o cli_linux
   scriptgo build cli.ts --debug --sanitize address -o cli_debug`)
 }
 
@@ -479,7 +488,7 @@ Flags:
   --mode <mode>          Output mode: llvm-ir (default), typed-ir
   -o <path>              Write emitted IR to file instead of stdout
   -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: native)
+  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET, $TARGET, or native)
   --debug                Include DWARF debug symbols in LLVM IR
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors

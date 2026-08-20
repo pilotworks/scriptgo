@@ -253,8 +253,8 @@ Implemented commands map to pipeline boundaries:
 | Command | Boundary | Purpose |
 | --- | --- | --- |
 | `scriptgo run` | frontend -> IR -> interpreter | Execute reference semantics |
-| `scriptgo run --native` | frontend -> IR -> LLVM -> Clang | Compile and run standalone native binary |
-| `scriptgo build` | frontend -> IR -> LLVM -> Clang | Produce a native executable |
+| `scriptgo run --native` | frontend -> IR -> LLVM -> Clang / `zig cc` | Compile and run standalone native binary |
+| `scriptgo build` | frontend -> IR -> LLVM -> Clang / `zig cc` | Produce a native executable |
 | `scriptgo check` | frontend -> subset validator | Validate syntax, types, and subset |
 | `scriptgo emit --mode=typed-ir` | frontend -> IR | Inspect typed IR |
 | `scriptgo emit --mode=llvm-ir` | IR -> LLVM backend | Inspect LLVM IR before toolchain invocation |
