@@ -463,10 +463,21 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 	return branch.Body, nil
 }
 
+var typeAliasesIndex = map[string]string{}
+
 func toIRType(value string) ir.Type {
 	value = strings.TrimSpace(value)
+	if aliased, ok := typeAliasesIndex[value]; ok && aliased != value {
+		return toIRType(aliased)
+	}
 	if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
 		return ir.TypeString
+	}
+	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		return ir.TypeNumber
+	}
+	if value == "true" || value == "false" {
+		return ir.TypeBool
 	}
 	if strings.Contains(value, "|") {
 		parts := strings.Split(value, "|")

@@ -12,17 +12,17 @@
 
 **ScriptGo** is a high-performance Ahead-Of-Time (AOT) compiler for TypeScript. It combines the official frontend from [TypeScript-Go](https://github.com/microsoft/typescript-go) with an independent **Typed IR** system and an **LLVM IR / Native Machine Code** code generation backend.
 
-### Parity Benchmark Overview
+#### Parity Benchmark Overview
 
-All 136 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 150 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **136** | **136 / 136 Passed** | **100.0%** |
-| - *Interpreter Parity* | 124 | 124 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 107 | 107 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **150** | **150 / 150 Passed** | **100.0%** |
+| - *Interpreter Parity* | 138 | 138 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 121 | 121 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~1m 37s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~2m 01s | No regressions detected | - |
 
 ---
 
@@ -33,7 +33,7 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 | TypeScript / JS Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
 | `number` (IEEE-754 64-bit float) | ✅ Full | Fully compliant with JS standard (supports `NaN`, `Infinity`, `-0`). |
-| `bigint` (64-bit Signed Integer) | ✅ Full | Supports `100n` literal, arithmetic/bitwise operations, `BigInt(...)`, `.toString()`. |
+| `bigint` (64-bit Signed Integer) | ✅ Full | Supports `100n` literal, arithmetic/bitwise operations, `BigInt(...)`, `bigint[]` arrays, `.toString()`. |
 | `string` (UTF-8 Character String) | ✅ Full | Immutable, automatic memory management, supports slice/concat/template literals. |
 | `boolean` (`true`, `false`) | ✅ Full | Maps to 1-bit boolean in IR/LLVM (`i1`). |
 | `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`). |
@@ -42,27 +42,27 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
 | `Tuple` (e.g., `[string, number]`) | ✅ Full | Maps to fixed layout struct with type enforcement at each index. |
 | `Enum` (Numeric & String Enums) | ✅ Full | Supports numeric enums, string enums, and reverse mapping (`Enum[Enum.Value]`). |
-| `Union types` (`T \| U`) | ✅ Full | Supports primitive unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
+| `Union types` (`T \| U`) | ✅ Full | Supports literal unions, homogeneous unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
 | `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 
 ---
 
-### 2.2. Control Flow & Syntax
+## 2.2. Control Flow & Syntax
 
 | Syntax / Statement Construct | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
 | Variables `let`, `const`, `var` | ✅ Full | Lexical scope analysis, reassignment prevention for `const`. |
 | `if` / `else if` / `else` | ✅ Full | Truthiness evaluation conforming to JavaScript specification. |
 | `while`, `do..while`, `for` | ✅ Full | Fully compatible with standard loops. |
-| `for..of` | ✅ Full | Supports iteration over Array, String, Set, Map. |
+| `for..of` | ✅ Full | Supports iteration over Array, String, Set, Map, including object and array destructuring bindings. |
 | `for..in` | ✅ Full | Supports iterating over Object keys and Array indices. |
 | `for await..of` | ✅ Full | Iterates over Async Iterable / Async Generator and automatically awaits each yielded item. |
 | `switch` / `case` / `default` | ✅ Full | Supports fallthrough, break, strict value equality (`===`). |
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
-| `try` / `catch` / `finally` & `throw` | ✅ Full | Safe stack unwinding mechanism in interpreter and exception handling infrastructure. |
-| Destructuring (Array & Object) | ✅ Full | Array destructuring `[a, b] = arr` and object destructuring `{ x, y } = obj`, with default value support. |
+| `try` / `catch` / `finally` & `throw` | ✅ Full | Safe stack unwinding mechanism in interpreter and exception handling infrastructure (`Error`, `TypeError`, `RangeError`, `SyntaxError`). |
+| Destructuring (Array & Object) | ✅ Full | Array destructuring `[a, b] = arr`, object destructuring `{ x, y } = obj`, and `for..of` destructuring. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |
 | Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
 | Tagged Template Expressions (`` tag`Hello ${name}` ``) | ✅ Full | Calls function/closure with `TemplateStringsArray` and interpolated argument list. |
@@ -70,12 +70,12 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ---
 
-### 2.3. Functions & Closures
+## 2.3. Functions & Closures
 
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
-| Named Functions & Arrow Functions | ✅ Full | `function foo()` and `(x) => x * 2` syntax. |
-| Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing. |
+| Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
+| Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) | ✅ Full | Collects trailing arguments into a `T[]` array. |
@@ -84,11 +84,11 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ---
 
-### 2.4. Object-Oriented Programming (OOP & Classes)
+## 2.4. Object-Oriented Programming (OOP & Classes)
 
 | OOP Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
-| Class Constructor & Properties | ✅ Full | Property initialization, constructor parameter properties (`constructor(public name: string)`). |
+| Class Constructor & Properties | ✅ Full | Property initialization, constructor parameter properties (`constructor(public name: string)`), private state encapsulation. |
 | Methods & Static Members | ✅ Full | Regular methods, `static` fields, and `static` methods. |
 | Class Static Blocks | ✅ Full | Static initialization blocks `static { ... }`, supporting `this` and `ClassName` references. |
 | Getters / Setters (`get` / `set`) | ✅ Full | Custom property access via getter/setter functions. |
@@ -100,7 +100,7 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ---
 
-### 2.5. Asynchronous Programming & Async Generators
+## 2.5. Asynchronous Programming & Async Generators
 
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
@@ -111,7 +111,7 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ---
 
-### 2.6. Module System
+## 2.6. Module System
 
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
@@ -128,14 +128,14 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 | :--- | :--- | :---: |
 | **`console`** | `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `time`, `timeLog`, `timeEnd`, `trace`, `dir`, `dirxml`, `table`, `group`, `groupCollapsed`, `groupEnd`, format strings (`%s`, `%d`, `%i`, `%f`, `%j`, `%%`), `node:console` module | ✅ 100% matches Node.js output format & full method suite |
 | **`Math`** | `abs`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `min`, `max`, `trunc`, `sin`, `cos`, `tan`, `log`, `exp`, `random`, `PI`, `E` | ✅ 100% matches IEEE-754 results |
-| **`String`** | `length`, `indexOf`, `substring`, `slice`, `trim`, `split`, `includes`, `startsWith`, `endsWith`, `toUpperCase`, `toLowerCase`, `charAt`, `charCodeAt`, `concat`, `replace`, `replaceAll`, `padStart`, `padEnd` | ✅ 100% matches Unicode/ASCII behavior |
-| **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `find`, `findIndex` | ✅ 100% matches typed & generic array behavior |
-| **`Collections`** | `Map<K, V>` (`get`, `set`, `has`, `delete`, `size`, `clear`, `keys`, `values`, `entries`), `Set<T>` (`add`, `has`, `delete`, `size`, `clear`) | ✅ 100% matches ES2022 specification |
-| **`Date`** | `Date.now()`, `new Date()`, `getTime()`, `toISOString()`, `getFullYear()`, `getMonth()`, `getDate()`, `getHours()`, `getMinutes()`, `getSeconds()` | ✅ Matches ISO format & epoch timestamps |
-| **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive & object shapes) | ✅ Matches serialization syntax |
+| **`String`** | `length`, `indexOf`, `substring`, `slice`, `trim`, `split`, `includes`, `startsWith`, `endsWith`, `toUpperCase`, `toLowerCase`, `charAt`, `charCodeAt`, `concat`, `replace`, `replaceAll`, `padStart`, `padEnd`, `match`, `search` | ✅ 100% matches Unicode/ASCII behavior |
+| **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `find`, `findIndex` (`number[]`, `string[]`, `bool[]`, `bigint[]`, `T[]`) | ✅ 100% matches typed & generic array behavior |
+| **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
+| **`Date`** | `Date.now()`, `Date.parse()`, `new Date()`, `getTime()`, `toISOString()`, `toString()`, `toUTCString()` | ✅ Matches ISO format & epoch timestamps |
+| **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description`, `.toString()` | ✅ Matches primitive symbol format |
-| **`BigInt`** | `BigInt(...)`, `100n`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
+| **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
 | **`node:path` / `path`** | `join`, `dirname`, `basename`, `extname`, `resolve` | ✅ Matches POSIX path logic |
 | **`node:os` / `os`** | `platform()`, `arch()`, `cpus()`, `totalmem()`, `freemem()`, `homedir()`, `tmpdir()` | ✅ Matches host OS values |
 | **`node:fs` / `fs`** | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync`, `mkdirSync` | ✅ Matches filesystem interactions |
@@ -148,35 +148,37 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ## 4. Corpus Test Results by Category
 
-Below is the category-by-category breakdown across all 15 test suites (`go run ./cmd/parity`):
+Below is the category-by-category breakdown across all 17 test suites (`go run ./cmd/parity`):
 
 ```text
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 139
-  - Passed Cases       : 139 (100.0%)
+  - Total Corpus Cases : 150
+  - Passed Cases       : 150 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`arrays`** | 12 | **100%** | Indexing (`number[]`, `string[]`, `boolean[]`), negative bounds, mutation, method expansions (`map`, `filter`, `reduce`). |
+| **`arrays`** | 13 | **100%** | Indexing (`number[]`, `string[]`, `boolean[]`, `bigint[]`), negative bounds, mutation, method expansions (`map`, `filter`, `reduce`, `join`). |
 | **`async`** | 3 | **100%** | `Promise`, `async/await`, microtask queue sequencing. |
-| **`classes`** | 11 | **100%** | Constructor parameters, Class Static Blocks, Getters/Setters, inheritance, polymorphism, static fields/methods, `instanceof`. |
-| **`closures`** | 3 | **100%** | Variable capture, arrow function closures, callback methods. |
+| **`classes`** | 12 | **100%** | Constructor parameters, Class Static Blocks, Getters/Setters, inheritance, polymorphism, static fields/methods, `instanceof`, instance state encapsulation. |
+| **`closures`** | 4 | **100%** | Variable capture, arrow function closures, callback methods, higher-order function composition. |
 | **`diagnostics`** | 4 | **100%** | Rejection of unsupported syntax with standardized `SGxxxx` error codes. |
 | **`errors`** | 3 | **100%** | Type mismatch, array index type checking, unknown name rejection. |
 | **`expressions`**| 35 | **100%** | Bitwise (`&`, `\|`, `^`, `~`, `<<`, `>>`, `>>>`), exponentiation (`**`), logical (`&&`, `\|\|`, `??`), ternary, try-catch-finally, `typeof` narrowing. |
-| **`functions`** | 6 | **100%** | Arrow functions, optional parameters, rest parameters, return value passing. |
-| **`generics`** | 7 | **100%** | Generic classes, interfaces, type aliases, multi-parameter generics, specialized functions. |
+| **`functions`** | 7 | **100%** | Named functions, arrow functions, function expressions, optional parameters, rest parameters, return value passing. |
+| **`generics`** | 8 | **100%** | Generic classes, interfaces, nested generics, type aliases, multi-parameter generics, specialized functions. |
 | **`inference`** | 3 | **100%** | Anonymous object inference, generic call inference, empty array typing. |
 | **`modules`** | 3 | **100%** | Import/export, multi-level imports, deterministic initialization order. |
 | **`objects`** | 3 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), object spread/destructuring, discriminated unions. |
+| **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 23 | **100%** | `console` (full method suite, format specifiers, `node:console`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `json`, `collections` (`Map`/`Set`), `string-methods`, `base64`. |
-| **`syntax`** | 12 | **100%** | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, advanced for-in/for-of. |
+| **`stdlib`** | 26 | **100%** | `console` (full method suite, format specifiers, `node:console`), `fs`, `path`, `os`, `process`, `crypto`, `date` (`new Date`, `toISOString`, `parse`, `now`), `error-classes` (`Error`, `TypeError`, `RangeError`, `SyntaxError`), `json` (primitives & structured objects), `string-methods`, `base64`. |
+| **`syntax`** | 13 | **100%** | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, for-in, `for..of` destructuring bindings. |
+| **`unions`** | 1 | **100%** | Literal unions (`"asc" \| "desc"`, `200 \| 404 \| 500`), type alias resolution, switch/if dispatch. | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, advanced for-in/for-of. |
 
 ---
 

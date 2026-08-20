@@ -107,7 +107,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	if err != nil {
 		return "", "", err
 	}
-	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray) && expression.Text == "length" {
+	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]")) && expression.Text == "length" {
 		if result == "" {
 			result = nextTemp(counter)
 		}

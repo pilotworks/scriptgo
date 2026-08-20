@@ -151,7 +151,10 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		if forIn.Initializer != nil && forIn.Initializer.Kind == ast.KindVariableDeclarationList {
 			decls := forIn.Initializer.AsVariableDeclarationList().Declarations.Nodes
 			if len(decls) == 1 {
-				varName = decls[0].Name().Text()
+				nameNode := decls[0].Name()
+				if nameNode.Kind == ast.KindIdentifier {
+					varName = nameNode.Text()
+				}
 				varType = syntaxType(decls[0].Type())
 				varInferredType = resolveInferredType(chk, decls[0].Name())
 				if varType == "" {
@@ -175,16 +178,83 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			kind = "forawaitof"
 		}
 		var varName, varType, varInferredType string
+		var bindingStmts []SyntaxStatement
 		if forOf.Initializer != nil && forOf.Initializer.Kind == ast.KindVariableDeclarationList {
 			decls := forOf.Initializer.AsVariableDeclarationList().Declarations.Nodes
 			if len(decls) == 1 {
-				varName = decls[0].Name().Text()
-				varType = syntaxType(decls[0].Type())
-				varInferredType = resolveInferredType(chk, decls[0].Name())
-				if varType == "" {
+				nameNode := decls[0].Name()
+				if nameNode.Kind == ast.KindIdentifier {
+					varName = nameNode.Text()
+					varType = syntaxType(decls[0].Type())
+					varInferredType = resolveInferredType(chk, decls[0].Name())
+					if varType == "" {
+						varType = varInferredType
+					}
+				} else if nameNode.Kind == ast.KindObjectBindingPattern {
+					tempItemVar := fmt.Sprintf("__forof_obj_%d", nameNode.Pos())
+					varName = tempItemVar
+					varInferredType = resolveInferredType(chk, nameNode)
 					varType = varInferredType
+					pattern := nameNode.AsBindingPattern()
+					for _, elem := range pattern.Elements.Nodes {
+						binding := elem.AsBindingElement()
+						propName := binding.Name().Text()
+						vName := binding.Name().Text()
+						if binding.PropertyName != nil {
+							propName = binding.PropertyName.Text()
+						}
+						propExpr := &SyntaxExpression{
+							Span:         sourceSpan(elem),
+							Kind:         "property",
+							Text:         propName,
+							InferredType: resolveInferredType(chk, elem),
+							Left: &SyntaxExpression{
+								Span: sourceSpan(elem),
+								Kind: "identifier",
+								Text: tempItemVar,
+							},
+						}
+						bindingStmts = append(bindingStmts, SyntaxStatement{
+							Span:         sourceSpan(elem),
+							Kind:         "variable",
+							Name:         vName,
+							InferredType: resolveInferredType(chk, elem),
+							Expression:   propExpr,
+						})
+					}
+				} else if nameNode.Kind == ast.KindArrayBindingPattern {
+					tempItemVar := fmt.Sprintf("__forof_arr_%d", nameNode.Pos())
+					varName = tempItemVar
+					varInferredType = resolveInferredType(chk, nameNode)
+					varType = varInferredType
+					pattern := nameNode.AsBindingPattern()
+					for idx, elem := range pattern.Elements.Nodes {
+						if elem.Kind == ast.KindOmittedExpression {
+							continue
+						}
+						binding := elem.AsBindingElement()
+						vName := binding.Name().Text()
+						indexExpr := &SyntaxExpression{
+							Span:         sourceSpan(elem),
+							Kind:         "index",
+							InferredType: resolveInferredType(chk, elem),
+							Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: tempItemVar},
+							Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+						}
+						bindingStmts = append(bindingStmts, SyntaxStatement{
+							Span:         sourceSpan(elem),
+							Kind:         "variable",
+							Name:         vName,
+							InferredType: resolveInferredType(chk, elem),
+							Expression:   indexExpr,
+						})
+					}
 				}
 			}
+		}
+		bodyStmts := syntaxBlockStatements(forOf.Statement, chk)
+		if len(bindingStmts) > 0 {
+			bodyStmts = append(bindingStmts, bodyStmts...)
 		}
 		return SyntaxStatement{
 			Span:         span,
@@ -193,7 +263,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			Type:         varType,
 			InferredType: varInferredType,
 			Expression:   syntaxExpression(forOf.Expression, chk),
-			Body:         syntaxBlockStatements(forOf.Statement, chk),
+			Body:         bodyStmts,
 		}, true
 	case ast.KindSwitchStatement:
 		switchNode := node.AsSwitchStatement()

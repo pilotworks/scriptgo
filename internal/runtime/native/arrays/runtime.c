@@ -442,3 +442,39 @@ int scriptgo_array_join_string(void *handle, const char *separator, char **out_s
     return 0;
 }
 
+int scriptgo_array_join_bigint(void *handle, const char *separator, char **out_str) {
+    scriptgo_array *array = handle;
+    size_t cap = 256, len = 0;
+    char *buf;
+    const char *sep = separator != NULL ? separator : ",";
+    size_t sep_len = strlen(sep);
+    if (array == NULL || out_str == NULL || array->element_size != sizeof(int64_t)) {
+        return fail("scriptgo array access failed");
+    }
+    buf = malloc(cap);
+    if (buf == NULL) return fail("scriptgo string allocation failed");
+    buf[0] = '\0';
+    for (int64_t i = 0; i < array->length; i++) {
+        int64_t val = *(int64_t *)(array->data + (size_t)i * sizeof(int64_t));
+        char num_buf[64];
+        snprintf(num_buf, sizeof(num_buf), "%lld", (long long)val);
+        size_t n_len = strlen(num_buf);
+        while (len + n_len + sep_len + 1 >= cap) {
+            cap *= 2;
+            char *new_buf = realloc(buf, cap);
+            if (new_buf == NULL) { free(buf); return fail("scriptgo string allocation failed"); }
+            buf = new_buf;
+        }
+        if (i > 0) {
+            memcpy(buf + len, sep, sep_len);
+            len += sep_len;
+        }
+        memcpy(buf + len, num_buf, n_len);
+        len += n_len;
+        buf[len] = '\0';
+    }
+    *out_str = buf;
+    return 0;
+}
+
+

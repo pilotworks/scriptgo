@@ -267,6 +267,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		e.runtimeStatus++
 		if arrayType == ir.TypeStringArray {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_string(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
+		} else if arrayType == ir.TypeBigIntArray || arrayType == "bigint[]" {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_bigint(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_number(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		}

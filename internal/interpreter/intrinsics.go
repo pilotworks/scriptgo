@@ -665,7 +665,11 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		parts := make([]string, len(array.Array))
 		for i, item := range array.Array {
 			if item.Type == ir.TypeNumber {
-				parts[i] = format(item)
+				parts[i] = strconv.FormatFloat(item.Number, 'f', -1, 64)
+			} else if item.Type == ir.TypeBigInt {
+				parts[i] = strconv.FormatInt(item.BigInt, 10)
+			} else if item.Type == ir.TypeBool {
+				parts[i] = strconv.FormatBool(item.Bool)
 			} else {
 				parts[i] = item.String
 			}

@@ -15,6 +15,14 @@ var restParamsIndex = map[string]bool{}
 // from the checked module graph. Lowering does not need to know which module a
 // namespace came from; the frontend has already resolved that edge.
 func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
+	typeAliasesIndex = map[string]string{}
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
+			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
+				typeAliasesIndex[statement.Name] = statement.Type
+			}
+		}
+	}
 	hierarchy := buildClassHierarchy(program)
 	defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
 	restParamsIndex = map[string]bool{}
