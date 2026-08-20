@@ -70,53 +70,119 @@ if ! git diff-index --quiet HEAD --; then
     fi
 fi
 
-# 4. Generate / Update CHANGELOG.md if not already present for this version
+# 4. Auto-generate / Update CHANGELOG.md from git commits
 CHANGELOG_FILE="CHANGELOG.md"
 DATE=$(date +"%Y-%m-%d")
 
-if [ ! -f "$CHANGELOG_FILE" ]; then
-    cat <<EOF > "$CHANGELOG_FILE"
-# Changelog
+log_info "Generating changelog entries from git commits for ${TAG_NAME}..."
 
-All notable changes to ScriptGo will be documented in this file.
+python3 - << EOF
+import subprocess, re, os, datetime
 
-## [$VERSION] - $DATE
+version = "${VERSION}"
+tag_name = "${TAG_NAME}"
+changelog_path = "${CHANGELOG_FILE}"
+date_str = "${DATE}"
 
-### Highlights
-- Initial release with 100% parity across 136 corpus regression test cases against Node.js v22+.
-- High-performance AOT compilation using LLVM and Clang / Zig CC.
-- Full support for Classes, Async/Await, Generators, BigInt, Symbols, and Node.js core modules (fs, path, os, crypto).
+# Find previous tag
+prev_tag = ""
+try:
+    tags = subprocess.check_output(['git', 'tag', '--sort=-creatordate']).decode('utf-8').strip().splitlines()
+    tags = [t for t in tags if t != tag_name]
+    if tags:
+        prev_tag = tags[0]
+except Exception:
+    pass
+
+log_cmd = ['git', 'log', '--no-merges', '--pretty=format:%h %s']
+if prev_tag:
+    log_cmd.append(f'{prev_tag}..HEAD')
+
+commits = subprocess.check_output(log_cmd).decode('utf-8').strip().splitlines()
+
+categories = {
+    'Features': [],
+    'Bug Fixes': [],
+    'Performance': [],
+    'Refactoring': [],
+    'Documentation': [],
+    'Maintenance & Chores': [],
+    'Other': []
+}
+
+for line in commits:
+    if not line.strip(): continue
+    parts = line.split(' ', 1)
+    if len(parts) != 2: continue
+    sha, msg = parts
+    
+    # Skip internal release chore commits
+    if re.match(r'^(chore(\([^\)]+\))?:\s*release|release\s*v)', msg, re.IGNORECASE):
+        continue
+    
+    entry = f'- {msg} ({sha})'
+    if re.match(r'^feat(\([^\)]+\))?:', msg, re.I):
+        categories['Features'].append(entry)
+    elif re.match(r'^fix(\([^\)]+\))?:', msg, re.I):
+        categories['Bug Fixes'].append(entry)
+    elif re.match(r'^perf(\([^\)]+\))?:', msg, re.I):
+        categories['Performance'].append(entry)
+    elif re.match(r'^refactor(\([^\)]+\))?:', msg, re.I):
+        categories['Refactoring'].append(entry)
+    elif re.match(r'^docs(\([^\)]+\))?:', msg, re.I):
+        categories['Documentation'].append(entry)
+    elif re.match(r'^(chore|ci|build|test)(\([^\)]+\))?:', msg, re.I):
+        categories['Maintenance & Chores'].append(entry)
+    else:
+        categories['Other'].append(entry)
+
+out_lines = [f'## [{version}] - {date_str}\n']
+has_entries = False
+for cat, entries in categories.items():
+    if entries:
+        has_entries = True
+        out_lines.append(f'### {cat}')
+        out_lines.extend(entries)
+        out_lines.append('')
+
+if not has_entries:
+    out_lines.append('### Changes')
+    out_lines.append(f'- Release {version}\n')
+
+new_section = '\n'.join(out_lines).strip()
+
+existing_content = ""
+if os.path.exists(changelog_path):
+    with open(changelog_path, 'r', encoding='utf-8') as f:
+        existing_content = f.read()
+
+if not existing_content:
+    header = "# Changelog\n\nAll notable changes to ScriptGo will be documented in this file.\n\n"
+    final_content = header + new_section + "\n"
+else:
+    # If version block exists, replace it
+    pattern = rf'## \[{re.escape(version)}\][\s\S]*?(?=\n## \[|\Z)'
+    if re.search(pattern, existing_content):
+        final_content = re.sub(pattern, new_section + "\n", existing_content, count=1)
+    else:
+        # Prepend after header
+        header_match = re.search(r'^(#\s*Changelog[^\n]*\n+([^\n]+\n+)*?)(?=## |\Z)', existing_content, re.MULTILINE)
+        if header_match:
+            header_end = header_match.end()
+            final_content = existing_content[:header_end] + new_section + "\n\n" + existing_content[header_end:]
+        else:
+            final_content = "# Changelog\n\n" + new_section + "\n\n" + existing_content
+
+with open(changelog_path, 'w', encoding='utf-8') as f:
+    f.write(final_content.strip() + "\n")
+
 EOF
-    log_success "Created $CHANGELOG_FILE for $TAG_NAME."
-else
-    if ! grep -q "## \[$VERSION\]" "$CHANGELOG_FILE"; then
-        log_info "Updating $CHANGELOG_FILE with entry for $TAG_NAME..."
-        # Prepend new version entry after top header
-        TEMP_CHANGELOG=$(mktemp)
-        awk -v ver="$VERSION" -v dt="$DATE" '
-        BEGIN { inserted = 0 }
-        /^## / && !inserted {
-            print "## [" ver "] - " dt "\n"
-            print "### Changes"
-            print "- Release " ver "\n"
-            inserted = 1
-        }
-        { print }
-        END {
-            if (!inserted) {
-                print "\n## [" ver "] - " dt "\n"
-                print "### Changes"
-                print "- Release " ver "\n"
-            }
-        }' "$CHANGELOG_FILE" > "$TEMP_CHANGELOG"
-        mv "$TEMP_CHANGELOG" "$CHANGELOG_FILE"
-        log_success "Updated $CHANGELOG_FILE."
-    fi
-fi
 
-# 5. Git commit changelog if modified
-if ! git diff --quiet "$CHANGELOG_FILE" 2>/dev/null; then
-    git add "$CHANGELOG_FILE"
+log_success "Updated ${CHANGELOG_FILE} with commit log entries."
+
+# 5. Git commit changelog if modified or newly created
+git add "$CHANGELOG_FILE"
+if ! git diff --cached --quiet; then
     git commit -m "chore: release ${TAG_NAME}"
     log_success "Committed changelog updates: 'chore: release ${TAG_NAME}'"
 fi
