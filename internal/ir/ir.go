@@ -54,6 +54,7 @@ const (
 	TypeString      Type = "string"
 	TypeNumberArray Type = "number[]"
 	TypeStringArray Type = "string[]"
+	TypeBoolArray   Type = "bool[]"
 	TypeBigIntArray Type = "bigint[]"
 	TypeSymbolArray Type = "symbol[]"
 	TypeObject      Type = "object"

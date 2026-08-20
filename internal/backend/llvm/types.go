@@ -37,7 +37,7 @@ func llvmType(typ ir.Type) string {
 		return "ptr"
 	case ir.TypeString:
 		return "ptr"
-	case ir.TypeNumberArray, ir.TypeStringArray, ir.TypeBigIntArray, ir.TypeSymbolArray:
+	case ir.TypeNumberArray, ir.TypeStringArray, ir.TypeBigIntArray, ir.TypeSymbolArray, ir.TypeBoolArray:
 		return "ptr"
 	case ir.TypeClosure:
 		return "ptr"
@@ -53,6 +53,9 @@ func llvmType(typ ir.Type) string {
 		if strings.HasPrefix(string(typ), string(ir.TypeObject)+":") {
 			return "ptr"
 		}
+		if strings.HasSuffix(string(typ), "[]") {
+			return "ptr"
+		}
 		return string(typ)
 	}
 }
@@ -60,25 +63,35 @@ func llvmType(typ ir.Type) string {
 func arrayElementType(arrayType ir.Type) ir.Type {
 	str := string(arrayType)
 	if strings.HasSuffix(str, "[]") {
-		return ir.Type(strings.TrimSuffix(str, "[]"))
+		elem := strings.TrimSuffix(str, "[]")
+		if elem == "boolean" {
+			return ir.TypeBool
+		}
+		return ir.Type(elem)
 	}
 	if arrayType == ir.TypeStringArray {
 		return ir.TypeString
+	}
+	if arrayType == ir.TypeBoolArray {
+		return ir.TypeBool
 	}
 	return ir.TypeNumber
 }
 
 func arrayElementSize(arrayType ir.Type) (int64, error) {
-	switch arrayType {
-	case ir.TypeNumberArray:
-		return 8, nil // IEEE-754 binary64.
-	case ir.TypeStringArray:
-		return 8, nil // v1 targets use 64-bit opaque pointers.
+	elem := arrayElementType(arrayType)
+	switch elem {
+	case ir.TypeBool:
+		return 1, nil
+	case ir.TypeNumber:
+		return 8, nil
+	case ir.TypeString, ir.TypeObject:
+		return 8, nil
 	default:
-		if strings.HasSuffix(string(arrayType), "[]") {
+		if strings.HasPrefix(string(elem), "object:") || strings.HasSuffix(string(elem), "[]") {
 			return 8, nil
 		}
-		return 0, fmt.Errorf("unsupported array element layout %s", arrayType)
+		return 8, nil
 	}
 }
 

@@ -211,15 +211,84 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
-		idxVal, _, err := lowerExpression(path, statement.Right, "", function, env, counter, shapes, signatures)
+		if strings.HasPrefix(string(arrType), "object:") {
+			shapeName := strings.TrimPrefix(string(arrType), "object:")
+			if shape, ok := shapes[shapeName]; ok {
+				if statement.Right != nil && statement.Right.Kind == "number" {
+					fieldIdx, _ := strconv.Atoi(statement.Right.Text)
+					if fieldIdx >= 0 && fieldIdx < len(shape.Fields) {
+						field := shape.Fields[fieldIdx]
+						val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return err
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:         ir.OpFieldSet,
+							Type:       ir.TypeVoid,
+							Callee:     shapeName,
+							Field:      field.Name,
+							FieldIndex: fieldIdx,
+							Args:       []string{arrVal, val},
+							Span:       toIRSpan(path, statement.Span),
+						})
+						return nil
+					}
+				}
+				if statement.Right != nil && statement.Right.Kind == "string" {
+					propName := statement.Right.Text
+					for idx, field := range shape.Fields {
+						if field.Name == propName {
+							val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return err
+							}
+							function.Body = append(function.Body, ir.Instruction{
+								Op:         ir.OpFieldSet,
+								Type:       ir.TypeVoid,
+								Callee:     shapeName,
+								Field:      field.Name,
+								FieldIndex: idx,
+								Args:       []string{arrVal, val},
+								Span:       toIRSpan(path, statement.Span),
+							})
+							return nil
+						}
+					}
+				}
+			}
+		}
+		if arrType == ir.TypeString {
+			return fmt.Errorf("cannot assign to read-only string index")
+		}
+		idxVal, idxType, err := lowerExpression(path, statement.Right, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
+		}
+		if idxType != ir.TypeNumber {
+			return fmt.Errorf("array index_set requires number index, got %s", idxType)
 		}
 		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
-		if (arrType == ir.TypeNumberArray && valType != ir.TypeNumber) || (arrType == ir.TypeStringArray && valType != ir.TypeString) {
+		var expectedElemType ir.Type
+		if arrType == ir.TypeNumberArray {
+			expectedElemType = ir.TypeNumber
+		} else if arrType == ir.TypeStringArray {
+			expectedElemType = ir.TypeString
+		} else if arrType == ir.TypeBoolArray || arrType == "boolean[]" || arrType == "bool[]" {
+			expectedElemType = ir.TypeBool
+		} else if strings.HasSuffix(string(arrType), "[]") {
+			elemName := strings.TrimSuffix(string(arrType), "[]")
+			if elemName == "boolean" {
+				expectedElemType = ir.TypeBool
+			} else {
+				expectedElemType = ir.Type(elemName)
+			}
+		} else {
+			return fmt.Errorf("array index_set requires an array, got %s", arrType)
+		}
+		if expectedElemType != "" && valType != expectedElemType && valType != ir.TypeUnknown && expectedElemType != ir.TypeUnknown {
 			return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
 		}
 		function.Body = append(function.Body, ir.Instruction{

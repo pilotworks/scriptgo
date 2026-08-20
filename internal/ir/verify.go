@@ -287,10 +287,17 @@ func (f Function) Verify() error {
 func elementType(arrayType Type) Type {
 	str := string(arrayType)
 	if strings.HasSuffix(str, "[]") {
-		return Type(strings.TrimSuffix(str, "[]"))
+		elem := strings.TrimSuffix(str, "[]")
+		if elem == "boolean" {
+			return TypeBool
+		}
+		return Type(elem)
 	}
 	if arrayType == TypeStringArray {
 		return TypeString
+	}
+	if arrayType == TypeBoolArray {
+		return TypeBool
 	}
 	return TypeNumber
 }

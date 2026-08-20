@@ -295,6 +295,27 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if err != nil {
 			return "", "", err
 		}
+		if arrayType == ir.TypeString {
+			index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if indexType != ir.TypeNumber {
+				return "", "", fmt.Errorf("string indexing requires number index")
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: result,
+				Callee: "__string.charAt",
+				Args:   []string{array, index},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeString, nil
+		}
 		if strings.HasPrefix(string(arrayType), "object:") {
 			shapeName := strings.TrimPrefix(string(arrayType), "object:")
 			if shape, ok := shapes[shapeName]; ok {
@@ -318,24 +339,58 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 						return result, field.Type, nil
 					}
 				}
+				if expression.Right != nil && expression.Right.Kind == "string" {
+					propName := expression.Right.Text
+					for idx, field := range shape.Fields {
+						if field.Name == propName {
+							if result == "" {
+								result = nextTemp(counter)
+							}
+							function.Body = append(function.Body, ir.Instruction{
+								Op:         ir.OpFieldGet,
+								Type:       field.Type,
+								Result:     result,
+								Callee:     shapeName,
+								Field:      field.Name,
+								FieldIndex: idx,
+								Args:       []string{array},
+								Span:       toIRSpan(path, expression.Span),
+							})
+							return result, field.Type, nil
+						}
+					}
+				}
 			}
 		}
 		index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
-		if (arrayType != ir.TypeNumberArray && arrayType != ir.TypeStringArray) || indexType != ir.TypeNumber {
-			return "", "", fmt.Errorf("array indexing requires an array and number operands")
+		if indexType != ir.TypeNumber {
+			return "", "", fmt.Errorf("array indexing requires number index, got %s", indexType)
+		}
+		var elemType ir.Type
+		if arrayType == ir.TypeNumberArray {
+			elemType = ir.TypeNumber
+		} else if arrayType == ir.TypeStringArray {
+			elemType = ir.TypeString
+		} else if arrayType == ir.TypeBoolArray || arrayType == "boolean[]" || arrayType == "bool[]" {
+			elemType = ir.TypeBool
+		} else if strings.HasSuffix(string(arrayType), "[]") {
+			elemName := strings.TrimSuffix(string(arrayType), "[]")
+			if elemName == "boolean" {
+				elemType = ir.TypeBool
+			} else {
+				elemType = ir.Type(elemName)
+			}
+		} else {
+			return "", "", fmt.Errorf("array indexing requires an array, got %s", arrayType)
 		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		resultType := ir.TypeNumber
-		if arrayType == ir.TypeStringArray {
-			resultType = ir.TypeString
-		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIndex, Type: resultType, Result: result, Args: []string{array, index}, Span: toIRSpan(path, expression.Span)})
-		return result, resultType, nil
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: result, Args: []string{array, index}, Span: toIRSpan(path, expression.Span)})
+		return result, elemType, nil
 	case "identifier":
 		typ, ok := env[expression.Text]
 		if ok {
