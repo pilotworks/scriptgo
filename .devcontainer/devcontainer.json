@@ -1,0 +1,70 @@
+{
+  "name": "scriptgo Development",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.26",
+      "golangciLintVersion": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+  "capAdd": [
+    "SYS_PTRACE"
+  ],
+  "securityOpt": [
+    "seccomp=unconfined"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "vadimcn.vscode-lldb",
+        "streetsidesoftware.code-spell-checker",
+        "tamasfe.even-better-toml",
+        "GitHub.vscode-github-actions"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "package",
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.formatOnSave": true
+        },
+        "cSpell.words": [
+          "alloca",
+          "basenames",
+          "benchtime",
+          "extname",
+          "fadd",
+          "fcmp",
+          "fdiv",
+          "fmul",
+          "frem",
+          "fsub",
+          "getelementptr",
+          "libc",
+          "libuv",
+          "osvfs",
+          "pilotworks",
+          "scriptgo",
+          "stdlib",
+          "tsoptions",
+          "tspath",
+          "typescriptgo",
+          "underspecified",
+          "wrapvfs",
+          "zigcc"
+        ]
+      }
+    }
+  },
+  "postCreateCommand": "go mod download && go work sync && make build",
+  "remoteUser": "vscode"
+}
