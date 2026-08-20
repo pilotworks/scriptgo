@@ -49,7 +49,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
-			if (instruction.Op == ir.OpConst && instruction.Type == ir.TypeString) || (instruction.Op == ir.OpObjectNew && instruction.Value != "") || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
+			if (instruction.Op == ir.OpConst && (instruction.Type == ir.TypeString || instruction.Type == ir.TypeSymbol)) || (instruction.Op == ir.OpObjectNew && instruction.Value != "") || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
 				if _, ok := stringsByValue[instruction.Value]; !ok {
 					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 				}
@@ -82,6 +82,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	for _, method := range []string{"log", "info", "warn", "error"} {
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bigint(i64)\n", method))
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_symbol(ptr)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_string(ptr)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bool(i32)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_unknown({ i32, i32, i64 })\n", method))
@@ -186,6 +187,11 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_regex_exec(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_string(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_symbol_create(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_symbol_for(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_symbol_key_for(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_symbol_description(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_symbol_to_string(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_fs_read_file_sync(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_fs_write_file_sync(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_fs_exists_sync(ptr, ptr)\n\n")

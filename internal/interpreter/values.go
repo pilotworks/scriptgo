@@ -15,15 +15,17 @@ type Closure struct {
 }
 
 type Value struct {
-	Type    ir.Type
-	Number  float64
-	BigInt  int64
-	String  string
-	Bool    bool
-	Array   []Value
-	Object  map[string]Value
-	Closure *Closure
-	Boxed   *Value
+	Type       ir.Type
+	Number     float64
+	BigInt     int64
+	SymbolID   uint64
+	SymbolDesc string
+	String     string
+	Bool       bool
+	Array      []Value
+	Object     map[string]Value
+	Closure    *Closure
+	Boxed      *Value
 }
 
 type Result struct {
@@ -46,6 +48,8 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		val := strings.TrimSuffix(value, "n")
 		bi, err := strconv.ParseInt(val, 10, 64)
 		return Value{Type: typ, BigInt: bi}, err
+	case ir.TypeSymbol:
+		return getOrCreateWellKnownSymbol(value), nil
 	case ir.TypeString:
 		return Value{Type: typ, String: value}, nil
 	case ir.TypeBool:
@@ -207,6 +211,15 @@ func compare(operator string, left, right Value) (Value, error) {
 		default:
 			return Value{}, fmt.Errorf("operator %q is unsupported for bigint comparison", operator)
 		}
+	case ir.TypeSymbol:
+		switch operator {
+		case "==", "===":
+			result = left.SymbolID == right.SymbolID
+		case "!=", "!==":
+			result = left.SymbolID != right.SymbolID
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for symbol comparison", operator)
+		}
 	default:
 		return Value{}, fmt.Errorf("compare is unsupported for %s", left.Type)
 	}
@@ -219,6 +232,11 @@ func format(value Value) string {
 		return strconv.FormatFloat(value.Number, 'f', -1, 64)
 	case ir.TypeBigInt:
 		return fmt.Sprintf("%dn", value.BigInt)
+	case ir.TypeSymbol:
+		if value.SymbolDesc != "" {
+			return fmt.Sprintf("Symbol(%s)", value.SymbolDesc)
+		}
+		return "Symbol()"
 	case ir.TypeString:
 		return value.String
 	case ir.TypeBool:

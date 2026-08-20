@@ -321,3 +321,31 @@ console.log(a, b, s, isMatch, searchIdx, replaced);
 	}
 }
 
+func TestCheckSupportsSymbol(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := `
+const s1: symbol = Symbol("foo");
+const s2 = Symbol.for("bar");
+const k: string | undefined = Symbol.keyFor(s2);
+const desc: string | undefined = s1.description;
+const str: string = s1.toString();
+const iter: symbol = Symbol.iterator;
+console.log(s1, s2, k, desc, str, iter);
+`
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for Symbol: %+v", result.Diagnostics)
+	}
+	file := result.Files[len(result.Files)-1]
+	if file.Syntax.Statements[0].Type != "symbol" {
+		t.Errorf("stmt[0].Type = %q, want %q", file.Syntax.Statements[0].Type, "symbol")
+	}
+}
+

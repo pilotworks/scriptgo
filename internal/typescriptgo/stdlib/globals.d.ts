@@ -62,3 +62,29 @@ interface String {
     search(searcher: RegExp | string): number;
     replace(searchValue: RegExp | string, replaceValue: string): string;
 }
+
+interface Symbol {
+    readonly description: string | undefined;
+    toString(): string;
+    valueOf(): symbol;
+}
+
+interface SymbolConstructor {
+    (description?: string | number): symbol;
+    readonly iterator: symbol;
+    readonly asyncIterator: symbol;
+    readonly hasInstance: symbol;
+    readonly isConcatSpreadable: symbol;
+    readonly match: symbol;
+    readonly replace: symbol;
+    readonly search: symbol;
+    readonly species: symbol;
+    readonly split: symbol;
+    readonly toPrimitive: symbol;
+    readonly toStringTag: symbol;
+    readonly unscopables: symbol;
+    for(key: string): symbol;
+    keyFor(sym: symbol): string | undefined;
+}
+
+declare var Symbol: SymbolConstructor;

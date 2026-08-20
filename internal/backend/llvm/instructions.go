@@ -203,6 +203,18 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeBigInt:
 		clean := strings.TrimSuffix(instruction.Value, "n")
 		out.WriteString(fmt.Sprintf("  %%%s = add i64 0, %s\n", instruction.Result, clean))
+	case ir.TypeSymbol:
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		strGlobal := e.stringsByValue[instruction.Value]
+		length := len([]byte(instruction.Value)) + 1
+		strPtr := fmt.Sprintf("%s.name", instruction.Result)
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", strPtr, length, strGlobal))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_symbol_for(ptr %%%s, ptr %%%s)\n", status, strPtr, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
 	default:
@@ -347,8 +359,20 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
 		return nil
 	}
+	if leftType == ir.TypeSymbol {
+		predicate, ok := map[string]string{
+			"==": "eq", "===": "eq",
+			"!=": "ne", "!==": "ne",
+		}[instruction.Operator]
+		if !ok {
+			return fmt.Errorf("unsupported LLVM symbol compare operator %q", instruction.Operator)
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
 	if leftType != ir.TypeNumber {
-		return fmt.Errorf("LLVM compare only supports number, string, or bool operands")
+		return fmt.Errorf("LLVM compare only supports number, string, symbol, or bool operands")
 	}
 	predicate, ok := map[string]string{
 		"==": "oeq", "===": "oeq",
@@ -614,6 +638,12 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		name, _ := consoleRuntimeName(method, valueType)
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i64 %%%s)\n", status, name, instruction.Args[0]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	case ir.TypeSymbol:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		name, _ := consoleRuntimeName(method, valueType)
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s)\n", status, name, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
 		return fmt.Errorf("unsupported print type %s", valueType)
 	}
@@ -746,6 +776,16 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	}
 	if strings.HasPrefix(instruction.Callee, "__bigint.") {
 		if err := emitBigIntIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		if instruction.Type == ir.TypeString {
+			e.ownedStrings = append(e.ownedStrings, instruction.Result)
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__symbol.") {
+		if err := emitSymbolIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type

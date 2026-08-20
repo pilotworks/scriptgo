@@ -61,6 +61,16 @@ func lowerCallExpression(
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.fromBigInt", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeString, nil
 			}
+			if receiverType == ir.TypeSymbol && methodName == "toString" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__symbol.toString", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+				return result, ir.TypeString, nil
+			}
+			if receiverType == ir.TypeSymbol && methodName == "valueOf" {
+				return receiver, ir.TypeSymbol, nil
+			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
 				if methodName == "match" || methodName == "search" {
 					if len(expression.Arguments) > 0 {

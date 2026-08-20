@@ -456,6 +456,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__symbol.") {
+				value, err := executeSymbolIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__json.") {
 				value, err := executeJsonIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {

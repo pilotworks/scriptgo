@@ -53,7 +53,7 @@ func normalizeInferredType(typeStr string) string {
 	switch typeStr {
 	case "boolean", "true", "false":
 		return "bool"
-	case "number", "string", "void", "any", "unknown", "never", "undefined", "null", "bigint":
+	case "number", "string", "void", "any", "unknown", "never", "undefined", "null", "bigint", "symbol":
 		return typeStr
 	default:
 		if strings.HasPrefix(typeStr, "\"") && strings.HasSuffix(typeStr, "\"") {
@@ -116,6 +116,8 @@ func syntaxType(node *ast.Node) string {
 		return "number"
 	case ast.KindBigIntKeyword:
 		return "bigint"
+	case ast.KindSymbolKeyword:
+		return "symbol"
 	case ast.KindStringKeyword:
 		return "string"
 	case ast.KindBooleanKeyword:

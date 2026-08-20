@@ -51,9 +51,24 @@ static int scriptgo_console_bigint(FILE *stream, long long value) {
     return 0;
 }
 
+int scriptgo_symbol_to_string(void *symbol, char **out_string);
+
+static int scriptgo_console_symbol(FILE *stream, void *value) {
+    if (value == NULL) {
+        return scriptgo_console_string(stream, "Symbol()");
+    }
+    char *str = NULL;
+    int err = scriptgo_symbol_to_string(value, &str);
+    if (err != 0 || str == NULL) return err;
+    int res = scriptgo_console_string(stream, str);
+    free(str);
+    return res;
+}
+
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \
     int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
     int scriptgo_console_##name##_bigint(long long value) { return scriptgo_console_bigint(stream, value); } \
+    int scriptgo_console_##name##_symbol(void *value) { return scriptgo_console_symbol(stream, value); } \
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
     int scriptgo_console_##name##_unknown(ScriptGoUnknown value) { return scriptgo_console_unknown(stream, value); }

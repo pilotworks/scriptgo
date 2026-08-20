@@ -382,6 +382,10 @@ func toIRType(value string) ir.Type {
 		return ir.TypeBigInt
 	case "bigint[]":
 		return ir.TypeBigIntArray
+	case "symbol":
+		return ir.TypeSymbol
+	case "symbol[]":
+		return ir.TypeSymbolArray
 	case "RegExp":
 		return ir.Type("object:RegExp")
 	case "string", "null", "undefined":

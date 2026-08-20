@@ -119,6 +119,21 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		return result, ir.TypeNumber, nil
 	}
 
+	if objectType == ir.TypeSymbol && expression.Text == "description" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeString,
+			Result: result,
+			Callee: "__symbol.description",
+			Args:   []string{object},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeString, nil
+	}
+
 	className := strings.TrimPrefix(string(objectType), "object:")
 
 	// Check instance getters

@@ -100,7 +100,7 @@ func (f Function) Verify() error {
 				}
 			}
 			if instruction.Op == OpArray {
-				if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray && instruction.Type != TypeBigIntArray {
+				if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != TypeNumberArray && instruction.Type != TypeStringArray && instruction.Type != TypeBigIntArray && instruction.Type != TypeSymbolArray {
 					return fmt.Errorf("array instruction has unsupported type %q", instruction.Type)
 				}
 				for _, argument := range instruction.Args {

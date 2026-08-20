@@ -484,6 +484,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			switch valType {
 			case ir.TypeNumber:
 				typeStr = "number"
+			case ir.TypeBigInt:
+				typeStr = "bigint"
+			case ir.TypeSymbol:
+				typeStr = "symbol"
 			case ir.TypeString:
 				typeStr = "string"
 			case ir.TypeBool:

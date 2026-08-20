@@ -1,0 +1,12 @@
+false
+true
+true
+app.key
+undefined
+foo
+Symbol(foo)
+undefined
+Symbol()
+true
+Symbol(Symbol.iterator)
+symbol
