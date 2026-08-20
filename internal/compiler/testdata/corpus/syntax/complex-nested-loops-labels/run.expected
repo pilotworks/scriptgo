@@ -1,0 +1,6 @@
+breaking inner at j=4
+breaking inner at j=4
+skipping outer at i=2, j=2
+breaking inner at j=4
+breaking outer at i=4, j=3
+242

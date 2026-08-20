@@ -1,0 +1,9 @@
+Account A-100: Balance=$500 (TxCount=0)
+Account B-200: Balance=$100 (TxCount=0)
+true
+true
+false
+true
+false
+Account A-100: Balance=$350 (TxCount=3)
+Account B-200: Balance=$400 (TxCount=1)

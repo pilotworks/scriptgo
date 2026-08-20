@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 172 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 191 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **172** | **172 / 172 Passed** | **100.0%** |
-| - *Interpreter Parity* | 160 | 160 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 150 | 150 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **191** | **191 / 191 Passed** | **100.0%** |
+| - *Interpreter Parity* | 179 | 179 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 169 | 169 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~2m 05s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~2m 51s | No regressions detected | - |
 
 ---
 
@@ -148,37 +148,38 @@ All 172 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ## 4. Corpus Test Results by Category
 
-Below is the category-by-category breakdown across all 17 test suites (`go run ./cmd/parity`):
+Below is the category-by-category breakdown across all 18 test suites (`go run ./cmd/parity`):
 
 ```text
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 150
-  - Passed Cases       : 150 (100.0%)
+  - Total Corpus Cases : 191
+  - Passed Cases       : 191 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`arrays`** | 13 | **100%** | Indexing (`number[]`, `string[]`, `boolean[]`, `bigint[]`), negative bounds, mutation, method expansions (`map`, `filter`, `reduce`, `join`). |
+| **`arrays`** | 16 | **100%** | Indexing (`number[]`, `string[]`, `boolean[]`, `bigint[]`), negative bounds, mutation, method chaining, predicates (`some`, `every`, `find`), string array methods (`map`, `filter`, `reduce`, `join`). |
 | **`async`** | 3 | **100%** | `Promise`, `async/await`, microtask queue sequencing. |
-| **`classes`** | 12 | **100%** | Constructor parameters, Class Static Blocks, Getters/Setters, inheritance, polymorphism, static fields/methods, `instanceof`, instance state encapsulation. |
-| **`closures`** | 4 | **100%** | Variable capture, arrow function closures, callback methods, higher-order function composition. |
+| **`classes`** | 17 | **100%** | Constructor parameters, Class Static Blocks, Getters/Setters, 3-tier inheritance, state encapsulation, polymorphism, static fields/methods, `instanceof`. |
+| **`closures`** | 6 | **100%** | Variable capture, arrow function closures, currying & composition, callback methods, higher-order function composition. |
 | **`diagnostics`** | 4 | **100%** | Rejection of unsupported syntax with standardized `SGxxxx` error codes. |
 | **`errors`** | 3 | **100%** | Type mismatch, array index type checking, unknown name rejection. |
-| **`expressions`**| 35 | **100%** | Bitwise (`&`, `\|`, `^`, `~`, `<<`, `>>`, `>>>`), exponentiation (`**`), logical (`&&`, `\|\|`, `??`), ternary, try-catch-finally, `typeof` narrowing. |
-| **`functions`** | 7 | **100%** | Named functions, arrow functions, function expressions, optional parameters, rest parameters, return value passing. |
-| **`generics`** | 8 | **100%** | Generic classes, interfaces, nested generics, type aliases, multi-parameter generics, specialized functions. |
+| **`expressions`**| 43 | **100%** | Bitwise shifts and masks (`&`, `\|`, `^`, `~`, `<<`, `>>`, `>>>`), exponentiation (`**`), logical (`&&`, `\|\|`, `??`), nested ternary, try-catch-finally, `typeof` narrowing. |
+| **`functions`** | 11 | **100%** | Named functions, recursion (factorial, fibonacci), mutual recursion (`isEven`/`isOdd`), higher-order pipelines, arrow functions, optional/rest parameters. |
+| **`generics`** | 12 | **100%** | Generic classes, interfaces, nested generics, type aliases, multi-parameter generics, specialized functions. |
 | **`inference`** | 3 | **100%** | Anonymous object inference, generic call inference, empty array typing. |
 | **`modules`** | 3 | **100%** | Import/export, multi-level imports, deterministic initialization order. |
-| **`objects`** | 3 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), object spread/destructuring, discriminated unions. |
+| **`objects`** | 4 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), nested object records, object spread/destructuring, discriminated unions. |
 | **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 26 | **100%** | `console` (full method suite, format specifiers, `node:console`), `fs`, `path`, `os`, `process`, `crypto`, `date` (`new Date`, `toISOString`, `parse`, `now`), `error-classes` (`Error`, `TypeError`, `RangeError`, `SyntaxError`), `json` (primitives & structured objects), `string-methods`, `base64`. |
-| **`syntax`** | 13 | **100%** | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, for-in, `for..of` destructuring bindings. |
-| **`unions`** | 1 | **100%** | Literal unions (`"asc" \| "desc"`, `200 \| 404 \| 500`), type alias resolution, switch/if dispatch. | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, advanced for-in/for-of. |
+| **`stdlib`** | 35 | **100%** | `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
+| **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
+| **`syntax`** | 15 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring. |
+| **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
 
 ---
 

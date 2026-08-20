@@ -1,0 +1,7 @@
+{"host":"localhost","port":8080,"enabled":true,"tags":["api","v1","production"]}
+[10,20,30]
+["alpha","beta","gamma"]
+true
+false
+12345
+"hello world"

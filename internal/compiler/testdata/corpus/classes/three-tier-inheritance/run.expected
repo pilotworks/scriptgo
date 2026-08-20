@@ -1,0 +1,9 @@
+Entity[1]: NPC
+10
+Monster[2]: Goblin (Lvl 5)
+50
+BOSS[Rank 3] -> Monster[3]: Dragon (Lvl 50)
+3000
+Summary: Entity[1]: NPC with power 10
+Summary: Monster[2]: Goblin (Lvl 5) with power 50
+Summary: BOSS[Rank 3] -> Monster[3]: Dragon (Lvl 50) with power 3000
