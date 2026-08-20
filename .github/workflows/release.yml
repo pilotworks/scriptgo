@@ -156,12 +156,89 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Generate Checksums
+      - name: Install Minisign
         run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Prepare Manifest, Checksums & Minisign Signatures
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSPHRASE: ${{ secrets.MINISIGN_PASSPHRASE }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          
+          # 1. Recreate minisign.pub directly from Secret Key
+          if [ -n "$MINISIGN_SECRET_KEY" ]; then
+            echo "$MINISIGN_SECRET_KEY" > minisign.key
+            chmod 600 minisign.key
+            minisign -R -s minisign.key -p dist/minisign.pub
+          fi
+
+          # 2. Generate release-manifest.json
+          python3 - << 'EOF'
+          import json, hashlib, os, datetime
+
+          dist_dir = 'dist'
+          version = os.environ.get('VERSION', '')
+          tag = os.environ.get('GITHUB_REF_NAME', '')
+          commit = os.environ.get('GITHUB_SHA', '')
+          
+          pubkey_str = ""
+          pub_path = os.path.join(dist_dir, "minisign.pub")
+          if os.path.exists(pub_path):
+              with open(pub_path, "r") as f:
+                  lines = [l.strip() for l in f if l.strip()]
+                  pubkey_str = lines[-1] if lines else ""
+
+          manifest = {
+              "schema_version": "1.0",
+              "project": "scriptgo",
+              "version": version,
+              "tag": tag,
+              "commit": commit,
+              "release_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "minisign_pubkey": pubkey_str,
+              "assets": []
+          }
+
+          for fname in sorted(os.listdir(dist_dir)):
+              if fname.startswith('.') or fname in ('release-manifest.json', 'SHA256SUMS', 'SHA256SUMS.minisig', 'checksums.txt', 'checksums.txt.minisig'):
+                  continue
+              fpath = os.path.join(dist_dir, fname)
+              if os.path.isfile(fpath):
+                  with open(fpath, 'rb') as f:
+                      digest = hashlib.sha256(f.read()).hexdigest()
+                  manifest['assets'].append({
+                      "name": fname,
+                      "size": os.path.getsize(fpath),
+                      "sha256": digest
+                  })
+
+          with open(os.path.join(dist_dir, 'release-manifest.json'), 'w') as f:
+              json.dump(manifest, f, indent=2)
+          EOF
+
+          # 3. Generate SHA256SUMS
           cd dist
-          sha256sum * > checksums.txt
-          cat checksums.txt
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+          
+          # 4. Sign SHA256SUMS with Minisign
+          if [ -n "$MINISIGN_SECRET_KEY" ]; then
+            echo "Signing SHA256SUMS with Minisign..."
+            if [ -n "$MINISIGN_PASSPHRASE" ]; then
+              printf '%s\n' "$MINISIGN_PASSPHRASE" | minisign -Sm SHA256SUMS -s ../minisign.key -t "ScriptGo Release $GITHUB_REF_NAME"
+            else
+              minisign -Sm SHA256SUMS -s ../minisign.key -t "ScriptGo Release $GITHUB_REF_NAME"
+            fi
+            rm -f ../minisign.key
+            echo "Successfully generated SHA256SUMS.minisig"
+          else
+            echo "::warning::MINISIGN_SECRET_KEY secret is not set, skipping Minisign signature generation."
+          fi
           cd ..
+
 
       - name: Extract Changelog for Release Body
         id: changelog
@@ -186,5 +263,6 @@ jobs:
           body_path: release_notes.md
           files: dist/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
+
