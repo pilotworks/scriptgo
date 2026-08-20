@@ -286,3 +286,38 @@ func TestCheckExtractsUnionTypes(t *testing.T) {
 		t.Errorf("stmt[2].Type = %q, want %q", file.Syntax.Statements[2].Type, "string | undefined")
 	}
 }
+
+func TestCheckSupportsBigIntAndRegExp(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := `
+const a: bigint = 100n;
+const b = BigInt(42);
+const s: string = a.toString();
+const re: RegExp = /^[a-z]+$/i;
+const re2 = new RegExp("abc", "g");
+const isMatch: boolean = re.test("hello");
+const matched: string[] | null = "abc".match(re2);
+const searchIdx: number = "abc".search(re);
+const replaced: string = "abc".replace(re, "xyz");
+console.log(a, b, s, isMatch, searchIdx, replaced);
+`
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for BigInt and RegExp: %+v", result.Diagnostics)
+	}
+	file := result.Files[len(result.Files)-1]
+	if len(file.Syntax.Statements) < 10 {
+		t.Fatalf("expected at least 10 statements, got %d", len(file.Syntax.Statements))
+	}
+	if file.Syntax.Statements[0].Type != "bigint" {
+		t.Errorf("stmt[0].Type = %q, want %q", file.Syntax.Statements[0].Type, "bigint")
+	}
+}
+
