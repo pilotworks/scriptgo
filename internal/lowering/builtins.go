@@ -192,6 +192,77 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 		MaxArgs:  1,
 		Lower:    lowerJSONStringify,
 	}
+	m["BigInt"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "BigInt",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			if argType == ir.TypeNumber {
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeBigInt, Result: result, Callee: "__bigint.fromNumber", Args: []string{argVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+				return result, ir.TypeBigInt, nil
+			}
+			if argType == ir.TypeString {
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeBigInt, Result: result, Callee: "__bigint.fromString", Args: []string{argVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+				return result, ir.TypeBigInt, nil
+			}
+			if argType == ir.TypeBigInt {
+				return argVal, ir.TypeBigInt, nil
+			}
+			return "", "", fmt.Errorf("BigInt does not support %s", argType)
+		},
+	}
+	m["RegExp"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "RegExp",
+		MinArgs:  1,
+		MaxArgs:  2,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			ensureRegExpShape(call.Shapes)
+			patternVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			flagsVal := nextTemp(call.Counter)
+			if len(call.Expression.Arguments) > 1 {
+				fv, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				if err != nil {
+					return "", "", err
+				}
+				flagsVal = fv
+			} else {
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpConst, Type: ir.TypeString, Result: flagsVal, Value: "", Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+			}
+			res := call.Result
+			if res == "" {
+				res = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpObjectNew, Type: ir.Type("object:RegExp"), Result: res, FieldCount: 2, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{res, patternVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{res, flagsVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			return res, ir.Type("object:RegExp"), nil
+		},
+	}
 
 	// Web-compatible globals (Category 2: WebCompat)
 	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
@@ -203,7 +274,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	// Node-specific globals (Category 3: NodeGlobal)
 	for _, logMethod := range []string{"log", "info", "warn", "error"} {
 		name := "console." + logMethod
-		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool, ir.TypeUnknown}, MinArgs: 1, MaxArgs: 1, Lower: lowerPrint}
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeString, ir.TypeBool, ir.TypeUnknown}, MinArgs: 1, MaxArgs: 1, Lower: lowerPrint}
 	}
 	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)

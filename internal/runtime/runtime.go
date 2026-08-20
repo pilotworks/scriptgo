@@ -46,5 +46,8 @@ var asyncSource string
 //go:embed native/os/runtime.c
 var osSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource)
+//go:embed native/regex/runtime.c
+var regexSource string
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource)
 

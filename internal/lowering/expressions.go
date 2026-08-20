@@ -18,6 +18,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
+	case "bigint":
+		typ := ir.TypeBigInt
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
+		return result, typ, nil
+	case "regex":
+		return lowerRegexLiteral(path, expression, result, function, env, counter, shapes, signatures)
 	case "string":
 		typ := ir.TypeString
 		if result == "" {

@@ -15,6 +15,7 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 	}
 	suffix := map[ir.Type]string{
 		ir.TypeNumber:  "number",
+		ir.TypeBigInt:  "bigint",
 		ir.TypeString:  "string",
 		ir.TypeBool:    "bool",
 		ir.TypeUnknown: "unknown",
@@ -29,9 +30,11 @@ func llvmType(typ ir.Type) string {
 	switch typ {
 	case ir.TypeNumber:
 		return "double"
+	case ir.TypeBigInt:
+		return "i64"
 	case ir.TypeString:
 		return "ptr"
-	case ir.TypeNumberArray, ir.TypeStringArray:
+	case ir.TypeNumberArray, ir.TypeStringArray, ir.TypeBigIntArray:
 		return "ptr"
 	case ir.TypeClosure:
 		return "ptr"

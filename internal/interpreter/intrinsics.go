@@ -150,6 +150,9 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 		}
 		values = append(values, value)
 	}
+	if val, handled, err := executeRegexStringIntrinsic(name, values); handled {
+		return val, err
+	}
 	switch name {
 	case "__string.length":
 		if len(values) != 1 || values[0].Type != ir.TypeString {

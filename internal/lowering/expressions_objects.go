@@ -227,6 +227,9 @@ func anonymousShapeName(fields []ir.Field) string {
 
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	className := callName(expression.Left)
+	if className == "RegExp" {
+		ensureRegExpShape(shapes)
+	}
 	shape, ok := shapes[className]
 	if !ok {
 		return "", "", fmt.Errorf("unknown class %q", className)

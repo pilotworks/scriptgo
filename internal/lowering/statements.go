@@ -376,6 +376,12 @@ func toIRType(value string) ir.Type {
 	switch value {
 	case "number":
 		return ir.TypeNumber
+	case "bigint":
+		return ir.TypeBigInt
+	case "bigint[]":
+		return ir.TypeBigIntArray
+	case "RegExp":
+		return ir.Type("object:RegExp")
 	case "string", "null", "undefined":
 		return ir.TypeString
 	case "bool", "boolean":

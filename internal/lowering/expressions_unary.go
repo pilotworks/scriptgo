@@ -30,16 +30,16 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		return result, ir.TypeBool, nil
 	}
 	if expression.Operator == "-" {
-		if valType != ir.TypeNumber {
-			return "", "", fmt.Errorf("unary - requires a number operand")
+		if valType != ir.TypeNumber && valType != ir.TypeBigInt {
+			return "", "", fmt.Errorf("unary - requires a number or bigint operand")
 		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
 		zeroConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "-", Args: []string{zeroConst, value}, Span: toIRSpan(path, expression.Span)})
-		return result, ir.TypeNumber, nil
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: valType, Result: result, Operator: "-", Args: []string{zeroConst, value}, Span: toIRSpan(path, expression.Span)})
+		return result, valType, nil
 	}
 	if expression.Operator == "+" {
 		if valType != ir.TypeNumber {
@@ -54,16 +54,16 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		return value, ir.TypeNumber, nil
 	}
 	if expression.Operator == "~" {
-		if valType != ir.TypeNumber {
-			return "", "", fmt.Errorf("unary ~ requires a number operand")
+		if valType != ir.TypeNumber && valType != ir.TypeBigInt {
+			return "", "", fmt.Errorf("unary ~ requires a number or bigint operand")
 		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
 		minusOneConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: minusOneConst, Value: "-1", Span: toIRSpan(path, expression.Span)})
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "^", Args: []string{value, minusOneConst}, Span: toIRSpan(path, expression.Span)})
-		return result, ir.TypeNumber, nil
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: minusOneConst, Value: "-1", Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: valType, Result: result, Operator: "^", Args: []string{value, minusOneConst}, Span: toIRSpan(path, expression.Span)})
+		return result, valType, nil
 	}
 	return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
 }
@@ -102,14 +102,14 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		if !ok {
 			return "", "", fmt.Errorf("unknown identifier %q for %s", lvalue.Text, op)
 		}
-		if varType != ir.TypeNumber {
-			return "", "", fmt.Errorf("operator %s requires a number variable, got %s", op, varType)
+		if varType != ir.TypeNumber && varType != ir.TypeBigInt {
+			return "", "", fmt.Errorf("operator %s requires a number or bigint variable, got %s", op, varType)
 		}
 
 		oneConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
-			Type:   ir.TypeNumber,
+			Type:   varType,
 			Result: oneConst,
 			Value:  "1",
 			Span:   toIRSpan(path, span),
@@ -118,7 +118,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		zeroConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
-			Type:   ir.TypeNumber,
+			Type:   varType,
 			Result: zeroConst,
 			Value:  "0",
 			Span:   toIRSpan(path, span),
@@ -128,7 +128,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 			oldVal := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:       ir.OpBinary,
-				Type:     ir.TypeNumber,
+				Type:     varType,
 				Result:   oldVal,
 				Operator: "+",
 				Args:     []string{varName, zeroConst},
@@ -138,7 +138,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 			newVal := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:       ir.OpBinary,
-				Type:     ir.TypeNumber,
+				Type:     varType,
 				Result:   newVal,
 				Operator: binOp,
 				Args:     []string{varName, oneConst},
@@ -146,7 +146,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 			})
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpAssign,
-				Type:   ir.TypeNumber,
+				Type:   varType,
 				Result: varName,
 				Args:   []string{newVal},
 				Span:   toIRSpan(path, span),
@@ -155,22 +155,22 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 			if result != "" && result != oldVal {
 				function.Body = append(function.Body, ir.Instruction{
 					Op:       ir.OpBinary,
-					Type:     ir.TypeNumber,
+					Type:     varType,
 					Result:   result,
 					Operator: "+",
 					Args:     []string{oldVal, zeroConst},
 					Span:     toIRSpan(path, span),
 				})
-				return result, ir.TypeNumber, nil
+				return result, varType, nil
 			}
-			return oldVal, ir.TypeNumber, nil
+			return oldVal, varType, nil
 		}
 
 		// Prefix
 		newVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:       ir.OpBinary,
-			Type:     ir.TypeNumber,
+			Type:     varType,
 			Result:   newVal,
 			Operator: binOp,
 			Args:     []string{varName, oneConst},
@@ -178,7 +178,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		})
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpAssign,
-			Type:   ir.TypeNumber,
+			Type:   varType,
 			Result: varName,
 			Args:   []string{newVal},
 			Span:   toIRSpan(path, span),
@@ -187,15 +187,15 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		if result != "" && result != newVal {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:       ir.OpBinary,
-				Type:     ir.TypeNumber,
+				Type:     varType,
 				Result:   result,
 				Operator: "+",
 				Args:     []string{newVal, zeroConst},
 				Span:     toIRSpan(path, span),
 			})
-			return result, ir.TypeNumber, nil
+			return result, varType, nil
 		}
-		return newVal, ir.TypeNumber, nil
+		return newVal, varType, nil
 
 	case "property":
 		objVal, objType, err := lowerExpression(path, lvalue.Left, "", function, env, counter, shapes, signatures)
@@ -219,15 +219,15 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		if !found {
 			return "", "", fmt.Errorf("unknown field %q on object %q", lvalue.Text, className)
 		}
-		if fieldType != ir.TypeNumber {
-			return "", "", fmt.Errorf("operator %s requires a number field, got %s", op, fieldType)
+		if fieldType != ir.TypeNumber && fieldType != ir.TypeBigInt {
+			return "", "", fmt.Errorf("operator %s requires a number or bigint field, got %s", op, fieldType)
 		}
 
 		fIdx := fieldIndex(shape, lvalue.Text)
 		currentVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpFieldGet,
-			Type:       ir.TypeNumber,
+			Type:       fieldType,
 			Result:     currentVal,
 			Callee:     className,
 			Field:      lvalue.Text,
@@ -239,7 +239,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		oneConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
-			Type:   ir.TypeNumber,
+			Type:   fieldType,
 			Result: oneConst,
 			Value:  "1",
 			Span:   toIRSpan(path, span),
@@ -248,7 +248,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		zeroConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
-			Type:   ir.TypeNumber,
+			Type:   fieldType,
 			Result: zeroConst,
 			Value:  "0",
 			Span:   toIRSpan(path, span),
@@ -257,7 +257,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		newVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:       ir.OpBinary,
-			Type:     ir.TypeNumber,
+			Type:     fieldType,
 			Result:   newVal,
 			Operator: binOp,
 			Args:     []string{currentVal, oneConst},
@@ -281,15 +281,16 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		if result != "" && result != retVal {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:       ir.OpBinary,
-				Type:     ir.TypeNumber,
+				Type:     fieldType,
 				Result:   result,
 				Operator: "+",
 				Args:     []string{retVal, zeroConst},
 				Span:     toIRSpan(path, span),
 			})
-			return result, ir.TypeNumber, nil
+			return result, fieldType, nil
 		}
-		return retVal, ir.TypeNumber, nil
+		return retVal, fieldType, nil
+
 
 	case "index":
 		arrVal, arrType, err := lowerExpression(path, lvalue.Left, "", function, env, counter, shapes, signatures)

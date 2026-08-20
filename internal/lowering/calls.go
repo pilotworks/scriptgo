@@ -22,7 +22,94 @@ func lowerCallExpression(
 		methodName := expression.Left.Text
 		receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 		if err == nil {
+			if receiverType == "object:RegExp" {
+				if methodName == "test" && len(expression.Arguments) > 0 {
+					argVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					srcVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: srcVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					flagsVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flagsVal, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__regex.test", Args: []string{srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeBool, nil
+				}
+				if methodName == "exec" && len(expression.Arguments) > 0 {
+					argVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					srcVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: srcVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					flagsVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flagsVal, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__regex.exec", Args: []string{srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeStringArray, nil
+				}
+			}
+			if receiverType == ir.TypeBigInt && methodName == "toString" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.fromBigInt", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+				return result, ir.TypeString, nil
+			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
+				if methodName == "match" || methodName == "search" {
+					if len(expression.Arguments) > 0 {
+						argVal, argTyp, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						srcVal := argVal
+						flagsVal := nextTemp(counter)
+						if argTyp == "object:RegExp" {
+							srcVal = nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: srcVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{argVal}, Span: toIRSpan(path, expression.Span)})
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flagsVal, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{argVal}, Span: toIRSpan(path, expression.Span)})
+						} else {
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: flagsVal, Value: "", Span: toIRSpan(path, expression.Span)})
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						if methodName == "match" {
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.match", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
+							return result, ir.TypeStringArray, nil
+						} else {
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__string.search", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
+							return result, ir.TypeNumber, nil
+						}
+					}
+				}
+				if methodName == "replace" && len(expression.Arguments) >= 2 {
+					arg0Val, arg0Typ, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if arg0Typ == "object:RegExp" {
+						arg1Val, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						srcVal := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: srcVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)})
+						flagsVal := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flagsVal, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)})
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.replace_regex", Args: []string{receiver, srcVal, flagsVal, arg1Val}, Span: toIRSpan(path, expression.Span)})
+						return result, ir.TypeString, nil
+					}
+				}
 				args := []string{receiver}
 				for _, argument := range expression.Arguments {
 					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -434,7 +521,7 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 
 func isStringMethod(name string) bool {
 	switch name {
-	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "trimStart", "trimEnd", "replace", "replaceAll", "substring", "split", "charAt", "charCodeAt", "includes", "toLowerCase", "toUpperCase", "repeat", "padStart", "padEnd", "concat":
+	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "trimStart", "trimEnd", "replace", "replaceAll", "substring", "split", "charAt", "charCodeAt", "includes", "toLowerCase", "toUpperCase", "repeat", "padStart", "padEnd", "concat", "match", "search":
 		return true
 	default:
 		return false

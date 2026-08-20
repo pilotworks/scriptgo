@@ -180,6 +180,9 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		global := e.stringsByValue[instruction.Value]
 		length := len([]byte(instruction.Value)) + 1
 		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", instruction.Result, length, global))
+	case ir.TypeBigInt:
+		clean := strings.TrimSuffix(instruction.Value, "n")
+		out.WriteString(fmt.Sprintf("  %%%s = add i64 0, %s\n", instruction.Result, clean))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
 	default:
@@ -215,6 +218,14 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		e.types[instruction.Result] = ir.TypeBool
 		out.WriteString(fmt.Sprintf("  %%%s = %s i1 %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
 		return nil
+	}
+	if leftType == ir.TypeBigInt {
+		if op, ok := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem", "&": "and", "|": "or", "^": "xor", "<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
+			e.types[instruction.Result] = instruction.Type
+			out.WriteString(fmt.Sprintf("  %%%s = %s i64 %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+			return nil
+		}
+		return fmt.Errorf("unsupported LLVM bigint binary operator %q", instruction.Operator)
 	}
 	if leftType != ir.TypeNumber {
 		return fmt.Errorf("LLVM binary operator %q only supports number, bool, or string concatenation", instruction.Operator)
@@ -300,6 +311,20 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		}
 		e.types[instruction.Result] = ir.TypeBool
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i1 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
+	if leftType == ir.TypeBigInt {
+		predicate, ok := map[string]string{
+			"==": "eq", "===": "eq",
+			"!=": "ne", "!==": "ne",
+			"<": "slt", "<=": "sle",
+			">": "sgt", ">=": "sge",
+		}[instruction.Operator]
+		if !ok {
+			return fmt.Errorf("unsupported LLVM bigint compare operator %q", instruction.Operator)
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
 		return nil
 	}
 	if leftType != ir.TypeNumber {
@@ -533,6 +558,12 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		name, _ := consoleRuntimeName(method, valueType)
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i32 %%%s)\n", status, name, boolValue))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	case ir.TypeBigInt:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		name, _ := consoleRuntimeName(method, valueType)
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i64 %%%s)\n", status, name, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
 		return fmt.Errorf("unsupported print type %s", valueType)
 	}
@@ -645,6 +676,26 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	}
 	if strings.HasPrefix(instruction.Callee, "__string.") {
 		if err := emitStringIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		if instruction.Type == ir.TypeString {
+			e.ownedStrings = append(e.ownedStrings, instruction.Result)
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__regex.") {
+		if err := emitRegexIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		if instruction.Type == ir.TypeString {
+			e.ownedStrings = append(e.ownedStrings, instruction.Result)
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__bigint.") {
+		if err := emitBigIntIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type

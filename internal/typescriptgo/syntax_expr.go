@@ -25,6 +25,26 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 	switch node.Kind {
 	case ast.KindNumericLiteral:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "number", Text: node.Text(), InferredType: "number"}
+	case ast.KindBigIntLiteral:
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bigint", Text: strings.TrimSuffix(node.Text(), "n"), InferredType: "bigint"}
+	case ast.KindRegularExpressionLiteral:
+		text := node.Text()
+		lastSlash := strings.LastIndex(text, "/")
+		pattern := ""
+		flags := ""
+		if lastSlash > 0 {
+			pattern = text[1:lastSlash]
+			flags = text[lastSlash+1:]
+		} else {
+			pattern = text
+		}
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "regex",
+			Text:         pattern,
+			Operator:     flags,
+			InferredType: "object:RegExp",
+		}
 	case ast.KindStringLiteral:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "string", Text: node.Text(), InferredType: "string"}
 	case ast.KindNullKeyword:

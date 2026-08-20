@@ -232,8 +232,41 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.fromBigInt":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.fromBigInt has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.match":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("string.match has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_match(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.search":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("string.search has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_search(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+	case "__string.replace_regex":
+		if len(instruction.Args) != 4 {
+			return fmt.Errorf("string.replace_regex has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_replace_regex(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], instruction.Args[3], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	default:
 		return fmt.Errorf("unknown string intrinsic %q", instruction.Callee)
 	}
 	return nil
 }
+

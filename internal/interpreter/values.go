@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -16,6 +17,7 @@ type Closure struct {
 type Value struct {
 	Type    ir.Type
 	Number  float64
+	BigInt  int64
 	String  string
 	Bool    bool
 	Array   []Value
@@ -40,6 +42,10 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		}
 		number, err := strconv.ParseFloat(value, 64)
 		return Value{Type: typ, Number: number}, err
+	case ir.TypeBigInt:
+		val := strings.TrimSuffix(value, "n")
+		bi, err := strconv.ParseInt(val, 10, 64)
+		return Value{Type: typ, BigInt: bi}, err
 	case ir.TypeString:
 		return Value{Type: typ, String: value}, nil
 	case ir.TypeBool:
@@ -65,6 +71,38 @@ func binary(operator string, left, right Value) (Value, error) {
 			return Value{Type: ir.TypeBool, Bool: left.Bool || right.Bool}, nil
 		default:
 			return Value{}, fmt.Errorf("operator %q is unsupported for bool", operator)
+		}
+	}
+	if left.Type == ir.TypeBigInt {
+		switch operator {
+		case "+":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt + right.BigInt}, nil
+		case "-":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt - right.BigInt}, nil
+		case "*":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt * right.BigInt}, nil
+		case "/":
+			if right.BigInt == 0 {
+				return Value{}, fmt.Errorf("division by zero")
+			}
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt / right.BigInt}, nil
+		case "%":
+			if right.BigInt == 0 {
+				return Value{}, fmt.Errorf("division by zero")
+			}
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt % right.BigInt}, nil
+		case "&":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt & right.BigInt}, nil
+		case "|":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt | right.BigInt}, nil
+		case "^":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt ^ right.BigInt}, nil
+		case "<<":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt << uint(right.BigInt)}, nil
+		case ">>":
+			return Value{Type: ir.TypeBigInt, BigInt: left.BigInt >> uint(right.BigInt)}, nil
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for bigint", operator)
 		}
 	}
 	if left.Type != ir.TypeNumber {
@@ -152,6 +190,23 @@ func compare(operator string, left, right Value) (Value, error) {
 		default:
 			return Value{}, fmt.Errorf("operator %q is unsupported for bool comparison", operator)
 		}
+	case ir.TypeBigInt:
+		switch operator {
+		case "==", "===":
+			result = left.BigInt == right.BigInt
+		case "!=", "!==":
+			result = left.BigInt != right.BigInt
+		case "<":
+			result = left.BigInt < right.BigInt
+		case "<=":
+			result = left.BigInt <= right.BigInt
+		case ">":
+			result = left.BigInt > right.BigInt
+		case ">=":
+			result = left.BigInt >= right.BigInt
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for bigint comparison", operator)
+		}
 	default:
 		return Value{}, fmt.Errorf("compare is unsupported for %s", left.Type)
 	}
@@ -162,6 +217,8 @@ func format(value Value) string {
 	switch value.Type {
 	case ir.TypeNumber:
 		return strconv.FormatFloat(value.Number, 'f', -1, 64)
+	case ir.TypeBigInt:
+		return fmt.Sprintf("%dn", value.BigInt)
 	case ir.TypeString:
 		return value.String
 	case ir.TypeBool:

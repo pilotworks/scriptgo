@@ -44,8 +44,16 @@ static int scriptgo_console_unknown(FILE *stream, ScriptGoUnknown value) {
     }
 }
 
+static int scriptgo_console_bigint(FILE *stream, long long value) {
+    int ret = fprintf(stream, "%lldn\n", value);
+    fflush(stream);
+    if (ret < 0) return scriptgo_runtime_set_error("scriptgo bigint output failed");
+    return 0;
+}
+
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \
     int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
+    int scriptgo_console_##name##_bigint(long long value) { return scriptgo_console_bigint(stream, value); } \
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
     int scriptgo_console_##name##_unknown(ScriptGoUnknown value) { return scriptgo_console_unknown(stream, value); }

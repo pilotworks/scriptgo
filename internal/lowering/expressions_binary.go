@@ -121,7 +121,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 		return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
 	}
-	if leftType != ir.TypeNumber && leftType != ir.TypeString {
+	if leftType != ir.TypeNumber && leftType != ir.TypeString && leftType != ir.TypeBigInt {
 		return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 	}
 	if leftType == ir.TypeString {
@@ -142,3 +142,4 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 	return result, leftType, nil
 }
+

@@ -338,7 +338,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.InferredType))
 		}
 		return nil
-	case "number", "string", "bool", "null", "undefined":
+	case "number", "bigint", "regex", "string", "bool", "null", "undefined":
 		return nil
 	case "arrow_function":
 		if expression.Function != nil {

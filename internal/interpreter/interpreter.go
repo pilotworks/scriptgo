@@ -460,6 +460,22 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__regex.") {
+				value, err := executeRegexIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__bigint.") {
+				value, err := executeBigIntIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			callee, ok := functions[instruction.Callee]
 			if !ok {
 				return Value{}, false, flowNormal, fmt.Errorf("unknown function %q", instruction.Callee)
