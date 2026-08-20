@@ -43,6 +43,11 @@ general TypeScript-Go and LLVM behavior.
 - Always add corpus test cases under `internal/compiler/testdata/corpus/`
   (`main.ts` with `run.expected`, `run.err`, or `check.err`) for every newly implemented
   feature, syntax construct, operator, or standard library function.
+- Always keep [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md)
+  strictly synchronized with the codebase. Whenever language features, syntax
+  constructs, standard library APIs, diagnostics, or runtime capabilities are
+  implemented, modified, or verified, update the parity report tables and test
+  metrics accordingly.
 - Always run full regression tests and build verification on every change:
   run `go test -count=1 ./...`, `go test -count=1 ./internal/typescriptgo/...`,
   and `go build ./cmd/scriptgo`.
