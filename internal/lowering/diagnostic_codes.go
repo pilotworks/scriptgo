@@ -25,12 +25,14 @@ const (
 	CodeSignals          SubsetCode = "SG3003"
 	CodeNativeFFI        SubsetCode = "SG3004"
 	CodePlatformAPI      SubsetCode = "SG3005"
+	CodeUnsafeDoubleCast SubsetCode = "SG3006"
 
 	// SG4xxx: Semantic divergences and runtime safety outcomes.
-	CodeDenseArrayTrap  SubsetCode = "SG4001"
-	CodeCheckedCast     SubsetCode = "SG4002"
-	CodeWidthCopy       SubsetCode = "SG4003"
-	CodeRuntimeHardTrap SubsetCode = "SG4004"
+	CodeDenseArrayTrap   SubsetCode = "SG4001"
+	CodeCheckedCast      SubsetCode = "SG4002"
+	CodeWidthCopy        SubsetCode = "SG4003"
+	CodeRuntimeHardTrap  SubsetCode = "SG4004"
+	CodeWarnCheckedCast  SubsetCode = "SG4005"
 
 	// SG9xxx: Internal compiler and fallback diagnostics.
 	CodeInternalFallback SubsetCode = "SG9001"

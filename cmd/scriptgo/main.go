@@ -111,6 +111,8 @@ func handleRun(args []string) {
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	native := fs.Bool("native", false, "compile to native executable and execute directly")
+	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
+	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -145,7 +147,13 @@ func handleRun(args []string) {
 		os.Exit(2)
 	}
 
-	options := compiler.BuildOptions{Target: *target, Debug: *debug, Sanitizers: splitList(*sanitize)}
+	options := compiler.BuildOptions{
+		Target:           *target,
+		Debug:            *debug,
+		Sanitizers:       splitList(*sanitize),
+		WarnRuntimeCasts: *warnRuntimeCasts,
+		StrictCasts:      *strictCasts,
+	}
 
 	if *native {
 		if *verbose {
@@ -162,6 +170,7 @@ func handleRun(args []string) {
 			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
 			os.Exit(1)
 		}
+		printCompilerWarnings()
 		cmd := exec.Command(binPath, extraArgs...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -180,6 +189,7 @@ func handleRun(args []string) {
 		fmt.Fprintf(os.Stderr, "scriptgo: interpreting %s\n", entryPath)
 	}
 	result, err := compiler.Run(entryPath)
+	printCompilerWarnings()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
@@ -195,6 +205,8 @@ func handleBuild(args []string) {
 	target := fs.String("target", "native", "native target triple, or native for the host")
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
+	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
+	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -227,20 +239,30 @@ func handleBuild(args []string) {
 		}
 	}
 
-	options := compiler.BuildOptions{Target: *target, Debug: *debug, Sanitizers: splitList(*sanitize)}
+	options := compiler.BuildOptions{
+		Target:           *target,
+		Debug:            *debug,
+		Sanitizers:       splitList(*sanitize),
+		WarnRuntimeCasts: *warnRuntimeCasts,
+		StrictCasts:      *strictCasts,
+	}
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: build %s -> %s\n", entryPath, outputPath)
 	}
 	if err := compiler.BuildWithOptions(entryPath, outputPath, options); err != nil {
+		printCompilerWarnings()
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
 	}
+	printCompilerWarnings()
 }
 
 func handleCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.Usage = printCheckUsage
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
+	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
+	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -263,10 +285,16 @@ func handleCheck(args []string) {
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: checking %s\n", entryPath)
 	}
-	if err := compiler.Check(entryPath); err != nil {
+	options := compiler.BuildOptions{
+		WarnRuntimeCasts: *warnRuntimeCasts,
+		StrictCasts:      *strictCasts,
+	}
+	if _, err := compiler.CompileWithOptions(entryPath, options); err != nil {
+		printCompilerWarnings()
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
 	}
+	printCompilerWarnings()
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: %s checked successfully\n", entryPath)
 	}
@@ -280,6 +308,8 @@ func handleEmit(args []string) {
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	target := fs.String("target", "native", "native target triple, or native for the host")
 	debug := fs.Bool("debug", false, "include native debug metadata")
+	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
+	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -299,6 +329,12 @@ func handleEmit(args []string) {
 	}
 	defer cleanup()
 
+	options := compiler.BuildOptions{
+		Target:           *target,
+		Debug:            *debug,
+		WarnRuntimeCasts: *warnRuntimeCasts,
+		StrictCasts:      *strictCasts,
+	}
 	var result string
 
 	switch *mode {
@@ -311,13 +347,13 @@ func handleEmit(args []string) {
 		if *verbose {
 			fmt.Fprintf(os.Stderr, "scriptgo: emitting LLVM IR for %s\n", entryPath)
 		}
-		options := compiler.BuildOptions{Target: *target, Debug: *debug}
 		result, err = compiler.CompileWithOptions(entryPath, options)
 	default:
 		fmt.Fprintf(os.Stderr, "scriptgo: unsupported emit mode %q (supported: llvm-ir, typed-ir)\n", *mode)
 		os.Exit(2)
 	}
 
+	printCompilerWarnings()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "scriptgo:", err)
 		os.Exit(1)
@@ -348,11 +384,13 @@ Commands:
   help      Show help for ScriptGo or a specific command
 
 Global Flags:
-  -v                 Verbose output
-  --target <triple>  Target architecture triple (default: native)
-  --debug            Emit native DWARF debug symbols
-  --sanitize <list>  Enable Clang sanitizers (address, undefined, leak)
-  -h, --help         Show help message
+  -v                     Verbose output
+  --target <triple>      Target architecture triple (default: native)
+  --debug                Emit native DWARF debug symbols
+  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
+  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
+  --strict-casts         Treat cast warnings as errors
+  -h, --help             Show help message
 
 Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
 }
@@ -366,13 +404,15 @@ Description:
   interpreter (default) or by compiling directly to a temporary native binary.
 
 Flags:
-  -e <string>        Evaluate inline script string
-  --native           Compile to native executable and execute directly on host
-  -v                 Verbose output (print compilation stages)
-  --target <triple>  Target architecture triple (default: native)
-  --debug            Include DWARF debug symbols
-  --sanitize <list>  Enable Clang sanitizers (address, undefined, leak)
-  -h, --help         Show this help message
+  -e <string>            Evaluate inline script string
+  --native               Compile to native executable and execute directly on host
+  -v                     Verbose output (print compilation stages)
+  --target <triple>      Target architecture triple (default: native)
+  --debug                Include DWARF debug symbols
+  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
+  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
+  --strict-casts         Treat cast warnings as errors
+  -h, --help             Show this help message
 
 Examples:
   scriptgo run app.ts
@@ -391,12 +431,14 @@ Description:
   linked with the host C runtime.
 
 Flags:
-  -o <path>          Output binary path (default: ./<entry_name>)
-  -v                 Verbose output (print compilation stages)
-  --target <triple>  Target architecture triple (default: native)
-  --debug            Include DWARF debug symbols (O0 with debug metadata)
-  --sanitize <list>  Enable Clang sanitizers (address, undefined, leak)
-  -h, --help         Show this help message
+  -o <path>              Output binary path (default: ./<entry_name>)
+  -v                     Verbose output (print compilation stages)
+  --target <triple>      Target architecture triple (default: native)
+  --debug                Include DWARF debug symbols (O0 with debug metadata)
+  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
+  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
+  --strict-casts         Treat cast warnings as errors
+  -h, --help             Show this help message
 
 Examples:
   scriptgo build server.ts
@@ -414,8 +456,10 @@ Description:
   eligibility without invoking code generation or Clang.
 
 Flags:
-  -v                 Verbose output (print check stages and confirmation)
-  -h, --help         Show this help message
+  -v                     Verbose output (print check stages and confirmation)
+  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
+  --strict-casts         Treat cast warnings as errors
+  -h, --help             Show this help message
 
 Examples:
   scriptgo check app.ts
@@ -432,17 +476,26 @@ Description:
   and compiler inspection.
 
 Flags:
-  --mode <mode>      Output mode: llvm-ir (default), typed-ir
-  -o <path>          Write emitted IR to file instead of stdout
-  -v                 Verbose output (print compilation stages)
-  --target <triple>  Target architecture triple (default: native)
-  --debug            Include DWARF debug symbols in LLVM IR
-  -h, --help         Show this help message
+  --mode <mode>          Output mode: llvm-ir (default), typed-ir
+  -o <path>              Write emitted IR to file instead of stdout
+  -v                     Verbose output (print compilation stages)
+  --target <triple>      Target architecture triple (default: native)
+  --debug                Include DWARF debug symbols in LLVM IR
+  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
+  --strict-casts         Treat cast warnings as errors
+  -h, --help             Show this help message
 
 Examples:
   scriptgo emit app.ts
   scriptgo emit "console.log(123)" --mode typed-ir
   scriptgo emit app.ts --mode llvm-ir -o app.ll`)
+}
+
+func printCompilerWarnings() {
+	warns := compiler.GetWarnings()
+	for _, w := range warns {
+		fmt.Fprintf(os.Stderr, "scriptgo: warning: %s in %s at offset %d: %s\n", w.Code, w.FileName, w.Span.Start, w.Message)
+	}
 }
 
 func splitList(value string) []string {

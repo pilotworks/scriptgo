@@ -14,6 +14,7 @@ import (
 func Lower(program frontend.Program) (ir.Module, error) {
 	extraFunctions = nil
 	closureCounter = 0
+	ClearDiagnostics()
 	var err error
 	program, err = SpecializeGenerics(program)
 	if err != nil {

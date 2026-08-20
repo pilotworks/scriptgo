@@ -8,9 +8,11 @@ const RuntimeABIVersion = "scriptgo.runtime.v1"
 
 // BuildOptions controls target-specific native compilation.
 type BuildOptions struct {
-	Target     string
-	Debug      bool
-	Sanitizers []string
+	Target           string
+	Debug            bool
+	Sanitizers       []string
+	WarnRuntimeCasts bool
+	StrictCasts      bool
 }
 
 func (options BuildOptions) normalized() BuildOptions {

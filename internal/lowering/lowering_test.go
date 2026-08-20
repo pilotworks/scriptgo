@@ -216,3 +216,66 @@ func TestLowerAllowsNullableType(t *testing.T) {
 	}
 }
 
+func TestLowerDoubleCastWarning(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const n: number = 42;\nconst s: string = n as unknown as string;\nconsole.log(s);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, want success with warning", err)
+	}
+	warns := GetWarnings()
+	if len(warns) == 0 {
+		t.Fatalf("want double cast warning, got none")
+	}
+	found := false
+	for _, w := range warns {
+		if w.Code == CodeUnsafeDoubleCast {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("want CodeUnsafeDoubleCast (SG3006) warning, got %v", warns)
+	}
+}
+
+func TestLowerWarnRuntimeCastsOption(t *testing.T) {
+	WarnRuntimeCasts = true
+	defer func() { WarnRuntimeCasts = false }()
+
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const u: unknown = 42;\nconst n: number = u as number;\nconsole.log(n);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, want success with warning", err)
+	}
+	warns := GetWarnings()
+	if len(warns) == 0 {
+		t.Fatalf("want runtime checked cast warning, got none")
+	}
+	found := false
+	for _, w := range warns {
+		if w.Code == CodeWarnCheckedCast {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("want CodeWarnCheckedCast (SG4005) warning, got %v", warns)
+	}
+}
+

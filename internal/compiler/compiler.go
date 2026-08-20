@@ -34,9 +34,16 @@ func compileWithOptions(entryPath string, options BuildOptions) (string, error) 
 	if err := validateOptions(options); err != nil {
 		return "", err
 	}
+	lowering.WarnRuntimeCasts = options.WarnRuntimeCasts
 	module, err := CompileModule(entryPath)
 	if err != nil {
 		return "", err
+	}
+	if options.StrictCasts {
+		warns := lowering.GetWarnings()
+		if len(warns) > 0 {
+			return "", fmt.Errorf("strict casts: %s: %s at offset %d: %s", warns[0].Code, warns[0].FileName, warns[0].Span.Start, warns[0].Message)
+		}
 	}
 	hash := hashSources(module.SourceFiles)
 	return llvm.EmitWithOptions(module, llvm.Options{
@@ -46,6 +53,11 @@ func compileWithOptions(entryPath string, options BuildOptions) (string, error) 
 		SourceHash:      hash,
 		Debug:           options.Debug,
 	})
+}
+
+// GetWarnings returns any compiler warnings from the most recent lowering run.
+func GetWarnings() []lowering.Warning {
+	return lowering.GetWarnings()
 }
 
 func validateOptions(options BuildOptions) error {

@@ -278,6 +278,35 @@ func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ strin
 	return nil
 }
 
+type Warning struct {
+	FileName string
+	Span     typescriptgo.SourceSpan
+	Code     SubsetCode
+	Message  string
+}
+
+var (
+	warnings         []Warning
+	WarnRuntimeCasts bool
+)
+
+func ClearDiagnostics() {
+	warnings = nil
+}
+
+func GetWarnings() []Warning {
+	return append([]Warning(nil), warnings...)
+}
+
+func recordWarning(fileName string, span typescriptgo.SourceSpan, code SubsetCode, message string) {
+	warnings = append(warnings, Warning{
+		FileName: fileName,
+		Span:     span,
+		Code:     code,
+		Message:  message,
+	})
+}
+
 func validateExpression(fileName string, expression *typescriptgo.SyntaxExpression) error {
 	switch expression.Kind {
 	case "as":
@@ -285,6 +314,15 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return err
 		}
 		if expression.Left != nil {
+			if expression.Left.Kind == "as" && isUnknownType(expression.Left.Text) && !isUnknownType(expression.Text) {
+				innerVal := "value"
+				if expression.Left.Left != nil && expression.Left.Left.Text != "" {
+					innerVal = expression.Left.Left.Text
+				}
+				recordWarning(fileName, expression.Span, CodeUnsafeDoubleCast, fmt.Sprintf("unsafe escape-hatch double assertion (%s as unknown as %s)", innerVal, expression.Text))
+			} else if WarnRuntimeCasts && (isUnknownType(expression.Left.InferredType) || (expression.Left.Kind == "as" && isUnknownType(expression.Left.Text))) && !isUnknownType(expression.Text) {
+				recordWarning(fileName, expression.Span, CodeWarnCheckedCast, fmt.Sprintf("runtime checked cast to %s", expression.Text))
+			}
 			return validateExpression(fileName, expression.Left)
 		}
 		return nil
