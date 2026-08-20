@@ -104,6 +104,15 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Operator: prefixUnaryOperator(prefix.Operator),
 			Left:     syntaxExpression(prefix.Operand, chk),
 		}
+	case ast.KindPostfixUnaryExpression:
+		postfix := node.AsPostfixUnaryExpression()
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "postfix_unary",
+			Operator:     prefixUnaryOperator(postfix.Operator),
+			Left:         syntaxExpression(postfix.Operand, chk),
+			InferredType: "number",
+		}
 	case ast.KindConditionalExpression:
 		conditional := node.AsConditionalExpression()
 		return &SyntaxExpression{
@@ -346,6 +355,10 @@ func prefixUnaryOperator(kind ast.Kind) string {
 		return "+"
 	case ast.KindTildeToken:
 		return "~"
+	case ast.KindPlusPlusToken:
+		return "++"
+	case ast.KindMinusMinusToken:
+		return "--"
 	default:
 		return kind.String()
 	}

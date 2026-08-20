@@ -398,8 +398,13 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	case "typeof", "await":
 		return validateExpression(fileName, expression.Left)
 	case "unary":
-		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" {
+		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" && expression.Operator != "++" && expression.Operator != "--" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "unary operator "+expression.Operator)
+		}
+		return validateExpression(fileName, expression.Left)
+	case "postfix_unary":
+		if expression.Operator != "++" && expression.Operator != "--" {
+			return subsetError(fileName, expression.Span, CodeLanguageLowering, "postfix operator "+expression.Operator)
 		}
 		return validateExpression(fileName, expression.Left)
 	case "binary":
