@@ -258,5 +258,31 @@ func TestCheckResolvesNodePrefixedNamedImports(t *testing.T) {
 	}
 }
 
+func TestCheckExtractsUnionTypes(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const a: string | number = 'hello';\nconst b: number | null = null;\nconst c: string | undefined = undefined;\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics: %+v", result.Diagnostics)
+	}
+	file := result.Files[len(result.Files)-1]
+	if len(file.Syntax.Statements) != 3 {
+		t.Fatalf("expected 3 statements, got %d", len(file.Syntax.Statements))
+	}
+	if file.Syntax.Statements[0].Type != "string | number" {
+		t.Errorf("stmt[0].Type = %q, want %q", file.Syntax.Statements[0].Type, "string | number")
+	}
+	if file.Syntax.Statements[1].Type != "number | null" {
+		t.Errorf("stmt[1].Type = %q, want %q", file.Syntax.Statements[1].Type, "number | null")
+	}
+	if file.Syntax.Statements[2].Type != "string | undefined" {
+		t.Errorf("stmt[2].Type = %q, want %q", file.Syntax.Statements[2].Type, "string | undefined")
+	}
+}

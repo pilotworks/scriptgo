@@ -296,13 +296,27 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 }
 
 func toIRType(value string) ir.Type {
+	if strings.Contains(value, "|") {
+		parts := strings.Split(value, "|")
+		var nonNullish []string
+		for _, p := range parts {
+			trimmed := strings.TrimSpace(p)
+			if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
+				nonNullish = append(nonNullish, trimmed)
+			}
+		}
+		if len(nonNullish) == 0 {
+			return ir.TypeVoid
+		}
+		return toIRType(nonNullish[0])
+	}
 	if strings.HasPrefix(value, "object:") {
 		return ir.Type(value)
 	}
 	switch value {
 	case "number":
 		return ir.TypeNumber
-	case "string":
+	case "string", "null", "undefined":
 		return ir.TypeString
 	case "bool", "boolean":
 		return ir.TypeBool
@@ -312,7 +326,7 @@ func toIRType(value string) ir.Type {
 		return ir.TypeStringArray
 	case "closure", "function":
 		return ir.TypeClosure
-	case "void", "":
+	case "void", "any", "unknown", "":
 		return ir.TypeVoid
 	default:
 		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {

@@ -145,3 +145,39 @@ func TestLowerConsoleIntrinsics(t *testing.T) {
 		t.Fatalf("console intrinsic callees = %v, want %v", got, want)
 	}
 }
+
+func TestLowerRejectsUnresolvedUnion(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "function printVal(value: string | number) { console.log(value); }\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Lower(program)
+	if err == nil || !strings.Contains(err.Error(), "SG1002") || !strings.Contains(err.Error(), "union type") {
+		t.Fatalf("Lower error = %v, want SG1002 for unresolved union type", err)
+	}
+}
+
+func TestLowerAllowsNullableType(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const value: string | null = 'hello';\nconsole.log(value);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, want successful lowering for nullable string", err)
+	}
+	if err := module.Verify(); err != nil {
+		t.Fatalf("module.Verify() failed: %v", err)
+	}
+}
+

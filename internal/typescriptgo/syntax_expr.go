@@ -36,6 +36,9 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 	case ast.KindFalseKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "bool", Text: "false", InferredType: "bool"}
 	case ast.KindIdentifier, ast.KindPrivateIdentifier:
+		if node.Text() == "undefined" {
+			return &SyntaxExpression{Span: sourceSpan(node), Kind: "undefined", Text: "undefined", InferredType: "undefined"}
+		}
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: node.Text()}
 	case ast.KindThisKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}

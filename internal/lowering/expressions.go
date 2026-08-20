@@ -330,6 +330,29 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "identifier":
 		typ, ok := env[expression.Text]
 		if ok {
+			switch expression.InferredType {
+			case "number":
+				typ = ir.TypeNumber
+			case "string":
+				typ = ir.TypeString
+			case "bool", "boolean":
+				typ = ir.TypeBool
+			case "number[]":
+				typ = ir.TypeNumberArray
+			case "string[]":
+				typ = ir.TypeStringArray
+			default:
+				if expression.InferredType != "" {
+					if _, isShape := shapes[expression.InferredType]; isShape {
+						typ = ir.Type("object:" + expression.InferredType)
+					} else if strings.HasPrefix(expression.InferredType, "object:") {
+						shapeName := strings.TrimPrefix(expression.InferredType, "object:")
+						if _, isShape := shapes[shapeName]; isShape {
+							typ = ir.Type(expression.InferredType)
+						}
+					}
+				}
+			}
 			if result != "" && result != expression.Text {
 				if typ == ir.TypeNumber {
 					zeroConst := nextTemp(counter)
@@ -433,6 +456,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		var typeStr string
 		if expression.Left != nil && expression.Left.Kind == "null" {
 			typeStr = "object"
+		} else if expression.Left != nil && expression.Left.Kind == "undefined" {
+			typeStr = "undefined"
 		} else {
 			switch valType {
 			case ir.TypeNumber:

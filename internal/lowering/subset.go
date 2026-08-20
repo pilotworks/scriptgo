@@ -27,8 +27,10 @@ func ValidateSubset(program frontend.Program) error {
 }
 
 func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) error {
-	if err := validateStaticType(fileName, statement.Span, statement.Type); err != nil {
-		return err
+	if statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type) {
+		if err := validateStaticType(fileName, statement.Span, statement.Type); err != nil {
+			return err
+		}
 	}
 	switch statement.Kind {
 	case "break", "continue":
@@ -228,8 +230,36 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 	}
 }
 
+func isHeterogeneousUnion(typ string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(typ))
+	if !strings.Contains(normalized, "|") {
+		return false
+	}
+	parts := strings.Split(normalized, "|")
+	var nonNullish []string
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
+			nonNullish = append(nonNullish, trimmed)
+		}
+	}
+	if len(nonNullish) <= 1 {
+		return false
+	}
+	first := nonNullish[0]
+	for _, other := range nonNullish[1:] {
+		if other != first {
+			return true
+		}
+	}
+	return false
+}
+
 func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string) error {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
+	if isHeterogeneousUnion(normalized) {
+		return subsetError(fileName, span, CodeUnionNarrowing, fmt.Sprintf("unresolved union type %q", typ))
+	}
 	switch normalized {
 	case "any", "anykeyword", "kindanykeyword":
 		return subsetError(fileName, span, CodeAnyUnknownBoundary, "any type")
@@ -241,7 +271,12 @@ func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ strin
 
 func validateExpression(fileName string, expression *typescriptgo.SyntaxExpression) error {
 	switch expression.Kind {
-	case "number", "string", "bool", "identifier", "null", "undefined":
+	case "identifier":
+		if isHeterogeneousUnion(expression.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.InferredType))
+		}
+		return nil
+	case "number", "string", "bool", "null", "undefined":
 		return nil
 	case "arrow_function":
 		if expression.Function != nil {

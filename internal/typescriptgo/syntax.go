@@ -70,6 +70,24 @@ func normalizeInferredType(typeStr string) string {
 			elem := strings.TrimSuffix(strings.TrimPrefix(typeStr, "ReadonlyArray<"), ">")
 			return normalizeInferredType(elem) + "[]"
 		}
+		if strings.Contains(typeStr, "|") {
+			parts := strings.Split(typeStr, "|")
+			var nonNullish []string
+			for _, p := range parts {
+				pNorm := normalizeInferredType(p)
+				if pNorm != "undefined" && pNorm != "null" && pNorm != "void" {
+					nonNullish = append(nonNullish, pNorm)
+				}
+			}
+			if len(nonNullish) == 1 {
+				return nonNullish[0]
+			}
+			var normParts []string
+			for _, p := range parts {
+				normParts = append(normParts, normalizeInferredType(p))
+			}
+			return strings.Join(normParts, " | ")
+		}
 		if strings.HasSuffix(typeStr, "[]") {
 			elem := strings.TrimSuffix(typeStr, "[]")
 			return normalizeInferredType(elem) + "[]"
@@ -102,6 +120,43 @@ func syntaxType(node *ast.Node) string {
 		return "bool"
 	case ast.KindVoidKeyword:
 		return "void"
+	case ast.KindNullKeyword:
+		return "null"
+	case ast.KindUndefinedKeyword:
+		return "undefined"
+	case ast.KindAnyKeyword:
+		return "any"
+	case ast.KindUnknownKeyword:
+		return "unknown"
+	case ast.KindNeverKeyword:
+		return "never"
+	case ast.KindUnionType:
+		unionNode := node.AsUnionTypeNode()
+		if unionNode != nil && unionNode.Types != nil {
+			var types []string
+			for _, elem := range unionNode.Types.Nodes {
+				types = append(types, syntaxType(elem))
+			}
+			return strings.Join(types, " | ")
+		}
+		return "union"
+	case ast.KindLiteralType:
+		lit := node.AsLiteralTypeNode()
+		if lit != nil && lit.Literal != nil {
+			switch lit.Literal.Kind {
+			case ast.KindNullKeyword:
+				return "null"
+			case ast.KindTrueKeyword:
+				return "true"
+			case ast.KindFalseKeyword:
+				return "false"
+			case ast.KindStringLiteral, ast.KindNumericLiteral:
+				return lit.Literal.Text()
+			default:
+				return lit.Literal.Kind.String()
+			}
+		}
+		return "literal"
 	case ast.KindTypeReference:
 		typeRef := node.AsTypeReferenceNode()
 		if typeRef != nil && typeRef.TypeName != nil {
