@@ -9,12 +9,18 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+var execMu sync.Mutex
+
 // Execute interprets a verified module using the reference IR semantics.
 func Execute(module ir.Module) (Result, error) {
+	execMu.Lock()
+	defer execMu.Unlock()
+
 	if err := module.Verify(); err != nil {
 		return Result{}, err
 	}

@@ -2,12 +2,14 @@ package interpreter
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var (
+	symbolMu         sync.Mutex
 	symbolCounter    uint64 = 1000
 	symbolRegistry          = make(map[string]Value)
 	wellKnownSymbols        = make(map[string]Value)
@@ -23,6 +25,8 @@ func nextSymbol(desc string) Value {
 }
 
 func getOrCreateWellKnownSymbol(name string) Value {
+	symbolMu.Lock()
+	defer symbolMu.Unlock()
 	if s, ok := wellKnownSymbols[name]; ok {
 		return s
 	}
@@ -33,6 +37,9 @@ func getOrCreateWellKnownSymbol(name string) Value {
 }
 
 func executeSymbolIntrinsic(callee string, args []string, env map[string]Value) (Value, error) {
+	symbolMu.Lock()
+	defer symbolMu.Unlock()
+
 	switch callee {
 	case "__symbol.create":
 		desc := ""

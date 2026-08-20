@@ -4,16 +4,38 @@ package lowering
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-var topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+var (
+	lowerMu      sync.Mutex
+	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+)
+
+// Options specifies optional flags for the lowering phase.
+type Options struct {
+	WarnRuntimeCasts bool
+}
 
 // Lower lowers the currently supported synchronous TypeScript subset.
 func Lower(program frontend.Program) (ir.Module, error) {
+	return LowerWithOptions(program, Options{WarnRuntimeCasts: WarnRuntimeCasts})
+}
+
+// LowerWithOptions lowers the program using custom options.
+func LowerWithOptions(program frontend.Program, options Options) (ir.Module, error) {
+	lowerMu.Lock()
+	defer lowerMu.Unlock()
+
+	prevWarn := WarnRuntimeCasts
+	WarnRuntimeCasts = options.WarnRuntimeCasts || prevWarn
+	defer func() {
+		WarnRuntimeCasts = prevWarn
+	}()
 	extraFunctions = nil
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
@@ -23,7 +45,7 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	if err != nil {
 		return ir.Module{}, err
 	}
-	if err := ValidateSubset(program); err != nil {
+	if err := validateSubsetLocked(program); err != nil {
 		return ir.Module{}, err
 	}
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}

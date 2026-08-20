@@ -12,6 +12,12 @@ import (
 // ValidateSubset rejects checked syntax that the current native IR cannot
 // represent. Keeping this gate in lowering prevents backend-specific policy.
 func ValidateSubset(program frontend.Program) error {
+	lowerMu.Lock()
+	defer lowerMu.Unlock()
+	return validateSubsetLocked(program)
+}
+
+func validateSubsetLocked(program frontend.Program) error {
 	var err error
 	program, err = SpecializeGenerics(program)
 	if err != nil {
@@ -331,6 +337,8 @@ func ClearDiagnostics() {
 }
 
 func GetWarnings() []Warning {
+	lowerMu.Lock()
+	defer lowerMu.Unlock()
 	return append([]Warning(nil), warnings...)
 }
 

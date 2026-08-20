@@ -34,8 +34,7 @@ func compileWithOptions(entryPath string, options BuildOptions) (string, error) 
 	if err := validateOptions(options); err != nil {
 		return "", err
 	}
-	lowering.WarnRuntimeCasts = options.WarnRuntimeCasts
-	module, err := CompileModule(entryPath)
+	module, err := CompileModuleWithOptions(entryPath, options)
 	if err != nil {
 		return "", err
 	}
@@ -88,6 +87,11 @@ func hashSources(sources map[string]string) string {
 
 // CompileModule returns the verified typed IR for an entry point.
 func CompileModule(entryPath string) (ir.Module, error) {
+	return CompileModuleWithOptions(entryPath, BuildOptions{})
+}
+
+// CompileModuleWithOptions returns the verified typed IR for an entry point using custom build options.
+func CompileModuleWithOptions(entryPath string, options BuildOptions) (ir.Module, error) {
 	source, err := os.ReadFile(entryPath)
 	if err != nil {
 		return ir.Module{}, fmt.Errorf("read entry point %q: %w", entryPath, err)
@@ -98,7 +102,9 @@ func CompileModule(entryPath string) (ir.Module, error) {
 		return ir.Module{}, err
 	}
 
-	module, err := lowering.Lower(program)
+	module, err := lowering.LowerWithOptions(program, lowering.Options{
+		WarnRuntimeCasts: options.WarnRuntimeCasts,
+	})
 	if err != nil {
 		return ir.Module{}, fmt.Errorf("lower %q: %w", entryPath, err)
 	}
