@@ -193,9 +193,85 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 				Kind:         "set",
 			})
+		case ast.KindClassStaticBlockDeclaration:
+			staticBlock := member.AsClassStaticBlockDeclaration()
+			var body []SyntaxStatement
+			if staticBlock.Body != nil {
+				for _, s := range staticBlock.Body.Statements() {
+					if converted, ok := syntaxStatement(s, chk); ok {
+						converted = replaceThisWithClassStmt(converted, class.Name)
+						body = append(body, converted)
+					}
+				}
+			}
+			class.StaticBlocks = append(class.StaticBlocks, body)
 		default:
 			class.Fields = append(class.Fields, SyntaxField{Span: sourceSpan(member), Name: member.Kind.String()})
 		}
 	}
 	return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
+}
+
+func replaceThisWithClassStmt(stmt SyntaxStatement, className string) SyntaxStatement {
+	if stmt.Left != nil {
+		stmt.Left = replaceThisWithClassExpr(stmt.Left, className)
+	}
+	if stmt.Right != nil {
+		stmt.Right = replaceThisWithClassExpr(stmt.Right, className)
+	}
+	if stmt.Expression != nil {
+		stmt.Expression = replaceThisWithClassExpr(stmt.Expression, className)
+	}
+	for i := range stmt.Body {
+		stmt.Body[i] = replaceThisWithClassStmt(stmt.Body[i], className)
+	}
+	for i := range stmt.Then {
+		stmt.Then[i] = replaceThisWithClassStmt(stmt.Then[i], className)
+	}
+	for i := range stmt.Else {
+		stmt.Else[i] = replaceThisWithClassStmt(stmt.Else[i], className)
+	}
+	for i := range stmt.Catch {
+		stmt.Catch[i] = replaceThisWithClassStmt(stmt.Catch[i], className)
+	}
+	for i := range stmt.Finally {
+		stmt.Finally[i] = replaceThisWithClassStmt(stmt.Finally[i], className)
+	}
+	for i := range stmt.Step {
+		stmt.Step[i] = replaceThisWithClassStmt(stmt.Step[i], className)
+	}
+	for i := range stmt.Cases {
+		if stmt.Cases[i].Expression != nil {
+			stmt.Cases[i].Expression = replaceThisWithClassExpr(stmt.Cases[i].Expression, className)
+		}
+		for j := range stmt.Cases[i].Statements {
+			stmt.Cases[i].Statements[j] = replaceThisWithClassStmt(stmt.Cases[i].Statements[j], className)
+		}
+	}
+	return stmt
+}
+
+func replaceThisWithClassExpr(expr *SyntaxExpression, className string) *SyntaxExpression {
+	if expr == nil {
+		return nil
+	}
+	if expr.Kind == "identifier" && expr.Text == "this" {
+		expr.Text = className
+	}
+	if expr.Left != nil {
+		expr.Left = replaceThisWithClassExpr(expr.Left, className)
+	}
+	if expr.Right != nil {
+		expr.Right = replaceThisWithClassExpr(expr.Right, className)
+	}
+	if expr.WhenTrue != nil {
+		expr.WhenTrue = replaceThisWithClassExpr(expr.WhenTrue, className)
+	}
+	if expr.WhenFalse != nil {
+		expr.WhenFalse = replaceThisWithClassExpr(expr.WhenFalse, className)
+	}
+	for i := range expr.Arguments {
+		expr.Arguments[i] = replaceThisWithClassExpr(expr.Arguments[i], className)
+	}
+	return expr
 }

@@ -207,6 +207,11 @@ func normalizeStmtArrayTypes(stmt typescriptgo.SyntaxStatement) typescriptgo.Syn
 				stmt.Class.Methods[i].Body[j] = normalizeStmtArrayTypes(stmt.Class.Methods[i].Body[j])
 			}
 		}
+		for i := range stmt.Class.StaticBlocks {
+			for j := range stmt.Class.StaticBlocks[i] {
+				stmt.Class.StaticBlocks[i][j] = normalizeStmtArrayTypes(stmt.Class.StaticBlocks[i][j])
+			}
+		}
 	}
 	return stmt
 }

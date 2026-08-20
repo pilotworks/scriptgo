@@ -46,17 +46,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
 				staticVar := expression.Left.Text + "_" + expression.Text
 				if varType, exists := env[staticVar]; exists {
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpAssign,
-						Type:   varType,
-						Result: result,
-						Args:   []string{staticVar},
-						Span:   toIRSpan(path, expression.Span),
-					})
-					return result, varType, nil
+					return staticVar, varType, nil
 				}
 				if staticField.Initializer != nil && (staticField.Initializer.Kind == "number" || staticField.Initializer.Kind == "string" || staticField.Initializer.Kind == "bool") {
 					typ := toIRType(staticField.Type)

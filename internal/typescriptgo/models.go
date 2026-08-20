@@ -107,6 +107,7 @@ type SyntaxClass struct {
 	Fields         []SyntaxField
 	Constructor    *SyntaxConstructor
 	Methods        []SyntaxMethod
+	StaticBlocks   [][]SyntaxStatement
 }
 
 type SyntaxConstructor struct {

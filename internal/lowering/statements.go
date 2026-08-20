@@ -248,6 +248,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				// Static field assignment
 				if _, isStatic := meta.Statics[statement.Name]; isStatic {
 					staticVar := className + "_" + statement.Name
+					if _, exists := env[staticVar]; !exists {
+						_, valType, err := lowerExpression(path, statement.Expression, staticVar, function, env, counter, shapes, signatures)
+						if err != nil {
+							return err
+						}
+						env[staticVar] = valType
+						return nil
+					}
 					val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 					if err != nil {
 						return err

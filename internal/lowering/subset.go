@@ -101,7 +101,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		if statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic class %q", statement.Class.Name))
 		}
-		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0) {
+		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0 && len(statement.Class.StaticBlocks) == 0) {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "empty class shape")
 		}
 		if statement.Class.Constructor != nil {
@@ -137,6 +137,13 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 			if field.Initializer != nil {
 				if err := validateExpression(fileName, field.Initializer); err != nil {
+					return err
+				}
+			}
+		}
+		for _, block := range statement.Class.StaticBlocks {
+			for _, stmt := range block {
+				if err := validateStatement(fileName, stmt); err != nil {
 					return err
 				}
 			}

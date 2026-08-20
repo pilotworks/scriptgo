@@ -152,6 +152,24 @@ func Lower(program frontend.Program) (ir.Module, error) {
 					}
 					module.Functions = append(module.Functions, function)
 				}
+
+				// Lower static field initializers and static blocks in class definition order
+				for _, f := range statement.Class.Fields {
+					if f.IsStatic && f.Initializer != nil {
+						staticVar := statement.Class.Name + "_" + f.Name
+						_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
+						if err == nil {
+							env[staticVar] = valType
+						}
+					}
+				}
+				for _, block := range statement.Class.StaticBlocks {
+					for _, stmt := range block {
+						if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
+							return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+						}
+					}
+				}
 				continue
 			}
 			if err := lowerStatement(file.FileName, statement, &main, env, &counter, shapes, signatures); err != nil {
