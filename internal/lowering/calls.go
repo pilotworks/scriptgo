@@ -361,19 +361,30 @@ func lowerCallExpression(
 	if callee == "" {
 		return "", "", fmt.Errorf("unsupported call target")
 	}
-	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range expression.Arguments {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args = append(args, value)
-	}
 	target, ok := signatures[callee]
 	if !ok {
 		return "", "", fmt.Errorf("unknown function %q", callee)
 	}
 	callee = target.Name
+	args := make([]string, 0, len(expression.Arguments))
+	for i, argument := range expression.Arguments {
+		value, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+			boxed := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpBoxUnknown,
+				Type:   ir.TypeUnknown,
+				Result: boxed,
+				Args:   []string{value},
+				Span:   toIRSpan(path, argument.Span),
+			})
+			value = boxed
+		}
+		args = append(args, value)
+	}
 	if len(args) < len(target.Parameters) {
 		defaults := defaultParamsIndex[callee]
 		if defaults != nil {

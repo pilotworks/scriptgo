@@ -44,8 +44,30 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
 	case ast.KindSuperKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
-	case ast.KindParenthesizedExpression, ast.KindNonNullExpression, ast.KindAsExpression, ast.KindTypeAssertionExpression:
+	case ast.KindParenthesizedExpression, ast.KindNonNullExpression:
 		return syntaxExpression(node.Expression(), chk)
+	case ast.KindAsExpression:
+		asExpr := node.AsAsExpression()
+		targetType := syntaxType(asExpr.Type)
+		inner := syntaxExpression(asExpr.Expression, chk)
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "as",
+			Left:         inner,
+			Text:         targetType,
+			InferredType: targetType,
+		}
+	case ast.KindTypeAssertionExpression:
+		taExpr := node.AsTypeAssertion()
+		targetType := syntaxType(taExpr.Type)
+		inner := syntaxExpression(taExpr.Expression, chk)
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "as",
+			Left:         inner,
+			Text:         targetType,
+			InferredType: targetType,
+		}
 	case ast.KindBinaryExpression:
 		binary := node.AsBinaryExpression()
 		return &SyntaxExpression{

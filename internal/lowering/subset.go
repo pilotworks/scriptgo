@@ -129,6 +129,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		for _, field := range statement.Class.Fields {
+			if isUnknownType(field.Type) {
+				return subsetError(fileName, field.Span, CodeUnknownBoundary, "class field of unknown type")
+			}
 			if err := validateStaticType(fileName, field.Span, field.Type); err != nil {
 				return err
 			}
@@ -255,22 +258,36 @@ func isHeterogeneousUnion(typ string) bool {
 	return false
 }
 
+func isUnknownType(typ string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(typ))
+	return normalized == "unknown" || normalized == "unknownkeyword" || normalized == "kindunknownkeyword"
+}
+
 func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string) error {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
 	if isHeterogeneousUnion(normalized) {
 		return subsetError(fileName, span, CodeUnionNarrowing, fmt.Sprintf("unresolved union type %q", typ))
 	}
+	if strings.HasSuffix(normalized, "[]") && isUnknownType(strings.TrimSuffix(normalized, "[]")) {
+		return subsetError(fileName, span, CodeUnknownBoundary, "unknown array type")
+	}
 	switch normalized {
 	case "any", "anykeyword", "kindanykeyword":
 		return subsetError(fileName, span, CodeAnyBoundary, "any type")
-	case "unknown", "unknownkeyword", "kindunknownkeyword":
-		return subsetError(fileName, span, CodeUnknownBoundary, "unknown type")
 	}
 	return nil
 }
 
 func validateExpression(fileName string, expression *typescriptgo.SyntaxExpression) error {
 	switch expression.Kind {
+	case "as":
+		if err := validateStaticType(fileName, expression.Span, expression.Text); err != nil {
+			return err
+		}
+		if expression.Left != nil {
+			return validateExpression(fileName, expression.Left)
+		}
+		return nil
 	case "identifier":
 		if isHeterogeneousUnion(expression.InferredType) {
 			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.InferredType))

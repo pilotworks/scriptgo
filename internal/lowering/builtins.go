@@ -203,7 +203,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	// Node-specific globals (Category 3: NodeGlobal)
 	for _, logMethod := range []string{"log", "info", "warn", "error"} {
 		name := "console." + logMethod
-		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool}, MinArgs: 1, MaxArgs: 1, Lower: lowerPrint}
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeBool, ir.TypeUnknown}, MinArgs: 1, MaxArgs: 1, Lower: lowerPrint}
 	}
 	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)

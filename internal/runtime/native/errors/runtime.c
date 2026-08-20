@@ -22,6 +22,66 @@ void scriptgo_runtime_abort_if_failed(int status) {
     }
 }
 
+typedef enum {
+    SCRIPTGO_TAG_UNDEFINED = 0,
+    SCRIPTGO_TAG_NULL      = 1,
+    SCRIPTGO_TAG_BOOLEAN   = 2,
+    SCRIPTGO_TAG_NUMBER    = 3,
+    SCRIPTGO_TAG_STRING    = 4,
+    SCRIPTGO_TAG_OBJECT    = 5,
+    SCRIPTGO_TAG_ARRAY     = 6,
+    SCRIPTGO_TAG_FUNCTION  = 7
+} ScriptGoTypeTag;
+
+typedef struct {
+    unsigned int tag;
+    unsigned int flags;
+    unsigned long long payload;
+} ScriptGoUnknown;
+
+static const char *scriptgo_tag_name(unsigned int tag) {
+    switch (tag) {
+    case SCRIPTGO_TAG_UNDEFINED: return "undefined";
+    case SCRIPTGO_TAG_NULL:      return "null";
+    case SCRIPTGO_TAG_BOOLEAN:   return "boolean";
+    case SCRIPTGO_TAG_NUMBER:    return "number";
+    case SCRIPTGO_TAG_STRING:    return "string";
+    case SCRIPTGO_TAG_OBJECT:    return "object";
+    case SCRIPTGO_TAG_ARRAY:     return "array";
+    case SCRIPTGO_TAG_FUNCTION:  return "function";
+    default:                     return "unknown";
+    }
+}
+
+void scriptgo_throw_string(const char *str);
+
+void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected_tag, const char *span) {
+    char msg[256];
+    if (span != NULL && strlen(span) > 0) {
+        snprintf(msg, sizeof(msg), "TypeError: SG4002: cannot cast %s to %s at %s",
+                 scriptgo_tag_name(actual_tag),
+                 scriptgo_tag_name(expected_tag),
+                 span);
+    } else {
+        snprintf(msg, sizeof(msg), "TypeError: SG4002: cannot cast %s to %s",
+                 scriptgo_tag_name(actual_tag),
+                 scriptgo_tag_name(expected_tag));
+    }
+    scriptgo_throw_string(msg);
+}
+
+const char *__scriptgo_typeof_unknown(unsigned int tag) {
+    switch (tag) {
+    case SCRIPTGO_TAG_UNDEFINED: return "undefined";
+    case SCRIPTGO_TAG_NULL:      return "object";
+    case SCRIPTGO_TAG_BOOLEAN:   return "boolean";
+    case SCRIPTGO_TAG_NUMBER:    return "number";
+    case SCRIPTGO_TAG_STRING:    return "string";
+    case SCRIPTGO_TAG_FUNCTION:  return "function";
+    default:                     return "object";
+    }
+}
+
 typedef struct scriptgo_exception_frame {
     jmp_buf buf;
     const char *thrown_string;

@@ -14,9 +14,10 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 		return "", false
 	}
 	suffix := map[ir.Type]string{
-		ir.TypeNumber: "number",
-		ir.TypeString: "string",
-		ir.TypeBool:   "bool",
+		ir.TypeNumber:  "number",
+		ir.TypeString:  "string",
+		ir.TypeBool:    "bool",
+		ir.TypeUnknown: "unknown",
 	}[typ]
 	if suffix == "" {
 		return "", false
@@ -40,6 +41,8 @@ func llvmType(typ ir.Type) string {
 		return "void"
 	case ir.TypeObject:
 		return "ptr"
+	case ir.TypeUnknown:
+		return "{ i32, i32, i64 }"
 	default:
 		if strings.HasPrefix(string(typ), string(ir.TypeObject)+":") {
 			return "ptr"

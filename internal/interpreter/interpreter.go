@@ -280,6 +280,61 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("unknown field %q", instruction.Field)
 			}
 			env[instruction.Result] = value
+		case ir.OpBoxUnknown:
+			val, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			if val.Type == ir.TypeUnknown {
+				env[instruction.Result] = val
+			} else {
+				env[instruction.Result] = Value{
+					Type:  ir.TypeUnknown,
+					Boxed: &val,
+				}
+			}
+		case ir.OpCheckedCast:
+			val, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			if val.Type == ir.TypeUnknown {
+				if val.Boxed == nil {
+					return Value{}, false, flowNormal, fmt.Errorf("TypeError: SG4002: cannot cast uninitialized unknown to %s", instruction.Type)
+				}
+				inner := *val.Boxed
+				if inner.Type != instruction.Type && !(strings.HasPrefix(string(inner.Type), "object:") && strings.HasPrefix(string(instruction.Type), "object:")) {
+					return Value{}, false, flowNormal, fmt.Errorf("TypeError: SG4002: cannot cast %s to %s", inner.Type, instruction.Type)
+				}
+				env[instruction.Result] = inner
+			} else {
+				env[instruction.Result] = val
+			}
+		case ir.OpTypeOf:
+			val, err := lookup(env, instruction.Args, 0)
+			if err != nil {
+				return Value{}, false, flowNormal, err
+			}
+			typeStr := "object"
+			actualType := val.Type
+			if val.Type == ir.TypeUnknown && val.Boxed != nil {
+				actualType = val.Boxed.Type
+			}
+			switch actualType {
+			case ir.TypeNumber:
+				typeStr = "number"
+			case ir.TypeString:
+				typeStr = "string"
+			case ir.TypeBool:
+				typeStr = "boolean"
+			case ir.TypeVoid:
+				typeStr = "undefined"
+			case ir.TypeClosure:
+				typeStr = "function"
+			default:
+				typeStr = "object"
+			}
+			env[instruction.Result] = Value{Type: ir.TypeString, String: typeStr}
 		case ir.OpPrint:
 			value, err := lookup(env, instruction.Args, 0)
 			if err != nil {

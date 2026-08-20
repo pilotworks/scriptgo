@@ -21,6 +21,7 @@ type Value struct {
 	Array   []Value
 	Object  map[string]Value
 	Closure *Closure
+	Boxed   *Value
 }
 
 type Result struct {
@@ -165,6 +166,11 @@ func format(value Value) string {
 		return value.String
 	case ir.TypeBool:
 		return strconv.FormatBool(value.Bool)
+	case ir.TypeUnknown:
+		if value.Boxed != nil {
+			return format(*value.Boxed)
+		}
+		return "undefined"
 	default:
 		return ""
 	}

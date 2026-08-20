@@ -71,6 +71,25 @@ func (f Function) Verify() error {
 				return fmt.Errorf("closure instruction must define result and closure type")
 			}
 			known[instruction.Result] = TypeClosure
+		case OpBoxUnknown:
+			if instruction.Result == "" || instruction.Type != TypeUnknown || len(instruction.Args) != 1 {
+				return fmt.Errorf("box.unknown instruction must define result, unknown type, and one arg")
+			}
+			known[instruction.Result] = TypeUnknown
+		case OpCheckedCast:
+			if instruction.Result == "" || instruction.Type == "" || len(instruction.Args) != 1 {
+				return fmt.Errorf("checked_cast instruction must define result, target type, and one arg")
+			}
+			srcType, ok := known[instruction.Args[0]]
+			if !ok || (srcType != TypeUnknown && !strings.Contains(string(srcType), "|")) {
+				return fmt.Errorf("checked_cast source must be unknown or union type, got %v", srcType)
+			}
+			known[instruction.Result] = instruction.Type
+		case OpTypeOf:
+			if instruction.Result == "" || instruction.Type != TypeString || len(instruction.Args) != 1 {
+				return fmt.Errorf("typeof instruction must define result, string type, and one arg")
+			}
+			known[instruction.Result] = TypeString
 		case OpConst, OpBinary, OpCompare, OpSelect, OpParam, OpArray, OpIndex, OpObjectNew, OpFieldGet, OpInstanceOf:
 			if instruction.Result == "" || instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)

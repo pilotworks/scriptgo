@@ -144,6 +144,18 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return e.emitTry(out, inst)
 	case ir.OpInstanceOf:
 		return e.emitInstanceOf(out, inst)
+	case ir.OpBoxUnknown:
+		if err := e.emitBoxUnknown(out, inst); err != nil {
+			return err
+		}
+	case ir.OpCheckedCast:
+		if err := e.emitCheckedCast(out, inst); err != nil {
+			return err
+		}
+	case ir.OpTypeOf:
+		if err := e.emitTypeOf(out, inst); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
 	}
@@ -972,5 +984,128 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 	default:
 		return fmt.Errorf("unknown async intrinsic %q", instruction.Callee)
 	}
+}
+
+func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.Instruction) error {
+	e.types[instruction.Result] = ir.TypeUnknown
+	arg := instruction.Args[0]
+	argType := e.types[arg]
+	id := e.loadCounter
+	e.loadCounter++
+
+	var tag int
+	var payloadVal string
+
+	switch argType {
+	case ir.TypeNumber:
+		tag = 3 // SCRIPTGO_TAG_NUMBER
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", payloadVal, arg))
+	case ir.TypeBool:
+		tag = 2 // SCRIPTGO_TAG_BOOLEAN
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i64\n", payloadVal, arg))
+	case ir.TypeString:
+		tag = 4 // SCRIPTGO_TAG_STRING
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+	case ir.TypeVoid:
+		tag = 0 // SCRIPTGO_TAG_UNDEFINED
+		payloadVal = "0"
+	case ir.TypeUnknown:
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", instruction.Result, arg))
+		return nil
+	default:
+		if strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray {
+			tag = 6 // SCRIPTGO_TAG_ARRAY
+		} else if argType == ir.TypeClosure {
+			tag = 7 // SCRIPTGO_TAG_FUNCTION
+		} else {
+			tag = 5 // SCRIPTGO_TAG_OBJECT
+		}
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+	}
+
+	b0 := fmt.Sprintf("box.b0.%d", id)
+	b1 := fmt.Sprintf("box.b1.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 %d, 0\n", b0, tag))
+	out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", b1, b0))
+	if payloadVal == "0" {
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 0, 2\n", instruction.Result, b1))
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, b1, payloadVal))
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.Instruction) error {
+	e.types[instruction.Result] = instruction.Type
+	arg := instruction.Args[0]
+	id := e.labelCounter
+	e.labelCounter++
+
+	var expectedTag int
+	switch instruction.Type {
+	case ir.TypeNumber:
+		expectedTag = 3
+	case ir.TypeBool:
+		expectedTag = 2
+	case ir.TypeString:
+		expectedTag = 4
+	case ir.TypeVoid:
+		expectedTag = 0
+	case ir.TypeClosure:
+		expectedTag = 7
+	case ir.TypeNumberArray, ir.TypeStringArray:
+		expectedTag = 6
+	default:
+		if strings.HasSuffix(string(instruction.Type), "[]") {
+			expectedTag = 6
+		} else {
+			expectedTag = 5
+		}
+	}
+
+	tagVar := fmt.Sprintf("cast.tag.%d", id)
+	cmpVar := fmt.Sprintf("cast.cmp.%d", id)
+	castOk := fmt.Sprintf("cast_ok.%d", id)
+	castFail := fmt.Sprintf("cast_fail.%d", id)
+
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %d\n", cmpVar, tagVar, expectedTag))
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", cmpVar, castOk, castFail))
+
+	out.WriteString(fmt.Sprintf("\n%s:\n", castFail))
+	out.WriteString(fmt.Sprintf("  call void @__scriptgo_fail_checked_cast(i32 %%%s, i32 %d, ptr null)\n", tagVar, expectedTag))
+	out.WriteString("  unreachable\n")
+
+	out.WriteString(fmt.Sprintf("\n%s:\n", castOk))
+	rawPayload := fmt.Sprintf("cast.raw.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", rawPayload, arg))
+
+	switch instruction.Type {
+	case ir.TypeNumber:
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", instruction.Result, rawPayload))
+	case ir.TypeBool:
+		out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", instruction.Result, rawPayload))
+	case ir.TypeString:
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, rawPayload))
+	default:
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, rawPayload))
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instruction) error {
+	e.types[instruction.Result] = ir.TypeString
+	arg := instruction.Args[0]
+	id := e.loadCounter
+	e.loadCounter++
+
+	tagVar := fmt.Sprintf("typeof.tag.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg))
+	out.WriteString(fmt.Sprintf("  %%%s = call ptr @__scriptgo_typeof_unknown(i32 %%%s)\n", instruction.Result, tagVar))
+	return nil
 }
 

@@ -54,6 +54,7 @@ const (
 	TypeStringArray Type = "string[]"
 	TypeObject      Type = "object"
 	TypeClosure     Type = "closure"
+	TypeUnknown     Type = "unknown"
 )
 
 type Instruction struct {
@@ -104,4 +105,7 @@ const (
 	OpClosure     = "closure"
 	OpClosureCall = "closure.call"
 	OpInstanceOf  = "instanceof"
+	OpBoxUnknown  = "box.unknown"
+	OpCheckedCast = "checked_cast"
+	OpTypeOf      = "typeof"
 )

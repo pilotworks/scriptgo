@@ -83,8 +83,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_string(ptr)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bool(i32)\n", method))
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_unknown({ i32, i32, i64 })\n", method))
 	}
-	out.WriteString("\n")
+	out.WriteString("declare void @__scriptgo_fail_checked_cast(i32, i32, ptr)\n")
+	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")
 	out.WriteString("declare double @llvm.ceil.f64(double)\n")
 	out.WriteString("declare double @llvm.floor.f64(double)\n")

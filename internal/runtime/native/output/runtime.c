@@ -26,10 +26,29 @@ static int scriptgo_console_bool(FILE *stream, int value) {
     return 0;
 }
 
+static int scriptgo_console_unknown(FILE *stream, ScriptGoUnknown value) {
+    if (value.tag == SCRIPTGO_TAG_UNDEFINED) {
+        return scriptgo_console_string(stream, "undefined");
+    } else if (value.tag == SCRIPTGO_TAG_NULL) {
+        return scriptgo_console_string(stream, "null");
+    } else if (value.tag == SCRIPTGO_TAG_BOOLEAN) {
+        return scriptgo_console_bool(stream, (int)value.payload);
+    } else if (value.tag == SCRIPTGO_TAG_NUMBER) {
+        union { unsigned long long raw; double num; } u;
+        u.raw = value.payload;
+        return scriptgo_console_number(stream, u.num);
+    } else if (value.tag == SCRIPTGO_TAG_STRING) {
+        return scriptgo_console_string(stream, (const char *)value.payload);
+    } else {
+        return scriptgo_console_string(stream, "[object Object]");
+    }
+}
+
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \
     int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
-    int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); }
+    int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
+    int scriptgo_console_##name##_unknown(ScriptGoUnknown value) { return scriptgo_console_unknown(stream, value); }
 
 SCRIPTGO_CONSOLE_METHOD(log, stdout)
 SCRIPTGO_CONSOLE_METHOD(info, stdout)

@@ -444,14 +444,71 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeNumber, nil
 		}
 		return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
+	case "as":
+		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		targetIRType := toIRType(expression.Text)
+		if valType == targetIRType {
+			if result == "" {
+				return val, valType, nil
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: valType, Result: result, Args: []string{val}, Span: toIRSpan(path, expression.Span)})
+			return result, valType, nil
+		}
+		if valType == ir.TypeUnknown || strings.Contains(string(valType), "|") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   targetIRType,
+				Result: result,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetIRType, nil
+		}
+		if targetIRType == ir.TypeUnknown {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpBoxUnknown,
+				Type:   ir.TypeUnknown,
+				Result: result,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeUnknown, nil
+		}
+		if result == "" {
+			return val, targetIRType, nil
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: targetIRType, Result: result, Args: []string{val}, Span: toIRSpan(path, expression.Span)})
+		return result, targetIRType, nil
 	case "typeof":
-		_, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			if expression.Left != nil && expression.Left.Kind == "identifier" && expression.Left.Text == "undefined" {
 				valType = ir.TypeVoid
 			} else {
 				return "", "", err
 			}
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if valType == ir.TypeUnknown {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpTypeOf,
+				Type:   ir.TypeString,
+				Result: result,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeString, nil
 		}
 		var typeStr string
 		if expression.Left != nil && expression.Left.Kind == "null" {
@@ -472,15 +529,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				typeStr = "object"
 			}
 		}
-		if result == "" {
-			result = nextTemp(counter)
-		}
 		function.Body = append(function.Body, ir.Instruction{
-			Op:    ir.OpConst,
-			Type:  ir.TypeString,
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
 			Result: result,
-			Value: typeStr,
-			Span:  toIRSpan(path, expression.Span),
+			Value:  typeStr,
+			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeString, nil
 	case "binary":
