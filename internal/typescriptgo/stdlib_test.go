@@ -17,7 +17,7 @@ func TestEmbeddedStdlibLoaded(t *testing.T) {
 		t.Fatal("expected embedded builtin modules, got 0")
 	}
 
-	expectedModules := []string{"crypto", "fs", "path", "process"}
+	expectedModules := []string{"console", "crypto", "fs", "os", "path", "process"}
 	for _, modName := range expectedModules {
 		mod, ok := builtinModule(modName)
 		if !ok {
@@ -64,7 +64,7 @@ func TestSeedVersionDeclarationsOnlyContainsDts(t *testing.T) {
 	}
 
 	// Verify required .d.ts files exist
-	expectedDts := []string{"globals.d.ts", "path.d.ts", "fs.d.ts", "crypto.d.ts", "process.d.ts"}
+	expectedDts := []string{"globals.d.ts", "console.d.ts", "path.d.ts", "fs.d.ts", "os.d.ts", "crypto.d.ts", "process.d.ts"}
 	for _, expected := range expectedDts {
 		filePath := filepath.Join(versionDir, expected)
 		if _, err := os.Stat(filePath); err != nil {

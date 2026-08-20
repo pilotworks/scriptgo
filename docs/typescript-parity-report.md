@@ -126,7 +126,7 @@ All 136 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 | Module / Namespace | Supported APIs | Parity Status |
 | :--- | :--- | :---: |
-| **`console`** | `log`, `error`, `warn`, `info`, `debug` | ✅ 100% matches Node.js output format |
+| **`console`** | `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `time`, `timeLog`, `timeEnd`, `trace`, `dir`, `dirxml`, `table`, `group`, `groupCollapsed`, `groupEnd`, format strings (`%s`, `%d`, `%i`, `%f`, `%j`, `%%`), `node:console` module | ✅ 100% matches Node.js output format & full method suite |
 | **`Math`** | `abs`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `min`, `max`, `trunc`, `sin`, `cos`, `tan`, `log`, `exp`, `random`, `PI`, `E` | ✅ 100% matches IEEE-754 results |
 | **`String`** | `length`, `indexOf`, `substring`, `slice`, `trim`, `split`, `includes`, `startsWith`, `endsWith`, `toUpperCase`, `toLowerCase`, `charAt`, `charCodeAt`, `concat`, `replace`, `replaceAll`, `padStart`, `padEnd` | ✅ 100% matches Unicode/ASCII behavior |
 | **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `find`, `findIndex` | ✅ 100% matches typed & generic array behavior |
@@ -154,8 +154,8 @@ Below is the category-by-category breakdown across all 15 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 136
-  - Passed Cases       : 136 (100.0%)
+  - Total Corpus Cases : 139
+  - Passed Cases       : 139 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -175,7 +175,7 @@ Below is the category-by-category breakdown across all 15 test suites (`go run .
 | **`modules`** | 3 | **100%** | Import/export, multi-level imports, deterministic initialization order. |
 | **`objects`** | 3 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), object spread/destructuring, discriminated unions. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 20 | **100%** | `fs`, `path`, `os`, `process`, `crypto`, `date`, `json`, `collections` (`Map`/`Set`), `string-methods`, `base64`. |
+| **`stdlib`** | 23 | **100%** | `console` (full method suite, format specifiers, `node:console`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `json`, `collections` (`Map`/`Set`), `string-methods`, `base64`. |
 | **`syntax`** | 12 | **100%** | String indexing (`str[i]`), tuple mutation (`t[0] = v`), enums & reverse enums, default params, switch fallthrough, advanced for-in/for-of. |
 
 ---

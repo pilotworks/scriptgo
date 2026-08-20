@@ -79,14 +79,23 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
 	}
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n\n")
-	for _, method := range []string{"log", "info", "warn", "error"} {
+	for _, method := range []string{"log", "info", "debug", "warn", "error"} {
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bigint(i64)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_symbol(ptr)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_string(ptr)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bool(i32)\n", method))
-		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_unknown({ i32, i32, i64 })\n", method))
+		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_unknown(i32, i32, i64)\n", method))
 	}
+	out.WriteString("declare i32 @scriptgo_console_clear()\n")
+	out.WriteString("declare i32 @scriptgo_console_group()\n")
+	out.WriteString("declare i32 @scriptgo_console_group_end()\n")
+	out.WriteString("declare i32 @scriptgo_console_count(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_count_reset(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_time(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_time_log(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_time_end(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_trace(ptr)\n\n")
 	out.WriteString("declare void @__scriptgo_fail_checked_cast(i32, i32, ptr)\n")
 	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")

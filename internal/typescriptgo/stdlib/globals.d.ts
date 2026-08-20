@@ -16,9 +16,31 @@ interface Console {
     info(...args: any[]): void;
     warn(...args: any[]): void;
     error(...args: any[]): void;
+    debug(...args: any[]): void;
+    assert(condition?: boolean, ...data: any[]): void;
+    clear(): void;
+    count(label?: string): void;
+    countReset(label?: string): void;
+    time(label?: string): void;
+    timeLog(label?: string, ...data: any[]): void;
+    timeEnd(label?: string): void;
+    trace(...data: any[]): void;
+    dir(item?: any, options?: any): void;
+    dirxml(...data: any[]): void;
+    table(tabularData?: any, properties?: string[]): void;
+    group(...data: any[]): void;
+    groupCollapsed(...data: any[]): void;
+    groupEnd(): void;
 }
 
 declare var console: Console;
+
+interface ConsoleConstructor {
+    prototype: Console;
+    new(): Console;
+}
+
+declare var Console: ConsoleConstructor;
 
 interface Performance {
     now(): number;

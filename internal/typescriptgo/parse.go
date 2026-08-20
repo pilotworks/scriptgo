@@ -71,7 +71,7 @@ func Check(entryPath string) (ProgramResult, error) {
 
 	var nodeTypesDts strings.Builder
 	for name := range builtinModules {
-		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n}\n", name, name))
+		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
 	}
 	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
 	virtualFiles[nodeTypesPath] = nodeTypesDts.String()

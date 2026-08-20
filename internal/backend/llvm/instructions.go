@@ -644,6 +644,19 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		name, _ := consoleRuntimeName(method, valueType)
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s)\n", status, name, instruction.Args[0]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	case ir.TypeUnknown:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
+		flagsVar := fmt.Sprintf("flags.%d", e.loadCounter)
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		e.loadCounter++
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", flagsVar, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, instruction.Args[0]))
+		name, _ := consoleRuntimeName(method, valueType)
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i32 %%%s, i32 %%%s, i64 %%%s)\n", status, name, tagVar, flagsVar, payloadVar))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
 		return fmt.Errorf("unsupported print type %s", valueType)
 	}
@@ -651,6 +664,15 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 }
 
 func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruction) error {
+	if strings.HasPrefix(instruction.Callee, "__console.") {
+		if err := e.emitConsoleIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__Math.") {
 		if err := emitMathIntrinsic(out, instruction); err != nil {
 			return err

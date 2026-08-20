@@ -136,6 +136,20 @@ func main() {
 				}
 				continue
 			}
+
+			// 6. Export default assignment (e.g. export default console;)
+			if stmt.Kind == ast.KindExportAssignment {
+				exp := stmt.AsExportAssignment().Expression
+				if exp != nil {
+					expText := strings.TrimSpace(source[exp.Pos():exp.End()])
+					typeName := expText
+					if expText == "console" {
+						typeName = "Console"
+					}
+					lines = append(lines, fmt.Sprintf("declare const _default: %s;\nexport default _default;", typeName))
+				}
+				continue
+			}
 		}
 
 		dtsContent := strings.Join(lines, "\n") + "\n"

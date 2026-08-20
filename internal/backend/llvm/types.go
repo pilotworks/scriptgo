@@ -10,7 +10,10 @@ import (
 )
 
 func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
-	if method != "log" && method != "info" && method != "warn" && method != "error" {
+	if method == "dir" || method == "dirxml" {
+		method = "log"
+	}
+	if method != "log" && method != "info" && method != "debug" && method != "warn" && method != "error" {
 		return "", false
 	}
 	suffix := map[ir.Type]string{

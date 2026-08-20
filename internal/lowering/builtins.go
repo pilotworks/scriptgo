@@ -117,146 +117,7 @@ func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinInt
 	}
 }
 
-func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	if len(call.Expression.Arguments) == 0 {
-		emptyConst := nextTemp(call.Counter)
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:     ir.OpConst,
-			Type:   ir.TypeString,
-			Result: emptyConst,
-			Value:  "",
-			Span:   toIRSpan(call.Path, call.Expression.Span),
-		})
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:     ir.OpPrint,
-			Type:   ir.TypeVoid,
-			Callee: intrinsic.Name,
-			Args:   []string{emptyConst},
-			Span:   toIRSpan(call.Path, call.Expression.Span),
-		})
-		return "", ir.TypeVoid, nil
-	}
-	if len(call.Expression.Arguments) == 1 {
-		argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-		if err != nil {
-			return "", "", err
-		}
-		// If argType is array, format as json
-		if argType == ir.TypeNumberArray || argType == ir.TypeStringArray || strings.HasSuffix(string(argType), "[]") {
-			strTemp := nextTemp(call.Counter)
-			callee := "__json.stringify_number_array"
-			if argType == ir.TypeStringArray {
-				callee = "__json.stringify_string_array"
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: strTemp,
-				Callee: callee,
-				Args:   []string{argVal},
-				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
-			})
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpPrint,
-				Type:   ir.TypeVoid,
-				Callee: intrinsic.Name,
-				Args:   []string{strTemp},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return "", ir.TypeVoid, nil
-		}
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:     ir.OpPrint,
-			Type:   ir.TypeVoid,
-			Callee: intrinsic.Name,
-			Args:   []string{argVal},
-			Span:   toIRSpan(call.Path, call.Expression.Span),
-		})
-		return "", ir.TypeVoid, nil
-	}
 
-	var strParts []string
-	for _, arg := range call.Expression.Arguments {
-		val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-		if err != nil {
-			return "", "", err
-		}
-		strVal := val
-		if valType != ir.TypeString {
-			strTemp := nextTemp(call.Counter)
-			var callee string
-			switch valType {
-			case ir.TypeNumber:
-				callee = "__string.fromNumber"
-			case ir.TypeBool:
-				callee = "__string.fromBool"
-			case ir.TypeBigInt:
-				callee = "__string.fromBigInt"
-			case ir.TypeSymbol:
-				callee = "__symbol.keyFor"
-			case ir.TypeNumberArray:
-				callee = "__json.stringify_number_array"
-			case ir.TypeStringArray:
-				callee = "__json.stringify_string_array"
-			default:
-				if strings.HasSuffix(string(valType), "[]") {
-					callee = "__json.stringify_string_array"
-				} else {
-					callee = "__string.fromNumber"
-				}
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: strTemp,
-				Callee: callee,
-				Args:   []string{val},
-				Span:   toIRSpan(call.Path, arg.Span),
-			})
-			strVal = strTemp
-		}
-		strParts = append(strParts, strVal)
-	}
-
-	spaceTemp := nextTemp(call.Counter)
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpConst,
-		Type:   ir.TypeString,
-		Result: spaceTemp,
-		Value:  " ",
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	current := strParts[0]
-	for i := 1; i < len(strParts); i++ {
-		withSpace := nextTemp(call.Counter)
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:       ir.OpBinary,
-			Type:     ir.TypeString,
-			Result:   withSpace,
-			Operator: "+",
-			Args:     []string{current, spaceTemp},
-			Span:     toIRSpan(call.Path, call.Expression.Span),
-		})
-		combined := nextTemp(call.Counter)
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:       ir.OpBinary,
-			Type:     ir.TypeString,
-			Result:   combined,
-			Operator: "+",
-			Args:     []string{withSpace, strParts[i]},
-			Span:     toIRSpan(call.Path, call.Expression.Span),
-		})
-		current = combined
-	}
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpPrint,
-		Type:   ir.TypeVoid,
-		Callee: intrinsic.Name,
-		Args:   []string{current},
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
-	return "", ir.TypeVoid, nil
-}
 
 func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.ObjectShape) (string, ir.Type, error) {
 	curr := nextTemp(call.Counter)
@@ -635,10 +496,22 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"Promise.resolve"}, CategoryECMAScript, "__async.promise_resolve", []ir.Type{ir.TypeNumber}, ir.Type("object:Promise"), 1, 1)
 
 	// Node-specific globals (Category 3: NodeGlobal)
-	for _, logMethod := range []string{"log", "info", "warn", "error"} {
+	for _, logMethod := range []string{"log", "info", "debug", "warn", "error", "dir", "dirxml"} {
 		name := "console." + logMethod
-		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown, ir.TypeNumberArray, ir.TypeStringArray}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown, ir.TypeNumberArray, ir.TypeStringArray, ir.TypeObject}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
 	}
+	m["console.assert"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.assert", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleAssert}
+	m["console.group"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.group", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleGroup}
+	m["console.groupCollapsed"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.groupCollapsed", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleGroup}
+	m["console.timeLog"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.timeLog", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleTimeLog}
+	m["console.trace"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.trace", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleTrace}
+
+	register([]string{"console.clear", "__console.clear"}, CategoryNodeGlobal, "__console.clear", nil, ir.TypeVoid, 0, 0)
+	register([]string{"console.groupEnd", "__console.groupEnd"}, CategoryNodeGlobal, "__console.groupEnd", nil, ir.TypeVoid, 0, 0)
+	register([]string{"console.count", "__console.count"}, CategoryNodeGlobal, "__console.count", []ir.Type{ir.TypeString}, ir.TypeVoid, 0, 1)
+	register([]string{"console.countReset", "__console.countReset"}, CategoryNodeGlobal, "__console.countReset", []ir.Type{ir.TypeString}, ir.TypeVoid, 0, 1)
+	register([]string{"console.time", "__console.time"}, CategoryNodeGlobal, "__console.time", []ir.Type{ir.TypeString}, ir.TypeVoid, 0, 1)
+	register([]string{"console.timeEnd", "__console.timeEnd"}, CategoryNodeGlobal, "__console.timeEnd", []ir.Type{ir.TypeString}, ir.TypeVoid, 0, 1)
 	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)
 

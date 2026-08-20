@@ -378,8 +378,19 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if value.Type == ir.TypeNumberArray || value.Type == ir.TypeStringArray {
 				return Value{}, false, flowNormal, fmt.Errorf("console.log does not support array values yet")
 			}
-			fmt.Fprintln(output, format(value))
+			indent := getConsoleIndent()
+			fmt.Fprintf(output, "%s%s\n", indent, format(value))
 		case ir.OpCall:
+			if strings.HasPrefix(instruction.Callee, "__console.") {
+				value, err := executeConsoleIntrinsic(instruction.Callee, instruction.Args, env, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__Math.") {
 				value, err := executeMathIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {

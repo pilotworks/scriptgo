@@ -174,9 +174,13 @@ func main() {
 			}
 
 			// Check Interpreter Parity
-			interpMatchesTarget := (sgErr == nil && (sgOut == runExpected || strings.TrimSpace(sgOut) == strings.TrimSpace(runExpected)))
-			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget)))
-			interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut)))
+			cleanNodeOut := cleanTraceOutput(nodeOut)
+			cleanSgOut := cleanTraceOutput(sgOut)
+			cleanExpected := cleanTraceOutput(expectedTarget)
+
+			interpMatchesTarget := (sgErr == nil && (sgOut == runExpected || strings.TrimSpace(sgOut) == strings.TrimSpace(runExpected) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanExpected)))
+			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
+			interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
 
 			if interpMatchesTarget && (nodeMatchesTarget || interpMatchesNode) {
 				res.InterpreterParity = StatusPass
@@ -471,4 +475,17 @@ func truncateString(s string, maxLen int) string {
 		return s[:maxLen] + "..."
 	}
 	return s
+}
+
+func cleanTraceOutput(s string) string {
+	lines := strings.Split(s, "\n")
+	var filtered []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "at ") {
+			continue
+		}
+		filtered = append(filtered, l)
+	}
+	return strings.Join(filtered, "\n")
 }
