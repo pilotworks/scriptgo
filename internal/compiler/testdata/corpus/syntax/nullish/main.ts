@@ -7,14 +7,14 @@ class Config {
     }
 }
 
-function getPort(port: string): string {
+function getPort(port: string | null | undefined): string {
     const fallback: string = "8080";
     return port ?? fallback;
 }
 
 console.log(getPort("3000"));
-console.log(getPort("null"));
-console.log(getPort("undefined"));
+console.log(getPort(null));
+console.log(getPort(undefined));
 
 const cfg: Config = new Config("App", 5000);
 console.log(cfg?.title);

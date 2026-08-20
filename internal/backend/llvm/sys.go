@@ -10,7 +10,7 @@ import (
 func (e *functionEmitter) emitFsIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
 	case "__fs.readFileSync":
-		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+		if len(instruction.Args) < 1 || len(instruction.Args) > 2 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("fs.readFileSync has invalid signature")
 		}
 		slot := instruction.Result + ".slot"

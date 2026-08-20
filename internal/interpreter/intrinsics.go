@@ -818,8 +818,8 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 func executeFsIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
 	switch name {
 	case "__fs.readFileSync":
-		if len(arguments) != 1 {
-			return Value{}, fmt.Errorf("fs.readFileSync requires 1 argument")
+		if len(arguments) < 1 || len(arguments) > 2 {
+			return Value{}, fmt.Errorf("fs.readFileSync requires 1 or 2 arguments")
 		}
 		pathVal, ok := env[arguments[0]]
 		if !ok || pathVal.Type != ir.TypeString {

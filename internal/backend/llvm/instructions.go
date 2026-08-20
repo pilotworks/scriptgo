@@ -247,8 +247,8 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		rU32 := instruction.Result + ".r_u32"
 		shift := instruction.Result + ".shift"
 		resU32 := instruction.Result + ".res_u32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i32\n", lU32, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i32\n", rU32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lU32, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rU32, instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rU32))
 		out.WriteString(fmt.Sprintf("  %%%s = lshr i32 %%%s, %%%s\n", resU32, lU32, shift))
 		out.WriteString(fmt.Sprintf("  %%%s = uitofp i32 %%%s to double\n", instruction.Result, resU32))
@@ -666,15 +666,19 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 }
 
 func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instruction) error {
-	for _, arrayRef := range e.arrayTypes {
-		out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", arrayRef.name))
-	}
-	for _, object := range e.objects {
-		out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
-	}
 	returnValue := ""
 	if len(instruction.Args) != 0 {
 		returnValue = instruction.Args[0]
+	}
+	for _, arrayRef := range e.arrayTypes {
+		if arrayRef.name != returnValue {
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", arrayRef.name))
+		}
+	}
+	for _, object := range e.objects {
+		if object != returnValue {
+			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
+		}
 	}
 	if e.function.Name == "main" {
 		for _, value := range e.ownedStrings {

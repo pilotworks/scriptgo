@@ -198,6 +198,9 @@ func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[strin
 	}
 	res := cloneExpr(expr)
 	res.InferredType = substituteType(res.InferredType, subst)
+	for i := range res.TypeArguments {
+		res.TypeArguments[i] = substituteType(res.TypeArguments[i], subst)
+	}
 	if res.Left != nil {
 		res.Left = cloneAndSubstituteExpr(res.Left, subst)
 	}
@@ -212,6 +215,10 @@ func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[strin
 	}
 	if res.WhenFalse != nil {
 		res.WhenFalse = cloneAndSubstituteExpr(res.WhenFalse, subst)
+	}
+	if res.Function != nil {
+		fn := cloneAndSubstituteStmt(*res.Function, subst)
+		res.Function = &fn
 	}
 	return res
 }

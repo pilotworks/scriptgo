@@ -389,7 +389,8 @@ func runWithNode(entry string, runnerType string) (string, error) {
 	case "node":
 		fallthrough
 	default:
-		cmd = exec.Command("node", "--no-warnings", "--experimental-transform-types", entry)
+		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
+		cmd = exec.Command("node", "--no-warnings", "--loader", loader, "--experimental-transform-types", entry)
 	}
 
 	var stdout bytes.Buffer
