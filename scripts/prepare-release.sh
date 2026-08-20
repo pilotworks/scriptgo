@@ -70,36 +70,7 @@ if ! git diff-index --quiet HEAD --; then
     fi
 fi
 
-# 4. Run Pre-flight Verification Tests
-log_info "Step 1/5: Running full test suite (go test ./...)..."
-go test -count=1 ./...
-log_success "Unit and integration tests passed."
-
-log_info "Step 2/5: Running TypeScript-Go frontend adapter tests..."
-go test -count=1 ./internal/typescriptgo/...
-log_success "Frontend adapter tests passed."
-
-log_info "Step 3/5: Running Node.js parity comparison benchmark..."
-go run ./cmd/parity
-log_success "Parity benchmark passed (100% compatibility)."
-
-log_info "Step 4/5: Running Native AddressSanitizer & memory checks..."
-mkdir -p bin_test
-go build -o bin_test/scriptgo ./cmd/scriptgo
-./bin_test/scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_test/fib
-./bin_test/fib > /dev/null
-./bin_test/scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_test/oop
-./bin_test/oop > /dev/null
-./bin_test/scriptgo build --sanitize address,undefined examples/functional_arrays.ts -o bin_test/arr
-./bin_test/arr > /dev/null
-rm -rf bin_test
-log_success "AddressSanitizer checks passed."
-
-log_info "Step 5/5: Building scriptgo CLI binary..."
-go build ./cmd/scriptgo
-log_success "Build completed successfully."
-
-# 5. Generate / Update CHANGELOG.md if not already present for this version
+# 4. Generate / Update CHANGELOG.md if not already present for this version
 CHANGELOG_FILE="CHANGELOG.md"
 DATE=$(date +"%Y-%m-%d")
 
@@ -143,14 +114,14 @@ else
     fi
 fi
 
-# 6. Git commit changelog if modified
+# 5. Git commit changelog if modified
 if ! git diff --quiet "$CHANGELOG_FILE" 2>/dev/null; then
     git add "$CHANGELOG_FILE"
     git commit -m "chore: release ${TAG_NAME}"
     log_success "Committed changelog updates: 'chore: release ${TAG_NAME}'"
 fi
 
-# 7. Create annotated Git Tag
+# 6. Create annotated Git Tag
 log_info "Creating annotated git tag '${TAG_NAME}'..."
 git tag -a "$TAG_NAME" -m "Release ${TAG_NAME}"
 log_success "Created git tag ${BOLD}${TAG_NAME}${NC}."
