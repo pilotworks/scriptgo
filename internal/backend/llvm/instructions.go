@@ -28,6 +28,8 @@ type functionEmitter struct {
 	labelCounter       int
 	loopBreakLabels    []string
 	loopContinueLabels []string
+	labeledBreak       map[string][]string
+	labeledContinue    map[string][]string
 	runtimeStatus      int
 	terminated         bool
 }
@@ -87,18 +89,36 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 	case ir.OpDoWhile:
 		return e.emitDoWhile(out, inst)
 	case ir.OpBreak:
-		if len(e.loopBreakLabels) == 0 {
-			return fmt.Errorf("break outside of loop")
+		breakLabel := ""
+		if inst.Value != "" {
+			if stack, ok := e.labeledBreak[inst.Value]; ok && len(stack) > 0 {
+				breakLabel = stack[len(stack)-1]
+			} else {
+				return fmt.Errorf("break to unknown label %q", inst.Value)
+			}
+		} else {
+			if len(e.loopBreakLabels) == 0 {
+				return fmt.Errorf("break outside of loop")
+			}
+			breakLabel = e.loopBreakLabels[len(e.loopBreakLabels)-1]
 		}
-		breakLabel := e.loopBreakLabels[len(e.loopBreakLabels)-1]
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", breakLabel))
 		e.terminated = true
 		return nil
 	case ir.OpContinue:
-		if len(e.loopContinueLabels) == 0 {
-			return fmt.Errorf("continue outside of loop")
+		continueLabel := ""
+		if inst.Value != "" {
+			if stack, ok := e.labeledContinue[inst.Value]; ok && len(stack) > 0 {
+				continueLabel = stack[len(stack)-1]
+			} else {
+				return fmt.Errorf("continue to unknown label %q", inst.Value)
+			}
+		} else {
+			if len(e.loopContinueLabels) == 0 {
+				return fmt.Errorf("continue outside of loop")
+			}
+			continueLabel = e.loopContinueLabels[len(e.loopContinueLabels)-1]
 		}
-		continueLabel := e.loopContinueLabels[len(e.loopContinueLabels)-1]
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", continueLabel))
 		e.terminated = true
 		return nil
@@ -423,6 +443,19 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
 		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
 	}()
+	if instruction.Value != "" {
+		if e.labeledBreak == nil {
+			e.labeledBreak = make(map[string][]string)
+			e.labeledContinue = make(map[string][]string)
+		}
+		lbl := instruction.Value
+		e.labeledBreak[lbl] = append(e.labeledBreak[lbl], endLabel)
+		e.labeledContinue[lbl] = append(e.labeledContinue[lbl], targetCont)
+		defer func() {
+			e.labeledBreak[lbl] = e.labeledBreak[lbl][:len(e.labeledBreak[lbl])-1]
+			e.labeledContinue[lbl] = e.labeledContinue[lbl][:len(e.labeledContinue[lbl])-1]
+		}()
+	}
 
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
 	out.WriteString(fmt.Sprintf("%s:\n", condLabel))
@@ -433,8 +466,12 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 			return err
 		}
 	}
-	condVal := e.resolveArg(out, instruction.Args[0])
-	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, bodyLabel, endLabel))
+	if len(instruction.Args) > 0 {
+		condVal := e.resolveArg(out, instruction.Args[0])
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, bodyLabel, endLabel))
+	} else {
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
+	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
 	e.terminated = false
@@ -483,6 +520,19 @@ func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instr
 		e.loopBreakLabels = e.loopBreakLabels[:len(e.loopBreakLabels)-1]
 		e.loopContinueLabels = e.loopContinueLabels[:len(e.loopContinueLabels)-1]
 	}()
+	if instruction.Value != "" {
+		if e.labeledBreak == nil {
+			e.labeledBreak = make(map[string][]string)
+			e.labeledContinue = make(map[string][]string)
+		}
+		lbl := instruction.Value
+		e.labeledBreak[lbl] = append(e.labeledBreak[lbl], endLabel)
+		e.labeledContinue[lbl] = append(e.labeledContinue[lbl], targetCont)
+		defer func() {
+			e.labeledBreak[lbl] = e.labeledBreak[lbl][:len(e.labeledBreak[lbl])-1]
+			e.labeledContinue[lbl] = e.labeledContinue[lbl][:len(e.labeledContinue[lbl])-1]
+		}()
+	}
 
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))

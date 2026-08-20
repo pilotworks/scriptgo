@@ -59,6 +59,7 @@ type SyntaxStatement struct {
 	Span           SourceSpan
 	Kind           string
 	Name           string
+	Label          string
 	Type           string
 	InferredType   string
 	TypeParameters []string

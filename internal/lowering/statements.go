@@ -193,15 +193,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "if":
 		return lowerIf(path, statement, function, env, counter, shapes, signatures)
 	case "break":
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBreak, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBreak, Type: ir.TypeVoid, Value: statement.Name, Span: toIRSpan(path, statement.Span)})
 	case "continue":
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpContinue, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpContinue, Type: ir.TypeVoid, Value: statement.Name, Span: toIRSpan(path, statement.Span)})
 	case "dowhile":
 		return lowerDoWhile(path, statement, function, env, counter, shapes, signatures)
-	case "forof":
+	case "forof", "forawaitof":
 		return lowerForOf(path, statement, function, env, counter, shapes, signatures)
 	case "forin":
 		return lowerForIn(path, statement, function, env, counter, shapes, signatures)
+	case "label":
+		return lowerLabel(path, statement, function, env, counter, shapes, signatures)
 	case "switch":
 		return lowerSwitch(path, statement, function, env, counter, shapes, signatures)
 	case "index_set":

@@ -29,7 +29,7 @@ func Execute(module ir.Module) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if flow == flowThrow {
+	if flow.kind == kindThrow {
 		return Result{}, fmt.Errorf("uncaught exception: %s", format(value))
 	}
 	if err := drainMicrotasks(functions, &output); err != nil {
@@ -38,15 +38,29 @@ func Execute(module ir.Module) (Result, error) {
 	return Result{Output: output.String(), Return: value}, nil
 }
 
-type controlFlow int
+type flowKind int
 
 const (
-	flowNormal controlFlow = iota
-	flowReturn
-	flowBreak
-	flowContinue
-	flowThrow
-	flowExit
+	kindNormal flowKind = iota
+	kindReturn
+	kindBreak
+	kindContinue
+	kindThrow
+	kindExit
+)
+
+type controlFlow struct {
+	kind   flowKind
+	target string
+}
+
+var (
+	flowNormal   = controlFlow{kind: kindNormal}
+	flowReturn   = controlFlow{kind: kindReturn}
+	flowBreak    = controlFlow{kind: kindBreak}
+	flowContinue = controlFlow{kind: kindContinue}
+	flowThrow    = controlFlow{kind: kindThrow}
+	flowExit     = controlFlow{kind: kindExit}
 )
 
 func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
@@ -492,8 +506,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			if flow == flowThrow {
-				return value, false, flowThrow, nil
+			if flow.kind == kindThrow {
+				return value, false, flow, nil
 			}
 			env[instruction.Result] = value
 		case ir.OpThrow:
@@ -501,13 +515,13 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			return val, false, flowThrow, nil
+			return val, false, controlFlow{kind: kindThrow}, nil
 		case ir.OpTry:
 			ret, returned, flow, err := executeBlock(functions, instruction.Body, env, output)
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			if flow == flowThrow {
+			if flow.kind == kindThrow {
 				if len(instruction.Catch) > 0 {
 					if instruction.CatchVar != "" {
 						env[instruction.CatchVar] = ret
@@ -523,25 +537,25 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if fErr != nil {
 					return Value{}, false, flowNormal, fErr
 				}
-				if fReturned || fFlow != flowNormal {
+				if fReturned || fFlow.kind != kindNormal {
 					ret = fRet
 					returned = fReturned
 					flow = fFlow
 				}
 			}
-			if returned || flow != flowNormal {
+			if returned || flow.kind != kindNormal {
 				return ret, returned, flow, nil
 			}
 		case ir.OpBreak:
-			return Value{}, false, flowBreak, nil
+			return Value{}, false, controlFlow{kind: kindBreak, target: instruction.Value}, nil
 		case ir.OpContinue:
-			return Value{}, false, flowContinue, nil
+			return Value{}, false, controlFlow{kind: kindContinue, target: instruction.Value}, nil
 		case ir.OpReturn:
 			if len(instruction.Args) == 0 {
-				return Value{Type: ir.TypeVoid}, true, flowReturn, nil
+				return Value{Type: ir.TypeVoid}, true, controlFlow{kind: kindReturn}, nil
 			}
 			retVal, err := lookup(env, instruction.Args, 0)
-			return retVal, true, flowReturn, err
+			return retVal, true, controlFlow{kind: kindReturn}, err
 		case ir.OpIf:
 			condition, err := lookup(env, instruction.Args, 0)
 			if err != nil {
@@ -556,7 +570,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				if returned || flow != flowNormal {
+				if returned || flow.kind != kindNormal {
 					return ret, returned, flow, nil
 				}
 			}
@@ -567,7 +581,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow != flowNormal {
+					if returned || flow.kind != kindNormal {
 						return ret, returned, flow, nil
 					}
 				}
@@ -582,23 +596,34 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				if returned || flow == flowReturn || flow == flowThrow {
+				if returned || flow.kind == kindReturn || flow.kind == kindThrow || flow.kind == kindExit {
 					return ret, returned, flow, nil
 				}
-				if flow == flowBreak {
-					break
+				if flow.kind == kindBreak {
+					if flow.target == "" || flow.target == instruction.Value {
+						break
+					}
+					return ret, returned, flow, nil
+				}
+				if flow.kind == kindContinue {
+					if flow.target != "" && flow.target != instruction.Value {
+						return ret, returned, flow, nil
+					}
 				}
 				if len(instruction.Step) > 0 {
 					ret, returned, flow, err := executeBlock(functions, instruction.Step, env, output)
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow == flowReturn || flow == flowThrow {
+					if returned || flow.kind == kindReturn || flow.kind == kindThrow || flow.kind == kindExit {
 						return ret, returned, flow, nil
 					}
 				}
-				if flow == flowContinue {
-					continue
+				if flow.kind == kindContinue {
+					if flow.target == "" || flow.target == instruction.Value {
+						continue
+					}
+					return ret, returned, flow, nil
 				}
 			}
 		case ir.OpDoWhile:
@@ -607,27 +632,41 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				if returned || flow == flowReturn || flow == flowThrow {
+				if returned || flow.kind == kindReturn || flow.kind == kindThrow || flow.kind == kindExit {
 					return ret, returned, flow, nil
 				}
-				if flow == flowBreak {
-					break
+				if flow.kind == kindBreak {
+					if flow.target == "" || flow.target == instruction.Value {
+						break
+					}
+					return ret, returned, flow, nil
+				}
+				if flow.kind == kindContinue {
+					if flow.target != "" && flow.target != instruction.Value {
+						return ret, returned, flow, nil
+					}
 				}
 				if len(instruction.Step) > 0 {
 					ret, returned, flow, err := executeBlock(functions, instruction.Step, env, output)
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow == flowReturn || flow == flowThrow {
+					if returned || flow.kind == kindReturn || flow.kind == kindThrow || flow.kind == kindExit {
 						return ret, returned, flow, nil
 					}
+				}
+				if flow.kind == kindContinue {
+					if flow.target == "" || flow.target == instruction.Value {
+						continue
+					}
+					return ret, returned, flow, nil
 				}
 				if len(instruction.Cond) > 0 {
 					ret, returned, flow, err := executeBlock(functions, instruction.Cond, env, output)
 					if err != nil {
 						return Value{}, false, flowNormal, err
 					}
-					if returned || flow != flowNormal {
+					if returned || flow.kind != kindNormal {
 						return ret, returned, flow, nil
 					}
 				}

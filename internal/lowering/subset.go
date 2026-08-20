@@ -50,9 +50,11 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		return nil
-	case "forof", "forin":
-		if err := validateExpression(fileName, statement.Expression); err != nil {
-			return err
+	case "forof", "forin", "forawaitof", "label":
+		if statement.Expression != nil {
+			if err := validateExpression(fileName, statement.Expression); err != nil {
+				return err
+			}
 		}
 		for _, bodyStatement := range statement.Body {
 			if err := validateStatement(fileName, bodyStatement); err != nil {

@@ -77,9 +77,38 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		return res, true
 	case ast.KindBreakStatement:
-		return SyntaxStatement{Span: span, Kind: "break"}, true
+		breakStmt := node.AsBreakStatement()
+		label := ""
+		if breakStmt != nil && breakStmt.Label != nil {
+			label = breakStmt.Label.Text()
+		}
+		return SyntaxStatement{Span: span, Kind: "break", Name: label}, true
 	case ast.KindContinueStatement:
-		return SyntaxStatement{Span: span, Kind: "continue"}, true
+		contStmt := node.AsContinueStatement()
+		label := ""
+		if contStmt != nil && contStmt.Label != nil {
+			label = contStmt.Label.Text()
+		}
+		return SyntaxStatement{Span: span, Kind: "continue", Name: label}, true
+	case ast.KindLabeledStatement:
+		labeledNode := node.AsLabeledStatement()
+		labelName := ""
+		if labeledNode.Label != nil {
+			labelName = labeledNode.Label.Text()
+		}
+		inner, ok := syntaxStatement(labeledNode.Statement, chk)
+		if ok {
+			inner.Label = labelName
+			if inner.Kind == "block" && len(inner.Body) > 0 {
+				for i := range inner.Body {
+					if inner.Body[i].Kind == "while" || inner.Body[i].Kind == "dowhile" || inner.Body[i].Kind == "forof" || inner.Body[i].Kind == "forin" || inner.Body[i].Kind == "forawaitof" {
+						inner.Body[i].Label = labelName
+					}
+				}
+			}
+			return inner, true
+		}
+		return SyntaxStatement{Span: span, Kind: "label", Label: labelName}, true
 	case ast.KindIfStatement:
 		ifNode := node.AsIfStatement()
 		result := SyntaxStatement{Span: span, Kind: "if", Expression: syntaxExpression(ifNode.Expression, chk)}
@@ -127,6 +156,10 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}, true
 	case ast.KindForOfStatement:
 		forOf := node.AsForInOrOfStatement()
+		kind := "forof"
+		if forOf.AwaitModifier != nil {
+			kind = "forawaitof"
+		}
 		var varName, varType, varInferredType string
 		if forOf.Initializer != nil && forOf.Initializer.Kind == ast.KindVariableDeclarationList {
 			decls := forOf.Initializer.AsVariableDeclarationList().Declarations.Nodes
@@ -141,7 +174,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		return SyntaxStatement{
 			Span:         span,
-			Kind:         "forof",
+			Kind:         kind,
 			Name:         varName,
 			Type:         varType,
 			InferredType: varInferredType,

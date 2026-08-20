@@ -41,25 +41,15 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if len(instruction.Args) != 2 {
 		return fmt.Errorf("index instruction requires array and index operands")
 	}
-	arrayType, ok := e.types[instruction.Args[0]]
-	if !ok {
-		return fmt.Errorf("unknown index array %q", instruction.Args[0])
-	}
 	e.types[instruction.Result] = instruction.Type
 	slot := instruction.Result + ".slot"
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	if arrayType == ir.TypeStringArray {
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
-	} else {
-		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
-	}
+	llvmT := llvmType(instruction.Type)
+	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slot, llvmT))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", instruction.Result, llvmT, slot))
 	return nil
 }
 

@@ -49,13 +49,14 @@ func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *i
 		}
 	}
 	function.Body = append(function.Body, ir.Instruction{
-		Op:   ir.OpWhile,
-		Type: ir.TypeVoid,
-		Args: []string{condVal},
-		Cond: condFunc.Body,
-		Body: bodyInstructions,
-		Step: stepInstructions,
-		Span: toIRSpan(path, statement.Span),
+		Op:    ir.OpWhile,
+		Type:  ir.TypeVoid,
+		Value: statement.Label,
+		Args:  []string{condVal},
+		Cond:  condFunc.Body,
+		Body:  bodyInstructions,
+		Step:  stepInstructions,
+		Span:  toIRSpan(path, statement.Span),
 	})
 	return nil
 }
@@ -81,13 +82,14 @@ func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function 
 		}
 	}
 	function.Body = append(function.Body, ir.Instruction{
-		Op:   ir.OpDoWhile,
-		Type: ir.TypeVoid,
-		Args: []string{condVal},
-		Cond: condFunc.Body,
-		Body: bodyInstructions,
-		Step: stepInstructions,
-		Span: toIRSpan(path, statement.Span),
+		Op:    ir.OpDoWhile,
+		Type:  ir.TypeVoid,
+		Value: statement.Label,
+		Args:  []string{condVal},
+		Cond:  condFunc.Body,
+		Body:  bodyInstructions,
+		Step:  stepInstructions,
+		Span:  toIRSpan(path, statement.Span),
 	})
 	return nil
 }
@@ -133,12 +135,44 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 		bodyEnv[k] = v
 	}
 	bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
-	if isString {
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: statement.Name, Callee: "__string.charAt", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+	if statement.Kind == "forawaitof" {
+		if isString {
+			charVal := nextTemp(counter)
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: charVal, Callee: "__string.charAt", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeString, Result: statement.Name, Args: []string{charVal}, Span: toIRSpan(path, statement.Span)})
+			bodyEnv[statement.Name] = ir.TypeString
+		} else if strings.HasPrefix(string(elemType), "object:Promise") || elemType == "object:Promise" {
+			rawPromise := nextTemp(counter)
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: rawPromise, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: statement.Name,
+				Callee: "__async.await",
+				Args:   []string{rawPromise},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			bodyEnv[statement.Name] = ir.TypeNumber
+		} else {
+			rawVal := nextTemp(counter)
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: rawVal, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   elemType,
+				Result: statement.Name,
+				Args:   []string{rawVal},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			bodyEnv[statement.Name] = elemType
+		}
 	} else {
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: statement.Name, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+		if isString {
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: statement.Name, Callee: "__string.charAt", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+		} else {
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: statement.Name, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+		}
+		bodyEnv[statement.Name] = elemType
 	}
-	bodyEnv[statement.Name] = elemType
 
 	for _, bodyStmt := range statement.Body {
 		if err := lowerStatement(path, bodyStmt, &bodyBranch, bodyEnv, counter, shapes, signatures); err != nil {
@@ -155,13 +189,14 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	stepBranch.Body = append(stepBranch.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxName, Args: []string{incVal}, Span: toIRSpan(path, statement.Span)})
 
 	function.Body = append(function.Body, ir.Instruction{
-		Op:   ir.OpWhile,
-		Type: ir.TypeVoid,
-		Args: []string{condCmp},
-		Cond: condFunc.Body,
-		Body: bodyBranch.Body,
-		Step: stepBranch.Body,
-		Span: toIRSpan(path, statement.Span),
+		Op:    ir.OpWhile,
+		Type:  ir.TypeVoid,
+		Value: statement.Label,
+		Args:  []string{condCmp},
+		Cond:  condFunc.Body,
+		Body:  bodyBranch.Body,
+		Step:  stepBranch.Body,
+		Span:  toIRSpan(path, statement.Span),
 	})
 	return nil
 }
@@ -217,13 +252,14 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 		stepBranch.Body = append(stepBranch.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxName, Args: []string{incVal}, Span: toIRSpan(path, statement.Span)})
 
 		function.Body = append(function.Body, ir.Instruction{
-			Op:   ir.OpWhile,
-			Type: ir.TypeVoid,
-			Args: []string{condCmp},
-			Cond: condFunc.Body,
-			Body: bodyBranch.Body,
-			Step: stepBranch.Body,
-			Span: toIRSpan(path, statement.Span),
+			Op:    ir.OpWhile,
+			Type:  ir.TypeVoid,
+			Value: statement.Label,
+			Args:  []string{condCmp},
+			Cond:  condFunc.Body,
+			Body:  bodyBranch.Body,
+			Step:  stepBranch.Body,
+			Span:  toIRSpan(path, statement.Span),
 		})
 		return nil
 	} else if strings.HasPrefix(string(objType), "object:") {
@@ -254,6 +290,21 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 		return nil
 	}
 	return fmt.Errorf("for...in requires object or array, got %s", objType)
+}
+
+func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	if err != nil {
+		return err
+	}
+	function.Body = append(function.Body, ir.Instruction{
+		Op:    ir.OpWhile,
+		Type:  ir.TypeVoid,
+		Value: statement.Label,
+		Body:  bodyInstructions,
+		Span:  toIRSpan(path, statement.Span),
+	})
+	return nil
 }
 
 func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
