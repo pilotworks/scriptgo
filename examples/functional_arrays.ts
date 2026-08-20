@@ -2,25 +2,25 @@
 
 console.log("=== Functional Array Methods Demo ===");
 
-const nums = [1, 2, 3, 4, 5, 6];
-const factor = 2;
+const nums: readonly number[] = [1, 2, 3, 4, 5, 6];
+const factor: number = 2;
 
 // 1. map
-const doubled = nums.map((x) => x * factor);
-console.log("Doubled: " + doubled.join(", "));
+const doubled: number[] = nums.map((x: number): number => x * factor);
+console.log(`Doubled: ${doubled.join(", ")}`);
 
 // 2. filter
-const evens = nums.filter((x) => x % 2 === 0);
-console.log("Evens: " + evens.join(", "));
+const evens: number[] = nums.filter((x: number): boolean => x % 2 === 0);
+console.log(`Evens: ${evens.join(", ")}`);
 
 // 3. reduce
-const sum = nums.reduce((acc, x) => acc + x, 0);
-console.log("Sum: " + sum);
+const sum: number = nums.reduce((acc: number, x: number): number => acc + x, 0);
+console.log(`Sum: ${sum}`);
 
 // 4. find
-const found = nums.find((x) => x === 4);
-console.log("Found 4: " + found);
+const found: number | undefined = nums.find((x: number): boolean => x === 4);
+console.log(`Found 4: ${found}`);
 
 // 5. some & every
-console.log("Has any > 5: " + nums.some((x) => x > 5));
-console.log("All positive: " + nums.every((x) => x > 0));
+console.log(`Has any > 5: ${nums.some((x: number): boolean => x > 5)}`);
+console.log(`All positive: ${nums.every((x: number): boolean => x > 0)}`);

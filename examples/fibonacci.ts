@@ -1,4 +1,4 @@
-// Fibonacci calculation demonstrating recursive and iterative performance
+// Fibonacci calculation demonstrating recursive and iterative implementations
 
 function fibIterative(n: number): number {
   if (n <= 1) return n;
@@ -18,6 +18,6 @@ function fibRecursive(n: number): number {
 }
 
 console.log("=== Fibonacci Demo ===");
-console.log("fibIterative(10): " + fibIterative(10));
-console.log("fibIterative(30): " + fibIterative(30));
-console.log("fibRecursive(15): " + fibRecursive(15));
+console.log(`fibIterative(10): ${fibIterative(10)}`);
+console.log(`fibIterative(30): ${fibIterative(30)}`);
+console.log(`fibRecursive(15): ${fibRecursive(15)}`);

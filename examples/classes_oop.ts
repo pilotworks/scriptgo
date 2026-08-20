@@ -1,46 +1,60 @@
-// Object-Oriented Programming (OOP) demo: Classes, Static Blocks, Getters/Setters, and Inheritance
+// Object-Oriented Programming (OOP) demo: Interfaces, Abstract Classes, Static Blocks, Getters/Setters, and Inheritance
 
-class Animal {
-  static registryCount: number = 0;
-  static defaultCategory: string = "Fauna";
+interface Describable {
+  describe(): string;
+}
+
+abstract class Animal implements Describable {
+  public static registryCount: number = 0;
+  public static readonly defaultCategory: string = "Fauna";
 
   static {
-    // Class Static Initialization Block
+    // Class Static Initialization Block (ES2022 / TS 4.4+)
     Animal.registryCount = 100;
   }
 
-  private _name: string;
+  protected _name: string;
 
   constructor(name: string) {
     this._name = name;
   }
 
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
-  speak(): string {
-    return this._name + " makes a generic sound.";
+  public set name(newName: string) {
+    if (newName.length > 0) {
+      this._name = newName;
+    }
+  }
+
+  public abstract speak(): string;
+
+  public describe(): string {
+    return `[${Animal.defaultCategory}] ${this._name}: ${this.speak()}`;
   }
 }
 
 class Dog extends Animal {
-  private breed: string;
+  private readonly breed: string;
 
   constructor(name: string, breed: string) {
     super(name);
     this.breed = breed;
   }
 
-  override speak(): string {
-    return this.name + " (" + this.breed + ") barks! Woof!";
+  public override speak(): string {
+    return `${this.name} (${this.breed}) barks! Woof!`;
   }
 }
 
-const dog = new Dog("Rex", "German Shepherd");
 console.log("=== OOP & Classes Demo ===");
-console.log("Dog Name: " + dog.name);
-console.log("Dog Speak: " + dog.speak());
-console.log("Is Animal? " + (dog instanceof Animal));
-console.log("Default Category: " + Animal.defaultCategory);
-console.log("Total Animal Registry Count: " + Animal.registryCount);
+
+const dog = new Dog("Rex", "German Shepherd");
+console.log(`Dog Name: ${dog.name}`);
+console.log(`Dog Speak: ${dog.speak()}`);
+console.log(`Dog Describe: ${dog.describe()}`);
+console.log(`Is Animal? ${dog instanceof Animal}`);
+console.log(`Default Category: ${Animal.defaultCategory}`);
+console.log(`Total Animal Registry Count: ${Animal.registryCount}`);
