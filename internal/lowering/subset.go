@@ -262,9 +262,9 @@ func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ strin
 	}
 	switch normalized {
 	case "any", "anykeyword", "kindanykeyword":
-		return subsetError(fileName, span, CodeAnyUnknownBoundary, "any type")
+		return subsetError(fileName, span, CodeAnyBoundary, "any type")
 	case "unknown", "unknownkeyword", "kindunknownkeyword":
-		return subsetError(fileName, span, CodeAnyUnknownBoundary, "unknown type")
+		return subsetError(fileName, span, CodeUnknownBoundary, "unknown type")
 	}
 	return nil
 }

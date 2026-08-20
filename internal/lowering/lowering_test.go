@@ -119,6 +119,22 @@ func TestLowerRejectsAnyInStaticMode(t *testing.T) {
 	}
 }
 
+func TestLowerRejectsUnknownInStaticMode(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "const value: unknown = 1;\nconsole.log(value);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Lower(program)
+	if err == nil || !strings.Contains(err.Error(), "SG1006") || !strings.Contains(err.Error(), "unknown type") {
+		t.Fatalf("Lower error = %v, want SG1006 for unknown in Static mode", err)
+	}
+}
+
 func TestLowerConsoleIntrinsics(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	source := "console.log(1); console.info(2); console.warn(3); console.error(4);\n"

@@ -5,11 +5,12 @@ type SubsetCode string
 
 const (
 	// SG1xxx: Static semantic and type boundaries.
-	CodeAnyUnknownBoundary SubsetCode = "SG1001"
-	CodeUnionNarrowing     SubsetCode = "SG1002"
-	CodeGenericSpecialize  SubsetCode = "SG1003"
-	CodeFunctionValue      SubsetCode = "SG1004"
-	CodeStructuralFlow     SubsetCode = "SG1005"
+	CodeAnyBoundary       SubsetCode = "SG1001"
+	CodeUnionNarrowing    SubsetCode = "SG1002"
+	CodeGenericSpecialize SubsetCode = "SG1003"
+	CodeFunctionValue     SubsetCode = "SG1004"
+	CodeStructuralFlow    SubsetCode = "SG1005"
+	CodeUnknownBoundary   SubsetCode = "SG1006"
 
 	// SG2xxx: Static lowering and coverage fences.
 	CodeStdlibNotLowered SubsetCode = "SG2001"

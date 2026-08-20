@@ -80,11 +80,12 @@ identifies a scriptgo representation or tier decision.
 
 | Code     | Meaning                             | Typical examples                                                                       |
 | -------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `SG1001` | `any`/`unknown` boundary            | `any` without `--dynamic`, unsupported unchecked `unknown`                             |
+| `SG1001` | `any` boundary                      | `any` without `--dynamic` (rejected completely in Static mode)                         |
 | `SG1002` | Union narrowing unsupported         | unresolved union operation or missing narrowing proof                                  |
 | `SG1003` | Generic specialization unsupported  | type arguments/layout cannot be resolved statically                                    |
 | `SG1004` | Unresolved function value           | unpinned generic function, reassigned callable binding, unresolved dynamic call target |
 | `SG1005` | Structural flow unsupported         | dynamic property/prototype flow or incompatible record shape                           |
+| `SG1006` | `unknown` boundary                  | unnarrowed/unchecked `unknown` without static proof or checked cast                    |
 | `SG2001` | Stdlib member not lowered           | declared API exists but has no Static lowering                                         |
 | `SG2002` | Tuple operation not lowered         | unsupported tuple method/index operation                                               |
 | `SG2003` | Date operation not lowered          | unsupported constructor, getter, parser, or formatter                                  |
@@ -129,7 +130,7 @@ not automatic reasons to embed QuickJS-ng:
 | Area                         | Static policy                                                                                                                             |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `null` and `undefined`       | Support with explicit tagged/nullish representations and JS-correct narrowing; reject only operations whose representation is not proven. |
-| `unknown`                    | Permit only after an explicitly supported narrowing/check; otherwise `SG1001`.                                                            |
+| `unknown`                    | Permit only after an explicitly supported narrowing/check; otherwise `SG1006`.                                                            |
 | Unions                       | Permit only with a compiler proof; otherwise `SG1002`.                                                                                    |
 | Generics                     | Permit only after specialization; otherwise `SG1003`.                                                                                     |
 | Function values              | Permit only for statically pinned signatures; otherwise `SG1004`.                                                                         |
