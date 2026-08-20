@@ -271,6 +271,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 
 func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo) (string, error) {
 	returnType := llvmType(function.ReturnType)
+	if function.ReturnType == ir.TypeBool {
+		returnType = "zeroext i1"
+	}
 	name := function.Name
 	var out strings.Builder
 	if name == "main" {

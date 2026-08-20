@@ -20,7 +20,7 @@ All 172 test cases in the regression test suite (Corpus Test Suite) have been cr
 | :--- | :--- | :--- | :--- |
 | **Total Corpus Test Cases** | **172** | **172 / 172 Passed** | **100.0%** |
 | - *Interpreter Parity* | 160 | 160 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 149 | 149 PASS (direct binary compilation) | 100.0% (within native scope) |
+| - *Native LLVM/Clang Parity* | 150 | 150 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Total Test Suite Runtime** | ~2m 05s | No regressions detected | - |
 
