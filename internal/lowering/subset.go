@@ -27,7 +27,7 @@ func ValidateSubset(program frontend.Program) error {
 }
 
 func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) error {
-	if (statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type)) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
+	if statement.Kind != "type_alias" && (statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type)) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
 		if err := validateStaticType(fileName, statement.Span, statement.Type); err != nil {
 			return err
 		}

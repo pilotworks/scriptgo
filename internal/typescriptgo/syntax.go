@@ -191,6 +191,18 @@ func syntaxType(node *ast.Node) string {
 			return "[" + strings.Join(elements, ", ") + "]"
 		}
 		return "object"
+	case ast.KindNamedTupleMember:
+		named := node.AsNamedTupleMember()
+		if named != nil && named.Type != nil {
+			return syntaxType(named.Type)
+		}
+		return "any"
+	case ast.KindTypeOperator:
+		op := node.AsTypeOperatorNode()
+		if op != nil && op.Type != nil {
+			return syntaxType(op.Type)
+		}
+		return "any"
 	case ast.KindFunctionType:
 		return "closure"
 	default:
@@ -204,6 +216,16 @@ func syntaxTypeParameters(typeParams []*ast.Node) []string {
 	}
 	var result []string
 	for _, p := range typeParams {
+		if p == nil {
+			continue
+		}
+		if p.Kind == ast.KindTypeParameter {
+			tp := p.AsTypeParameterDeclaration()
+			if tp != nil && tp.Name() != nil {
+				result = append(result, tp.Name().Text())
+				continue
+			}
+		}
 		if p.Name() != nil {
 			result = append(result, p.Name().Text())
 		}

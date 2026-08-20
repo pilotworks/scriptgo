@@ -127,6 +127,9 @@ func lowerClosureExpression(
 		Span:       toIRSpan(path, fnStmt.Span),
 		ReturnType: toIRType(fnStmt.Type),
 	}
+	if (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) && fnStmt.InferredType != "" {
+		targetFn.ReturnType = toIRType(fnStmt.InferredType)
+	}
 	if targetFn.ReturnType == "" {
 		targetFn.ReturnType = ir.TypeVoid
 	}
@@ -143,6 +146,9 @@ func lowerClosureExpression(
 
 	for _, p := range fnStmt.Parameters {
 		typ := toIRType(p.Type)
+		if (typ == "" || typ == ir.TypeVoid) && p.InferredType != "" {
+			typ = toIRType(p.InferredType)
+		}
 		if typ == "" || typ == ir.TypeVoid {
 			typ = ir.TypeNumber // default to number for untyped parameters
 		}
@@ -151,6 +157,12 @@ func lowerClosureExpression(
 			Type: typ,
 		})
 		closureEnv[p.Name] = typ
+	}
+
+	for _, capVar := range capturedVars {
+		if capType, ok := env[capVar]; ok {
+			closureEnv[capVar] = capType
+		}
 	}
 
 	if targetFn.ReturnType == ir.TypeVoid || targetFn.ReturnType == "" {

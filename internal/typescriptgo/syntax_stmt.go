@@ -365,12 +365,131 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
 	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindModuleDeclaration:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
-	case ast.KindInterfaceDeclaration, ast.KindTypeAliasDeclaration:
+	case ast.KindInterfaceDeclaration:
+		iface := node.AsInterfaceDeclaration()
 		name := ""
 		if node.Name() != nil {
 			name = node.Name().Text()
 		}
-		return SyntaxStatement{Span: span, Kind: "interface", Name: name}, true
+		var extendsName string
+		if iface != nil && iface.HeritageClauses != nil {
+			for _, clause := range iface.HeritageClauses.Nodes {
+				hc := clause.AsHeritageClause()
+				if hc != nil && hc.Token == ast.KindExtendsKeyword && hc.Types != nil {
+					for _, t := range hc.Types.Nodes {
+						if t.Kind == ast.KindTypeReference {
+							extendsName = syntaxType(t)
+						} else if t.Kind == ast.KindExpressionWithTypeArguments {
+							exprNode := t.AsExpressionWithTypeArguments()
+							if exprNode != nil && exprNode.Expression != nil {
+								extendsName = exprNode.Expression.Text()
+								if exprNode.TypeArguments != nil && len(exprNode.TypeArguments.Nodes) > 0 {
+									var typeArgs []string
+									for _, ta := range exprNode.TypeArguments.Nodes {
+										typeArgs = append(typeArgs, syntaxType(ta))
+									}
+									extendsName = exprNode.Expression.Text() + "<" + strings.Join(typeArgs, ", ") + ">"
+								}
+							}
+						} else {
+							extendsName = syntaxType(t)
+						}
+					}
+				}
+			}
+		}
+		var fields []SyntaxField
+		for _, member := range node.Members() {
+			if member.Kind == ast.KindPropertySignature {
+				fType := syntaxType(member.Type())
+				inferredFType := resolveInferredType(chk, member.Name())
+				if inferredFType == "" {
+					inferredFType = resolveInferredType(chk, member)
+				}
+				pName := ""
+				if member.Name() != nil {
+					pName = member.Name().Text()
+				}
+				fields = append(fields, SyntaxField{
+					Span:         sourceSpan(member),
+					Name:         pName,
+					Type:         fType,
+					InferredType: inferredFType,
+				})
+			}
+		}
+		var tParams []string
+		if iface != nil && iface.TypeParameters != nil {
+			tParams = syntaxTypeParameters(iface.TypeParameters.Nodes)
+		} else {
+			tParams = syntaxTypeParameters(node.TypeParameters())
+		}
+		cls := &SyntaxClass{
+			Span:           span,
+			Name:           name,
+			TypeParameters: tParams,
+			Extends:        extendsName,
+			Fields:         fields,
+		}
+		return SyntaxStatement{Span: span, Kind: "interface", Name: name, Class: cls}, true
+
+	case ast.KindTypeAliasDeclaration:
+		alias := node.AsTypeAliasDeclaration()
+		name := ""
+		if node.Name() != nil {
+			name = node.Name().Text()
+		}
+		var fields []SyntaxField
+		if alias != nil && alias.Type != nil {
+			if alias.Type.Kind == ast.KindTypeLiteral {
+				for _, member := range alias.Type.Members() {
+					if member.Kind == ast.KindPropertySignature {
+						pName := ""
+						if member.Name() != nil {
+							pName = member.Name().Text()
+						}
+						fields = append(fields, SyntaxField{
+							Span:         sourceSpan(member),
+							Name:         pName,
+							Type:         syntaxType(member.Type()),
+							InferredType: resolveInferredType(chk, member),
+						})
+					}
+				}
+			} else if alias.Type.Kind == ast.KindUnionType {
+				unionNode := alias.Type.AsUnionTypeNode()
+				if unionNode != nil && unionNode.Types != nil {
+					for _, t := range unionNode.Types.Nodes {
+						if t.Kind == ast.KindTypeLiteral {
+							for _, member := range t.Members() {
+								if member.Kind == ast.KindPropertySignature {
+									pName := ""
+									if member.Name() != nil {
+										pName = member.Name().Text()
+									}
+									fields = append(fields, SyntaxField{
+										Span:         sourceSpan(member),
+										Name:         pName,
+										Type:         syntaxType(member.Type()),
+										InferredType: resolveInferredType(chk, member),
+									})
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		cls := &SyntaxClass{
+			Span:   span,
+			Name:   name,
+			Fields: fields,
+		}
+		tStr := ""
+		if alias != nil && alias.Type != nil {
+			tStr = syntaxType(alias.Type)
+		}
+		return SyntaxStatement{Span: span, Kind: "type_alias", Name: name, Type: tStr, Class: cls}, true
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}

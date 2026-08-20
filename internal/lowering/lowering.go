@@ -10,10 +10,13 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+var topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+
 // Lower lowers the currently supported synchronous TypeScript subset.
 func Lower(program frontend.Program) (ir.Module, error) {
 	extraFunctions = nil
 	closureCounter = 0
+	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
 	ClearDiagnostics()
 	var err error
 	program, err = SpecializeGenerics(program)
@@ -26,14 +29,22 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
+		for _, statement := range file.Syntax.Statements {
+			if statement.Kind == "variable" && statement.Expression != nil {
+				topLevelVars[statement.Name] = statement
+			}
+		}
 	}
 	hierarchy := buildClassHierarchy(program)
 	shapes := map[string]ir.ObjectShape{}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "class" && statement.Class != nil {
+			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
 				allFields := getInheritedFields(statement.Class.Name, hierarchy)
+				if len(allFields) == 0 {
+					allFields = statement.Class.Fields
+				}
 				for _, field := range allFields {
 					val := ""
 					if field.Initializer != nil {
@@ -72,6 +83,9 @@ func Lower(program frontend.Program) (ir.Module, error) {
 					shape := ir.ObjectShape{Name: shapeName, Fields: fields}
 					shapes[shapeName] = shape
 					module.Shapes = append(module.Shapes, shape)
+				}
+				if statement.Name != "" {
+					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
 				}
 			}
 		}

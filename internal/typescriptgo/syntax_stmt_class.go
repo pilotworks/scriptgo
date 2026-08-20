@@ -65,20 +65,51 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			})
 		case ast.KindConstructor:
 			var params []SyntaxParameter
+			var paramPropStmts []SyntaxStatement
 			for _, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
 					inferredPType = resolveInferredType(chk, p)
 				}
+				pName := ""
+				if p.Name() != nil {
+					pName = p.Name().Text()
+				}
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
-					Name:         p.Name().Text(),
+					Name:         pName,
 					Type:         pType,
 					InferredType: inferredPType,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
+				isParamProp := ast.HasSyntacticModifier(p, ast.ModifierFlagsPublic|ast.ModifierFlagsPrivate|ast.ModifierFlagsProtected|ast.ModifierFlagsReadonly)
+				if isParamProp && pName != "" {
+					class.Fields = append(class.Fields, SyntaxField{
+						Span:         parameterSpan(p),
+						Name:         pName,
+						Type:         pType,
+						InferredType: inferredPType,
+						IsPrivate:    ast.HasSyntacticModifier(p, ast.ModifierFlagsPrivate),
+						IsReadonly:   ast.HasSyntacticModifier(p, ast.ModifierFlagsReadonly),
+					})
+					paramPropStmts = append(paramPropStmts, SyntaxStatement{
+						Span: parameterSpan(p),
+						Kind: "field_set",
+						Left: &SyntaxExpression{
+							Span: parameterSpan(p),
+							Kind: "identifier",
+							Text: "this",
+						},
+						Name: pName,
+						Expression: &SyntaxExpression{
+							Span: parameterSpan(p),
+							Kind: "identifier",
+							Text: pName,
+						},
+					})
+				}
 			}
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
@@ -87,6 +118,17 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 						body = append(body, converted)
 					}
 				}
+			}
+			if len(paramPropStmts) > 0 {
+				insertIdx := 0
+				if len(body) > 0 && body[0].Kind == "expression" && body[0].Expression != nil && body[0].Expression.Kind == "call" && body[0].Expression.Left != nil && body[0].Expression.Left.Text == "super" {
+					insertIdx = 1
+				}
+				newBody := make([]SyntaxStatement, 0, len(body)+len(paramPropStmts))
+				newBody = append(newBody, body[:insertIdx]...)
+				newBody = append(newBody, paramPropStmts...)
+				newBody = append(newBody, body[insertIdx:]...)
+				body = newBody
 			}
 			class.Constructor = &SyntaxConstructor{
 				Span:       sourceSpan(member),

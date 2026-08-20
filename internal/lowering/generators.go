@@ -444,6 +444,11 @@ func lowerGeneratorFunction(
 		factoryArgs = append(factoryArgs, p.Name)
 	}
 
+	factoryEnv := map[string]ir.Type{}
+	for _, p := range factoryFn.Parameters {
+		factoryEnv[p.Name] = p.Type
+	}
+
 	// Add default initializers for local variables
 	for _, s := range statement.Body {
 		if s.Kind == "variable" {
@@ -454,15 +459,28 @@ func lowerGeneratorFunction(
 			if vType == "" {
 				vType = ir.TypeNumber
 			}
+			if s.Expression != nil {
+				initVal, initValType, err := lowerExpression(path, s.Expression, "", &factoryFn, factoryEnv, &factoryCounter, shapes, signatures)
+				if err == nil && initVal != "" {
+					factoryArgs = append(factoryArgs, initVal)
+					factoryEnv[s.Name] = initValType
+					continue
+				}
+			}
 			var initVal string
-			if s.Expression != nil && s.Expression.Kind == "number" {
-				initVal = s.Expression.Text
-			} else {
+			if vType == ir.TypeNumber {
 				initVal = "0"
+			} else if vType == ir.TypeBool {
+				initVal = "false"
 			}
 			initTemp := nextTemp(&factoryCounter)
-			factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpConst, Type: vType, Result: initTemp, Value: initVal, Span: toIRSpan(path, s.Span)})
+			if vType == ir.TypeNumberArray || vType == ir.TypeStringArray || strings.HasSuffix(string(vType), "[]") {
+				factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpArray, Type: vType, Result: initTemp, Span: toIRSpan(path, s.Span)})
+			} else {
+				factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpConst, Type: vType, Result: initTemp, Value: initVal, Span: toIRSpan(path, s.Span)})
+			}
 			factoryArgs = append(factoryArgs, initTemp)
+			factoryEnv[s.Name] = vType
 		}
 	}
 

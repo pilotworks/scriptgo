@@ -23,9 +23,28 @@ type Value struct {
 	String     string
 	Bool       bool
 	Array      []Value
+	ArrayRef   *[]Value
 	Object     map[string]Value
 	Closure    *Closure
 	Boxed      *Value
+}
+
+func (v Value) GetArray() []Value {
+	if v.ArrayRef != nil {
+		return *v.ArrayRef
+	}
+	return v.Array
+}
+
+func (v *Value) SetArray(arr []Value) {
+	if v.ArrayRef != nil {
+		*v.ArrayRef = arr
+	} else {
+		ref := new([]Value)
+		*ref = arr
+		v.ArrayRef = ref
+	}
+	v.Array = arr
 }
 
 type Result struct {
@@ -56,6 +75,9 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		boolean, err := strconv.ParseBool(value)
 		return Value{Type: typ, Bool: boolean}, err
 	default:
+		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {
+			return Value{Type: typ}, nil
+		}
 		return Value{}, fmt.Errorf("unsupported constant type %s", typ)
 	}
 }
@@ -147,6 +169,16 @@ func binary(operator string, left, right Value) (Value, error) {
 
 func compare(operator string, left, right Value) (Value, error) {
 	if left.Type != right.Type {
+		if (strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr") && (strings.HasPrefix(string(right.Type), "object:") || right.Type == "ptr") {
+			leftNull := len(left.Object) == 0 && left.Boxed == nil && len(left.GetArray()) == 0
+			rightNull := len(right.Object) == 0 && right.Boxed == nil && len(right.GetArray()) == 0
+			switch operator {
+			case "==", "===":
+				return Value{Type: ir.TypeBool, Bool: leftNull == rightNull}, nil
+			case "!=", "!==":
+				return Value{Type: ir.TypeBool, Bool: leftNull != rightNull}, nil
+			}
+		}
 		return Value{}, fmt.Errorf("compare operands have types %s and %s", left.Type, right.Type)
 	}
 	var result bool
@@ -221,12 +253,32 @@ func compare(operator string, left, right Value) (Value, error) {
 			return Value{}, fmt.Errorf("operator %q is unsupported for symbol comparison", operator)
 		}
 	default:
+		if strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" {
+			leftNull := len(left.Object) == 0 && left.Boxed == nil && len(left.GetArray()) == 0
+			rightNull := len(right.Object) == 0 && right.Boxed == nil && len(right.GetArray()) == 0
+			switch operator {
+			case "==", "===":
+				result = leftNull == rightNull
+			case "!=", "!==":
+				result = leftNull != rightNull
+			default:
+				return Value{}, fmt.Errorf("operator %q is unsupported for object comparison", operator)
+			}
+			return Value{Type: ir.TypeBool, Bool: result}, nil
+		}
 		return Value{}, fmt.Errorf("compare is unsupported for %s", left.Type)
 	}
 	return Value{Type: ir.TypeBool, Bool: result}, nil
 }
 
 func format(value Value) string {
+	if len(value.Array) > 0 || strings.HasSuffix(string(value.Type), "[]") || value.Type == ir.TypeNumberArray || value.Type == ir.TypeStringArray {
+		parts := make([]string, len(value.Array))
+		for i, item := range value.Array {
+			parts[i] = format(item)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
 	switch value.Type {
 	case ir.TypeNumber:
 		return strconv.FormatFloat(value.Number, 'f', -1, 64)

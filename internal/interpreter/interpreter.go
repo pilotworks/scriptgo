@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -208,15 +209,17 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			env[instruction.Result] = selected
 		case ir.OpArray:
-			array := make([]Value, 0, len(instruction.Args))
-			for _, name := range instruction.Args {
-				value, err := lookup(env, []string{name}, 0)
+			array := make([]Value, 0)
+			for _, arg := range instruction.Args {
+				val, err := lookup(env, []string{arg}, 0)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
-				array = append(array, value)
+				array = append(array, val)
 			}
-			env[instruction.Result] = Value{Type: instruction.Type, Array: array}
+			ref := new([]Value)
+			*ref = array
+			env[instruction.Result] = Value{Type: instruction.Type, Array: array, ArrayRef: ref}
 		case ir.OpIndex:
 			array, err := lookup(env, instruction.Args, 0)
 			if err != nil {
@@ -230,10 +233,11 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
 			}
 			position := int(index.Number)
-			if position >= len(array.Array) {
-				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
+			arr := array.GetArray()
+			if position >= len(arr) {
+				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(arr))
 			}
-			env[instruction.Result] = array.Array[position]
+			env[instruction.Result] = arr[position]
 		case ir.OpIndexSet:
 			array, err := lookup(env, instruction.Args, 0)
 			if err != nil {
@@ -251,10 +255,13 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
 			}
 			position := int(index.Number)
-			if position >= len(array.Array) {
-				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(array.Array))
+			arr := array.GetArray()
+			if position >= len(arr) {
+				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(arr))
 			}
-			array.Array[position] = val
+			arr[position] = val
+			array.SetArray(arr)
+			env[instruction.Args[0]] = array
 		case ir.OpObjectNew:
 			env[instruction.Result] = Value{Type: instruction.Type, Object: map[string]Value{}, String: instruction.Value}
 		case ir.OpInstanceOf:
@@ -280,14 +287,28 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
+			if len(object.Array) > 0 {
+				idx, err := strconv.Atoi(instruction.Field)
+				if err == nil && idx >= 0 && idx < len(object.Array) {
+					object.Array[idx] = value
+					continue
+				}
+			}
 			if object.Object == nil {
-				return Value{}, false, flowNormal, fmt.Errorf("field set on non-object value")
+				object.Object = make(map[string]Value)
 			}
 			object.Object[instruction.Field] = value
 		case ir.OpFieldGet:
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {
 				return Value{}, false, flowNormal, err
+			}
+			if len(object.Array) > 0 {
+				idx, err := strconv.Atoi(instruction.Field)
+				if err == nil && idx >= 0 && idx < len(object.Array) {
+					env[instruction.Result] = object.Array[idx]
+					continue
+				}
 			}
 			value, ok := object.Object[instruction.Field]
 			if !ok {

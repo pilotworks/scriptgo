@@ -206,9 +206,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, arrType, nil
 	case "index", "optional_index":
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
-			if shape, isShape := shapes[expression.Left.Text]; isShape {
-				// Static constant index (e.g. Color[0])
-				if expression.Right != nil && expression.Right.Kind == "number" {
+			if _, isVar := env[expression.Left.Text]; !isVar {
+				if shape, isShape := shapes[expression.Left.Text]; isShape {
+					// Static constant index (e.g. Color[0])
+					if expression.Right != nil && expression.Right.Kind == "number" {
 					for _, field := range shape.Fields {
 						if field.Value == expression.Right.Text {
 							if result == "" {
@@ -280,6 +281,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 		}
+	}
 		if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
 			keyVal, keyType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 			if err != nil || keyType != ir.TypeString {
@@ -451,6 +453,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			})
 			return result, ir.TypeClosure, nil
 		}
+		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil {
+			return lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
+		}
 		global, ok := builtinGlobal(expression.Text)
 		if !ok {
 			return "", "", fmt.Errorf("unknown identifier %q", expression.Text)
@@ -584,6 +589,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				callee := "__string.fromNumber"
 				if valType == ir.TypeBool {
 					callee = "__string.fromBool"
+				} else if valType == ir.TypeBigInt {
+					callee = "__string.fromBigInt"
 				} else if valType != ir.TypeNumber {
 					return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
 				}
@@ -608,7 +615,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if conditionType != ir.TypeBool {
-			return "", "", fmt.Errorf("conditional expression requires a bool condition")
+			if strings.HasPrefix(string(conditionType), "object:") || conditionType == "ptr" {
+				nullConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: conditionType, Result: nullConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+				boolTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, nullConst}, Span: toIRSpan(path, expression.Span)})
+				condition = boolTemp
+				conditionType = ir.TypeBool
+			} else {
+				return "", "", fmt.Errorf("conditional expression requires a bool condition")
+			}
 		}
 		whenTrue, trueType, err := lowerExpression(path, expression.WhenTrue, "", function, env, counter, shapes, signatures)
 		if err != nil {

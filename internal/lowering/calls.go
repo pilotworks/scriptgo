@@ -164,7 +164,7 @@ func lowerCallExpression(
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeString, nil
 			}
-			if (receiverType == ir.TypeNumberArray || receiverType == ir.TypeStringArray) && isArrayMethod(methodName) {
+			if (receiverType == ir.TypeNumberArray || receiverType == ir.TypeStringArray || receiverType == ir.TypeBoolArray || receiverType == ir.TypeBigIntArray || strings.HasSuffix(string(receiverType), "[]")) && isArrayMethod(methodName) {
 				args := []string{receiver}
 				for _, argument := range expression.Arguments {
 					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -178,7 +178,25 @@ func lowerCallExpression(
 				}
 				returnType := ir.TypeNumber
 				switch methodName {
-				case "slice", "reverse", "concat", "splice", "map", "filter":
+				case "map":
+					returnType = receiverType
+					if len(args) > 1 {
+						if cbRet, ok := env[args[1]+".retType"]; ok && cbRet != "" {
+							switch cbRet {
+							case ir.TypeNumber:
+								returnType = ir.TypeNumberArray
+							case ir.TypeString:
+								returnType = ir.TypeStringArray
+							case ir.TypeBool:
+								returnType = ir.TypeBoolArray
+							case ir.TypeBigInt:
+								returnType = ir.TypeBigIntArray
+							default:
+								returnType = ir.Type(string(cbRet) + "[]")
+							}
+						}
+					}
+				case "slice", "reverse", "concat", "splice", "filter":
 					returnType = receiverType
 				case "includes", "some", "every":
 					returnType = ir.TypeBool
@@ -189,6 +207,15 @@ func lowerCallExpression(
 				case "pop", "shift", "at", "find":
 					if receiverType == ir.TypeNumberArray {
 						returnType = ir.TypeNumber
+					} else if receiverType == ir.TypeStringArray {
+						returnType = ir.TypeString
+					} else if receiverType == ir.TypeBoolArray {
+						returnType = ir.TypeBool
+					} else if receiverType == ir.TypeBigIntArray {
+						returnType = ir.TypeBigInt
+					} else if strings.HasSuffix(string(receiverType), "[]") {
+						elemTypeStr := strings.TrimSuffix(string(receiverType), "[]")
+						returnType = toIRType(elemTypeStr)
 					} else {
 						returnType = ir.TypeString
 					}
@@ -228,25 +255,40 @@ func lowerCallExpression(
 
 					if target.ReturnType != ir.TypeVoid {
 						env[result] = target.ReturnType
-					}
-					var elseBody []ir.Instruction
-					baseCallRes := nextTemp(counter)
-					elseBody = append(elseBody, ir.Instruction{
-						Op:     ir.OpCall,
-						Type:   target.ReturnType,
-						Result: baseCallRes,
-						Callee: mangled,
-						Args:   args,
-						Span:   toIRSpan(path, expression.Span),
-					})
-					if target.ReturnType != ir.TypeVoid {
-						elseBody = append(elseBody, ir.Instruction{
-							Op:     ir.OpAssign,
+						defaultVal := ""
+						if target.ReturnType == ir.TypeNumber {
+							defaultVal = "0"
+						} else if target.ReturnType == ir.TypeBool {
+							defaultVal = "false"
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
 							Type:   target.ReturnType,
 							Result: result,
-							Args:   []string{baseCallRes},
+							Value:  defaultVal,
 							Span:   toIRSpan(path, expression.Span),
 						})
+					}
+					var elseBody []ir.Instruction
+					if _, hasSig := signatures[mangled]; hasSig {
+						baseCallRes := nextTemp(counter)
+						elseBody = append(elseBody, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   target.ReturnType,
+							Result: baseCallRes,
+							Callee: mangled,
+							Args:   args,
+							Span:   toIRSpan(path, expression.Span),
+						})
+						if target.ReturnType != ir.TypeVoid {
+							elseBody = append(elseBody, ir.Instruction{
+								Op:     ir.OpAssign,
+								Type:   target.ReturnType,
+								Result: result,
+								Args:   []string{baseCallRes},
+								Span:   toIRSpan(path, expression.Span),
+							})
+						}
 					}
 
 					currElse := elseBody

@@ -434,6 +434,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 	if !ok || (!strings.HasSuffix(string(array.Type), "[]") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray) {
 		return Value{}, fmt.Errorf("array intrinsic requires an array")
 	}
+	array.Array = array.GetArray()
 	switch name {
 	case "__array.length":
 		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
@@ -446,6 +447,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			return Value{}, fmt.Errorf("unknown push argument %q", arguments[1])
 		}
 		array.Array = append(array.Array, elem)
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
 		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
 	case "__array.pop":
@@ -460,6 +462,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		last := array.Array[len(array.Array)-1]
 		array.Array = array.Array[:len(array.Array)-1]
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
 		return last, nil
 	case "__array.slice":
@@ -576,6 +579,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		first := array.Array[0]
 		array.Array = array.Array[1:]
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
 		return first, nil
 	case "__array.unshift":
@@ -587,6 +591,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			return Value{}, fmt.Errorf("unknown unshift argument %q", arguments[1])
 		}
 		array.Array = append([]Value{elem}, array.Array...)
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
 		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
 	case "__array.reverse":
@@ -596,6 +601,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		for i, j := 0, len(array.Array)-1; i < j; i, j = i+1, j-1 {
 			array.Array[i], array.Array[j] = array.Array[j], array.Array[i]
 		}
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
 		return array, nil
 	case "__array.concat":
@@ -609,7 +615,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		newItems := make([]Value, 0, len(array.Array)+len(other.Array))
 		newItems = append(newItems, array.Array...)
 		newItems = append(newItems, other.Array...)
-		return Value{Type: array.Type, Array: newItems}, nil
+		return Value{Type: array.Type, Array: newItems, ArrayRef: &newItems}, nil
 	case "__array.splice":
 		if len(arguments) < 2 {
 			return Value{}, fmt.Errorf("array.splice requires start")
@@ -643,8 +649,9 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		deleted := append([]Value(nil), array.Array[start:start+deleteCount]...)
 		array.Array = append(array.Array[:start], array.Array[start+deleteCount:]...)
+		array.SetArray(array.Array)
 		env[arguments[0]] = array
-		return Value{Type: array.Type, Array: deleted}, nil
+		return Value{Type: array.Type, Array: deleted, ArrayRef: &deleted}, nil
 	case "__array.join":
 		sep := ","
 		if len(arguments) >= 2 {
@@ -775,8 +782,14 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		if array.Type == ir.TypeNumberArray {
 			return Value{Type: ir.TypeNumber, Number: 0}, nil
+		} else if array.Type == ir.TypeStringArray {
+			return Value{Type: ir.TypeString, String: ""}, nil
 		}
-		return Value{Type: ir.TypeString, String: ""}, nil
+		elemType := ir.Type(strings.TrimSuffix(string(array.Type), "[]"))
+		if !strings.HasPrefix(string(elemType), "object:") && elemType != ir.TypeNumber && elemType != ir.TypeString && elemType != ir.TypeBool && elemType != ir.TypeBigInt {
+			elemType = ir.Type("object:" + string(elemType))
+		}
+		return Value{Type: elemType}, nil
 	case "__array.some":
 		if len(arguments) < 2 {
 			return Value{}, fmt.Errorf("array.some requires callback closure")
@@ -1029,27 +1042,17 @@ func executeJsonIntrinsic(name string, arguments []string, env map[string]Value)
 			return Value{}, err
 		}
 		return Value{Type: ir.TypeString, String: string(b)}, nil
-	case "__json.stringify_number_array":
-		if arg.Type != ir.TypeNumberArray {
-			return Value{}, fmt.Errorf("JSON.stringify expects a number array")
-		}
+	case "__json.stringify_number_array", "__json.stringify_string_array":
 		parts := make([]string, len(arg.Array))
 		for i, item := range arg.Array {
-			if math.IsNaN(item.Number) || math.IsInf(item.Number, 0) {
+			if item.Type == ir.TypeString {
+				b, _ := json.Marshal(item.String)
+				parts[i] = string(b)
+			} else if item.Type == ir.TypeNumber && (math.IsNaN(item.Number) || math.IsInf(item.Number, 0)) {
 				parts[i] = "null"
 			} else {
 				parts[i] = format(item)
 			}
-		}
-		return Value{Type: ir.TypeString, String: "[" + strings.Join(parts, ",") + "]"}, nil
-	case "__json.stringify_string_array":
-		if arg.Type != ir.TypeStringArray {
-			return Value{}, fmt.Errorf("JSON.stringify expects a string array")
-		}
-		parts := make([]string, len(arg.Array))
-		for i, item := range arg.Array {
-			b, _ := json.Marshal(item.String)
-			parts[i] = string(b)
 		}
 		return Value{Type: ir.TypeString, String: "[" + strings.Join(parts, ",") + "]"}, nil
 	case "__json.parse_string":

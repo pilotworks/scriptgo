@@ -81,6 +81,8 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				callee := "__string.fromNumber"
 				if leftType == ir.TypeBool {
 					callee = "__string.fromBool"
+				} else if leftType == ir.TypeBigInt {
+					callee = "__string.fromBigInt"
 				} else if leftType != ir.TypeNumber {
 					return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 				}
@@ -93,6 +95,8 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				callee := "__string.fromNumber"
 				if rightType == ir.TypeBool {
 					callee = "__string.fromBool"
+				} else if rightType == ir.TypeBigInt {
+					callee = "__string.fromBigInt"
 				} else if rightType != ir.TypeNumber {
 					return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 				}

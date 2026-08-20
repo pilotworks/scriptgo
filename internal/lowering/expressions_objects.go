@@ -197,6 +197,30 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		propValues = append(propValues, val)
 	}
 	shapeName := anonymousShapeName(fields)
+	if expression.InferredType != "" {
+		cleanInf := strings.TrimPrefix(expression.InferredType, "object:")
+		if _, ok := shapes[cleanInf]; ok {
+			shapeName = cleanInf
+		}
+	}
+	if shapeName == anonymousShapeName(fields) {
+		for name, s := range shapes {
+			if !strings.HasPrefix(name, "__shape_") && len(s.Fields) == len(fields) {
+				match := true
+				for _, f := range fields {
+					idx := fieldIndex(s, f.Name)
+					if idx == -1 {
+						match = false
+						break
+					}
+				}
+				if match {
+					shapeName = name
+					break
+				}
+			}
+		}
+	}
 	if _, ok := shapes[shapeName]; !ok {
 		shapes[shapeName] = ir.ObjectShape{
 			Name:   shapeName,
@@ -204,6 +228,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			Fields: fields,
 		}
 	}
+	targetShape := shapes[shapeName]
 	if result == "" {
 		result = nextTemp(counter)
 	}
@@ -213,19 +238,25 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		Type:       objType,
 		Result:     result,
 		Callee:     shapeName,
-		FieldCount: len(fields),
+		FieldCount: len(targetShape.Fields),
 		Span:       toIRSpan(path, expression.Span),
 	})
-	for i, field := range fields {
-		function.Body = append(function.Body, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     shapeName,
-			Field:      field.Name,
-			FieldIndex: i,
-			Args:       []string{result, propValues[i]},
-			Span:       toIRSpan(path, expression.Span),
-		})
+	propMap := map[string]string{}
+	for i, f := range fields {
+		propMap[f.Name] = propValues[i]
+	}
+	for i, field := range targetShape.Fields {
+		if val, exists := propMap[field.Name]; exists {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      field.Name,
+				FieldIndex: i,
+				Args:       []string{result, val},
+				Span:       toIRSpan(path, expression.Span),
+			})
+		}
 	}
 	return result, objType, nil
 }
@@ -264,7 +295,11 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		Span:       toIRSpan(path, expression.Span),
 	})
 	for _, field := range shape.Fields {
-		if field.Value != "" {
+		if strings.HasSuffix(string(field.Type), "[]") || field.Type == ir.TypeNumberArray || field.Type == ir.TypeStringArray || field.Type == ir.TypeBoolArray || field.Type == ir.TypeBigIntArray {
+			arrTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: field.Type, Result: arrTemp, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, arrTemp}, Span: field.Span})
+		} else if field.Value != "" {
 			initializer := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})

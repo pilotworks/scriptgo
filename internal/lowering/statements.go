@@ -49,10 +49,32 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		}
 	}
 	if !returned {
-		if function.ReturnType != ir.TypeVoid {
-			return ir.Function{}, fmt.Errorf("function %q does not return %s", function.Name, function.ReturnType)
+		if function.ReturnType == ir.TypeVoid {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: function.Span})
+		} else {
+			defVal := ""
+			if function.ReturnType == ir.TypeNumber {
+				defVal = "0"
+			} else if function.ReturnType == ir.TypeBool {
+				defVal = "false"
+			} else if strings.HasPrefix(string(function.ReturnType), "object:") || function.ReturnType == "ptr" {
+				defVal = "0"
+			}
+			defTemp := nextTemp(&counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   function.ReturnType,
+				Result: defTemp,
+				Value:  defVal,
+				Span:   function.Span,
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpReturn,
+				Type: function.ReturnType,
+				Args: []string{defTemp},
+				Span: function.Span,
+			})
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: function.Span})
 	}
 	return function, nil
 }
@@ -495,7 +517,11 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 	parts := strings.Split(inner, ",")
 	var fields []ir.Field
 	for i, part := range parts {
-		elemType := toIRType(strings.TrimSpace(part))
+		trimmed := strings.TrimSpace(part)
+		if idx := strings.Index(trimmed, ":"); idx != -1 {
+			trimmed = strings.TrimSpace(trimmed[idx+1:])
+		}
+		elemType := toIRType(trimmed)
 		fields = append(fields, ir.Field{
 			Name: strconv.Itoa(i),
 			Type: elemType,

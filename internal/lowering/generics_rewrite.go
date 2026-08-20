@@ -41,6 +41,7 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, genericFuncs map[s
 		res.Finally[i] = rewriteStatementTypes(res.Finally[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
 	}
 	if res.Class != nil {
+		res.Class.Extends = rewriteTypeString(res.Class.Extends)
 		for i := range res.Class.Fields {
 			res.Class.Fields[i].Type = rewriteTypeString(res.Class.Fields[i].Type)
 			if res.Class.Fields[i].Initializer != nil {
@@ -187,6 +188,7 @@ func normalizeStmtArrayTypes(stmt typescriptgo.SyntaxStatement) typescriptgo.Syn
 		stmt.Finally[i] = normalizeStmtArrayTypes(stmt.Finally[i])
 	}
 	if stmt.Class != nil {
+		stmt.Class.Extends = rewriteTypeString(stmt.Class.Extends)
 		for i := range stmt.Class.Fields {
 			stmt.Class.Fields[i].Type = rewriteTypeString(stmt.Class.Fields[i].Type)
 		}

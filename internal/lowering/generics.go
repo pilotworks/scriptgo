@@ -17,7 +17,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "function" && len(statement.TypeParameters) > 0 {
 				genericFuncs[statement.Name] = statement
-			} else if statement.Kind == "class" && statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
+			} else if (statement.Kind == "class" || statement.Kind == "interface") && statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
 				genericClasses[statement.Class.Name] = *statement.Class
 			} else if statement.Kind == "variable" && statement.Expression != nil && statement.Expression.Kind == "arrow_function" && statement.Expression.Function != nil && len(statement.Expression.Function.TypeParameters) > 0 {
 				fn := *statement.Expression.Function
@@ -94,8 +94,10 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		specCls := cloneClass(clsTemplate)
 		specCls.Name = mangled
 		specCls.TypeParameters = nil
+		specCls.Extends = substituteType(specCls.Extends, subst)
 		for i := range specCls.Fields {
 			specCls.Fields[i].Type = substituteType(specCls.Fields[i].Type, subst)
+			specCls.Fields[i].InferredType = substituteType(specCls.Fields[i].InferredType, subst)
 			if specCls.Fields[i].Initializer != nil {
 				specCls.Fields[i].Initializer = cloneAndSubstituteExpr(specCls.Fields[i].Initializer, subst)
 			}
@@ -103,6 +105,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		if specCls.Constructor != nil {
 			for i := range specCls.Constructor.Parameters {
 				specCls.Constructor.Parameters[i].Type = substituteType(specCls.Constructor.Parameters[i].Type, subst)
+				specCls.Constructor.Parameters[i].InferredType = substituteType(specCls.Constructor.Parameters[i].InferredType, subst)
 				if specCls.Constructor.Parameters[i].Initializer != nil {
 					specCls.Constructor.Parameters[i].Initializer = cloneAndSubstituteExpr(specCls.Constructor.Parameters[i].Initializer, subst)
 				}
@@ -113,8 +116,10 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		}
 		for i := range specCls.Methods {
 			specCls.Methods[i].Type = substituteType(specCls.Methods[i].Type, subst)
+			specCls.Methods[i].InferredType = substituteType(specCls.Methods[i].InferredType, subst)
 			for j := range specCls.Methods[i].Parameters {
 				specCls.Methods[i].Parameters[j].Type = substituteType(specCls.Methods[i].Parameters[j].Type, subst)
+				specCls.Methods[i].Parameters[j].InferredType = substituteType(specCls.Methods[i].Parameters[j].InferredType, subst)
 				if specCls.Methods[i].Parameters[j].Initializer != nil {
 					specCls.Methods[i].Parameters[j].Initializer = cloneAndSubstituteExpr(specCls.Methods[i].Parameters[j].Initializer, subst)
 				}
@@ -216,6 +221,9 @@ func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, e
 		scanAndSpecializeStmt(s, fileName, env, genericFuncs, genericClasses, reqFn, reqCls)
 	}
 	if stmt.Class != nil {
+		if stmt.Class.Extends != "" {
+			scanTypeForGenerics(stmt.Class.Extends, fileName, genericClasses, reqCls)
+		}
 		for _, f := range stmt.Class.Fields {
 			if f.Type != "" {
 				scanTypeForGenerics(f.Type, fileName, genericClasses, reqCls)

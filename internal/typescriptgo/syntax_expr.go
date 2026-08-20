@@ -1,6 +1,7 @@
 package typescriptgo
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -310,15 +311,104 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			name = node.Name().Text()
 		}
 		var params []SyntaxParameter
-		for _, parameter := range node.Parameters() {
+		var bindingStmts []SyntaxStatement
+		for pIdx, parameter := range node.Parameters() {
 			pType := syntaxType(parameter.Type())
 			inferredPType := resolveInferredType(chk, parameter.Name())
 			if inferredPType == "" {
 				inferredPType = resolveInferredType(chk, parameter)
 			}
+			nameNode := parameter.Name()
+			var pName string
+			if nameNode != nil && nameNode.Kind == ast.KindIdentifier {
+				pName = nameNode.Text()
+			} else if nameNode != nil && nameNode.Kind == ast.KindArrayBindingPattern {
+				pName = fmt.Sprintf("__param_%d", pIdx)
+				pattern := nameNode.AsBindingPattern()
+				var elemTypes []string
+				if pattern != nil && pattern.Elements != nil {
+					for elIdx, elem := range pattern.Elements.Nodes {
+						if elem.Kind == ast.KindOmittedExpression {
+							elemTypes = append(elemTypes, "any")
+							continue
+						}
+						binding := elem.AsBindingElement()
+						eType := resolveInferredType(chk, elem)
+						if eType == "" {
+							eType = "number"
+						}
+						elemTypes = append(elemTypes, eType)
+						if binding != nil && binding.Name() != nil {
+							varName := binding.Name().Text()
+							if varName != "" {
+								idxExpr := &SyntaxExpression{
+									Span:         sourceSpan(elem),
+									Kind:         "index",
+									InferredType: eType,
+									Left: &SyntaxExpression{
+										Span: sourceSpan(elem),
+										Kind: "identifier",
+										Text: pName,
+									},
+									Right: &SyntaxExpression{
+										Span: sourceSpan(elem),
+										Kind: "number",
+										Text: fmt.Sprintf("%d", elIdx),
+									},
+								}
+								bindingStmts = append(bindingStmts, SyntaxStatement{
+									Span:         sourceSpan(elem),
+									Kind:         "variable",
+									Name:         varName,
+									InferredType: eType,
+									Expression:   idxExpr,
+								})
+							}
+						}
+					}
+				}
+				if inferredPType == "" || inferredPType == "number" || inferredPType == "string" || inferredPType == "bool" {
+					inferredPType = "[" + strings.Join(elemTypes, ", ") + "]"
+				}
+			} else if nameNode != nil && nameNode.Kind == ast.KindObjectBindingPattern {
+				pName = fmt.Sprintf("__param_%d", pIdx)
+				pattern := nameNode.AsBindingPattern()
+				if pattern != nil && pattern.Elements != nil {
+					for _, elem := range pattern.Elements.Nodes {
+						binding := elem.AsBindingElement()
+						if binding != nil && binding.Name() != nil {
+							varName := binding.Name().Text()
+							propName := varName
+							if binding.PropertyName != nil {
+								propName = binding.PropertyName.Text()
+							}
+							propExpr := &SyntaxExpression{
+								Span:         sourceSpan(elem),
+								Kind:         "property",
+								Text:         propName,
+								InferredType: resolveInferredType(chk, elem),
+								Left: &SyntaxExpression{
+									Span: sourceSpan(elem),
+									Kind: "identifier",
+									Text: pName,
+								},
+							}
+							bindingStmts = append(bindingStmts, SyntaxStatement{
+								Span:         sourceSpan(elem),
+								Kind:         "variable",
+								Name:         varName,
+								InferredType: resolveInferredType(chk, elem),
+								Expression:   propExpr,
+							})
+						}
+					}
+				}
+			} else if nameNode != nil {
+				pName = fmt.Sprintf("__param_%d", pIdx)
+			}
 			params = append(params, SyntaxParameter{
 				Span:         parameterSpan(parameter),
-				Name:         parameter.Name().Text(),
+				Name:         pName,
 				Type:         pType,
 				InferredType: inferredPType,
 				Rest:         parameter.AsParameterDeclaration().DotDotDotToken != nil,
@@ -340,6 +430,9 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 					Expression: syntaxExpression(b, chk),
 				})
 			}
+		}
+		if len(bindingStmts) > 0 {
+			body = append(bindingStmts, body...)
 		}
 		fnType := syntaxType(node.Type())
 		inferredRetType := resolveFunctionReturnType(chk, node)
