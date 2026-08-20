@@ -251,12 +251,35 @@ func classDepth(className string, hierarchy map[string]ClassMeta) int {
 	return depth
 }
 
+func isAbstractMethodInHierarchy(className, methodName string) bool {
+	curr := className
+	for curr != "" {
+		cleanCurr := curr
+		if idx := strings.Index(curr, "<"); idx != -1 {
+			cleanCurr = curr[:idx]
+		}
+		if stmtClass, ok := classSyntax[cleanCurr]; ok {
+			for _, m := range stmtClass.Methods {
+				if m.Name == methodName && !m.IsStatic {
+					return m.IsAbstract
+				}
+			}
+		}
+		if meta, ok := classHierarchy[cleanCurr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return false
+}
+
 func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []string {
 	var result []string
 	for name := range hierarchy {
 		if name != baseClass && isSubclassOf(name, baseClass, hierarchy) {
 			mangled := name + "_" + methodName
-			if _, ok := signatures[mangled]; ok {
+			if _, ok := signatures[mangled]; ok && !isAbstractMethodInHierarchy(name, methodName) {
 				result = append(result, name)
 			}
 		}
@@ -271,3 +294,4 @@ func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string
 	})
 	return result
 }
+

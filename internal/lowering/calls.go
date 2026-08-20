@@ -268,7 +268,8 @@ func lowerCallExpression(
 					}
 
 					overrides := findOverridingSubclasses(className, methodName, classHierarchy, signatures)
-					if len(overrides) == 0 {
+					isAbstract := isAbstractMethodInHierarchy(className, methodName)
+					if len(overrides) == 0 && !isAbstract {
 						function.Body = append(function.Body, ir.Instruction{
 							Op:     ir.OpCall,
 							Type:   target.ReturnType,
@@ -297,7 +298,7 @@ func lowerCallExpression(
 						})
 					}
 					var elseBody []ir.Instruction
-					if _, hasSig := signatures[mangled]; hasSig {
+					if _, hasSig := signatures[mangled]; hasSig && !isAbstract {
 						baseCallRes := nextTemp(counter)
 						elseBody = append(elseBody, ir.Instruction{
 							Op:     ir.OpCall,

@@ -291,6 +291,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				idx, err := strconv.Atoi(instruction.Field)
 				if err == nil && idx >= 0 && idx < len(object.Array) {
 					object.Array[idx] = value
+					env[instruction.Args[0]] = object
 					continue
 				}
 			}
@@ -298,6 +299,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				object.Object = make(map[string]Value)
 			}
 			object.Object[instruction.Field] = value
+			env[instruction.Args[0]] = object
 		case ir.OpFieldGet:
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {
