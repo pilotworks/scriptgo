@@ -243,19 +243,31 @@ jobs:
       - name: Extract Changelog for Release Body
         id: changelog
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          echo "Release version: $VERSION"
+          python3 - << 'EOF'
+          import os, re
+
+          tag = os.environ.get("GITHUB_REF_NAME", "")
+          version = tag.lstrip("v")
           
-          if [ -f "CHANGELOG.md" ] && grep -q "## \[$VERSION\]" CHANGELOG.md; then
-            echo "Extracting release notes from CHANGELOG.md..."
-            awk -v ver="$VERSION" '
-              $0 ~ "^## \\[" ver "\\]" { flag=1; next }
-              /^## \\[/ && flag { flag=0 }
-              flag { print }
-            ' CHANGELOG.md > release_notes.md
-          else
-            echo "Release $GITHUB_REF_NAME" > release_notes.md
-          fi
+          notes = ""
+          if os.path.exists("CHANGELOG.md"):
+              with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+                  content = f.read()
+              
+              pattern = rf'## \[{re.escape(version)}\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)'
+              match = re.search(pattern, content)
+              if match and match.group(1).strip():
+                  notes = match.group(1).strip()
+          
+          if not notes:
+              notes = f"Release {tag}"
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(notes + "\n")
+          
+          print("Extracted Release Notes:")
+          print(notes)
+          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
