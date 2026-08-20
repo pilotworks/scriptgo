@@ -6,6 +6,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
         build-essential \
         clang \
         llvm \
+        libclang-rt-dev \
         lld \
         lldb \
         make \
