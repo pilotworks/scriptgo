@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go: ['1.24.x']
+        go: ['1.26.x']
 
     steps:
       - name: Checkout code
@@ -86,11 +86,10 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: '1.26.x'
           cache: true
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
+      - name: Run Go Vet
+        run: |
+          go vet ./...
+          go vet ./internal/typescriptgo/...

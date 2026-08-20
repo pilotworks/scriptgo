@@ -3,7 +3,7 @@
 <div align="center">
 
 [![CI](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml/badge.svg)](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![TypeScript Parity](https://img.shields.io/badge/TypeScript%20Parity-100%25%20(136%2F136)-success.svg)](docs/typescript-parity-report.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#toolchain--cross-compilation)

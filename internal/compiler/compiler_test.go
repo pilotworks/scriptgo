@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -461,8 +462,10 @@ func TestCompileRejectsTypeScriptSyntaxErrors(t *testing.T) {
 }
 
 func TestResolveClangReportsMissingToolchain(t *testing.T) {
-	t.Setenv("PATH", "")
-	if _, err := resolveClang(); err == nil || !strings.Contains(err.Error(), "requires \"clang\" in PATH") {
+	mockEmptyLookup := func(file string) (string, error) {
+		return "", fmt.Errorf("executable file not found in $PATH")
+	}
+	if _, err := resolveClangWithLookup(mockEmptyLookup); err == nil || !strings.Contains(err.Error(), "requires \"clang\" in PATH") {
 		t.Fatalf("resolveClang error = %v, want missing-toolchain diagnostic", err)
 	}
 }
@@ -523,11 +526,13 @@ func TestResolveCC(t *testing.T) {
 		}
 	}
 
-	t.Setenv("PATH", "")
-	if _, err := resolveCC("nonexistent_compiler_123"); err == nil || !strings.Contains(err.Error(), "requires \"nonexistent_compiler_123\" in PATH") {
+	mockEmptyLookup := func(file string) (string, error) {
+		return "", fmt.Errorf("executable file not found in $PATH")
+	}
+	if _, err := resolveCCWithLookup("nonexistent_compiler_123", mockEmptyLookup); err == nil || !strings.Contains(err.Error(), "requires \"nonexistent_compiler_123\" in PATH") {
 		t.Fatalf("resolveCC error = %v, want missing-toolchain diagnostic", err)
 	}
-	if _, err := resolveCC("clang"); err == nil || !strings.Contains(err.Error(), "requires \"clang\" or \"zig\" in PATH") {
+	if _, err := resolveCCWithLookup("clang", mockEmptyLookup); err == nil || !strings.Contains(err.Error(), "requires \"clang\" or \"zig\" in PATH") {
 		t.Fatalf("resolveCC(clang) with empty PATH error = %v, want missing-toolchain diagnostic", err)
 	}
 }

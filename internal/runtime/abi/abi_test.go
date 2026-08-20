@@ -84,7 +84,7 @@ int main(void) {
 	if err := os.WriteFile(harnessPath, []byte(harness), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := exec.Command(clang, harnessPath, runtimePath, "-o", executable).CombinedOutput(); err != nil {
+	if output, err := exec.Command(clang, harnessPath, runtimePath, "-o", executable, "-lm").CombinedOutput(); err != nil {
 		t.Fatalf("clang: %v\n%s", err, output)
 	}
 	output, err := exec.Command(executable).CombinedOutput()

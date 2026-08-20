@@ -144,7 +144,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
 		return fmt.Errorf("write temporary runtime file: %w", err)
 	}
-	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
+	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath, "-x", "none"}
 	if options.Debug {
 		args = append(args, "-O0")
 	} else {
@@ -159,7 +159,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if len(options.Sanitizers) > 0 {
 		args = append(args, "-fsanitize="+strings.Join(options.Sanitizers, ","))
 	}
-	args = append(args, "-o", filepath.Clean(outputPath))
+	args = append(args, "-o", filepath.Clean(outputPath), "-lm")
 	cmdArgs := append(ccParts[1:], args...)
 	command := exec.Command(ccParts[0], cmdArgs...)
 	if diagnostic, err := command.CombinedOutput(); err != nil {
@@ -170,12 +170,16 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 }
 
 func resolveCC(cc string) ([]string, error) {
+	return resolveCCWithLookup(cc, exec.LookPath)
+}
+
+func resolveCCWithLookup(cc string, lookPath func(string) (string, error)) ([]string, error) {
 	cc = strings.TrimSpace(cc)
 	if cc == "" || cc == "clang" {
-		if bin, err := exec.LookPath("clang"); err == nil {
+		if bin, err := lookPath("clang"); err == nil {
 			return []string{bin}, nil
 		}
-		if bin, err := exec.LookPath("zig"); err == nil {
+		if bin, err := lookPath("zig"); err == nil {
 			return []string{bin, "cc"}, nil
 		}
 		return nil, fmt.Errorf("native backend requires \"clang\" or \"zig\" in PATH")
@@ -183,18 +187,18 @@ func resolveCC(cc string) ([]string, error) {
 
 	parts := strings.Fields(cc)
 	if len(parts) == 0 {
-		return resolveCC("")
+		return resolveCCWithLookup("", lookPath)
 	}
 	if parts[0] == "zigcc" {
-		if bin, err := exec.LookPath("zigcc"); err == nil {
+		if bin, err := lookPath("zigcc"); err == nil {
 			parts[0] = bin
 			return parts, nil
 		}
-		if bin, err := exec.LookPath("zig"); err == nil {
+		if bin, err := lookPath("zig"); err == nil {
 			return append([]string{bin, "cc"}, parts[1:]...), nil
 		}
 	}
-	bin, err := exec.LookPath(parts[0])
+	bin, err := lookPath(parts[0])
 	if err != nil {
 		return nil, fmt.Errorf("native backend requires %q in PATH: %w", parts[0], err)
 	}
@@ -203,7 +207,11 @@ func resolveCC(cc string) ([]string, error) {
 }
 
 func resolveClang() (string, error) {
-	clang, err := exec.LookPath("clang")
+	return resolveClangWithLookup(exec.LookPath)
+}
+
+func resolveClangWithLookup(lookPath func(string) (string, error)) (string, error) {
+	clang, err := lookPath("clang")
 	if err != nil {
 		return "", fmt.Errorf("native backend llvm requires \"clang\" in PATH: %w", err)
 	}

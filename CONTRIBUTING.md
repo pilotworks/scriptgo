@@ -8,7 +8,7 @@ Thank you for your interest in contributing to **ScriptGo**! We welcome contribu
 
 To build and test ScriptGo locally, you need:
 
-- **Go**: Version `1.24+` installed.
+- **Go**: Version `1.26+` installed.
 - **Node.js**: Version `v22+` installed (used as the semantic reference oracle for parity testing).
 - **C/LLVM Toolchain**:
   - **Clang** (`clang` in `PATH`) **OR**
