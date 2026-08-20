@@ -25,23 +25,16 @@ test-parity:
 	@echo "==> Running Node.js parity checker..."
 	go run ./cmd/parity
 
-## test-sanitizers: Run native builds with AddressSanitizer & memory checks
-test-sanitizers: build
-	@echo "==> Running AddressSanitizer checks..."
-	@mkdir -p $(BUILD_DIR)
-	./$(BINARY_NAME) build --sanitize address,undefined examples/fibonacci.ts -o $(BUILD_DIR)/fib
-	./$(BUILD_DIR)/fib
-	./$(BINARY_NAME) build --sanitize address,undefined examples/classes_oop.ts -o $(BUILD_DIR)/oop
-	./$(BUILD_DIR)/oop
-	./$(BINARY_NAME) build --sanitize address,undefined examples/functional_arrays.ts -o $(BUILD_DIR)/arr
-	./$(BUILD_DIR)/arr
-	@rm -rf $(BUILD_DIR)/fib $(BUILD_DIR)/oop $(BUILD_DIR)/arr
-	@echo "==> Sanitizer checks passed."
+## test-sanitizers: Run native builds with AddressSanitizer & memory checks across the corpus in parallel
+test-sanitizers:
+	@echo "==> Running AddressSanitizer checks across test corpus in parallel..."
+	SCRIPTGO_SANITIZE="address,undefined" go test -v -count=1 -parallel 8 ./internal/compiler -run TestCorpus
 
-## lint: Run golangci-lint
+## lint: Run Go vet checks
 lint:
-	@echo "==> Running golangci-lint..."
-	golangci-lint run ./...
+	@echo "==> Running go vet..."
+	go vet ./...
+	go vet ./internal/typescriptgo/...
 
 ## release: Prepare a new release locally (usage: make release VERSION=0.1.0)
 release:

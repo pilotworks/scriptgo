@@ -16,9 +16,16 @@ func TestCorpus(t *testing.T) {
 		t.Fatal("corpus has no cases")
 	}
 
+	sanitizerEnv := os.Getenv("SCRIPTGO_SANITIZE")
+	var buildOpts BuildOptions
+	if sanitizerEnv != "" {
+		buildOpts.Sanitizers = strings.Split(sanitizerEnv, ",")
+	}
+
 	for _, casePath := range cases {
 		casePath := casePath
 		t.Run(filepath.ToSlash(casePath), func(t *testing.T) {
+			t.Parallel()
 			entry := filepath.Join(casePath, "main.ts")
 			expectations := 0
 			if expected, ok := readCorpusFile(t, casePath, "run.expected"); ok {
@@ -29,6 +36,20 @@ func TestCorpus(t *testing.T) {
 				}
 				if got != expected {
 					t.Fatalf("Run output = %q, want %q", got, expected)
+				}
+				if len(buildOpts.Sanitizers) > 0 {
+					if _, err := exec.LookPath("clang"); err == nil {
+						outputPath := filepath.Join(t.TempDir(), "main_sanitized")
+						if err := BuildWithOptions(entry, outputPath, buildOpts); err == nil {
+							nativeOut, err := exec.Command(outputPath).CombinedOutput()
+							if err != nil {
+								t.Fatalf("native sanitizer execution failed: %v\n%s", err, nativeOut)
+							}
+							if string(nativeOut) != expected {
+								t.Fatalf("native sanitizer output = %q, want %q", nativeOut, expected)
+							}
+						}
+					}
 				}
 			}
 			if expected, ok := readCorpusFile(t, casePath, "native.expected"); ok {

@@ -50,31 +50,10 @@ jobs:
         run: go run ./cmd/parity
 
       # Native Memory & Address Sanitizer Verification
-      - name: Native Memory & Address Sanitizer Check (Linux)
-        if: runner.os == 'Linux'
+      - name: Native Memory & Address Sanitizer Check
         env:
           ASAN_OPTIONS: 'detect_leaks=0'
-        run: |
-          mkdir -p bin_sanitizer
-          ./scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_sanitizer/fib
-          ./bin_sanitizer/fib
-          ./scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_sanitizer/oop
-          ./bin_sanitizer/oop
-          ./scriptgo build --sanitize address,undefined examples/functional_arrays.ts -o bin_sanitizer/arr
-          ./bin_sanitizer/arr
-          rm -rf bin_sanitizer
-
-      - name: Native Memory Sanitizer Check (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p bin_sanitizer
-          ./scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_sanitizer/fib
-          ./bin_sanitizer/fib
-          ./scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_sanitizer/oop
-          ./bin_sanitizer/oop
-          ./scriptgo build --sanitize address,undefined examples/functional_arrays.ts -o bin_sanitizer/arr
-          ./bin_sanitizer/arr
-          rm -rf bin_sanitizer
+        run: make test-sanitizers
 
   lint:
     name: Lint (Go)
@@ -89,7 +68,5 @@ jobs:
           go-version: '1.26.x'
           cache: true
 
-      - name: Run Go Vet
-        run: |
-          go vet ./...
-          go vet ./internal/typescriptgo/...
+      - name: Run Go Lint
+        run: make lint
