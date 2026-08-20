@@ -63,6 +63,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		specFn.Type = substituteType(specFn.Type, subst)
 		for i := range specFn.Parameters {
 			specFn.Parameters[i].Type = substituteType(specFn.Parameters[i].Type, subst)
+			specFn.Parameters[i].InferredType = substituteType(specFn.Parameters[i].InferredType, subst)
 			if specFn.Parameters[i].Initializer != nil {
 				specFn.Parameters[i].Initializer = cloneAndSubstituteExpr(specFn.Parameters[i].Initializer, subst)
 			}

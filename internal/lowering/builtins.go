@@ -188,7 +188,22 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 				Op: ir.OpCall, Type: ir.TypeString, Result: fStr, Callee: "__string.fromBool", Args: []string{fVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 		default:
-			if strings.HasSuffix(string(f.Type), "[]") || f.Type == ir.TypeNumberArray || f.Type == ir.TypeStringArray {
+			if strings.HasPrefix(string(f.Type), "object:") {
+				nestedShapeName := strings.TrimPrefix(string(f.Type), "object:")
+				if nestedShape, ok := call.Shapes[nestedShapeName]; ok {
+					nestedStr, _, err := lowerJSONStringifyObject(call, fVal, nestedShape)
+					if err != nil {
+						return "", "", err
+					}
+					fStr = nestedStr
+				} else {
+					qConst := nextTemp(call.Counter)
+					call.Function.Body = append(call.Function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeString, Result: qConst, Value: "\"{}\"", Span: toIRSpan(call.Path, call.Expression.Span),
+					})
+					fStr = qConst
+				}
+			} else if strings.HasSuffix(string(f.Type), "[]") || f.Type == ir.TypeNumberArray || f.Type == ir.TypeStringArray {
 				callee := "__json.stringify_string_array"
 				if f.Type == ir.TypeNumberArray {
 					callee = "__json.stringify_number_array"

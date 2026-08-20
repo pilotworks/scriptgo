@@ -37,6 +37,15 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		}
 		function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 		env[parameter.Name] = typ
+		fnSig := parameter.Type
+		if fnSig == "" || fnSig == "closure" {
+			fnSig = parameter.InferredType
+		}
+		if strings.Contains(fnSig, "=>") {
+			parts := strings.Split(fnSig, "=>")
+			retStr := strings.TrimSpace(parts[len(parts)-1])
+			env[parameter.Name+".retType"] = toIRType(retStr)
+		}
 	}
 	counter := 0
 	returned := false
@@ -91,7 +100,37 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if statement.Expression.Kind == "identifier" {
 			srcType, ok := env[statement.Expression.Text]
-			if !ok {
+			if ok && (declaredType == "" || declaredType == srcType || declaredType == ir.TypeUnknown) {
+				if declaredType == ir.TypeUnknown {
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpBoxUnknown,
+						Type:   ir.TypeUnknown,
+						Result: statement.Name,
+						Args:   []string{statement.Expression.Text},
+						Span:   toIRSpan(path, statement.Span),
+					})
+					env[statement.Name] = ir.TypeUnknown
+					return nil
+				}
+				env[statement.Name] = srcType
+				switch srcType {
+				case ir.TypeNumber:
+					zeroConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, zeroConst}, Span: toIRSpan(path, statement.Span)})
+				case ir.TypeString:
+					emptyStr := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, emptyStr}, Span: toIRSpan(path, statement.Span)})
+				case ir.TypeBool:
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+				default:
+					trueConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+				}
+				return nil
+			} else if !ok {
 				global, isGlobal := builtinGlobal(statement.Expression.Text)
 				if isGlobal {
 					env[statement.Name] = global.Type
@@ -100,35 +139,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				}
 				return fmt.Errorf("unknown identifier %q", statement.Expression.Text)
 			}
-			if declaredType == ir.TypeUnknown {
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpBoxUnknown,
-					Type:   ir.TypeUnknown,
-					Result: statement.Name,
-					Args:   []string{statement.Expression.Text},
-					Span:   toIRSpan(path, statement.Span),
-				})
-				env[statement.Name] = ir.TypeUnknown
-				return nil
-			}
-			env[statement.Name] = srcType
-			switch srcType {
-			case ir.TypeNumber:
-				zeroConst := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, zeroConst}, Span: toIRSpan(path, statement.Span)})
-			case ir.TypeString:
-				emptyStr := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, emptyStr}, Span: toIRSpan(path, statement.Span)})
-			case ir.TypeBool:
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
-			default:
-				trueConst := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, statement.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
-			}
-			return nil
 		}
 		if declaredType == ir.TypeUnknown {
 			value, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
@@ -145,6 +155,26 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			env[statement.Name] = ir.TypeUnknown
 			return nil
 		}
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && declaredType != "" && declaredType != ir.TypeVoid && declaredType != ir.TypeString && declaredType != ir.TypeUnknown {
+			defaultVal := "0"
+			if declaredType == ir.TypeBool {
+				defaultVal = "false"
+			} else if strings.HasPrefix(string(declaredType), "object:") {
+				defaultVal = "null"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   declaredType,
+				Result: statement.Name,
+				Value:  defaultVal,
+				Span:   toIRSpan(path, statement.Span),
+			})
+			env[statement.Name] = declaredType
+			return nil
+		}
+		if statement.Expression != nil && statement.Expression.Kind == "array" && statement.Type != "" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
+			statement.Expression.InferredType = statement.Type
+		}
 		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -153,6 +183,18 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return fmt.Errorf("variable %q produced unnamed value %q", statement.Name, value)
 		}
 		env[statement.Name] = typ
+		if typ == ir.TypeClosure {
+			fnSig := statement.Type
+			if fnSig == "" || fnSig == "closure" {
+				fnSig = statement.InferredType
+			}
+			if strings.Contains(fnSig, "=>") {
+				parts := strings.Split(fnSig, "=>")
+				retStr := strings.TrimSpace(parts[len(parts)-1])
+				env[statement.Name+".retType"] = toIRType(retStr)
+			}
+		}
+		return nil
 	case "expression":
 		if statement.Expression == nil {
 			return fmt.Errorf("empty expression")
@@ -162,6 +204,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "return":
 		if statement.Expression == nil {
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+			return nil
+		}
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeString && function.ReturnType != ir.TypeUnknown {
+			res := nextTemp(counter)
+			defaultVal := "0"
+			if function.ReturnType == ir.TypeBool {
+				defaultVal = "false"
+			} else if strings.HasPrefix(string(function.ReturnType), "object:") {
+				defaultVal = "null"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   function.ReturnType,
+				Result: res,
+				Value:  defaultVal,
+				Span:   toIRSpan(path, statement.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{res}, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
 		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
@@ -191,6 +251,33 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		varType, ok := env[statement.Name]
 		if !ok {
 			return fmt.Errorf("assignment to unknown variable %q", statement.Name)
+		}
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && varType != ir.TypeString && varType != ir.TypeUnknown {
+			defaultVal := "0"
+			if varType == ir.TypeBool {
+				defaultVal = "false"
+			} else if strings.HasPrefix(string(varType), "object:") {
+				defaultVal = "null"
+			}
+			tmp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   varType,
+				Result: tmp,
+				Value:  defaultVal,
+				Span:   toIRSpan(path, statement.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   varType,
+				Result: statement.Name,
+				Args:   []string{tmp},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
+		}
+		if statement.Expression != nil && statement.Expression.Kind == "array" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
+			statement.Expression.InferredType = string(varType)
 		}
 		value, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -396,6 +483,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if fIndex < 0 {
 			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, className)
 		}
+		if statement.Expression != nil && statement.Expression.Kind == "array" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
+			statement.Expression.InferredType = string(shape.Fields[fIndex].Type)
+		}
 		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -513,6 +603,8 @@ func toIRType(value string) ir.Type {
 		return ir.TypeString
 	case "bool", "boolean":
 		return ir.TypeBool
+	case "bool[]", "boolean[]":
+		return ir.TypeBoolArray
 	case "number[]":
 		return ir.TypeNumberArray
 	case "string[]", "TemplateStringsArray":
@@ -524,6 +616,10 @@ func toIRType(value string) ir.Type {
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
+		if strings.HasSuffix(value, "[]") {
+			elem := strings.TrimSuffix(value, "[]")
+			return ir.Type(string(toIRType(elem)) + "[]")
+		}
 		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
 			if fields, ok := tupleFields(value); ok {
 				return ir.Type("object:" + anonymousShapeName(fields))

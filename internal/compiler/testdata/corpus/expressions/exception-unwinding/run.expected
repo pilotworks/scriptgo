@@ -1,0 +1,2 @@
+->stepA->stepB->stepC(ok)[finallyC](B_afterC)[finallyB](A_afterB)[finallyA]
+->stepA->stepB->stepC[finallyC][catchB:range out of bounds][finallyB](A_afterB)[finallyA]

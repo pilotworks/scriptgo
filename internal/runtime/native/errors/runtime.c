@@ -30,7 +30,9 @@ typedef enum {
     SCRIPTGO_TAG_STRING    = 4,
     SCRIPTGO_TAG_OBJECT    = 5,
     SCRIPTGO_TAG_ARRAY     = 6,
-    SCRIPTGO_TAG_FUNCTION  = 7
+    SCRIPTGO_TAG_FUNCTION  = 7,
+    SCRIPTGO_TAG_BIGINT    = 8,
+    SCRIPTGO_TAG_SYMBOL    = 9
 } ScriptGoTypeTag;
 
 typedef struct {
@@ -49,6 +51,8 @@ static const char *scriptgo_tag_name(unsigned int tag) {
     case SCRIPTGO_TAG_OBJECT:    return "object";
     case SCRIPTGO_TAG_ARRAY:     return "array";
     case SCRIPTGO_TAG_FUNCTION:  return "function";
+    case SCRIPTGO_TAG_BIGINT:    return "bigint";
+    case SCRIPTGO_TAG_SYMBOL:    return "symbol";
     default:                     return "unknown";
     }
 }
@@ -78,6 +82,8 @@ const char *__scriptgo_typeof_unknown(unsigned int tag) {
     case SCRIPTGO_TAG_NUMBER:    return "number";
     case SCRIPTGO_TAG_STRING:    return "string";
     case SCRIPTGO_TAG_FUNCTION:  return "function";
+    case SCRIPTGO_TAG_BIGINT:    return "bigint";
+    case SCRIPTGO_TAG_SYMBOL:    return "symbol";
     default:                     return "object";
     }
 }

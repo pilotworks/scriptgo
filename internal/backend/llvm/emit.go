@@ -248,7 +248,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_promise_resolve_number(ptr, double)\n")
 	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_event_loop_run()\n\n")
+	out.WriteString("declare i32 @scriptgo_event_loop_run()\n")
+	out.WriteString("declare ptr @malloc(i64)\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))
@@ -344,17 +345,6 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 
 	if !emitter.terminated {
-		for _, arrayRef := range emitter.arrayTypes {
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", arrayRef.name))
-		}
-		for _, object := range emitter.objects {
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
-		}
-		if function.Name == "main" {
-			for _, value := range emitter.ownedStrings {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_string_release(ptr %%%s)\n", value))
-			}
-		}
 		if function.Name == "main" {
 			out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
 			out.WriteString("  ret i32 0\n")

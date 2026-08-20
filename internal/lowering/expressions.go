@@ -51,8 +51,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "array":
 		if len(expression.Arguments) == 0 {
 			arrType := toIRType(expression.InferredType)
-			if arrType != ir.TypeNumberArray && arrType != ir.TypeStringArray {
-				if varType, ok := env[result]; ok && (varType == ir.TypeNumberArray || varType == ir.TypeStringArray) {
+			if !strings.HasSuffix(string(arrType), "[]") && arrType != ir.TypeNumberArray && arrType != ir.TypeStringArray && arrType != ir.TypeBoolArray && arrType != ir.TypeBigIntArray && arrType != ir.TypeSymbolArray {
+				if varType, ok := env[result]; ok && strings.HasSuffix(string(varType), "[]") {
 					arrType = varType
 				} else {
 					arrType = ir.TypeNumberArray
@@ -89,7 +89,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					isHomogeneous = false
 				}
 			}
-			if isHomogeneous {
+			isTuple := false
+			if expression.InferredType != "" {
+				trimmed := strings.TrimSpace(expression.InferredType)
+				if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") && !strings.HasSuffix(trimmed, "[]") {
+					isTuple = true
+				}
+			}
+			if isHomogeneous && !isTuple {
 				var arrType ir.Type = ir.TypeNumberArray
 				if len(types) > 0 && types[0] == ir.TypeString {
 					arrType = ir.TypeStringArray
@@ -140,20 +147,33 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, objType, nil
 		}
 		var arrType ir.Type = ir.TypeNumberArray
-		for _, elem := range expression.Arguments {
-			if elem.Kind == "spread" {
-				val, typ, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
-				if err == nil && typ == ir.TypeStringArray {
-					arrType = ir.TypeStringArray
-					_ = val
-					break
-				}
-			} else {
-				val, typ, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
-				if err == nil && typ == ir.TypeString {
-					arrType = ir.TypeStringArray
-					_ = val
-					break
+		if expression.InferredType != "" && expression.InferredType != "never[]" && expression.InferredType != "any[]" {
+			inferred := toIRType(expression.InferredType)
+			if strings.HasSuffix(string(inferred), "[]") {
+				arrType = inferred
+			}
+		}
+		if len(expression.Arguments) > 0 {
+			firstElem := expression.Arguments[0]
+			if firstElem.Kind != "spread" {
+				_, typ, err := lowerExpression(path, firstElem, "", function, env, counter, shapes, signatures)
+				if err == nil {
+					switch typ {
+					case ir.TypeString:
+						arrType = ir.TypeStringArray
+					case ir.TypeNumber:
+						arrType = ir.TypeNumberArray
+					case ir.TypeBool:
+						arrType = ir.TypeBoolArray
+					case ir.TypeBigInt:
+						arrType = ir.TypeBigIntArray
+					case ir.TypeSymbol:
+						arrType = ir.TypeSymbolArray
+					default:
+						if strings.HasPrefix(string(typ), "object:") {
+							arrType = ir.Type(string(typ) + "[]")
+						}
+					}
 				}
 			}
 		}
@@ -470,31 +490,11 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "postfix_unary":
 		return lowerPostfixUnaryExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "as":
-		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		val, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
 		targetIRType := toIRType(expression.Text)
-		if valType == targetIRType {
-			if result == "" {
-				return val, valType, nil
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: valType, Result: result, Args: []string{val}, Span: toIRSpan(path, expression.Span)})
-			return result, valType, nil
-		}
-		if valType == ir.TypeUnknown || strings.Contains(string(valType), "|") {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCheckedCast,
-				Type:   targetIRType,
-				Result: result,
-				Args:   []string{val},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, targetIRType, nil
-		}
 		if targetIRType == ir.TypeUnknown {
 			if result == "" {
 				result = nextTemp(counter)
@@ -509,9 +509,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeUnknown, nil
 		}
 		if result == "" {
-			return val, targetIRType, nil
+			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: targetIRType, Result: result, Args: []string{val}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCheckedCast,
+			Type:   targetIRType,
+			Result: result,
+			Args:   []string{val},
+			Span:   toIRSpan(path, expression.Span),
+		})
 		return result, targetIRType, nil
 	case "typeof":
 		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
@@ -554,6 +560,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				typeStr = "boolean"
 			case ir.TypeVoid:
 				typeStr = "undefined"
+			case ir.TypeClosure:
+				typeStr = "function"
 			default:
 				typeStr = "object"
 			}

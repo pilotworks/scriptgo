@@ -358,6 +358,10 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			switch actualType {
 			case ir.TypeNumber:
 				typeStr = "number"
+			case ir.TypeBigInt:
+				typeStr = "bigint"
+			case ir.TypeSymbol:
+				typeStr = "symbol"
 			case ir.TypeString:
 				typeStr = "string"
 			case ir.TypeBool:

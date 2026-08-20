@@ -309,6 +309,20 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		out.WriteString(fmt.Sprintf("  %%%s = uitofp i32 %%%s to double\n", instruction.Result, resU32))
 		return nil
 	}
+	if instruction.Operator == "||" {
+		e.types[instruction.Result] = instruction.Type
+		cmp := instruction.Result + ".cmp"
+		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, instruction.Args[0], instruction.Args[1]))
+		return nil
+	}
+	if instruction.Operator == "&&" {
+		e.types[instruction.Result] = instruction.Type
+		cmp := instruction.Result + ".cmp"
+		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, instruction.Args[1], instruction.Args[0]))
+		return nil
+	}
 	return fmt.Errorf("unsupported LLVM binary operator %q", instruction.Operator)
 }
 
@@ -850,27 +864,6 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 }
 
 func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instruction) error {
-	returnValue := ""
-	if len(instruction.Args) != 0 {
-		returnValue = instruction.Args[0]
-	}
-	for _, arrayRef := range e.arrayTypes {
-		if arrayRef.name != returnValue {
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_array_release(ptr %%%s)\n", arrayRef.name))
-		}
-	}
-	for _, object := range e.objects {
-		if object != returnValue {
-			out.WriteString(fmt.Sprintf("  call i32 @scriptgo_object_release(ptr %%%s)\n", object))
-		}
-	}
-	if e.function.Name == "main" {
-		for _, value := range e.ownedStrings {
-			if value != returnValue {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_string_release(ptr %%%s)\n", value))
-			}
-		}
-	}
 	if e.function.Name == "main" {
 		out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
 		out.WriteString("  ret i32 0\n")
@@ -1045,7 +1038,11 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 		structType := fmt.Sprintf("{ %s }", strings.Join(typesList, ", "))
 		envAlloc := fmt.Sprintf("%s.env.%d", instruction.Result, e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", envAlloc, structType))
+		sizePtr := fmt.Sprintf("%s.size.ptr", envAlloc)
+		sizeVal := fmt.Sprintf("%s.size", envAlloc)
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr %s, ptr null, i32 1\n", sizePtr, structType))
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", sizeVal, sizePtr))
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %%%s)\n", envAlloc, sizeVal))
 		for i, arg := range instruction.Args {
 			typ, ok := e.types[arg]
 			if !ok {
@@ -1053,7 +1050,14 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			}
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
-			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), arg, fieldPtr))
+			argVal := arg
+			if slot, ok := e.varSlots[arg]; ok {
+				loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+				argVal = loaded
+			}
+			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, fieldPtr))
 		}
 		envPtr = "%" + envAlloc
 	}
@@ -1068,6 +1072,12 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 
 func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.Instruction) error {
 	closureVar := instruction.Callee
+	if slot, ok := e.varSlots[closureVar]; ok {
+		loaded := fmt.Sprintf("%s.loaded.%d", closureVar, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+		closureVar = loaded
+	}
 	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, e.loadCounter)
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
 	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)
@@ -1087,7 +1097,14 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		if !ok {
 			typ = ir.TypeNumber
 		}
-		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", llvmType(typ), arg))
+		argVal := arg
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+			argVal = loaded
+		}
+		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", llvmType(typ), argVal))
 	}
 
 	retType := llvmType(instruction.Type)
@@ -1181,6 +1198,13 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 		tag = 4 // SCRIPTGO_TAG_STRING
 		payloadVal = fmt.Sprintf("payload.%d", id)
 		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+	case ir.TypeBigInt:
+		tag = 8 // SCRIPTGO_TAG_BIGINT
+		payloadVal = arg
+	case ir.TypeSymbol:
+		tag = 9 // SCRIPTGO_TAG_SYMBOL
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
 	case ir.TypeVoid:
 		tag = 0 // SCRIPTGO_TAG_UNDEFINED
 		payloadVal = "0"
@@ -1214,6 +1238,17 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.Instruction) error {
 	e.types[instruction.Result] = instruction.Type
 	arg := instruction.Args[0]
+	if e.types[arg] != ir.TypeUnknown {
+		argVal := arg
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.cast_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+			argVal = loaded
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, argVal))
+		return nil
+	}
 	id := e.labelCounter
 	e.labelCounter++
 

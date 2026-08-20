@@ -86,8 +86,23 @@ func binary(operator string, left, right Value) (Value, error) {
 	if left.Type != right.Type {
 		return Value{}, fmt.Errorf("binary operands have types %s and %s", left.Type, right.Type)
 	}
-	if left.Type == ir.TypeString && operator == "+" {
-		return Value{Type: ir.TypeString, String: left.String + right.String}, nil
+	if left.Type == ir.TypeString {
+		switch operator {
+		case "+":
+			return Value{Type: ir.TypeString, String: left.String + right.String}, nil
+		case "||":
+			if left.String != "" {
+				return left, nil
+			}
+			return right, nil
+		case "&&":
+			if left.String == "" {
+				return left, nil
+			}
+			return right, nil
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for string", operator)
+		}
 	}
 	if left.Type == ir.TypeBool {
 		switch operator {
@@ -162,6 +177,16 @@ func binary(operator string, left, right Value) (Value, error) {
 	case ">>>":
 		shift := uint32(uint64(int64(right.Number))) & 0x1F
 		return Value{Type: ir.TypeNumber, Number: float64(uint32(uint64(int64(left.Number))) >> shift)}, nil
+	case "||":
+		if left.Number != 0 {
+			return left, nil
+		}
+		return right, nil
+	case "&&":
+		if left.Number == 0 {
+			return left, nil
+		}
+		return right, nil
 	default:
 		return Value{}, fmt.Errorf("operator %q is unsupported for number", operator)
 	}

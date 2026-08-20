@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 150 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 172 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **150** | **150 / 150 Passed** | **100.0%** |
-| - *Interpreter Parity* | 138 | 138 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 121 | 121 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **172** | **172 / 172 Passed** | **100.0%** |
+| - *Interpreter Parity* | 160 | 160 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 149 | 149 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~2m 01s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~2m 05s | No regressions detected | - |
 
 ---
 
@@ -269,7 +269,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Decorators (Stage 3 / Experimental)** | ❌ Unsupported | `@decorator` on classes, methods, properties, and accessors is not yet handled by lowering. |
 | **User-defined Type Predicates** | ⚠️ Rudimentary | Complex `x is Type` functions (beyond basic `typeof` and `instanceof`) are not yet deeply narrowed in the backend. |
 | **Complex Conditional & Mapped Types** | ⚠️ Frontend only | Resolved at compile-time by TypeScript-Go, but complex dynamic layout generation is not fully lowered to IR. |
-| **Large Polymorphic Discriminated Unions** | ⚠️ Limited | Primitive and nullable unions (`T \| null \| undefined`) are fully supported. Highly polymorphic object union shapes with discriminator tags are undergoing continuous improvements. |
+| **Polymorphic Discriminated Unions** | ✅ Full | Supported via tagged shape unions, type assertion/narrowing (`s as Circle`), and dynamic `instanceof` / tag checks across multi-branch control flow. |
 
 ---
 

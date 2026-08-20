@@ -54,7 +54,7 @@ func TestEmitNumberArrayAndIndex(t *testing.T) {
 		"declare i32 @scriptgo_array_new(i64, i64, ptr)",
 		"call i32 @scriptgo_array_set",
 		"call i32 @scriptgo_array_get",
-		"call i32 @scriptgo_array_release",
+		"declare i32 @scriptgo_array_release(ptr)",
 		"load double",
 	} {
 		if !strings.Contains(output, expected) {

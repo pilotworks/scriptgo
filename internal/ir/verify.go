@@ -81,8 +81,8 @@ func (f Function) Verify() error {
 				return fmt.Errorf("checked_cast instruction must define result, target type, and one arg")
 			}
 			srcType, ok := known[instruction.Args[0]]
-			if !ok || (srcType != TypeUnknown && !strings.Contains(string(srcType), "|")) {
-				return fmt.Errorf("checked_cast source must be unknown or union type, got %v", srcType)
+			if !ok || (srcType != TypeUnknown && !strings.Contains(string(srcType), "|") && !strings.HasPrefix(string(srcType), "object:") && !strings.HasPrefix(string(instruction.Type), "object:")) {
+				return fmt.Errorf("checked_cast source must be unknown, union, or object type, got %v", srcType)
 			}
 			known[instruction.Result] = instruction.Type
 		case OpTypeOf:
@@ -139,7 +139,7 @@ func (f Function) Verify() error {
 				}
 			}
 			if instruction.Op == OpSelect && (len(instruction.Args) != 3 || known[instruction.Args[0]] != TypeBool || known[instruction.Args[1]] != instruction.Type || known[instruction.Args[2]] != instruction.Type) {
-				return fmt.Errorf("select requires bool condition and matching values")
+				return fmt.Errorf("select requires bool condition and matching values (known[0]=%s, known[1]=%s, known[2]=%s, type=%s)", known[instruction.Args[0]], known[instruction.Args[1]], known[instruction.Args[2]], instruction.Type)
 			}
 			if instruction.Op == OpIndex {
 				if len(instruction.Args) != 2 {

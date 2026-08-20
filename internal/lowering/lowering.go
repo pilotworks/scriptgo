@@ -37,6 +37,18 @@ func Lower(program frontend.Program) (ir.Module, error) {
 	}
 	hierarchy := buildClassHierarchy(program)
 	shapes := map[string]ir.ObjectShape{}
+	builtinShapes := []ir.ObjectShape{
+		{Name: "Error", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
+		{Name: "TypeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
+		{Name: "RangeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
+		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
+		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
+		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}}},
+	}
+	for _, s := range builtinShapes {
+		shapes[s.Name] = s
+		module.Shapes = append(module.Shapes, s)
+	}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {

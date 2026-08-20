@@ -206,6 +206,26 @@ func syntaxType(node *ast.Node) string {
 		}
 		return "any"
 	case ast.KindFunctionType:
+		fnNode := node.AsFunctionTypeNode()
+		if fnNode != nil {
+			var params []string
+			if fnNode.Parameters != nil {
+				for _, p := range fnNode.Parameters.Nodes {
+					pName := ""
+					if p.Name() != nil {
+						pName = p.Name().Text()
+					}
+					pType := syntaxType(p.Type())
+					if pName != "" {
+						params = append(params, pName+": "+pType)
+					} else {
+						params = append(params, pType)
+					}
+				}
+			}
+			retType := syntaxType(fnNode.Type)
+			return "(" + strings.Join(params, ", ") + ") => " + retType
+		}
 		return "closure"
 	default:
 		return node.Kind.String()

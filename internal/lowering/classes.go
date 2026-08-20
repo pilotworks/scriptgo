@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"sort"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -236,6 +237,20 @@ func isSubclassOf(derived, base string, hierarchy map[string]ClassMeta) bool {
 	return false
 }
 
+func classDepth(className string, hierarchy map[string]ClassMeta) int {
+	depth := 0
+	curr := className
+	for {
+		meta, ok := hierarchy[curr]
+		if !ok || meta.Extends == "" {
+			break
+		}
+		depth++
+		curr = meta.Extends
+	}
+	return depth
+}
+
 func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []string {
 	var result []string
 	for name := range hierarchy {
@@ -246,5 +261,13 @@ func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string
 			}
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		dI := classDepth(result[i], hierarchy)
+		dJ := classDepth(result[j], hierarchy)
+		if dI != dJ {
+			return dI < dJ
+		}
+		return result[i] < result[j]
+	})
 	return result
 }

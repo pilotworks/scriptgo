@@ -382,9 +382,20 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			arrTemp := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: field.Type, Result: arrTemp, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, arrTemp}, Span: field.Span})
-		} else if field.Value != "" {
+		} else {
+			defVal := field.Value
+			if defVal == "" {
+				switch field.Type {
+				case ir.TypeNumber:
+					defVal = "0"
+				case ir.TypeBool:
+					defVal = "false"
+				case ir.TypeBigInt:
+					defVal = "0"
+				}
+			}
 			initializer := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: field.Value, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: defVal, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})
 		}
 	}

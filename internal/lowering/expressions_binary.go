@@ -21,17 +21,28 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
 		}
 		nullConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: nullConst, Value: "null", Span: toIRSpan(path, expression.Span)})
+		nullVal := "null"
+		switch leftTyp {
+		case ir.TypeNumber:
+			nullVal = "0"
+		case ir.TypeBool:
+			nullVal = "false"
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
 		cmpNull := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
 
-		undefConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
-		cmpUndef := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
+		cond := cmpNull
+		if leftTyp == ir.TypeString {
+			undefConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+			cmpUndef := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
 
-		cond := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: cond, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+			condTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+			cond = condTemp
+		}
 
 		if result == "" {
 			result = nextTemp(counter)
@@ -156,4 +167,3 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 	return result, leftType, nil
 }
-

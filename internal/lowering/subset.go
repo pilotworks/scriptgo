@@ -282,7 +282,16 @@ func toPrimitiveCategory(t string) string {
 	if t == "boolean" || t == "bool" || t == "true" || t == "false" {
 		return "bool"
 	}
-	return t
+	if t == "bigint" {
+		return "bigint"
+	}
+	if t == "symbol" {
+		return "symbol"
+	}
+	if strings.HasSuffix(t, "[]") {
+		return "array"
+	}
+	return "object"
 }
 
 func isUnknownType(typ string) bool {
@@ -401,7 +410,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return validateExpression(fileName, expression.Right)
 	case "optional_property", "property":
-		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal") {
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal" || expression.Left.Kind == "as") {
 			return validateExpression(fileName, expression.Left)
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")

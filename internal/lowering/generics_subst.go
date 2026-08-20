@@ -56,6 +56,24 @@ func substituteType(typ string, subst map[string]string) string {
 	}
 	hasObj := strings.HasPrefix(typ, "object:")
 	clean := strings.TrimPrefix(typ, "object:")
+	if strings.Contains(clean, "=>") {
+		parts := strings.Split(clean, "=>")
+		paramPart := strings.TrimSpace(parts[0])
+		retPart := strings.TrimSpace(parts[1])
+		substRet := substituteType(retPart, subst)
+		substParams := paramPart
+		for k, v := range subst {
+			substParams = strings.ReplaceAll(substParams, ": "+k, ": "+v)
+			substParams = strings.ReplaceAll(substParams, ":"+k, ":"+v)
+			substParams = strings.ReplaceAll(substParams, " "+k, " "+v)
+			substParams = strings.ReplaceAll(substParams, "("+k, "("+v)
+		}
+		res := substParams + " => " + substRet
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
 	if strings.Contains(clean, "<") && strings.HasSuffix(clean, ">") {
 		idx := strings.Index(clean, "<")
 		name := clean[:idx]
