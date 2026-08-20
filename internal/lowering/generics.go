@@ -19,6 +19,10 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				genericFuncs[statement.Name] = statement
 			} else if statement.Kind == "class" && statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
 				genericClasses[statement.Class.Name] = *statement.Class
+			} else if statement.Kind == "variable" && statement.Expression != nil && statement.Expression.Kind == "arrow_function" && statement.Expression.Function != nil && len(statement.Expression.Function.TypeParameters) > 0 {
+				fn := *statement.Expression.Function
+				fn.Name = statement.Name
+				genericFuncs[statement.Name] = fn
 			}
 		}
 	}
@@ -147,6 +151,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			}
 			if stmt.Kind == "class" && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
 				continue // Skip generic class template
+			}
+			if stmt.Kind == "variable" && stmt.Expression != nil && stmt.Expression.Kind == "arrow_function" && stmt.Expression.Function != nil && len(stmt.Expression.Function.TypeParameters) > 0 {
+				continue // Skip generic arrow function template
 			}
 			rewritten := rewriteStatementTypes(stmt, genericFuncs, genericClasses, requestFuncSpec, requestClassSpec, file.FileName)
 			newStmts = append(newStmts, rewritten)
@@ -355,6 +362,18 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 	if strings.HasSuffix(paramType, "[]") && strings.HasSuffix(argType, "[]") {
 		matchTypeParam(paramType[:len(paramType)-2], argType[:len(argType)-2], inferred)
 		return
+	}
+	if strings.HasPrefix(paramType, "Array<") && strings.HasSuffix(paramType, ">") {
+		innerParam := strings.TrimSuffix(strings.TrimPrefix(paramType, "Array<"), ">")
+		if strings.HasSuffix(argType, "[]") {
+			matchTypeParam(innerParam, argType[:len(argType)-2], inferred)
+			return
+		}
+		if strings.HasPrefix(argType, "Array<") && strings.HasSuffix(argType, ">") {
+			innerArg := strings.TrimSuffix(strings.TrimPrefix(argType, "Array<"), ">")
+			matchTypeParam(innerParam, innerArg, inferred)
+			return
+		}
 	}
 	if !strings.Contains(paramType, "<") && !strings.Contains(paramType, "[]") {
 		inferred[paramType] = argType

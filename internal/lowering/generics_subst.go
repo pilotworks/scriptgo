@@ -76,6 +76,31 @@ func substituteType(typ string, subst map[string]string) string {
 		}
 		return mangled
 	}
+	if strings.HasPrefix(clean, "[") && strings.HasSuffix(clean, "]") {
+		inner := clean[1 : len(clean)-1]
+		parts := strings.Split(inner, ",")
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
+		}
+		res := "[" + strings.Join(newParts, ", ") + "]"
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
+	if strings.Contains(clean, "|") {
+		parts := strings.Split(clean, "|")
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
+		}
+		res := strings.Join(newParts, " | ")
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
 	if val, ok := subst[clean]; ok {
 		if hasObj {
 			return "object:" + val
