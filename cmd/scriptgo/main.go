@@ -80,10 +80,13 @@ func normalizeFlagsFirst(args []string) []string {
 }
 
 func resolveInput(arg string) (string, func(), error) {
-	if _, err := os.Stat(arg); err == nil {
-		return arg, func() {}, nil
+	if _, err := os.Stat(arg); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil, fmt.Errorf("file not found: %s", arg)
+		}
+		return "", nil, err
 	}
-	return createInlineSourceFile(arg)
+	return arg, func() {}, nil
 }
 
 func createInlineSourceFile(code string) (string, func(), error) {
@@ -202,6 +205,7 @@ func handleRun(args []string) {
 func handleBuild(args []string) {
 	fs := flag.NewFlagSet("build", flag.ContinueOnError)
 	fs.Usage = printBuildUsage
+	eval := fs.String("e", "", "evaluate inline script string")
 	output := fs.String("o", "", "write generated binary to this path (default: ./<entry_name>)")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
@@ -217,22 +221,35 @@ func handleBuild(args []string) {
 		os.Exit(2)
 	}
 
-	if fs.NArg() != 1 {
+	var entryPath string
+	var cleanup func()
+	var input string
+
+	if *eval != "" {
+		var err error
+		entryPath, cleanup, err = createInlineSourceFile(*eval)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else if fs.NArg() == 1 {
+		input = fs.Arg(0)
+		var err error
+		entryPath, cleanup, err = resolveInput(input)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else {
 		printBuildUsage()
 		os.Exit(2)
 	}
 
-	input := fs.Arg(0)
-	entryPath, cleanup, err := resolveInput(input)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
-		os.Exit(1)
-	}
-	defer cleanup()
-
 	outputPath := *output
 	if outputPath == "" {
-		if _, err := os.Stat(input); err == nil {
+		if input != "" {
 			base := filepath.Base(input)
 			ext := filepath.Ext(base)
 			outputPath = strings.TrimSuffix(base, ext)
@@ -264,6 +281,7 @@ func handleBuild(args []string) {
 func handleCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.Usage = printCheckUsage
+	eval := fs.String("e", "", "evaluate inline script string")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
@@ -274,17 +292,29 @@ func handleCheck(args []string) {
 		os.Exit(2)
 	}
 
-	if fs.NArg() != 1 {
+	var entryPath string
+	var cleanup func()
+
+	if *eval != "" {
+		var err error
+		entryPath, cleanup, err = createInlineSourceFile(*eval)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else if fs.NArg() == 1 {
+		var err error
+		entryPath, cleanup, err = resolveInput(fs.Arg(0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else {
 		printCheckUsage()
 		os.Exit(2)
 	}
-
-	entryPath, cleanup, err := resolveInput(fs.Arg(0))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
-		os.Exit(1)
-	}
-	defer cleanup()
 
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: checking %s\n", entryPath)
@@ -307,6 +337,7 @@ func handleCheck(args []string) {
 func handleEmit(args []string) {
 	fs := flag.NewFlagSet("emit", flag.ContinueOnError)
 	fs.Usage = printEmitUsage
+	eval := fs.String("e", "", "evaluate inline script string")
 	mode := fs.String("mode", "llvm-ir", "output mode: llvm-ir, typed-ir")
 	output := fs.String("o", "", "write output to this path (default: stdout)")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
@@ -321,17 +352,29 @@ func handleEmit(args []string) {
 		os.Exit(2)
 	}
 
-	if fs.NArg() != 1 {
+	var entryPath string
+	var cleanup func()
+
+	if *eval != "" {
+		var err error
+		entryPath, cleanup, err = createInlineSourceFile(*eval)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else if fs.NArg() == 1 {
+		var err error
+		entryPath, cleanup, err = resolveInput(fs.Arg(0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else {
 		printEmitUsage()
 		os.Exit(2)
 	}
-
-	entryPath, cleanup, err := resolveInput(fs.Arg(0))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
-		os.Exit(1)
-	}
-	defer cleanup()
 
 	options := compiler.BuildOptions{
 		Target:           *target,
@@ -340,6 +383,7 @@ func handleEmit(args []string) {
 		StrictCasts:      *strictCasts,
 	}
 	var result string
+	var err error
 
 	switch *mode {
 	case "typed-ir":
@@ -402,7 +446,8 @@ Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed comman
 
 func printRunUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo run [flags] <entry.ts | "code string"> [-- <args...>]
+  scriptgo run [flags] <entry.ts> [-- <args...>]
+  scriptgo run [flags] -e "<code string>" [-- <args...>]
 
 Description:
   Executes a TypeScript file or inline code string using either the reference semantic
@@ -422,22 +467,23 @@ Flags:
 
 Examples:
   scriptgo run app.ts
-  scriptgo run "console.log(1231)"
   scriptgo run -e "console.log('hello ' + 42)"
-  scriptgo run --native "console.log(100 * 20)"
+  scriptgo run --native -e "console.log(100 * 20)"
   scriptgo run --native --cc "zig cc" app.ts
   scriptgo run app.ts -- arg1 arg2`)
 }
 
 func printBuildUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo build [flags] <entry.ts | "code string"> [-o <output>]
+  scriptgo build [flags] <entry.ts> [-o <output>]
+  scriptgo build [flags] -e "<code string>" [-o <output>]
 
 Description:
   Compiles a TypeScript program into a standalone, optimized native executable
   linked with the host C runtime.
 
 Flags:
+  -e <string>            Evaluate inline script string
   -o <path>              Output binary path (default: ./<entry_name>)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
@@ -450,7 +496,7 @@ Flags:
 
 Examples:
   scriptgo build server.ts
-  scriptgo build "console.log('built natively')" -o hello
+  scriptgo build -e "console.log('built natively')" -o hello
   scriptgo build server.ts -o /usr/local/bin/server
   scriptgo build cli.ts --cc "zig cc" --target x86_64-linux-gnu -o cli_linux
   scriptgo build cli.ts --debug --sanitize address -o cli_debug`)
@@ -458,13 +504,15 @@ Examples:
 
 func printCheckUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo check [flags] <entry.ts | "code string">
+  scriptgo check [flags] <entry.ts>
+  scriptgo check [flags] -e "<code string>"
 
 Description:
   Type-checks and validates the reachable source graph and native subset
   eligibility without invoking code generation or Clang.
 
 Flags:
+  -e <string>            Evaluate inline script string
   -v                     Verbose output (print check stages and confirmation)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
@@ -472,19 +520,21 @@ Flags:
 
 Examples:
   scriptgo check app.ts
-  scriptgo check "const x: number = 42; console.log(x);"
+  scriptgo check -e "const x: number = 42; console.log(x);"
   scriptgo check -v src/main.ts`)
 }
 
 func printEmitUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo emit [flags] <entry.ts | "code string"> [--mode llvm-ir|typed-ir] [-o <output>]
+  scriptgo emit [flags] <entry.ts> [--mode llvm-ir|typed-ir] [-o <output>]
+  scriptgo emit [flags] -e "<code string>" [--mode llvm-ir|typed-ir] [-o <output>]
 
 Description:
   Emits intermediate representations (Typed IR or LLVM IR) for debugging
   and compiler inspection.
 
 Flags:
+  -e <string>            Evaluate inline script string
   --mode <mode>          Output mode: llvm-ir (default), typed-ir
   -o <path>              Write emitted IR to file instead of stdout
   -v                     Verbose output (print compilation stages)
@@ -496,7 +546,7 @@ Flags:
 
 Examples:
   scriptgo emit app.ts
-  scriptgo emit "console.log(123)" --mode typed-ir
+  scriptgo emit -e "console.log(123)" --mode typed-ir
   scriptgo emit app.ts --mode llvm-ir -o app.ll`)
 }
 
