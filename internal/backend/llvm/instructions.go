@@ -914,6 +914,18 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__text_encoder.") || strings.HasPrefix(instruction.Callee, "__text_decoder.") {
+		if err := e.emitTextEncodingIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+			if instruction.Type == ir.TypeString {
+				e.ownedStrings = append(e.ownedStrings, instruction.Result)
+			}
+		}
+		return nil
+	}
 	callee, ok := e.functions[instruction.Callee]
 	if !ok {
 		return fmt.Errorf("unknown function %q", instruction.Callee)

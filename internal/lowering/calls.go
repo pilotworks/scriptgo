@@ -680,6 +680,91 @@ func lowerCallExpression(
 					return "", ir.TypeVoid, nil
 				}
 			}
+			if receiverType == ir.TypeTextEncoder {
+				switch methodName {
+				case "encode":
+					var args []string
+					if len(expression.Arguments) > 0 {
+						argVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, argVal)
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeUint8Array,
+						Result: result,
+						Callee: "__text_encoder.encode",
+						Args:   args,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeUint8Array, nil
+
+				case "encodeInto":
+					if len(expression.Arguments) < 2 {
+						return "", "", fmt.Errorf("TextEncoder.encodeInto requires source and destination arguments")
+					}
+					srcVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					destVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					shapeName := ensureTextEncoderEncodeIntoResultShape(shapes)
+					resType := ir.Type("object:" + shapeName)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   resType,
+						Result: result,
+						Callee: "__text_encoder.encode_into",
+						Args:   []string{srcVal, destVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, resType, nil
+				}
+			}
+			if receiverType == ir.TypeTextDecoder {
+				switch methodName {
+				case "decode":
+					var args []string
+					args = append(args, receiver)
+					if len(expression.Arguments) > 0 {
+						inputVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, inputVal)
+						if len(expression.Arguments) > 1 {
+							optsVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return "", "", err
+							}
+							args = append(args, optsVal)
+						}
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeString,
+						Result: result,
+						Callee: "__text_decoder.decode",
+						Args:   args,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeString, nil
+				}
+			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
 				if methodName == "match" || methodName == "search" {
 					if len(expression.Arguments) > 0 {

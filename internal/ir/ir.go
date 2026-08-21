@@ -75,6 +75,8 @@ const (
 	TypeArrayBuffer       Type = "ArrayBuffer"
 	TypeMap               Type = "Map"
 	TypeSet               Type = "Set"
+	TypeTextEncoder       Type = "TextEncoder"
+	TypeTextDecoder       Type = "TextDecoder"
 )
 
 type Instruction struct {

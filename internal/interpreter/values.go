@@ -179,24 +179,36 @@ type DataView struct {
 	ByteLength int
 }
 
+type TextEncoderValue struct {
+	Encoding string
+}
+
+type TextDecoderValue struct {
+	Encoding  string
+	Fatal     bool
+	IgnoreBOM bool
+}
+
 type Value struct {
-	Type       ir.Type
-	Number     float64
-	BigInt     int64
-	SymbolID   uint64
-	SymbolDesc string
-	String     string
-	Bool       bool
-	Array      []Value
-	ArrayRef   *[]Value
-	Object     map[string]Value
-	Closure    *Closure
-	Boxed      *Value
-	Buffer     *ArrayBuffer
-	TypedArray *TypedArray
-	DataView   *DataView
-	MapValue   *MapValue
-	SetValue   *SetValue
+	Type        ir.Type
+	Number      float64
+	BigInt      int64
+	SymbolID    uint64
+	SymbolDesc  string
+	String      string
+	Bool        bool
+	Array       []Value
+	ArrayRef    *[]Value
+	Object      map[string]Value
+	Closure     *Closure
+	Boxed       *Value
+	Buffer      *ArrayBuffer
+	TypedArray  *TypedArray
+	DataView    *DataView
+	MapValue    *MapValue
+	SetValue    *SetValue
+	TextEncoder *TextEncoderValue
+	TextDecoder *TextDecoderValue
 }
 
 func (v Value) GetArray() []Value {
@@ -248,7 +260,7 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
-		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypeMap, ir.TypeSet:
+		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypeMap, ir.TypeSet, ir.TypeTextEncoder, ir.TypeTextDecoder:
 		return Value{Type: typ}, nil
 	default:
 		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {

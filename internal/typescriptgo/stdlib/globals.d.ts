@@ -537,6 +537,45 @@ interface SetConstructor {
 }
 declare var Set: SetConstructor;
 
+interface TextEncoderEncodeIntoResult {
+    read: number;
+    written: number;
+}
+
+interface TextEncoder {
+    readonly encoding: string;
+    encode(input?: string): Uint8Array;
+    encodeInto(source: string, destination: Uint8Array): TextEncoderEncodeIntoResult;
+}
+
+interface TextEncoderConstructor {
+    new(): TextEncoder;
+    readonly prototype: TextEncoder;
+}
+declare var TextEncoder: TextEncoderConstructor;
+
+interface TextDecoderOptions {
+    fatal?: boolean;
+    ignoreBOM?: boolean;
+}
+
+interface TextDecodeOptions {
+    stream?: boolean;
+}
+
+interface TextDecoder {
+    readonly encoding: string;
+    readonly fatal: boolean;
+    readonly ignoreBOM: boolean;
+    decode(input?: ArrayBuffer | Uint8Array | DataView, options?: TextDecodeOptions): string;
+}
+
+interface TextDecoderConstructor {
+    new(label?: string, options?: TextDecoderOptions): TextDecoder;
+    readonly prototype: TextDecoder;
+}
+declare var TextDecoder: TextDecoderConstructor;
+
 declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
 declare function clearTimeout(id: number | undefined): void;
 declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;

@@ -282,6 +282,67 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
+	if objectType == ir.TypeTextEncoder {
+		if expression.Text == "encoding" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: result,
+				Callee: "__text_encoder.encoding",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeString, nil
+		}
+	}
+
+	if objectType == ir.TypeTextDecoder {
+		switch expression.Text {
+		case "encoding":
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: result,
+				Callee: "__text_decoder.encoding",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeString, nil
+		case "fatal":
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBool,
+				Result: result,
+				Callee: "__text_decoder.fatal",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		case "ignoreBOM":
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBool,
+				Result: result,
+				Callee: "__text_decoder.ignore_bom",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+	}
+
 	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]")) && expression.Text == "length" {
 		if result == "" {
 			result = nextTemp(counter)
@@ -470,6 +531,20 @@ func ensureErrorShape(shapes map[string]ir.ObjectShape, name string) {
 			},
 		}
 	}
+}
+
+func ensureTextEncoderEncodeIntoResultShape(shapes map[string]ir.ObjectShape) string {
+	shapeName := "TextEncoderEncodeIntoResult"
+	if _, ok := shapes[shapeName]; !ok {
+		shapes[shapeName] = ir.ObjectShape{
+			Name: shapeName,
+			Fields: []ir.Field{
+				{Name: "read", Type: ir.TypeNumber},
+				{Name: "written", Type: ir.TypeNumber},
+			},
+		}
+	}
+	return shapeName
 }
 
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -698,6 +773,50 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeSet, nil
+	}
+
+	if className == "TextEncoder" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeTextEncoder,
+			Result: result,
+			Callee: "__text_encoder.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeTextEncoder, nil
+	}
+
+	if className == "TextDecoder" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		var args []string
+		if len(expression.Arguments) > 0 {
+			labelVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, labelVal)
+			if len(expression.Arguments) > 1 {
+				optsVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, optsVal)
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeTextDecoder,
+			Result: result,
+			Callee: "__text_decoder.new",
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeTextDecoder, nil
 	}
 
 	shape, ok := shapes[className]

@@ -473,6 +473,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__text_encoder.") || strings.HasPrefix(instruction.Callee, "__text_decoder.") {
+				value, err := executeTextEncodingIntrinsic(instruction, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__async.") {
 				value, err := executeAsyncIntrinsic(instruction.Callee, instruction.Args, env, functions, output)
 				if err != nil {

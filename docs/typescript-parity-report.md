@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 203 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 207 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **203** | **203 / 203 Passed** | **100.0%** |
-| - *Interpreter Parity* | 191 | 191 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 176 | 176 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **207** | **207 / 207 Passed** | **100.0%** |
+| - *Interpreter Parity* | 195 | 195 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 184 | 184 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~3m 15s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~4m 15s | No regressions detected | - |
 
 ---
 
@@ -46,6 +46,7 @@ All 203 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`), `DataView` with full binary access methods (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
+| `Map<K, V> & Set<T>` | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and Node.js-compatible string formatting. |
 
 ---
 
@@ -145,6 +146,8 @@ All 203 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`performance`** | `performance.now()` | ✅ Microsecond precision |
 | **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
 | **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer representation |
+| **`TextEncoder` & `TextDecoder`** | `TextEncoder`, `TextDecoder`, `.encode()`, `.encodeInto()`, `.decode()`, `.encoding`, `.fatal`, `.ignoreBOM` | ✅ 100% matches WHATWG / Node.js UTF-8 standard |
+| **`Map` & `Set`** | `Map<K,V>`, `Set<T>`, `set`, `get`, `has`, `delete`, `clear`, `.size`, `keys`, `values`, `entries`, `forEach`, `toString` | ✅ 100% matches Node.js Map/Set collection specification |
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 
@@ -158,8 +161,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 201
-  - Passed Cases       : 201 (100.0%)
+  - Total Corpus Cases : 207
+  - Passed Cases       : 207 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -180,11 +183,11 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`objects`** | 4 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), nested object records, object spread/destructuring, discriminated unions. |
 | **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 37 | **100%** | `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `events` / `node:events` (`EventEmitter` lifecycle, listeners, unhandled error), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
+| **`stdlib`** | 41 | **100%** | `TextEncoder` & `TextDecoder` (`text_encoding`), `Map` & `Set` (`map`, `set`, `map_set_advanced`), `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `events` / `node:events` (`EventEmitter` lifecycle, listeners, unhandled error), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 15 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |
-| **`typedarrays`** | 5 | **100%** | `Uint8Array` (truncation, byte operations), `Int32Array`, `Float64Array`, `ArrayBuffer` views, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`. |
+| **`typedarrays`** | 7 | **100%** | `all_types`, `arraybuffer`, `dataview`, `float64`, `int32`, `methods`, `uint8` (`Uint8Array` truncation, byte operations, `ArrayBuffer` views, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`). |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
 
 ---

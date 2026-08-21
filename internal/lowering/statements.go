@@ -650,6 +650,10 @@ func toIRType(value string) ir.Type {
 		return ir.TypeMap
 	case "Set":
 		return ir.TypeSet
+	case "TextEncoder":
+		return ir.TypeTextEncoder
+	case "TextDecoder":
+		return ir.TypeTextDecoder
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
