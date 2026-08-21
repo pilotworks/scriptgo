@@ -621,6 +621,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"os.release", "__scriptgo.release", "release"}, CategoryNodeModule, "__os.release", nil, ir.TypeString, 0, 0)
 	register([]string{"os.tmpdir", "__scriptgo.tmpdir", "tmpdir"}, CategoryNodeModule, "__os.tmpdir", nil, ir.TypeString, 0, 0)
 
+	registerObjectIntrinsics(m)
+
 	return m
 }
 

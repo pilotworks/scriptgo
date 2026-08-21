@@ -264,3 +264,40 @@ int scriptgo_array_every_number(void *handle, void *closure_handle, int32_t *out
     *out_bool = 1;
     return 0;
 }
+
+int scriptgo_array_find_index_number(void *handle, void *closure_handle, double *out_idx) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_idx == NULL || array->element_size != sizeof(double)) {
+        return scriptgo_runtime_set_error("scriptgo array findIndex failed");
+    }
+    for (int64_t i = 0; i < array->length; i++) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
+        if (fn(c->env, item, (double)i)) {
+            *out_idx = (double)i;
+            return 0;
+        }
+    }
+    *out_idx = -1.0;
+    return 0;
+}
+
+int scriptgo_array_find_index_string(void *handle, void *closure_handle, double *out_idx) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_idx == NULL || array->element_size != sizeof(char *)) {
+        return scriptgo_runtime_set_error("scriptgo array findIndex failed");
+    }
+    for (int64_t i = 0; i < array->length; i++) {
+        char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
+        uint8_t (*fn)(void *, char *, double) = (uint8_t (*)(void *, char *, double))c->fn_ptr;
+        if (fn(c->env, item, (double)i)) {
+            *out_idx = (double)i;
+            return 0;
+        }
+    }
+    *out_idx = -1.0;
+    return 0;
+}
+

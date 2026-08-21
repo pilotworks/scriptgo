@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	goruntime "runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -823,6 +824,99 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 		}
 		return Value{Type: ir.TypeBool, Bool: true}, nil
+	case "__array.findIndex":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.findIndex requires callback closure")
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("array.findIndex callback must be a closure")
+		}
+		for i, item := range array.Array {
+			res, _, err := executeClosure(functions, closureVal.Closure, []Value{item, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+			if err != nil {
+				return Value{}, err
+			}
+			if res.Bool {
+				return Value{Type: ir.TypeNumber, Number: float64(i)}, nil
+			}
+		}
+		return Value{Type: ir.TypeNumber, Number: -1}, nil
+	case "__array.fill":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("array.fill requires value argument")
+		}
+		fillVal, ok := env[arguments[1]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown fill value %q", arguments[1])
+		}
+		start := 0
+		end := len(array.Array)
+		if len(arguments) > 2 {
+			if sVal, ok := env[arguments[2]]; ok && sVal.Type == ir.TypeNumber {
+				start = int(sVal.Number)
+				if start < 0 {
+					start = max(len(array.Array)+start, 0)
+				} else if start > len(array.Array) {
+					start = len(array.Array)
+				}
+			}
+		}
+		if len(arguments) > 3 {
+			if eVal, ok := env[arguments[3]]; ok && eVal.Type == ir.TypeNumber {
+				end = int(eVal.Number)
+				if end < 0 {
+					end = max(len(array.Array)+end, 0)
+				} else if end > len(array.Array) {
+					end = len(array.Array)
+				}
+			}
+		}
+		for i := start; i < end; i++ {
+			array.Array[i] = fillVal
+		}
+		array.SetArray(array.Array)
+		env[arguments[0]] = array
+		return array, nil
+	case "__array.toReversed":
+		reversed := make([]Value, len(array.Array))
+		for i := range array.Array {
+			reversed[i] = array.Array[len(array.Array)-1-i]
+		}
+		return Value{Type: array.Type, Array: reversed}, nil
+	case "__array.toSorted":
+		sorted := make([]Value, len(array.Array))
+		copy(sorted, array.Array)
+		if len(arguments) > 1 {
+			if closureVal, ok := env[arguments[1]]; ok && closureVal.Closure != nil {
+				var sortErr error
+				sort.SliceStable(sorted, func(i, j int) bool {
+					if sortErr != nil {
+						return false
+					}
+					res, _, err := executeClosure(functions, closureVal.Closure, []Value{sorted[i], sorted[j]}, output)
+					if err != nil {
+						sortErr = err
+						return false
+					}
+					return res.Number < 0
+				})
+				if sortErr != nil {
+					return Value{}, sortErr
+				}
+				return Value{Type: array.Type, Array: sorted}, nil
+			}
+		}
+		sort.SliceStable(sorted, func(i, j int) bool {
+			if sorted[i].Type == ir.TypeNumber && sorted[j].Type == ir.TypeNumber {
+				return sorted[i].Number < sorted[j].Number
+			}
+			if sorted[i].Type == ir.TypeString && sorted[j].Type == ir.TypeString {
+				return sorted[i].String < sorted[j].String
+			}
+			return false
+		})
+		return Value{Type: array.Type, Array: sorted}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown array intrinsic %q", name)
 	}

@@ -890,13 +890,13 @@ func lowerCallExpression(
 							}
 						}
 					}
-				case "slice", "reverse", "concat", "splice", "filter":
+				case "slice", "reverse", "concat", "splice", "filter", "fill", "toReversed", "toSorted":
 					returnType = receiverType
 				case "includes", "some", "every":
 					returnType = ir.TypeBool
 				case "join":
 					returnType = ir.TypeString
-				case "push", "unshift", "indexOf", "reduce":
+				case "push", "unshift", "indexOf", "reduce", "findIndex":
 					returnType = ir.TypeNumber
 				case "pop", "shift", "at", "find":
 					if receiverType == ir.TypeNumberArray {
@@ -1383,7 +1383,7 @@ func isStringMethod(name string) bool {
 
 func isArrayMethod(name string) bool {
 	switch name {
-	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at", "map", "filter", "forEach", "reduce", "find", "some", "every":
+	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at", "map", "filter", "forEach", "reduce", "find", "some", "every", "findIndex", "fill", "toReversed", "toSorted":
 		return true
 	default:
 		return false

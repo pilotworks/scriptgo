@@ -443,6 +443,14 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__object.") {
+				value, err := executeObjectIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__map.") {
 				value, err := executeMapIntrinsic(instruction, env, functions, output)
 				if err != nil {

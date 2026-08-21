@@ -477,4 +477,122 @@ int scriptgo_array_join_bigint(void *handle, const char *separator, char **out_s
     return 0;
 }
 
+static int cmp_doubles(const void *a, const void *b) {
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+    if (da < db) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+static int cmp_strings(const void *a, const void *b) {
+    const char *sa = *(const char * const *)a;
+    const char *sb = *(const char * const *)b;
+    if (sa == NULL) sa = "";
+    if (sb == NULL) sb = "";
+    return strcmp(sa, sb);
+}
+
+int scriptgo_array_fill_number(void *handle, double value, double start_val, double end_val, int32_t has_start, int32_t has_end, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || array->element_size != sizeof(double)) {
+        return fail("scriptgo array fill failed");
+    }
+    int64_t len = array->length;
+    int64_t start = 0;
+    int64_t end = len;
+    if (has_start) {
+        start = (int64_t)start_val;
+        if (start < 0) { start = len + start; if (start < 0) start = 0; }
+        else if (start > len) start = len;
+    }
+    if (has_end) {
+        end = (int64_t)end_val;
+        if (end < 0) { end = len + end; if (end < 0) end = 0; }
+        else if (end > len) end = len;
+    }
+    for (int64_t i = start; i < end; i++) {
+        *(double *)(array->data + (size_t)i * sizeof(double)) = value;
+    }
+    if (out_array != NULL) {
+        *out_array = array;
+    }
+    return 0;
+}
+
+int scriptgo_array_fill_string(void *handle, const char *value, double start_val, double end_val, int32_t has_start, int32_t has_end, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || array->element_size != sizeof(char *)) {
+        return fail("scriptgo array fill failed");
+    }
+    int64_t len = array->length;
+    int64_t start = 0;
+    int64_t end = len;
+    if (has_start) {
+        start = (int64_t)start_val;
+        if (start < 0) { start = len + start; if (start < 0) start = 0; }
+        else if (start > len) start = len;
+    }
+    if (has_end) {
+        end = (int64_t)end_val;
+        if (end < 0) { end = len + end; if (end < 0) end = 0; }
+        else if (end > len) end = len;
+    }
+    for (int64_t i = start; i < end; i++) {
+        *(const char **)(array->data + (size_t)i * sizeof(char *)) = value;
+    }
+    if (out_array != NULL) {
+        *out_array = array;
+    }
+    return 0;
+}
+
+int scriptgo_array_to_reversed(void *handle, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_array == NULL || array->element_size <= 0) {
+        return fail("scriptgo array toReversed failed");
+    }
+    if (scriptgo_array_new(array->length, array->element_size, out_array) != 0) {
+        return -1;
+    }
+    scriptgo_array *res = *out_array;
+    size_t elem_sz = (size_t)array->element_size;
+    for (int64_t i = 0; i < array->length; i++) {
+        memcpy(res->data + (size_t)i * elem_sz, array->data + (size_t)(array->length - 1 - i) * elem_sz, elem_sz);
+    }
+    return 0;
+}
+
+int scriptgo_array_to_sorted_number(void *handle, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_array == NULL || array->element_size != sizeof(double)) {
+        return fail("scriptgo array toSorted failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+        return -1;
+    }
+    scriptgo_array *res = *out_array;
+    if (array->length > 0) {
+        memcpy(res->data, array->data, (size_t)array->length * sizeof(double));
+        qsort(res->data, (size_t)res->length, sizeof(double), cmp_doubles);
+    }
+    return 0;
+}
+
+int scriptgo_array_to_sorted_string(void *handle, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_array == NULL || array->element_size != sizeof(char *)) {
+        return fail("scriptgo array toSorted failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+        return -1;
+    }
+    scriptgo_array *res = *out_array;
+    if (array->length > 0) {
+        memcpy(res->data, array->data, (size_t)array->length * sizeof(char *));
+        qsort(res->data, (size_t)res->length, sizeof(char *), cmp_strings);
+    }
+    return 0;
+}
+
 

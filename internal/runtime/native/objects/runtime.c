@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,42 @@ typedef struct {
 int scriptgo_runtime_set_error(const char *message);
 
 static int object_fail(const char *message) { return scriptgo_runtime_set_error(message); }
+
+int scriptgo_object_is_number(double a, double b, int32_t *out_result) {
+    if (out_result == NULL) {
+        return object_fail("scriptgo Object.is null output");
+    }
+    if (isnan(a) && isnan(b)) {
+        *out_result = 1;
+    } else if (a == 0.0 && b == 0.0) {
+        *out_result = (signbit(a) == signbit(b)) ? 1 : 0;
+    } else {
+        *out_result = (a == b) ? 1 : 0;
+    }
+    return 0;
+}
+
+int scriptgo_object_is_string(const char *a, const char *b, int32_t *out_result) {
+    if (out_result == NULL) {
+        return object_fail("scriptgo Object.is null output");
+    }
+    if (a == b) {
+        *out_result = 1;
+    } else if (a == NULL || b == NULL) {
+        *out_result = 0;
+    } else {
+        *out_result = (strcmp(a, b) == 0) ? 1 : 0;
+    }
+    return 0;
+}
+
+int scriptgo_object_is_ptr(const void *a, const void *b, int32_t *out_result) {
+    if (out_result == NULL) {
+        return object_fail("scriptgo Object.is null output");
+    }
+    *out_result = (a == b) ? 1 : 0;
+    return 0;
+}
 
 int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (out_object == NULL || field_count < 0) {
