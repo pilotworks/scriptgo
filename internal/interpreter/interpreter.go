@@ -676,6 +676,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if returned || flow.kind != kindNormal {
 				return ret, returned, flow, nil
 			}
+		case ir.OpDebugger:
+			// No-op in headless reference interpreter
 		case ir.OpBreak:
 			return Value{}, false, controlFlow{kind: kindBreak, target: instruction.Value}, nil
 		case ir.OpContinue:

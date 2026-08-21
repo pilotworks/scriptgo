@@ -18,6 +18,7 @@ type functionEmitter struct {
 	functions      map[string]ir.Function
 	stringsByValue map[string]string
 	debug          *debugInfo
+	module         ir.Module
 
 	types         map[string]ir.Type
 	varSlots      map[string]string
@@ -32,6 +33,17 @@ type functionEmitter struct {
 	labeledContinue    map[string][]string
 	runtimeStatus      int
 	terminated         bool
+}
+
+func (e *functionEmitter) dbg(span ir.SourceSpan) string {
+	if e.debug == nil {
+		return ""
+	}
+	loc := e.debug.location(span, e.function.Name, e.module)
+	if loc == "" {
+		return ""
+	}
+	return ", " + loc
 }
 
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
@@ -176,6 +188,24 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if err := e.emitTypeOf(out, inst); err != nil {
 			return err
 		}
+	case ir.OpDebugger:
+		pathStr := inst.Span.Path
+		if pathStr == "" {
+			pathStr = e.module.SourcePath
+		}
+		global, ok := e.stringsByValue[pathStr]
+		if !ok {
+			global = fmt.Sprintf("@.str.%d", len(e.stringsByValue))
+			e.stringsByValue[pathStr] = global
+		}
+		pathPtr := fmt.Sprintf("debugger.path.%d", e.loadCounter)
+		e.loadCounter++
+		length := len([]byte(pathStr)) + 1
+		line := sourceLine(e.module.SourceFiles[pathStr], inst.Span.Offset)
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", pathPtr, length, global))
+		dbgLoc := e.dbg(inst.Span)
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_debugger_break(ptr %%%s, i32 %d)%s\n", pathPtr, line, dbgLoc))
+		return nil
 	default:
 		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
 	}

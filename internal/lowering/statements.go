@@ -540,6 +540,12 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		})
 	case "try":
 		return lowerTry(path, statement, function, env, counter, shapes, signatures)
+	case "debugger":
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpDebugger,
+			Type: ir.TypeVoid,
+			Span: toIRSpan(path, statement.Span),
+		})
 	case "module", "enum":
 		return nil
 	default:

@@ -98,6 +98,8 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			label = breakStmt.Label.Text()
 		}
 		return SyntaxStatement{Span: span, Kind: "break", Name: label}, true
+	case ast.KindDebuggerStatement:
+		return SyntaxStatement{Span: span, Kind: "debugger"}, true
 	case ast.KindContinueStatement:
 		contStmt := node.AsContinueStatement()
 		label := ""

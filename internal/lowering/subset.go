@@ -40,7 +40,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		}
 	}
 	switch statement.Kind {
-	case "break", "continue":
+	case "break", "continue", "debugger":
 		return nil
 	case "dowhile":
 		if err := validateExpression(fileName, statement.Expression); err != nil {

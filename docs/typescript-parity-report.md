@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 207 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 208 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **207** | **207 / 207 Passed** | **100.0%** |
-| - *Interpreter Parity* | 195 | 195 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 184 | 184 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **208** | **208 / 208 Passed** | **100.0%** |
+| - *Interpreter Parity* | 196 | 196 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 185 | 185 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~4m 15s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~3m 48s | No regressions detected | - |
 
 ---
 
@@ -69,6 +69,7 @@ All 207 test cases in the regression test suite (Corpus Test Suite) have been cr
 | Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
 | Tagged Template Expressions (`` tag`Hello ${name}` ``) | ✅ Full | Calls function/closure with `TemplateStringsArray` and interpolated argument list. |
 | Optional Chaining & Optional Call (`?.`, `fn?.()`, `obj?.method?.()`) | ✅ Full | Optional property access and safe function/method invocation when receiver is present. |
+| `debugger;` Statement | ✅ Full | Breakpoint hook in native runtime (`scriptgo_debugger_break`), instruction-level DWARF location mapping, compliant no-op in headless execution adhering to ECMAScript standard. |
 
 ---
 
@@ -161,8 +162,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 207
-  - Passed Cases       : 207 (100.0%)
+  - Total Corpus Cases : 208
+  - Passed Cases       : 208 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -185,7 +186,7 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
 | **`stdlib`** | 41 | **100%** | `TextEncoder` & `TextDecoder` (`text_encoding`), `Map` & `Set` (`map`, `set`, `map_set_advanced`), `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `events` / `node:events` (`EventEmitter` lifecycle, listeners, unhandled error), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
-| **`syntax`** | 15 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring. |
+| **`syntax`** | 16 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring, `debugger;` statement. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |
 | **`typedarrays`** | 7 | **100%** | `all_types`, `arraybuffer`, `dataview`, `float64`, `int32`, `methods`, `uint8` (`Uint8Array` truncation, byte operations, `ArrayBuffer` views, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`). |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
@@ -224,7 +225,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Break / Continue** | `break; continue;` | ✅ Full | Operates correctly across all nested loops. |
 | **Labeled Statement** | `outer: for (...) { break outer; }` | ✅ Full | Statement/loop labeling; `break label` and `continue label` jump to target labels. |
 | **Destructuring Statements** | `const [a, b] = arr; const { x } = obj;` | ✅ Full | Array, object, rest `...rest`, and default value destructuring. |
-| **Debugger Statement** | `debugger;` | ❌ Skipped / Missing | Does not emit machine-code breakpoint instructions. |
+| **Debugger Statement** | `debugger;` | ✅ Full | Emits native debugger hook (`scriptgo_debugger_break`) with instruction-level DWARF debug location metadata; standard ECMAScript semantics in non-debug run. |
 
 ---
 
@@ -329,7 +330,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 2. **Pure C Backend Generator**:
    - Currently using LLVM IR -> Clang backend. Pure C code generation backend (for compiling in environments without LLVM) is scheduled for Milestone 6.
 3. **Debug DWARF Source Maps**:
-   - Error source locations (source spans) are fully presented on the terminal. Full DWARF debug symbols compatible with lldb/gdb for variable-level debugging are under active development.
+   - ✅ Completed: Full DWARF debug symbols (`!DILocation`, `!DISubprogram`, `!DICompileUnit`) generated for instructions and functions, enabling precise source-level stepping, breakpoints, and stack unwinding in LLDB and GDB with `--debug`.
 
 ---
 

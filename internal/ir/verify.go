@@ -257,7 +257,7 @@ func (f Function) Verify() error {
 					return fmt.Errorf("%s step block: %w", instruction.Op, err)
 				}
 			}
-		case OpBreak, OpContinue:
+		case OpBreak, OpContinue, OpDebugger:
 			if instruction.Type != TypeVoid || instruction.Result != "" || len(instruction.Args) != 0 {
 				return fmt.Errorf("%s instruction must have void type and no args", instruction.Op)
 			}

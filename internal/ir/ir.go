@@ -130,4 +130,5 @@ const (
 	OpBoxUnknown  = "box.unknown"
 	OpCheckedCast = "checked_cast"
 	OpTypeOf      = "typeof"
+	OpDebugger    = "debugger"
 )

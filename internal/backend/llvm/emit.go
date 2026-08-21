@@ -54,6 +54,17 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 				}
 			}
+			if instruction.Op == ir.OpDebugger {
+				pathStr := instruction.Span.Path
+				if pathStr == "" {
+					pathStr = module.SourcePath
+				}
+				if pathStr != "" {
+					if _, ok := stringsByValue[pathStr]; !ok {
+						stringsByValue[pathStr] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+					}
+				}
+			}
 			collectStrings(instruction.Then)
 			collectStrings(instruction.Else)
 			collectStrings(instruction.Cond)
@@ -78,7 +89,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	if options.SourceHash != "" {
 		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
 	}
-	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n\n")
+	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
+	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")
 	for _, method := range []string{"log", "info", "debug", "warn", "error"} {
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_bigint(i64)\n", method))
@@ -353,7 +365,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("\n")
 
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue, debug)
+		text, err := emitFunction(function, functions, stringsByValue, debug, module)
 		if err != nil {
 			return "", err
 		}
@@ -365,7 +377,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	return out.String(), nil
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	if function.ReturnType == ir.TypeBool {
 		returnType = "zeroext i1"
@@ -398,6 +410,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		functions:      functions,
 		stringsByValue: stringsByValue,
 		debug:          debug,
+		module:         module,
 		types:          make(map[string]ir.Type, len(function.Parameters)),
 		varSlots:       make(map[string]string),
 	}

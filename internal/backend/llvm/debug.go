@@ -9,9 +9,24 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+type locationKey struct {
+	line  int
+	col   int
+	scope int
+}
+
+type locationEntry struct {
+	id    int
+	line  int
+	col   int
+	scope int
+}
+
 type debugInfo struct {
 	files      map[string]int
 	functions  map[string]int
+	locations  map[locationKey]int
+	locList    []locationEntry
 	nextID     int
 	moduleFile int
 }
@@ -31,7 +46,12 @@ func newDebugInfo(module ir.Module) *debugInfo {
 		ordered = append(ordered, path)
 	}
 	sort.Strings(ordered)
-	result := &debugInfo{files: make(map[string]int), functions: make(map[string]int), nextID: 4 + len(ordered)}
+	result := &debugInfo{
+		files:     make(map[string]int),
+		functions: make(map[string]int),
+		locations: make(map[locationKey]int),
+		nextID:    4 + len(ordered),
+	}
 	for index, path := range ordered {
 		result.files[path] = index + 4
 	}
@@ -43,6 +63,32 @@ func newDebugInfo(module ir.Module) *debugInfo {
 		result.nextID++
 	}
 	return result
+}
+
+func (info *debugInfo) location(span ir.SourceSpan, funcName string, module ir.Module) string {
+	if info == nil {
+		return ""
+	}
+	scope, ok := info.functions[funcName]
+	if !ok {
+		return ""
+	}
+	path := span.Path
+	if path == "" {
+		path = module.SourcePath
+	}
+	source := module.SourceFiles[path]
+	line := sourceLine(source, span.Offset)
+	col := sourceColumn(source, span.Offset)
+	key := locationKey{line: line, col: col, scope: scope}
+	id, exists := info.locations[key]
+	if !exists {
+		id = info.nextID
+		info.nextID++
+		info.locations[key] = id
+		info.locList = append(info.locList, locationEntry{id: id, line: line, col: col, scope: scope})
+	}
+	return fmt.Sprintf("!dbg !%d", id)
 }
 
 func (info *debugInfo) functionMetadata(function ir.Function, module ir.Module) string {
@@ -74,6 +120,9 @@ func (info *debugInfo) metadata(module ir.Module, compilerVersion string) string
 	for _, functionPath := range module.Functions {
 		text.WriteString(info.functionMetadata(functionPath, module) + "\n")
 	}
+	for _, loc := range info.locList {
+		text.WriteString(fmt.Sprintf("!%d = !DILocation(line: %d, column: %d, scope: !%d)\n", loc.id, loc.line, loc.col, loc.scope))
+	}
 	text.WriteString("!llvm.module.flags = !{!1}\n!1 = !{i32 2, !\"Debug Info Version\", i32 3}\n")
 	return text.String()
 }
@@ -92,4 +141,18 @@ func sourceLine(source string, offset int) int {
 		}
 	}
 	return line
+}
+
+func sourceColumn(source string, offset int) int {
+	if offset < 0 {
+		return 1
+	}
+	if offset > len(source) {
+		offset = len(source)
+	}
+	lastNewline := strings.LastIndex(source[:offset], "\n")
+	if lastNewline == -1 {
+		return offset + 1
+	}
+	return offset - lastNewline
 }

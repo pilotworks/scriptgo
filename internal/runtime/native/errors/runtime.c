@@ -184,3 +184,9 @@ void scriptgo_exception_rethrow(scriptgo_exception_frame_t *frame) {
         scriptgo_throw_bool(frame->thrown_bool);
     }
 }
+
+void scriptgo_debugger_break(const char *file, int line) {
+    (void)file;
+    (void)line;
+}
+
