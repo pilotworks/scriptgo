@@ -39,7 +39,7 @@ function testObjectHasOwn(): void {
 function testObjectKeys(): void {
   console.log("=== Object.keys ===");
   const p = new Point(1, 2);
-  const keys = Object.keys(p);
+  const keys: string[] = Object.keys(p);
   for (const k of keys) {
     console.log(k);
   }
@@ -48,7 +48,7 @@ function testObjectKeys(): void {
 function testObjectValues(): void {
   console.log("=== Object.values ===");
   const p = new Point(100, 200);
-  const vals = Object.values(p);
+  const vals: number[] = Object.values(p);
   for (const v of vals) {
     console.log(v);
   }
@@ -58,7 +58,7 @@ function testObjectAssign(): void {
   console.log("=== Object.assign ===");
   const p1 = new Point(1, 2);
   const p2 = new Point(10, 20);
-  const res = Object.assign(p1, p2);
+  const res: Point = Object.assign(p1, p2);
   console.log(res.x);
   console.log(res.y);
   console.log(p1.x);

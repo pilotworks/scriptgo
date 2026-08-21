@@ -109,11 +109,11 @@ func Check(entryPath string) (ProgramResult, error) {
 		},
 	})
 	options := &core.CompilerOptions{
-		Target:                     core.ScriptTargetES2022,
+		Target:                     core.ScriptTargetES2023,
 		Module:                     core.ModuleKindESNext,
 		ModuleResolution:           core.ModuleResolutionKindBundler,
 		AllowImportingTsExtensions: core.TSTrue,
-		Lib:                        []string{"lib.es2022.d.ts"},
+		Lib:                        []string{"lib.es2023.d.ts"},
 		Strict:                     core.TSTrue,
 		NoEmit:                     core.TSTrue,
 	}
@@ -136,7 +136,7 @@ func Check(entryPath string) (ProgramResult, error) {
 
 	result := ProgramResult{}
 	result.Options = CompilerOptions{
-		Target:           "ES2022",
+		Target:           "ES2023",
 		Module:           "ESNext",
 		ModuleResolution: "Bundler",
 		Strict:           true,

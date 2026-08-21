@@ -264,7 +264,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 								})
 								call.Function.Body = append(call.Function.Body, ir.Instruction{
 									Op:         ir.OpFieldSet,
-									Type:       srcField.Type,
+									Type:       ir.TypeVoid,
 									Args:       []string{targetVal, fieldVal},
 									Field:      targetField.Name,
 									FieldIndex: tIdx,
@@ -276,7 +276,15 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 					}
 				}
 			}
-			return targetVal, targetType, nil
+			result := call.Result
+			if result == "" {
+				result = targetVal
+			} else if result != targetVal {
+				trueConst := nextTemp(call.Counter)
+				call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(call.Path, call.Expression.Span)})
+				call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpSelect, Type: targetType, Result: result, Args: []string{trueConst, targetVal, targetVal}, Span: toIRSpan(call.Path, call.Expression.Span)})
+			}
+			return result, targetType, nil
 		},
 	}
 }

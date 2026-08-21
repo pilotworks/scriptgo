@@ -33,8 +33,23 @@ func validateSubsetLocked(program frontend.Program) error {
 	return nil
 }
 
+func isObjectBuiltinCall(expr *typescriptgo.SyntaxExpression) bool {
+	if expr == nil || expr.Kind != "call" {
+		return false
+	}
+	name := ""
+	if expr.Left != nil {
+		if expr.Left.Kind == "identifier" && expr.Text != "" {
+			name = expr.Left.Text + "." + expr.Text
+		} else if (expr.Left.Kind == "property" || expr.Left.Kind == "optional_property") && expr.Left.Left != nil && expr.Left.Left.Kind == "identifier" {
+			name = expr.Left.Left.Text + "." + expr.Left.Text
+		}
+	}
+	return name == "Object.values" || name == "Object.entries" || name == "Object.assign" || name == "Object.keys"
+}
+
 func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) error {
-	if statement.Kind != "type_alias" && (statement.Kind != "variable" || !isHeterogeneousUnion(statement.Type)) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
+	if statement.Kind != "type_alias" && (statement.Kind != "variable" || (!isHeterogeneousUnion(statement.Type) && !isObjectBuiltinCall(statement.Expression))) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
 		if err := validateStaticType(fileName, statement.Span, statement.Type); err != nil {
 			return err
 		}

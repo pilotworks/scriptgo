@@ -132,7 +132,8 @@ All 208 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`console`** | `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `time`, `timeLog`, `timeEnd`, `trace`, `dir`, `dirxml`, `table`, `group`, `groupCollapsed`, `groupEnd`, format strings (`%s`, `%d`, `%i`, `%f`, `%j`, `%%`), `node:console` module | ✅ 100% matches Node.js output format & full method suite |
 | **`Math`** | `abs`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `min`, `max`, `trunc`, `sin`, `cos`, `tan`, `log`, `exp`, `random`, `PI`, `E` | ✅ 100% matches IEEE-754 results |
 | **`String`** | `length`, `indexOf`, `substring`, `slice`, `trim`, `split`, `includes`, `startsWith`, `endsWith`, `toUpperCase`, `toLowerCase`, `charAt`, `charCodeAt`, `concat`, `replace`, `replaceAll`, `padStart`, `padEnd`, `match`, `search` | ✅ 100% matches Unicode/ASCII behavior |
-| **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `find`, `findIndex` (`number[]`, `string[]`, `bool[]`, `bigint[]`, `T[]`) | ✅ 100% matches typed & generic array behavior |
+| **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `find`, `findIndex`, `fill`, `toReversed`, `toSorted` (`number[]`, `string[]`, `bool[]`, `bigint[]`, `T[]`) | ✅ 100% matches typed, generic & ES2023 array behavior |
+| **`Object`** | `Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign` | ✅ 100% matches ECMAScript static method specifications |
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `new Date()`, `getTime()`, `toISOString()`, `toString()`, `toUTCString()` | ✅ Matches ISO format & epoch timestamps |
 | **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
@@ -162,8 +163,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 208
-  - Passed Cases       : 208 (100.0%)
+  - Total Corpus Cases : 210
+  - Passed Cases       : 210 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -184,11 +185,11 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`objects`** | 4 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), nested object records, object spread/destructuring, discriminated unions. |
 | **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 41 | **100%** | `TextEncoder` & `TextDecoder` (`text_encoding`), `Map` & `Set` (`map`, `set`, `map_set_advanced`), `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `events` / `node:events` (`EventEmitter` lifecycle, listeners, unhandled error), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
+| **`stdlib`** | 43 | **100%** | `Object` static methods (`Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign`), modern Array methods (`findIndex`, `fill`, `toReversed`, `toSorted`), `TextEncoder` & `TextDecoder`, `Map` & `Set`, `console` full suite, `Math` extended API, string methods, number static methods, `events` (`EventEmitter`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `json`, `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 16 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring, `debugger;` statement. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |
-| **`typedarrays`** | 7 | **100%** | `all_types`, `arraybuffer`, `dataview`, `float64`, `int32`, `methods`, `uint8` (`Uint8Array` truncation, byte operations, `ArrayBuffer` views, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`). |
+| **`typedarrays`** | 7 | **100%** | `all_types`, `arraybuffer`, `dataview`, `float64`, `int32`, `methods`, `uint8`. |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
 
 ---
