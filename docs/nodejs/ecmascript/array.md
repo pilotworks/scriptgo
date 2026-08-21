@@ -21,8 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `Array.at(index: number): T \| undefined` | `at(index: number): T \| undefined` | `__array.at` | ✅ Done | `internal/compiler/testdata/corpus/api/array/at/` |
 | `Array.concat(...items: ConcatArray<T>[]): T[]` | `concat(...items: ConcatArray<T>[]): T[]` | `__array.concat` | ✅ Done | `internal/compiler/testdata/corpus/api/array/concat/` |
+| `Array.every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.every` | ✅ Done | `internal/compiler/testdata/corpus/api/array/every/` |
+| `Array.fill(value: T, start?: number, end?: number): this` | `fill(value: T, start?: number, end?: number): this` | `__array.fill` | ✅ Done | `internal/compiler/testdata/corpus/api/array/fill/` |
 | `Array.filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[]` | `filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[]` | `__array.filter` | ✅ Done | `internal/compiler/testdata/corpus/api/array/filter/` |
+| `Array.find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `__array.find` | ✅ Done | `internal/compiler/testdata/corpus/api/array/find/` |
+| `Array.findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `__array.findIndex` | ✅ Done | `internal/compiler/testdata/corpus/api/array/findIndex/` |
 | `Array.forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void` | `__array.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/array/forEach/` |
 | `Array.includes(searchElement: T, fromIndex?: number): boolean` | `includes(searchElement: T, fromIndex?: number): boolean` | `__array.includes` | ✅ Done | `internal/compiler/testdata/corpus/api/array/includes/` |
 | `Array.indexOf(searchElement: T, fromIndex?: number): number` | `indexOf(searchElement: T, fromIndex?: number): number` | `__array.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/array/indexOf/` |
@@ -32,21 +37,18 @@ Provide a concise technical summary:
 | `Array.push(...items: T[]): number` | `push(...items: T[]): number` | `__array.push` | ✅ Done | `internal/compiler/testdata/corpus/api/array/push/` |
 | `Array.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `__array.reduce` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reduce/` |
 | `Array.reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `__array.reduce<U>` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reduce/` |
+| `Array.reverse(): T[]` | `reverse(): T[]` | `__array.reverse` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reverse/` |
 | `Array.shift(): T \| undefined` | `shift(): T \| undefined` | `__array.shift` | ✅ Done | `internal/compiler/testdata/corpus/api/array/shift/` |
 | `Array.slice(start?: number, end?: number): T[]` | `slice(start?: number, end?: number): T[]` | `__array.slice` | ✅ Done | `internal/compiler/testdata/corpus/api/array/slice/` |
+| `Array.some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.some` | ✅ Done | `internal/compiler/testdata/corpus/api/array/some/` |
 | `Array.splice(start: number, deleteCount?: number): T[]` | `splice(start: number, deleteCount?: number): T[]` | `__array.splice` | ✅ Done | `internal/compiler/testdata/corpus/api/array/splice/` |
 | `Array.unshift(...items: T[]): number` | `unshift(...items: T[]): number` | `__array.unshift` | ✅ Done | `internal/compiler/testdata/corpus/api/array/unshift/` |
 | `Array.): U[]` | `): U[]` | `__array.)` | 📋 Planned | - |
 | `Array.<T>(arrayLength: number): T[]` | `<T>(arrayLength: number): T[]` | `__array.<T>` | 📋 Planned | - |
-| `Array.at(index: number): T \| undefined` | `at(index: number): T \| undefined` | `__array.at` | 📋 Planned | - |
 | `Array.callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `__array.callback` | 📋 Planned | - |
 | `Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__array.copyWithin` | 📋 Planned | - |
 | `Array.depth?: D,` | `depth?: D,` | `__array.depth?` | 📋 Planned | - |
 | `Array.entries(): ArrayIterator<[number, T]>` | `entries(): ArrayIterator<[number, T]>` | `__array.entries` | 📋 Planned | - |
-| `Array.every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.every` | 📋 Planned | - |
-| `Array.fill(value: T, start?: number, end?: number): this` | `fill(value: T, start?: number, end?: number): this` | `__array.fill` | 📋 Planned | - |
-| `Array.find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `__array.find` | 📋 Planned | - |
-| `Array.findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `__array.findIndex` | 📋 Planned | - |
 | `Array.findLast(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T \| undefined` | `findLast(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T \| undefined` | `__array.findLast` | 📋 Planned | - |
 | `Array.findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `__array.findLastIndex` | 📋 Planned | - |
 | `Array.from<T>(arrayLike: ArrayLike<T>): T[]` | `from<T>(arrayLike: ArrayLike<T>): T[]` | `__array.from<T>` | 📋 Planned | - |
@@ -60,8 +62,6 @@ Provide a concise technical summary:
 | `Array.readonly prototype: any[]` | `readonly prototype: any[]` | `__array.prototype` | 📋 Planned | - |
 | `Array.reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `__array.reduceRight` | 📋 Planned | - |
 | `Array.reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `__array.reduceRight<U>` | 📋 Planned | - |
-| `Array.reverse(): T[]` | `reverse(): T[]` | `__array.reverse` | 📋 Planned | - |
-| `Array.some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.some` | 📋 Planned | - |
 | `Array.sort(compareFn?: (a: T, b: T) => number): this` | `sort(compareFn?: (a: T, b: T) => number): this` | `__array.sort` | 📋 Planned | - |
 | `Array.this: A,` | `this: A,` | `__array.this` | 📋 Planned | - |
 | `Array.thisArg?: This,` | `thisArg?: This,` | `__array.thisArg?` | 📋 Planned | - |

@@ -21,6 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `RegExp.exec(string: string): RegExpExecArray \| null` | `exec(string: string): RegExpExecArray \| null` | `__regexp.exec` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp/exec/` |
+| `RegExp.test(string: string): boolean` | `test(string: string): boolean` | `__regexp.test` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp/test/` |
 | `RegExp."$&": string` | `"$&": string` | `__regexp."$&"` | 📋 Planned | - |
 | `RegExp."$'": string` | `"$'": string` | `__regexp."$'"` | 📋 Planned | - |
 | `RegExp."$+": string` | `"$+": string` | `__regexp."$+"` | 📋 Planned | - |
@@ -42,7 +44,6 @@ Provide a concise technical summary:
 | `RegExp."rightContext": string` | `"rightContext": string` | `__regexp."rightContext"` | 📋 Planned | - |
 | `RegExp.compile(pattern: string, flags?: string): this` | `compile(pattern: string, flags?: string): this` | `__regexp.compile` | 📋 Planned | - |
 | `RegExp.escape(string: string): string` | `escape(string: string): string` | `__regexp.escape` | 📋 Planned | - |
-| `RegExp.exec(string: string): RegExpExecArray \| null` | `exec(string: string): RegExpExecArray \| null` | `__regexp.exec` | 📋 Planned | - |
 | `RegExp.lastIndex: number` | `lastIndex: number` | `__regexp.lastIndex` | 📋 Planned | - |
 | `RegExp.new (pattern: RegExp \| string, flags?: string): RegExp` | `new (pattern: RegExp \| string, flags?: string): RegExp` | `__regexp.new` | 📋 Planned | - |
 | `RegExp.readonly "prototype": RegExp` | `readonly "prototype": RegExp` | `__regexp."prototype"` | 📋 Planned | - |
@@ -56,7 +57,6 @@ Provide a concise technical summary:
 | `RegExp.readonly sticky: boolean` | `readonly sticky: boolean` | `__regexp.sticky` | 📋 Planned | - |
 | `RegExp.readonly unicode: boolean` | `readonly unicode: boolean` | `__regexp.unicode` | 📋 Planned | - |
 | `RegExp.readonly unicodeSets: boolean` | `readonly unicodeSets: boolean` | `__regexp.unicodeSets` | 📋 Planned | - |
-| `RegExp.test(string: string): boolean` | `test(string: string): boolean` | `__regexp.test` | 📋 Planned | - |
 
 ---
 

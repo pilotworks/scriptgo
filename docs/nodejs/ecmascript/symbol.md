@@ -24,6 +24,7 @@ Provide a concise technical summary:
 | `Symbol.for(key: string): symbol` | `for(key: string): symbol` | `__symbol.for` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/for/` |
 | `Symbol.keyFor(sym: symbol): string \| undefined` | `keyFor(sym: symbol): string \| undefined` | `__symbol.keyFor` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/keyFor/` |
 | `Symbol.readonly iterator: unique symbol` | `readonly iterator: unique symbol` | `__symbol.iterator` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/iterator/` |
+| `Symbol.toString(): string` | `toString(): string` | `__symbol.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/toString/` |
 | `Symbol.readonly asyncDispose: unique symbol` | `readonly asyncDispose: unique symbol` | `__symbol.asyncDispose` | 📋 Planned | - |
 | `Symbol.readonly asyncIterator: unique symbol` | `readonly asyncIterator: unique symbol` | `__symbol.asyncIterator` | 📋 Planned | - |
 | `Symbol.readonly description: string \| undefined` | `readonly description: string \| undefined` | `__symbol.description` | 📋 Planned | - |
@@ -41,7 +42,6 @@ Provide a concise technical summary:
 | `Symbol.readonly toPrimitive: unique symbol` | `readonly toPrimitive: unique symbol` | `__symbol.toPrimitive` | 📋 Planned | - |
 | `Symbol.readonly toStringTag: unique symbol` | `readonly toStringTag: unique symbol` | `__symbol.toStringTag` | 📋 Planned | - |
 | `Symbol.readonly unscopables: unique symbol` | `readonly unscopables: unique symbol` | `__symbol.unscopables` | 📋 Planned | - |
-| `Symbol.toString(): string` | `toString(): string` | `__symbol.toString` | 📋 Planned | - |
 | `Symbol.valueOf(): symbol` | `valueOf(): symbol` | `__symbol.valueOf` | 📋 Planned | - |
 
 ---

@@ -26,6 +26,8 @@ Provide a concise technical summary:
 | `Number.isNaN(number: unknown): boolean` | `isNaN(number: unknown): boolean` | `__number.isNaN` | ✅ Done | `internal/compiler/testdata/corpus/api/number/isNaN/` |
 | `Number.parseFloat(string: string): number` | `parseFloat(string: string): number` | `__number.parseFloat` | ✅ Done | `internal/compiler/testdata/corpus/api/number/parseFloat/` |
 | `Number.parseInt(string: string, radix?: number): number` | `parseInt(string: string, radix?: number): number` | `__number.parseInt` | ✅ Done | `internal/compiler/testdata/corpus/api/number/parseInt/` |
+| `Number.toFixed(fractionDigits?: number): string` | `toFixed(fractionDigits?: number): string` | `__number.toFixed` | ✅ Done | `internal/compiler/testdata/corpus/api/number/toFixed/` |
+| `Number.toString(radix?: number): string` | `toString(radix?: number): string` | `__number.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/number/toString/` |
 | `Number.isSafeInteger(number: unknown): boolean` | `isSafeInteger(number: unknown): boolean` | `__number.isSafeInteger` | 📋 Planned | - |
 | `Number.new (value?: any): Number` | `new (value?: any): Number` | `__number.new` | 📋 Planned | - |
 | `Number.readonly EPSILON: number` | `readonly EPSILON: number` | `__number.EPSILON` | 📋 Planned | - |
@@ -38,10 +40,8 @@ Provide a concise technical summary:
 | `Number.readonly POSITIVE_INFINITY: number` | `readonly POSITIVE_INFINITY: number` | `__number.POSITIVE_INFINITY` | 📋 Planned | - |
 | `Number.readonly prototype: Number` | `readonly prototype: Number` | `__number.prototype` | 📋 Planned | - |
 | `Number.toExponential(fractionDigits?: number): string` | `toExponential(fractionDigits?: number): string` | `__number.toExponential` | 📋 Planned | - |
-| `Number.toFixed(fractionDigits?: number): string` | `toFixed(fractionDigits?: number): string` | `__number.toFixed` | 📋 Planned | - |
 | `Number.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `__number.toLocaleString` | 📋 Planned | - |
 | `Number.toPrecision(precision?: number): string` | `toPrecision(precision?: number): string` | `__number.toPrecision` | 📋 Planned | - |
-| `Number.toString(radix?: number): string` | `toString(radix?: number): string` | `__number.toString` | 📋 Planned | - |
 | `Number.valueOf(): number` | `valueOf(): number` | `__number.valueOf` | 📋 Planned | - |
 
 ---

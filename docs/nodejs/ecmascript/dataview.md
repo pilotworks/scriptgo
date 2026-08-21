@@ -21,14 +21,14 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `DataView.getFloat64(byteOffset: number, littleEndian?: boolean): number` | `getFloat64(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat64` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getFloat64/` |
+| `DataView.getInt32(byteOffset: number, littleEndian?: boolean): number` | `getInt32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getInt32` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getInt32/` |
+| `DataView.getInt8(byteOffset: number): number` | `getInt8(byteOffset: number): number` | `__dataview.getInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getInt8/` |
 | `DataView.getBigInt64(byteOffset: number, littleEndian?: boolean): bigint` | `getBigInt64(byteOffset: number, littleEndian?: boolean): bigint` | `__dataview.getBigInt64` | 📋 Planned | - |
 | `DataView.getBigUint64(byteOffset: number, littleEndian?: boolean): bigint` | `getBigUint64(byteOffset: number, littleEndian?: boolean): bigint` | `__dataview.getBigUint64` | 📋 Planned | - |
 | `DataView.getFloat16(byteOffset: number, littleEndian?: boolean): number` | `getFloat16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat16` | 📋 Planned | - |
 | `DataView.getFloat32(byteOffset: number, littleEndian?: boolean): number` | `getFloat32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat32` | 📋 Planned | - |
-| `DataView.getFloat64(byteOffset: number, littleEndian?: boolean): number` | `getFloat64(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat64` | 📋 Planned | - |
 | `DataView.getInt16(byteOffset: number, littleEndian?: boolean): number` | `getInt16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getInt16` | 📋 Planned | - |
-| `DataView.getInt32(byteOffset: number, littleEndian?: boolean): number` | `getInt32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getInt32` | 📋 Planned | - |
-| `DataView.getInt8(byteOffset: number): number` | `getInt8(byteOffset: number): number` | `__dataview.getInt8` | 📋 Planned | - |
 | `DataView.getUint16(byteOffset: number, littleEndian?: boolean): number` | `getUint16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint16` | 📋 Planned | - |
 | `DataView.getUint32(byteOffset: number, littleEndian?: boolean): number` | `getUint32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint32` | 📋 Planned | - |
 | `DataView.getUint8(byteOffset: number): number` | `getUint8(byteOffset: number): number` | `__dataview.getUint8` | 📋 Planned | - |

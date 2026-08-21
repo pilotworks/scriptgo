@@ -22,11 +22,11 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `ArrayBuffer.isView(arg: any): arg is ArrayBufferView` | `isView(arg: any): arg is ArrayBufferView` | `__arraybuffer.isView` | ✅ Done | `internal/compiler/testdata/corpus/api/arraybuffer/isView/` |
+| `ArrayBuffer.readonly byteLength: number` | `readonly byteLength: number` | `__arraybuffer.byteLength` | ✅ Done | `internal/compiler/testdata/corpus/api/arraybuffer/byteLength/` |
+| `ArrayBuffer.slice(begin?: number, end?: number): ArrayBuffer` | `slice(begin?: number, end?: number): ArrayBuffer` | `__arraybuffer.slice` | ✅ Done | `internal/compiler/testdata/corpus/api/arraybuffer/slice/` |
 | `ArrayBuffer.new (): ArrayBuffer` | `new (): ArrayBuffer` | `__arraybuffer.new` | 📋 Planned | - |
-| `ArrayBuffer.readonly byteLength: number` | `readonly byteLength: number` | `__arraybuffer.byteLength` | 📋 Planned | - |
 | `ArrayBuffer.readonly prototype: ArrayBuffer` | `readonly prototype: ArrayBuffer` | `__arraybuffer.prototype` | 📋 Planned | - |
 | `ArrayBuffer.resize(newByteLength?: number): void` | `resize(newByteLength?: number): void` | `__arraybuffer.resize` | 📋 Planned | - |
-| `ArrayBuffer.slice(begin?: number, end?: number): ArrayBuffer` | `slice(begin?: number, end?: number): ArrayBuffer` | `__arraybuffer.slice` | 📋 Planned | - |
 | `ArrayBuffer.transfer(newByteLength?: number): ArrayBuffer` | `transfer(newByteLength?: number): ArrayBuffer` | `__arraybuffer.transfer` | 📋 Planned | - |
 | `ArrayBuffer.transferToFixedLength(newByteLength?: number): ArrayBuffer` | `transferToFixedLength(newByteLength?: number): ArrayBuffer` | `__arraybuffer.transferToFixedLength` | 📋 Planned | - |
 

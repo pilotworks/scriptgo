@@ -25,6 +25,7 @@ Provide a concise technical summary:
 | `Date.now(): number` | `now(): number` | `__date.now` | ✅ Done | `internal/compiler/testdata/corpus/api/date/now/` |
 | `Date.parse(s: string): number` | `parse(s: string): number` | `__date.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/date/parse/` |
 | `Date.toISOString(): string` | `toISOString(): string` | `__date.toISOString` | ✅ Done | `internal/compiler/testdata/corpus/api/date/toISOString/` |
+| `Date.toString(): string` | `toString(): string` | `__date.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/date/toString/` |
 | `Date.UTC(year: number, monthIndex?: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number` | `UTC(year: number, monthIndex?: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number` | `__date.UTC` | 📋 Planned | - |
 | `Date.getDate(): number` | `getDate(): number` | `__date.getDate` | 📋 Planned | - |
 | `Date.getDay(): number` | `getDay(): number` | `__date.getDay` | 📋 Planned | - |
@@ -65,7 +66,6 @@ Provide a concise technical summary:
 | `Date.toLocaleDateString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `toLocaleDateString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `__date.toLocaleDateString` | 📋 Planned | - |
 | `Date.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `__date.toLocaleString` | 📋 Planned | - |
 | `Date.toLocaleTimeString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `toLocaleTimeString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `__date.toLocaleTimeString` | 📋 Planned | - |
-| `Date.toString(): string` | `toString(): string` | `__date.toString` | 📋 Planned | - |
 | `Date.toTemporalInstant(): Temporal.Instant` | `toTemporalInstant(): Temporal.Instant` | `__date.toTemporalInstant` | 📋 Planned | - |
 | `Date.toTimeString(): string` | `toTimeString(): string` | `__date.toTimeString` | 📋 Planned | - |
 | `Date.toUTCString(): string` | `toUTCString(): string` | `__date.toUTCString` | 📋 Planned | - |

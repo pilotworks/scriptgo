@@ -24,22 +24,32 @@ Provide a concise technical summary:
 | `String.charAt(pos: number): string` | `charAt(pos: number): string` | `__string.charAt` | ✅ Done | `internal/compiler/testdata/corpus/api/string/charAt/` |
 | `String.charCodeAt(index: number): number` | `charCodeAt(index: number): number` | `__string.charCodeAt` | ✅ Done | `internal/compiler/testdata/corpus/api/string/charCodeAt/` |
 | `String.concat(...strings: string[]): string` | `concat(...strings: string[]): string` | `__string.concat` | ✅ Done | `internal/compiler/testdata/corpus/api/string/concat/` |
+| `String.endsWith(searchString: string, endPosition?: number): boolean` | `endsWith(searchString: string, endPosition?: number): boolean` | `__string.endsWith` | ✅ Done | `internal/compiler/testdata/corpus/api/string/endsWith/` |
 | `String.includes(searchString: string, position?: number): boolean` | `includes(searchString: string, position?: number): boolean` | `__string.includes` | ✅ Done | `internal/compiler/testdata/corpus/api/string/includes/` |
 | `String.indexOf(searchString: string, position?: number): number` | `indexOf(searchString: string, position?: number): number` | `__string.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/string/indexOf/` |
+| `String.lastIndexOf(searchString: string, position?: number): number` | `lastIndexOf(searchString: string, position?: number): number` | `__string.lastIndexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/string/lastIndexOf/` |
+| `String.match(matcher: { [Symbol.match](string: string): RegExpMatchArray \| null; }): RegExpMatchArray \| null` | `match(matcher: { [Symbol.match](string: string): RegExpMatchArray \| null; }): RegExpMatchArray \| null` | `__string.match` | ✅ Done | `internal/compiler/testdata/corpus/api/string/match/` |
+| `String.padEnd(targetLength: number, padString?: string): string` | `padEnd(targetLength: number, padString?: string): string` | `__string.padEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/string/padEnd/` |
+| `String.padStart(targetLength: number, padString?: string): string` | `padStart(targetLength: number, padString?: string): string` | `__string.padStart` | ✅ Done | `internal/compiler/testdata/corpus/api/string/padStart/` |
+| `String.repeat(count: number): string` | `repeat(count: number): string` | `__string.repeat` | ✅ Done | `internal/compiler/testdata/corpus/api/string/repeat/` |
 | `String.replace(searchValue: { [Symbol.replace](string: string, replaceValue: string): string; }, replaceValue: string): string` | `replace(searchValue: { [Symbol.replace](string: string, replaceValue: string): string; }, replaceValue: string): string` | `__string.replace` | ✅ Done | `internal/compiler/testdata/corpus/api/string/replace/` |
+| `String.replaceAll(searchValue: string \| RegExp, replaceValue: string): string` | `replaceAll(searchValue: string \| RegExp, replaceValue: string): string` | `__string.replaceAll` | ✅ Done | `internal/compiler/testdata/corpus/api/string/replaceAll/` |
+| `String.search(searcher: { [Symbol.search](string: string): number; }): number` | `search(searcher: { [Symbol.search](string: string): number; }): number` | `__string.search` | ✅ Done | `internal/compiler/testdata/corpus/api/string/search/` |
 | `String.slice(start?: number, end?: number): string` | `slice(start?: number, end?: number): string` | `__string.slice` | ✅ Done | `internal/compiler/testdata/corpus/api/string/slice/` |
 | `String.split(splitter: { [Symbol.split](string: string, limit?: number): string[]; }, limit?: number): string[]` | `split(splitter: { [Symbol.split](string: string, limit?: number): string[]; }, limit?: number): string[]` | `__string.split` | ✅ Done | `internal/compiler/testdata/corpus/api/string/split/` |
+| `String.startsWith(searchString: string, position?: number): boolean` | `startsWith(searchString: string, position?: number): boolean` | `__string.startsWith` | ✅ Done | `internal/compiler/testdata/corpus/api/string/startsWith/` |
 | `String.substring(start: number, end?: number): string` | `substring(start: number, end?: number): string` | `__string.substring` | ✅ Done | `internal/compiler/testdata/corpus/api/string/substring/` |
 | `String.toLowerCase(): string` | `toLowerCase(): string` | `__string.toLowerCase` | ✅ Done | `internal/compiler/testdata/corpus/api/string/toLowerCase/` |
 | `String.toUpperCase(): string` | `toUpperCase(): string` | `__string.toUpperCase` | ✅ Done | `internal/compiler/testdata/corpus/api/string/toUpperCase/` |
 | `String.trim(): string` | `trim(): string` | `__string.trim` | ✅ Done | `internal/compiler/testdata/corpus/api/string/trim/` |
+| `String.trimEnd(): string` | `trimEnd(): string` | `__string.trimEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/string/trimEnd/` |
+| `String.trimStart(): string` | `trimStart(): string` | `__string.trimStart` | ✅ Done | `internal/compiler/testdata/corpus/api/string/trimStart/` |
 | `String.anchor(name: string): string` | `anchor(name: string): string` | `__string.anchor` | 📋 Planned | - |
 | `String.at(index: number): string \| undefined` | `at(index: number): string \| undefined` | `__string.at` | 📋 Planned | - |
 | `String.big(): string` | `big(): string` | `__string.big` | 📋 Planned | - |
 | `String.blink(): string` | `blink(): string` | `__string.blink` | 📋 Planned | - |
 | `String.bold(): string` | `bold(): string` | `__string.bold` | 📋 Planned | - |
 | `String.codePointAt(pos: number): number \| undefined` | `codePointAt(pos: number): number \| undefined` | `__string.codePointAt` | 📋 Planned | - |
-| `String.endsWith(searchString: string, endPosition?: number): boolean` | `endsWith(searchString: string, endPosition?: number): boolean` | `__string.endsWith` | 📋 Planned | - |
 | `String.fixed(): string` | `fixed(): string` | `__string.fixed` | 📋 Planned | - |
 | `String.fontcolor(color: string): string` | `fontcolor(color: string): string` | `__string.fontcolor` | 📋 Planned | - |
 | `String.fontsize(size: number): string` | `fontsize(size: number): string` | `__string.fontsize` | 📋 Planned | - |
@@ -47,23 +57,15 @@ Provide a concise technical summary:
 | `String.fromCodePoint(...codePoints: number[]): string` | `fromCodePoint(...codePoints: number[]): string` | `__string.fromCodePoint` | 📋 Planned | - |
 | `String.isWellFormed(): boolean` | `isWellFormed(): boolean` | `__string.isWellFormed` | 📋 Planned | - |
 | `String.italics(): string` | `italics(): string` | `__string.italics` | 📋 Planned | - |
-| `String.lastIndexOf(searchString: string, position?: number): number` | `lastIndexOf(searchString: string, position?: number): number` | `__string.lastIndexOf` | 📋 Planned | - |
 | `String.link(url: string): string` | `link(url: string): string` | `__string.link` | 📋 Planned | - |
 | `String.localeCompare(that: string, locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): number` | `localeCompare(that: string, locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): number` | `__string.localeCompare` | 📋 Planned | - |
-| `String.match(matcher: { [Symbol.match](string: string): RegExpMatchArray \| null; }): RegExpMatchArray \| null` | `match(matcher: { [Symbol.match](string: string): RegExpMatchArray \| null; }): RegExpMatchArray \| null` | `__string.match` | 📋 Planned | - |
 | `String.matchAll(regexp: RegExp): RegExpStringIterator<RegExpExecArray>` | `matchAll(regexp: RegExp): RegExpStringIterator<RegExpExecArray>` | `__string.matchAll` | 📋 Planned | - |
 | `String.new (value?: any): String` | `new (value?: any): String` | `__string.new` | 📋 Planned | - |
 | `String.normalize(form: "NFC" \| "NFD" \| "NFKC" \| "NFKD"): string` | `normalize(form: "NFC" \| "NFD" \| "NFKC" \| "NFKD"): string` | `__string.normalize` | 📋 Planned | - |
-| `String.padEnd(targetLength: number, padString?: string): string` | `padEnd(targetLength: number, padString?: string): string` | `__string.padEnd` | 📋 Planned | - |
-| `String.padStart(targetLength: number, padString?: string): string` | `padStart(targetLength: number, padString?: string): string` | `__string.padStart` | 📋 Planned | - |
 | `String.raw(template: { raw: readonly string[] \| ArrayLike<string>; }, ...substitutions: any[]): string` | `raw(template: { raw: readonly string[] \| ArrayLike<string>; }, ...substitutions: any[]): string` | `__string.raw` | 📋 Planned | - |
 | `String.readonly length: number` | `readonly length: number` | `__string.length` | 📋 Planned | - |
 | `String.readonly prototype: String` | `readonly prototype: String` | `__string.prototype` | 📋 Planned | - |
-| `String.repeat(count: number): string` | `repeat(count: number): string` | `__string.repeat` | 📋 Planned | - |
-| `String.replaceAll(searchValue: string \| RegExp, replaceValue: string): string` | `replaceAll(searchValue: string \| RegExp, replaceValue: string): string` | `__string.replaceAll` | 📋 Planned | - |
-| `String.search(searcher: { [Symbol.search](string: string): number; }): number` | `search(searcher: { [Symbol.search](string: string): number; }): number` | `__string.search` | 📋 Planned | - |
 | `String.small(): string` | `small(): string` | `__string.small` | 📋 Planned | - |
-| `String.startsWith(searchString: string, position?: number): boolean` | `startsWith(searchString: string, position?: number): boolean` | `__string.startsWith` | 📋 Planned | - |
 | `String.strike(): string` | `strike(): string` | `__string.strike` | 📋 Planned | - |
 | `String.sub(): string` | `sub(): string` | `__string.sub` | 📋 Planned | - |
 | `String.substr(from: number, length?: number): string` | `substr(from: number, length?: number): string` | `__string.substr` | 📋 Planned | - |
@@ -72,10 +74,8 @@ Provide a concise technical summary:
 | `String.toLocaleUpperCase(locales?: Intl.LocalesArgument): string` | `toLocaleUpperCase(locales?: Intl.LocalesArgument): string` | `__string.toLocaleUpperCase` | 📋 Planned | - |
 | `String.toString(): string` | `toString(): string` | `__string.toString` | 📋 Planned | - |
 | `String.toWellFormed(): string` | `toWellFormed(): string` | `__string.toWellFormed` | 📋 Planned | - |
-| `String.trimEnd(): string` | `trimEnd(): string` | `__string.trimEnd` | 📋 Planned | - |
 | `String.trimLeft(): string` | `trimLeft(): string` | `__string.trimLeft` | 📋 Planned | - |
 | `String.trimRight(): string` | `trimRight(): string` | `__string.trimRight` | 📋 Planned | - |
-| `String.trimStart(): string` | `trimStart(): string` | `__string.trimStart` | 📋 Planned | - |
 | `String.valueOf(): string` | `valueOf(): string` | `__string.valueOf` | 📋 Planned | - |
 
 ---
