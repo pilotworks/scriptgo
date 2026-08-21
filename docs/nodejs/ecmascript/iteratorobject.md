@@ -1,0 +1,69 @@
+# IteratorObject Implementation Checklist
+
+> **Category**: `CategoryECMAScript`  
+> **Import Path**: `N/A (Global Scope)`  
+> **Specification Reference**: [TC39 ECMA-262 IteratorObject Specification](https://tc39.es/ecma262/#sec-iteratorobject-objects)  
+> **Type Definition Source**: [microsoft/TypeScript lib.es2024.d.ts](https://github.com/microsoft/TypeScript/tree/main/src/lib)  
+> **Gate Oracle**: TC39 Test262 Test Suite & TypeScript baselines
+
+---
+
+## 1. Overview & Architectural Pipeline
+
+Provide a concise technical summary:
+- **Scope & Exposure**: Auto-global ambient identifiers available in root execution scope without explicit imports.
+- **Data & Memory Model**: Representation in IR (e.g., primitives, struct pointers, object shapes, buffer backing).
+- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → Interpreter → LLVM runtime binding.
+
+---
+
+## 2. Parity Status Matrix
+
+| API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
+| :--- | :--- | :--- | :---: | :--- |
+| `IteratorObject.drop(count: number): IteratorObject<T, undefined, unknown>` | `drop(count: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.drop` | 📋 Planned | - |
+| `IteratorObject.every(predicate: (value: T, index: number) => unknown): boolean` | `every(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.every` | 📋 Planned | - |
+| `IteratorObject.filter(predicate: (value: T, index: number) => unknown): IteratorObject<T, undefined, unknown>` | `filter(predicate: (value: T, index: number) => unknown): IteratorObject<T, undefined, unknown>` | `__iteratorobject.filter` | 📋 Planned | - |
+| `IteratorObject.find(predicate: (value: T, index: number) => unknown): T \| undefined` | `find(predicate: (value: T, index: number) => unknown): T \| undefined` | `__iteratorobject.find` | 📋 Planned | - |
+| `IteratorObject.flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `__iteratorobject.flatMap<U>` | 📋 Planned | - |
+| `IteratorObject.forEach(callbackfn: (value: T, index: number) => void): void` | `forEach(callbackfn: (value: T, index: number) => void): void` | `__iteratorobject.forEach` | 📋 Planned | - |
+| `IteratorObject.map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `__iteratorobject.map<U>` | 📋 Planned | - |
+| `IteratorObject.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `__iteratorobject.reduce` | 📋 Planned | - |
+| `IteratorObject.reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue: U): U` | `__iteratorobject.reduce<U>` | 📋 Planned | - |
+| `IteratorObject.some(predicate: (value: T, index: number) => unknown): boolean` | `some(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.some` | 📋 Planned | - |
+| `IteratorObject.take(limit: number): IteratorObject<T, undefined, unknown>` | `take(limit: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.take` | 📋 Planned | - |
+| `IteratorObject.toArray(): T[]` | `toArray(): T[]` | `__iteratorobject.toArray` | 📋 Planned | - |
+
+---
+
+## 3. Semantic Details & Edge Cases
+
+### 3.1. Standard Behaviors
+Describe expected standard semantics (e.g., IEEE-754 float precision, UTF-8 string encoding, implicit coercions, default argument handling).
+
+### 3.2. Native Subset Restrictions
+Document any constraints imposed by Ahead-Of-Time compilation (e.g., monomorphic type requirements, unsupported dynamic reflection).
+
+### 3.3. Dual-Surface Mapping (if applicable)
+Corpus test cases for `iteratorobject` are organized per API under `internal/compiler/testdata/corpus/iteratorobject/<api_name>/<test_case>/` and verify identical lowering semantics across surfaces.
+
+---
+
+## 4. Step-by-Step Implementation Recipe
+
+When implementing or extending any symbol in this file, execute the following technical workflow:
+
+- [ ] **Step 1: Frontend Type Contract**: Verify or register the ambient declaration in `internal/typescriptgo/stdlib/`.
+- [ ] **Step 2: Lowering Registration**: Register the global value in `builtinGlobals` or intrinsic function in `builtinIntrinsics` within `internal/lowering/builtins.go`.
+- [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).
+- [ ] **Step 4: Interpreter Handler**: Implement or bind reference execution in `internal/interpreter/`.
+- [ ] **Step 5: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
+- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/iteratorobject/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
+- [ ] **Step 7: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
+
+---
+
+## 5. Known Gaps & Future Roadmap
+
+- [ ] Unimplemented overloads or secondary options arguments.
+- [ ] Future ECMAScript / Node.js proposals slated for upcoming milestones.
