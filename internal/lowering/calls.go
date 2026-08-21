@@ -875,7 +875,7 @@ func lowerCallExpression(
 				}
 				returnType := ir.TypeNumber
 				switch methodName {
-				case "map":
+				case "map", "flatMap":
 					returnType = receiverType
 					if len(args) > 1 {
 						if cbRet, ok := env[args[1]+".retType"]; ok && cbRet != "" {
@@ -893,15 +893,19 @@ func lowerCallExpression(
 							}
 						}
 					}
-				case "slice", "reverse", "concat", "splice", "filter", "fill", "toReversed", "toSorted":
+				case "slice", "reverse", "concat", "splice", "filter", "fill", "toReversed", "toSorted", "toSpliced", "with", "sort", "copyWithin", "flat", "values":
 					returnType = receiverType
+				case "keys":
+					returnType = ir.TypeNumberArray
+				case "entries":
+					returnType = ir.TypeStringArray
 				case "includes", "some", "every":
 					returnType = ir.TypeBool
-				case "join":
+				case "join", "toString", "toLocaleString":
 					returnType = ir.TypeString
-				case "push", "unshift", "indexOf", "reduce", "findIndex":
+				case "push", "unshift", "indexOf", "lastIndexOf", "reduce", "reduceRight", "findIndex", "findLastIndex":
 					returnType = ir.TypeNumber
-				case "pop", "shift", "at", "find":
+				case "pop", "shift", "at", "find", "findLast":
 					if receiverType == ir.TypeNumberArray {
 						returnType = ir.TypeNumber
 					} else if receiverType == ir.TypeStringArray {
@@ -1396,7 +1400,7 @@ func isStringMethod(name string) bool {
 
 func isArrayMethod(name string) bool {
 	switch name {
-	case "push", "pop", "slice", "indexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at", "map", "filter", "forEach", "reduce", "find", "some", "every", "findIndex", "fill", "toReversed", "toSorted":
+	case "push", "pop", "slice", "indexOf", "lastIndexOf", "includes", "join", "reverse", "concat", "shift", "unshift", "splice", "at", "map", "filter", "forEach", "reduce", "reduceRight", "find", "findLast", "some", "every", "findIndex", "findLastIndex", "fill", "toReversed", "toSorted", "toSpliced", "with", "sort", "copyWithin", "toString", "toLocaleString", "flat", "flatMap", "entries", "keys", "values":
 		return true
 	default:
 		return false

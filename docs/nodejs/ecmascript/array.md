@@ -23,56 +23,47 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `Array.at(index: number): T \| undefined` | `at(index: number): T \| undefined` | `__array.at` | ✅ Done | `internal/compiler/testdata/corpus/api/array/at/` |
 | `Array.concat(...items: ConcatArray<T>[]): T[]` | `concat(...items: ConcatArray<T>[]): T[]` | `__array.concat` | ✅ Done | `internal/compiler/testdata/corpus/api/array/concat/` |
-| `Array.every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.every` | ✅ Done | `internal/compiler/testdata/corpus/api/array/every/` |
+| `Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__array.copyWithin` | ✅ Done | `internal/compiler/testdata/corpus/api/array/copyWithin/` |
+| `Array.entries(): ArrayIterator<[number, T]>` | `entries(): ArrayIterator<[number, T]>` | `__array.entries` | ✅ Done | `internal/compiler/testdata/corpus/api/array/entries/` |
+| `Array.every<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): this is S[]` | `every<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): this is S[]` | `__array.every` | ✅ Done | `internal/compiler/testdata/corpus/api/array/every/` |
 | `Array.fill(value: T, start?: number, end?: number): this` | `fill(value: T, start?: number, end?: number): this` | `__array.fill` | ✅ Done | `internal/compiler/testdata/corpus/api/array/fill/` |
-| `Array.filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[]` | `filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[]` | `__array.filter` | ✅ Done | `internal/compiler/testdata/corpus/api/array/filter/` |
-| `Array.find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `find(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): T \| undefined` | `__array.find` | ✅ Done | `internal/compiler/testdata/corpus/api/array/find/` |
+| `Array.filter<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S[]` | `filter<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S[]` | `__array.filter` | ✅ Done | `internal/compiler/testdata/corpus/api/array/filter/` |
+| `Array.find<S extends T>(predicate: (value: T, index: number, obj: T[]) => value is S, thisArg?: any): S \| undefined` | `find<S extends T>(predicate: (value: T, index: number, obj: T[]) => value is S, thisArg?: any): S \| undefined` | `__array.find` | ✅ Done | `internal/compiler/testdata/corpus/api/array/find/` |
 | `Array.findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `findIndex(predicate: (value: T, index: number, obj: T[]) => unknown, thisArg?: any): number` | `__array.findIndex` | ✅ Done | `internal/compiler/testdata/corpus/api/array/findIndex/` |
+| `Array.findLast<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S \| undefined` | `findLast<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S \| undefined` | `__array.findLast` | ✅ Done | `internal/compiler/testdata/corpus/api/array/findLast/` |
+| `Array.findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `__array.findLastIndex` | ✅ Done | `internal/compiler/testdata/corpus/api/array/findLastIndex/` |
+| `Array.flat<A, D extends number = 1>( this: A, depth?: D, ): FlatArray<A, D>[]` | `flat<A, D extends number = 1>( this: A, depth?: D, ): FlatArray<A, D>[]` | `__array.flat` | ✅ Done | `internal/compiler/testdata/corpus/api/array/flat/` |
+| `Array.flatMap<U, This = undefined>( callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>, thisArg?: This, ): U[]` | `flatMap<U, This = undefined>( callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>, thisArg?: This, ): U[]` | `__array.flatMap` | ✅ Done | `internal/compiler/testdata/corpus/api/array/flatMap/` |
 | `Array.forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void` | `__array.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/array/forEach/` |
+| `Array.from<T>(arrayLike: ArrayLike<T>): T[]` | `from<T>(arrayLike: ArrayLike<T>): T[]` | `__array.from` | ✅ Done | `internal/compiler/testdata/corpus/api/array/from/` |
+| `Array.fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> \| Iterable<T \| PromiseLike<T>> \| ArrayLike<T \| PromiseLike<T>>): Promise<T[]>` | `fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> \| Iterable<T \| PromiseLike<T>> \| ArrayLike<T \| PromiseLike<T>>): Promise<T[]>` | `__array.fromAsync` | ✅ Done | `internal/compiler/testdata/corpus/api/array/fromAsync/` |
 | `Array.includes(searchElement: T, fromIndex?: number): boolean` | `includes(searchElement: T, fromIndex?: number): boolean` | `__array.includes` | ✅ Done | `internal/compiler/testdata/corpus/api/array/includes/` |
 | `Array.indexOf(searchElement: T, fromIndex?: number): number` | `indexOf(searchElement: T, fromIndex?: number): number` | `__array.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/array/indexOf/` |
+| `Array.isArray(arg: any): arg is any[]` | `isArray(arg: any): arg is any[]` | `__array.isArray` | ✅ Done | `internal/compiler/testdata/corpus/api/array/isArray/` |
 | `Array.join(separator?: string): string` | `join(separator?: string): string` | `__array.join` | ✅ Done | `internal/compiler/testdata/corpus/api/array/join/` |
-| `Array.map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[]` | `map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[]` | `__array.map<U>` | ✅ Done | `internal/compiler/testdata/corpus/api/array/map/` |
+| `Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__array.keys` | ✅ Done | `internal/compiler/testdata/corpus/api/array/keys/` |
+| `Array.lastIndexOf(searchElement: T, fromIndex?: number): number` | `lastIndexOf(searchElement: T, fromIndex?: number): number` | `__array.lastIndexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/array/lastIndexOf/` |
+| `Array.length: number` | `length: number` | `__array.length` | ✅ Done | `internal/compiler/testdata/corpus/api/array/length/` |
+| `Array.map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[]` | `map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[]` | `__array.map` | ✅ Done | `internal/compiler/testdata/corpus/api/array/map/` |
+| `Array.of<T>(...items: T[]): T[]` | `of<T>(...items: T[]): T[]` | `__array.of` | ✅ Done | `internal/compiler/testdata/corpus/api/array/of/` |
 | `Array.pop(): T \| undefined` | `pop(): T \| undefined` | `__array.pop` | ✅ Done | `internal/compiler/testdata/corpus/api/array/pop/` |
 | `Array.push(...items: T[]): number` | `push(...items: T[]): number` | `__array.push` | ✅ Done | `internal/compiler/testdata/corpus/api/array/push/` |
 | `Array.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `__array.reduce` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reduce/` |
-| `Array.reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `__array.reduce<U>` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reduce/` |
+| `Array.reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `__array.reduceRight` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reduceRight/` |
 | `Array.reverse(): T[]` | `reverse(): T[]` | `__array.reverse` | ✅ Done | `internal/compiler/testdata/corpus/api/array/reverse/` |
 | `Array.shift(): T \| undefined` | `shift(): T \| undefined` | `__array.shift` | ✅ Done | `internal/compiler/testdata/corpus/api/array/shift/` |
 | `Array.slice(start?: number, end?: number): T[]` | `slice(start?: number, end?: number): T[]` | `__array.slice` | ✅ Done | `internal/compiler/testdata/corpus/api/array/slice/` |
 | `Array.some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean` | `__array.some` | ✅ Done | `internal/compiler/testdata/corpus/api/array/some/` |
+| `Array.sort(compareFn?: (a: T, b: T) => number): this` | `sort(compareFn?: (a: T, b: T) => number): this` | `__array.sort` | ✅ Done | `internal/compiler/testdata/corpus/api/array/sort/` |
 | `Array.splice(start: number, deleteCount?: number): T[]` | `splice(start: number, deleteCount?: number): T[]` | `__array.splice` | ✅ Done | `internal/compiler/testdata/corpus/api/array/splice/` |
+| `Array.toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `__array.toLocaleString` | ✅ Done | `internal/compiler/testdata/corpus/api/array/toLocaleString/` |
+| `Array.toReversed(): T[]` | `toReversed(): T[]` | `__array.toReversed` | ✅ Done | `internal/compiler/testdata/corpus/api/array/toReversed/` |
+| `Array.toSorted(compareFn?: (a: T, b: T) => number): T[]` | `toSorted(compareFn?: (a: T, b: T) => number): T[]` | `__array.toSorted` | ✅ Done | `internal/compiler/testdata/corpus/api/array/toSorted/` |
+| `Array.toSpliced(start: number, deleteCount: number, ...items: T[]): T[]` | `toSpliced(start: number, deleteCount: number, ...items: T[]): T[]` | `__array.toSpliced` | ✅ Done | `internal/compiler/testdata/corpus/api/array/toSpliced/` |
+| `Array.toString(): string` | `toString(): string` | `__array.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/array/toString/` |
 | `Array.unshift(...items: T[]): number` | `unshift(...items: T[]): number` | `__array.unshift` | ✅ Done | `internal/compiler/testdata/corpus/api/array/unshift/` |
-| `Array.): U[]` | `): U[]` | `__array.)` | 📋 Planned | - |
-| `Array.<T>(arrayLength: number): T[]` | `<T>(arrayLength: number): T[]` | `__array.<T>` | 📋 Planned | - |
-| `Array.callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `__array.callback` | 📋 Planned | - |
-| `Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__array.copyWithin` | 📋 Planned | - |
-| `Array.depth?: D,` | `depth?: D,` | `__array.depth?` | 📋 Planned | - |
-| `Array.entries(): ArrayIterator<[number, T]>` | `entries(): ArrayIterator<[number, T]>` | `__array.entries` | 📋 Planned | - |
-| `Array.findLast(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T \| undefined` | `findLast(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T \| undefined` | `__array.findLast` | 📋 Planned | - |
-| `Array.findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number` | `__array.findLastIndex` | 📋 Planned | - |
-| `Array.from<T>(arrayLike: ArrayLike<T>): T[]` | `from<T>(arrayLike: ArrayLike<T>): T[]` | `__array.from<T>` | 📋 Planned | - |
-| `Array.fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> \| Iterable<T \| PromiseLike<T>> \| ArrayLike<T \| PromiseLike<T>>): Promise<T[]>` | `fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> \| Iterable<T \| PromiseLike<T>> \| ArrayLike<T \| PromiseLike<T>>): Promise<T[]>` | `__array.fromAsync<T>` | 📋 Planned | - |
-| `Array.isArray(arg: any): arg is any[]` | `isArray(arg: any): arg is any[]` | `__array.isArray` | 📋 Planned | - |
-| `Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__array.keys` | 📋 Planned | - |
-| `Array.lastIndexOf(searchElement: T, fromIndex?: number): number` | `lastIndexOf(searchElement: T, fromIndex?: number): number` | `__array.lastIndexOf` | 📋 Planned | - |
-| `Array.length: number` | `length: number` | `__array.length` | 📋 Planned | - |
-| `Array.new (arrayLength?: number): any[]` | `new (arrayLength?: number): any[]` | `__array.new` | 📋 Planned | - |
-| `Array.of<T>(...items: T[]): T[]` | `of<T>(...items: T[]): T[]` | `__array.of<T>` | 📋 Planned | - |
-| `Array.readonly prototype: any[]` | `readonly prototype: any[]` | `__array.prototype` | 📋 Planned | - |
-| `Array.reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T` | `__array.reduceRight` | 📋 Planned | - |
-| `Array.reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U` | `__array.reduceRight<U>` | 📋 Planned | - |
-| `Array.sort(compareFn?: (a: T, b: T) => number): this` | `sort(compareFn?: (a: T, b: T) => number): this` | `__array.sort` | 📋 Planned | - |
-| `Array.this: A,` | `this: A,` | `__array.this` | 📋 Planned | - |
-| `Array.thisArg?: This,` | `thisArg?: This,` | `__array.thisArg?` | 📋 Planned | - |
-| `Array.toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `__array.toLocaleString` | 📋 Planned | - |
-| `Array.toReversed(): T[]` | `toReversed(): T[]` | `__array.toReversed` | 📋 Planned | - |
-| `Array.toSorted(compareFn?: (a: T, b: T) => number): T[]` | `toSorted(compareFn?: (a: T, b: T) => number): T[]` | `__array.toSorted` | 📋 Planned | - |
-| `Array.toSpliced(start: number, deleteCount: number, ...items: T[]): T[]` | `toSpliced(start: number, deleteCount: number, ...items: T[]): T[]` | `__array.toSpliced` | 📋 Planned | - |
-| `Array.toString(): string` | `toString(): string` | `__array.toString` | 📋 Planned | - |
-| `Array.values(): ArrayIterator<T>` | `values(): ArrayIterator<T>` | `__array.values` | 📋 Planned | - |
-| `Array.with(index: number, value: T): T[]` | `with(index: number, value: T): T[]` | `__array.with` | 📋 Planned | - |
-| `Array.}` | `}` | `__array.}` | 📋 Planned | - |
+| `Array.values(): ArrayIterator<T>` | `values(): ArrayIterator<T>` | `__array.values` | ✅ Done | `internal/compiler/testdata/corpus/api/array/values/` |
+| `Array.with(index: number, value: T): T[]` | `with(index: number, value: T): T[]` | `__array.with` | ✅ Done | `internal/compiler/testdata/corpus/api/array/with/` |
 
 ---
 

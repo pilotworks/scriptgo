@@ -301,3 +301,73 @@ int scriptgo_array_find_index_string(void *handle, void *closure_handle, double 
     return 0;
 }
 
+int scriptgo_array_find_last_number(void *handle, void *closure_handle, double *out_val) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_val == NULL || array->element_size != sizeof(double)) {
+        return scriptgo_runtime_set_error("scriptgo array findLast failed");
+    }
+    for (int64_t i = array->length - 1; i >= 0; i--) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
+        if (fn(c->env, item, (double)i)) {
+            *out_val = item;
+            return 0;
+        }
+    }
+    *out_val = 0.0;
+    return 0;
+}
+
+int scriptgo_array_find_last_index_number(void *handle, void *closure_handle, double *out_idx) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_idx == NULL || array->element_size != sizeof(double)) {
+        return scriptgo_runtime_set_error("scriptgo array findLastIndex failed");
+    }
+    for (int64_t i = array->length - 1; i >= 0; i--) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
+        if (fn(c->env, item, (double)i)) {
+            *out_idx = (double)i;
+            return 0;
+        }
+    }
+    *out_idx = -1.0;
+    return 0;
+}
+
+int scriptgo_array_find_last_index_string(void *handle, void *closure_handle, double *out_idx) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_idx == NULL || array->element_size != sizeof(char *)) {
+        return scriptgo_runtime_set_error("scriptgo array findLastIndex failed");
+    }
+    for (int64_t i = array->length - 1; i >= 0; i--) {
+        char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
+        uint8_t (*fn)(void *, char *, double) = (uint8_t (*)(void *, char *, double))c->fn_ptr;
+        if (fn(c->env, item, (double)i)) {
+            *out_idx = (double)i;
+            return 0;
+        }
+    }
+    *out_idx = -1.0;
+    return 0;
+}
+
+int scriptgo_array_reduce_right_number(void *handle, void *closure_handle, double init_val, double *out_res) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    double acc = init_val;
+    if (array == NULL || c == NULL || out_res == NULL || array->element_size != sizeof(double)) {
+        return scriptgo_runtime_set_error("scriptgo array reduceRight failed");
+    }
+    for (int64_t i = array->length - 1; i >= 0; i--) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        double (*fn)(void *, double, double, double) = (double (*)(void *, double, double, double))c->fn_ptr;
+        acc = fn(c->env, acc, item, (double)i);
+    }
+    *out_res = acc;
+    return 0;
+}
+

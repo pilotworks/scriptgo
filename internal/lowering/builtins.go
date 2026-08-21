@@ -632,6 +632,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 
 	registerObjectIntrinsics(m)
 	registerBufferIntrinsics(m)
+	registerArrayBuiltins(m)
 
 	return m
 }

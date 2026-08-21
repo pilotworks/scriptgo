@@ -233,6 +233,8 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 		scanner := bufio.NewScanner(file)
 		currentInterface := ""
 		inComment := false
+		var memberBuffer strings.Builder
+		identRegex := regexp.MustCompile(`^[a-zA-Z_$][a-zA-Z0-9_$]*$`)
 
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -258,31 +260,49 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 					name := strings.Split(parts[1], "<")[0]
 					name = strings.Split(name, " ")[0]
 					currentInterface = name
+					memberBuffer.Reset()
 					continue
 				}
 			}
 
 			if currentInterface != "" {
-				if line == "}" {
+				if line == "}" || strings.HasPrefix(line, "}") {
 					currentInterface = ""
+					memberBuffer.Reset()
 					continue
 				}
 
-				line = strings.TrimSuffix(line, ";")
-				sig := line
-				name := strings.Split(line, ":")[0]
-				name = strings.Split(name, "(")[0]
-				name = strings.TrimPrefix(name, "readonly ")
-				name = strings.TrimSpace(name)
+				if memberBuffer.Len() > 0 {
+					memberBuffer.WriteString(" ")
+				}
+				memberBuffer.WriteString(line)
 
-				if name == "" || strings.HasPrefix(name, "[") || strings.Contains(name, " ") {
+				if !strings.HasSuffix(line, ";") {
+					continue
+				}
+
+				stmt := strings.TrimSuffix(strings.TrimSpace(memberBuffer.String()), ";")
+				memberBuffer.Reset()
+
+				// Collapse multiple whitespaces
+				spaceRegex := regexp.MustCompile(`\s+`)
+				stmt = spaceRegex.ReplaceAllString(stmt, " ")
+
+				rawName := stmt
+				rawName = strings.TrimPrefix(rawName, "readonly ")
+				rawName = strings.Split(rawName, "<")[0]
+				rawName = strings.Split(rawName, "(")[0]
+				rawName = strings.Split(rawName, ":")[0]
+				rawName = strings.TrimSuffix(strings.TrimSpace(rawName), "?")
+
+				if rawName == "" || !identRegex.MatchString(rawName) || rawName == "new" || rawName == "prototype" {
 					continue
 				}
 
 				baseName := strings.TrimSuffix(currentInterface, "Constructor")
 				interfaces[baseName] = append(interfaces[baseName], rawEntry{
-					name:      name,
-					signature: sig,
+					name:      rawName,
+					signature: stmt,
 				})
 			}
 		}

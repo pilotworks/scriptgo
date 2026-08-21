@@ -757,6 +757,40 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	}
+	if instruction.Callee == "__array.isArray" {
+		argType, _ := e.types[instruction.Args[0]]
+		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray
+		resSlot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", resSlot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if isArr {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_is_array(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], resSlot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_is_array(ptr null, ptr %%%s)\n", status, resSlot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s.d = load double, ptr %%%s\n", instruction.Result, resSlot)
+		fmt.Fprintf(out, "  %%%s = fcmp one double %%%s.d, 0.000000e+00\n", instruction.Result, instruction.Result)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
+	}
+	if instruction.Callee == "__array.from" {
+		argType, _ := e.types[instruction.Args[0]]
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if argType == ir.TypeString {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr @.str.empty, ptr %%%s)\n", status, instruction.Args[0], slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__array.") {
 		arrayType, ok := e.types[instruction.Args[0]]
 		if !ok {
