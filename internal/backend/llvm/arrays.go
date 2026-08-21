@@ -42,7 +42,18 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		return fmt.Errorf("index instruction requires array and index operands")
 	}
 	arrayType, _ := e.types[instruction.Args[0]]
-	if arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
+	if arrayType == ir.TypeBigInt64Array || arrayType == ir.TypeBigUint64Array {
+		e.types[instruction.Result] = ir.TypeBigInt
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i64\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_get_bigint(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	}
+	if isTypedArrayType(arrayType) {
 		e.types[instruction.Result] = ir.TypeNumber
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -73,7 +84,14 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	if !ok {
 		return fmt.Errorf("unknown index.set array %q", instruction.Args[0])
 	}
-	if arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
+	if arrayType == ir.TypeBigInt64Array || arrayType == ir.TypeBigUint64Array {
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_set_bigint(ptr %%%s, double %%%s, i64 %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	}
+	if isTypedArrayType(arrayType) {
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_set(ptr %%%s, double %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2]))
@@ -370,6 +388,17 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		return nil
 	default:
 		return fmt.Errorf("unknown array intrinsic %q", instruction.Callee)
+	}
+}
+
+func isTypedArrayType(t ir.Type) bool {
+	switch t {
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+		return true
+	default:
+		return false
 	}
 }
 

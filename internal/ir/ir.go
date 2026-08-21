@@ -60,10 +60,19 @@ const (
 	TypeObject      Type = "object"
 	TypeClosure     Type = "closure"
 	TypeUnknown     Type = "unknown"
-	TypeUint8Array   Type = "Uint8Array"
-	TypeInt32Array   Type = "Int32Array"
-	TypeFloat64Array Type = "Float64Array"
-	TypeArrayBuffer  Type = "ArrayBuffer"
+	TypeUint8Array        Type = "Uint8Array"
+	TypeInt8Array         Type = "Int8Array"
+	TypeUint8ClampedArray  Type = "Uint8ClampedArray"
+	TypeInt16Array        Type = "Int16Array"
+	TypeUint16Array       Type = "Uint16Array"
+	TypeInt32Array        Type = "Int32Array"
+	TypeUint32Array       Type = "Uint32Array"
+	TypeFloat32Array      Type = "Float32Array"
+	TypeFloat64Array      Type = "Float64Array"
+	TypeBigInt64Array     Type = "BigInt64Array"
+	TypeBigUint64Array    Type = "BigUint64Array"
+	TypeDataView          Type = "DataView"
+	TypeArrayBuffer       Type = "ArrayBuffer"
 )
 
 type Instruction struct {

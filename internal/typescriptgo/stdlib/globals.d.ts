@@ -274,6 +274,230 @@ interface Float64ArrayConstructor {
 
 declare var Float64Array: Float64ArrayConstructor;
 
+interface Int8Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Int8Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Int8Array;
+    slice(begin?: number, end?: number): Int8Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Int8ArrayConstructor {
+    new(length: number): Int8Array;
+    new(array: ArrayLike<number> | Array<number>): Int8Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Int8Array;
+    readonly prototype: Int8Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Int8Array;
+    of(...items: number[]): Int8Array;
+}
+declare var Int8Array: Int8ArrayConstructor;
+
+interface Uint8ClampedArray {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Uint8ClampedArray, offset?: number): void;
+    subarray(begin?: number, end?: number): Uint8ClampedArray;
+    slice(begin?: number, end?: number): Uint8ClampedArray;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Uint8ClampedArrayConstructor {
+    new(length: number): Uint8ClampedArray;
+    new(array: ArrayLike<number> | Array<number>): Uint8ClampedArray;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Uint8ClampedArray;
+    readonly prototype: Uint8ClampedArray;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Uint8ClampedArray;
+    of(...items: number[]): Uint8ClampedArray;
+}
+declare var Uint8ClampedArray: Uint8ClampedArrayConstructor;
+
+interface Int16Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Int16Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Int16Array;
+    slice(begin?: number, end?: number): Int16Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Int16ArrayConstructor {
+    new(length: number): Int16Array;
+    new(array: ArrayLike<number> | Array<number>): Int16Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Int16Array;
+    readonly prototype: Int16Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Int16Array;
+    of(...items: number[]): Int16Array;
+}
+declare var Int16Array: Int16ArrayConstructor;
+
+interface Uint16Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Uint16Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Uint16Array;
+    slice(begin?: number, end?: number): Uint16Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Uint16ArrayConstructor {
+    new(length: number): Uint16Array;
+    new(array: ArrayLike<number> | Array<number>): Uint16Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Uint16Array;
+    readonly prototype: Uint16Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Uint16Array;
+    of(...items: number[]): Uint16Array;
+}
+declare var Uint16Array: Uint16ArrayConstructor;
+
+interface Uint32Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Uint32Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Uint32Array;
+    slice(begin?: number, end?: number): Uint32Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Uint32ArrayConstructor {
+    new(length: number): Uint32Array;
+    new(array: ArrayLike<number> | Array<number>): Uint32Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Uint32Array;
+    readonly prototype: Uint32Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Uint32Array;
+    of(...items: number[]): Uint32Array;
+}
+declare var Uint32Array: Uint32ArrayConstructor;
+
+interface Float32Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Float32Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Float32Array;
+    slice(begin?: number, end?: number): Float32Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Float32ArrayConstructor {
+    new(length: number): Float32Array;
+    new(array: ArrayLike<number> | Array<number>): Float32Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Float32Array;
+    readonly prototype: Float32Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Float32Array;
+    of(...items: number[]): Float32Array;
+}
+declare var Float32Array: Float32ArrayConstructor;
+
+interface BigInt64Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: bigint;
+    set(array: ArrayLike<bigint> | Array<bigint> | BigInt64Array, offset?: number): void;
+    subarray(begin?: number, end?: number): BigInt64Array;
+    slice(begin?: number, end?: number): BigInt64Array;
+    fill(value: bigint, start?: number, end?: number): this;
+}
+
+interface BigInt64ArrayConstructor {
+    new(length: number): BigInt64Array;
+    new(array: ArrayLike<bigint> | Array<bigint>): BigInt64Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): BigInt64Array;
+    readonly prototype: BigInt64Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<bigint> | Array<bigint>): BigInt64Array;
+    of(...items: bigint[]): BigInt64Array;
+}
+declare var BigInt64Array: BigInt64ArrayConstructor;
+
+interface BigUint64Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: bigint;
+    set(array: ArrayLike<bigint> | Array<bigint> | BigUint64Array, offset?: number): void;
+    subarray(begin?: number, end?: number): BigUint64Array;
+    slice(begin?: number, end?: number): BigUint64Array;
+    fill(value: bigint, start?: number, end?: number): this;
+}
+
+interface BigUint64ArrayConstructor {
+    new(length: number): BigUint64Array;
+    new(array: ArrayLike<bigint> | Array<bigint>): BigUint64Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): BigUint64Array;
+    readonly prototype: BigUint64Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<bigint> | Array<bigint>): BigUint64Array;
+    of(...items: bigint[]): BigUint64Array;
+}
+declare var BigUint64Array: BigUint64ArrayConstructor;
+
+interface DataView {
+    readonly buffer: ArrayBuffer;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    getInt8(byteOffset: number): number;
+    setUint8(byteOffset: number, value: number): void;
+    getUint8(byteOffset: number): number;
+    setInt8(byteOffset: number, value: number): void;
+    getInt16(byteOffset: number, littleEndian?: boolean): number;
+    setUint16(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getUint16(byteOffset: number, littleEndian?: boolean): number;
+    setInt16(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getInt32(byteOffset: number, littleEndian?: boolean): number;
+    setUint32(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getUint32(byteOffset: number, littleEndian?: boolean): number;
+    setInt32(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getFloat32(byteOffset: number, littleEndian?: boolean): number;
+    setFloat32(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getFloat64(byteOffset: number, littleEndian?: boolean): number;
+    setFloat64(byteOffset: number, value: number, littleEndian?: boolean): void;
+    getBigInt64(byteOffset: number, littleEndian?: boolean): bigint;
+    setBigInt64(byteOffset: number, value: bigint, littleEndian?: boolean): void;
+    getBigUint64(byteOffset: number, littleEndian?: boolean): bigint;
+    setBigUint64(byteOffset: number, value: bigint, littleEndian?: boolean): void;
+}
+
+interface DataViewConstructor {
+    new(buffer: ArrayBuffer, byteOffset?: number, byteLength?: number): DataView;
+    readonly prototype: DataView;
+}
+declare var DataView: DataViewConstructor;
+
 declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
 declare function clearTimeout(id: number | undefined): void;
 declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;

@@ -139,7 +139,7 @@ func lowerCallExpression(
 				})
 				return result, ir.TypeArrayBuffer, nil
 			}
-			if receiverType == ir.TypeUint8Array || receiverType == ir.TypeInt32Array || receiverType == ir.TypeFloat64Array {
+			if isTypedArrayType(receiverType) {
 				if methodName == "subarray" || methodName == "slice" {
 					beginVal := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{
@@ -254,6 +254,179 @@ func lowerCallExpression(
 						Span:   toIRSpan(path, expression.Span),
 					})
 					return result, receiverType, nil
+				}
+			}
+			if receiverType == ir.TypeDataView {
+				switch methodName {
+				case "getInt8", "getUint8":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("%s requires byteOffset argument", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeNumber,
+						Result: result,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeNumber, nil
+
+				case "setInt8", "setUint8":
+					if len(expression.Arguments) < 2 {
+						return "", "", fmt.Errorf("%s requires byteOffset and value arguments", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					valVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal, valVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+
+				case "getInt16", "getUint16", "getInt32", "getUint32", "getFloat32", "getFloat64":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("%s requires byteOffset argument", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					leVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeBool, Result: leVal, Value: "false", Span: toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 1 {
+						le, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						leVal = le
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeNumber,
+						Result: result,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal, leVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeNumber, nil
+
+				case "setUint16", "setInt16", "setUint32", "setInt32", "setFloat32", "setFloat64":
+					if len(expression.Arguments) < 2 {
+						return "", "", fmt.Errorf("%s requires byteOffset and value arguments", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					valVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					leVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeBool, Result: leVal, Value: "false", Span: toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 2 {
+						le, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						leVal = le
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal, valVal, leVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+
+				case "getBigInt64", "getBigUint64":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("%s requires byteOffset argument", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					leVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeBool, Result: leVal, Value: "false", Span: toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 1 {
+						le, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						leVal = le
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeBigInt,
+						Result: result,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal, leVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeBigInt, nil
+
+				case "setBigInt64", "setBigUint64":
+					if len(expression.Arguments) < 2 {
+						return "", "", fmt.Errorf("%s requires byteOffset and value arguments", methodName)
+					}
+					byteOffsetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					valVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					leVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeBool, Result: leVal, Value: "false", Span: toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 2 {
+						le, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						leVal = le
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__dataview." + methodName,
+						Args:   []string{receiver, byteOffsetVal, valVal, leVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
 				}
 			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {

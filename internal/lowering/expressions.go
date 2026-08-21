@@ -392,7 +392,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", fmt.Errorf("array indexing requires number index, got %s", indexType)
 		}
 		var elemType ir.Type
-		if arrayType == ir.TypeNumberArray || arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
+		if arrayType == ir.TypeBigInt64Array || arrayType == ir.TypeBigUint64Array {
+			elemType = ir.TypeBigInt
+		} else if isNumberTypedArray(arrayType) || arrayType == ir.TypeNumberArray {
 			elemType = ir.TypeNumber
 		} else if arrayType == ir.TypeStringArray {
 			elemType = ir.TypeString
@@ -419,6 +421,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			switch expression.InferredType {
 			case "number":
 				typ = ir.TypeNumber
+			case "bigint":
+				typ = ir.TypeBigInt
+			case "symbol":
+				typ = ir.TypeSymbol
 			case "string":
 				typ = ir.TypeString
 			case "bool", "boolean":
@@ -429,10 +435,28 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				typ = ir.TypeStringArray
 			case "Uint8Array":
 				typ = ir.TypeUint8Array
+			case "Int8Array":
+				typ = ir.TypeInt8Array
+			case "Uint8ClampedArray":
+				typ = ir.TypeUint8ClampedArray
+			case "Int16Array":
+				typ = ir.TypeInt16Array
+			case "Uint16Array":
+				typ = ir.TypeUint16Array
 			case "Int32Array":
 				typ = ir.TypeInt32Array
+			case "Uint32Array":
+				typ = ir.TypeUint32Array
+			case "Float32Array":
+				typ = ir.TypeFloat32Array
 			case "Float64Array":
 				typ = ir.TypeFloat64Array
+			case "BigInt64Array":
+				typ = ir.TypeBigInt64Array
+			case "BigUint64Array":
+				typ = ir.TypeBigUint64Array
+			case "DataView":
+				typ = ir.TypeDataView
 			case "ArrayBuffer":
 				typ = ir.TypeArrayBuffer
 			default:

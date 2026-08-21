@@ -147,7 +147,7 @@ func (f Function) Verify() error {
 					return fmt.Errorf("index instruction requires array and index operands")
 				}
 				arrType, ok := known[instruction.Args[0]]
-				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString && arrType != TypeUint8Array && arrType != TypeInt32Array && arrType != TypeFloat64Array) {
+				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString && !isTypedArrayType(arrType)) {
 					return fmt.Errorf("index instruction requires an array or string operand, got %v", arrType)
 				}
 				if known[instruction.Args[1]] != TypeNumber {
@@ -157,7 +157,11 @@ func (f Function) Verify() error {
 					if instruction.Type != TypeString {
 						return fmt.Errorf("index instruction on string must produce string")
 					}
-				} else if arrType == TypeUint8Array || arrType == TypeInt32Array || arrType == TypeFloat64Array {
+				} else if isBigIntTypedArrayType(arrType) {
+					if instruction.Type != TypeBigInt {
+						return fmt.Errorf("index instruction on bigint typed array must produce bigint")
+					}
+				} else if isTypedArrayType(arrType) {
 					if instruction.Type != TypeNumber {
 						return fmt.Errorf("index instruction on typed array must produce number")
 					}
@@ -191,13 +195,17 @@ func (f Function) Verify() error {
 				return fmt.Errorf("index.set requires array, index, and value operands")
 			}
 			arrType, ok := known[instruction.Args[0]]
-			if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeUint8Array && arrType != TypeInt32Array && arrType != TypeFloat64Array) {
+			if !ok || (!strings.HasSuffix(string(arrType), "[]") && !isTypedArrayType(arrType)) {
 				return fmt.Errorf("index.set requires array operand")
 			}
 			if known[instruction.Args[1]] != TypeNumber {
 				return fmt.Errorf("index.set requires number index")
 			}
-			if arrType == TypeUint8Array || arrType == TypeInt32Array || arrType == TypeFloat64Array {
+			if isBigIntTypedArrayType(arrType) {
+				if known[instruction.Args[2]] != TypeBigInt {
+					return fmt.Errorf("index.set value type mismatch")
+				}
+			} else if isTypedArrayType(arrType) {
 				if known[instruction.Args[2]] != TypeNumber {
 					return fmt.Errorf("index.set value type mismatch")
 				}
@@ -389,4 +397,19 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 		}
 	}
 	return nil
+}
+
+func isTypedArrayType(t Type) bool {
+	switch t {
+	case TypeUint8Array, TypeInt8Array, TypeUint8ClampedArray,
+		TypeInt16Array, TypeUint16Array, TypeInt32Array, TypeUint32Array,
+		TypeFloat32Array, TypeFloat64Array, TypeBigInt64Array, TypeBigUint64Array:
+		return true
+	default:
+		return false
+	}
+}
+
+func isBigIntTypedArrayType(t Type) bool {
+	return t == TypeBigInt64Array || t == TypeBigUint64Array
 }

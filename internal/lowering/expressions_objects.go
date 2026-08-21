@@ -122,7 +122,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		return result, ir.TypeNumber, nil
 	}
 
-	if objectType == ir.TypeUint8Array || objectType == ir.TypeInt32Array || objectType == ir.TypeFloat64Array {
+	if isTypedArrayType(objectType) {
 		if expression.Text == "length" {
 			if result == "" {
 				result = nextTemp(counter)
@@ -180,23 +180,71 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			return result, ir.TypeArrayBuffer, nil
 		}
 		if expression.Text == "BYTES_PER_ELEMENT" {
+			elemSize := "1"
+			switch objectType {
+			case ir.TypeInt16Array, ir.TypeUint16Array:
+				elemSize = "2"
+			case ir.TypeInt32Array, ir.TypeUint32Array, ir.TypeFloat32Array:
+				elemSize = "4"
+			case ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+				elemSize = "8"
+			}
 			if result == "" {
 				result = nextTemp(counter)
-			}
-			val := "1"
-			if objectType == ir.TypeInt32Array {
-				val = "4"
-			} else if objectType == ir.TypeFloat64Array {
-				val = "8"
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
 				Type:   ir.TypeNumber,
 				Result: result,
-				Value:  val,
+				Value:  elemSize,
 				Span:   toIRSpan(path, expression.Span),
 			})
 			return result, ir.TypeNumber, nil
+		}
+	}
+
+	if objectType == ir.TypeDataView {
+		if expression.Text == "byteLength" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__dataview.byteLength",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Text == "byteOffset" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__dataview.byteOffset",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Text == "buffer" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeArrayBuffer,
+				Result: result,
+				Callee: "__dataview.buffer",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeArrayBuffer, nil
 		}
 	}
 
@@ -430,7 +478,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeArrayBuffer, nil
 	}
 
-	if className == "Uint8Array" || className == "Int32Array" || className == "Float64Array" {
+	if isTypedArrayClassName(className) {
 		targetType := ir.Type(className)
 		if len(expression.Arguments) == 0 {
 			zeroConst := nextTemp(counter)
@@ -514,6 +562,50 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, targetType, nil
+	}
+
+	if className == "DataView" {
+		if len(expression.Arguments) == 0 {
+			return "", "", fmt.Errorf("DataView constructor requires at least 1 argument")
+		}
+		bufVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		byteOffsetVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeNumber, Result: byteOffsetVal, Value: "0", Span: toIRSpan(path, expression.Span),
+		})
+		byteLenVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeNumber, Result: byteLenVal, Value: "0", Span: toIRSpan(path, expression.Span),
+		})
+		if len(expression.Arguments) > 1 {
+			bo, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteOffsetVal = bo
+		}
+		if len(expression.Arguments) > 2 {
+			bl, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteLenVal = bl
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeDataView,
+			Result: result,
+			Callee: "__dataview.new",
+			Args:   []string{bufVal, byteOffsetVal, byteLenVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeDataView, nil
 	}
 
 	shape, ok := shapes[className]
@@ -647,4 +739,15 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		}
 	}
 	return result, objType, nil
+}
+
+func isTypedArrayClassName(name string) bool {
+	switch name {
+	case "Uint8Array", "Int8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array":
+		return true
+	default:
+		return false
+	}
 }

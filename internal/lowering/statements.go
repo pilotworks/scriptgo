@@ -388,7 +388,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return err
 		}
 		var expectedElemType ir.Type
-		if arrType == ir.TypeNumberArray || arrType == ir.TypeUint8Array || arrType == ir.TypeInt32Array || arrType == ir.TypeFloat64Array {
+		if arrType == ir.TypeBigInt64Array || arrType == ir.TypeBigUint64Array {
+			expectedElemType = ir.TypeBigInt
+		} else if isNumberTypedArray(arrType) || arrType == ir.TypeNumberArray {
 			expectedElemType = ir.TypeNumber
 		} else if arrType == ir.TypeStringArray {
 			expectedElemType = ir.TypeString
@@ -620,10 +622,28 @@ func toIRType(value string) ir.Type {
 		return ir.TypeUnknown
 	case "Uint8Array":
 		return ir.TypeUint8Array
+	case "Int8Array":
+		return ir.TypeInt8Array
+	case "Uint8ClampedArray":
+		return ir.TypeUint8ClampedArray
+	case "Int16Array":
+		return ir.TypeInt16Array
+	case "Uint16Array":
+		return ir.TypeUint16Array
 	case "Int32Array":
 		return ir.TypeInt32Array
+	case "Uint32Array":
+		return ir.TypeUint32Array
+	case "Float32Array":
+		return ir.TypeFloat32Array
 	case "Float64Array":
 		return ir.TypeFloat64Array
+	case "BigInt64Array":
+		return ir.TypeBigInt64Array
+	case "BigUint64Array":
+		return ir.TypeBigUint64Array
+	case "DataView":
+		return ir.TypeDataView
 	case "ArrayBuffer":
 		return ir.TypeArrayBuffer
 	case "void", "any", "":
@@ -720,6 +740,28 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 			fallthroughReturns = caseReturns
 		}
 		return hasDefault
+	default:
+		return false
+	}
+}
+
+func isNumberTypedArray(t ir.Type) bool {
+	switch t {
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTypedArrayType(t ir.Type) bool {
+	switch t {
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+		return true
 	default:
 		return false
 	}

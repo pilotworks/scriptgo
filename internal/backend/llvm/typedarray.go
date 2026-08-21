@@ -7,6 +7,35 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+func typedArrayKind(t ir.Type) int {
+	switch t {
+	case ir.TypeInt8Array:
+		return 1
+	case ir.TypeUint8Array:
+		return 2
+	case ir.TypeUint8ClampedArray:
+		return 3
+	case ir.TypeInt16Array:
+		return 4
+	case ir.TypeUint16Array:
+		return 5
+	case ir.TypeInt32Array:
+		return 6
+	case ir.TypeUint32Array:
+		return 7
+	case ir.TypeFloat32Array:
+		return 8
+	case ir.TypeFloat64Array:
+		return 9
+	case ir.TypeBigInt64Array:
+		return 10
+	case ir.TypeBigUint64Array:
+		return 11
+	default:
+		return 2
+	}
+}
+
 func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
 	case "__arraybuffer.new":
@@ -53,25 +82,21 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("arraybuffer.isView requires 1 argument")
 		}
-		argType, ok := e.types[instruction.Args[0]]
-		isView := ok && (argType == ir.TypeUint8Array || argType == ir.TypeInt32Array || argType == ir.TypeFloat64Array)
-		val := "0"
-		if isView {
-			val = "1"
-		}
-		fmt.Fprintf(out, "  %%%s = icmp eq i1 %s, 1\n", instruction.Result, val)
+		slot := instruction.Result + ".is_view.slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_arraybuffer_is_view(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
 		return nil
 
 	case "__typedarray.new_length":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.new_length requires 1 argument")
 		}
-		kind := 1
-		if instruction.Type == ir.TypeInt32Array {
-			kind = 2
-		} else if instruction.Type == ir.TypeFloat64Array {
-			kind = 3
-		}
+		kind := typedArrayKind(instruction.Type)
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -86,12 +111,7 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("typedarray.new_buffer requires 3 arguments")
 		}
-		kind := 1
-		if instruction.Type == ir.TypeInt32Array {
-			kind = 2
-		} else if instruction.Type == ir.TypeFloat64Array {
-			kind = 3
-		}
+		kind := typedArrayKind(instruction.Type)
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -195,12 +215,7 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 2 {
 			return fmt.Errorf("typedarray.new_array requires 2 arguments")
 		}
-		kind := 1
-		if instruction.Type == ir.TypeInt32Array {
-			kind = 2
-		} else if instruction.Type == ir.TypeFloat64Array {
-			kind = 3
-		}
+		kind := typedArrayKind(instruction.Type)
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -242,8 +257,192 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_fill(ptr %%%s, double %%%s, double %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], instruction.Args[3])
+		valArg := instruction.Args[1]
+		if e.types[valArg] == ir.TypeBigInt {
+			fmt.Fprintf(out, "  %%%s = sitofp i64 %%%s to double\n", valArg+".f64", valArg)
+			valArg = valArg + ".f64"
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_fill(ptr %%%s, double %%%s, double %%%s, double %%%s)\n", status, instruction.Args[0], valArg, instruction.Args[2], instruction.Args[3])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	// -------------------------------------------------------------------------
+	// DataView intrinsics
+	// -------------------------------------------------------------------------
+	case "__dataview.new":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("dataview.new requires 3 arguments")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dataview_new(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.byteLength":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("dataview.byteLength requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dataview_byte_length(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.byteOffset":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("dataview.byteOffset requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dataview_byte_offset(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.buffer":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("dataview.buffer requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dataview_buffer(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.getInt8", "__dataview.getUint8":
+		cFuncName := "scriptgo_dataview_get_int8"
+		if instruction.Callee == "__dataview.getUint8" {
+			cFuncName = "scriptgo_dataview_get_uint8"
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, ptr %%%s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.setInt8", "__dataview.setUint8":
+		cFuncName := "scriptgo_dataview_set_int8"
+		if instruction.Callee == "__dataview.setUint8" {
+			cFuncName = "scriptgo_dataview_set_uint8"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, double %%%s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], instruction.Args[2])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	case "__dataview.getInt16", "__dataview.getUint16", "__dataview.getInt32", "__dataview.getUint32", "__dataview.getFloat32", "__dataview.getFloat64":
+		method := strings.TrimPrefix(instruction.Callee, "__dataview.get")
+		cFuncName := fmt.Sprintf("scriptgo_dataview_get_%s", strings.ToLower(method))
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		leArg := "0"
+		if len(instruction.Args) > 2 {
+			leArg = instruction.Args[2]
+			if e.types[leArg] == ir.TypeBool {
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
+				leArg = "%" + leArg + ".i32"
+			} else {
+				leArg = "%" + leArg
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, i32 %s, ptr %%%s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], leArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.setUint16", "__dataview.setInt16", "__dataview.setUint32", "__dataview.setInt32", "__dataview.setFloat32", "__dataview.setFloat64":
+		method := strings.TrimPrefix(instruction.Callee, "__dataview.set")
+		cFuncName := fmt.Sprintf("scriptgo_dataview_set_%s", strings.ToLower(method))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		leArg := "0"
+		if len(instruction.Args) > 3 {
+			leArg = instruction.Args[3]
+			if e.types[leArg] == ir.TypeBool {
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
+				leArg = "%" + leArg + ".i32"
+			} else {
+				leArg = "%" + leArg
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, double %%%s, i32 %s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], instruction.Args[2], leArg)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	case "__dataview.getBigInt64", "__dataview.getBigUint64":
+		cFuncName := "scriptgo_dataview_get_bigint64"
+		if instruction.Callee == "__dataview.getBigUint64" {
+			cFuncName = "scriptgo_dataview_get_biguint64"
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		leArg := "0"
+		if len(instruction.Args) > 2 {
+			leArg = instruction.Args[2]
+			if e.types[leArg] == ir.TypeBool {
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
+				leArg = "%" + leArg + ".i32"
+			} else {
+				leArg = "%" + leArg
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = alloca i64\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, i32 %s, ptr %%%s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], leArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__dataview.setBigInt64", "__dataview.setBigUint64":
+		cFuncName := "scriptgo_dataview_set_bigint64"
+		if instruction.Callee == "__dataview.setBigUint64" {
+			cFuncName = "scriptgo_dataview_set_biguint64"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		leArg := "0"
+		if len(instruction.Args) > 3 {
+			leArg = instruction.Args[3]
+			if e.types[leArg] == ir.TypeBool {
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
+				leArg = "%" + leArg + ".i32"
+			} else {
+				leArg = "%" + leArg
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, i64 %%%s, i32 %s)\n", status, cFuncName, instruction.Args[0], instruction.Args[1], instruction.Args[2], leArg)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	case "__dataview.toString":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("dataview.toString requires 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dataview_to_string(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
 
 	default:

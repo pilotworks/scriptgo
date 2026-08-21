@@ -240,7 +240,11 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			position := int(index.Number)
 			if array.TypedArray != nil {
-				env[instruction.Result] = Value{Type: ir.TypeNumber, Number: array.TypedArray.Get(position)}
+				if array.TypedArray.Kind == ir.TypeBigInt64Array || array.TypedArray.Kind == ir.TypeBigUint64Array {
+					env[instruction.Result] = Value{Type: ir.TypeBigInt, BigInt: array.TypedArray.GetBigInt(position)}
+				} else {
+					env[instruction.Result] = Value{Type: ir.TypeNumber, Number: array.TypedArray.Get(position)}
+				}
 				continue
 			}
 			arr := array.GetArray()
@@ -266,7 +270,11 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			position := int(index.Number)
 			if array.TypedArray != nil {
-				array.TypedArray.Set(position, val.Number)
+				if array.TypedArray.Kind == ir.TypeBigInt64Array || array.TypedArray.Kind == ir.TypeBigUint64Array {
+					array.TypedArray.SetBigInt(position, val.BigInt)
+				} else {
+					array.TypedArray.Set(position, val.Number)
+				}
 				continue
 			}
 			arr := array.GetArray()
@@ -435,7 +443,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
-			if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") {
+			if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") || strings.HasPrefix(instruction.Callee, "__dataview.") {
 				value, err := executeTypedArrayIntrinsic(instruction, env)
 				if err != nil {
 					return Value{}, false, flowNormal, err

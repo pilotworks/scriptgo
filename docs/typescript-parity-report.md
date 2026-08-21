@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 201 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 203 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **201** | **201 / 201 Passed** | **100.0%** |
-| - *Interpreter Parity* | 189 | 189 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 174 | 174 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **203** | **203 / 203 Passed** | **100.0%** |
+| - *Interpreter Parity* | 191 | 191 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 176 | 176 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~3m 11s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~3m 15s | No regressions detected | - |
 
 ---
 
@@ -45,7 +45,7 @@ All 201 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `Union types` (`T \| U`) | ✅ Full | Supports literal unions, homogeneous unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
 | `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
-| `TypedArrays & ArrayBuffer` | ✅ Full | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, buffer slicing, subarray views, `.set()`, `.fill()`, `ArrayBuffer.isView()`. |
+| `TypedArrays & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`), `DataView` with full binary access methods (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
 
 ---
 
@@ -312,7 +312,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Streams API** | ❌ Missing | `node:stream`, `ReadableStream`, `WritableStream`, `TransformStream`, `pipeline`. |
 | **Child Process & Worker Threads**| ❌ Missing | `child_process.spawn()`, `child_process.exec()`, `worker_threads.Worker`. |
 | **Extended File System** | ⚠️ Partial | `readFileSync`, `writeFileSync`, `existsSync`, `mkdirSync` implemented. Missing `fs.promises.*`, `fs.watch`, `fs.createReadStream`. |
-| **TypedArrays & Advanced Buffer** | ⚠️ Partial | `Buffer.from(base64)` implemented. Missing `Uint8Array`, `Float64Array`, `ArrayBuffer`, `DataView`. |
+| **TypedArrays & DataView** | ✅ Full | All 11 TypedArray kinds, `ArrayBuffer`, `DataView` with binary getters/setters (BE/LE), buffer slicing, `ArrayBuffer.isView()`. |
 | **Timers Scheduling** | ⚠️ Rudimentary | Missing OS event-loop integration (epoll/kqueue) for `setTimeout()`, `setInterval()`, `setImmediate()`. |
 | **Events (`EventEmitter`)** | ✅ Full | `node:events` / `events` module and `EventEmitter` class (lifecycle, once, prepend, removeListener, emit, static methods). |
 | **Web / Browser APIs** | ❌ Out of Core Scope | `document`, `window`, `localStorage`, Web Workers (ScriptGo focuses on backend/CLI/standalone targets). |
@@ -337,8 +337,7 @@ gantt
     title TypeScript Gap Resolution Roadmap
     dateFormat  YYYY-MM-DD
     section Near-term
-    TypedArrays (Uint8Array, ArrayBuffer) :active, 2026-09-01, 30d
-    Timers (setTimeout, setInterval)       :2026-09-15, 30d
+    Timers (setTimeout, setInterval)       :active, 2026-09-15, 30d
     fs.promises & Full String/Array regex  :2026-09-20, 40d
     section Mid-term
     Streams & EventEmitter                 :2026-10-15, 45d

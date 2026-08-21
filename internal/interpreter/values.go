@@ -27,9 +27,13 @@ type TypedArray struct {
 
 func (ta *TypedArray) ElementSize() int {
 	switch ta.Kind {
-	case ir.TypeInt32Array:
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray:
+		return 1
+	case ir.TypeInt16Array, ir.TypeUint16Array:
+		return 2
+	case ir.TypeInt32Array, ir.TypeUint32Array, ir.TypeFloat32Array:
 		return 4
-	case ir.TypeFloat64Array:
+	case ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
 		return 8
 	default:
 		return 1
@@ -49,11 +53,25 @@ func (ta *TypedArray) Get(index int) float64 {
 		return 0
 	}
 	switch ta.Kind {
-	case ir.TypeUint8Array:
+	case ir.TypeInt8Array:
+		return float64(int8(ta.Buffer.Data[offset]))
+	case ir.TypeUint8Array, ir.TypeUint8ClampedArray:
 		return float64(ta.Buffer.Data[offset])
+	case ir.TypeInt16Array:
+		u := uint16(ta.Buffer.Data[offset]) | uint16(ta.Buffer.Data[offset+1])<<8
+		return float64(int16(u))
+	case ir.TypeUint16Array:
+		u := uint16(ta.Buffer.Data[offset]) | uint16(ta.Buffer.Data[offset+1])<<8
+		return float64(u)
 	case ir.TypeInt32Array:
 		u := uint32(ta.Buffer.Data[offset]) | uint32(ta.Buffer.Data[offset+1])<<8 | uint32(ta.Buffer.Data[offset+2])<<16 | uint32(ta.Buffer.Data[offset+3])<<24
 		return float64(int32(u))
+	case ir.TypeUint32Array:
+		u := uint32(ta.Buffer.Data[offset]) | uint32(ta.Buffer.Data[offset+1])<<8 | uint32(ta.Buffer.Data[offset+2])<<16 | uint32(ta.Buffer.Data[offset+3])<<24
+		return float64(u)
+	case ir.TypeFloat32Array:
+		u := uint32(ta.Buffer.Data[offset]) | uint32(ta.Buffer.Data[offset+1])<<8 | uint32(ta.Buffer.Data[offset+2])<<16 | uint32(ta.Buffer.Data[offset+3])<<24
+		return float64(math.Float32frombits(u))
 	case ir.TypeFloat64Array:
 		u := uint64(ta.Buffer.Data[offset]) | uint64(ta.Buffer.Data[offset+1])<<8 | uint64(ta.Buffer.Data[offset+2])<<16 | uint64(ta.Buffer.Data[offset+3])<<24 |
 			uint64(ta.Buffer.Data[offset+4])<<32 | uint64(ta.Buffer.Data[offset+5])<<40 | uint64(ta.Buffer.Data[offset+6])<<48 | uint64(ta.Buffer.Data[offset+7])<<56
@@ -61,6 +79,19 @@ func (ta *TypedArray) Get(index int) float64 {
 	default:
 		return float64(ta.Buffer.Data[offset])
 	}
+}
+
+func (ta *TypedArray) GetBigInt(index int) int64 {
+	if index < 0 || index >= ta.Length || ta.Buffer == nil {
+		return 0
+	}
+	offset := ta.ByteOffset + index*ta.ElementSize()
+	if offset+8 > len(ta.Buffer.Data) {
+		return 0
+	}
+	u := uint64(ta.Buffer.Data[offset]) | uint64(ta.Buffer.Data[offset+1])<<8 | uint64(ta.Buffer.Data[offset+2])<<16 | uint64(ta.Buffer.Data[offset+3])<<24 |
+		uint64(ta.Buffer.Data[offset+4])<<32 | uint64(ta.Buffer.Data[offset+5])<<40 | uint64(ta.Buffer.Data[offset+6])<<48 | uint64(ta.Buffer.Data[offset+7])<<56
+	return int64(u)
 }
 
 func (ta *TypedArray) Set(index int, val float64) {
@@ -72,14 +103,44 @@ func (ta *TypedArray) Set(index int, val float64) {
 		return
 	}
 	switch ta.Kind {
+	case ir.TypeInt8Array:
+		ta.Buffer.Data[offset] = byte(int8(int32(val)))
 	case ir.TypeUint8Array:
 		ta.Buffer.Data[offset] = byte(uint32(val) & 0xff)
+	case ir.TypeUint8ClampedArray:
+		if math.IsNaN(val) || val <= 0 {
+			ta.Buffer.Data[offset] = 0
+		} else if val >= 255 {
+			ta.Buffer.Data[offset] = 255
+		} else {
+			ta.Buffer.Data[offset] = byte(math.RoundToEven(val))
+		}
+	case ir.TypeInt16Array:
+		u := uint16(int16(int32(val)))
+		ta.Buffer.Data[offset] = byte(u)
+		ta.Buffer.Data[offset+1] = byte(u >> 8)
+	case ir.TypeUint16Array:
+		u := uint16(uint32(val))
+		ta.Buffer.Data[offset] = byte(u)
+		ta.Buffer.Data[offset+1] = byte(u >> 8)
 	case ir.TypeInt32Array:
 		i32 := uint32(int32(val))
 		ta.Buffer.Data[offset] = byte(i32)
 		ta.Buffer.Data[offset+1] = byte(i32 >> 8)
 		ta.Buffer.Data[offset+2] = byte(i32 >> 16)
 		ta.Buffer.Data[offset+3] = byte(i32 >> 24)
+	case ir.TypeUint32Array:
+		u32 := uint32(val)
+		ta.Buffer.Data[offset] = byte(u32)
+		ta.Buffer.Data[offset+1] = byte(u32 >> 8)
+		ta.Buffer.Data[offset+2] = byte(u32 >> 16)
+		ta.Buffer.Data[offset+3] = byte(u32 >> 24)
+	case ir.TypeFloat32Array:
+		bits := math.Float32bits(float32(val))
+		ta.Buffer.Data[offset] = byte(bits)
+		ta.Buffer.Data[offset+1] = byte(bits >> 8)
+		ta.Buffer.Data[offset+2] = byte(bits >> 16)
+		ta.Buffer.Data[offset+3] = byte(bits >> 24)
 	case ir.TypeFloat64Array:
 		bits := math.Float64bits(val)
 		ta.Buffer.Data[offset] = byte(bits)
@@ -91,6 +152,31 @@ func (ta *TypedArray) Set(index int, val float64) {
 		ta.Buffer.Data[offset+6] = byte(bits >> 48)
 		ta.Buffer.Data[offset+7] = byte(bits >> 56)
 	}
+}
+
+func (ta *TypedArray) SetBigInt(index int, val int64) {
+	if index < 0 || index >= ta.Length || ta.Buffer == nil {
+		return
+	}
+	offset := ta.ByteOffset + index*8
+	if offset+8 > len(ta.Buffer.Data) {
+		return
+	}
+	u := uint64(val)
+	ta.Buffer.Data[offset] = byte(u)
+	ta.Buffer.Data[offset+1] = byte(u >> 8)
+	ta.Buffer.Data[offset+2] = byte(u >> 16)
+	ta.Buffer.Data[offset+3] = byte(u >> 24)
+	ta.Buffer.Data[offset+4] = byte(u >> 32)
+	ta.Buffer.Data[offset+5] = byte(u >> 40)
+	ta.Buffer.Data[offset+6] = byte(u >> 48)
+	ta.Buffer.Data[offset+7] = byte(u >> 56)
+}
+
+type DataView struct {
+	Buffer     *ArrayBuffer
+	ByteOffset int
+	ByteLength int
 }
 
 type Value struct {
@@ -108,6 +194,7 @@ type Value struct {
 	Boxed      *Value
 	Buffer     *ArrayBuffer
 	TypedArray *TypedArray
+	DataView   *DataView
 }
 
 func (v Value) GetArray() []Value {
@@ -155,7 +242,11 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 	case ir.TypeBool:
 		boolean, err := strconv.ParseBool(value)
 		return Value{Type: typ, Bool: boolean}, err
-	case ir.TypeClosure, ir.TypeStringArray, ir.TypeNumberArray, ir.TypeBoolArray, ir.TypeBigIntArray, ir.TypeSymbolArray, ir.TypeUint8Array, ir.TypeInt32Array, ir.TypeFloat64Array, ir.TypeArrayBuffer:
+	case ir.TypeClosure, ir.TypeStringArray, ir.TypeNumberArray, ir.TypeBoolArray, ir.TypeBigIntArray, ir.TypeSymbolArray,
+		ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
+		ir.TypeDataView, ir.TypeArrayBuffer:
 		return Value{Type: typ}, nil
 	default:
 		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {
@@ -410,11 +501,18 @@ func compare(operator string, left, right Value) (Value, error) {
 }
 
 func format(value Value) string {
+	if value.DataView != nil {
+		return fmt.Sprintf("DataView { byteLength: %d, byteOffset: %d }", value.DataView.ByteLength, value.DataView.ByteOffset)
+	}
 	if value.TypedArray != nil {
 		ta := value.TypedArray
 		parts := make([]string, ta.Length)
 		for i := 0; i < ta.Length; i++ {
-			parts[i] = strconv.FormatFloat(ta.Get(i), 'f', -1, 64)
+			if ta.Kind == ir.TypeBigInt64Array || ta.Kind == ir.TypeBigUint64Array {
+				parts[i] = fmt.Sprintf("%dn", ta.GetBigInt(i))
+			} else {
+				parts[i] = strconv.FormatFloat(ta.Get(i), 'f', -1, 64)
+			}
 		}
 		return fmt.Sprintf("%s(%d) [ %s ]", string(ta.Kind), ta.Length, strings.Join(parts, ", "))
 	}

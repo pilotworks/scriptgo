@@ -528,7 +528,11 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 			return result, ir.TypeBool, nil
 		},
 	}
-	for _, name := range []string{"Uint8Array", "Int32Array", "Float64Array"} {
+	for _, name := range []string{
+		"Uint8Array", "Int8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array",
+	} {
 		targetKind := ir.Type(name)
 		className := name
 		m[name+".from"] = BuiltinIntrinsic{
@@ -575,7 +579,14 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	// Node-specific globals (Category 3: NodeGlobal)
 	for _, logMethod := range []string{"log", "info", "debug", "warn", "error", "dir", "dirxml"} {
 		name := "console." + logMethod
-		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown, ir.TypeNumberArray, ir.TypeStringArray, ir.TypeObject, ir.TypeUint8Array, ir.TypeInt32Array, ir.TypeFloat64Array, ir.TypeArrayBuffer}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{
+			ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown,
+			ir.TypeNumberArray, ir.TypeStringArray, ir.TypeObject,
+			ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
+			ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+			ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
+			ir.TypeDataView, ir.TypeArrayBuffer,
+		}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
 	}
 	m["console.assert"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.assert", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleAssert}
 	m["console.group"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.group", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleGroup}
