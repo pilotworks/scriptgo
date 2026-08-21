@@ -1560,26 +1560,6 @@ func executeDateIntrinsic(name string, arguments []string, env map[string]Value)
 	switch name {
 	case "__date.now":
 		return Value{Type: ir.TypeNumber, Number: float64(time.Now().UnixMilli())}, nil
-	case "__date.toISOString":
-		if len(arguments) != 1 {
-			return Value{}, fmt.Errorf("date.toISOString requires 1 argument")
-		}
-		tVal, ok := env[arguments[0]]
-		if !ok || tVal.Type != ir.TypeNumber {
-			return Value{}, fmt.Errorf("date.toISOString requires a number timestamp")
-		}
-		t := time.UnixMilli(int64(tVal.Number)).UTC()
-		return Value{Type: ir.TypeString, String: t.Format("2006-01-02T15:04:05.000Z")}, nil
-	case "__date.toString", "__date.toUTCString":
-		if len(arguments) != 1 {
-			return Value{}, fmt.Errorf("date.toString requires 1 argument")
-		}
-		tVal, ok := env[arguments[0]]
-		if !ok || tVal.Type != ir.TypeNumber {
-			return Value{}, fmt.Errorf("date.toString requires a number timestamp")
-		}
-		t := time.UnixMilli(int64(tVal.Number))
-		return Value{Type: ir.TypeString, String: t.Format("Mon Jan 02 2006 15:04:05")}, nil
 	case "__date.parse":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("date.parse requires 1 argument")
@@ -1593,7 +1573,186 @@ func executeDateIntrinsic(name string, arguments []string, env map[string]Value)
 			t, _ = time.Parse("2006-01-02", sVal.String)
 		}
 		return Value{Type: ir.TypeNumber, Number: float64(t.UnixMilli())}, nil
+	case "__date.UTC":
+		vals := make([]float64, 7)
+		vals[2] = 1 // default date = 1
+		for i := 0; i < len(arguments) && i < 7; i++ {
+			if v, ok := env[arguments[i]]; ok && v.Type == ir.TypeNumber {
+				vals[i] = v.Number
+			}
+		}
+		y := int(vals[0])
+		if y >= 0 && y <= 99 {
+			y += 1900
+		}
+		t := time.Date(y, time.Month(int(vals[1])+1), int(vals[2]), int(vals[3]), int(vals[4]), int(vals[5]), int(vals[6])*1e6, time.UTC)
+		return Value{Type: ir.TypeNumber, Number: float64(t.UnixMilli())}, nil
+	case "__date.toISOString", "__date.toJSON":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date formatter requires timestamp argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date formatter requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number)).UTC()
+		return Value{Type: ir.TypeString, String: t.Format("2006-01-02T15:04:05.000Z")}, nil
+	case "__date.toString", "__date.toLocaleString", "__date.toTemporalInstant":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date.toString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number))
+		return Value{Type: ir.TypeString, String: t.Format("Mon Jan 02 2006 15:04:05")}, nil
+	case "__date.toDateString", "__date.toLocaleDateString":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date.toDateString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toDateString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number))
+		return Value{Type: ir.TypeString, String: t.Format("Mon Jan 02 2006")}, nil
+	case "__date.toTimeString", "__date.toLocaleTimeString":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date.toTimeString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toTimeString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number))
+		return Value{Type: ir.TypeString, String: t.Format("15:04:05")}, nil
+	case "__date.toUTCString":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date.toUTCString requires 1 argument")
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date.toUTCString requires a number timestamp")
+		}
+		t := time.UnixMilli(int64(tVal.Number)).UTC()
+		return Value{Type: ir.TypeString, String: t.Format("Mon, 02 Jan 2006 15:04:05 GMT")}, nil
 	default:
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("date operation %q requires arguments", name)
+		}
+		tVal, ok := env[arguments[0]]
+		if !ok || tVal.Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("date operation %q requires numeric timestamp", name)
+		}
+		t := time.UnixMilli(int64(tVal.Number))
+
+		switch name {
+		case "__date.getDate":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Day())}, nil
+		case "__date.getDay":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Weekday())}, nil
+		case "__date.getFullYear":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Year())}, nil
+		case "__date.getHours":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Hour())}, nil
+		case "__date.getMilliseconds":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Nanosecond() / 1e6)}, nil
+		case "__date.getMinutes":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Minute())}, nil
+		case "__date.getMonth":
+			return Value{Type: ir.TypeNumber, Number: float64(int(t.Month()) - 1)}, nil
+		case "__date.getSeconds":
+			return Value{Type: ir.TypeNumber, Number: float64(t.Second())}, nil
+		case "__date.getTimezoneOffset":
+			_, offsetSec := t.Zone()
+			return Value{Type: ir.TypeNumber, Number: float64(-offsetSec / 60)}, nil
+		case "__date.getUTCDate":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Day())}, nil
+		case "__date.getUTCDay":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Weekday())}, nil
+		case "__date.getUTCFullYear":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Year())}, nil
+		case "__date.getUTCHours":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Hour())}, nil
+		case "__date.getUTCMilliseconds":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Nanosecond() / 1e6)}, nil
+		case "__date.getUTCMinutes":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Minute())}, nil
+		case "__date.getUTCMonth":
+			return Value{Type: ir.TypeNumber, Number: float64(int(t.UTC().Month()) - 1)}, nil
+		case "__date.getUTCSeconds":
+			return Value{Type: ir.TypeNumber, Number: float64(t.UTC().Second())}, nil
+		}
+
+		// Setters
+		if len(arguments) >= 2 {
+			argVal, ok := env[arguments[1]]
+			if !ok || argVal.Type != ir.TypeNumber {
+				return Value{}, fmt.Errorf("setter %q requires numeric value", name)
+			}
+			val := argVal.Number
+
+			switch name {
+			case "__date.setDate":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), tl.Month(), int(val), tl.Hour(), tl.Minute(), tl.Second(), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setFullYear":
+				tl := t.Local()
+				updated := time.Date(int(val), tl.Month(), tl.Day(), tl.Hour(), tl.Minute(), tl.Second(), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setHours":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), tl.Month(), tl.Day(), int(val), tl.Minute(), tl.Second(), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setMilliseconds":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), tl.Month(), tl.Day(), tl.Hour(), tl.Minute(), tl.Second(), int(val)*1e6, tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setMinutes":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), tl.Month(), tl.Day(), tl.Hour(), int(val), tl.Second(), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setMonth":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), time.Month(int(val)+1), tl.Day(), tl.Hour(), tl.Minute(), tl.Second(), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setSeconds":
+				tl := t.Local()
+				updated := time.Date(tl.Year(), tl.Month(), tl.Day(), tl.Hour(), tl.Minute(), int(val), tl.Nanosecond(), tl.Location())
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCDate":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), tu.Month(), int(val), tu.Hour(), tu.Minute(), tu.Second(), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCFullYear":
+				tu := t.UTC()
+				updated := time.Date(int(val), tu.Month(), tu.Day(), tu.Hour(), tu.Minute(), tu.Second(), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCHours":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), tu.Month(), tu.Day(), int(val), tu.Minute(), tu.Second(), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCMilliseconds":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), tu.Month(), tu.Day(), tu.Hour(), tu.Minute(), tu.Second(), int(val)*1e6, time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCMinutes":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), tu.Month(), tu.Day(), tu.Hour(), int(val), tu.Second(), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCMonth":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), time.Month(int(val)+1), tu.Day(), tu.Hour(), tu.Minute(), tu.Second(), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			case "__date.setUTCSeconds":
+				tu := t.UTC()
+				updated := time.Date(tu.Year(), tu.Month(), tu.Day(), tu.Hour(), tu.Minute(), int(val), tu.Nanosecond(), time.UTC)
+				return Value{Type: ir.TypeNumber, Number: float64(updated.UnixMilli())}, nil
+			}
+		}
+
 		return Value{}, fmt.Errorf("unknown date intrinsic %q", name)
 	}
 }

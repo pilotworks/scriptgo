@@ -170,6 +170,9 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 		strings.ToLower(exactName),
 		normalizeAPIName(apiName),
 	}
+	if exactName == "constructor" || strings.HasPrefix(apiName, "new ") || exactName == "" {
+		candidates = append(candidates, "constructor", "new", "create", "basic")
+	}
 
 	for _, cand := range candidates {
 		if cand == "" {
@@ -288,14 +291,21 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 				spaceRegex := regexp.MustCompile(`\s+`)
 				stmt = spaceRegex.ReplaceAllString(stmt, " ")
 
-				rawName := stmt
-				rawName = strings.TrimPrefix(rawName, "readonly ")
-				rawName = strings.Split(rawName, "<")[0]
-				rawName = strings.Split(rawName, "(")[0]
-				rawName = strings.Split(rawName, ":")[0]
-				rawName = strings.TrimSuffix(strings.TrimSpace(rawName), "?")
+				var rawName string
+				isConstructor := false
+				if strings.HasPrefix(stmt, "new(") || strings.HasPrefix(stmt, "new (") || strings.HasPrefix(stmt, "new<") {
+					isConstructor = true
+					rawName = "constructor"
+				} else {
+					rawName = stmt
+					rawName = strings.TrimPrefix(rawName, "readonly ")
+					rawName = strings.Split(rawName, "<")[0]
+					rawName = strings.Split(rawName, "(")[0]
+					rawName = strings.Split(rawName, ":")[0]
+					rawName = strings.TrimSuffix(strings.TrimSpace(rawName), "?")
+				}
 
-				if rawName == "" || !identRegex.MatchString(rawName) || rawName == "new" || rawName == "prototype" {
+				if rawName == "" || (!identRegex.MatchString(rawName) && !isConstructor) || rawName == "prototype" {
 					continue
 				}
 
@@ -323,6 +333,12 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 			seen[item.name] = true
 
 			displayName := fmt.Sprintf("%s.%s", baseName, item.signature)
+			callee := fmt.Sprintf("__%s.%s", featName, item.name)
+			if item.name == "constructor" {
+				sigArgs := strings.TrimPrefix(strings.TrimPrefix(item.signature, "new"), " ")
+				displayName = fmt.Sprintf("new %s%s", baseName, sigArgs)
+				callee = fmt.Sprintf("__%s.new", featName)
+			}
 			testPath, hasTest := findCorpusAPITest(featName, item.name)
 			status := StatusPlanned
 			if hasTest {
@@ -332,7 +348,7 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 			entries = append(entries, APIEntry{
 				Name:      displayName,
 				Signature: item.signature,
-				Callee:    fmt.Sprintf("__%s.%s", featName, item.name),
+				Callee:    callee,
 				Status:    status,
 				TestPath:  testPath,
 			})

@@ -501,6 +501,36 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	// Date globals (Category 1: ECMAScript)
 	register([]string{"Date.now", "__date.now"}, CategoryECMAScript, "__date.now", nil, ir.TypeNumber, 0, 0)
 	register([]string{"Date.parse", "__date.parse"}, CategoryECMAScript, "__date.parse", []ir.Type{ir.TypeString}, ir.TypeNumber, 1, 1)
+	m["Date.UTC"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "Date.UTC",
+		MinArgs:  1,
+		MaxArgs:  7,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			var argVals []string
+			for _, arg := range call.Expression.Arguments {
+				v, _, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				if err != nil {
+					return "", "", err
+				}
+				argVals = append(argVals, v)
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__date.UTC",
+				Args:   argVals,
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		},
+	}
+	m["__date.UTC"] = m["Date.UTC"]
 
 	// TypedArray & ArrayBuffer globals (Category 1: ECMAScript)
 	m["ArrayBuffer.isView"] = BuiltinIntrinsic{

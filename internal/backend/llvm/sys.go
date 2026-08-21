@@ -266,30 +266,6 @@ func (e *functionEmitter) emitDateIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
-	case "__date.toISOString":
-		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
-			return fmt.Errorf("date.toISOString has invalid signature")
-		}
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_iso_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-	case "__date.toString", "__date.toUTCString":
-		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
-			return fmt.Errorf("date.toString has invalid signature")
-		}
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
 	case "__date.parse":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("date.parse has invalid signature")
@@ -302,7 +278,130 @@ func (e *functionEmitter) emitDateIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__date.UTC":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		// Needs 7 args (year, month, date, hours, min, sec, ms)
+		args := make([]string, 7)
+		for i := 0; i < 7; i++ {
+			if i < len(instruction.Args) {
+				args[i] = fmt.Sprintf("double %%%s", instruction.Args[i])
+			} else if i == 2 { // date defaults to 1
+				args[i] = "double 1.0"
+			} else {
+				args[i] = "double 0.0"
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_utc(%s, ptr %%%s)\n", status, strings.Join(args, ", "), slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toISOString", "__date.toJSON":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_iso_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toString", "__date.toTemporalInstant", "__date.toLocaleString", "__date.toLocaleDateString", "__date.toLocaleTimeString":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toDateString":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_date_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toTimeString":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_time_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__date.toUTCString":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_date_to_utc_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	default:
+		// Map getters & setters
+		getterMap := map[string]string{
+			"__date.getDate":            "scriptgo_date_get_date",
+			"__date.getDay":             "scriptgo_date_get_day",
+			"__date.getFullYear":        "scriptgo_date_get_full_year",
+			"__date.getHours":           "scriptgo_date_get_hours",
+			"__date.getMilliseconds":    "scriptgo_date_get_milliseconds",
+			"__date.getMinutes":         "scriptgo_date_get_minutes",
+			"__date.getMonth":           "scriptgo_date_get_month",
+			"__date.getSeconds":         "scriptgo_date_get_seconds",
+			"__date.getTimezoneOffset":  "scriptgo_date_get_timezone_offset",
+			"__date.getUTCDate":         "scriptgo_date_get_utc_date",
+			"__date.getUTCDay":          "scriptgo_date_get_utc_day",
+			"__date.getUTCFullYear":     "scriptgo_date_get_utc_full_year",
+			"__date.getUTCHours":        "scriptgo_date_get_utc_hours",
+			"__date.getUTCMilliseconds": "scriptgo_date_get_utc_milliseconds",
+			"__date.getUTCMinutes":      "scriptgo_date_get_utc_minutes",
+			"__date.getUTCMonth":        "scriptgo_date_get_utc_month",
+			"__date.getUTCSeconds":      "scriptgo_date_get_utc_seconds",
+		}
+		if cFn, ok := getterMap[instruction.Callee]; ok {
+			slot := instruction.Result + ".slot"
+			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @%s(double %%%s, ptr %%%s)\n", status, cFn, instruction.Args[0], slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+			return nil
+		}
+
+		setterMap := map[string]string{
+			"__date.setDate":            "scriptgo_date_set_date",
+			"__date.setFullYear":        "scriptgo_date_set_full_year",
+			"__date.setHours":           "scriptgo_date_set_hours",
+			"__date.setMilliseconds":    "scriptgo_date_set_milliseconds",
+			"__date.setMinutes":         "scriptgo_date_set_minutes",
+			"__date.setMonth":           "scriptgo_date_set_month",
+			"__date.setSeconds":         "scriptgo_date_set_seconds",
+			"__date.setUTCDate":         "scriptgo_date_set_utc_date",
+			"__date.setUTCFullYear":     "scriptgo_date_set_utc_full_year",
+			"__date.setUTCHours":        "scriptgo_date_set_utc_hours",
+			"__date.setUTCMilliseconds": "scriptgo_date_set_utc_milliseconds",
+			"__date.setUTCMinutes":      "scriptgo_date_set_utc_minutes",
+			"__date.setUTCMonth":        "scriptgo_date_set_utc_month",
+			"__date.setUTCSeconds":      "scriptgo_date_set_utc_seconds",
+		}
+		if cFn, ok := setterMap[instruction.Callee]; ok {
+			slot := instruction.Result + ".slot"
+			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @%s(double %%%s, double %%%s, ptr %%%s)\n", status, cFn, instruction.Args[0], instruction.Args[1], slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+			return nil
+		}
+
 		return fmt.Errorf("unknown date intrinsic %q", instruction.Callee)
 	}
 }

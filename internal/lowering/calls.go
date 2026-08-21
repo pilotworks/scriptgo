@@ -55,29 +55,68 @@ func lowerCallExpression(
 				}
 			}
 			if receiverType == "object:Date" {
-				if methodName == "toISOString" {
-					timeVal := nextTemp(counter)
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__date.toISOString", Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
-					return result, ir.TypeString, nil
-				}
-				if methodName == "getTime" {
+				if methodName == "getTime" || methodName == "valueOf" {
 					if result == "" {
 						result = nextTemp(counter)
 					}
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: result, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
 					return result, ir.TypeNumber, nil
 				}
-				if methodName == "toString" || methodName == "toUTCString" {
+				if methodName == "setTime" {
+					argVal := "0"
+					if len(expression.Arguments) > 0 {
+						v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						argVal = v
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver, argVal}, Span: toIRSpan(path, expression.Span)})
+					return argVal, ir.TypeNumber, nil
+				}
+				switch methodName {
+				case "setDate", "setFullYear", "setHours", "setMilliseconds", "setMinutes", "setMonth", "setSeconds",
+					"setUTCDate", "setUTCFullYear", "setUTCHours", "setUTCMilliseconds", "setUTCMinutes", "setUTCMonth", "setUTCSeconds":
+					timeVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					var argVal string
+					if len(expression.Arguments) > 0 {
+						v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						argVal = v
+					} else {
+						argVal = nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: argVal, Value: "0", Span: toIRSpan(path, expression.Span)})
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__date." + methodName, Args: []string{timeVal, argVal}, Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver, result}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeNumber, nil
+				}
+				switch methodName {
+				case "getDate", "getDay", "getFullYear", "getHours", "getMilliseconds", "getMinutes", "getMonth", "getSeconds", "getTimezoneOffset",
+					"getUTCDate", "getUTCDay", "getUTCFullYear", "getUTCHours", "getUTCMilliseconds", "getUTCMinutes", "getUTCMonth", "getUTCSeconds":
 					timeVal := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
 					if result == "" {
 						result = nextTemp(counter)
 					}
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__date.toString", Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__date." + methodName, Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
+					return result, ir.TypeNumber, nil
+				}
+				switch methodName {
+				case "toISOString", "toJSON", "toString", "toDateString", "toTimeString", "toUTCString",
+					"toLocaleDateString", "toLocaleString", "toLocaleTimeString", "toTemporalInstant":
+					timeVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__date." + methodName, Args: []string{timeVal}, Span: toIRSpan(path, expression.Span)})
 					return result, ir.TypeString, nil
 				}
 			}
