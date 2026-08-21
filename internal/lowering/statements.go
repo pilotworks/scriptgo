@@ -244,6 +244,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			value = boxed
 			typ = ir.TypeUnknown
 		}
+		if strings.HasPrefix(string(function.ReturnType), "object:") && strings.HasPrefix(string(typ), "object:") {
+			typ = function.ReturnType
+		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "block":
 		for _, s := range statement.Body {

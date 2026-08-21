@@ -217,7 +217,13 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
+	case ir.TypeUnknown:
+		out.WriteString(fmt.Sprintf("  %%%s = or { i32, i32, i64 } zeroinitializer, zeroinitializer\n", instruction.Result))
 	default:
+		if strings.HasPrefix(string(instruction.Type), "object:") || instruction.Type == "ptr" || instruction.Type == ir.TypeClosure || strings.HasSuffix(string(instruction.Type), "[]") || instruction.Type == ir.TypeUint8Array || instruction.Type == ir.TypeInt32Array || instruction.Type == ir.TypeFloat64Array || instruction.Type == ir.TypeArrayBuffer {
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
+			return nil
+		}
 		return fmt.Errorf("unsupported constant type %s", instruction.Type)
 	}
 	return nil
@@ -331,6 +337,33 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 	if !ok || e.types[instruction.Args[1]] != leftType {
 		return fmt.Errorf("unknown or mismatched compare operands")
 	}
+	if leftType == ir.TypeUnknown {
+		tag0 := fmt.Sprintf("%s.tag0.%d", instruction.Result, e.loadCounter)
+		tag1 := fmt.Sprintf("%s.tag1.%d", instruction.Result, e.loadCounter)
+		val0 := fmt.Sprintf("%s.val0.%d", instruction.Result, e.loadCounter)
+		val1 := fmt.Sprintf("%s.val1.%d", instruction.Result, e.loadCounter)
+		tagEq := fmt.Sprintf("%s.tag_eq.%d", instruction.Result, e.loadCounter)
+		valEq := fmt.Sprintf("%s.val_eq.%d", instruction.Result, e.loadCounter)
+		bothEq := fmt.Sprintf("%s.both_eq.%d", instruction.Result, e.loadCounter)
+		e.loadCounter++
+
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag0, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag1, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %%%s\n", tagEq, tag0, tag1))
+
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val0, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val1, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %%%s\n", valEq, val0, val1))
+
+		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothEq, tagEq, valEq))
+		e.types[instruction.Result] = ir.TypeBool
+		if instruction.Operator == "==" || instruction.Operator == "===" {
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %%%s\n", instruction.Result, bothEq))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", instruction.Result, bothEq))
+		}
+		return nil
+	}
 	if leftType == ir.TypeString {
 		cmpResult := instruction.Result + ".cmp"
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @strcmp(ptr %%%s, ptr %%%s)\n", cmpResult, instruction.Args[0], instruction.Args[1]))
@@ -373,20 +406,20 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
 		return nil
 	}
-	if leftType == ir.TypeSymbol {
+	if leftType == ir.TypeSymbol || leftType == ir.TypeClosure || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" {
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",
 		}[instruction.Operator]
 		if !ok {
-			return fmt.Errorf("unsupported LLVM symbol compare operator %q", instruction.Operator)
+			return fmt.Errorf("unsupported LLVM pointer/closure compare operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
 		return nil
 	}
 	if leftType != ir.TypeNumber {
-		return fmt.Errorf("LLVM compare only supports number, string, symbol, or bool operands")
+		return fmt.Errorf("LLVM compare only supports number, string, symbol, closure, object, or bool operands (got %s)", leftType)
 	}
 	predicate, ok := map[string]string{
 		"==": "oeq", "===": "oeq",
@@ -395,7 +428,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		">": "ogt", ">=": "oge",
 	}[instruction.Operator]
 	if !ok {
-		return fmt.Errorf("unsupported LLVM compare operator %q", instruction.Operator)
+		return fmt.Errorf("unsupported LLVM number compare operator %q", instruction.Operator)
 	}
 	e.types[instruction.Result] = ir.TypeBool
 	out.WriteString(fmt.Sprintf("  %%%s = fcmp %s double %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
@@ -910,6 +943,13 @@ func (e *functionEmitter) emitThrow(out *strings.Builder, instruction ir.Instruc
 		e.loadCounter++
 		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolVal, argVal))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_bool(i32 %%%s)\n", boolVal))
+	case ir.TypeUnknown:
+		payloadVal := fmt.Sprintf("throw.payload.%d", e.loadCounter)
+		ptrVal := fmt.Sprintf("throw.ptr.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVal, argVal))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, payloadVal))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", ptrVal))
 	default:
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", argVal))
 	}
@@ -1096,6 +1136,48 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
 		closureVar = loaded
 	}
+
+	hasUnknown := false
+	for _, arg := range instruction.Args {
+		if typ := e.types[arg]; typ == ir.TypeUnknown {
+			hasUnknown = true
+			break
+		}
+	}
+
+	if hasUnknown {
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		boxedArgs := make([]string, 4)
+		for i := 0; i < 4; i++ {
+			if i < len(instruction.Args) {
+				arg := instruction.Args[i]
+				typ := e.types[arg]
+				argVal := arg
+				if slot, ok := e.varSlots[arg]; ok {
+					loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+					e.loadCounter++
+					out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+					argVal = loaded
+				}
+				if typ == ir.TypeUnknown {
+					argSlot := fmt.Sprintf("%s.box_slot.%d", arg, e.loadCounter)
+					e.loadCounter++
+					out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", argSlot))
+					out.WriteString(fmt.Sprintf("  store { i32, i32, i64 } %%%s, ptr %%%s\n", argVal, argSlot))
+					boxedArgs[i] = fmt.Sprintf("ptr %%%s", argSlot)
+				} else {
+					boxedArgs[i] = "ptr null"
+				}
+			} else {
+				boxedArgs[i] = "ptr null"
+			}
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_invoke(ptr %%%s, i32 %d, %s, %s, %s, %s)\n", status, closureVar, len(instruction.Args), boxedArgs[0], boxedArgs[1], boxedArgs[2], boxedArgs[3]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	}
+
 	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, e.loadCounter)
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
 	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)
@@ -1200,6 +1282,14 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 	id := e.loadCounter
 	e.loadCounter++
 
+	argVal := arg
+	if slot, ok := e.varSlots[arg]; ok {
+		loaded := fmt.Sprintf("%s.box_load.%d", arg, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+		argVal = loaded
+	}
+
 	var tag int
 	var payloadVal string
 
@@ -1207,27 +1297,27 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 	case ir.TypeNumber:
 		tag = 3 // SCRIPTGO_TAG_NUMBER
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", payloadVal, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", payloadVal, argVal))
 	case ir.TypeBool:
 		tag = 2 // SCRIPTGO_TAG_BOOLEAN
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i64\n", payloadVal, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i64\n", payloadVal, argVal))
 	case ir.TypeString:
 		tag = 4 // SCRIPTGO_TAG_STRING
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, argVal))
 	case ir.TypeBigInt:
 		tag = 8 // SCRIPTGO_TAG_BIGINT
-		payloadVal = arg
+		payloadVal = argVal
 	case ir.TypeSymbol:
 		tag = 9 // SCRIPTGO_TAG_SYMBOL
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, argVal))
 	case ir.TypeVoid:
 		tag = 0 // SCRIPTGO_TAG_UNDEFINED
 		payloadVal = "0"
 	case ir.TypeUnknown:
-		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", instruction.Result, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", instruction.Result, argVal))
 		return nil
 	default:
 		if strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray {
@@ -1238,7 +1328,7 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 			tag = 5 // SCRIPTGO_TAG_OBJECT
 		}
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, argVal))
 	}
 
 	b0 := fmt.Sprintf("box.b0.%d", id)

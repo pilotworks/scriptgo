@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -86,7 +87,20 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		return "", "", err
 	}
 	if leftType != rightType {
-		if expression.Operator == "+" && (leftType == ir.TypeString || rightType == ir.TypeString) {
+		if (leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) && isComparison(expression.Operator) {
+			if leftType != ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{left}, Span: toIRSpan(path, expression.Span)})
+				left = boxed
+				leftType = ir.TypeUnknown
+			}
+			if rightType != ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{right}, Span: toIRSpan(path, expression.Span)})
+				right = boxed
+				rightType = ir.TypeUnknown
+			}
+		} else if expression.Operator == "+" && (leftType == ir.TypeString || rightType == ir.TypeString) {
 			if leftType != ir.TypeString {
 				strTemp := nextTemp(counter)
 				callee := "__string.fromNumber"
@@ -136,7 +150,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 		return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
 	}
-	if leftType == ir.TypeSymbol {
+	if leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" {
 		if isComparison(expression.Operator) {
 			if result == "" {
 				result = nextTemp(counter)
@@ -144,7 +158,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 			return result, ir.TypeBool, nil
 		}
-		return "", "", fmt.Errorf("operator %q does not support symbol operands", expression.Operator)
+		return "", "", fmt.Errorf("operator %q does not support %s operands", expression.Operator, leftType)
 	}
 	if leftType != ir.TypeNumber && leftType != ir.TypeString && leftType != ir.TypeBigInt {
 		return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)

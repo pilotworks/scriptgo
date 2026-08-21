@@ -193,7 +193,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					var params []typescriptgo.SyntaxParameter
 					retType := method.Type
 					if method.IsStatic {
-						mangled = statement.Class.Name + "_" + method.Name
+						mangled = statement.Class.Name + "_static_" + method.Name
 						params = method.Parameters
 					} else if method.Kind == "get" {
 						mangled = statement.Class.Name + "_get_" + method.Name

@@ -232,6 +232,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_exception_get_bool(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_rethrow(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_closure_create(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_closure_invoke(ptr, i32, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_number(ptr, ptr, ptr)\n")

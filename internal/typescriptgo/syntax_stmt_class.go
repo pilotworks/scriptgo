@@ -82,6 +82,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Type:         pType,
 					InferredType: inferredPType,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 				isParamProp := ast.HasSyntacticModifier(p, ast.ModifierFlagsPublic|ast.ModifierFlagsPrivate|ast.ModifierFlagsProtected|ast.ModifierFlagsReadonly)
@@ -149,6 +150,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Type:         pType,
 					InferredType: inferredPType,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 			}
@@ -218,6 +220,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Type:         pType,
 					InferredType: inferredPType,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
+					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
 				})
 			}

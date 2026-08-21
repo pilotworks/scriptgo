@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -69,12 +70,12 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 	methodMap := map[string]typescriptgo.SyntaxMethod{}
 	for _, m := range inherited {
 		if !m.IsStatic {
-			key := m.Kind + ":" + m.Name
+			key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
 			methodMap[key] = m
 		}
 	}
 	for _, m := range stmtClass.Methods {
-		key := m.Kind + ":" + m.Name
+		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
 		methodMap[key] = m
 	}
 	var result []typescriptgo.SyntaxMethod
@@ -128,6 +129,30 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []type
 	}
 	fields = append(fields, meta.Fields...)
 	return fields
+}
+
+func findStaticMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		cleanCurr := curr
+		if idx := strings.Index(curr, "<"); idx != -1 {
+			cleanCurr = curr[:idx]
+		}
+		mangled := cleanCurr + "_static_" + methodName
+		if fn, ok := signatures[mangled]; ok {
+			return fn, mangled, true
+		}
+		mangledOld := cleanCurr + "_" + methodName
+		if fn, ok := signatures[mangledOld]; ok && (len(fn.Parameters) == 0 || fn.Parameters[0].Name != "this") {
+			return fn, mangledOld, true
+		}
+		if meta, ok := hierarchy[cleanCurr]; ok {
+			curr = meta.Extends
+		} else {
+			break
+		}
+	}
+	return ir.Function{}, "", false
 }
 
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {

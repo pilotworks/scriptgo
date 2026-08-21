@@ -151,6 +151,7 @@ type SyntaxParameter struct {
 	Type         string
 	InferredType string
 	Rest         bool
+	Optional     bool
 	Initializer  *SyntaxExpression
 }
 

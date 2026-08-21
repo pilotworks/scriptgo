@@ -100,7 +100,11 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 	}
 	for index, parameter := range userParams {
 		if index < len(arguments) {
-			closure.Env[parameter.Name] = arguments[index]
+			arg := arguments[index]
+			if arg.Type == ir.TypeUnknown && arg.Boxed != nil && parameter.Type != ir.TypeUnknown {
+				arg = *arg.Boxed
+			}
+			closure.Env[parameter.Name] = arg
 		}
 	}
 	val, _, flow, err := executeBlock(functions, closure.Function.Body, closure.Env, output)

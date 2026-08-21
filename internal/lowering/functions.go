@@ -62,6 +62,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							defaultParamsIndex[function.Name] = map[int]*typescriptgo.SyntaxExpression{}
 						}
 						defaultParamsIndex[function.Name][pIdx] = parameter.Initializer
+					} else if parameter.Optional {
+						if defaultParamsIndex[function.Name] == nil {
+							defaultParamsIndex[function.Name] = map[int]*typescriptgo.SyntaxExpression{}
+						}
+						defaultParamsIndex[function.Name][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
 					}
 					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 				}
@@ -89,6 +94,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 								defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
 							}
 							defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
+						} else if parameter.Optional {
+							if defaultParamsIndex[ctorMangled] == nil {
+								defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+							}
+							defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
 						}
 						ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 					}
@@ -102,7 +112,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					var mangled string
 					var function ir.Function
 					if method.IsStatic {
-						mangled = statement.Class.Name + "_" + method.Name
+						mangled = statement.Class.Name + "_static_" + method.Name
 						function = ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
 						if function.ReturnType == "" {
 							function.ReturnType = ir.TypeVoid
@@ -114,6 +124,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
 								}
 								defaultParamsIndex[mangled][pIdx] = parameter.Initializer
+							} else if parameter.Optional {
+								if defaultParamsIndex[mangled] == nil {
+									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+								}
+								defaultParamsIndex[mangled][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
 							}
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
@@ -142,6 +157,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
 								}
 								defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
+							} else if parameter.Optional {
+								if defaultParamsIndex[mangled] == nil {
+									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+								}
+								defaultParamsIndex[mangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
 							}
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}

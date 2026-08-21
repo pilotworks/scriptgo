@@ -414,12 +414,60 @@ func lowerCallExpression(
 				className := after
 				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 					args := []string{receiver}
-					for _, argument := range expression.Arguments {
-						argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+					for aIdx, argument := range expression.Arguments {
+						argVal, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 						if err != nil {
 							return "", "", err
 						}
+						pIdx := aIdx + 1
+						if pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+							boxed := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpBoxUnknown,
+								Type:   ir.TypeUnknown,
+								Result: boxed,
+								Args:   []string{argVal},
+								Span:   toIRSpan(path, argument.Span),
+							})
+							argVal = boxed
+						}
 						args = append(args, argVal)
+					}
+					if len(args) < len(target.Parameters) {
+						defaults := defaultParamsIndex[mangled]
+						if defaults != nil {
+							for i := len(args); i < len(target.Parameters); i++ {
+								if initExpr, ok := defaults[i]; ok {
+									val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+									if err != nil {
+										return "", "", err
+									}
+									if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+										boxed := nextTemp(counter)
+										function.Body = append(function.Body, ir.Instruction{
+											Op:     ir.OpBoxUnknown,
+											Type:   ir.TypeUnknown,
+											Result: boxed,
+											Args:   []string{val},
+											Span:   toIRSpan(path, initExpr.Span),
+										})
+										val = boxed
+									}
+									args = append(args, val)
+								}
+							}
+						}
+					}
+					if restParamsIndex[mangled] && len(target.Parameters) > 0 && strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") {
+						restType := target.Parameters[len(target.Parameters)-1].Type
+						fixed := len(target.Parameters) - 1
+						if len(args) >= fixed {
+							restArgs := append([]string(nil), args[fixed:]...)
+							args = args[:fixed]
+							array := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: restType, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
+							args = append(args, array)
+						}
 					}
 					if result == "" {
 						result = nextTemp(counter)
@@ -604,14 +652,61 @@ func lowerCallExpression(
 	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" {
 		className := expression.Left.Left.Text
 		methodName := expression.Left.Text
-		if target, mangled, found := findMethodInHierarchy(className, methodName, signatures, classHierarchy); found && (len(target.Parameters) == 0 || target.Parameters[0].Name != "this") {
+		if target, mangled, found := findStaticMethodInHierarchy(className, methodName, signatures, classHierarchy); found {
 			args := make([]string, 0, len(expression.Arguments))
-			for _, argument := range expression.Arguments {
-				val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			for aIdx, argument := range expression.Arguments {
+				val, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return "", "", err
 				}
+				if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+					boxed := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpBoxUnknown,
+						Type:   ir.TypeUnknown,
+						Result: boxed,
+						Args:   []string{val},
+						Span:   toIRSpan(path, argument.Span),
+					})
+					val = boxed
+				}
 				args = append(args, val)
+			}
+			if len(args) < len(target.Parameters) {
+				defaults := defaultParamsIndex[mangled]
+				if defaults != nil {
+					for i := len(args); i < len(target.Parameters); i++ {
+						if initExpr, ok := defaults[i]; ok {
+							val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return "", "", err
+							}
+							if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+								boxed := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpBoxUnknown,
+									Type:   ir.TypeUnknown,
+									Result: boxed,
+									Args:   []string{val},
+									Span:   toIRSpan(path, initExpr.Span),
+								})
+								val = boxed
+							}
+							args = append(args, val)
+						}
+					}
+				}
+			}
+			if restParamsIndex[mangled] && len(target.Parameters) > 0 && strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") {
+				restType := target.Parameters[len(target.Parameters)-1].Type
+				fixed := len(target.Parameters) - 1
+				if len(args) >= fixed {
+					restArgs := append([]string(nil), args[fixed:]...)
+					args = args[:fixed]
+					array := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: restType, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
+					args = append(args, array)
+				}
 			}
 			if result == "" {
 				result = nextTemp(counter)
@@ -715,9 +810,20 @@ func lowerCallExpression(
 		if defaults != nil {
 			for i := len(args); i < len(target.Parameters); i++ {
 				if initExpr, ok := defaults[i]; ok {
-					val, _, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+					val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
 					if err != nil {
 						return "", "", err
+					}
+					if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+						boxed := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpBoxUnknown,
+							Type:   ir.TypeUnknown,
+							Result: boxed,
+							Args:   []string{val},
+							Span:   toIRSpan(path, initExpr.Span),
+						})
+						val = boxed
 					}
 					args = append(args, val)
 				}

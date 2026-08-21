@@ -52,7 +52,7 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolI32, instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %%%s, i64 %d, i32 %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, boolI32))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-	case valueType == ir.TypeString || valueType == ir.TypeNumberArray || valueType == ir.TypeStringArray || strings.HasPrefix(string(valueType), "object:"):
+	case valueType == ir.TypeString || valueType == ir.TypeClosure || valueType == ir.TypeUnknown || valueType == "ptr" || strings.HasSuffix(string(valueType), "[]") || strings.HasPrefix(string(valueType), "object:"):
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.FieldIndex, instruction.Args[1]))
@@ -86,7 +86,7 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 		boolI32 := instruction.Result + ".i32"
 		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", boolI32, slot))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, boolI32))
-	case instruction.Type == ir.TypeString || instruction.Type == ir.TypeNumberArray || instruction.Type == ir.TypeStringArray || strings.HasPrefix(string(instruction.Type), "object:"):
+	case instruction.Type == ir.TypeString || instruction.Type == ir.TypeClosure || instruction.Type == ir.TypeUnknown || instruction.Type == "ptr" || strings.HasSuffix(string(instruction.Type), "[]") || strings.HasPrefix(string(instruction.Type), "object:"):
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

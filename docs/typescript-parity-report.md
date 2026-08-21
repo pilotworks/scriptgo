@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 196 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 201 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **196** | **196 / 196 Passed** | **100.0%** |
-| - *Interpreter Parity* | 184 | 184 PASS | 100.0% |
+| **Total Corpus Test Cases** | **201** | **201 / 201 Passed** | **100.0%** |
+| - *Interpreter Parity* | 189 | 189 PASS | 100.0% |
 | - *Native LLVM/Clang Parity* | 174 | 174 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~2m 45s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~3m 11s | No regressions detected | - |
 
 ---
 
@@ -146,6 +146,7 @@ All 196 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
 | **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer representation |
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
+| **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 
 ---
 
@@ -157,8 +158,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 199
-  - Passed Cases       : 199 (100.0%)
+  - Total Corpus Cases : 201
+  - Passed Cases       : 201 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -179,7 +180,7 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`objects`** | 4 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), nested object records, object spread/destructuring, discriminated unions. |
 | **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 35 | **100%** | `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
+| **`stdlib`** | 37 | **100%** | `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `events` / `node:events` (`EventEmitter` lifecycle, listeners, unhandled error), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 15 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |
@@ -313,7 +314,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Extended File System** | ⚠️ Partial | `readFileSync`, `writeFileSync`, `existsSync`, `mkdirSync` implemented. Missing `fs.promises.*`, `fs.watch`, `fs.createReadStream`. |
 | **TypedArrays & Advanced Buffer** | ⚠️ Partial | `Buffer.from(base64)` implemented. Missing `Uint8Array`, `Float64Array`, `ArrayBuffer`, `DataView`. |
 | **Timers Scheduling** | ⚠️ Rudimentary | Missing OS event-loop integration (epoll/kqueue) for `setTimeout()`, `setInterval()`, `setImmediate()`. |
-| **Events (`EventEmitter`)** | ❌ Missing | `node:events` module and `EventEmitter` class. |
+| **Events (`EventEmitter`)** | ✅ Full | `node:events` / `events` module and `EventEmitter` class (lifecycle, once, prepend, removeListener, emit, static methods). |
 | **Web / Browser APIs** | ❌ Out of Core Scope | `document`, `window`, `localStorage`, Web Workers (ScriptGo focuses on backend/CLI/standalone targets). |
 
 ---

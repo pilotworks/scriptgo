@@ -20,6 +20,12 @@ typedef struct {
     void *env;
 } scriptgo_closure;
 
+typedef struct {
+    int32_t tag;
+    int32_t pad;
+    int64_t payload;
+} scriptgo_boxed_value;
+
 int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     scriptgo_closure *c;
     if (out_closure == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
@@ -28,6 +34,54 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     c->fn_ptr = fn_ptr;
     c->env = env;
     *out_closure = c;
+    return 0;
+}
+
+int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4) {
+    scriptgo_closure *c = closure_handle;
+    if (c == NULL || c->fn_ptr == NULL) return 0;
+    if (arg_count == 0) {
+        void (*fn)(void *) = (void (*)(void *))c->fn_ptr;
+        fn(c->env);
+    } else if (arg_count == 1) {
+        if (a1 == NULL) return 0;
+        if (a1->tag == 3) {
+            double num;
+            memcpy(&num, &a1->payload, sizeof(double));
+            void (*fn)(void *, double) = (void (*)(void *, double))c->fn_ptr;
+            fn(c->env, num);
+        } else {
+            void *ptr = (void *)(uintptr_t)a1->payload;
+            void (*fn)(void *, void *) = (void (*)(void *, void *))c->fn_ptr;
+            fn(c->env, ptr);
+        }
+    } else if (arg_count == 2) {
+        if (a1 == NULL || a2 == NULL) return 0;
+        if (a1->tag == 3 && a2->tag == 3) {
+            double n1, n2;
+            memcpy(&n1, &a1->payload, sizeof(double));
+            memcpy(&n2, &a2->payload, sizeof(double));
+            void (*fn)(void *, double, double) = (void (*)(void *, double, double))c->fn_ptr;
+            fn(c->env, n1, n2);
+        } else if (a1->tag == 3 && a2->tag != 3) {
+            double n1;
+            void *p2 = (void *)(uintptr_t)a2->payload;
+            memcpy(&n1, &a1->payload, sizeof(double));
+            void (*fn)(void *, double, void *) = (void (*)(void *, double, void *))c->fn_ptr;
+            fn(c->env, n1, p2);
+        } else if (a1->tag != 3 && a2->tag == 3) {
+            void *p1 = (void *)(uintptr_t)a1->payload;
+            double n2;
+            memcpy(&n2, &a2->payload, sizeof(double));
+            void (*fn)(void *, void *, double) = (void (*)(void *, void *, double))c->fn_ptr;
+            fn(c->env, p1, n2);
+        } else {
+            void *p1 = (void *)(uintptr_t)a1->payload;
+            void *p2 = (void *)(uintptr_t)a2->payload;
+            void (*fn)(void *, void *, void *) = (void (*)(void *, void *, void *))c->fn_ptr;
+            fn(c->env, p1, p2);
+        }
+    }
     return 0;
 }
 

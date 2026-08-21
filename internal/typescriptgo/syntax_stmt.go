@@ -55,6 +55,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				Type:         pType,
 				InferredType: inferredPType,
 				Rest:         parameter.AsParameterDeclaration().DotDotDotToken != nil,
+				Optional:     parameter.AsParameterDeclaration().QuestionToken != nil,
 				Initializer:  syntaxExpression(parameter.Initializer(), chk),
 			})
 		}

@@ -155,6 +155,8 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 	case ir.TypeBool:
 		boolean, err := strconv.ParseBool(value)
 		return Value{Type: typ, Bool: boolean}, err
+	case ir.TypeClosure, ir.TypeStringArray, ir.TypeNumberArray, ir.TypeBoolArray, ir.TypeBigIntArray, ir.TypeSymbolArray, ir.TypeUint8Array, ir.TypeInt32Array, ir.TypeFloat64Array, ir.TypeArrayBuffer:
+		return Value{Type: typ}, nil
 	default:
 		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {
 			return Value{Type: typ}, nil
@@ -357,6 +359,36 @@ func compare(operator string, left, right Value) (Value, error) {
 			result = left.SymbolID != right.SymbolID
 		default:
 			return Value{}, fmt.Errorf("operator %q is unsupported for symbol comparison", operator)
+		}
+	case ir.TypeClosure:
+		closureEqual := (left.Closure == right.Closure) || (left.Closure != nil && right.Closure != nil && left.Closure.Function.Name == right.Closure.Function.Name && len(left.Closure.Env) == 0 && len(right.Closure.Env) == 0)
+		switch operator {
+		case "==", "===":
+			result = closureEqual
+		case "!=", "!==":
+			result = !closureEqual
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for closure comparison", operator)
+		}
+	case ir.TypeUnknown:
+		var leftVal, rightVal Value
+		if left.Boxed != nil {
+			leftVal = *left.Boxed
+		}
+		if right.Boxed != nil {
+			rightVal = *right.Boxed
+		}
+		if leftVal.Type == rightVal.Type && leftVal.Type != "" && leftVal.Type != ir.TypeUnknown {
+			return compare(operator, leftVal, rightVal)
+		}
+		eq := (leftVal.Type == rightVal.Type && leftVal.String == rightVal.String && leftVal.Number == rightVal.Number && leftVal.Bool == rightVal.Bool)
+		switch operator {
+		case "==", "===":
+			result = eq
+		case "!=", "!==":
+			result = !eq
+		default:
+			return Value{}, fmt.Errorf("operator %q is unsupported for unknown comparison", operator)
 		}
 	default:
 		if strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" {
