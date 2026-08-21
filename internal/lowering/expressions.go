@@ -392,7 +392,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", fmt.Errorf("array indexing requires number index, got %s", indexType)
 		}
 		var elemType ir.Type
-		if arrayType == ir.TypeNumberArray {
+		if arrayType == ir.TypeNumberArray || arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
 			elemType = ir.TypeNumber
 		} else if arrayType == ir.TypeStringArray {
 			elemType = ir.TypeString
@@ -427,6 +427,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				typ = ir.TypeNumberArray
 			case "string[]":
 				typ = ir.TypeStringArray
+			case "Uint8Array":
+				typ = ir.TypeUint8Array
+			case "Int32Array":
+				typ = ir.TypeInt32Array
+			case "Float64Array":
+				typ = ir.TypeFloat64Array
+			case "ArrayBuffer":
+				typ = ir.TypeArrayBuffer
 			default:
 				if expression.InferredType != "" {
 					if _, isShape := shapes[expression.InferredType]; isShape {
@@ -473,8 +481,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			})
 			return result, ir.TypeClosure, nil
 		}
-		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil {
-			return lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
+		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
+			inProgressVars[expression.Text] = true
+			res, typ, err := lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
+			delete(inProgressVars, expression.Text)
+			return res, typ, err
+		}
+		if inProgressVars[expression.Text] {
+			return expression.Text, ir.TypeNumber, nil
 		}
 		global, ok := builtinGlobal(expression.Text)
 		if !ok {

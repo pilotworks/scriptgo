@@ -98,6 +98,164 @@ func lowerCallExpression(
 			if receiverType == ir.TypeSymbol && methodName == "valueOf" {
 				return receiver, ir.TypeSymbol, nil
 			}
+			if receiverType == ir.TypeArrayBuffer && methodName == "slice" {
+				beginVal := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpConst, Type: ir.TypeNumber, Result: beginVal, Value: "0", Span: toIRSpan(path, expression.Span),
+				})
+				endVal := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeNumber,
+					Result: endVal,
+					Callee: "__arraybuffer.byteLength",
+					Args:   []string{receiver},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				if len(expression.Arguments) > 0 {
+					b, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					beginVal = b
+				}
+				if len(expression.Arguments) > 1 {
+					e, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					endVal = e
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeArrayBuffer,
+					Result: result,
+					Callee: "__arraybuffer.slice",
+					Args:   []string{receiver, beginVal, endVal},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeArrayBuffer, nil
+			}
+			if receiverType == ir.TypeUint8Array || receiverType == ir.TypeInt32Array || receiverType == ir.TypeFloat64Array {
+				if methodName == "subarray" || methodName == "slice" {
+					beginVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeNumber, Result: beginVal, Value: "0", Span: toIRSpan(path, expression.Span),
+					})
+					endVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeNumber,
+						Result: endVal,
+						Callee: "__typedarray.length",
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 0 {
+						b, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						beginVal = b
+					}
+					if len(expression.Arguments) > 1 {
+						e, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						endVal = e
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					callee := "__typedarray.subarray"
+					if methodName == "slice" {
+						callee = "__typedarray.slice"
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   receiverType,
+						Result: result,
+						Callee: callee,
+						Args:   []string{receiver, beginVal, endVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, receiverType, nil
+				}
+				if methodName == "set" && len(expression.Arguments) > 0 {
+					srcVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					offsetVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeNumber, Result: offsetVal, Value: "0", Span: toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 1 {
+						off, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						offsetVal = off
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__typedarray.set",
+						Args:   []string{receiver, srcVal, offsetVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+				}
+				if methodName == "fill" && len(expression.Arguments) > 0 {
+					valVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					startVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeNumber, Result: startVal, Value: "0", Span: toIRSpan(path, expression.Span),
+					})
+					endVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeNumber,
+						Result: endVal,
+						Callee: "__typedarray.length",
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					if len(expression.Arguments) > 1 {
+						s, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						startVal = s
+					}
+					if len(expression.Arguments) > 2 {
+						e, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						endVal = e
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   receiverType,
+						Result: result,
+						Callee: "__typedarray.fill",
+						Args:   []string{receiver, valVal, startVal, endVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, receiverType, nil
+				}
+			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
 				if methodName == "match" || methodName == "search" {
 					if len(expression.Arguments) > 0 {

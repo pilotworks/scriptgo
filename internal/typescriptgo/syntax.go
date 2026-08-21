@@ -53,7 +53,7 @@ func normalizeInferredType(typeStr string) string {
 	switch typeStr {
 	case "boolean", "true", "false":
 		return "bool"
-	case "number", "string", "void", "any", "unknown", "never", "undefined", "null", "bigint", "symbol":
+	case "number", "string", "void", "any", "unknown", "never", "undefined", "null", "bigint", "symbol", "Uint8Array", "Int32Array", "Float64Array", "ArrayBuffer":
 		return typeStr
 	default:
 		if strings.HasPrefix(typeStr, "\"") && strings.HasSuffix(typeStr, "\"") {

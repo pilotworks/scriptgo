@@ -249,6 +249,13 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_event_loop_run()\n")
+	out.WriteString("declare i32 @scriptgo_timer_set_timeout(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_timer_clear_timeout(double)\n")
+	out.WriteString("declare i32 @scriptgo_timer_set_interval(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_timer_clear_interval(double)\n")
+	out.WriteString("declare i32 @scriptgo_timer_set_immediate(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_timer_clear_immediate(double)\n")
+	out.WriteString("declare i32 @scriptgo_timers_drain()\n")
 	out.WriteString("declare ptr @malloc(i64)\n\n")
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
@@ -349,7 +356,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 	if !emitter.terminated {
 		if function.Name == "main" {
-			out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
+			out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 			out.WriteString("  ret i32 0\n")
 		} else if function.ReturnType == ir.TypeVoid {
 			out.WriteString("  ret void\n")

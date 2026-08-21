@@ -14,6 +14,85 @@ type Closure struct {
 	Env      map[string]Value
 }
 
+type ArrayBuffer struct {
+	Data []byte
+}
+
+type TypedArray struct {
+	Kind       ir.Type
+	Buffer     *ArrayBuffer
+	ByteOffset int
+	Length     int
+}
+
+func (ta *TypedArray) ElementSize() int {
+	switch ta.Kind {
+	case ir.TypeInt32Array:
+		return 4
+	case ir.TypeFloat64Array:
+		return 8
+	default:
+		return 1
+	}
+}
+
+func (ta *TypedArray) ByteLength() int {
+	return ta.Length * ta.ElementSize()
+}
+
+func (ta *TypedArray) Get(index int) float64 {
+	if index < 0 || index >= ta.Length || ta.Buffer == nil {
+		return 0
+	}
+	offset := ta.ByteOffset + index*ta.ElementSize()
+	if offset+ta.ElementSize() > len(ta.Buffer.Data) {
+		return 0
+	}
+	switch ta.Kind {
+	case ir.TypeUint8Array:
+		return float64(ta.Buffer.Data[offset])
+	case ir.TypeInt32Array:
+		u := uint32(ta.Buffer.Data[offset]) | uint32(ta.Buffer.Data[offset+1])<<8 | uint32(ta.Buffer.Data[offset+2])<<16 | uint32(ta.Buffer.Data[offset+3])<<24
+		return float64(int32(u))
+	case ir.TypeFloat64Array:
+		u := uint64(ta.Buffer.Data[offset]) | uint64(ta.Buffer.Data[offset+1])<<8 | uint64(ta.Buffer.Data[offset+2])<<16 | uint64(ta.Buffer.Data[offset+3])<<24 |
+			uint64(ta.Buffer.Data[offset+4])<<32 | uint64(ta.Buffer.Data[offset+5])<<40 | uint64(ta.Buffer.Data[offset+6])<<48 | uint64(ta.Buffer.Data[offset+7])<<56
+		return math.Float64frombits(u)
+	default:
+		return float64(ta.Buffer.Data[offset])
+	}
+}
+
+func (ta *TypedArray) Set(index int, val float64) {
+	if index < 0 || index >= ta.Length || ta.Buffer == nil {
+		return
+	}
+	offset := ta.ByteOffset + index*ta.ElementSize()
+	if offset+ta.ElementSize() > len(ta.Buffer.Data) {
+		return
+	}
+	switch ta.Kind {
+	case ir.TypeUint8Array:
+		ta.Buffer.Data[offset] = byte(uint32(val) & 0xff)
+	case ir.TypeInt32Array:
+		i32 := uint32(int32(val))
+		ta.Buffer.Data[offset] = byte(i32)
+		ta.Buffer.Data[offset+1] = byte(i32 >> 8)
+		ta.Buffer.Data[offset+2] = byte(i32 >> 16)
+		ta.Buffer.Data[offset+3] = byte(i32 >> 24)
+	case ir.TypeFloat64Array:
+		bits := math.Float64bits(val)
+		ta.Buffer.Data[offset] = byte(bits)
+		ta.Buffer.Data[offset+1] = byte(bits >> 8)
+		ta.Buffer.Data[offset+2] = byte(bits >> 16)
+		ta.Buffer.Data[offset+3] = byte(bits >> 24)
+		ta.Buffer.Data[offset+4] = byte(bits >> 32)
+		ta.Buffer.Data[offset+5] = byte(bits >> 40)
+		ta.Buffer.Data[offset+6] = byte(bits >> 48)
+		ta.Buffer.Data[offset+7] = byte(bits >> 56)
+	}
+}
+
 type Value struct {
 	Type       ir.Type
 	Number     float64
@@ -27,6 +106,8 @@ type Value struct {
 	Object     map[string]Value
 	Closure    *Closure
 	Boxed      *Value
+	Buffer     *ArrayBuffer
+	TypedArray *TypedArray
 }
 
 func (v Value) GetArray() []Value {
@@ -297,6 +378,17 @@ func compare(operator string, left, right Value) (Value, error) {
 }
 
 func format(value Value) string {
+	if value.TypedArray != nil {
+		ta := value.TypedArray
+		parts := make([]string, ta.Length)
+		for i := 0; i < ta.Length; i++ {
+			parts[i] = strconv.FormatFloat(ta.Get(i), 'f', -1, 64)
+		}
+		return fmt.Sprintf("%s(%d) [ %s ]", string(ta.Kind), ta.Length, strings.Join(parts, ", "))
+	}
+	if value.Buffer != nil {
+		return fmt.Sprintf("ArrayBuffer { byteLength: %d }", len(value.Buffer.Data))
+	}
 	if len(value.Array) > 0 || strings.HasSuffix(string(value.Type), "[]") || value.Type == ir.TypeNumberArray || value.Type == ir.TypeStringArray {
 		parts := make([]string, len(value.Array))
 		for i, item := range value.Array {

@@ -1168,6 +1168,10 @@ type microtaskItem struct {
 
 var microtasks []microtaskItem
 
+func resetMicrotasks() {
+	microtasks = nil
+}
+
 func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value, functions map[string]ir.Function, output *bytes.Buffer) (Value, error) {
 	switch name {
 	case "__async.queueMicrotask":

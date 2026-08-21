@@ -502,17 +502,80 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"Date.now", "__date.now"}, CategoryECMAScript, "__date.now", nil, ir.TypeNumber, 0, 0)
 	register([]string{"Date.parse", "__date.parse"}, CategoryECMAScript, "__date.parse", []ir.Type{ir.TypeString}, ir.TypeNumber, 1, 1)
 
-	// Web-compatible globals (Category 2: WebCompat)
+	// TypedArray & ArrayBuffer globals (Category 1: ECMAScript)
+	m["ArrayBuffer.isView"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "ArrayBuffer.isView",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			argVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBool,
+				Result: result,
+				Callee: "__arraybuffer.isView",
+				Args:   []string{argVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		},
+	}
+	for _, name := range []string{"Uint8Array", "Int32Array", "Float64Array"} {
+		targetKind := ir.Type(name)
+		className := name
+		m[name+".from"] = BuiltinIntrinsic{
+			Category: CategoryECMAScript,
+			Name:     name + ".from",
+			MinArgs:  1,
+			MaxArgs:  1,
+			Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+				argVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				if err != nil {
+					return "", "", err
+				}
+				result := call.Result
+				if result == "" {
+					result = nextTemp(call.Counter)
+				}
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   targetKind,
+					Result: result,
+					Callee: "__typedarray.new_array",
+					Value:  className,
+					Args:   []string{argVal},
+					Span:   toIRSpan(call.Path, call.Expression.Span),
+				})
+				return result, targetKind, nil
+			},
+		}
+	}
+
+	// Web-compatible & Timer globals (Category 2: WebCompat & NodeGlobal)
 	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"performance.now"}, CategoryWebCompat, "__performance.now", nil, ir.TypeNumber, 0, 0)
 	register([]string{"queueMicrotask"}, CategoryWebCompat, "__async.queueMicrotask", []ir.Type{ir.TypeClosure}, ir.TypeVoid, 1, 1)
 	register([]string{"Promise.resolve"}, CategoryECMAScript, "__async.promise_resolve", []ir.Type{ir.TypeNumber}, ir.Type("object:Promise"), 1, 1)
+	register([]string{"setTimeout", "__scriptgo.setTimeout", "timers.setTimeout"}, CategoryWebCompat, "__timers.setTimeout", []ir.Type{ir.TypeClosure, ir.TypeNumber}, ir.TypeNumber, 1, 2)
+	register([]string{"clearTimeout", "__scriptgo.clearTimeout", "timers.clearTimeout"}, CategoryWebCompat, "__timers.clearTimeout", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"setInterval", "__scriptgo.setInterval", "timers.setInterval"}, CategoryWebCompat, "__timers.setInterval", []ir.Type{ir.TypeClosure, ir.TypeNumber}, ir.TypeNumber, 1, 2)
+	register([]string{"clearInterval", "__scriptgo.clearInterval", "timers.clearInterval"}, CategoryWebCompat, "__timers.clearInterval", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"setImmediate", "__scriptgo.setImmediate", "timers.setImmediate"}, CategoryWebCompat, "__timers.setImmediate", []ir.Type{ir.TypeClosure}, ir.TypeNumber, 1, 1)
+	register([]string{"clearImmediate", "__scriptgo.clearImmediate", "timers.clearImmediate"}, CategoryWebCompat, "__timers.clearImmediate", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 
 	// Node-specific globals (Category 3: NodeGlobal)
 	for _, logMethod := range []string{"log", "info", "debug", "warn", "error", "dir", "dirxml"} {
 		name := "console." + logMethod
-		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown, ir.TypeNumberArray, ir.TypeStringArray, ir.TypeObject}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
+		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown, ir.TypeNumberArray, ir.TypeStringArray, ir.TypeObject, ir.TypeUint8Array, ir.TypeInt32Array, ir.TypeFloat64Array, ir.TypeArrayBuffer}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
 	}
 	m["console.assert"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.assert", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleAssert}
 	m["console.group"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.group", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleGroup}

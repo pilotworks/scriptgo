@@ -69,6 +69,44 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 		if err != nil {
 			return "", "", err
 		}
+		if argType == ir.TypeUint8Array || argType == ir.TypeInt32Array || argType == ir.TypeFloat64Array {
+			strTemp := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: strTemp,
+				Callee: "__typedarray.toString",
+				Args:   []string{argVal},
+				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpPrint,
+				Type:   ir.TypeVoid,
+				Callee: intrinsic.Name,
+				Args:   []string{strTemp},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return "", ir.TypeVoid, nil
+		}
+		if argType == ir.TypeArrayBuffer {
+			strTemp := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: strTemp,
+				Callee: "__arraybuffer.toString",
+				Args:   []string{argVal},
+				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpPrint,
+				Type:   ir.TypeVoid,
+				Callee: intrinsic.Name,
+				Args:   []string{strTemp},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return "", ir.TypeVoid, nil
+		}
 		if argType == ir.TypeNumberArray || argType == ir.TypeStringArray || strings.HasSuffix(string(argType), "[]") {
 			strTemp := nextTemp(call.Counter)
 			callee := "__json.stringify_number_array"

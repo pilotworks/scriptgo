@@ -147,7 +147,7 @@ func (f Function) Verify() error {
 					return fmt.Errorf("index instruction requires array and index operands")
 				}
 				arrType, ok := known[instruction.Args[0]]
-				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString) {
+				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString && arrType != TypeUint8Array && arrType != TypeInt32Array && arrType != TypeFloat64Array) {
 					return fmt.Errorf("index instruction requires an array or string operand, got %v", arrType)
 				}
 				if known[instruction.Args[1]] != TypeNumber {
@@ -156,6 +156,10 @@ func (f Function) Verify() error {
 				if arrType == TypeString {
 					if instruction.Type != TypeString {
 						return fmt.Errorf("index instruction on string must produce string")
+					}
+				} else if arrType == TypeUint8Array || arrType == TypeInt32Array || arrType == TypeFloat64Array {
+					if instruction.Type != TypeNumber {
+						return fmt.Errorf("index instruction on typed array must produce number")
 					}
 				} else if instruction.Type != elementType(arrType) {
 					return fmt.Errorf("index instruction has incompatible result type %s", instruction.Type)
@@ -187,13 +191,17 @@ func (f Function) Verify() error {
 				return fmt.Errorf("index.set requires array, index, and value operands")
 			}
 			arrType, ok := known[instruction.Args[0]]
-			if !ok || !strings.HasSuffix(string(arrType), "[]") {
+			if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeUint8Array && arrType != TypeInt32Array && arrType != TypeFloat64Array) {
 				return fmt.Errorf("index.set requires array operand")
 			}
 			if known[instruction.Args[1]] != TypeNumber {
 				return fmt.Errorf("index.set requires number index")
 			}
-			if known[instruction.Args[2]] != elementType(arrType) {
+			if arrType == TypeUint8Array || arrType == TypeInt32Array || arrType == TypeFloat64Array {
+				if known[instruction.Args[2]] != TypeNumber {
+					return fmt.Errorf("index.set value type mismatch")
+				}
+			} else if known[instruction.Args[2]] != elementType(arrType) {
 				return fmt.Errorf("index.set value type mismatch")
 			}
 		case OpAssign:

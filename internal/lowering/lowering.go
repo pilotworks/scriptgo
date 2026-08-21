@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	lowerMu      sync.Mutex
-	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+	lowerMu        sync.Mutex
+	topLevelVars   = map[string]typescriptgo.SyntaxStatement{}
+	inProgressVars = map[string]bool{}
 )
 
 // Options specifies optional flags for the lowering phase.
@@ -39,6 +40,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	extraFunctions = nil
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+	inProgressVars = map[string]bool{}
 	ClearDiagnostics()
 	var err error
 	program, err = SpecializeGenerics(program)

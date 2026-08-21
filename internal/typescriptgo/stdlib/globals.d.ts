@@ -181,3 +181,102 @@ interface DateConstructor {
 
 declare var Date: DateConstructor;
 
+interface ArrayBuffer {
+    readonly byteLength: number;
+    slice(begin?: number, end?: number): ArrayBuffer;
+}
+
+interface ArrayBufferConstructor {
+    new(byteLength: number): ArrayBuffer;
+    readonly prototype: ArrayBuffer;
+    isView(arg: any): boolean;
+}
+
+declare var ArrayBuffer: ArrayBufferConstructor;
+
+interface ArrayLike<T> {
+    readonly length: number;
+    readonly [n: number]: T;
+}
+
+interface Uint8Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Uint8Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Uint8Array;
+    slice(begin?: number, end?: number): Uint8Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Uint8ArrayConstructor {
+    new(length: number): Uint8Array;
+    new(array: ArrayLike<number> | Array<number>): Uint8Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Uint8Array;
+    readonly prototype: Uint8Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Uint8Array;
+    of(...items: number[]): Uint8Array;
+}
+
+declare var Uint8Array: Uint8ArrayConstructor;
+
+interface Int32Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Int32Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Int32Array;
+    slice(begin?: number, end?: number): Int32Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Int32ArrayConstructor {
+    new(length: number): Int32Array;
+    new(array: ArrayLike<number> | Array<number>): Int32Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Int32Array;
+    readonly prototype: Int32Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Int32Array;
+    of(...items: number[]): Int32Array;
+}
+
+declare var Int32Array: Int32ArrayConstructor;
+
+interface Float64Array {
+    readonly length: number;
+    readonly byteLength: number;
+    readonly byteOffset: number;
+    readonly buffer: ArrayBuffer;
+    readonly BYTES_PER_ELEMENT: number;
+    [index: number]: number;
+    set(array: ArrayLike<number> | Array<number> | Float64Array, offset?: number): void;
+    subarray(begin?: number, end?: number): Float64Array;
+    slice(begin?: number, end?: number): Float64Array;
+    fill(value: number, start?: number, end?: number): this;
+}
+
+interface Float64ArrayConstructor {
+    new(length: number): Float64Array;
+    new(array: ArrayLike<number> | Array<number>): Float64Array;
+    new(buffer: ArrayBuffer, byteOffset?: number, length?: number): Float64Array;
+    readonly prototype: Float64Array;
+    readonly BYTES_PER_ELEMENT: number;
+    from(arrayLike: ArrayLike<number> | Array<number>): Float64Array;
+    of(...items: number[]): Float64Array;
+}
+
+declare var Float64Array: Float64ArrayConstructor;
+
+declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearTimeout(id: number | undefined): void;
+declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearInterval(id: number | undefined): void;
+declare function setImmediate(callback: (...args: any[]) => void, ...args: any[]): number;
+declare function clearImmediate(id: number | undefined): void;

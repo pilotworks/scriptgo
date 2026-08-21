@@ -107,6 +107,99 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	if err != nil {
 		return "", "", err
 	}
+	if objectType == ir.TypeArrayBuffer && expression.Text == "byteLength" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeNumber,
+			Result: result,
+			Callee: "__arraybuffer.byteLength",
+			Args:   []string{object},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeNumber, nil
+	}
+
+	if objectType == ir.TypeUint8Array || objectType == ir.TypeInt32Array || objectType == ir.TypeFloat64Array {
+		if expression.Text == "length" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__typedarray.length",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Text == "byteLength" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__typedarray.byteLength",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Text == "byteOffset" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__typedarray.byteOffset",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if expression.Text == "buffer" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeArrayBuffer,
+				Result: result,
+				Callee: "__typedarray.buffer",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeArrayBuffer, nil
+		}
+		if expression.Text == "BYTES_PER_ELEMENT" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			val := "1"
+			if objectType == ir.TypeInt32Array {
+				val = "4"
+			} else if objectType == ir.TypeFloat64Array {
+				val = "8"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Value:  val,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+	}
+
 	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]")) && expression.Text == "length" {
 		if result == "" {
 			result = nextTemp(counter)
@@ -308,6 +401,121 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
 		ensureErrorShape(shapes, className)
 	}
+	if className == "ArrayBuffer" {
+		byteLenVal := ""
+		if len(expression.Arguments) > 0 {
+			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteLenVal = v
+		} else {
+			zeroConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			byteLenVal = zeroConst
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeArrayBuffer,
+			Result: result,
+			Callee: "__arraybuffer.new",
+			Args:   []string{byteLenVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeArrayBuffer, nil
+	}
+
+	if className == "Uint8Array" || className == "Int32Array" || className == "Float64Array" {
+		targetType := ir.Type(className)
+		if len(expression.Arguments) == 0 {
+			zeroConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_length",
+				Value:  className,
+				Args:   []string{zeroConst},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		arg0Val, arg0Type, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if arg0Type == ir.TypeNumber {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_length",
+				Value:  className,
+				Args:   []string{arg0Val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		if arg0Type == ir.TypeArrayBuffer {
+			byteOffsetVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: byteOffsetVal, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			lengthVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: lengthVal, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			if len(expression.Arguments) > 1 {
+				bo, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				byteOffsetVal = bo
+			}
+			if len(expression.Arguments) > 2 {
+				l, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				lengthVal = l
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_buffer",
+				Value:  className,
+				Args:   []string{arg0Val, byteOffsetVal, lengthVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   targetType,
+			Result: result,
+			Callee: "__typedarray.new_array",
+			Value:  className,
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, targetType, nil
+	}
+
 	shape, ok := shapes[className]
 	if !ok {
 		return "", "", fmt.Errorf("unknown class %q", className)

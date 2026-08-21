@@ -839,6 +839,24 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") {
+		if err := e.emitTypedArrayIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__timers.") {
+		if err := e.emitTimerIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	callee, ok := e.functions[instruction.Callee]
 	if !ok {
 		return fmt.Errorf("unknown function %q", instruction.Callee)
@@ -865,7 +883,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 
 func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instruction) error {
 	if e.function.Name == "main" {
-		out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
+		out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 		out.WriteString("  ret i32 0\n")
 	} else if len(instruction.Args) == 0 {
 		out.WriteString("  ret void\n")

@@ -41,6 +41,18 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if len(instruction.Args) != 2 {
 		return fmt.Errorf("index instruction requires array and index operands")
 	}
+	arrayType, _ := e.types[instruction.Args[0]]
+	if arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
+		e.types[instruction.Result] = ir.TypeNumber
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	}
 	e.types[instruction.Result] = instruction.Type
 	slot := instruction.Result + ".slot"
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -60,6 +72,13 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	arrayType, ok := e.types[instruction.Args[0]]
 	if !ok {
 		return fmt.Errorf("unknown index.set array %q", instruction.Args[0])
+	}
+	if arrayType == ir.TypeUint8Array || arrayType == ir.TypeInt32Array || arrayType == ir.TypeFloat64Array {
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_set(ptr %%%s, double %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
 	}
 	elemLLVMType := llvmType(arrayElementType(arrayType))
 	valSlot := fmt.Sprintf("%s.set.slot.%d", instruction.Args[0], e.runtimeStatus)

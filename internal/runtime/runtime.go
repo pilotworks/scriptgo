@@ -55,6 +55,12 @@ var symbolSource string
 //go:embed native/date/runtime.c
 var dateSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource)
+//go:embed native/typedarray/runtime.c
+var typedarraySource string
+
+//go:embed native/timers/runtime.c
+var timersSource string
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + timersSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource)
 
 

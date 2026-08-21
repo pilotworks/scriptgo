@@ -96,6 +96,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
 		}
+		inProgressVars[statement.Name] = true
+		defer delete(inProgressVars, statement.Name)
 		declaredType := toIRType(statement.Type)
 		if statement.Type == "" && statement.InferredType != "" {
 			declaredType = toIRType(statement.InferredType)
@@ -383,7 +385,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return err
 		}
 		var expectedElemType ir.Type
-		if arrType == ir.TypeNumberArray {
+		if arrType == ir.TypeNumberArray || arrType == ir.TypeUint8Array || arrType == ir.TypeInt32Array || arrType == ir.TypeFloat64Array {
 			expectedElemType = ir.TypeNumber
 		} else if arrType == ir.TypeStringArray {
 			expectedElemType = ir.TypeString
@@ -613,6 +615,14 @@ func toIRType(value string) ir.Type {
 		return ir.TypeClosure
 	case "unknown":
 		return ir.TypeUnknown
+	case "Uint8Array":
+		return ir.TypeUint8Array
+	case "Int32Array":
+		return ir.TypeInt32Array
+	case "Float64Array":
+		return ir.TypeFloat64Array
+	case "ArrayBuffer":
+		return ir.TypeArrayBuffer
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:

@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 191 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 196 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **191** | **191 / 191 Passed** | **100.0%** |
-| - *Interpreter Parity* | 179 | 179 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 169 | 169 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **196** | **196 / 196 Passed** | **100.0%** |
+| - *Interpreter Parity* | 184 | 184 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 174 | 174 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~2m 51s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~2m 45s | No regressions detected | - |
 
 ---
 
@@ -45,6 +45,7 @@ All 191 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `Union types` (`T \| U`) | ✅ Full | Supports literal unions, homogeneous unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
 | `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
+| `TypedArrays & ArrayBuffer` | ✅ Full | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, buffer slicing, subarray views, `.set()`, `.fill()`, `ArrayBuffer.isView()`. |
 
 ---
 
@@ -143,19 +144,21 @@ All 191 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`node:crypto` / `crypto`**| `randomUUID()`, `randomBytes()`, `createHash('sha256' \| 'md5')` | ✅ Matches Node crypto standard |
 | **`performance`** | `performance.now()` | ✅ Microsecond precision |
 | **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
+| **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer representation |
+| **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
 
 ---
 
 ## 4. Corpus Test Results by Category
 
-Below is the category-by-category breakdown across all 18 test suites (`go run ./cmd/parity`):
+Below is the category-by-category breakdown across all 20 test suites (`go run ./cmd/parity`):
 
 ```text
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 191
-  - Passed Cases       : 191 (100.0%)
+  - Total Corpus Cases : 199
+  - Passed Cases       : 199 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -179,6 +182,8 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 | **`stdlib`** | 35 | **100%** | `console` (full method suite, format specifiers, `node:console`), `Math` extended API, string advanced methods (`padStart`, `padEnd`, `repeat`, `charCodeAt`), number static methods (`Number.isInteger`, `Number.MAX_SAFE_INTEGER`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `error-classes`, `json` (nested structures), `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 15 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring. |
+| **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |
+| **`typedarrays`** | 5 | **100%** | `Uint8Array` (truncation, byte operations), `Int32Array`, `Float64Array`, `ArrayBuffer` views, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`. |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
 
 ---

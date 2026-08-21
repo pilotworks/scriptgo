@@ -5,7 +5,6 @@ package interpreter
 import (
 	"bytes"
 	"fmt"
-	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -32,6 +31,8 @@ func Execute(module ir.Module) (Result, error) {
 	if !ok {
 		return Result{}, fmt.Errorf("module has no main function")
 	}
+	resetMicrotasks()
+	resetTimers()
 	var output bytes.Buffer
 	value, flow, err := executeFunction(functions, main, nil, &output)
 	if err != nil {
@@ -40,7 +41,7 @@ func Execute(module ir.Module) (Result, error) {
 	if flow.kind == kindThrow {
 		return Result{}, fmt.Errorf("uncaught exception: %s", format(value))
 	}
-	if err := drainMicrotasks(functions, &output); err != nil {
+	if err := drainTimers(functions, &output); err != nil {
 		return Result{}, err
 	}
 	return Result{Output: output.String(), Return: value}, nil
@@ -93,18 +94,16 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 	if closure == nil {
 		return Value{}, flowNormal, fmt.Errorf("cannot execute nil closure")
 	}
-	env := make(map[string]Value)
-	maps.Copy(env, closure.Env)
 	userParams := closure.Function.Parameters
 	if len(userParams) > 0 && userParams[0].Name == "__env_ctx" {
 		userParams = userParams[1:]
 	}
 	for index, parameter := range userParams {
 		if index < len(arguments) {
-			env[parameter.Name] = arguments[index]
+			closure.Env[parameter.Name] = arguments[index]
 		}
 	}
-	val, _, flow, err := executeBlock(functions, closure.Function.Body, env, output)
+	val, _, flow, err := executeBlock(functions, closure.Function.Body, closure.Env, output)
 	return val, flow, err
 }
 
@@ -236,6 +235,10 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
 			}
 			position := int(index.Number)
+			if array.TypedArray != nil {
+				env[instruction.Result] = Value{Type: ir.TypeNumber, Number: array.TypedArray.Get(position)}
+				continue
+			}
 			arr := array.GetArray()
 			if position >= len(arr) {
 				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(arr))
@@ -258,6 +261,10 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("array index must be a non-negative integer, got %v", index.Number)
 			}
 			position := int(index.Number)
+			if array.TypedArray != nil {
+				array.TypedArray.Set(position, val.Number)
+				continue
+			}
 			arr := array.GetArray()
 			if position >= len(arr) {
 				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(arr))
@@ -424,8 +431,28 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") {
+				value, err := executeTypedArrayIntrinsic(instruction, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__async.") {
 				value, err := executeAsyncIntrinsic(instruction.Callee, instruction.Args, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__timers.") {
+				value, err := executeTimerIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
