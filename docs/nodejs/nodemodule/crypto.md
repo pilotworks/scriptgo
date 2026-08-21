@@ -21,8 +21,16 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `cipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.cipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
 | `crypto.createHash(algorithm[, options])` | `(...) => any` | `__crypto.crypto.createHash` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/createHash/` |
 | `crypto.randomUUID([options])` | `(...) => any` | `__crypto.crypto.randomUUID` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/randomUUID/` |
+| `decipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.decipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
+| `hash.digest([encoding])` | `(...) => any` | `__crypto.hash.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/digest/` |
+| `hash.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hash.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
+| `hmac.digest([encoding])` | `(...) => any` | `__crypto.hmac.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/digest/` |
+| `hmac.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hmac.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
+| `sign.update(data[, inputEncoding])` | `(...) => any` | `__crypto.sign.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
+| `verify.update(data[, inputEncoding])` | `(...) => any` | `__crypto.verify.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
 | `Certificate` | `(...) => any` | `__crypto.Certificate` | 📋 Planned | - |
 | `Cipher` | `(...) => any` | `__crypto.Cipher` | 📋 Planned | - |
 | `Decipher` | `(...) => any` | `__crypto.Decipher` | 📋 Planned | - |
@@ -42,7 +50,6 @@ Provide a concise technical summary:
 | `cipher.getAuthTag()` | `(...) => any` | `__crypto.cipher.getAuthTag` | 📋 Planned | - |
 | `cipher.setAAD(buffer[, options])` | `(...) => any` | `__crypto.cipher.setAAD` | 📋 Planned | - |
 | `cipher.setAutoPadding([autoPadding])` | `(...) => any` | `__crypto.cipher.setAutoPadding` | 📋 Planned | - |
-| `cipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.cipher.update` | 📋 Planned | - |
 | `constants` | `any` | `__crypto.constants` | 📋 Planned | - |
 | `crypto.checkPrime(candidate[, options], callback)` | `(...) => any` | `__crypto.crypto.checkPrime` | 📋 Planned | - |
 | `crypto.checkPrimeSync(candidate[, options])` | `(...) => any` | `__crypto.crypto.checkPrimeSync` | 📋 Planned | - |
@@ -99,7 +106,6 @@ Provide a concise technical summary:
 | `decipher.setAAD(buffer[, options])` | `(...) => any` | `__crypto.decipher.setAAD` | 📋 Planned | - |
 | `decipher.setAuthTag(buffer[, encoding])` | `(...) => any` | `__crypto.decipher.setAuthTag` | 📋 Planned | - |
 | `decipher.setAutoPadding([autoPadding])` | `(...) => any` | `__crypto.decipher.setAutoPadding` | 📋 Planned | - |
-| `decipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.decipher.update` | 📋 Planned | - |
 | `diffieHellman.computeSecret(otherPublicKey[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.diffieHellman.computeSecret` | 📋 Planned | - |
 | `diffieHellman.generateKeys([encoding])` | `(...) => any` | `__crypto.diffieHellman.generateKeys` | 📋 Planned | - |
 | `diffieHellman.getGenerator([encoding])` | `(...) => any` | `__crypto.diffieHellman.getGenerator` | 📋 Planned | - |
@@ -119,10 +125,6 @@ Provide a concise technical summary:
 | `fingerprint256` | `any` | `__crypto.fingerprint256` | 📋 Planned | - |
 | `fingerprint512` | `any` | `__crypto.fingerprint512` | 📋 Planned | - |
 | `hash.copy([options])` | `(...) => any` | `__crypto.hash.copy` | 📋 Planned | - |
-| `hash.digest([encoding])` | `(...) => any` | `__crypto.hash.digest` | 📋 Planned | - |
-| `hash.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hash.update` | 📋 Planned | - |
-| `hmac.digest([encoding])` | `(...) => any` | `__crypto.hmac.digest` | 📋 Planned | - |
-| `hmac.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hmac.update` | 📋 Planned | - |
 | `infoAccess` | `any` | `__crypto.infoAccess` | 📋 Planned | - |
 | `issuer` | `any` | `__crypto.issuer` | 📋 Planned | - |
 | `issuerCertificate` | `any` | `__crypto.issuerCertificate` | 📋 Planned | - |
@@ -134,7 +136,6 @@ Provide a concise technical summary:
 | `raw` | `any` | `__crypto.raw` | 📋 Planned | - |
 | `serialNumber` | `any` | `__crypto.serialNumber` | 📋 Planned | - |
 | `sign.sign(privateKey[, outputEncoding])` | `(...) => any` | `__crypto.sign.sign` | 📋 Planned | - |
-| `sign.update(data[, inputEncoding])` | `(...) => any` | `__crypto.sign.update` | 📋 Planned | - |
 | `subject` | `any` | `__crypto.subject` | 📋 Planned | - |
 | `subjectAltName` | `any` | `__crypto.subjectAltName` | 📋 Planned | - |
 | `subtle` | `any` | `__crypto.subtle` | 📋 Planned | - |
@@ -144,7 +145,6 @@ Provide a concise technical summary:
 | `validFromDate` | `any` | `__crypto.validFromDate` | 📋 Planned | - |
 | `validTo` | `any` | `__crypto.validTo` | 📋 Planned | - |
 | `validToDate` | `any` | `__crypto.validToDate` | 📋 Planned | - |
-| `verify.update(data[, inputEncoding])` | `(...) => any` | `__crypto.verify.update` | 📋 Planned | - |
 | `verify.verify(object, signature[, signatureEncoding])` | `(...) => any` | `__crypto.verify.verify` | 📋 Planned | - |
 | `x509.checkEmail(email[, options])` | `(...) => any` | `__crypto.x509.checkEmail` | 📋 Planned | - |
 | `x509.checkHost(name[, options])` | `(...) => any` | `__crypto.x509.checkHost` | 📋 Planned | - |

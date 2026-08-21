@@ -24,10 +24,10 @@ Provide a concise technical summary:
 | `Set.add(value: T): this` | `add(value: T): this` | `__set.add` | ✅ Done | `internal/compiler/testdata/corpus/api/set/add/` |
 | `Set.clear(): void` | `clear(): void` | `__set.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/set/clear/` |
 | `Set.delete(value: T): boolean` | `delete(value: T): boolean` | `__set.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/set/delete/` |
+| `Set.forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void` | `__set.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/set/forEach/` |
 | `Set.has(value: T): boolean` | `has(value: T): boolean` | `__set.has` | ✅ Done | `internal/compiler/testdata/corpus/api/set/has/` |
 | `Set.difference<U>(other: ReadonlySetLike<U>): Set<T>` | `difference<U>(other: ReadonlySetLike<U>): Set<T>` | `__set.difference<U>` | 📋 Planned | - |
 | `Set.entries(): SetIterator<[T, T]>` | `entries(): SetIterator<[T, T]>` | `__set.entries` | 📋 Planned | - |
-| `Set.forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void` | `__set.forEach` | 📋 Planned | - |
 | `Set.intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `__set.intersection<U>` | 📋 Planned | - |
 | `Set.isDisjointFrom(other: ReadonlySetLike<unknown>): boolean` | `isDisjointFrom(other: ReadonlySetLike<unknown>): boolean` | `__set.isDisjointFrom` | 📋 Planned | - |
 | `Set.isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `__set.isSubsetOf` | 📋 Planned | - |

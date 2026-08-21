@@ -23,12 +23,12 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `Map.clear(): void` | `clear(): void` | `__map.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/map/clear/` |
 | `Map.delete(key: K): boolean` | `delete(key: K): boolean` | `__map.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/map/delete/` |
+| `Map.forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `__map.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/map/forEach/` |
 | `Map.get(key: K): V \| undefined` | `get(key: K): V \| undefined` | `__map.get` | ✅ Done | `internal/compiler/testdata/corpus/api/map/get/` |
 | `Map.has(key: K): boolean` | `has(key: K): boolean` | `__map.has` | ✅ Done | `internal/compiler/testdata/corpus/api/map/has/` |
 | `Map.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__map.set` | ✅ Done | `internal/compiler/testdata/corpus/api/map/set/` |
 | `Map.): Map<K, T[]>` | `): Map<K, T[]>` | `__map.)` | 📋 Planned | - |
 | `Map.entries(): MapIterator<[K, V]>` | `entries(): MapIterator<[K, V]>` | `__map.entries` | 📋 Planned | - |
-| `Map.forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `__map.forEach` | 📋 Planned | - |
 | `Map.getOrInsert(key: K, defaultValue: V): V` | `getOrInsert(key: K, defaultValue: V): V` | `__map.getOrInsert` | 📋 Planned | - |
 | `Map.getOrInsertComputed(key: K, callback: (key: K) => V): V` | `getOrInsertComputed(key: K, callback: (key: K) => V): V` | `__map.getOrInsertComputed` | 📋 Planned | - |
 | `Map.items: Iterable<T>,` | `items: Iterable<T>,` | `__map.items` | 📋 Planned | - |

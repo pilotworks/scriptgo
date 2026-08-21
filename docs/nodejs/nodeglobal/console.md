@@ -32,6 +32,7 @@ Provide a concise technical summary:
 | `console.info([data][, ...args])` | `(...) => any` | `__console.console.info` | ✅ Done | `internal/compiler/testdata/corpus/api/console/info/` |
 | `console.log([data][, ...args])` | `(...) => any` | `__console.console.log` | ✅ Done | `internal/compiler/testdata/corpus/api/console/log/` |
 | `console.time([label])` | `(...) => any` | `__console.console.time` | ✅ Done | `internal/compiler/testdata/corpus/api/console/time/` |
+| `console.trace([message][, ...args])` | `(...) => any` | `__console.console.trace` | ✅ Done | `internal/compiler/testdata/corpus/api/console/trace/` |
 | `console.warn([data][, ...args])` | `(...) => any` | `__console.console.warn` | ✅ Done | `internal/compiler/testdata/corpus/api/console/warn/` |
 | `Console` | `(...) => any` | `__console.Console` | 📋 Planned | - |
 | `console.countReset([label])` | `(...) => any` | `__console.console.countReset` | 📋 Planned | - |
@@ -43,7 +44,6 @@ Provide a concise technical summary:
 | `console.timeEnd([label])` | `(...) => any` | `__console.console.timeEnd` | 📋 Planned | - |
 | `console.timeLog([label][, ...data])` | `(...) => any` | `__console.console.timeLog` | 📋 Planned | - |
 | `console.timeStamp([label])` | `(...) => any` | `__console.console.timeStamp` | 📋 Planned | - |
-| `console.trace([message][, ...args])` | `(...) => any` | `__console.console.trace` | 📋 Planned | - |
 
 ---
 

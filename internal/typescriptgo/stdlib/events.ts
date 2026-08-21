@@ -157,7 +157,16 @@ export class EventEmitter {
 
     emit(event: string, arg1?: unknown, arg2?: unknown, arg3?: unknown, arg4?: unknown): boolean {
         const idx = this._findBucketIndex(event);
-        if (idx < 0 || this._events[idx].listeners.length === 0) {
+        if (idx < 0) {
+            if (event === "error") {
+                if (arg1 !== undefined) {
+                    throw arg1;
+                }
+                throw new Error("Unhandled error event");
+            }
+            return false;
+        }
+        if (this._events[idx].listeners.length === 0) {
             if (event === "error") {
                 if (arg1 !== undefined) {
                     throw arg1;

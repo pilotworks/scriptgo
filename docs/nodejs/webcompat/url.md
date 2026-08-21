@@ -22,8 +22,16 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `URL` | `(...) => any` | `__url.URL` | ✅ Done | `internal/compiler/testdata/corpus/api/url/URL/` |
+| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | ✅ Done | `internal/compiler/testdata/corpus/api/url/canParse/` |
 | `URLSearchParams` | `(...) => any` | `__url.URLSearchParams` | ✅ Done | `internal/compiler/testdata/corpus/api/url/URLSearchParams/` |
-| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | 📋 Planned | - |
+| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/url/toJSON/` |
+| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | ✅ Done | `internal/compiler/testdata/corpus/api/url/append/` |
+| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/url/delete/` |
+| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | ✅ Done | `internal/compiler/testdata/corpus/api/url/get/` |
+| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | ✅ Done | `internal/compiler/testdata/corpus/api/url/getAll/` |
+| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | ✅ Done | `internal/compiler/testdata/corpus/api/url/has/` |
+| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | ✅ Done | `internal/compiler/testdata/corpus/api/url/set/` |
+| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | ✅ Done | `internal/compiler/testdata/corpus/api/url/sort/` |
 | `URL.createObjectURL(blob)` | `(...) => any` | `__url.URL.createObjectURL` | 📋 Planned | - |
 | `URL.parse(input[, base])` | `(...) => any` | `__url.URL.parse` | 📋 Planned | - |
 | `URL.revokeObjectURL(id)` | `(...) => any` | `__url.URL.revokeObjectURL` | 📋 Planned | - |
@@ -47,20 +55,12 @@ Provide a concise technical summary:
 | `url.parse(urlString[, parseQueryString[, slashesDenoteHost]])` | `(...) => any` | `__url.url.parse` | 📋 Planned | - |
 | `url.pathToFileURL(path[, options])` | `(...) => any` | `__url.url.pathToFileURL` | 📋 Planned | - |
 | `url.resolve(from, to)` | `(...) => any` | `__url.url.resolve` | 📋 Planned | - |
-| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | 📋 Planned | - |
 | `url.toString()` | `(...) => any` | `__url.url.toString` | 📋 Planned | - |
 | `url.urlToHttpOptions(url)` | `(...) => any` | `__url.url.urlToHttpOptions` | 📋 Planned | - |
-| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | 📋 Planned | - |
-| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | 📋 Planned | - |
 | `urlSearchParams.entries()` | `(...) => any` | `__url.urlSearchParams.entries` | 📋 Planned | - |
 | `urlSearchParams.forEach(fn[, thisArg])` | `(...) => any` | `__url.urlSearchParams.forEach` | 📋 Planned | - |
-| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | 📋 Planned | - |
-| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | 📋 Planned | - |
-| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | 📋 Planned | - |
 | `urlSearchParams.keys()` | `(...) => any` | `__url.urlSearchParams.keys` | 📋 Planned | - |
-| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | 📋 Planned | - |
 | `urlSearchParams.size` | `any` | `__url.urlSearchParams.size` | 📋 Planned | - |
-| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | 📋 Planned | - |
 | `urlSearchParams.toString()` | `(...) => any` | `__url.urlSearchParams.toString` | 📋 Planned | - |
 | `urlSearchParams.values()` | `(...) => any` | `__url.urlSearchParams.values` | 📋 Planned | - |
 | `urlSearchParams[Symbol.iterator]()` | `(...) => any` | `__url.urlSearchParams[Symbol.iterator]` | 📋 Planned | - |

@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `METHODS` | `any` | `__http.METHODS` | 📋 Planned | - |
+| `METHODS` | `any` | `__http.METHODS` | ✅ Done | `internal/compiler/testdata/corpus/api/http/METHODS/` |
 | `STATUS_CODES` | `any` | `__http.STATUS_CODES` | 📋 Planned | - |
 | `WebSocket` | `(...) => any` | `__http.WebSocket` | 📋 Planned | - |
 | `aborted` | `any` | `__http.aborted` | 📋 Planned | - |

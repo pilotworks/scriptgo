@@ -21,6 +21,23 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `buf.compare(target[, targetStart[, targetEnd[, sourceStart[, sourceEnd]]]])` | `(...) => any` | `__buffer.buf.compare` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/compare/` |
+| `buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])` | `(...) => any` | `__buffer.buf.copy` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/copy/` |
+| `buf.equals(otherBuffer)` | `(...) => any` | `__buffer.buf.equals` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/equals/` |
+| `buf.indexOf(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/indexOf/` |
+| `buf.readDoubleLE([offset])` | `(...) => any` | `__buffer.buf.readDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readDoubleLE/` |
+| `buf.readFloatLE([offset])` | `(...) => any` | `__buffer.buf.readFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readFloatLE/` |
+| `buf.readInt32LE([offset])` | `(...) => any` | `__buffer.buf.readInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readInt32LE/` |
+| `buf.readUInt16LE([offset])` | `(...) => any` | `__buffer.buf.readUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt16LE/` |
+| `buf.readUInt32LE([offset])` | `(...) => any` | `__buffer.buf.readUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt32LE/` |
+| `buf.readUInt8([offset])` | `(...) => any` | `__buffer.buf.readUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt8/` |
+| `buf.toString([encoding[, start[, end]]])` | `(...) => any` | `__buffer.buf.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/toString/` |
+| `buf.writeDoubleLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeDoubleLE/` |
+| `buf.writeFloatLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeFloatLE/` |
+| `buf.writeInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeInt32LE/` |
+| `buf.writeUInt16LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt16LE/` |
+| `buf.writeUInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt32LE/` |
+| `buf.writeUInt8(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt8/` |
 | `Blob` | `(...) => any` | `__buffer.Blob` | 📋 Planned | - |
 | `Buffer` | `(...) => any` | `__buffer.Buffer` | 📋 Planned | - |
 | `File` | `(...) => any` | `__buffer.File` | 📋 Planned | - |
@@ -33,13 +50,9 @@ Provide a concise technical summary:
 | `blob.slice([start[, end[, type]]])` | `(...) => any` | `__buffer.blob.slice` | 📋 Planned | - |
 | `blob.stream()` | `(...) => any` | `__buffer.blob.stream` | 📋 Planned | - |
 | `blob.text()` | `(...) => any` | `__buffer.blob.text` | 📋 Planned | - |
-| `buf.compare(target[, targetStart[, targetEnd[, sourceStart[, sourceEnd]]]])` | `(...) => any` | `__buffer.buf.compare` | 📋 Planned | - |
-| `buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])` | `(...) => any` | `__buffer.buf.copy` | 📋 Planned | - |
 | `buf.entries()` | `(...) => any` | `__buffer.buf.entries` | 📋 Planned | - |
-| `buf.equals(otherBuffer)` | `(...) => any` | `__buffer.buf.equals` | 📋 Planned | - |
 | `buf.fill(value[, offset[, end]][, encoding])` | `(...) => any` | `__buffer.buf.fill` | 📋 Planned | - |
 | `buf.includes(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.includes` | 📋 Planned | - |
-| `buf.indexOf(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.indexOf` | 📋 Planned | - |
 | `buf.keys()` | `(...) => any` | `__buffer.buf.keys` | 📋 Planned | - |
 | `buf.lastIndexOf(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.lastIndexOf` | 📋 Planned | - |
 | `buf.parent` | `any` | `__buffer.buf.parent` | 📋 Planned | - |
@@ -48,21 +61,15 @@ Provide a concise technical summary:
 | `buf.readBigUInt64BE([offset])` | `(...) => any` | `__buffer.buf.readBigUInt64BE` | 📋 Planned | - |
 | `buf.readBigUInt64LE([offset])` | `(...) => any` | `__buffer.buf.readBigUInt64LE` | 📋 Planned | - |
 | `buf.readDoubleBE([offset])` | `(...) => any` | `__buffer.buf.readDoubleBE` | 📋 Planned | - |
-| `buf.readDoubleLE([offset])` | `(...) => any` | `__buffer.buf.readDoubleLE` | 📋 Planned | - |
 | `buf.readFloatBE([offset])` | `(...) => any` | `__buffer.buf.readFloatBE` | 📋 Planned | - |
-| `buf.readFloatLE([offset])` | `(...) => any` | `__buffer.buf.readFloatLE` | 📋 Planned | - |
 | `buf.readInt16BE([offset])` | `(...) => any` | `__buffer.buf.readInt16BE` | 📋 Planned | - |
 | `buf.readInt16LE([offset])` | `(...) => any` | `__buffer.buf.readInt16LE` | 📋 Planned | - |
 | `buf.readInt32BE([offset])` | `(...) => any` | `__buffer.buf.readInt32BE` | 📋 Planned | - |
-| `buf.readInt32LE([offset])` | `(...) => any` | `__buffer.buf.readInt32LE` | 📋 Planned | - |
 | `buf.readInt8([offset])` | `(...) => any` | `__buffer.buf.readInt8` | 📋 Planned | - |
 | `buf.readIntBE(offset, byteLength)` | `(...) => any` | `__buffer.buf.readIntBE` | 📋 Planned | - |
 | `buf.readIntLE(offset, byteLength)` | `(...) => any` | `__buffer.buf.readIntLE` | 📋 Planned | - |
 | `buf.readUInt16BE([offset])` | `(...) => any` | `__buffer.buf.readUInt16BE` | 📋 Planned | - |
-| `buf.readUInt16LE([offset])` | `(...) => any` | `__buffer.buf.readUInt16LE` | 📋 Planned | - |
 | `buf.readUInt32BE([offset])` | `(...) => any` | `__buffer.buf.readUInt32BE` | 📋 Planned | - |
-| `buf.readUInt32LE([offset])` | `(...) => any` | `__buffer.buf.readUInt32LE` | 📋 Planned | - |
-| `buf.readUInt8([offset])` | `(...) => any` | `__buffer.buf.readUInt8` | 📋 Planned | - |
 | `buf.readUIntBE(offset, byteLength)` | `(...) => any` | `__buffer.buf.readUIntBE` | 📋 Planned | - |
 | `buf.readUIntLE(offset, byteLength)` | `(...) => any` | `__buffer.buf.readUIntLE` | 📋 Planned | - |
 | `buf.slice([start[, end]])` | `(...) => any` | `__buffer.buf.slice` | 📋 Planned | - |
@@ -71,7 +78,6 @@ Provide a concise technical summary:
 | `buf.swap32()` | `(...) => any` | `__buffer.buf.swap32` | 📋 Planned | - |
 | `buf.swap64()` | `(...) => any` | `__buffer.buf.swap64` | 📋 Planned | - |
 | `buf.toJSON()` | `(...) => any` | `__buffer.buf.toJSON` | 📋 Planned | - |
-| `buf.toString([encoding[, start[, end]]])` | `(...) => any` | `__buffer.buf.toString` | 📋 Planned | - |
 | `buf.values()` | `(...) => any` | `__buffer.buf.values` | 📋 Planned | - |
 | `buf.write(string[, offset[, length]][, encoding])` | `(...) => any` | `__buffer.buf.write` | 📋 Planned | - |
 | `buf.writeBigInt64BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeBigInt64BE` | 📋 Planned | - |
@@ -79,21 +85,15 @@ Provide a concise technical summary:
 | `buf.writeBigUInt64BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeBigUInt64BE` | 📋 Planned | - |
 | `buf.writeBigUInt64LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeBigUInt64LE` | 📋 Planned | - |
 | `buf.writeDoubleBE(value[, offset])` | `(...) => any` | `__buffer.buf.writeDoubleBE` | 📋 Planned | - |
-| `buf.writeDoubleLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeDoubleLE` | 📋 Planned | - |
 | `buf.writeFloatBE(value[, offset])` | `(...) => any` | `__buffer.buf.writeFloatBE` | 📋 Planned | - |
-| `buf.writeFloatLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeFloatLE` | 📋 Planned | - |
 | `buf.writeInt16BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt16BE` | 📋 Planned | - |
 | `buf.writeInt16LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt16LE` | 📋 Planned | - |
 | `buf.writeInt32BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt32BE` | 📋 Planned | - |
-| `buf.writeInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt32LE` | 📋 Planned | - |
 | `buf.writeInt8(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt8` | 📋 Planned | - |
 | `buf.writeIntBE(value, offset, byteLength)` | `(...) => any` | `__buffer.buf.writeIntBE` | 📋 Planned | - |
 | `buf.writeIntLE(value, offset, byteLength)` | `(...) => any` | `__buffer.buf.writeIntLE` | 📋 Planned | - |
 | `buf.writeUInt16BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt16BE` | 📋 Planned | - |
-| `buf.writeUInt16LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt16LE` | 📋 Planned | - |
 | `buf.writeUInt32BE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt32BE` | 📋 Planned | - |
-| `buf.writeUInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt32LE` | 📋 Planned | - |
-| `buf.writeUInt8(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt8` | 📋 Planned | - |
 | `buf.writeUIntBE(value, offset, byteLength)` | `(...) => any` | `__buffer.buf.writeUIntBE` | 📋 Planned | - |
 | `buf.writeUIntLE(value, offset, byteLength)` | `(...) => any` | `__buffer.buf.writeUIntLE` | 📋 Planned | - |
 | `buffer` | `any` | `__buffer.buffer` | 📋 Planned | - |

@@ -22,6 +22,21 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `EventEmitter` | `(...) => any` | `__events.EventEmitter` | ✅ Done | `internal/compiler/testdata/corpus/api/events/EventEmitter/` |
+| `emitter.emit(eventName[, ...args])` | `(...) => any` | `__events.emitter.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events/emit/` |
+| `emitter.eventNames()` | `(...) => any` | `__events.emitter.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events/eventNames/` |
+| `emitter.listenerCount(eventName[, listener])` | `(...) => any` | `__events.emitter.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
+| `emitter.off(eventName, listener)` | `(...) => any` | `__events.emitter.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events/off/` |
+| `emitter.on(eventName, listener)` | `(...) => any` | `__events.emitter.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
+| `emitter.once(eventName, listener)` | `(...) => any` | `__events.emitter.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
+| `events.listenerCount(emitter, eventName)` | `(...) => any` | `__events.events.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
+| `events.on(emitter, eventName[, options])` | `(...) => any` | `__events.events.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
+| `events.once(emitter, name[, options])` | `(...) => any` | `__events.events.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
+| `nodeEventTarget.emit(type, arg)` | `(...) => any` | `__events.nodeEventTarget.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events/emit/` |
+| `nodeEventTarget.eventNames()` | `(...) => any` | `__events.nodeEventTarget.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events/eventNames/` |
+| `nodeEventTarget.listenerCount(type)` | `(...) => any` | `__events.nodeEventTarget.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
+| `nodeEventTarget.off(type, listener[, options])` | `(...) => any` | `__events.nodeEventTarget.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events/off/` |
+| `nodeEventTarget.on(type, listener)` | `(...) => any` | `__events.nodeEventTarget.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
+| `nodeEventTarget.once(type, listener)` | `(...) => any` | `__events.nodeEventTarget.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
 | `CustomEvent` | `(...) => any` | `__events.CustomEvent` | 📋 Planned | - |
 | `Event` | `(...) => any` | `__events.Event` | 📋 Planned | - |
 | `EventTarget` | `(...) => any` | `__events.EventTarget` | 📋 Planned | - |
@@ -38,14 +53,8 @@ Provide a concise technical summary:
 | `defaultPrevented` | `any` | `__events.defaultPrevented` | 📋 Planned | - |
 | `detail` | `any` | `__events.detail` | 📋 Planned | - |
 | `emitter.addListener(eventName, listener)` | `(...) => any` | `__events.emitter.addListener` | 📋 Planned | - |
-| `emitter.emit(eventName[, ...args])` | `(...) => any` | `__events.emitter.emit` | 📋 Planned | - |
-| `emitter.eventNames()` | `(...) => any` | `__events.emitter.eventNames` | 📋 Planned | - |
 | `emitter.getMaxListeners()` | `(...) => any` | `__events.emitter.getMaxListeners` | 📋 Planned | - |
-| `emitter.listenerCount(eventName[, listener])` | `(...) => any` | `__events.emitter.listenerCount` | 📋 Planned | - |
 | `emitter.listeners(eventName)` | `(...) => any` | `__events.emitter.listeners` | 📋 Planned | - |
-| `emitter.off(eventName, listener)` | `(...) => any` | `__events.emitter.off` | 📋 Planned | - |
-| `emitter.on(eventName, listener)` | `(...) => any` | `__events.emitter.on` | 📋 Planned | - |
-| `emitter.once(eventName, listener)` | `(...) => any` | `__events.emitter.once` | 📋 Planned | - |
 | `emitter.prependListener(eventName, listener)` | `(...) => any` | `__events.emitter.prependListener` | 📋 Planned | - |
 | `emitter.prependOnceListener(eventName, listener)` | `(...) => any` | `__events.emitter.prependOnceListener` | 📋 Planned | - |
 | `emitter.rawListeners(eventName)` | `(...) => any` | `__events.emitter.rawListeners` | 📋 Planned | - |
@@ -68,19 +77,10 @@ Provide a concise technical summary:
 | `events.errorMonitor` | `any` | `__events.events.errorMonitor` | 📋 Planned | - |
 | `events.getEventListeners(emitterOrTarget, eventName)` | `(...) => any` | `__events.events.getEventListeners` | 📋 Planned | - |
 | `events.getMaxListeners(emitterOrTarget)` | `(...) => any` | `__events.events.getMaxListeners` | 📋 Planned | - |
-| `events.listenerCount(emitter, eventName)` | `(...) => any` | `__events.events.listenerCount` | 📋 Planned | - |
-| `events.on(emitter, eventName[, options])` | `(...) => any` | `__events.events.on` | 📋 Planned | - |
-| `events.once(emitter, name[, options])` | `(...) => any` | `__events.events.once` | 📋 Planned | - |
 | `events.setMaxListeners(n[, ...eventTargets])` | `(...) => any` | `__events.events.setMaxListeners` | 📋 Planned | - |
 | `isTrusted` | `any` | `__events.isTrusted` | 📋 Planned | - |
 | `nodeEventTarget.addListener(type, listener)` | `(...) => any` | `__events.nodeEventTarget.addListener` | 📋 Planned | - |
-| `nodeEventTarget.emit(type, arg)` | `(...) => any` | `__events.nodeEventTarget.emit` | 📋 Planned | - |
-| `nodeEventTarget.eventNames()` | `(...) => any` | `__events.nodeEventTarget.eventNames` | 📋 Planned | - |
 | `nodeEventTarget.getMaxListeners()` | `(...) => any` | `__events.nodeEventTarget.getMaxListeners` | 📋 Planned | - |
-| `nodeEventTarget.listenerCount(type)` | `(...) => any` | `__events.nodeEventTarget.listenerCount` | 📋 Planned | - |
-| `nodeEventTarget.off(type, listener[, options])` | `(...) => any` | `__events.nodeEventTarget.off` | 📋 Planned | - |
-| `nodeEventTarget.on(type, listener)` | `(...) => any` | `__events.nodeEventTarget.on` | 📋 Planned | - |
-| `nodeEventTarget.once(type, listener)` | `(...) => any` | `__events.nodeEventTarget.once` | 📋 Planned | - |
 | `nodeEventTarget.removeAllListeners([type])` | `(...) => any` | `__events.nodeEventTarget.removeAllListeners` | 📋 Planned | - |
 | `nodeEventTarget.removeListener(type, listener[, options])` | `(...) => any` | `__events.nodeEventTarget.removeListener` | 📋 Planned | - |
 | `nodeEventTarget.setMaxListeners(n)` | `(...) => any` | `__events.nodeEventTarget.setMaxListeners` | 📋 Planned | - |
