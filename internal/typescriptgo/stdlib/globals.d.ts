@@ -681,3 +681,71 @@ interface URLConstructor {
 }
 
 declare var URL: URLConstructor;
+
+interface Headers {
+    append(name: string, value: string): void;
+    delete(name: string): void;
+    get(name: string): string | null;
+    has(name: string): boolean;
+    set(name: string, value: string): void;
+    forEach(callback: (value: string, name: string, parent: Headers) => void): void;
+    entries(): [string, string][];
+    keys(): string[];
+    values(): string[];
+}
+
+interface HeadersConstructor {
+    new(init?: Record<string, string> | [string, string][] | Headers): Headers;
+    readonly prototype: Headers;
+}
+
+declare var Headers: HeadersConstructor;
+
+interface RequestInit {
+    method?: string;
+    headers?: Headers | Record<string, string> | [string, string][];
+    body?: string | null;
+}
+
+interface Request {
+    readonly url: string;
+    readonly method: string;
+    readonly headers: Headers;
+    readonly body: string | null;
+}
+
+interface RequestConstructor {
+    new(input: string | Request, init?: RequestInit): Request;
+    readonly prototype: Request;
+}
+
+declare var Request: RequestConstructor;
+
+interface ResponseInit {
+    status?: number;
+    statusText?: string;
+    headers?: Headers | Record<string, string> | [string, string][];
+}
+
+interface Response {
+    readonly ok: boolean;
+    readonly status: number;
+    readonly statusText: string;
+    readonly headers: Headers;
+    readonly url: string;
+    text(): Promise<string>;
+    json<T = any>(): Promise<T>;
+    arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+interface ResponseConstructor {
+    new(body?: string | null, init?: ResponseInit): Response;
+    readonly prototype: Response;
+    json(data: any, init?: ResponseInit): Response;
+    error(): Response;
+    redirect(url: string, status?: number): Response;
+}
+
+declare var Response: ResponseConstructor;
+
+declare function fetch(input: string | Request, init?: RequestInit): Promise<Response>;

@@ -29,6 +29,9 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	for _, file := range program.Files {
 		for _, stmt := range file.Syntax.Statements {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
+				if existing, exists := hierarchy[stmt.Class.Name]; exists && len(existing.Fields) > 0 && len(stmt.Class.Fields) == 0 {
+					continue
+				}
 				syntax[stmt.Class.Name] = *stmt.Class
 				meta := ClassMeta{
 					Name:       stmt.Class.Name,

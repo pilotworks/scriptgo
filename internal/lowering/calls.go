@@ -1336,6 +1336,16 @@ func lowerCallExpression(
 							Span:   toIRSpan(path, initExpr.Span),
 						})
 						val = boxed
+					} else if i < len(target.Parameters) && strings.HasPrefix(string(target.Parameters[i].Type), "object:") && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
+						nullConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   target.Parameters[i].Type,
+							Result: nullConst,
+							Value:  "null",
+							Span:   toIRSpan(path, initExpr.Span),
+						})
+						val = nullConst
 					}
 					args = append(args, val)
 				}

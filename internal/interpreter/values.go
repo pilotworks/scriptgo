@@ -479,14 +479,30 @@ func compare(operator string, left, right Value) (Value, error) {
 		var leftVal, rightVal Value
 		if left.Boxed != nil {
 			leftVal = *left.Boxed
+		} else {
+			leftVal = left
 		}
 		if right.Boxed != nil {
 			rightVal = *right.Boxed
+		} else {
+			rightVal = right
 		}
 		if leftVal.Type == rightVal.Type && leftVal.Type != "" && leftVal.Type != ir.TypeUnknown {
 			return compare(operator, leftVal, rightVal)
 		}
-		eq := (leftVal.Type == rightVal.Type && leftVal.String == rightVal.String && leftVal.Number == rightVal.Number && leftVal.Bool == rightVal.Bool)
+		leftIsNullish := (leftVal.Type == ir.TypeString && (leftVal.String == "null" || leftVal.String == "undefined")) ||
+			(strings.HasPrefix(string(leftVal.Type), "object:") && len(leftVal.Object) == 0 && leftVal.Boxed == nil && len(leftVal.GetArray()) == 0) ||
+			leftVal.Type == ""
+		rightIsNullish := (rightVal.Type == ir.TypeString && (rightVal.String == "null" || rightVal.String == "undefined")) ||
+			(strings.HasPrefix(string(rightVal.Type), "object:") && len(rightVal.Object) == 0 && rightVal.Boxed == nil && len(rightVal.GetArray()) == 0) ||
+			rightVal.Type == ""
+
+		eq := false
+		if leftIsNullish && rightIsNullish {
+			eq = true
+		} else {
+			eq = (leftVal.Type == rightVal.Type && leftVal.String == rightVal.String && leftVal.Number == rightVal.Number && leftVal.Bool == rightVal.Bool)
+		}
 		switch operator {
 		case "==", "===":
 			result = eq

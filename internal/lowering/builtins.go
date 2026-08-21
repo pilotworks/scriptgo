@@ -628,6 +628,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"os.tmpdir", "__scriptgo.tmpdir", "tmpdir"}, CategoryNodeModule, "__os.tmpdir", nil, ir.TypeString, 0, 0)
 	register([]string{"__scriptgo.execSync"}, CategoryNodeModule, "__child_process.execSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 1, 3)
 	register([]string{"__scriptgo.spawnSync"}, CategoryNodeModule, "__child_process.spawnSync", []ir.Type{ir.TypeString, ir.TypeStringArray, ir.TypeString, ir.TypeString}, ir.Type("object:SpawnSyncReturns"), 1, 4)
+	register([]string{"__scriptgo.fetchSync"}, CategoryNodeModule, "__http.fetchSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeStringArray, ir.TypeString}, ir.Type("object:FetchResponseData"), 1, 4)
 
 	registerObjectIntrinsics(m)
 	registerBufferIntrinsics(m)

@@ -5,7 +5,6 @@ export interface Buffer {
     readonly buffer: ArrayBuffer;
     [index: number]: number;
     set(array: ArrayLike<number> | Array<number> | Uint8Array, offset?: number): void;
-    toString(encoding?: string, start?: number, end?: number): string;
     subarray(begin?: number, end?: number): Buffer;
     slice(begin?: number, end?: number): Buffer;
     copy(target: Buffer | Uint8Array, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
@@ -13,6 +12,7 @@ export interface Buffer {
     equals(other: Buffer | Uint8Array): boolean;
     compare(other: Buffer | Uint8Array): number;
     indexOf(value: string, byteOffset?: number): number;
+    toString(encoding?: string, start?: number, end?: number): string;
 
     readUInt8(offset: number): number;
     writeUInt8(value: number, offset: number): number;
@@ -39,16 +39,11 @@ export interface Buffer {
     writeDoubleLE(value: number, offset: number): number;
     writeDoubleBE(value: number, offset: number): number;
 }
-
-export interface BufferConstructor {
-    alloc(size: number, fill?: number | string): Buffer;
-    allocUnsafe(size: number): Buffer;
-    from(str: string, encoding?: string): Buffer;
-    from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
-    concat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
-    isBuffer(obj: any): boolean;
-    byteLength(string: string, encoding?: string): number;
-    readonly prototype: Buffer;
+export class Buffer {
+    static alloc(size: number, fill?: string): Buffer;
+    static allocUnsafe(size: number): Buffer;
+    static from(str: string, encoding?: string): Buffer;
+    static concat(list: Buffer[], totalLength?: number): Buffer;
+    static isBuffer(obj: unknown): boolean;
+    static byteLength(string: string, encoding?: string): number;
 }
-
-export var Buffer: BufferConstructor;

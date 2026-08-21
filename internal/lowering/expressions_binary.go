@@ -87,7 +87,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		return "", "", err
 	}
 	if leftType != rightType {
-		if (leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) && isComparison(expression.Operator) {
+		if isComparison(expression.Operator) && (expression.Operator == "===" || expression.Operator == "!==" || expression.Operator == "==" || expression.Operator == "!=" || leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) {
 			if leftType != ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{left}, Span: toIRSpan(path, expression.Span)})

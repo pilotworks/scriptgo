@@ -411,7 +411,24 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		})
 		return result, field.Type, nil
 	}
-	return "", "", fmt.Errorf("unknown field %q on object %q", expression.Text, className)
+	if expression.Kind == "optional_property" || strings.HasPrefix(className, "__shape_") {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
+			Result: result,
+			Value:  "undefined",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeString, nil
+	}
+	fieldNames := make([]string, 0, len(shape.Fields))
+	for _, f := range shape.Fields {
+		fieldNames = append(fieldNames, f.Name)
+	}
+	return "", "", fmt.Errorf("unknown field %q on object %q (fields: %v)", expression.Text, className, fieldNames)
 }
 
 func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -914,19 +931,52 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	// Call constructor if present
 	if ctor, ctorName, found := findConstructorInHierarchy(className, signatures, classHierarchy); found {
 		args := []string{result}
-		for _, arg := range expression.Arguments {
-			argVal, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
+		for i, arg := range expression.Arguments {
+			argVal, argType, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", err
+			}
+			paramIdx := i + 1
+			if paramIdx < len(ctor.Parameters) && ctor.Parameters[paramIdx].Type == ir.TypeUnknown && argType != ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: boxed,
+					Args:   []string{argVal},
+					Span:   toIRSpan(path, arg.Span),
+				})
+				argVal = boxed
 			}
 			args = append(args, argVal)
 		}
 		if defaults := defaultParamsIndex[ctorName]; defaults != nil {
 			for i := len(args); i < len(ctor.Parameters); i++ {
 				if defExpr, ok := defaults[i]; ok {
-					defVal, _, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
+					defVal, defType, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
 					if err != nil {
 						return "", "", err
+					}
+					if i < len(ctor.Parameters) && ctor.Parameters[i].Type == ir.TypeUnknown && defType != ir.TypeUnknown {
+						boxed := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpBoxUnknown,
+							Type:   ir.TypeUnknown,
+							Result: boxed,
+							Args:   []string{defVal},
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						defVal = boxed
+					} else if i < len(ctor.Parameters) && strings.HasPrefix(string(ctor.Parameters[i].Type), "object:") && (defExpr.Kind == "null" || defExpr.Kind == "undefined") {
+						nullConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ctor.Parameters[i].Type,
+							Result: nullConst,
+							Value:  "null",
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						defVal = nullConst
 					}
 					args = append(args, defVal)
 				}

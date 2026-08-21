@@ -4,6 +4,7 @@ export function warn(msg: string): void;
 export function error(msg: string): void;
 export function debug(msg: string): void;
 export class Console {
+    constructor();
     log(msg: string): void;
     info(msg: string): void;
     warn(msg: string): void;

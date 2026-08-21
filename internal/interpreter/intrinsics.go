@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	goruntime "runtime"
@@ -1562,5 +1564,89 @@ func executeChildProcessIntrinsic(instruction ir.Instruction, env map[string]Val
 		}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown child_process intrinsic %q", instruction.Callee)
+	}
+}
+
+func executeHttpIntrinsic(instruction ir.Instruction, env map[string]Value) (Value, error) {
+	switch instruction.Callee {
+	case "__http.fetchSync":
+		if len(instruction.Args) < 1 {
+			return Value{}, fmt.Errorf("fetchSync requires at least 1 argument (url)")
+		}
+		url := env[instruction.Args[0]].String
+		method := "GET"
+		if len(instruction.Args) > 1 && instruction.Args[1] != "" {
+			if mVal, ok := env[instruction.Args[1]]; ok && mVal.String != "" {
+				method = strings.ToUpper(mVal.String)
+			}
+		}
+		var headerPairs []string
+		if len(instruction.Args) > 2 && instruction.Args[2] != "" {
+			if hVal, ok := env[instruction.Args[2]]; ok {
+				for _, elem := range hVal.Array {
+					headerPairs = append(headerPairs, elem.String)
+				}
+			}
+		}
+		var body string
+		if len(instruction.Args) > 3 && instruction.Args[3] != "" {
+			if bVal, ok := env[instruction.Args[3]]; ok {
+				body = bVal.String
+			}
+		}
+
+		var reqBody io.Reader
+		if body != "" {
+			reqBody = strings.NewReader(body)
+		}
+		req, err := http.NewRequest(method, url, reqBody)
+		if err != nil {
+			return Value{}, fmt.Errorf("fetch error creating request: %w", err)
+		}
+		for i := 0; i+1 < len(headerPairs); i += 2 {
+			req.Header.Add(headerPairs[i], headerPairs[i+1])
+		}
+
+		client := &http.Client{
+			Timeout: 30 * time.Second,
+		}
+		resp, err := client.Do(req)
+		var statusCode float64 = 0
+		statusText := ""
+		var respHeaders []Value
+		respBodyStr := ""
+
+		if err != nil {
+			statusText = err.Error()
+			statusCode = 0
+		} else {
+			defer resp.Body.Close()
+			statusCode = float64(resp.StatusCode)
+			statusText = resp.Status
+			if idx := strings.Index(statusText, " "); idx != -1 {
+				statusText = strings.TrimSpace(statusText[idx:])
+			}
+			respBytes, _ := io.ReadAll(resp.Body)
+			respBodyStr = string(respBytes)
+
+			for k, vList := range resp.Header {
+				for _, v := range vList {
+					respHeaders = append(respHeaders, Value{Type: ir.TypeString, String: strings.ToLower(k)})
+					respHeaders = append(respHeaders, Value{Type: ir.TypeString, String: v})
+				}
+			}
+		}
+
+		return Value{
+			Type: "object:FetchResponseData",
+			Object: map[string]Value{
+				"status":     {Type: ir.TypeNumber, Number: statusCode},
+				"statusText": {Type: ir.TypeString, String: statusText},
+				"headers":    {Type: ir.TypeStringArray, Array: respHeaders},
+				"body":       {Type: ir.TypeString, String: respBodyStr},
+			},
+		}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown http intrinsic %q", instruction.Callee)
 	}
 }

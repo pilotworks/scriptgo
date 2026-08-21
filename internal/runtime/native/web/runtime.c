@@ -212,3 +212,184 @@ int scriptgo_performance_now(double *out_ms) {
     *out_ms = ((double)ts.tv_sec * 1000.0) + ((double)ts.tv_nsec / 1000000.0);
     return 0;
 }
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+} scriptgo_array_raw_web;
+
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_push(void *handle, const void *value, double *out_length);
+
+int scriptgo_fetch_sync(const char *url, const char *method, void *headers_handle, const char *body,
+                        double *out_status, char **out_status_text, void **out_headers_handle, char **out_body) {
+    if (url == NULL || out_status == NULL || out_status_text == NULL || out_headers_handle == NULL || out_body == NULL) {
+        return web_fail("scriptgo fetch invalid arguments");
+    }
+
+    void *resp_headers_arr = NULL;
+    if (scriptgo_array_new(0, sizeof(char *), &resp_headers_arr) != 0) {
+        return web_fail("scriptgo fetch headers array allocation failed");
+    }
+    *out_headers_handle = resp_headers_arr;
+
+    size_t cmd_cap = 1024 + (body ? strlen(body) * 2 : 0) + strlen(url);
+    char *cmd = (char *)malloc(cmd_cap);
+    if (cmd == NULL) {
+        *out_status = 0.0;
+        *out_status_text = strdup("Memory allocation failed");
+        *out_body = strdup("");
+        return 0;
+    }
+
+    const char *http_method = (method != NULL && strlen(method) > 0) ? method : "GET";
+    snprintf(cmd, cmd_cap, "curl -s -i -X %s", http_method);
+
+    scriptgo_array_raw_web *arr = (scriptgo_array_raw_web *)headers_handle;
+    if (arr != NULL && arr->data != NULL && arr->length >= 2) {
+        char **entries = (char **)arr->data;
+        for (int64_t i = 0; i + 1 < arr->length; i += 2) {
+            char *k = entries[i];
+            char *v = entries[i + 1];
+            if (k != NULL && v != NULL) {
+                size_t need = strlen(cmd) + strlen(k) + strlen(v) + 32;
+                if (need > cmd_cap) {
+                    cmd_cap = need * 2;
+                    char *new_cmd = (char *)realloc(cmd, cmd_cap);
+                    if (new_cmd == NULL) break;
+                    cmd = new_cmd;
+                }
+                strcat(cmd, " -H \"");
+                strcat(cmd, k);
+                strcat(cmd, ": ");
+                strcat(cmd, v);
+                strcat(cmd, "\"");
+            }
+        }
+    }
+
+    if (body != NULL && strlen(body) > 0) {
+        size_t need = strlen(cmd) + strlen(body) + 32;
+        if (need > cmd_cap) {
+            cmd_cap = need * 2;
+            char *new_cmd = (char *)realloc(cmd, cmd_cap);
+            if (new_cmd != NULL) {
+                cmd = new_cmd;
+                strcat(cmd, " --data-raw '");
+                strcat(cmd, body);
+                strcat(cmd, "'");
+            }
+        } else {
+            strcat(cmd, " --data-raw '");
+            strcat(cmd, body);
+            strcat(cmd, "'");
+        }
+    }
+
+    size_t url_need = strlen(cmd) + strlen(url) + 16;
+    if (url_need > cmd_cap) {
+        cmd_cap = url_need * 2;
+        char *new_cmd = (char *)realloc(cmd, cmd_cap);
+        if (new_cmd != NULL) cmd = new_cmd;
+    }
+    strcat(cmd, " '");
+    strcat(cmd, url);
+    strcat(cmd, "'");
+
+    FILE *fp = popen(cmd, "r");
+    free(cmd);
+
+    if (fp == NULL) {
+        *out_status = 0.0;
+        *out_status_text = strdup("Failed to execute network request");
+        *out_body = strdup("");
+        return 0;
+    }
+
+    size_t cap = 8192;
+    size_t len = 0;
+    char *buf = (char *)malloc(cap);
+    if (buf == NULL) {
+        pclose(fp);
+        *out_status = 0.0;
+        *out_status_text = strdup("Allocation failed");
+        *out_body = strdup("");
+        return 0;
+    }
+
+    char chunk[4096];
+    while (1) {
+        size_t n = fread(chunk, 1, sizeof(chunk), fp);
+        if (n == 0) break;
+        if (len + n + 1 > cap) {
+            cap = (len + n + 1) * 2;
+            char *new_buf = (char *)realloc(buf, cap);
+            if (new_buf == NULL) break;
+            buf = new_buf;
+        }
+        memcpy(buf + len, chunk, n);
+        len += n;
+    }
+    buf[len] = '\0';
+    pclose(fp);
+
+    char *header_end = strstr(buf, "\r\n\r\n");
+    size_t header_sep_len = 4;
+    if (header_end == NULL) {
+        header_end = strstr(buf, "\n\n");
+        header_sep_len = 2;
+    }
+
+    if (strncmp(buf, "HTTP/", 5) == 0 && header_end != NULL) {
+        char *status_line_end = strstr(buf, "\r\n");
+        if (status_line_end == NULL) status_line_end = strstr(buf, "\n");
+        if (status_line_end != NULL) {
+            *status_line_end = '\0';
+            char *p = buf + 5;
+            while (*p && *p != ' ') p++;
+            while (*p == ' ') p++;
+            int code = atoi(p);
+            *out_status = (double)code;
+            while (*p && *p != ' ') p++;
+            while (*p == ' ') p++;
+            *out_status_text = strdup(p);
+
+            char *cur = status_line_end + (status_line_end[1] == '\n' ? 2 : 1);
+            *header_end = '\0';
+            while (cur < header_end) {
+                char *line_end = strstr(cur, "\r\n");
+                if (line_end == NULL) line_end = strstr(cur, "\n");
+                if (line_end != NULL) {
+                    *line_end = '\0';
+                    char *colon = strchr(cur, ':');
+                    if (colon != NULL) {
+                        *colon = '\0';
+                        char *h_key = cur;
+                        char *h_val = colon + 1;
+                        while (*h_val == ' ') h_val++;
+                        char *k_dup = strdup(h_key);
+                        char *v_dup = strdup(h_val);
+                        double out_l = 0;
+                        scriptgo_array_push(resp_headers_arr, &k_dup, &out_l);
+                        scriptgo_array_push(resp_headers_arr, &v_dup, &out_l);
+                    }
+                    cur = line_end + (line_end[1] == '\n' ? 2 : 1);
+                } else {
+                    break;
+                }
+            }
+            char *body_start = header_end + header_sep_len;
+            *out_body = strdup(body_start);
+            free(buf);
+            return 0;
+        }
+    }
+
+    *out_status = 200.0;
+    *out_status_text = strdup("OK");
+    *out_body = buf;
+    return 0;
+}

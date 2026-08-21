@@ -82,7 +82,7 @@ func (f Function) Verify() error {
 				return fmt.Errorf("checked_cast instruction must define result, target type, and one arg")
 			}
 			srcType, ok := known[instruction.Args[0]]
-			if !ok || (srcType != TypeUnknown && !strings.Contains(string(srcType), "|") && !strings.HasPrefix(string(srcType), "object:") && !strings.HasPrefix(string(instruction.Type), "object:")) {
+			if !ok || (srcType != TypeUnknown && srcType != instruction.Type && !strings.Contains(string(srcType), "|") && !strings.HasPrefix(string(srcType), "object:") && !strings.HasPrefix(string(instruction.Type), "object:") && !isTypedArrayType(srcType) && srcType != TypeArrayBuffer) {
 				return fmt.Errorf("checked_cast source must be unknown, union, or object type, got %v", srcType)
 			}
 			known[instruction.Result] = instruction.Type

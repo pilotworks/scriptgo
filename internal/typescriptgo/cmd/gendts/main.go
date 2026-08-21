@@ -130,6 +130,16 @@ func main() {
 									memberLines = append(memberLines, "    "+sig)
 								}
 							}
+						} else if member.Kind == ast.KindPropertyDeclaration {
+							if !hasPrivateModifier(member.Modifiers()) {
+								prop := member.AsPropertyDeclaration()
+								name := prop.Name().Text()
+								fType := "unknown"
+								if prop.Type != nil {
+									fType = strings.TrimSpace(source[prop.Type.Pos():prop.Type.End()])
+								}
+								memberLines = append(memberLines, fmt.Sprintf("    %s: %s;", name, fType))
+							}
 						}
 					}
 					lines = append(lines, fmt.Sprintf("export class %s {\n%s\n}", className, strings.Join(memberLines, "\n")))
@@ -193,13 +203,13 @@ func formatConstructorSignature(stmt *ast.Node, src string) string {
 	if body := stmt.Body(); body != nil {
 		bodyPos := body.Pos()
 		sig := strings.TrimSpace(src[startPos:bodyPos])
-		return sig + ";"
+		return cleanSignature(sig + ";")
 	}
 	sig := strings.TrimSpace(src[startPos:stmt.End()])
 	if !strings.HasSuffix(sig, ";") {
 		sig += ";"
 	}
-	return sig
+	return cleanSignature(sig)
 }
 
 func formatFunctionSignature(stmt *ast.Node, src string) string {
@@ -207,13 +217,82 @@ func formatFunctionSignature(stmt *ast.Node, src string) string {
 	if body := stmt.Body(); body != nil {
 		bodyPos := body.Pos()
 		sig := strings.TrimSpace(src[startPos:bodyPos])
-		return sig + ";"
+		return cleanSignature(sig + ";")
 	}
 	sig := strings.TrimSpace(src[startPos:stmt.End()])
 	if !strings.HasSuffix(sig, ";") {
 		sig += ";"
 	}
-	return sig
+	return cleanSignature(sig)
+}
+
+func cleanSignature(sig string) string {
+	openParen := strings.Index(sig, "(")
+	closeParen := strings.LastIndex(sig, ")")
+	if openParen == -1 || closeParen == -1 || closeParen <= openParen {
+		return sig
+	}
+	prefix := sig[:openParen+1]
+	paramsStr := sig[openParen+1 : closeParen]
+	suffix := sig[closeParen:]
+
+	if strings.TrimSpace(paramsStr) == "" {
+		return sig
+	}
+
+	params := splitParams(paramsStr)
+	var newParams []string
+	for _, p := range params {
+		trimmed := strings.TrimSpace(p)
+		if idx := strings.Index(trimmed, "="); idx != -1 {
+			leftPart := strings.TrimSpace(trimmed[:idx])
+			if colonIdx := strings.Index(leftPart, ":"); colonIdx != -1 {
+				name := strings.TrimSpace(leftPart[:colonIdx])
+				typ := strings.TrimSpace(leftPart[colonIdx+1:])
+				if !strings.HasSuffix(name, "?") {
+					name = name + "?"
+				}
+				newParams = append(newParams, name+": "+typ)
+			} else {
+				if !strings.HasSuffix(leftPart, "?") {
+					leftPart = leftPart + "?"
+				}
+				newParams = append(newParams, leftPart)
+			}
+		} else {
+			newParams = append(newParams, trimmed)
+		}
+	}
+	return prefix + strings.Join(newParams, ", ") + suffix
+}
+
+func splitParams(s string) []string {
+	var params []string
+	var current strings.Builder
+	depth := 0
+	for _, r := range s {
+		switch r {
+		case '(', '[', '{', '<':
+			depth++
+			current.WriteRune(r)
+		case ')', ']', '}', '>':
+			depth--
+			current.WriteRune(r)
+		case ',':
+			if depth == 0 {
+				params = append(params, current.String())
+				current.Reset()
+			} else {
+				current.WriteRune(r)
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 {
+		params = append(params, current.String())
+	}
+	return params
 }
 
 func formatVariableStatement(varStmt *ast.VariableStatement, src string) string {

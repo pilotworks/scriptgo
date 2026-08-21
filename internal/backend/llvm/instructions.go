@@ -786,6 +786,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__http.") {
+		if err := e.emitHttpIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__process.") {
 		if err := e.emitProcessIntrinsic(out, instruction); err != nil {
 			return err

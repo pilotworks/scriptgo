@@ -1,4 +1,5 @@
 export class EventEmitter {
+    defaultMaxListeners: number;
     static listenerCount(emitter: EventEmitter, event: string): number;
     addListener(event: string, listener: Function): EventEmitter;
     on(event: string, listener: Function): EventEmitter;

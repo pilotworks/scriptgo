@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 208 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 225 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **208** | **208 / 208 Passed** | **100.0%** |
-| - *Interpreter Parity* | 196 | 196 PASS | 100.0% |
-| - *Native LLVM/Clang Parity* | 185 | 185 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **225** | **225 / 225 Passed** | **100.0%** |
+| - *Interpreter Parity* | 213 | 213 PASS | 100.0% |
+| - *Native LLVM/Clang Parity* | 202 | 202 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~3m 48s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~3m 52s | No regressions detected | - |
 
 ---
 
@@ -157,6 +157,7 @@ All 208 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 | **`node:child_process` / `child_process`** | `execSync`, `spawnSync`, `SpawnSyncReturns` (`stdout`, `stderr`, `status`), `ExecSyncOptions`, `SpawnSyncOptions` | ✅ 100% matches Node.js child_process specification |
+| **`node:http` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `METHODS`, `STATUS_CODES`, `getStatusText`, `Response.json`, `Response.error`, `Response.redirect` | ✅ 100% matches WHATWG Fetch and Node.js HTTP specifications |
 
 ---
 
@@ -168,8 +169,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 221
-  - Passed Cases       : 221 (100.0%)
+  - Total Corpus Cases : 225
+  - Passed Cases       : 225 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -190,7 +191,7 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`objects`** | 4 | **100%** | Object literals, nested shapes, property mutation, structural subtyping. |
 | **`regex_literals`** | 1 | **100%** | Regex literal flags, `test()`, `exec()`, `match()`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 54 | **100%** | `Buffer` (`alloc`, `from`, `concat`, `isBuffer`, binary read/write LE/BE, `node:buffer`), `URL` & `URLSearchParams` (`node:url`), `fs` extended & `fs.promises` (`statSync`, `readdirSync`, `copyFileSync`, `renameSync`, `appendFileSync`, `mkdirSync`, `rmSync`, `promises.*`), `child_process` (`execSync`, `spawnSync`, `SpawnSyncReturns`), `Object` static methods, Array modern methods, `TextEncoder`/`Decoder`, `Map`/`Set`, `console`, `Math`, `events`, `path`, `os`, `process`, `crypto`, `date`, `json`, `base64`. |
+| **`stdlib`** | 58 | **100%** | `fetch` & `node:http` (`Headers`, `Request`, `Response`, `STATUS_CODES`, `METHODS`), `Buffer` (`alloc`, `from`, `concat`, `isBuffer`, binary read/write LE/BE, `node:buffer`), `URL` & `URLSearchParams` (`node:url`), `fs` extended & `fs.promises` (`statSync`, `readdirSync`, `copyFileSync`, `renameSync`, `appendFileSync`, `mkdirSync`, `rmSync`, `promises.*`), `child_process` (`execSync`, `spawnSync`), `Object` static methods, Array modern methods, `TextEncoder`/`Decoder`, `Map`/`Set`, `console`, `Math`, `events`, `path`, `os`, `process`, `crypto`, `date`, `json`, `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 16 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring, `debugger;` statement. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |

@@ -1,4 +1,5 @@
-export interface URLSearchParams {
+export class URLSearchParams {
+    constructor(init?: string);
     append(name: string, value: string): void;
     delete(name: string): void;
     get(name: string): string | null;
@@ -7,37 +8,10 @@ export interface URLSearchParams {
     set(name: string, value: string): void;
     sort(): void;
     toString(): string;
-    readonly size: number;
 }
-
-export interface URLSearchParamsConstructor {
-    new(init?: string): URLSearchParams;
-    readonly prototype: URLSearchParams;
-}
-
-export var URLSearchParams: URLSearchParamsConstructor;
-
-export interface URL {
-    href: string;
-    origin: string;
-    protocol: string;
-    username: string;
-    password: string;
-    host: string;
-    hostname: string;
-    port: string;
-    pathname: string;
-    search: string;
-    searchParams: URLSearchParams;
-    hash: string;
+export class URL {
+    constructor(input: string, base?: string);
     toString(): string;
     toJSON(): string;
+    static canParse(url: string, base?: string): boolean;
 }
-
-export interface URLConstructor {
-    new(url: string, base?: string | URL): URL;
-    readonly prototype: URL;
-    canParse(url: string, base?: string | URL): boolean;
-}
-
-export var URL: URLConstructor;

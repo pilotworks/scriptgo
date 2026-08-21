@@ -336,7 +336,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			value, ok := object.Object[instruction.Field]
 			if !ok {
-				return Value{}, false, flowNormal, fmt.Errorf("unknown field %q", instruction.Field)
+				value = Value{Type: ir.TypeString, String: "undefined"}
 			}
 			env[instruction.Result] = value
 		case ir.OpBoxUnknown:
@@ -533,6 +533,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			if strings.HasPrefix(instruction.Callee, "__child_process.") {
 				value, err := executeChildProcessIntrinsic(instruction, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__http.") {
+				value, err := executeHttpIntrinsic(instruction, env)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
