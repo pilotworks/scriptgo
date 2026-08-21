@@ -777,6 +777,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__child_process.") {
+		if err := e.emitChildProcessIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__process.") {
 		if err := e.emitProcessIntrinsic(out, instruction); err != nil {
 			return err
@@ -913,6 +922,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	}
 	if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") {
 		if err := e.emitTypedArrayIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__buffer.") {
+		if err := e.emitBufferIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		if instruction.Result != "" {
@@ -1317,7 +1335,12 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
 		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+		argTyp := e.types[instruction.Args[0]]
+		if argTyp == ir.TypeNumber {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+		}
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil
@@ -1325,25 +1348,29 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) != 2 {
 			return fmt.Errorf("promise.then requires promise and callback")
 		}
-		slot := instruction.Result + ".slot"
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr null)\n", status, instruction.Args[0], instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	case "__async.await":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("await requires 1 argument")
 		}
 		slot := instruction.Result + ".slot"
-		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_number(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		if instruction.Type == ir.TypeNumber {
+			out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_number(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_ptr(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		}
 		return nil
 	default:
 		return fmt.Errorf("unknown async intrinsic %q", instruction.Callee)

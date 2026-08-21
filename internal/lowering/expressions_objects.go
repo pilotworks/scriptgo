@@ -921,6 +921,17 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			}
 			args = append(args, argVal)
 		}
+		if defaults := defaultParamsIndex[ctorName]; defaults != nil {
+			for i := len(args); i < len(ctor.Parameters); i++ {
+				if defExpr, ok := defaults[i]; ok {
+					defVal, _, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					args = append(args, defVal)
+				}
+			}
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   ctor.ReturnType,

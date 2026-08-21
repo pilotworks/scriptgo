@@ -46,6 +46,7 @@ All 208 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`), `DataView` with full binary access methods (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
+| `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
 | `Map<K, V> & Set<T>` | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and Node.js-compatible string formatting. |
 
 ---
@@ -142,16 +143,20 @@ All 208 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
 | **`node:path` / `path`** | `join`, `dirname`, `basename`, `extname`, `resolve` | ✅ Matches POSIX path logic |
 | **`node:os` / `os`** | `platform()`, `arch()`, `cpus()`, `totalmem()`, `freemem()`, `homedir()`, `tmpdir()` | ✅ Matches host OS values |
-| **`node:fs` / `fs`** | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync`, `mkdirSync` | ✅ Matches filesystem interactions |
+| **`node:fs` / `fs`** | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync`, `statSync`, `readdirSync`, `copyFileSync`, `renameSync`, `appendFileSync`, `mkdirSync`, `rmSync`, `Stats` (`size`, `mtimeMs`, `birthtimeMs`, `mode`, `isFile()`, `isDirectory()`, `isSymbolicLink()`), `fs.promises` (`readFile`, `writeFile`, `stat`, `readdir`, `mkdir`, `unlink`, `copyFile`, `rename`, `appendFile`, `rm`) | ✅ 100% matches Node.js FS specification |
+| **`node:path` / `path`** | `join`, `resolve`, `dirname`, `basename`, `extname`, `isAbsolute`, `normalize` | ✅ 100% matches Node.js Path specification |
 | **`node:process` / `process`**| `process.argv`, `process.env`, `process.exit()`, `process.cwd()`, `process.platform`, `process.uptime()` | ✅ Matches CLI / environment variables |
 | **`node:crypto` / `crypto`**| `randomUUID()`, `randomBytes()`, `createHash('sha256' \| 'md5')` | ✅ Matches Node crypto standard |
 | **`performance`** | `performance.now()` | ✅ Microsecond precision |
 | **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
 | **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer representation |
+| **`node:buffer` / `buffer`** | `Buffer.alloc`, `Buffer.allocUnsafe`, `Buffer.from`, `Buffer.concat`, `Buffer.isBuffer`, `Buffer.byteLength`, `.toString`, `.subarray`, `.slice`, `.copy`, `.fill`, `.equals`, `.compare`, `.indexOf`, `readUInt8`/`writeUInt8`, `readInt8`/`writeInt8`, `readUInt16LE`/`BE`/`writeUInt16LE`/`BE`, `readUInt32LE`/`BE`/`writeUInt32LE`/`BE`, `readInt32LE`/`BE`/`writeInt32LE`/`BE`, `readFloatLE`/`BE`/`writeFloatLE`/`BE`, `readDoubleLE`/`BE`/`writeDoubleLE`/`BE` | ✅ 100% matches Node.js Buffer specification |
+| **`node:url` / `url`** | `URL`, `URLSearchParams`, `href`, `origin`, `protocol`, `username`, `password`, `host`, `hostname`, `port`, `pathname`, `search`, `hash`, `searchParams`, `toString`, `toJSON`, `URL.canParse()`, `get`, `getAll`, `set`, `append`, `has`, `delete`, `sort`, `size` | ✅ 100% matches WHATWG / Node.js URL specification |
 | **`TextEncoder` & `TextDecoder`** | `TextEncoder`, `TextDecoder`, `.encode()`, `.encodeInto()`, `.decode()`, `.encoding`, `.fatal`, `.ignoreBOM` | ✅ 100% matches WHATWG / Node.js UTF-8 standard |
 | **`Map` & `Set`** | `Map<K,V>`, `Set<T>`, `set`, `get`, `has`, `delete`, `clear`, `.size`, `keys`, `values`, `entries`, `forEach`, `toString` | ✅ 100% matches Node.js Map/Set collection specification |
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
+| **`node:child_process` / `child_process`** | `execSync`, `spawnSync`, `SpawnSyncReturns` (`stdout`, `stderr`, `status`), `ExecSyncOptions`, `SpawnSyncOptions` | ✅ 100% matches Node.js child_process specification |
 
 ---
 
@@ -163,8 +168,8 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 210
-  - Passed Cases       : 210 (100.0%)
+  - Total Corpus Cases : 221
+  - Passed Cases       : 221 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
@@ -180,12 +185,12 @@ Below is the category-by-category breakdown across all 20 test suites (`go run .
 | **`expressions`**| 43 | **100%** | Bitwise shifts and masks (`&`, `\|`, `^`, `~`, `<<`, `>>`, `>>>`), exponentiation (`**`), logical (`&&`, `\|\|`, `??`), nested ternary, try-catch-finally, `typeof` narrowing. |
 | **`functions`** | 11 | **100%** | Named functions, recursion (factorial, fibonacci), mutual recursion (`isEven`/`isOdd`), higher-order pipelines, arrow functions, optional/rest parameters. |
 | **`generics`** | 12 | **100%** | Generic classes, interfaces, nested generics, type aliases, multi-parameter generics, specialized functions. |
-| **`inference`** | 3 | **100%** | Anonymous object inference, generic call inference, empty array typing. |
-| **`modules`** | 3 | **100%** | Import/export, multi-level imports, deterministic initialization order. |
-| **`objects`** | 4 | **100%** | Object literals, property mutation, bracket access (`obj["key"]`), nested object records, object spread/destructuring, discriminated unions. |
-| **`regex_literals`** | 1 | **100%** | RegExp literals, `RegExp.exec`, `String.match`, `.test`, `.search`, `.replace`. |
+| **`inference`** | 3 | **100%** | Local variable type inference, function return type inference, generic type inference. |
+| **`modules`** | 3 | **100%** | Named exports/imports, default exports/imports, re-exports. |
+| **`objects`** | 4 | **100%** | Object literals, nested shapes, property mutation, structural subtyping. |
+| **`regex_literals`** | 1 | **100%** | Regex literal flags, `test()`, `exec()`, `match()`. |
 | **`root (Core Features)`** | 11 | **100%** | `async_generators`, `bigint_literals`, `for_await_of`, `generators`, `in_operator`, `labeled_statement`, `optional_call`, `postfix_prefix_update`, `regex_literals`, `symbol_primitive`, `tagged_template`. |
-| **`stdlib`** | 43 | **100%** | `Object` static methods (`Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign`), modern Array methods (`findIndex`, `fill`, `toReversed`, `toSorted`), `TextEncoder` & `TextDecoder`, `Map` & `Set`, `console` full suite, `Math` extended API, string methods, number static methods, `events` (`EventEmitter`), `fs`, `path`, `os`, `process`, `crypto`, `date`, `json`, `base64`. |
+| **`stdlib`** | 54 | **100%** | `Buffer` (`alloc`, `from`, `concat`, `isBuffer`, binary read/write LE/BE, `node:buffer`), `URL` & `URLSearchParams` (`node:url`), `fs` extended & `fs.promises` (`statSync`, `readdirSync`, `copyFileSync`, `renameSync`, `appendFileSync`, `mkdirSync`, `rmSync`, `promises.*`), `child_process` (`execSync`, `spawnSync`, `SpawnSyncReturns`), `Object` static methods, Array modern methods, `TextEncoder`/`Decoder`, `Map`/`Set`, `console`, `Math`, `events`, `path`, `os`, `process`, `crypto`, `date`, `json`, `base64`. |
 | **`symbol_primitive`** | 1 | **100%** | Primitive symbol type, Symbol registry (`Symbol.for`, `Symbol.keyFor`), description, comparison. |
 | **`syntax`** | 16 | **100%** | Complex nested loops with labels, switch fallthrough patterns, string indexing (`str[i]`), tuple mutation, enums, default params, for-in, `for..of` destructuring, `debugger;` statement. |
 | **`timers`** | 3 | **100%** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers`. |

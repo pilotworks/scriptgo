@@ -172,3 +172,17 @@ int scriptgo_promise_await_number(void *promise_handle, double *out_val) {
     return 0;
 }
 
+int scriptgo_promise_await_ptr(void *promise_handle, void **out_val) {
+    scriptgo_promise *p = promise_handle;
+    if (p == NULL || out_val == NULL) return scriptgo_runtime_set_error("scriptgo promise await failed");
+    if (p->state == PROMISE_PENDING) {
+        scriptgo_event_loop_run();
+    }
+    if (p->state == PROMISE_FULFILLED) {
+        *out_val = p->ptr_value;
+    } else {
+        *out_val = NULL;
+    }
+    return 0;
+}
+

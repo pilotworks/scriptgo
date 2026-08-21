@@ -459,6 +459,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				typ = ir.TypeDataView
 			case "ArrayBuffer":
 				typ = ir.TypeArrayBuffer
+			case "Buffer":
+				typ = ir.TypeBuffer
 			default:
 				if expression.InferredType != "" {
 					if _, isShape := shapes[expression.InferredType]; isShape {

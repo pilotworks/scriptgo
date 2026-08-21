@@ -401,7 +401,7 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 
 func isTypedArrayType(t Type) bool {
 	switch t {
-	case TypeUint8Array, TypeInt8Array, TypeUint8ClampedArray,
+	case TypeBuffer, TypeUint8Array, TypeInt8Array, TypeUint8ClampedArray,
 		TypeInt16Array, TypeUint16Array, TypeInt32Array, TypeUint32Array,
 		TypeFloat32Array, TypeFloat64Array, TypeBigInt64Array, TypeBigUint64Array:
 		return true

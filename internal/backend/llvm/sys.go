@@ -52,6 +52,117 @@ func (e *functionEmitter) emitFsIntrinsic(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_unlink_sync(ptr %%%s)\n", status, instruction.Args[0])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
+	case "__fs.readdirSync":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_readdir_sync(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__fs.copyFileSync":
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_copy_file_sync(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	case "__fs.renameSync":
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_rename_sync(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	case "__fs.appendFileSync":
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_append_file_sync(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	case "__fs.mkdirSync":
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		recArg := "0.0"
+		if len(instruction.Args) > 1 {
+			recVal := instruction.Args[1]
+			recF64 := recVal + ".f64"
+			fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", recF64, recVal)
+			recArg = fmt.Sprintf("%%%s", recF64)
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_mkdir_sync(ptr %%%s, double %s)\n", status, instruction.Args[0], recArg)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	case "__fs.rmSync":
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		recArg := "0.0"
+		forceArg := "0.0"
+		if len(instruction.Args) > 1 {
+			recVal := instruction.Args[1]
+			recF64 := recVal + ".f64"
+			fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", recF64, recVal)
+			recArg = fmt.Sprintf("%%%s", recF64)
+		}
+		if len(instruction.Args) > 2 {
+			forceVal := instruction.Args[2]
+			forceF64 := forceVal + ".f64"
+			fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", forceF64, forceVal)
+			forceArg = fmt.Sprintf("%%%s", forceF64)
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_rm_sync(ptr %%%s, double %s, double %s)\n", status, instruction.Args[0], recArg, forceArg)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	case "__fs.statSync":
+		// Allocate Stats object struct with fields size, mtimeMs, birthtimeMs, mode
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		sizeSlot := instruction.Result + ".size.slot"
+		mtimeSlot := instruction.Result + ".mtime.slot"
+		birthtimeSlot := instruction.Result + ".birthtime.slot"
+		modeSlot := instruction.Result + ".mode.slot"
+		fmt.Fprintf(out, "  %%%s = alloca double\n", sizeSlot)
+		fmt.Fprintf(out, "  %%%s = alloca double\n", mtimeSlot)
+		fmt.Fprintf(out, "  %%%s = alloca double\n", birthtimeSlot)
+		fmt.Fprintf(out, "  %%%s = alloca double\n", modeSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_stat_sync(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n",
+			status, instruction.Args[0], sizeSlot, mtimeSlot, birthtimeSlot, modeSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+
+		sizeVal := instruction.Result + ".size"
+		mtimeVal := instruction.Result + ".mtime"
+		birthtimeVal := instruction.Result + ".birthtime"
+		modeVal := instruction.Result + ".mode"
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", sizeVal, sizeSlot)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", mtimeVal, mtimeSlot)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", birthtimeVal, birthtimeSlot)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", modeVal, modeSlot)
+
+		// Create object:Stats instance with 4 fields
+		objSlot := instruction.Result + ".obj_slot"
+		objStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", objSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 4, ptr %%%s)\n", objStatus, objSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", objStatus)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, objSlot)
+
+		field0Status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		field1Status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		field2Status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		field3Status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 0, double %%%s)\n", field0Status, instruction.Result, sizeVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", field0Status)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 1, double %%%s)\n", field1Status, instruction.Result, mtimeVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", field1Status)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 2, double %%%s)\n", field2Status, instruction.Result, birthtimeVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", field2Status)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 3, double %%%s)\n", field3Status, instruction.Result, modeVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", field3Status)
+		return nil
 	default:
 		return fmt.Errorf("unknown fs intrinsic %q", instruction.Callee)
 	}
@@ -446,6 +557,118 @@ func (e *functionEmitter) emitConsoleIntrinsic(out *strings.Builder, instruction
 		return nil
 	default:
 		return fmt.Errorf("unknown console intrinsic %q", instruction.Callee)
+	}
+}
+
+func (e *functionEmitter) emitChildProcessIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Callee {
+	case "__child_process.execSync":
+		cwdArg := "null"
+		inputArg := "null"
+		if len(instruction.Args) > 1 {
+			cwdArg = "%" + instruction.Args[1]
+		}
+		if len(instruction.Args) > 2 {
+			inputArg = "%" + instruction.Args[2]
+		}
+		stdoutSlot := instruction.Result + ".stdout.slot"
+		stderrSlot := instruction.Result + ".stderr.slot"
+		statusSlot := instruction.Result + ".status.slot"
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", stdoutSlot)
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", stderrSlot)
+		fmt.Fprintf(out, "  %%%s = alloca double\n", statusSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_child_process_exec_sync(ptr %%%s, ptr %s, ptr %s, ptr %%%s, ptr %%%s, ptr %%%s)\n",
+			status, instruction.Args[0], cwdArg, inputArg, stdoutSlot, stderrSlot, statusSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		if instruction.Type == ir.TypeString {
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, stdoutSlot)
+		} else {
+			stdoutVal := instruction.Result + ".stdout"
+			stderrVal := instruction.Result + ".stderr"
+			statusVal := instruction.Result + ".status"
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", stdoutVal, stdoutSlot)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", stderrVal, stderrSlot)
+			fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", statusVal, statusSlot)
+
+			objSlot := instruction.Result + ".obj_slot"
+			objStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", objSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 3, ptr %%%s)\n", objStatus, objSlot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", objStatus)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, objSlot)
+
+			s1 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			s2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			s3 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 0, ptr %%%s)\n", s1, instruction.Result, stdoutVal)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s1)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 1, ptr %%%s)\n", s2, instruction.Result, stderrVal)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s2)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 2, double %%%s)\n", s3, instruction.Result, statusVal)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s3)
+		}
+		return nil
+	case "__child_process.spawnSync":
+		argsArg := "null"
+		cwdArg := "null"
+		inputArg := "null"
+		if len(instruction.Args) > 1 {
+			argsArg = "%" + instruction.Args[1]
+		}
+		if len(instruction.Args) > 2 {
+			cwdArg = "%" + instruction.Args[2]
+		}
+		if len(instruction.Args) > 3 {
+			inputArg = "%" + instruction.Args[3]
+		}
+		stdoutSlot := instruction.Result + ".stdout.slot"
+		stderrSlot := instruction.Result + ".stderr.slot"
+		statusSlot := instruction.Result + ".status.slot"
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", stdoutSlot)
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", stderrSlot)
+		fmt.Fprintf(out, "  %%%s = alloca double\n", statusSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_child_process_spawn_sync(ptr %%%s, ptr %s, ptr %s, ptr %s, ptr %%%s, ptr %%%s, ptr %%%s)\n",
+			status, instruction.Args[0], argsArg, cwdArg, inputArg, stdoutSlot, stderrSlot, statusSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+
+		stdoutVal := instruction.Result + ".stdout"
+		stderrVal := instruction.Result + ".stderr"
+		statusVal := instruction.Result + ".status"
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", stdoutVal, stdoutSlot)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", stderrVal, stderrSlot)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", statusVal, statusSlot)
+
+		objSlot := instruction.Result + ".obj_slot"
+		objStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", objSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 3, ptr %%%s)\n", objStatus, objSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", objStatus)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, objSlot)
+
+		s1 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		s2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		s3 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 0, ptr %%%s)\n", s1, instruction.Result, stdoutVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s1)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_ptr_set(ptr %%%s, i64 1, ptr %%%s)\n", s2, instruction.Result, stderrVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s2)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 2, double %%%s)\n", s3, instruction.Result, statusVal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", s3)
+		return nil
+	default:
+		return fmt.Errorf("unknown child_process intrinsic %q", instruction.Callee)
 	}
 }
 

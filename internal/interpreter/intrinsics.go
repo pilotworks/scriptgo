@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -974,6 +975,133 @@ func executeFsIntrinsic(name string, arguments []string, env map[string]Value) (
 		}
 		_ = os.Remove(pathVal.String)
 		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.readdirSync":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("fs.readdirSync requires 1 argument")
+		}
+		pathVal := env[arguments[0]].String
+		entries, err := os.ReadDir(pathVal)
+		if err != nil {
+			return Value{}, err
+		}
+		var arr []Value
+		for _, entry := range entries {
+			arr = append(arr, Value{Type: ir.TypeString, String: entry.Name()})
+		}
+		return Value{Type: ir.TypeStringArray, Array: arr}, nil
+	case "__fs.copyFileSync":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("fs.copyFileSync requires 2 arguments")
+		}
+		src := env[arguments[0]].String
+		dest := env[arguments[1]].String
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return Value{}, err
+		}
+		err = os.WriteFile(dest, data, 0644)
+		if err != nil {
+			return Value{}, err
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.renameSync":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("fs.renameSync requires 2 arguments")
+		}
+		oldPath := env[arguments[0]].String
+		newPath := env[arguments[1]].String
+		err := os.Rename(oldPath, newPath)
+		if err != nil {
+			return Value{}, err
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.appendFileSync":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("fs.appendFileSync requires 2 arguments")
+		}
+		pathVal := env[arguments[0]].String
+		content := env[arguments[1]].String
+		f, err := os.OpenFile(pathVal, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return Value{}, err
+		}
+		defer f.Close()
+		_, err = f.WriteString(content)
+		if err != nil {
+			return Value{}, err
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.mkdirSync":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("fs.mkdirSync requires 1 argument")
+		}
+		pathVal := env[arguments[0]].String
+		isRec := false
+		if len(arguments) > 1 && (env[arguments[1]].Bool || env[arguments[1]].Number > 0) {
+			isRec = true
+		}
+		var err error
+		if isRec {
+			err = os.MkdirAll(pathVal, 0755)
+		} else {
+			err = os.Mkdir(pathVal, 0755)
+		}
+		if err != nil && !os.IsExist(err) {
+			return Value{}, err
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.rmSync":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("fs.rmSync requires 1 argument")
+		}
+		pathVal := env[arguments[0]].String
+		isRec := false
+		if len(arguments) > 1 && (env[arguments[1]].Bool || env[arguments[1]].Number > 0) {
+			isRec = true
+		}
+		var err error
+		if isRec {
+			err = os.RemoveAll(pathVal)
+		} else {
+			err = os.Remove(pathVal)
+		}
+		if err != nil {
+			isForce := false
+			if len(arguments) > 2 && (env[arguments[2]].Bool || env[arguments[2]].Number > 0) {
+				isForce = true
+			}
+			if !isForce && !os.IsNotExist(err) {
+				return Value{}, err
+			}
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__fs.statSync":
+		if len(arguments) != 1 {
+			return Value{}, fmt.Errorf("fs.statSync requires 1 argument")
+		}
+		pathVal := env[arguments[0]].String
+		info, err := os.Stat(pathVal)
+		if err != nil {
+			return Value{}, err
+		}
+		size := float64(info.Size())
+		mtimeMs := float64(info.ModTime().UnixMilli())
+		birthtimeMs := mtimeMs
+		var mode float64
+		if info.IsDir() {
+			mode = float64(0040755)
+		} else {
+			mode = float64(0100644)
+		}
+		return Value{
+			Type: "object:Stats",
+			Object: map[string]Value{
+				"size":        {Type: ir.TypeNumber, Number: size},
+				"mtimeMs":     {Type: ir.TypeNumber, Number: mtimeMs},
+				"birthtimeMs": {Type: ir.TypeNumber, Number: birthtimeMs},
+				"mode":        {Type: ir.TypeNumber, Number: mode},
+			},
+		}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown fs intrinsic %q", name)
 	}
@@ -1336,4 +1464,103 @@ func drainMicrotasks(functions map[string]ir.Function, output *bytes.Buffer) err
 		}
 	}
 	return nil
+}
+
+func executeChildProcessIntrinsic(instruction ir.Instruction, env map[string]Value) (Value, error) {
+	switch instruction.Callee {
+	case "__child_process.execSync":
+		if len(instruction.Args) < 1 {
+			return Value{}, fmt.Errorf("child_process.execSync requires at least 1 argument")
+		}
+		command := env[instruction.Args[0]].String
+		var cwd string
+		var input string
+		if len(instruction.Args) > 1 && instruction.Args[1] != "" {
+			cwd = env[instruction.Args[1]].String
+		}
+		if len(instruction.Args) > 2 && instruction.Args[2] != "" {
+			input = env[instruction.Args[2]].String
+		}
+
+		cmd := exec.Command("/bin/sh", "-c", command)
+		if cwd != "" {
+			cmd.Dir = cwd
+		}
+		if input != "" {
+			cmd.Stdin = strings.NewReader(input)
+		}
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		err := cmd.Run()
+		var exitCode float64 = 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = float64(exitErr.ExitCode())
+			} else {
+				exitCode = 1
+			}
+		}
+		if instruction.Type == ir.TypeString {
+			return Value{Type: ir.TypeString, String: stdoutBuf.String()}, nil
+		}
+		return Value{
+			Type: "object:SpawnSyncReturns",
+			Object: map[string]Value{
+				"stdout": {Type: ir.TypeString, String: stdoutBuf.String()},
+				"stderr": {Type: ir.TypeString, String: stderrBuf.String()},
+				"status": {Type: ir.TypeNumber, Number: exitCode},
+			},
+		}, nil
+	case "__child_process.spawnSync":
+		if len(instruction.Args) < 1 {
+			return Value{}, fmt.Errorf("child_process.spawnSync requires at least 1 argument")
+		}
+		command := env[instruction.Args[0]].String
+		var args []string
+		if len(instruction.Args) > 1 && instruction.Args[1] != "" {
+			arrVal := env[instruction.Args[1]]
+			for _, elem := range arrVal.Array {
+				args = append(args, elem.String)
+			}
+		}
+		var cwd string
+		var input string
+		if len(instruction.Args) > 2 && instruction.Args[2] != "" {
+			cwd = env[instruction.Args[2]].String
+		}
+		if len(instruction.Args) > 3 && instruction.Args[3] != "" {
+			input = env[instruction.Args[3]].String
+		}
+
+		cmd := exec.Command(command, args...)
+		if cwd != "" {
+			cmd.Dir = cwd
+		}
+		if input != "" {
+			cmd.Stdin = strings.NewReader(input)
+		}
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		err := cmd.Run()
+		var exitCode float64 = 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = float64(exitErr.ExitCode())
+			} else {
+				exitCode = 1
+			}
+		}
+		return Value{
+			Type: "object:SpawnSyncReturns",
+			Object: map[string]Value{
+				"stdout": {Type: ir.TypeString, String: stdoutBuf.String()},
+				"stderr": {Type: ir.TypeString, String: stderrBuf.String()},
+				"status": {Type: ir.TypeNumber, Number: exitCode},
+			},
+		}, nil
+	default:
+		return Value{}, fmt.Errorf("unknown child_process intrinsic %q", instruction.Callee)
+	}
 }

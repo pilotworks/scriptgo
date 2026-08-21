@@ -481,6 +481,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__buffer.") {
+				value, err := executeBufferIntrinsic(instruction, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__text_encoder.") || strings.HasPrefix(instruction.Callee, "__text_decoder.") {
 				value, err := executeTextEncodingIntrinsic(instruction, env)
 				if err != nil {
@@ -513,6 +523,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			if strings.HasPrefix(instruction.Callee, "__fs.") {
 				value, err := executeFsIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__child_process.") {
+				value, err := executeChildProcessIntrinsic(instruction, env)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}

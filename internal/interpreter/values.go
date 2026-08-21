@@ -27,7 +27,7 @@ type TypedArray struct {
 
 func (ta *TypedArray) ElementSize() int {
 	switch ta.Kind {
-	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray:
+	case ir.TypeBuffer, ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray:
 		return 1
 	case ir.TypeInt16Array, ir.TypeUint16Array:
 		return 2
@@ -55,7 +55,7 @@ func (ta *TypedArray) Get(index int) float64 {
 	switch ta.Kind {
 	case ir.TypeInt8Array:
 		return float64(int8(ta.Buffer.Data[offset]))
-	case ir.TypeUint8Array, ir.TypeUint8ClampedArray:
+	case ir.TypeBuffer, ir.TypeUint8Array, ir.TypeUint8ClampedArray:
 		return float64(ta.Buffer.Data[offset])
 	case ir.TypeInt16Array:
 		u := uint16(ta.Buffer.Data[offset]) | uint16(ta.Buffer.Data[offset+1])<<8
@@ -105,7 +105,7 @@ func (ta *TypedArray) Set(index int, val float64) {
 	switch ta.Kind {
 	case ir.TypeInt8Array:
 		ta.Buffer.Data[offset] = byte(int8(int32(val)))
-	case ir.TypeUint8Array:
+	case ir.TypeBuffer, ir.TypeUint8Array:
 		ta.Buffer.Data[offset] = byte(uint32(val) & 0xff)
 	case ir.TypeUint8ClampedArray:
 		if math.IsNaN(val) || val <= 0 {

@@ -77,6 +77,7 @@ const (
 	TypeSet               Type = "Set"
 	TypeTextEncoder       Type = "TextEncoder"
 	TypeTextDecoder       Type = "TextDecoder"
+	TypeBuffer            Type = "Buffer"
 )
 
 type Instruction struct {

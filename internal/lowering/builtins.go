@@ -604,11 +604,17 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)
 
-	// Node built-in modules (Category 4: NodeModule)
-	register([]string{"fs.readFileSync", "__scriptgo.readFileSync", "readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeString, 1, 2)
-	register([]string{"fs.writeFileSync", "__scriptgo.writeFileSync", "writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
-	register([]string{"fs.existsSync", "__scriptgo.existsSync", "existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
-	register([]string{"fs.unlinkSync", "__scriptgo.unlinkSync", "unlinkSync"}, CategoryNodeModule, "__fs.unlinkSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeString, 1, 2)
+	register([]string{"__scriptgo.writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
+	register([]string{"__scriptgo.unlinkSync"}, CategoryNodeModule, "__fs.unlinkSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.readdirSync"}, CategoryNodeModule, "__fs.readdirSync", []ir.Type{ir.TypeString}, ir.TypeStringArray, 1, 1)
+	register([]string{"__scriptgo.copyFileSync"}, CategoryNodeModule, "__fs.copyFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.renameSync"}, CategoryNodeModule, "__fs.renameSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.appendFileSync"}, CategoryNodeModule, "__fs.appendFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.mkdirSync"}, CategoryNodeModule, "__fs.mkdirSync", []ir.Type{ir.TypeString, ir.TypeBool}, ir.TypeVoid, 1, 2)
+	register([]string{"__scriptgo.rmSync"}, CategoryNodeModule, "__fs.rmSync", []ir.Type{ir.TypeString, ir.TypeBool, ir.TypeBool}, ir.TypeVoid, 1, 3)
+	register([]string{"__scriptgo.statSync"}, CategoryNodeModule, "__fs.statSync", []ir.Type{ir.TypeString}, ir.Type("object:Stats"), 1, 1)
 	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryNodeModule, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
 	register([]string{"crypto.hashDigest", "__scriptgo.hashDigest", "hashDigest"}, CategoryNodeModule, "__crypto.hashDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 2, 3)
 	register([]string{"os.platform", "__scriptgo.platform", "platform"}, CategoryNodeModule, "__os.platform", nil, ir.TypeString, 0, 0)
@@ -620,8 +626,11 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"os.type", "__scriptgo.type", "type"}, CategoryNodeModule, "__os.type", nil, ir.TypeString, 0, 0)
 	register([]string{"os.release", "__scriptgo.release", "release"}, CategoryNodeModule, "__os.release", nil, ir.TypeString, 0, 0)
 	register([]string{"os.tmpdir", "__scriptgo.tmpdir", "tmpdir"}, CategoryNodeModule, "__os.tmpdir", nil, ir.TypeString, 0, 0)
+	register([]string{"__scriptgo.execSync"}, CategoryNodeModule, "__child_process.execSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 1, 3)
+	register([]string{"__scriptgo.spawnSync"}, CategoryNodeModule, "__child_process.spawnSync", []ir.Type{ir.TypeString, ir.TypeStringArray, ir.TypeString, ir.TypeString}, ir.Type("object:SpawnSyncReturns"), 1, 4)
 
 	registerObjectIntrinsics(m)
+	registerBufferIntrinsics(m)
 
 	return m
 }

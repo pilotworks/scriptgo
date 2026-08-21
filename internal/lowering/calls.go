@@ -139,6 +139,9 @@ func lowerCallExpression(
 				})
 				return result, ir.TypeArrayBuffer, nil
 			}
+			if res, typ, handled, err := lowerBufferMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+				return res, typ, err
+			}
 			if isTypedArrayType(receiverType) {
 				if methodName == "subarray" || methodName == "slice" {
 					beginVal := nextTemp(counter)

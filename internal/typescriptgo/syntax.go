@@ -168,7 +168,7 @@ func syntaxType(node *ast.Node) string {
 	case ast.KindTypeReference:
 		typeRef := node.AsTypeReferenceNode()
 		if typeRef != nil && typeRef.TypeName != nil {
-			name := typeRef.TypeName.Text()
+			name := entityNameText(typeRef.TypeName)
 			if (name == "Array" || name == "ReadonlyArray") && typeRef.TypeArguments != nil && len(typeRef.TypeArguments.Nodes) == 1 {
 				return syntaxType(typeRef.TypeArguments.Nodes[0]) + "[]"
 			}
@@ -285,4 +285,28 @@ func isTypeScriptSource(fileName string) bool {
 		}
 	}
 	return false
+}
+
+func entityNameText(node *ast.Node) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind == ast.KindIdentifier {
+		return node.Text()
+	}
+	if node.Kind == ast.KindQualifiedName {
+		qn := node.AsQualifiedName()
+		if qn != nil {
+			left := entityNameText(qn.Left)
+			right := entityNameText(qn.Right)
+			if left != "" && right != "" {
+				return left + "." + right
+			}
+			if right != "" {
+				return right
+			}
+			return left
+		}
+	}
+	return ""
 }

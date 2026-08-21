@@ -212,6 +212,27 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeString && function.ReturnType != ir.TypeUnknown {
 			res := nextTemp(counter)
+			if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
+				prom := nextTemp(counter)
+				zeroVal := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeNumber,
+					Result: zeroVal,
+					Value:  "0",
+					Span:   toIRSpan(path, statement.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.Type("object:Promise"),
+					Result: prom,
+					Callee: "__async.promise_resolve",
+					Args:   []string{zeroVal},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{prom}, Span: toIRSpan(path, statement.Span)})
+				return nil
+			}
 			defaultVal := "0"
 			if function.ReturnType == ir.TypeBool {
 				defaultVal = "false"
@@ -231,6 +252,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
+		}
+		if strings.HasPrefix(string(function.ReturnType), "object:Promise") && !strings.HasPrefix(string(typ), "object:Promise") {
+			prom := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.Type("object:Promise"),
+				Result: prom,
+				Callee: "__async.promise_resolve",
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			value = prom
+			typ = function.ReturnType
 		}
 		if function.ReturnType == ir.TypeUnknown && typ != ir.TypeUnknown {
 			boxed := nextTemp(counter)
@@ -660,6 +694,8 @@ func toIRType(value string) ir.Type {
 		return ir.TypeTextEncoder
 	case "TextDecoder":
 		return ir.TypeTextDecoder
+	case "Buffer":
+		return ir.TypeBuffer
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
@@ -751,7 +787,7 @@ func isBigIntTypedArray(t ir.Type) bool {
 
 func isNumberTypedArray(t ir.Type) bool {
 	switch t {
-	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+	case ir.TypeBuffer, ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array:
 		return true
@@ -762,7 +798,7 @@ func isNumberTypedArray(t ir.Type) bool {
 
 func isTypedArrayType(t ir.Type) bool {
 	switch t {
-	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+	case ir.TypeBuffer, ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
 		return true
