@@ -443,6 +443,26 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__map.") {
+				value, err := executeMapIntrinsic(instruction, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__set.") {
+				value, err := executeSetIntrinsic(instruction, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") || strings.HasPrefix(instruction.Callee, "__dataview.") {
 				value, err := executeTypedArrayIntrinsic(instruction, env)
 				if err != nil {

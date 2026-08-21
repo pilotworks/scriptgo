@@ -586,6 +586,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 			ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 			ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
 			ir.TypeDataView, ir.TypeArrayBuffer,
+			ir.TypeMap, ir.TypeSet,
 		}, MinArgs: 0, MaxArgs: 256, Lower: lowerPrint}
 	}
 	m["console.assert"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.assert", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleAssert}

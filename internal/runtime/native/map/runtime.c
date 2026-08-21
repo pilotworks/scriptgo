@@ -1,0 +1,402 @@
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int scriptgo_runtime_set_error(const char *message);
+int scriptgo_map_set_string_string(void *handle, const char *key, const char *value, void **out_map);
+
+#define SCRIPTGO_MAGIC_MAP 0x4D415031 // "MAP1"
+
+typedef enum {
+    SCRIPTGO_MAP_VAL_NUMBER = 1,
+    SCRIPTGO_MAP_VAL_STRING = 2,
+    SCRIPTGO_MAP_VAL_PTR = 3
+} scriptgo_map_val_type;
+
+typedef struct {
+    char *key_str;
+    scriptgo_map_val_type val_type;
+    double num_val;
+    char *str_val;
+    void *ptr_val;
+} scriptgo_map_native_entry;
+
+typedef struct {
+    uint32_t magic;
+    int64_t size;
+    int64_t capacity;
+    scriptgo_map_native_entry *entries;
+} scriptgo_map_native;
+
+static int map_fail(const char *msg) {
+    return scriptgo_runtime_set_error(msg);
+}
+
+static char *num_to_str(double n) {
+    char buf[64];
+    if (isnan(n)) {
+        snprintf(buf, sizeof(buf), "NaN");
+    } else if (isinf(n)) {
+        snprintf(buf, sizeof(buf), n > 0 ? "Infinity" : "-Infinity");
+    } else if (n == (double)(int64_t)n) {
+        snprintf(buf, sizeof(buf), "%lld", (long long)n);
+    } else {
+        snprintf(buf, sizeof(buf), "%.14g", n);
+    }
+    return strdup(buf);
+}
+
+int scriptgo_map_new(void **out_map) {
+    if (out_map == NULL) return map_fail("scriptgo map new: null out_map");
+    scriptgo_map_native *m = calloc(1, sizeof(scriptgo_map_native));
+    if (m == NULL) return map_fail("scriptgo map new: out of memory");
+    m->magic = SCRIPTGO_MAGIC_MAP;
+    m->size = 0;
+    m->capacity = 8;
+    m->entries = calloc(m->capacity, sizeof(scriptgo_map_native_entry));
+    if (m->entries == NULL) {
+        free(m);
+        return map_fail("scriptgo map new: out of memory");
+    }
+    *out_map = m;
+    return 0;
+}
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+} scriptgo_array_inner_map;
+
+typedef struct {
+    int64_t field_count;
+    const char *type_name;
+    uintptr_t fields[];
+} scriptgo_object_inner_map;
+
+int scriptgo_map_new_entries(void *entries_array, void **out_map) {
+    if (scriptgo_map_new(out_map) != 0) return -1;
+    if (entries_array == NULL) return 0;
+    scriptgo_map_native *m = *out_map;
+    scriptgo_array_inner_map *arr = entries_array;
+    if (arr->element_size == sizeof(void *)) {
+        for (int64_t i = 0; i < arr->length; i++) {
+            scriptgo_object_inner_map *obj = *(scriptgo_object_inner_map **)(arr->data + (size_t)i * sizeof(void *));
+            if (obj != NULL && obj->field_count >= 2) {
+                const char *k = (const char *)obj->fields[0];
+                const char *v = (const char *)obj->fields[1];
+                void *dummy;
+                scriptgo_map_set_string_string(m, k, v, &dummy);
+            }
+        }
+    }
+    return 0;
+}
+
+static int map_ensure_capacity(scriptgo_map_native *m) {
+    if (m->size >= m->capacity) {
+        int64_t new_cap = m->capacity * 2;
+        if (new_cap < 8) new_cap = 8;
+        scriptgo_map_native_entry *new_entries = realloc(m->entries, (size_t)new_cap * sizeof(scriptgo_map_native_entry));
+        if (new_entries == NULL) return map_fail("scriptgo map set: out of memory");
+        m->entries = new_entries;
+        m->capacity = new_cap;
+    }
+    return 0;
+}
+
+static int64_t map_find_entry(scriptgo_map_native *m, const char *key_str) {
+    if (m == NULL || key_str == NULL) return -1;
+    for (int64_t i = 0; i < m->size; i++) {
+        if (m->entries[i].key_str != NULL && strcmp(m->entries[i].key_str, key_str) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int scriptgo_map_set_string_number(void *handle, const char *key, double value, void **out_map) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map set: invalid handle");
+    if (key == NULL) key = "";
+    int64_t idx = map_find_entry(m, key);
+    if (idx >= 0) {
+        m->entries[idx].val_type = SCRIPTGO_MAP_VAL_NUMBER;
+        m->entries[idx].num_val = value;
+    } else {
+        if (map_ensure_capacity(m) != 0) return -1;
+        m->entries[m->size].key_str = strdup(key);
+        m->entries[m->size].val_type = SCRIPTGO_MAP_VAL_NUMBER;
+        m->entries[m->size].num_val = value;
+        m->size++;
+    }
+    if (out_map != NULL) *out_map = m;
+    return 0;
+}
+
+int scriptgo_map_set_string_string(void *handle, const char *key, const char *value, void **out_map) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map set: invalid handle");
+    if (key == NULL) key = "";
+    if (value == NULL) value = "";
+    int64_t idx = map_find_entry(m, key);
+    if (idx >= 0) {
+        if (m->entries[idx].val_type == SCRIPTGO_MAP_VAL_STRING && m->entries[idx].str_val != NULL) {
+            free(m->entries[idx].str_val);
+        }
+        m->entries[idx].val_type = SCRIPTGO_MAP_VAL_STRING;
+        m->entries[idx].str_val = strdup(value);
+    } else {
+        if (map_ensure_capacity(m) != 0) return -1;
+        m->entries[m->size].key_str = strdup(key);
+        m->entries[m->size].val_type = SCRIPTGO_MAP_VAL_STRING;
+        m->entries[m->size].str_val = strdup(value);
+        m->size++;
+    }
+    if (out_map != NULL) *out_map = m;
+    return 0;
+}
+
+int scriptgo_map_set_string_ptr(void *handle, const char *key, void *value, void **out_map) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map set: invalid handle");
+    if (key == NULL) key = "";
+    int64_t idx = map_find_entry(m, key);
+    if (idx >= 0) {
+        m->entries[idx].val_type = SCRIPTGO_MAP_VAL_PTR;
+        m->entries[idx].ptr_val = value;
+    } else {
+        if (map_ensure_capacity(m) != 0) return -1;
+        m->entries[m->size].key_str = strdup(key);
+        m->entries[m->size].val_type = SCRIPTGO_MAP_VAL_PTR;
+        m->entries[m->size].ptr_val = value;
+        m->size++;
+    }
+    if (out_map != NULL) *out_map = m;
+    return 0;
+}
+
+int scriptgo_map_set_number_number(void *handle, double key, double value, void **out_map) {
+    char *kstr = num_to_str(key);
+    int res = scriptgo_map_set_string_number(handle, kstr, value, out_map);
+    free(kstr);
+    return res;
+}
+
+int scriptgo_map_set_number_string(void *handle, double key, const char *value, void **out_map) {
+    char *kstr = num_to_str(key);
+    int res = scriptgo_map_set_string_string(handle, kstr, value, out_map);
+    free(kstr);
+    return res;
+}
+
+int scriptgo_map_set_number_ptr(void *handle, double key, void *value, void **out_map) {
+    char *kstr = num_to_str(key);
+    int res = scriptgo_map_set_string_ptr(handle, kstr, value, out_map);
+    free(kstr);
+    return res;
+}
+
+int scriptgo_map_get_number(void *handle, const char *key_str, double key_num, int32_t key_is_str, double *out_val) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map get: invalid handle");
+    if (out_val == NULL) return map_fail("scriptgo map get: null out_val");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    if (idx >= 0 && m->entries[idx].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
+        *out_val = m->entries[idx].num_val;
+    } else {
+        *out_val = 0.0;
+    }
+    return 0;
+}
+
+int scriptgo_map_get_string(void *handle, const char *key_str, double key_num, int32_t key_is_str, char **out_val) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map get: invalid handle");
+    if (out_val == NULL) return map_fail("scriptgo map get: null out_val");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    if (idx >= 0 && m->entries[idx].val_type == SCRIPTGO_MAP_VAL_STRING) {
+        *out_val = m->entries[idx].str_val;
+    } else {
+        *out_val = "";
+    }
+    return 0;
+}
+
+int scriptgo_map_get_ptr(void *handle, const char *key_str, double key_num, int32_t key_is_str, void **out_val) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map get: invalid handle");
+    if (out_val == NULL) return map_fail("scriptgo map get: null out_val");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    if (idx >= 0 && m->entries[idx].val_type == SCRIPTGO_MAP_VAL_PTR) {
+        *out_val = m->entries[idx].ptr_val;
+    } else {
+        *out_val = NULL;
+    }
+    return 0;
+}
+
+int scriptgo_map_has(void *handle, const char *key_str, double key_num, int32_t key_is_str, int32_t *out_bool) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map has: invalid handle");
+    if (out_bool == NULL) return map_fail("scriptgo map has: null out_bool");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    *out_bool = (idx >= 0) ? 1 : 0;
+    return 0;
+}
+
+int scriptgo_map_delete(void *handle, const char *key_str, double key_num, int32_t key_is_str, int32_t *out_bool) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map delete: invalid handle");
+    if (out_bool == NULL) return map_fail("scriptgo map delete: null out_bool");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    if (idx < 0) {
+        *out_bool = 0;
+        return 0;
+    }
+    if (m->entries[idx].key_str != NULL) free(m->entries[idx].key_str);
+    if (m->entries[idx].val_type == SCRIPTGO_MAP_VAL_STRING && m->entries[idx].str_val != NULL) {
+        free(m->entries[idx].str_val);
+    }
+    for (int64_t i = idx; i < m->size - 1; i++) {
+        m->entries[i] = m->entries[i + 1];
+    }
+    m->size--;
+    *out_bool = 1;
+    return 0;
+}
+
+int scriptgo_map_clear(void *handle) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map clear: invalid handle");
+    for (int64_t i = 0; i < m->size; i++) {
+        if (m->entries[i].key_str != NULL) free(m->entries[i].key_str);
+        if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING && m->entries[i].str_val != NULL) {
+            free(m->entries[i].str_val);
+        }
+    }
+    m->size = 0;
+    return 0;
+}
+
+int scriptgo_map_size(void *handle, double *out_size) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map size: invalid handle");
+    if (out_size == NULL) return map_fail("scriptgo map size: null out_size");
+    *out_size = (double)m->size;
+    return 0;
+}
+
+int scriptgo_map_to_string(void *handle, char **out_str) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) {
+        if (out_str != NULL) *out_str = strdup("Map(0) {}");
+        return 0;
+    }
+    if (out_str == NULL) return map_fail("scriptgo map toString: null out_str");
+    size_t cap = 256;
+    char *buf = malloc(cap);
+    if (buf == NULL) return map_fail("scriptgo map toString: out of memory");
+    snprintf(buf, cap, "Map(%lld) {", (long long)m->size);
+    for (int64_t i = 0; i < m->size; i++) {
+        char entry_buf[128];
+        char val_buf[64];
+        if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
+            double n = m->entries[i].num_val;
+            if (n == (double)(int64_t)n) {
+                snprintf(val_buf, sizeof(val_buf), "%lld", (long long)n);
+            } else {
+                snprintf(val_buf, sizeof(val_buf), "%.14g", n);
+            }
+        } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING) {
+            snprintf(val_buf, sizeof(val_buf), "'%s'", m->entries[i].str_val ? m->entries[i].str_val : "");
+        } else {
+            snprintf(val_buf, sizeof(val_buf), "[object]");
+        }
+        snprintf(entry_buf, sizeof(entry_buf), "%s'%s' => %s", (i == 0 ? " " : ", "), m->entries[i].key_str ? m->entries[i].key_str : "", val_buf);
+        size_t needed = strlen(buf) + strlen(entry_buf) + 4;
+        if (needed >= cap) {
+            cap = needed * 2;
+            char *new_buf = realloc(buf, cap);
+            if (new_buf == NULL) {
+                free(buf);
+                return map_fail("scriptgo map toString: out of memory");
+            }
+            buf = new_buf;
+        }
+        strcat(buf, entry_buf);
+    }
+    if (m->size > 0) {
+        strcat(buf, " ");
+    }
+    strcat(buf, "}");
+    *out_str = buf;
+    return 0;
+}
+
+typedef struct {
+    void *fn_ptr;
+    void *env;
+} scriptgo_map_closure_env;
+
+int scriptgo_map_for_each(void *handle, void *closure_handle) {
+    scriptgo_map_native *m = handle;
+    scriptgo_map_closure_env *c = closure_handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || c == NULL) {
+        return map_fail("scriptgo map forEach: invalid arguments");
+    }
+    for (int64_t i = 0; i < m->size; i++) {
+        scriptgo_map_native_entry *entry = &m->entries[i];
+        if (entry->val_type == SCRIPTGO_MAP_VAL_NUMBER) {
+            void (*fn)(void *, double, const char *, void *) = (void (*)(void *, double, const char *, void *))c->fn_ptr;
+            fn(c->env, entry->num_val, entry->key_str ? entry->key_str : "", m);
+        } else if (entry->val_type == SCRIPTGO_MAP_VAL_STRING) {
+            void (*fn)(void *, const char *, const char *, void *) = (void (*)(void *, const char *, const char *, void *))c->fn_ptr;
+            fn(c->env, entry->str_val ? entry->str_val : "", entry->key_str ? entry->key_str : "", m);
+        } else {
+            void (*fn)(void *, void *, const char *, void *) = (void (*)(void *, void *, const char *, void *))c->fn_ptr;
+            fn(c->env, entry->ptr_val, entry->key_str ? entry->key_str : "", m);
+        }
+    }
+    return 0;
+}
+

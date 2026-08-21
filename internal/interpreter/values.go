@@ -195,6 +195,8 @@ type Value struct {
 	Buffer     *ArrayBuffer
 	TypedArray *TypedArray
 	DataView   *DataView
+	MapValue   *MapValue
+	SetValue   *SetValue
 }
 
 func (v Value) GetArray() []Value {
@@ -246,7 +248,7 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
-		ir.TypeDataView, ir.TypeArrayBuffer:
+		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypeMap, ir.TypeSet:
 		return Value{Type: typ}, nil
 	default:
 		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {
@@ -500,7 +502,48 @@ func compare(operator string, left, right Value) (Value, error) {
 	return Value{Type: ir.TypeBool, Bool: result}, nil
 }
 
+func formatCollectionValue(v Value) string {
+	if v.Type == ir.TypeString {
+		return fmt.Sprintf("'%s'", v.String)
+	}
+	return format(v)
+}
+
 func format(value Value) string {
+	if value.MapValue != nil {
+		mv := value.MapValue
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Map(%d) {", len(mv.Entries)))
+		if len(mv.Entries) > 0 {
+			sb.WriteString(" ")
+			for i, entry := range mv.Entries {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(fmt.Sprintf("%s => %s", formatCollectionValue(entry.Key), formatCollectionValue(entry.Value)))
+			}
+			sb.WriteString(" ")
+		}
+		sb.WriteString("}")
+		return sb.String()
+	}
+	if value.SetValue != nil {
+		sv := value.SetValue
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Set(%d) {", len(sv.Entries)))
+		if len(sv.Entries) > 0 {
+			sb.WriteString(" ")
+			for i, val := range sv.Entries {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(formatCollectionValue(val))
+			}
+			sb.WriteString(" ")
+		}
+		sb.WriteString("}")
+		return sb.String()
+	}
 	if value.DataView != nil {
 		return fmt.Sprintf("DataView { byteLength: %d, byteOffset: %d }", value.DataView.ByteLength, value.DataView.ByteOffset)
 	}

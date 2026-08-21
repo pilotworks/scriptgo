@@ -122,6 +122,40 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		return result, ir.TypeNumber, nil
 	}
 
+	if isMapType(objectType) {
+		if expression.Text == "size" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__map.size",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+	}
+
+	if isSetType(objectType) {
+		if expression.Text == "size" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__set.size",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+	}
+
 	if isTypedArrayType(objectType) {
 		if expression.Text == "length" {
 			if result == "" {
@@ -606,6 +640,64 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeDataView, nil
+	}
+
+	if className == "Map" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeMap,
+				Result: result,
+				Callee: "__map.new",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeMap, nil
+		}
+		arg0Val, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeMap,
+			Result: result,
+			Callee: "__map.new_entries",
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeMap, nil
+	}
+
+	if className == "Set" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeSet,
+				Result: result,
+				Callee: "__set.new",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeSet, nil
+		}
+		arg0Val, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeSet,
+			Result: result,
+			Callee: "__set.new_values",
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeSet, nil
 	}
 
 	shape, ok := shapes[className]

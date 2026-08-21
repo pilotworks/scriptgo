@@ -646,9 +646,19 @@ func toIRType(value string) ir.Type {
 		return ir.TypeDataView
 	case "ArrayBuffer":
 		return ir.TypeArrayBuffer
+	case "Map":
+		return ir.TypeMap
+	case "Set":
+		return ir.TypeSet
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
+		if strings.HasPrefix(value, "Map<") && strings.HasSuffix(value, ">") {
+			return ir.TypeMap
+		}
+		if strings.HasPrefix(value, "Set<") && strings.HasSuffix(value, ">") {
+			return ir.TypeSet
+		}
 		if before, ok := strings.CutSuffix(value, "[]"); ok {
 			elem := before
 			return ir.Type(string(toIRType(elem)) + "[]")
@@ -706,7 +716,57 @@ func sourceError(path string, span typescriptgo.SourceSpan, err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%s:%d+%d: %w", path, span.Start, span.Length, err)
+	return &DiagnosticError{Path: path, Offset: span.Start, Length: span.Length, Err: err}
+}
+
+type DiagnosticError struct {
+	Path   string
+	Offset int
+	Length int
+	Err    error
+}
+
+func (e *DiagnosticError) Error() string {
+	return e.Err.Error()
+}
+
+func isBigIntTypedArray(t ir.Type) bool {
+	switch t {
+	case ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+		return true
+	default:
+		return false
+	}
+}
+
+func isNumberTypedArray(t ir.Type) bool {
+	switch t {
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTypedArrayType(t ir.Type) bool {
+	switch t {
+	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
+		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
+		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+		return true
+	default:
+		return false
+	}
+}
+
+func isMapType(t ir.Type) bool {
+	return t == ir.TypeMap
+}
+
+func isSetType(t ir.Type) bool {
+	return t == ir.TypeSet
 }
 
 func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
@@ -740,28 +800,6 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 			fallthroughReturns = caseReturns
 		}
 		return hasDefault
-	default:
-		return false
-	}
-}
-
-func isNumberTypedArray(t ir.Type) bool {
-	switch t {
-	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
-		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
-		ir.TypeFloat32Array, ir.TypeFloat64Array:
-		return true
-	default:
-		return false
-	}
-}
-
-func isTypedArrayType(t ir.Type) bool {
-	switch t {
-	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
-		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
-		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
-		return true
 	default:
 		return false
 	}

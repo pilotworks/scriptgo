@@ -429,6 +429,257 @@ func lowerCallExpression(
 					return "", ir.TypeVoid, nil
 				}
 			}
+			if isMapType(receiverType) {
+				switch methodName {
+				case "set":
+					if len(expression.Arguments) < 2 {
+						return "", "", fmt.Errorf("Map.set requires key and value arguments")
+					}
+					kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					vVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeMap,
+						Result: result,
+						Callee: "__map.set",
+						Args:   []string{receiver, kVal, vVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeMap, nil
+
+				case "get":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Map.get requires key argument")
+					}
+					kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					retType := ir.TypeUnknown
+					if expression.InferredType != "" {
+						retType = toIRType(expression.InferredType)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   retType,
+						Result: result,
+						Callee: "__map.get",
+						Args:   []string{receiver, kVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
+
+				case "has":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Map.has requires key argument")
+					}
+					kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeBool,
+						Result: result,
+						Callee: "__map.has",
+						Args:   []string{receiver, kVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeBool, nil
+
+				case "delete":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Map.delete requires key argument")
+					}
+					kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeBool,
+						Result: result,
+						Callee: "__map.delete",
+						Args:   []string{receiver, kVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeBool, nil
+
+				case "clear":
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__map.clear",
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+
+				case "keys", "values", "entries":
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					retType := ir.TypeStringArray
+					if expression.InferredType != "" {
+						retType = toIRType(expression.InferredType)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   retType,
+						Result: result,
+						Callee: "__map." + methodName,
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
+
+				case "forEach":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Map.forEach requires callback argument")
+					}
+					cbVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__map.forEach",
+						Args:   []string{receiver, cbVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+				}
+			}
+			if isSetType(receiverType) {
+				switch methodName {
+				case "add":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Set.add requires value argument")
+					}
+					vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeSet,
+						Result: result,
+						Callee: "__set.add",
+						Args:   []string{receiver, vVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeSet, nil
+
+				case "has":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Set.has requires value argument")
+					}
+					vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeBool,
+						Result: result,
+						Callee: "__set.has",
+						Args:   []string{receiver, vVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeBool, nil
+
+				case "delete":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Set.delete requires value argument")
+					}
+					vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeBool,
+						Result: result,
+						Callee: "__set.delete",
+						Args:   []string{receiver, vVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeBool, nil
+
+				case "clear":
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__set.clear",
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+
+				case "keys", "values", "entries":
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					retType := ir.TypeNumberArray
+					if expression.InferredType != "" {
+						retType = toIRType(expression.InferredType)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   retType,
+						Result: result,
+						Callee: "__set." + methodName,
+						Args:   []string{receiver},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
+
+				case "forEach":
+					if len(expression.Arguments) < 1 {
+						return "", "", fmt.Errorf("Set.forEach requires callback argument")
+					}
+					cbVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: "__set.forEach",
+						Args:   []string{receiver, cbVal},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return "", ir.TypeVoid, nil
+				}
+			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
 				if methodName == "match" || methodName == "search" {
 					if len(expression.Arguments) > 0 {

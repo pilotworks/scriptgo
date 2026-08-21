@@ -498,6 +498,45 @@ interface DataViewConstructor {
 }
 declare var DataView: DataViewConstructor;
 
+interface Map<K, V> {
+    readonly size: number;
+    get(key: K): V;
+    set(key: K, value: V): this;
+    has(key: K): boolean;
+    delete(key: K): boolean;
+    clear(): void;
+    forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void): void;
+    keys(): K[];
+    values(): V[];
+    entries(): [K, V][];
+}
+
+interface MapConstructor {
+    new<K, V>(): Map<K, V>;
+    new<K, V>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
+    readonly prototype: Map<any, any>;
+}
+declare var Map: MapConstructor;
+
+interface Set<T> {
+    readonly size: number;
+    add(value: T): this;
+    has(value: T): boolean;
+    delete(value: T): boolean;
+    clear(): void;
+    forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void): void;
+    keys(): T[];
+    values(): T[];
+    entries(): [T, T][];
+}
+
+interface SetConstructor {
+    new<T>(): Set<T>;
+    new<T>(values?: readonly T[] | null): Set<T>;
+    readonly prototype: Set<any>;
+}
+declare var Set: SetConstructor;
+
 declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
 declare function clearTimeout(id: number | undefined): void;
 declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;

@@ -1,0 +1,8 @@
+4
+3
+4
+Map(4) { 'a' => '1', 'b' => '2', 'c' => '3', 'd' => '4' }
+4
+true
+false
+Set(4) { 'alpha', 'beta', 'gamma', 'delta' }

@@ -73,6 +73,8 @@ const (
 	TypeBigUint64Array    Type = "BigUint64Array"
 	TypeDataView          Type = "DataView"
 	TypeArrayBuffer       Type = "ArrayBuffer"
+	TypeMap               Type = "Map"
+	TypeSet               Type = "Set"
 )
 
 type Instruction struct {
