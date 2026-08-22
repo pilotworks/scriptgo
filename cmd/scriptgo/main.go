@@ -172,7 +172,7 @@ func handleRun(args []string) {
 		defer os.RemoveAll(tempDir)
 		binPath := filepath.Join(tempDir, "app")
 		if err := compiler.BuildWithOptions(entryPath, binPath, options); err != nil {
-			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
+			printError(err)
 			os.Exit(1)
 		}
 		printCompilerWarnings()
@@ -196,7 +196,7 @@ func handleRun(args []string) {
 	result, err := compiler.Run(entryPath)
 	printCompilerWarnings()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	fmt.Print(result)
@@ -272,7 +272,7 @@ func handleBuild(args []string) {
 	}
 	if err := compiler.BuildWithOptions(entryPath, outputPath, options); err != nil {
 		printCompilerWarnings()
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	printCompilerWarnings()
@@ -325,7 +325,7 @@ func handleCheck(args []string) {
 	}
 	if _, err := compiler.CompileWithOptions(entryPath, options); err != nil {
 		printCompilerWarnings()
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	printCompilerWarnings()
@@ -403,7 +403,7 @@ func handleEmit(args []string) {
 
 	printCompilerWarnings()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
+		printError(err)
 		os.Exit(1)
 	}
 
@@ -553,7 +553,19 @@ Examples:
 func printCompilerWarnings() {
 	warns := compiler.GetWarnings()
 	for _, w := range warns {
-		fmt.Fprintf(os.Stderr, "scriptgo: warning: %s in %s at offset %d: %s\n", w.Code, w.FileName, w.Span.Start, w.Message)
+		fmt.Fprintln(os.Stderr, w.Format())
+	}
+}
+
+func printError(err error) {
+	if err == nil {
+		return
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, " - error ") || strings.Contains(errStr, " - warning ") {
+		fmt.Fprintln(os.Stderr, errStr)
+	} else {
+		fmt.Fprintln(os.Stderr, "scriptgo:", errStr)
 	}
 }
 

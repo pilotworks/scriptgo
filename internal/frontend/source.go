@@ -33,18 +33,7 @@ func NewProgram(entryPath, source string) (Program, error) {
 	}
 	if len(parsed.Diagnostics) > 0 {
 		diagnostic := parsed.Diagnostics[0]
-		kind := "TypeScript type error"
-		if diagnostic.Kind == "syntax" {
-			kind = "TypeScript syntax error"
-		}
-		return Program{}, fmt.Errorf(
-			"%s in %s at offset %d (TS%d): %s",
-			kind,
-			diagnostic.FileName,
-			diagnostic.Start,
-			diagnostic.Code,
-			diagnostic.Message,
-		)
+		return Program{}, fmt.Errorf("%s", typescriptgo.FormatDiagnostic(diagnostic, source))
 	}
 
 	absoluteEntry, err := filepath.Abs(entryPath)

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -345,6 +347,10 @@ type Warning struct {
 	Message  string
 }
 
+func (w Warning) Format() string {
+	return typescriptgo.Format(w.FileName, w.Span.Start, w.Span.Length, "warning", string(w.Code), w.Message, "")
+}
+
 var (
 	warnings         []Warning
 	WarnRuntimeCasts bool
@@ -507,6 +513,29 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	}
 }
 
+func formatSubsetMessage(code SubsetCode, feature string) string {
+	feature = strings.TrimSpace(feature)
+	if feature == "" {
+		return "unsupported feature in native subset"
+	}
+	if strings.Contains(feature, "in native subset") || strings.Contains(feature, "native subset") {
+		return feature
+	}
+	if strings.HasSuffix(feature, ".") {
+		return strings.TrimSuffix(feature, ".") + " in native subset."
+	}
+	if strings.ToLower(feature) == "any type" {
+		return "The any type is not supported in native subset."
+	}
+	r, size := utf8.DecodeRuneInString(feature)
+	capitalized := string(unicode.ToUpper(r)) + feature[size:]
+	if strings.Contains(strings.ToLower(feature), "not supported") {
+		return capitalized + " in native subset."
+	}
+	return capitalized + " is not supported in native subset."
+}
+
 func subsetError(fileName string, span typescriptgo.SourceSpan, code SubsetCode, feature string) error {
-	return fmt.Errorf("%s: native subset: %s at offset %d (length %d): unsupported feature %q", code, fileName, span.Start, span.Length, feature)
+	msg := formatSubsetMessage(code, feature)
+	return fmt.Errorf("%s", typescriptgo.Format(fileName, span.Start, span.Length, "error", string(code), msg, ""))
 }

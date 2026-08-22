@@ -456,7 +456,7 @@ func TestCompileRejectsTypeScriptSyntaxErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := Compile(entry); err == nil || !strings.Contains(err.Error(), "TypeScript syntax error") {
+	if _, err := Compile(entry); err == nil || !strings.Contains(err.Error(), "TS1109") {
 		t.Fatalf("Compile did not report a TypeScript syntax error: %v", err)
 	}
 }

@@ -106,7 +106,7 @@ func CompileModuleWithOptions(entryPath string, options BuildOptions) (ir.Module
 		WarnRuntimeCasts: options.WarnRuntimeCasts,
 	})
 	if err != nil {
-		return ir.Module{}, fmt.Errorf("lower %q: %w", entryPath, err)
+		return ir.Module{}, err
 	}
 	return module, nil
 }
