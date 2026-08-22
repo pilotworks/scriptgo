@@ -9,13 +9,42 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+func coerceToBool(path string, value string, valType ir.Type, function *ir.Function, counter *int, span typescriptgo.SourceSpan) (string, error) {
+	if valType == ir.TypeBool {
+		return value, nil
+	}
+	if valType == ir.TypeNumber {
+		zeroConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, span)})
+		boolRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolRes, Operator: "!=", Args: []string{value, zeroConst}, Span: toIRSpan(path, span)})
+		return boolRes, nil
+	}
+	if valType == ir.TypeString {
+		emptyConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyConst, Value: `""`, Span: toIRSpan(path, span)})
+		boolRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolRes, Operator: "!=", Args: []string{value, emptyConst}, Span: toIRSpan(path, span)})
+		return boolRes, nil
+	}
+	if strings.HasPrefix(string(valType), "object:") || strings.HasSuffix(string(valType), "[]") || valType == ir.TypeNumberArray || valType == ir.TypeStringArray || valType == ir.TypeBoolArray || valType == ir.TypeBigIntArray || valType == ir.TypeMap || valType == ir.TypeSet || valType == ir.TypeBuffer || valType == ir.TypeUint8Array || valType == ir.TypeUnknown {
+		nullConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: nullConst, Value: "null", Span: toIRSpan(path, span)})
+		boolRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolRes, Operator: "!=", Args: []string{value, nullConst}, Span: toIRSpan(path, span)})
+		return boolRes, nil
+	}
+	return "", fmt.Errorf("cannot coerce %s to boolean condition", valType)
+}
+
 func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	condition, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
-	if typ != ir.TypeBool {
-		return fmt.Errorf("if condition must be bool")
+	condition, err = coerceToBool(path, condition, typ, function, counter, statement.Span)
+	if err != nil {
+		return fmt.Errorf("if condition: %w", err)
 	}
 	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, env, counter, shapes, signatures)
 	if err != nil {
@@ -35,8 +64,9 @@ func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *i
 	if err != nil {
 		return err
 	}
-	if condType != ir.TypeBool {
-		return fmt.Errorf("while condition must be bool")
+	condVal, err = coerceToBool(path, condVal, condType, &condFunc, counter, statement.Span)
+	if err != nil {
+		return fmt.Errorf("while condition: %w", err)
 	}
 	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
 	if err != nil {
@@ -68,8 +98,9 @@ func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function 
 	if err != nil {
 		return err
 	}
-	if condType != ir.TypeBool {
-		return fmt.Errorf("do-while condition must be bool")
+	condVal, err = coerceToBool(path, condVal, condType, &condFunc, counter, statement.Span)
+	if err != nil {
+		return fmt.Errorf("do-while condition: %w", err)
 	}
 	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
 	if err != nil {
@@ -100,94 +131,119 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(string(arrType), "object:Generator_") || strings.HasPrefix(string(arrType), "object:Iterator_") {
+	if strings.HasPrefix(string(arrType), "object:Generator") || strings.HasPrefix(string(arrType), "object:AsyncGenerator") || strings.HasPrefix(string(arrType), "object:Iterator") {
 		shapeName := strings.TrimPrefix(string(arrType), "object:")
 		nextFn := shapeName + "_next"
 		targetNext, hasNext := signatures[nextFn]
+		valType := ir.TypeNumber
+		resShapeName := ""
 		if hasNext {
-			resShapeName := strings.TrimPrefix(string(targetNext.ReturnType), "object:")
-			resShape, ok := shapes[resShapeName]
-			valType := ir.TypeNumber
-			if ok && len(resShape.Fields) > 0 {
+			resShapeName = strings.TrimPrefix(string(targetNext.ReturnType), "object:")
+			if resShape, ok := shapes[resShapeName]; ok && len(resShape.Fields) > 0 {
 				valType = resShape.Fields[0].Type
 			}
-
-			condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-			condConst := nextTemp(counter)
-			condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: condConst, Value: "true", Span: toIRSpan(path, statement.Span)})
-
-			bodyEnv := make(map[string]ir.Type, len(env)+2)
-			maps.Copy(bodyEnv, env)
-			bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
-
-			resVal := nextTemp(counter)
-			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   targetNext.ReturnType,
-				Result: resVal,
-				Callee: nextFn,
-				Args:   []string{arrVal},
-				Span:   toIRSpan(path, statement.Span),
-			})
-
-			doneVal := nextTemp(counter)
-			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-				Op:         ir.OpFieldGet,
-				Type:       ir.TypeBool,
-				Result:     doneVal,
-				Callee:     resShapeName,
-				Field:      "done",
-				FieldIndex: 1,
-				Args:       []string{resVal},
-				Span:       toIRSpan(path, statement.Span),
-			})
-
-			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-				Op:   ir.OpIf,
-				Type: ir.TypeVoid,
-				Args: []string{doneVal},
-				Then: []ir.Instruction{
-					{Op: ir.OpBreak, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)},
-				},
-				Span: toIRSpan(path, statement.Span),
-			})
-
-			valVal := nextTemp(counter)
-			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-				Op:         ir.OpFieldGet,
-				Type:       valType,
-				Result:     valVal,
-				Callee:     resShapeName,
-				Field:      "value",
-				FieldIndex: 0,
-				Args:       []string{resVal},
-				Span:       toIRSpan(path, statement.Span),
-			})
-			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-				Op:     ir.OpAssign,
-				Type:   valType,
-				Result: statement.Name,
-				Args:   []string{valVal},
-				Span:   toIRSpan(path, statement.Span),
-			})
-			bodyEnv[statement.Name] = valType
-
-			for _, bodyStmt := range statement.Body {
-				if err := lowerStatement(path, bodyStmt, &bodyBranch, bodyEnv, counter, shapes, signatures); err != nil {
-					return err
+		} else {
+			if strings.Contains(string(arrType), "<") && strings.HasSuffix(string(arrType), ">") {
+				idx := strings.Index(string(arrType), "<")
+				inner := string(arrType)[idx+1 : len(string(arrType))-1]
+				parts := splitTypeArguments(inner)
+				if len(parts) > 0 {
+					valType = toIRType(parts[0])
 				}
 			}
-
-			function.Body = append(function.Body, ir.Instruction{
-				Op:   ir.OpWhile,
-				Type: ir.TypeVoid,
-				Args: []string{condConst},
-				Cond: condFunc.Body,
-				Body: bodyBranch.Body,
-				Span: toIRSpan(path, statement.Span),
-			})
-			return nil
+			nextFn = "__generator.next"
+			resShapeName = fmt.Sprintf("IteratorResult_%s", valType)
+			if _, exists := shapes[resShapeName]; !exists {
+				shapes[resShapeName] = ir.ObjectShape{
+					Name: resShapeName,
+					Span: toIRSpan(path, statement.Span),
+					Fields: []ir.Field{
+						{Name: "value", Type: valType, Span: toIRSpan(path, statement.Span)},
+						{Name: "done", Type: ir.TypeBool, Span: toIRSpan(path, statement.Span)},
+					},
+				}
+			}
 		}
+
+		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
+		condConst := nextTemp(counter)
+		condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: condConst, Value: "true", Span: toIRSpan(path, statement.Span)})
+
+		bodyEnv := make(map[string]ir.Type, len(env)+2)
+		maps.Copy(bodyEnv, env)
+		bodyBranch := ir.Function{Name: "body", ReturnType: function.ReturnType}
+
+		resVal := nextTemp(counter)
+		retType := ir.Type("object:" + resShapeName)
+		if hasNext {
+			retType = targetNext.ReturnType
+		}
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   retType,
+			Result: resVal,
+			Callee: nextFn,
+			Args:   []string{arrVal},
+			Span:   toIRSpan(path, statement.Span),
+		})
+
+		doneVal := nextTemp(counter)
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+			Op:         ir.OpFieldGet,
+			Type:       ir.TypeBool,
+			Result:     doneVal,
+			Callee:     resShapeName,
+			Field:      "done",
+			FieldIndex: 1,
+			Args:       []string{resVal},
+			Span:       toIRSpan(path, statement.Span),
+		})
+
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+			Op:   ir.OpIf,
+			Type: ir.TypeVoid,
+			Args: []string{doneVal},
+			Then: []ir.Instruction{
+				{Op: ir.OpBreak, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)},
+			},
+			Span: toIRSpan(path, statement.Span),
+		})
+
+		valVal := nextTemp(counter)
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+			Op:         ir.OpFieldGet,
+			Type:       valType,
+			Result:     valVal,
+			Callee:     resShapeName,
+			Field:      "value",
+			FieldIndex: 0,
+			Args:       []string{resVal},
+			Span:       toIRSpan(path, statement.Span),
+		})
+		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+			Op:     ir.OpAssign,
+			Type:   valType,
+			Result: statement.Name,
+			Args:   []string{valVal},
+			Span:   toIRSpan(path, statement.Span),
+		})
+		bodyEnv[statement.Name] = valType
+
+		for _, bodyStmt := range statement.Body {
+			if err := lowerStatement(path, bodyStmt, &bodyBranch, bodyEnv, counter, shapes, signatures); err != nil {
+				return err
+			}
+		}
+
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpWhile,
+			Type: ir.TypeVoid,
+			Args: []string{condConst},
+			Cond: condFunc.Body,
+			Body: bodyBranch.Body,
+			Span: toIRSpan(path, statement.Span),
+		})
+		return nil
 	}
 
 	isString := (arrType == ir.TypeString)

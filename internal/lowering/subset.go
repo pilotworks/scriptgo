@@ -141,6 +141,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		for _, method := range statement.Class.Methods {
+			if len(method.Body) == 0 {
+				continue
+			}
 			for _, p := range method.Parameters {
 				if err := validateStaticType(fileName, p.Span, p.Type); err != nil {
 					return err

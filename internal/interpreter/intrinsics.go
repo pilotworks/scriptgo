@@ -427,6 +427,31 @@ func executeNumberIntrinsic(name string, arguments []string, env map[string]Valu
 			digits = int(values[1].Number)
 		}
 		return Value{Type: ir.TypeString, String: fmt.Sprintf("%.*f", digits, values[0].Number)}, nil
+	case "__number.toString":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("toString requires a number")
+		}
+		radix := 10
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			r := int(values[1].Number)
+			if r >= 2 && r <= 36 {
+				radix = r
+			}
+		}
+		v := values[0].Number
+		if radix == 16 {
+			return Value{Type: ir.TypeString, String: fmt.Sprintf("%x", int64(v))}, nil
+		}
+		if radix == 8 {
+			return Value{Type: ir.TypeString, String: fmt.Sprintf("%o", int64(v))}, nil
+		}
+		if radix == 2 {
+			return Value{Type: ir.TypeString, String: fmt.Sprintf("%b", int64(v))}, nil
+		}
+		if v == math.Trunc(v) {
+			return Value{Type: ir.TypeString, String: fmt.Sprintf("%d", int64(v))}, nil
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("%g", v)}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown number intrinsic %q", name)
 	}
@@ -1950,6 +1975,19 @@ func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		microtasks = append(microtasks, microtaskItem{closure: closureVal.Closure, arg: val})
 		return promiseVal, nil
+	case "__async.promise_catch":
+		if len(arguments) != 2 {
+			return Value{}, fmt.Errorf("promise.catch requires promise and callback")
+		}
+		promiseVal, ok := env[arguments[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown promise %q", arguments[0])
+		}
+		closureVal, ok := env[arguments[1]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("promise.catch callback must be a closure")
+		}
+		return promiseVal, nil
 	case "__async.await":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("await requires 1 argument")
@@ -2165,3 +2203,69 @@ func executeHttpIntrinsic(instruction ir.Instruction, env map[string]Value) (Val
 		return Value{}, fmt.Errorf("unknown http intrinsic %q", instruction.Callee)
 	}
 }
+
+func executeGeneratorIntrinsic(instruction ir.Instruction, env map[string]Value, functions map[string]ir.Function, output *bytes.Buffer) (Value, error) {
+	switch instruction.Callee {
+	case "__generator.next":
+		if len(instruction.Args) < 1 {
+			return Value{}, fmt.Errorf("__generator.next requires generator argument")
+		}
+		genVal, ok := env[instruction.Args[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown generator %q", instruction.Args[0])
+		}
+		if genVal.Closure != nil {
+			val, _, err := executeClosure(functions, genVal.Closure, nil, output)
+			return val, err
+		}
+		if genVal.Object != nil {
+			if itemsVal, hasItems := genVal.Object["__items"]; hasItems && len(itemsVal.Array) > 0 {
+				state := 0
+				if sVal, hasState := genVal.Object["__state"]; hasState {
+					state = int(sVal.Number)
+				}
+				if state < len(itemsVal.Array) {
+					item := itemsVal.Array[state]
+					genVal.Object["__state"] = Value{Type: ir.TypeNumber, Number: float64(state + 1)}
+					env[instruction.Args[0]] = genVal
+					return Value{
+						Type: ir.TypeObject,
+						Object: map[string]Value{
+							"value": item,
+							"done":  {Type: ir.TypeBool, Bool: false},
+						},
+					}, nil
+				}
+				return Value{
+					Type: ir.TypeObject,
+					Object: map[string]Value{
+						"value": {},
+						"done":  {Type: ir.TypeBool, Bool: true},
+					},
+				}, nil
+			}
+			clsName := genVal.String
+			if clsName == "" {
+				clsName = strings.TrimPrefix(string(genVal.Type), "object:")
+			}
+			nextFnName := clsName + "_next"
+			if nextFn, ok := functions[nextFnName]; ok {
+				res, _, err := executeFunction(functions, nextFn, []Value{genVal}, output)
+				if err != nil {
+					return Value{}, err
+				}
+				env[instruction.Args[0]] = genVal
+				return res, nil
+			}
+		}
+		return Value{
+			Type: ir.TypeObject,
+			Object: map[string]Value{
+				"value": {},
+				"done":  {Type: ir.TypeBool, Bool: true},
+			},
+		}, nil
+	}
+	return Value{}, fmt.Errorf("unsupported generator intrinsic %q", instruction.Callee)
+}
+

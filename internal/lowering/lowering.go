@@ -51,11 +51,29 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		return ir.Module{}, err
 	}
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
+	typeAliasesIndex = map[string]string{}
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "variable" && statement.Expression != nil {
 				topLevelVars[statement.Name] = statement
+			}
+			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
+				typeAliasesIndex[statement.Name] = statement.Type
+			}
+			if statement.Kind == "enum" && statement.Enum != nil {
+				isStringEnum := false
+				for _, m := range statement.Enum.Members {
+					if m.Initializer != nil && m.Initializer.Kind == "string" {
+						isStringEnum = true
+						break
+					}
+				}
+				if isStringEnum {
+					typeAliasesIndex[statement.Enum.Name] = "string"
+				} else {
+					typeAliasesIndex[statement.Enum.Name] = "number"
+				}
 			}
 		}
 	}
@@ -163,9 +181,35 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				continue
 			}
 			if statement.Kind == "class" && statement.Class != nil {
+				var fieldInits []typescriptgo.SyntaxStatement
+				for _, f := range statement.Class.Fields {
+					if !f.IsStatic && f.Initializer != nil {
+						fieldInits = append(fieldInits, typescriptgo.SyntaxStatement{
+							Span: f.Span,
+							Kind: "field_set",
+							Name: f.Name,
+							Left: &typescriptgo.SyntaxExpression{
+								Span: f.Span,
+								Kind: "identifier",
+								Text: "this",
+							},
+							Expression: f.Initializer,
+						})
+					}
+				}
+
 				// Lower constructor if present
 				if statement.Class.Constructor != nil {
 					ctorMangled := statement.Class.Name + "_constructor"
+					var ctorBody []typescriptgo.SyntaxStatement
+					if len(statement.Class.Constructor.Body) > 0 && statement.Class.Constructor.Body[0].Expression != nil && statement.Class.Constructor.Body[0].Expression.Kind == "call" && statement.Class.Constructor.Body[0].Expression.Left != nil && statement.Class.Constructor.Body[0].Expression.Left.Text == "super" {
+						ctorBody = append(ctorBody, statement.Class.Constructor.Body[0])
+						ctorBody = append(ctorBody, fieldInits...)
+						ctorBody = append(ctorBody, statement.Class.Constructor.Body[1:]...)
+					} else {
+						ctorBody = append(ctorBody, fieldInits...)
+						ctorBody = append(ctorBody, statement.Class.Constructor.Body...)
+					}
 					ctorStmt := typescriptgo.SyntaxStatement{
 						Span: statement.Class.Constructor.Span,
 						Kind: "function",
@@ -174,7 +218,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						Parameters: append([]typescriptgo.SyntaxParameter{
 							{Name: "this", Type: "object:" + statement.Class.Name},
 						}, statement.Class.Constructor.Parameters...),
-						Body: statement.Class.Constructor.Body,
+						Body: ctorBody,
 					}
 					function, err := lowerFunction(file.FileName, ctorStmt, shapes, signatures)
 					if err != nil {

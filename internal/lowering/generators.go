@@ -24,6 +24,53 @@ type yieldPoint struct {
 	isStar   bool
 }
 
+func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string) []typescriptgo.SyntaxStatement {
+	var rewritten []typescriptgo.SyntaxStatement
+	for _, s := range stmts {
+		cloned := s
+		if s.Kind == "expression" && s.Expression != nil && (s.Expression.Kind == "yield" || s.Expression.Kind == "yield_star") {
+			cloned = typescriptgo.SyntaxStatement{
+				Span: s.Span,
+				Kind: "expression",
+				Expression: &typescriptgo.SyntaxExpression{
+					Span: s.Span,
+					Kind: "call",
+					Left: &typescriptgo.SyntaxExpression{
+						Span: s.Span,
+						Kind: "property",
+						Left: &typescriptgo.SyntaxExpression{
+							Span: s.Span,
+							Kind: "identifier",
+							Text: itemsName,
+						},
+						Text: "push",
+					},
+					Arguments: []*typescriptgo.SyntaxExpression{
+						s.Expression.Left,
+					},
+				},
+			}
+		}
+		if len(cloned.Body) > 0 {
+			cloned.Body = rewriteYieldsToPush(cloned.Body, itemsName)
+		}
+		if len(cloned.Then) > 0 {
+			cloned.Then = rewriteYieldsToPush(cloned.Then, itemsName)
+		}
+		if len(cloned.Else) > 0 {
+			cloned.Else = rewriteYieldsToPush(cloned.Else, itemsName)
+		}
+		if len(cloned.Catch) > 0 {
+			cloned.Catch = rewriteYieldsToPush(cloned.Catch, itemsName)
+		}
+		if len(cloned.Finally) > 0 {
+			cloned.Finally = rewriteYieldsToPush(cloned.Finally, itemsName)
+		}
+		rewritten = append(rewritten, cloned)
+	}
+	return rewritten
+}
+
 func collectYieldPoints(body []typescriptgo.SyntaxStatement) []yieldPoint {
 	var yields []yieldPoint
 	for _, s := range body {
@@ -71,23 +118,39 @@ func lowerGeneratorFunction(
 
 	// Determine yielded type from statements or type annotation
 	yieldType := ir.TypeNumber
-	for _, stmt := range statement.Body {
-		if stmt.Expression != nil && (stmt.Expression.Kind == "yield" || stmt.Expression.Kind == "yield_star") {
-			if stmt.Expression.Left != nil {
-				if stmt.Expression.Left.Kind == "string" || stmt.Expression.Left.InferredType == "string" {
-					yieldType = ir.TypeString
-				} else if stmt.Expression.Left.Kind == "bigint" || stmt.Expression.Left.InferredType == "bigint" {
-					yieldType = ir.TypeBigInt
-				} else if stmt.Expression.Left.Kind == "bool" || stmt.Expression.Left.InferredType == "bool" {
-					yieldType = ir.TypeBool
+	if strings.Contains(statement.Type, "<") && strings.HasSuffix(statement.Type, ">") {
+		idx := strings.Index(statement.Type, "<")
+		inner := statement.Type[idx+1 : len(statement.Type)-1]
+		parts := splitTypeArguments(inner)
+		if len(parts) > 0 {
+			yieldType = toIRType(parts[0])
+		}
+	} else if strings.Contains(statement.InferredType, "<") && strings.HasSuffix(statement.InferredType, ">") {
+		idx := strings.Index(statement.InferredType, "<")
+		inner := statement.InferredType[idx+1 : len(statement.InferredType)-1]
+		parts := splitTypeArguments(inner)
+		if len(parts) > 0 {
+			yieldType = toIRType(parts[0])
+		}
+	} else {
+		for _, stmt := range statement.Body {
+			if stmt.Expression != nil && (stmt.Expression.Kind == "yield" || stmt.Expression.Kind == "yield_star") {
+				if stmt.Expression.Left != nil {
+					if stmt.Expression.Left.Kind == "string" || stmt.Expression.Left.InferredType == "string" {
+						yieldType = ir.TypeString
+					} else if stmt.Expression.Left.Kind == "bigint" || stmt.Expression.Left.InferredType == "bigint" {
+						yieldType = ir.TypeBigInt
+					} else if stmt.Expression.Left.Kind == "bool" || stmt.Expression.Left.InferredType == "bool" {
+						yieldType = ir.TypeBool
+					}
 				}
 			}
 		}
-	}
-	if strings.Contains(statement.Type, "string") || strings.Contains(statement.InferredType, "string") {
-		yieldType = ir.TypeString
-	} else if strings.Contains(statement.Type, "bigint") || strings.Contains(statement.InferredType, "bigint") {
-		yieldType = ir.TypeBigInt
+		if strings.Contains(statement.Type, "string") || strings.Contains(statement.InferredType, "string") {
+			yieldType = ir.TypeString
+		} else if strings.Contains(statement.Type, "bigint") || strings.Contains(statement.InferredType, "bigint") {
+			yieldType = ir.TypeBigInt
+		}
 	}
 
 	resultShapeName := fmt.Sprintf("IteratorResult_%s", yieldType)
@@ -130,23 +193,11 @@ func lowerGeneratorFunction(
 		})
 	}
 
-	// Add local variable fields found in body
-	for _, s := range statement.Body {
-		if s.Kind == "variable" {
-			vType := toIRType(s.Type)
-			if vType == "" && s.InferredType != "" {
-				vType = toIRType(s.InferredType)
-			}
-			if vType == "" {
-				vType = ir.TypeNumber
-			}
-			genFields = append(genFields, ir.Field{
-				Name: s.Name,
-				Type: vType,
-				Span: toIRSpan(path, s.Span),
-			})
-		}
-	}
+	genFields = append(genFields, ir.Field{
+		Name: "__items",
+		Type: ir.Type(string(yieldType) + "[]"),
+		Span: toIRSpan(path, statement.Span),
+	})
 
 	genShape := ir.ObjectShape{
 		Name:   genClassName,
@@ -449,39 +500,16 @@ func lowerGeneratorFunction(
 		factoryEnv[p.Name] = p.Type
 	}
 
-	// Add default initializers for local variables
-	for _, s := range statement.Body {
-		if s.Kind == "variable" {
-			vType := toIRType(s.Type)
-			if vType == "" && s.InferredType != "" {
-				vType = toIRType(s.InferredType)
-			}
-			if vType == "" {
-				vType = ir.TypeNumber
-			}
-			if s.Expression != nil {
-				initVal, initValType, err := lowerExpression(path, s.Expression, "", &factoryFn, factoryEnv, &factoryCounter, shapes, signatures)
-				if err == nil && initVal != "" {
-					factoryArgs = append(factoryArgs, initVal)
-					factoryEnv[s.Name] = initValType
-					continue
-				}
-			}
-			var initVal string
-			if vType == ir.TypeNumber {
-				initVal = "0"
-			} else if vType == ir.TypeBool {
-				initVal = "false"
-			}
-			initTemp := nextTemp(&factoryCounter)
-			if vType == ir.TypeNumberArray || vType == ir.TypeStringArray || strings.HasSuffix(string(vType), "[]") {
-				factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpArray, Type: vType, Result: initTemp, Span: toIRSpan(path, s.Span)})
-			} else {
-				factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpConst, Type: vType, Result: initTemp, Value: initVal, Span: toIRSpan(path, s.Span)})
-			}
-			factoryArgs = append(factoryArgs, initTemp)
-			factoryEnv[s.Name] = vType
-		}
+	itemsTemp := nextTemp(&factoryCounter)
+	factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpArray, Type: ir.Type(string(yieldType) + "[]"), Result: itemsTemp, Span: toIRSpan(path, statement.Span)})
+	factoryArgs = append(factoryArgs, itemsTemp)
+	factoryEnv["__items"] = ir.Type(string(yieldType) + "[]")
+
+	factoryEnv[itemsTemp] = ir.Type(string(yieldType) + "[]")
+
+	rewrittenBody := rewriteYieldsToPush(statement.Body, itemsTemp)
+	for _, s := range rewrittenBody {
+		_ = lowerStatement(path, s, &factoryFn, factoryEnv, &factoryCounter, shapes, signatures)
 	}
 
 	genObj := nextTemp(&factoryCounter)

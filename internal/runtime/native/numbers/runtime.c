@@ -75,3 +75,50 @@ int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
     *out_value = res;
     return 0;
 }
+
+int scriptgo_number_to_string(double val, double radix, char **out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toString");
+    int r = 10;
+    if (!isnan(radix) && radix >= 2.0 && radix <= 36.0) {
+        r = (int)radix;
+    }
+    char buf[128];
+    if (isnan(val)) {
+        snprintf(buf, sizeof(buf), "NaN");
+    } else if (isinf(val)) {
+        if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
+        else snprintf(buf, sizeof(buf), "-Infinity");
+    } else if (r == 16) {
+        unsigned long long uval = (unsigned long long)val;
+        snprintf(buf, sizeof(buf), "%llx", uval);
+    } else if (r == 8) {
+        unsigned long long uval = (unsigned long long)val;
+        snprintf(buf, sizeof(buf), "%llo", uval);
+    } else if (r == 2) {
+        unsigned long long uval = (unsigned long long)val;
+        if (uval == 0) {
+            snprintf(buf, sizeof(buf), "0");
+        } else {
+            char temp[65];
+            int pos = 64;
+            temp[pos] = '\0';
+            while (uval > 0 && pos > 0) {
+                temp[--pos] = (uval & 1) ? '1' : '0';
+                uval >>= 1;
+            }
+            snprintf(buf, sizeof(buf), "%s", &temp[pos]);
+        }
+    } else {
+        if (trunc(val) == val) {
+            snprintf(buf, sizeof(buf), "%.0f", val);
+        } else {
+            snprintf(buf, sizeof(buf), "%g", val);
+        }
+    }
+    size_t len = strlen(buf);
+    char *res = malloc(len + 1);
+    if (res == NULL) return scriptgo_runtime_set_error("scriptgo string allocation failed");
+    memcpy(res, buf, len + 1);
+    *out_value = res;
+    return 0;
+}

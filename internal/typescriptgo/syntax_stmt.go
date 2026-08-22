@@ -424,13 +424,11 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				if initExpr == nil {
 					m.Value = strconv.FormatFloat(currentNumericVal, 'f', -1, 64)
 					currentNumericVal++
-				} else if initExpr.Kind == "number" {
-					if v, err := strconv.ParseFloat(initExpr.Text, 64); err == nil {
-						currentNumericVal = v + 1
-						m.Value = initExpr.Text
-					}
 				} else if initExpr.Kind == "string" {
 					m.Value = initExpr.Text
+				} else if v, ok := evalConstNumber(initExpr); ok {
+					m.Value = strconv.FormatFloat(v, 'f', -1, 64)
+					currentNumericVal = v + 1
 				}
 				enumObj.Members = append(enumObj.Members, m)
 			}
@@ -748,4 +746,65 @@ func desugarAssignment(expr *SyntaxExpression) (*SyntaxExpression, bool) {
 		}, true
 	}
 	return nil, false
+}
+
+func evalConstNumber(expr *SyntaxExpression) (float64, bool) {
+	if expr == nil {
+		return 0, false
+	}
+	switch expr.Kind {
+	case "number":
+		v, err := strconv.ParseFloat(expr.Text, 64)
+		return v, err == nil
+	case "unary":
+		v, ok := evalConstNumber(expr.Left)
+		if !ok {
+			return 0, false
+		}
+		switch expr.Operator {
+		case "-":
+			return -v, true
+		case "+":
+			return v, true
+		case "~":
+			return float64(^int64(v)), true
+		}
+	case "binary":
+		lv, lok := evalConstNumber(expr.Left)
+		rv, rok := evalConstNumber(expr.Right)
+		if !lok || !rok {
+			return 0, false
+		}
+		li := int64(lv)
+		ri := int64(rv)
+		switch expr.Operator {
+		case "+":
+			return lv + rv, true
+		case "-":
+			return lv - rv, true
+		case "*":
+			return lv * rv, true
+		case "/":
+			if rv != 0 {
+				return lv / rv, true
+			}
+		case "%":
+			if ri != 0 {
+				return float64(li % ri), true
+			}
+		case "<<":
+			return float64(li << uint64(ri)), true
+		case ">>":
+			return float64(li >> uint64(ri)), true
+		case ">>>":
+			return float64(uint64(uint32(li)) >> uint64(ri)), true
+		case "|":
+			return float64(li | ri), true
+		case "&":
+			return float64(li & ri), true
+		case "^":
+			return float64(li ^ ri), true
+		}
+	}
+	return 0, false
 }

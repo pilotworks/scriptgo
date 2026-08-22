@@ -1396,6 +1396,15 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr null)\n", status, instruction.Args[0], instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		return nil
+	case "__async.promise_catch":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("promise.catch requires promise and callback")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
 	case "__async.await":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("await requires 1 argument")

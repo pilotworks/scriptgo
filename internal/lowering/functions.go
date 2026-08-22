@@ -21,6 +21,20 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
 				typeAliasesIndex[statement.Name] = statement.Type
 			}
+			if statement.Kind == "enum" && statement.Enum != nil {
+				isStringEnum := false
+				for _, m := range statement.Enum.Members {
+					if m.Initializer != nil && m.Initializer.Kind == "string" {
+						isStringEnum = true
+						break
+					}
+				}
+				if isStringEnum {
+					typeAliasesIndex[statement.Enum.Name] = "string"
+				} else {
+					typeAliasesIndex[statement.Enum.Name] = "number"
+				}
+			}
 		}
 	}
 	hierarchy := buildClassHierarchy(program)

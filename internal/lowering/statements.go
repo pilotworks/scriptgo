@@ -602,10 +602,61 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 
 var typeAliasesIndex = map[string]string{}
 
+func mangleGenericTypeString(t string) string {
+	t = strings.TrimSpace(t)
+	if strings.HasSuffix(t, "[]") {
+		elem := strings.TrimSuffix(t, "[]")
+		return mangleGenericTypeString(elem) + "_arr"
+	}
+	if strings.Contains(t, "<") && strings.HasSuffix(t, ">") {
+		idx := strings.Index(t, "<")
+		base := t[:idx]
+		inner := t[idx+1 : len(t)-1]
+		typeArgs := splitTypeArguments(inner)
+		return mangleGenericName(base, typeArgs)
+	}
+	return t
+}
+
 func toIRType(value string) ir.Type {
 	value = strings.TrimSpace(value)
 	if aliased, ok := typeAliasesIndex[value]; ok && aliased != value {
 		return toIRType(aliased)
+	}
+	base := value
+	if idx := strings.Index(base, "__"); idx != -1 {
+		base = base[:idx]
+	}
+	if idx := strings.Index(base, "<"); idx != -1 {
+		base = base[:idx]
+	}
+	if aliased, ok := typeAliasesIndex[base]; ok && aliased != base {
+		if strings.Contains(aliased, "=>") {
+			return ir.TypeClosure
+		}
+	}
+	if strings.Contains(value, "=>") {
+		return ir.TypeClosure
+	}
+	if strings.HasSuffix(value, "_arr") {
+		elem := strings.TrimSuffix(value, "_arr")
+		return toIRType(elem + "[]")
+	}
+	if strings.HasSuffix(value, "[]") {
+		elem := strings.TrimSuffix(value, "[]")
+		elemType := toIRType(elem)
+		switch elemType {
+		case ir.TypeNumber:
+			return ir.TypeNumberArray
+		case ir.TypeString:
+			return ir.TypeStringArray
+		case ir.TypeBool:
+			return ir.TypeBoolArray
+		case ir.TypeBigInt:
+			return ir.TypeBigIntArray
+		default:
+			return ir.Type(string(elemType) + "[]")
+		}
 	}
 	if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
 		return ir.TypeString
@@ -630,7 +681,68 @@ func toIRType(value string) ir.Type {
 		}
 		return toIRType(nonNullish[0])
 	}
+	if strings.Contains(value, "<") && strings.HasSuffix(value, ">") {
+		clean := strings.TrimPrefix(value, "object:")
+		idx := strings.Index(clean, "<")
+		base := clean[:idx]
+		inner := clean[idx+1 : len(clean)-1]
+		if base == "Promise" {
+			return ir.Type("object:Promise_" + mangleGenericTypeString(inner))
+		}
+		if base == "Array" {
+			return ir.Type(mangleGenericTypeString(inner) + "[]")
+		}
+		if base == "Map" {
+			return ir.TypeMap
+		}
+		if base == "Set" {
+			return ir.TypeSet
+		}
+		typeArgs := splitTypeArguments(inner)
+		return ir.Type("object:" + mangleGenericName(base, typeArgs))
+	}
 	if strings.HasPrefix(value, "object:") {
+		trimmed := strings.TrimPrefix(value, "object:")
+		switch trimmed {
+		case "Buffer":
+			return ir.TypeBuffer
+		case "Uint8Array":
+			return ir.TypeUint8Array
+		case "Int8Array":
+			return ir.TypeInt8Array
+		case "Uint8ClampedArray":
+			return ir.TypeUint8ClampedArray
+		case "Int16Array":
+			return ir.TypeInt16Array
+		case "Uint16Array":
+			return ir.TypeUint16Array
+		case "Int32Array":
+			return ir.TypeInt32Array
+		case "Uint32Array":
+			return ir.TypeUint32Array
+		case "Float32Array":
+			return ir.TypeFloat32Array
+		case "Float64Array":
+			return ir.TypeFloat64Array
+		case "BigInt64Array":
+			return ir.TypeBigInt64Array
+		case "BigUint64Array":
+			return ir.TypeBigUint64Array
+		case "DataView":
+			return ir.TypeDataView
+		case "ArrayBuffer":
+			return ir.TypeArrayBuffer
+		case "Map":
+			return ir.TypeMap
+		case "Set":
+			return ir.TypeSet
+		case "TextEncoder":
+			return ir.TypeTextEncoder
+		case "TextDecoder":
+			return ir.TypeTextDecoder
+		case "RegExp":
+			return ir.Type("object:RegExp")
+		}
 		return ir.Type(value)
 	}
 	switch value {

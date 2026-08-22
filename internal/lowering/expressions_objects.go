@@ -390,7 +390,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 
 	shape, ok := shapes[className]
 	if !ok {
-		return "", "", fmt.Errorf("unknown object shape %q", className)
+		return "", "", fmt.Errorf("unknown object shape %q for property %q", className, expression.Text)
 	}
 	for _, field := range shape.Fields {
 		if field.Name != expression.Text {
@@ -946,6 +946,14 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			arrTemp := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: field.Type, Result: arrTemp, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, arrTemp}, Span: field.Span})
+		} else if field.Type == ir.TypeMap {
+			mapTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeMap, Result: mapTemp, Callee: "__map.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, mapTemp}, Span: field.Span})
+		} else if field.Type == ir.TypeSet {
+			setTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeSet, Result: setTemp, Callee: "__set.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, setTemp}, Span: field.Span})
 		} else {
 			defVal := field.Value
 			if defVal == "" {

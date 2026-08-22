@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -35,7 +36,6 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 			}
 		}
 		if e.Left != nil {
-			// If it's a property access obj.prop, only check Left if not method call on global
 			collectExpr(e.Left)
 		}
 		if e.Right != nil {
@@ -43,6 +43,15 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 		}
 		for _, arg := range e.Arguments {
 			collectExpr(arg)
+		}
+		if e.WhenTrue != nil {
+			collectExpr(e.WhenTrue)
+		}
+		if e.WhenFalse != nil {
+			collectExpr(e.WhenFalse)
+		}
+		if e.Function != nil {
+			collectStmt(*e.Function)
 		}
 	}
 
@@ -80,6 +89,29 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 				collectExpr(s.Expression)
 			}
 			for _, st := range s.Body {
+				collectStmt(st)
+			}
+		} else if s.Kind == "for" || s.Kind == "forof" || s.Kind == "forawaitof" || s.Kind == "forin" || s.Kind == "for_of" || s.Kind == "for_await_of" || s.Kind == "for_in" {
+			if s.Name != "" {
+				locals[s.Name] = true
+			}
+			if s.Expression != nil {
+				collectExpr(s.Expression)
+			}
+			for _, st := range s.Body {
+				collectStmt(st)
+			}
+			for _, st := range s.Step {
+				collectStmt(st)
+			}
+		} else if s.Kind == "try" {
+			for _, st := range s.Body {
+				collectStmt(st)
+			}
+			for _, st := range s.Catch {
+				collectStmt(st)
+			}
+			for _, st := range s.Finally {
 				collectStmt(st)
 			}
 		} else if s.Kind == "block" {
@@ -196,23 +228,101 @@ func lowerClosureExpression(
 		})
 	}
 
-	// Lower body of closure
 	closureBodyCounter := 0
-	returned := false
-	for _, bodyStatement := range fnStmt.Body {
-		if err := lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
-			return "", "", sourceError(path, bodyStatement.Span, err)
+	if fnStmt.IsGenerator || fnStmt.Kind == "generator_function" || fnStmt.Kind == "async_generator_function" {
+		yieldType := ir.TypeNumber
+		if strings.Contains(fnStmt.Type, "<") && strings.HasSuffix(fnStmt.Type, ">") {
+			idx := strings.Index(fnStmt.Type, "<")
+			inner := fnStmt.Type[idx+1 : len(fnStmt.Type)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) > 0 {
+				yieldType = toIRType(parts[0])
+			}
+		} else if strings.Contains(fnStmt.InferredType, "<") && strings.HasSuffix(fnStmt.InferredType, ">") {
+			idx := strings.Index(fnStmt.InferredType, "<")
+			inner := fnStmt.InferredType[idx+1 : len(fnStmt.InferredType)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) > 0 {
+				yieldType = toIRType(parts[0])
+			}
 		}
-		if statementAlwaysReturns(bodyStatement) {
-			returned = true
+
+		genClassName := "Generator_" + closureName
+		targetFn.ReturnType = ir.Type("object:" + genClassName)
+
+		if _, exists := shapes[genClassName]; !exists {
+			shapes[genClassName] = ir.ObjectShape{
+				Name: genClassName,
+				Span: toIRSpan(path, fnStmt.Span),
+				Fields: []ir.Field{
+					{Name: "__state", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(path, fnStmt.Span)},
+					{Name: "__done", Type: ir.TypeBool, Value: "false", Span: toIRSpan(path, fnStmt.Span)},
+					{Name: "__value", Type: yieldType, Span: toIRSpan(path, fnStmt.Span)},
+					{Name: "__items", Type: ir.Type(string(yieldType) + "[]"), Span: toIRSpan(path, fnStmt.Span)},
+				},
+			}
 		}
-	}
-	if !returned {
-		if targetFn.ReturnType != ir.TypeVoid {
-			// If not returned and return type is not void, return default or error
-			targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Span: targetFn.Span})
-		} else {
-			targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: targetFn.Span})
+
+		itemsTemp := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpArray, Type: ir.Type(string(yieldType) + "[]"), Result: itemsTemp, Span: targetFn.Span})
+		closureEnv["__items"] = ir.Type(string(yieldType) + "[]")
+		closureEnv[itemsTemp] = ir.Type(string(yieldType) + "[]")
+
+		rewrittenBody := rewriteYieldsToPush(fnStmt.Body, itemsTemp)
+		for _, bodyStatement := range rewrittenBody {
+			_ = lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures)
+		}
+
+		stateZero := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: stateZero, Value: "0", Span: targetFn.Span})
+		doneFalse := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: doneFalse, Value: "false", Span: targetFn.Span})
+		defVal := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: defVal, Value: "0", Span: targetFn.Span})
+
+		genObj := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{
+			Op:         ir.OpObjectNew,
+			Type:       ir.Type("object:" + genClassName),
+			Result:     genObj,
+			Callee:     genClassName,
+			FieldCount: 4,
+			Args:       []string{stateZero, doneFalse, defVal, itemsTemp},
+			Span:       targetFn.Span,
+		})
+		for fIdx, fName := range []string{"__state", "__done", "__value", "__items"} {
+			targetFn.Body = append(targetFn.Body, ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     genClassName,
+				Field:      fName,
+				FieldIndex: fIdx,
+				Args:       []string{genObj, []string{stateZero, doneFalse, defVal, itemsTemp}[fIdx]},
+				Span:       targetFn.Span,
+			})
+		}
+		targetFn.Body = append(targetFn.Body, ir.Instruction{
+			Op:   ir.OpReturn,
+			Type: ir.Type("object:" + genClassName),
+			Args: []string{genObj},
+			Span: targetFn.Span,
+		})
+	} else {
+		returned := false
+		for _, bodyStatement := range fnStmt.Body {
+			if err := lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
+				return "", "", sourceError(path, bodyStatement.Span, err)
+			}
+			if statementAlwaysReturns(bodyStatement) {
+				returned = true
+			}
+		}
+		if !returned {
+			if targetFn.ReturnType != ir.TypeVoid {
+				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Span: targetFn.Span})
+			} else {
+				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: targetFn.Span})
+			}
 		}
 	}
 

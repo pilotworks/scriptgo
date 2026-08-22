@@ -6,6 +6,15 @@ import (
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
 )
 
+func isBuiltinGeneric(name string) bool {
+	switch name {
+	case "Map", "Set", "Promise", "AsyncGenerator", "Generator", "Iterator", "Iterable", "AsyncIterable", "AsyncIterator", "Record", "Partial", "Readonly", "Pick", "Omit", "Exclude", "Extract", "NonNullable", "ReturnType", "InstanceType", "Parameters", "ConstructorParameters":
+		return true
+	default:
+		return false
+	}
+}
+
 func mangleGenericName(name string, typeArgs []string) string {
 	if len(typeArgs) == 0 {
 		return name
@@ -88,6 +97,13 @@ func substituteType(typ string, subst map[string]string) string {
 				return newParts[0] + "[]"
 			}
 		}
+		if isBuiltinGeneric(name) {
+			res := name + "<" + strings.Join(newParts, ", ") + ">"
+			if hasObj {
+				return "object:" + res
+			}
+			return res
+		}
 		mangled := mangleGenericName(name, newParts)
 		if hasObj {
 			return "object:" + mangled
@@ -140,6 +156,14 @@ func cloneStatement(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatem
 		c := cloneClass(*stmt.Class)
 		res.Class = &c
 	}
+	return res
+}
+
+func cloneMethod(m typescriptgo.SyntaxMethod) typescriptgo.SyntaxMethod {
+	res := m
+	res.Parameters = append([]typescriptgo.SyntaxParameter(nil), m.Parameters...)
+	res.Body = append([]typescriptgo.SyntaxStatement(nil), m.Body...)
+	res.TypeParameters = append([]string(nil), m.TypeParameters...)
 	return res
 }
 

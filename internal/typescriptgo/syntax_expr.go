@@ -440,15 +440,30 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		if fnType == "" && inferredRetType != "" {
 			fnType = inferredRetType
 		}
+		isGen := false
+		if node.Kind == ast.KindFunctionExpression && node.AsFunctionExpression() != nil && node.AsFunctionExpression().AsteriskToken != nil {
+			isGen = true
+		}
+		isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)
+		kind := "function"
+		if isGen && isAsync {
+			kind = "async_generator_function"
+		} else if isGen {
+			kind = "generator_function"
+		} else if isAsync {
+			kind = "async_function"
+		}
 		fnStmt := &SyntaxStatement{
 			Span:           span,
-			Kind:           "function",
+			Kind:           kind,
 			Name:           name,
 			Type:           fnType,
 			InferredType:   inferredRetType,
 			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
 			Parameters:     params,
 			Body:           body,
+			IsGenerator:    isGen,
+			IsAsync:        isAsync,
 		}
 		return &SyntaxExpression{
 			Span:         span,

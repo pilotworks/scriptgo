@@ -1,4 +1,4 @@
-export interface Buffer {
+export interface Buffer extends Uint8Array {
     readonly length: number;
     readonly byteLength: number;
     readonly byteOffset: number;
@@ -11,7 +11,7 @@ export interface Buffer {
     fill(value: number, start?: number, end?: number): this;
     equals(other: Buffer | Uint8Array): boolean;
     compare(other: Buffer | Uint8Array): number;
-    indexOf(value: string, byteOffset?: number): number;
+    indexOf(value: string | number | Uint8Array, byteOffset?: number, encoding?: string): number;
     toString(encoding?: string, start?: number, end?: number): string;
 
     readUInt8(offset: number): number;
@@ -40,10 +40,11 @@ export interface Buffer {
     writeDoubleBE(value: number, offset: number): number;
 }
 export class Buffer {
-    static alloc(size: number, fill?: string): Buffer;
+    static alloc(size: number, fill?: string | number): Buffer;
     static allocUnsafe(size: number): Buffer;
     static from(str: string, encoding?: string): Buffer;
-    static concat(list: Buffer[], totalLength?: number): Buffer;
+    static from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
+    static concat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
     static isBuffer(obj: unknown): boolean;
     static byteLength(string: string, encoding?: string): number;
 }

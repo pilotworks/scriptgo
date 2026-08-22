@@ -894,9 +894,6 @@ func lowerCallExpression(
 					result = nextTemp(counter)
 				}
 				callee := "__number." + methodName
-				if methodName == "toString" {
-					callee = "__string.fromNumber"
-				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeString, nil
 			}
@@ -1278,23 +1275,31 @@ func lowerCallExpression(
 		}
 	}
 
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Text == "then" {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && (expression.Left.Text == "then" || expression.Left.Text == "catch") {
 		receiverVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
-		cbVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
+		cbVal := ""
+		if len(expression.Arguments) > 0 {
+			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			cbVal = v
 		}
 		if result == "" {
 			result = nextTemp(counter)
+		}
+		callee := "__async.promise_then"
+		if expression.Left.Text == "catch" {
+			callee = "__async.promise_catch"
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   ir.Type("object:Promise"),
 			Result: result,
-			Callee: "__async.promise_then",
+			Callee: callee,
 			Args:   []string{receiverVal, cbVal},
 			Span:   toIRSpan(path, expression.Span),
 		})
@@ -1302,7 +1307,7 @@ func lowerCallExpression(
 	}
 
 	callee := callName(expression.Left)
-	if calleeType, ok := env[callee]; ok && calleeType == ir.TypeClosure {
+	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || strings.HasPrefix(string(calleeType), "object:") || strings.Contains(string(calleeType), "=>")) {
 		args := make([]string, 0, len(expression.Arguments))
 		for _, argument := range expression.Arguments {
 			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -1319,6 +1324,10 @@ func lowerCallExpression(
 			retType = rt
 		} else if target, ok := signatures[callee]; ok && target.ReturnType != "" {
 			retType = target.ReturnType
+		} else if expression.InferredType != "" {
+			retType = toIRType(expression.InferredType)
+		} else if strings.HasPrefix(string(calleeType), "object:Generator_") {
+			retType = calleeType
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpClosureCall,
@@ -1334,10 +1343,55 @@ func lowerCallExpression(
 		return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
 	}
 	if callee == "" {
-		return "", "", fmt.Errorf("unsupported call target")
+		leftKind := ""
+		leftText := ""
+		receiverKind := ""
+		receiverText := ""
+		if expression.Left != nil {
+			leftKind = expression.Left.Kind
+			leftText = expression.Left.Text
+			if expression.Left.Left != nil {
+				receiverKind = expression.Left.Left.Kind
+				receiverText = expression.Left.Left.Text
+			}
+		}
+		return "", "", fmt.Errorf("unsupported call target (kind: %s, leftKind: %s, leftText: %s, recvKind: %s, recvText: %s, args: %d)", expression.Kind, leftKind, leftText, receiverKind, receiverText, len(expression.Arguments))
 	}
 	target, ok := signatures[callee]
 	if !ok {
+		if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index") {
+			closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+			if err == nil && (closureType == ir.TypeClosure || closureType == ir.TypeUnknown || strings.HasPrefix(string(closureType), "object:")) {
+				args := make([]string, 0, len(expression.Arguments))
+				for _, argument := range expression.Arguments {
+					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					args = append(args, value)
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				retType := ir.TypeNumber
+				if rt, ok := env[closureVal+".retType"]; ok && rt != "" {
+					retType = rt
+				} else if expression.InferredType != "" {
+					retType = toIRType(expression.InferredType)
+				} else if strings.HasPrefix(string(closureType), "object:Generator_") {
+					retType = closureType
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpClosureCall,
+					Type:   retType,
+					Result: result,
+					Callee: closureVal,
+					Args:   args,
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, retType, nil
+			}
+		}
 		return "", "", fmt.Errorf("unknown function %q", callee)
 	}
 	callee = target.Name

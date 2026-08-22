@@ -490,6 +490,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "||", Args: []string{expression.Text, expression.Text}, Span: toIRSpan(path, expression.Span)})
 					return result, typ, nil
 				}
+				if strings.HasPrefix(string(typ), "object:") || strings.HasSuffix(string(typ), "[]") || typ == ir.TypeUnknown {
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCheckedCast,
+						Type:   typ,
+						Result: result,
+						Args:   []string{expression.Text},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, typ, nil
+				}
 			}
 			return expression.Text, typ, nil
 		}
@@ -530,15 +540,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "postfix_unary":
 		return lowerPostfixUnaryExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "as":
-		val, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		targetIRType := toIRType(expression.Text)
+		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
-		targetIRType := toIRType(expression.Text)
+		if result == "" {
+			result = nextTemp(counter)
+		}
 		if targetIRType == ir.TypeUnknown {
-			if result == "" {
-				result = nextTemp(counter)
-			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpBoxUnknown,
 				Type:   ir.TypeUnknown,
@@ -548,14 +558,23 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			})
 			return result, ir.TypeUnknown, nil
 		}
-		if result == "" {
-			result = nextTemp(counter)
+		srcVal := val
+		if valType != ir.TypeUnknown && !strings.HasPrefix(string(valType), "object:") && !strings.Contains(string(valType), "|") {
+			boxed := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpBoxUnknown,
+				Type:   ir.TypeUnknown,
+				Result: boxed,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			srcVal = boxed
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCheckedCast,
 			Type:   targetIRType,
 			Result: result,
-			Args:   []string{val},
+			Args:   []string{srcVal},
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, targetIRType, nil
@@ -733,9 +752,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		retType := ir.TypeNumber
-		if typ == ir.TypeString {
-			retType = ir.TypeString
+		retType := typ
+		if strings.HasPrefix(string(typ), "object:Promise_") {
+			inner := strings.TrimPrefix(string(typ), "object:Promise_")
+			retType = toIRType(inner)
+		} else if strings.HasPrefix(string(typ), "object:Promise<") && strings.HasSuffix(string(typ), ">") {
+			inner := strings.TrimSuffix(strings.TrimPrefix(string(typ), "object:Promise<"), ">")
+			retType = toIRType(inner)
+		} else if expression.InferredType != "" && !strings.Contains(expression.InferredType, "Promise") {
+			retType = toIRType(expression.InferredType)
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,

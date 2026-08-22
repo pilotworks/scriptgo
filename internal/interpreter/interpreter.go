@@ -4,6 +4,7 @@ package interpreter
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -79,7 +80,8 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		argType := arguments[index].Type
 		paramType := parameter.Type
 		if argType != paramType {
-			if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) {
+			if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) &&
+				!(argType == ir.TypeBuffer && paramType == ir.TypeUint8Array) {
 				return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, argType, paramType)
 			}
 		}
@@ -357,18 +359,11 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			if val.Type == ir.TypeUnknown {
-				if val.Boxed == nil {
-					return Value{}, false, flowNormal, fmt.Errorf("TypeError: SG4002: cannot cast uninitialized unknown to %s", instruction.Type)
-				}
-				inner := *val.Boxed
-				if inner.Type != instruction.Type && !(strings.HasPrefix(string(inner.Type), "object:") && strings.HasPrefix(string(instruction.Type), "object:")) {
-					return Value{}, false, flowNormal, fmt.Errorf("TypeError: SG4002: cannot cast %s to %s", inner.Type, instruction.Type)
-				}
-				env[instruction.Result] = inner
-			} else {
-				env[instruction.Result] = val
+			casted, err := castValue(val, instruction.Type)
+			if err != nil {
+				return Value{}, false, flowNormal, err
 			}
+			env[instruction.Result] = casted
 		case ir.OpTypeOf:
 			val, err := lookup(env, instruction.Args, 0)
 			if err != nil {
@@ -503,6 +498,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			if strings.HasPrefix(instruction.Callee, "__async.") {
 				value, err := executeAsyncIntrinsic(instruction.Callee, instruction.Args, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__generator.") {
+				value, err := executeGeneratorIntrinsic(instruction, env, functions, output)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
@@ -864,4 +869,53 @@ func lookup(env map[string]Value, arguments []string, index int) (Value, error) 
 		return Value{}, fmt.Errorf("unknown value %q", arguments[index])
 	}
 	return value, nil
+}
+
+func castValue(val Value, targetType ir.Type) (Value, error) {
+	if val.Type == ir.TypeUnknown {
+		if val.Boxed == nil {
+			return Value{}, fmt.Errorf("TypeError: SG4002: cannot cast uninitialized unknown to %s", targetType)
+		}
+		val = *val.Boxed
+	}
+	if val.Type == targetType {
+		return val, nil
+	}
+	if strings.HasPrefix(string(val.Type), "object:") && strings.HasPrefix(string(targetType), "object:") {
+		res := val
+		res.Type = targetType
+		return res, nil
+	}
+	if val.Type == ir.TypeString && strings.HasPrefix(string(targetType), "object:") {
+		var objMap map[string]interface{}
+		if err := json.Unmarshal([]byte(val.String), &objMap); err == nil {
+			objVal := Value{
+				Type:   targetType,
+				Object: make(map[string]Value),
+			}
+			for k, v := range objMap {
+				switch vv := v.(type) {
+				case float64:
+					objVal.Object[k] = Value{Type: ir.TypeNumber, Number: vv}
+				case string:
+					objVal.Object[k] = Value{Type: ir.TypeString, String: vv}
+				case bool:
+					objVal.Object[k] = Value{Type: ir.TypeBool, Bool: vv}
+				}
+			}
+			return objVal, nil
+		}
+	}
+	if val.Type == ir.TypeString && targetType == ir.TypeNumber {
+		if num, err := strconv.ParseFloat(val.String, 64); err == nil {
+			return Value{Type: ir.TypeNumber, Number: num}, nil
+		}
+	}
+	if val.Type == ir.TypeString && targetType == ir.TypeBool {
+		return Value{Type: ir.TypeBool, Bool: val.String == "true"}, nil
+	}
+	if val.Type == ir.TypeBuffer && targetType == ir.TypeUint8Array {
+		return val, nil
+	}
+	return Value{}, fmt.Errorf("TypeError: SG4002: cannot cast %s to %s", val.Type, targetType)
 }

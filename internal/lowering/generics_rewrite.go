@@ -7,90 +7,200 @@ import (
 	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
-func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, fileName string) typescriptgo.SyntaxStatement {
+func rewriteMethod(m typescriptgo.SyntaxMethod, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) typescriptgo.SyntaxMethod {
+	res := cloneMethod(m)
+	res.Type = rewriteTypeString(res.Type)
+	localEnv := map[string]string{}
+	for k, v := range env {
+		localEnv[k] = v
+	}
+	for j := range res.Parameters {
+		res.Parameters[j].Type = rewriteTypeString(res.Parameters[j].Type)
+		if res.Parameters[j].Type != "" {
+			localEnv[res.Parameters[j].Name] = res.Parameters[j].Type
+		}
+		if res.Parameters[j].Initializer != nil {
+			res.Parameters[j].Initializer = rewriteExpr(res.Parameters[j].Initializer, localEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+		}
+	}
+	for j := range res.Body {
+		res.Body[j] = rewriteStatementTypes(res.Body[j], localEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+	}
+	return res
+}
+
+func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) typescriptgo.SyntaxStatement {
 	res := cloneStatement(stmt)
 	res.Type = rewriteTypeString(res.Type)
+	if env == nil {
+		env = map[string]string{}
+	}
+	if stmt.Kind == "variable" && stmt.Name != "" {
+		if stmt.Type != "" {
+			env[stmt.Name] = stmt.Type
+		} else if stmt.Expression != nil {
+			env[stmt.Name] = inferExprType(stmt.Expression, env, nil)
+		}
+	}
 	for i := range res.Parameters {
 		res.Parameters[i].Type = rewriteTypeString(res.Parameters[i].Type)
+		if res.Parameters[i].Type != "" {
+			env[res.Parameters[i].Name] = res.Parameters[i].Type
+		}
 		if res.Parameters[i].Initializer != nil {
-			res.Parameters[i].Initializer = rewriteExpr(res.Parameters[i].Initializer, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+			res.Parameters[i].Initializer = rewriteExpr(res.Parameters[i].Initializer, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 		}
 	}
 	if res.Expression != nil {
-		res.Expression = rewriteExpr(res.Expression, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Expression = rewriteExpr(res.Expression, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.Left != nil {
-		res.Left = rewriteExpr(res.Left, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Left = rewriteExpr(res.Left, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.Right != nil {
-		res.Right = rewriteExpr(res.Right, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Right = rewriteExpr(res.Right, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Body {
-		res.Body[i] = rewriteStatementTypes(res.Body[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Body[i] = rewriteStatementTypes(res.Body[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Then {
-		res.Then[i] = rewriteStatementTypes(res.Then[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Then[i] = rewriteStatementTypes(res.Then[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Else {
-		res.Else[i] = rewriteStatementTypes(res.Else[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Else[i] = rewriteStatementTypes(res.Else[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Catch {
-		res.Catch[i] = rewriteStatementTypes(res.Catch[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Catch[i] = rewriteStatementTypes(res.Catch[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Finally {
-		res.Finally[i] = rewriteStatementTypes(res.Finally[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Finally[i] = rewriteStatementTypes(res.Finally[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.Class != nil {
 		res.Class.Extends = rewriteTypeString(res.Class.Extends)
 		for i := range res.Class.Fields {
 			res.Class.Fields[i].Type = rewriteTypeString(res.Class.Fields[i].Type)
 			if res.Class.Fields[i].Initializer != nil {
-				res.Class.Fields[i].Initializer = rewriteExpr(res.Class.Fields[i].Initializer, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+				res.Class.Fields[i].Initializer = rewriteExpr(res.Class.Fields[i].Initializer, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 			}
 		}
 		if res.Class.Constructor != nil {
+			ctorEnv := map[string]string{}
+			for k, v := range env {
+				ctorEnv[k] = v
+			}
 			for i := range res.Class.Constructor.Parameters {
 				res.Class.Constructor.Parameters[i].Type = rewriteTypeString(res.Class.Constructor.Parameters[i].Type)
+				if res.Class.Constructor.Parameters[i].Type != "" {
+					ctorEnv[res.Class.Constructor.Parameters[i].Name] = res.Class.Constructor.Parameters[i].Type
+				}
 				if res.Class.Constructor.Parameters[i].Initializer != nil {
-					res.Class.Constructor.Parameters[i].Initializer = rewriteExpr(res.Class.Constructor.Parameters[i].Initializer, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+					res.Class.Constructor.Parameters[i].Initializer = rewriteExpr(res.Class.Constructor.Parameters[i].Initializer, ctorEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 				}
 			}
 			for i := range res.Class.Constructor.Body {
-				res.Class.Constructor.Body[i] = rewriteStatementTypes(res.Class.Constructor.Body[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+				res.Class.Constructor.Body[i] = rewriteStatementTypes(res.Class.Constructor.Body[i], ctorEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 			}
 		}
-		for i := range res.Class.Methods {
-			res.Class.Methods[i].Type = rewriteTypeString(res.Class.Methods[i].Type)
-			for j := range res.Class.Methods[i].Parameters {
-				res.Class.Methods[i].Parameters[j].Type = rewriteTypeString(res.Class.Methods[i].Parameters[j].Type)
-				if res.Class.Methods[i].Parameters[j].Initializer != nil {
-					res.Class.Methods[i].Parameters[j].Initializer = rewriteExpr(res.Class.Methods[i].Parameters[j].Initializer, genericFuncs, genericClasses, reqFn, reqCls, fileName)
-				}
+		var nonGenericMethods []typescriptgo.SyntaxMethod
+		for _, m := range res.Class.Methods {
+			if len(m.TypeParameters) > 0 {
+				continue // Skip generic method template
 			}
-			for j := range res.Class.Methods[i].Body {
-				res.Class.Methods[i].Body[j] = rewriteStatementTypes(res.Class.Methods[i].Body[j], genericFuncs, genericClasses, reqFn, reqCls, fileName)
-			}
+			nonGenericMethods = append(nonGenericMethods, rewriteMethod(m, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName))
 		}
+		res.Class.Methods = nonGenericMethods
 	}
 	return res
 }
 
-func rewriteExpr(expr *typescriptgo.SyntaxExpression, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, fileName string) *typescriptgo.SyntaxExpression {
+func rewriteExpr(expr *typescriptgo.SyntaxExpression, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) *typescriptgo.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}
 	res := cloneExpr(expr)
-	if res.Kind == "call" && res.Left != nil && res.Left.Kind == "identifier" {
-		fnName := res.Left.Text
-		if fnTemplate, ok := genericFuncs[fnName]; ok {
-			typeArgs := res.TypeArguments
-			if len(typeArgs) == 0 {
-				typeArgs = inferTypeArgsForFunc(fnTemplate, res.Arguments, nil)
+	if res.Kind == "call" && res.Left != nil {
+		if res.Left.Kind == "identifier" {
+			fnName := res.Left.Text
+			if fnTemplate, ok := genericFuncs[fnName]; ok {
+				typeArgs := res.TypeArguments
+				if len(typeArgs) == 0 {
+					typeArgs = inferTypeArgsForFunc(fnTemplate, res.Arguments, env, nil)
+				}
+				if len(typeArgs) == len(fnTemplate.TypeParameters) {
+					mangled := reqFn(fnName, typeArgs, fileName)
+					res.Left.Text = mangled
+					res.TypeArguments = nil
+				}
 			}
-			if len(typeArgs) == len(fnTemplate.TypeParameters) {
-				mangled := reqFn(fnName, typeArgs, fileName)
-				res.Left.Text = mangled
-				res.TypeArguments = nil
+		} else if (res.Left.Kind == "property" || res.Left.Kind == "member") && res.Left.Left != nil {
+			var clsName string
+			isInstance := false
+			if res.Left.Left.Kind == "identifier" {
+				ident := res.Left.Left.Text
+				clsName = ident
+				if env != nil {
+					if t, ok := env[ident]; ok && t != "" {
+						isInstance = true
+						cleanT := strings.TrimPrefix(t, "object:")
+						if idx := strings.Index(cleanT, "<"); idx != -1 {
+							cleanT = cleanT[:idx]
+						}
+						if idx := strings.Index(cleanT, "__"); idx != -1 {
+							cleanT = cleanT[:idx]
+						}
+						clsName = cleanT
+					}
+				}
+			} else {
+				isInstance = true
+				t := inferExprType(res.Left.Left, env, nil)
+				if t != "" {
+					cleanT := strings.TrimPrefix(t, "object:")
+					if idx := strings.Index(cleanT, "<"); idx != -1 {
+						cleanT = cleanT[:idx]
+					}
+					if idx := strings.Index(cleanT, "__"); idx != -1 {
+						cleanT = cleanT[:idx]
+					}
+					clsName = cleanT
+				}
+			}
+			methodName := res.Left.Text
+			lookupKey := clsName + "." + methodName
+			if !isInstance {
+				lookupKey = clsName + ".static." + methodName
+			}
+			if mTemplate, ok := genericMethods[lookupKey]; ok {
+				typeArgs := res.TypeArguments
+				if len(typeArgs) == 0 {
+					typeArgs = inferTypeArgsForMethod(mTemplate, mTemplate.TypeParameters, res.Arguments, env, nil)
+				}
+				if len(typeArgs) == len(mTemplate.TypeParameters) {
+					mangledMethod := reqMethod(clsName, methodName, typeArgs)
+					res.Left.Text = mangledMethod
+					res.TypeArguments = nil
+				}
+			}
+			if !isInstance && res.Left.Left.Kind == "identifier" {
+				if clsTemplate, ok := genericClasses[clsName]; ok {
+					typeArgs := res.TypeArguments
+					if len(typeArgs) == 0 {
+						for _, m := range clsTemplate.Methods {
+							if m.IsStatic && m.Name == methodName {
+								typeArgs = inferTypeArgsForMethod(m, clsTemplate.TypeParameters, res.Arguments, env, nil)
+								break
+							}
+						}
+					}
+					if len(typeArgs) == 0 && clsTemplate.Constructor != nil {
+						typeArgs = inferTypeArgsForClass(clsTemplate, res.Arguments, env, nil)
+					}
+					if len(typeArgs) == len(clsTemplate.TypeParameters) {
+						mangled := reqCls(clsName, typeArgs, fileName)
+						res.Left.Left.Text = mangled
+						res.TypeArguments = nil
+					}
+				}
 			}
 		}
 	}
@@ -99,7 +209,7 @@ func rewriteExpr(expr *typescriptgo.SyntaxExpression, genericFuncs map[string]ty
 		if clsTemplate, ok := genericClasses[clsName]; ok {
 			typeArgs := res.TypeArguments
 			if len(typeArgs) == 0 && clsTemplate.Constructor != nil {
-				typeArgs = inferTypeArgsForClass(clsTemplate, res.Arguments, nil)
+				typeArgs = inferTypeArgsForClass(clsTemplate, res.Arguments, env, nil)
 			}
 			if len(typeArgs) == len(clsTemplate.TypeParameters) {
 				mangled := reqCls(clsName, typeArgs, fileName)
@@ -109,19 +219,19 @@ func rewriteExpr(expr *typescriptgo.SyntaxExpression, genericFuncs map[string]ty
 		}
 	}
 	if res.Left != nil {
-		res.Left = rewriteExpr(res.Left, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Left = rewriteExpr(res.Left, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.Right != nil {
-		res.Right = rewriteExpr(res.Right, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Right = rewriteExpr(res.Right, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	for i := range res.Arguments {
-		res.Arguments[i] = rewriteExpr(res.Arguments[i], genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.Arguments[i] = rewriteExpr(res.Arguments[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.WhenTrue != nil {
-		res.WhenTrue = rewriteExpr(res.WhenTrue, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.WhenTrue = rewriteExpr(res.WhenTrue, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	if res.WhenFalse != nil {
-		res.WhenFalse = rewriteExpr(res.WhenFalse, genericFuncs, genericClasses, reqFn, reqCls, fileName)
+		res.WhenFalse = rewriteExpr(res.WhenFalse, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
 	return res
 }
@@ -148,6 +258,13 @@ func rewriteTypeString(typ string) string {
 			if len(newParts) == 1 {
 				return newParts[0] + "[]"
 			}
+		}
+		if isBuiltinGeneric(name) {
+			res := name + "<" + strings.Join(newParts, ", ") + ">"
+			if hasObj {
+				return "object:" + res
+			}
+			return res
 		}
 		mangled := mangleGenericName(name, newParts)
 		if hasObj {

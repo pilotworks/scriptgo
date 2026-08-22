@@ -137,6 +137,17 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []type
 func findStaticMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	curr := className
 	for curr != "" {
+		if strings.Contains(curr, "<") && strings.HasSuffix(curr, ">") {
+			mangledCls := mangleGenericTypeString(curr)
+			mangled := mangledCls + "_static_" + methodName
+			if fn, ok := signatures[mangled]; ok {
+				return fn, mangled, true
+			}
+			mangledOld := mangledCls + "_" + methodName
+			if fn, ok := signatures[mangledOld]; ok && (len(fn.Parameters) == 0 || fn.Parameters[0].Name != "this") {
+				return fn, mangledOld, true
+			}
+		}
 		cleanCurr := curr
 		if idx := strings.Index(curr, "<"); idx != -1 {
 			cleanCurr = curr[:idx]
@@ -161,6 +172,17 @@ func findStaticMethodInHierarchy(className, methodName string, signatures map[st
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	curr := className
 	for curr != "" {
+		mangledDirect := curr + "_" + methodName
+		if fn, ok := signatures[mangledDirect]; ok {
+			return fn, mangledDirect, true
+		}
+		if strings.Contains(curr, "<") && strings.HasSuffix(curr, ">") {
+			mangledCls := mangleGenericTypeString(curr)
+			mangled := mangledCls + "_" + methodName
+			if fn, ok := signatures[mangled]; ok {
+				return fn, mangled, true
+			}
+		}
 		cleanCurr := curr
 		if idx := strings.Index(curr, "<"); idx != -1 {
 			cleanCurr = curr[:idx]
@@ -181,6 +203,17 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 func findGetterInHierarchy(className, propName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	curr := className
 	for curr != "" {
+		mangledDirect := curr + "_get_" + propName
+		if fn, ok := signatures[mangledDirect]; ok {
+			return fn, mangledDirect, true
+		}
+		if strings.Contains(curr, "<") && strings.HasSuffix(curr, ">") {
+			mangledCls := mangleGenericTypeString(curr)
+			mangled := mangledCls + "_get_" + propName
+			if fn, ok := signatures[mangled]; ok {
+				return fn, mangled, true
+			}
+		}
 		cleanCurr := curr
 		if idx := strings.Index(curr, "<"); idx != -1 {
 			cleanCurr = curr[:idx]
@@ -189,7 +222,7 @@ func findGetterInHierarchy(className, propName string, signatures map[string]ir.
 		if fn, ok := signatures[mangled]; ok {
 			return fn, mangled, true
 		}
-		if meta, ok := hierarchy[curr]; ok {
+		if meta, ok := hierarchy[cleanCurr]; ok {
 			curr = meta.Extends
 		} else {
 			break

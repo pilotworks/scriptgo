@@ -607,7 +607,7 @@ interface TextDecoderConstructor {
 }
 declare var TextDecoder: TextDecoderConstructor;
 
-interface Buffer {
+interface Buffer extends Uint8Array {
     readonly length: number;
     readonly byteLength: number;
     readonly byteOffset: number;
@@ -621,7 +621,7 @@ interface Buffer {
     fill(value: number, start?: number, end?: number): this;
     equals(other: Buffer | Uint8Array): boolean;
     compare(other: Buffer | Uint8Array): number;
-    indexOf(value: string, byteOffset?: number): number;
+    indexOf(value: string | number | Uint8Array, byteOffset?: number, encoding?: string): number;
 
     readUInt8(offset: number): number;
     writeUInt8(value: number, offset: number): number;

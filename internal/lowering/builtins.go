@@ -252,6 +252,42 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 	return res, ir.TypeString, nil
 }
 
+func parseAnonymousObjectShape(shapeName string) (ir.ObjectShape, bool) {
+	clean := strings.TrimSpace(shapeName)
+	clean = strings.TrimPrefix(clean, "object:")
+	if !strings.HasPrefix(clean, "{") || !strings.HasSuffix(clean, "}") {
+		return ir.ObjectShape{}, false
+	}
+	inner := strings.Trim(clean, "{}")
+	var fields []ir.Field
+	rawParts := strings.FieldsFunc(inner, func(r rune) bool {
+		return r == ';' || r == ','
+	})
+	for _, part := range rawParts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		kv := strings.SplitN(part, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		fName := strings.TrimSpace(kv[0])
+		fType := strings.TrimSpace(kv[1])
+		fields = append(fields, ir.Field{
+			Name: fName,
+			Type: toIRType(fType),
+		})
+	}
+	if len(fields) == 0 {
+		return ir.ObjectShape{}, false
+	}
+	return ir.ObjectShape{
+		Name:   shapeName,
+		Fields: fields,
+	}, true
+}
+
 func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) != 1 {
 		return "", "", fmt.Errorf("JSON.stringify expects exactly 1 argument")
@@ -260,13 +296,19 @@ func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 	if err != nil {
 		return "", "", err
 	}
+	shapeName := string(argType)
 	if after, ok := strings.CutPrefix(string(argType), "object:"); ok {
-		shapeName := after
-		shape, ok := call.Shapes[shapeName]
-		if !ok {
-			return "", "", fmt.Errorf("unknown shape %q for JSON.stringify", shapeName)
-		}
+		shapeName = after
+	}
+	if shape, ok := call.Shapes[shapeName]; ok {
 		return lowerJSONStringifyObject(call, argVal, shape)
+	}
+	if parsedShape, ok := parseAnonymousObjectShape(shapeName); ok {
+		call.Shapes[shapeName] = parsedShape
+		return lowerJSONStringifyObject(call, argVal, parsedShape)
+	}
+	if strings.HasPrefix(string(argType), "object:") {
+		return "", "", fmt.Errorf("unknown shape %q for JSON.stringify", shapeName)
 	}
 	result := call.Result
 	if result == "" {

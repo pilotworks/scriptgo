@@ -2,12 +2,13 @@ declare namespace __scriptgo {
     function bufferAlloc(size: number, fill?: string): Buffer;
     function bufferAllocUnsafe(size: number): Buffer;
     function bufferFromString(str: string, encoding?: string): Buffer;
-    function bufferConcat(list: Buffer[], totalLength?: number): Buffer;
+    function bufferFromArray(array: any): Buffer;
+    function bufferConcat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
     function bufferIsBuffer(obj: unknown): boolean;
     function bufferByteLength(string: string, encoding?: string): number;
 }
 
-export interface Buffer {
+export interface Buffer extends Uint8Array {
     readonly length: number;
     readonly byteLength: number;
     readonly byteOffset: number;
@@ -20,7 +21,7 @@ export interface Buffer {
     fill(value: number, start?: number, end?: number): this;
     equals(other: Buffer | Uint8Array): boolean;
     compare(other: Buffer | Uint8Array): number;
-    indexOf(value: string, byteOffset?: number): number;
+    indexOf(value: string | number | Uint8Array, byteOffset?: number, encoding?: string): number;
     toString(encoding?: string, start?: number, end?: number): string;
 
     readUInt8(offset: number): number;
@@ -56,8 +57,13 @@ export class Buffer {
     static allocUnsafe(size: number): Buffer {
         return __scriptgo.bufferAllocUnsafe(size);
     }
-    static from(str: string, encoding: string = "utf8"): Buffer {
-        return __scriptgo.bufferFromString(str, encoding);
+    static from(str: string, encoding?: string): Buffer;
+    static from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
+    static from(value: unknown, encoding: string = "utf8"): Buffer {
+        if (typeof value === "string") {
+            return __scriptgo.bufferFromString(value, encoding);
+        }
+        return __scriptgo.bufferFromArray(value);
     }
     static concat(list: Buffer[], totalLength: number = -1): Buffer {
         return __scriptgo.bufferConcat(list, totalLength);

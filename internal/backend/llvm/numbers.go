@@ -66,6 +66,18 @@ func emitNumberIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_fixed(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], digits, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__number.toString":
+		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("toString has invalid signature")
+		}
+		radix := "10.0"
+		if len(instruction.Args) >= 2 {
+			radix = "%" + instruction.Args[1]
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_string(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], radix, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	default:
 		return fmt.Errorf("unknown number intrinsic %q", instruction.Callee)
 	}
