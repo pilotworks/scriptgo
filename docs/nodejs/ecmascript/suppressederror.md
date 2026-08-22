@@ -22,9 +22,8 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `SuppressedError.error: any` | `error: any` | `__suppressederror.error` | 📋 Planned | - |
-| `SuppressedError.new (error: any, suppressed: any, message?: string): SuppressedError` | `new (error: any, suppressed: any, message?: string): SuppressedError` | `__suppressederror.new` | 📋 Planned | - |
-| `SuppressedError.readonly prototype: SuppressedError` | `readonly prototype: SuppressedError` | `__suppressederror.prototype` | 📋 Planned | - |
 | `SuppressedError.suppressed: any` | `suppressed: any` | `__suppressederror.suppressed` | 📋 Planned | - |
+| `new SuppressedError(error: any, suppressed: any, message?: string): SuppressedError` | `new (error: any, suppressed: any, message?: string): SuppressedError` | `__suppressederror.new` | 📋 Planned | - |
 
 ---
 

@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DurationRelativeToOptions.relativeTo?: ZonedDateTimeLike \| PlainDateLike \| undefined` | `relativeTo?: ZonedDateTimeLike \| PlainDateLike \| undefined` | `__durationrelativetooptions.relativeTo?` | 📋 Planned | - |
+| `DurationRelativeToOptions.relativeTo?: ZonedDateTimeLike \| PlainDateLike \| undefined` | `relativeTo?: ZonedDateTimeLike \| PlainDateLike \| undefined` | `__durationrelativetooptions.relativeTo` | 📋 Planned | - |
 
 ---
 

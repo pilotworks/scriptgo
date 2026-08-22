@@ -21,10 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Float64Array.from(elements: Iterable<number>): Float64Array<ArrayBuffer>` | `from(elements: Iterable<number>): Float64Array<ArrayBuffer>` | `__float64array.from` | ✅ Done | `internal/compiler/testdata/corpus/api/float64array/from/` |
-| `Float64Array.from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => number, thisArg?: any): Float64Array<ArrayBuffer>` | `from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => number, thisArg?: any): Float64Array<ArrayBuffer>` | `__float64array.from<T>` | ✅ Done | `internal/compiler/testdata/corpus/api/float64array/from/` |
-| `Float64Array.): S \| undefined` | `): S \| undefined` | `__float64array.)` | 📋 Planned | - |
-| `Float64Array.array: this,` | `array: this,` | `__float64array.array` | 📋 Planned | - |
+| `Float64Array.from(elements: Iterable<number>): Float64Array<ArrayBuffer>` | `from(elements: Iterable<number>): Float64Array<ArrayBuffer>` | `__float64array.from` | ✅ Done | `internal/compiler/testdata/corpus/api/float64array.ts` |
 | `Float64Array.at(index: number): number \| undefined` | `at(index: number): number \| undefined` | `__float64array.at` | 📋 Planned | - |
 | `Float64Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__float64array.copyWithin` | 📋 Planned | - |
 | `Float64Array.entries(): ArrayIterator<[number, number]>` | `entries(): ArrayIterator<[number, number]>` | `__float64array.entries` | 📋 Planned | - |
@@ -33,44 +30,38 @@ Provide a concise technical summary:
 | `Float64Array.filter(predicate: (value: number, index: number, array: this) => any, thisArg?: any): Float64Array<ArrayBuffer>` | `filter(predicate: (value: number, index: number, array: this) => any, thisArg?: any): Float64Array<ArrayBuffer>` | `__float64array.filter` | 📋 Planned | - |
 | `Float64Array.find(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number \| undefined` | `find(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number \| undefined` | `__float64array.find` | 📋 Planned | - |
 | `Float64Array.findIndex(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number` | `findIndex(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number` | `__float64array.findIndex` | 📋 Planned | - |
-| `Float64Array.findLast(` | `findLast(` | `__float64array.findLast` | 📋 Planned | - |
-| `Float64Array.findLastIndex(` | `findLastIndex(` | `__float64array.findLastIndex` | 📋 Planned | - |
+| `Float64Array.findLast<S extends number>( predicate: ( value: number, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `findLast<S extends number>( predicate: ( value: number, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `__float64array.findLast` | 📋 Planned | - |
+| `Float64Array.findLastIndex( predicate: ( value: number, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `findLastIndex( predicate: ( value: number, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `__float64array.findLastIndex` | 📋 Planned | - |
 | `Float64Array.forEach(callbackfn: (value: number, index: number, array: this) => void, thisArg?: any): void` | `forEach(callbackfn: (value: number, index: number, array: this) => void, thisArg?: any): void` | `__float64array.forEach` | 📋 Planned | - |
 | `Float64Array.includes(searchElement: number, fromIndex?: number): boolean` | `includes(searchElement: number, fromIndex?: number): boolean` | `__float64array.includes` | 📋 Planned | - |
-| `Float64Array.index: number,` | `index: number,` | `__float64array.index` | 📋 Planned | - |
 | `Float64Array.indexOf(searchElement: number, fromIndex?: number): number` | `indexOf(searchElement: number, fromIndex?: number): number` | `__float64array.indexOf` | 📋 Planned | - |
 | `Float64Array.join(separator?: string): string` | `join(separator?: string): string` | `__float64array.join` | 📋 Planned | - |
 | `Float64Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__float64array.keys` | 📋 Planned | - |
 | `Float64Array.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__float64array.lastIndexOf` | 📋 Planned | - |
 | `Float64Array.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float64Array<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float64Array<ArrayBuffer>` | `__float64array.map` | 📋 Planned | - |
-| `Float64Array.new (elements: Iterable<number>): Float64Array<ArrayBuffer>` | `new (elements: Iterable<number>): Float64Array<ArrayBuffer>` | `__float64array.new` | 📋 Planned | - |
+| `Float64Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float64Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float64Array<TArrayBuffer>` | `__float64array.new` | 📋 Planned | - |
 | `Float64Array.of(...items: number[]): Float64Array<ArrayBuffer>` | `of(...items: number[]): Float64Array<ArrayBuffer>` | `__float64array.of` | 📋 Planned | - |
-| `Float64Array.predicate: (` | `predicate: (` | `__float64array.predicate` | 📋 Planned | - |
 | `Float64Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__float64array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `Float64Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__float64array.buffer` | 📋 Planned | - |
 | `Float64Array.readonly byteLength: number` | `readonly byteLength: number` | `__float64array.byteLength` | 📋 Planned | - |
 | `Float64Array.readonly byteOffset: number` | `readonly byteOffset: number` | `__float64array.byteOffset` | 📋 Planned | - |
 | `Float64Array.readonly length: number` | `readonly length: number` | `__float64array.length` | 📋 Planned | - |
-| `Float64Array.readonly prototype: Float64Array<ArrayBufferLike>` | `readonly prototype: Float64Array<ArrayBufferLike>` | `__float64array.prototype` | 📋 Planned | - |
 | `Float64Array.reduce(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `reduce(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `__float64array.reduce` | 📋 Planned | - |
-| `Float64Array.reduce<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `__float64array.reduce<U>` | 📋 Planned | - |
 | `Float64Array.reduceRight(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `reduceRight(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `__float64array.reduceRight` | 📋 Planned | - |
-| `Float64Array.reduceRight<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `__float64array.reduceRight<U>` | 📋 Planned | - |
 | `Float64Array.reverse(): this` | `reverse(): this` | `__float64array.reverse` | 📋 Planned | - |
 | `Float64Array.set(array: ArrayLike<number>, offset?: number): void` | `set(array: ArrayLike<number>, offset?: number): void` | `__float64array.set` | 📋 Planned | - |
 | `Float64Array.slice(start?: number, end?: number): Float64Array<ArrayBuffer>` | `slice(start?: number, end?: number): Float64Array<ArrayBuffer>` | `__float64array.slice` | 📋 Planned | - |
 | `Float64Array.some(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): boolean` | `some(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): boolean` | `__float64array.some` | 📋 Planned | - |
 | `Float64Array.sort(compareFn?: (a: number, b: number) => number): this` | `sort(compareFn?: (a: number, b: number) => number): this` | `__float64array.sort` | 📋 Planned | - |
 | `Float64Array.subarray(begin?: number, end?: number): Float64Array<TArrayBuffer>` | `subarray(begin?: number, end?: number): Float64Array<TArrayBuffer>` | `__float64array.subarray` | 📋 Planned | - |
-| `Float64Array.thisArg?: any,` | `thisArg?: any,` | `__float64array.thisArg?` | 📋 Planned | - |
 | `Float64Array.toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions): string` | `__float64array.toLocaleString` | 📋 Planned | - |
 | `Float64Array.toReversed(): Float64Array<ArrayBuffer>` | `toReversed(): Float64Array<ArrayBuffer>` | `__float64array.toReversed` | 📋 Planned | - |
 | `Float64Array.toSorted(compareFn?: (a: number, b: number) => number): Float64Array<ArrayBuffer>` | `toSorted(compareFn?: (a: number, b: number) => number): Float64Array<ArrayBuffer>` | `__float64array.toSorted` | 📋 Planned | - |
 | `Float64Array.toString(): string` | `toString(): string` | `__float64array.toString` | 📋 Planned | - |
-| `Float64Array.value: number,` | `value: number,` | `__float64array.value` | 📋 Planned | - |
 | `Float64Array.valueOf(): this` | `valueOf(): this` | `__float64array.valueOf` | 📋 Planned | - |
 | `Float64Array.values(): ArrayIterator<number>` | `values(): ArrayIterator<number>` | `__float64array.values` | 📋 Planned | - |
 | `Float64Array.with(index: number, value: number): Float64Array<ArrayBuffer>` | `with(index: number, value: number): Float64Array<ArrayBuffer>` | `__float64array.with` | 📋 Planned | - |
+| `new Float64Array(elements: Iterable<number>): Float64Array<ArrayBuffer>` | `new (elements: Iterable<number>): Float64Array<ArrayBuffer>` | `__float64array.new` | 📋 Planned | - |
 
 ---
 

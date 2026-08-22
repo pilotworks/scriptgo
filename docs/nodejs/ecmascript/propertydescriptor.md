@@ -21,12 +21,12 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PropertyDescriptor.configurable?: boolean` | `configurable?: boolean` | `__propertydescriptor.configurable?` | 📋 Planned | - |
-| `PropertyDescriptor.enumerable?: boolean` | `enumerable?: boolean` | `__propertydescriptor.enumerable?` | 📋 Planned | - |
-| `PropertyDescriptor.get?(): any` | `get?(): any` | `__propertydescriptor.get?` | 📋 Planned | - |
-| `PropertyDescriptor.set?(v: any): void` | `set?(v: any): void` | `__propertydescriptor.set?` | 📋 Planned | - |
-| `PropertyDescriptor.value?: any` | `value?: any` | `__propertydescriptor.value?` | 📋 Planned | - |
-| `PropertyDescriptor.writable?: boolean` | `writable?: boolean` | `__propertydescriptor.writable?` | 📋 Planned | - |
+| `PropertyDescriptor.configurable?: boolean` | `configurable?: boolean` | `__propertydescriptor.configurable` | 📋 Planned | - |
+| `PropertyDescriptor.enumerable?: boolean` | `enumerable?: boolean` | `__propertydescriptor.enumerable` | 📋 Planned | - |
+| `PropertyDescriptor.get?(): any` | `get?(): any` | `__propertydescriptor.get` | 📋 Planned | - |
+| `PropertyDescriptor.set?(v: any): void` | `set?(v: any): void` | `__propertydescriptor.set` | 📋 Planned | - |
+| `PropertyDescriptor.value?: any` | `value?: any` | `__propertydescriptor.value` | 📋 Planned | - |
+| `PropertyDescriptor.writable?: boolean` | `writable?: boolean` | `__propertydescriptor.writable` | 📋 Planned | - |
 
 ---
 

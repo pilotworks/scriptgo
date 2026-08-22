@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `InstantToStringOptions.timeZone?: TimeZoneLike \| undefined` | `timeZone?: TimeZoneLike \| undefined` | `__instanttostringoptions.timeZone?` | 📋 Planned | - |
+| `InstantToStringOptions.timeZone?: TimeZoneLike \| undefined` | `timeZone?: TimeZoneLike \| undefined` | `__instanttostringoptions.timeZone` | 📋 Planned | - |
 
 ---
 

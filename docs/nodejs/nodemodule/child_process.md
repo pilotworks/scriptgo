@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `child_process.execSync(command[, options])` | `(...) => any` | `__child_process.child_process.execSync` | ✅ Done | `internal/compiler/testdata/corpus/api/child_process/execSync/` |
-| `child_process.spawnSync(command[, args][, options])` | `(...) => any` | `__child_process.child_process.spawnSync` | ✅ Done | `internal/compiler/testdata/corpus/api/child_process/spawnSync/` |
+| `child_process.execSync(command[, options])` | `(...) => any` | `__child_process.child_process.execSync` | ✅ Done | `internal/compiler/testdata/corpus/api/child_process.ts` |
+| `child_process.spawnSync(command[, args][, options])` | `(...) => any` | `__child_process.child_process.spawnSync` | ✅ Done | `internal/compiler/testdata/corpus/api/child_process.ts` |
 | `ChildProcess` | `(...) => any` | `__child_process.ChildProcess` | 📋 Planned | - |
 | `channel` | `any` | `__child_process.channel` | 📋 Planned | - |
 | `child_process.exec(command[, options][, callback])` | `(...) => any` | `__child_process.child_process.exec` | 📋 Planned | - |

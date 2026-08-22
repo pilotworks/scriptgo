@@ -242,11 +242,39 @@ int scriptgo_fs_mkdir_sync(const char *path, double is_recursive) {
     return 0;
 }
 
+static int rm_recursive(const char *path) {
+    struct stat st;
+    if (lstat(path, &st) != 0) {
+        return -1;
+    }
+    if (S_ISDIR(st.st_mode)) {
+        DIR *d = opendir(path);
+        if (d == NULL) return -1;
+        struct dirent *ent;
+        while ((ent = readdir(d)) != NULL) {
+            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+            char subpath[1024];
+            snprintf(subpath, sizeof(subpath), "%s/%s", path, ent->d_name);
+            rm_recursive(subpath);
+        }
+        closedir(d);
+        return rmdir(path);
+    } else {
+        return unlink(path);
+    }
+}
+
 int scriptgo_fs_rm_sync(const char *path, double is_recursive, double is_force) {
     if (path == NULL) {
         return fs_fail("scriptgo fs rm invalid arguments");
     }
-    if (remove(path) != 0) {
+    int err;
+    if (is_recursive > 0.5) {
+        err = rm_recursive(path);
+    } else {
+        err = remove(path);
+    }
+    if (err != 0) {
         if (is_force <= 0.5) {
             return fs_fail("scriptgo fs rm failed");
         }

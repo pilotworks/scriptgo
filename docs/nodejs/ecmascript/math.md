@@ -21,27 +21,27 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Math.abs(x: number): number` | `abs(x: number): number` | `__math.abs` | ✅ Done | `internal/compiler/testdata/corpus/api/math/abs/` |
-| `Math.atan(x: number): number` | `atan(x: number): number` | `__math.atan` | ✅ Done | `internal/compiler/testdata/corpus/api/math/atan/` |
-| `Math.atan2(y: number, x: number): number` | `atan2(y: number, x: number): number` | `__math.atan2` | ✅ Done | `internal/compiler/testdata/corpus/api/math/atan2/` |
-| `Math.ceil(x: number): number` | `ceil(x: number): number` | `__math.ceil` | ✅ Done | `internal/compiler/testdata/corpus/api/math/ceil/` |
-| `Math.cos(x: number): number` | `cos(x: number): number` | `__math.cos` | ✅ Done | `internal/compiler/testdata/corpus/api/math/cos/` |
-| `Math.exp(x: number): number` | `exp(x: number): number` | `__math.exp` | ✅ Done | `internal/compiler/testdata/corpus/api/math/exp/` |
-| `Math.floor(x: number): number` | `floor(x: number): number` | `__math.floor` | ✅ Done | `internal/compiler/testdata/corpus/api/math/floor/` |
-| `Math.hypot(...values: number[]): number` | `hypot(...values: number[]): number` | `__math.hypot` | ✅ Done | `internal/compiler/testdata/corpus/api/math/hypot/` |
-| `Math.log(x: number): number` | `log(x: number): number` | `__math.log` | ✅ Done | `internal/compiler/testdata/corpus/api/math/log/` |
-| `Math.log10(x: number): number` | `log10(x: number): number` | `__math.log10` | ✅ Done | `internal/compiler/testdata/corpus/api/math/log10/` |
-| `Math.log2(x: number): number` | `log2(x: number): number` | `__math.log2` | ✅ Done | `internal/compiler/testdata/corpus/api/math/log2/` |
-| `Math.max(...values: number[]): number` | `max(...values: number[]): number` | `__math.max` | ✅ Done | `internal/compiler/testdata/corpus/api/math/max/` |
-| `Math.min(...values: number[]): number` | `min(...values: number[]): number` | `__math.min` | ✅ Done | `internal/compiler/testdata/corpus/api/math/min/` |
-| `Math.pow(x: number, y: number): number` | `pow(x: number, y: number): number` | `__math.pow` | ✅ Done | `internal/compiler/testdata/corpus/api/math/pow/` |
-| `Math.random(): number` | `random(): number` | `__math.random` | ✅ Done | `internal/compiler/testdata/corpus/api/math/random/` |
-| `Math.round(x: number): number` | `round(x: number): number` | `__math.round` | ✅ Done | `internal/compiler/testdata/corpus/api/math/round/` |
-| `Math.sign(x: number): number` | `sign(x: number): number` | `__math.sign` | ✅ Done | `internal/compiler/testdata/corpus/api/math/sign/` |
-| `Math.sin(x: number): number` | `sin(x: number): number` | `__math.sin` | ✅ Done | `internal/compiler/testdata/corpus/api/math/sin/` |
-| `Math.sqrt(x: number): number` | `sqrt(x: number): number` | `__math.sqrt` | ✅ Done | `internal/compiler/testdata/corpus/api/math/sqrt/` |
-| `Math.tan(x: number): number` | `tan(x: number): number` | `__math.tan` | ✅ Done | `internal/compiler/testdata/corpus/api/math/tan/` |
-| `Math.trunc(x: number): number` | `trunc(x: number): number` | `__math.trunc` | ✅ Done | `internal/compiler/testdata/corpus/api/math/trunc/` |
+| `Math.abs(x: number): number` | `abs(x: number): number` | `__math.abs` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.atan(x: number): number` | `atan(x: number): number` | `__math.atan` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.atan2(y: number, x: number): number` | `atan2(y: number, x: number): number` | `__math.atan2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.ceil(x: number): number` | `ceil(x: number): number` | `__math.ceil` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.cos(x: number): number` | `cos(x: number): number` | `__math.cos` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.exp(x: number): number` | `exp(x: number): number` | `__math.exp` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.floor(x: number): number` | `floor(x: number): number` | `__math.floor` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.hypot(...values: number[]): number` | `hypot(...values: number[]): number` | `__math.hypot` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.log(x: number): number` | `log(x: number): number` | `__math.log` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.log10(x: number): number` | `log10(x: number): number` | `__math.log10` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.log2(x: number): number` | `log2(x: number): number` | `__math.log2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.max(...values: number[]): number` | `max(...values: number[]): number` | `__math.max` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.min(...values: number[]): number` | `min(...values: number[]): number` | `__math.min` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.pow(x: number, y: number): number` | `pow(x: number, y: number): number` | `__math.pow` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.random(): number` | `random(): number` | `__math.random` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.round(x: number): number` | `round(x: number): number` | `__math.round` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.sign(x: number): number` | `sign(x: number): number` | `__math.sign` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.sin(x: number): number` | `sin(x: number): number` | `__math.sin` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.sqrt(x: number): number` | `sqrt(x: number): number` | `__math.sqrt` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.tan(x: number): number` | `tan(x: number): number` | `__math.tan` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.trunc(x: number): number` | `trunc(x: number): number` | `__math.trunc` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.acos(x: number): number` | `acos(x: number): number` | `__math.acos` | 📋 Planned | - |
 | `Math.acosh(x: number): number` | `acosh(x: number): number` | `__math.acosh` | 📋 Planned | - |
 | `Math.asin(x: number): number` | `asin(x: number): number` | `__math.asin` | 📋 Planned | - |

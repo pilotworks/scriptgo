@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ImportCallOptions.with?: ImportAttributes` | `with?: ImportAttributes` | `__importcalloptions.with?` | 📋 Planned | - |
+| `ImportCallOptions.with?: ImportAttributes` | `with?: ImportAttributes` | `__importcalloptions.with` | 📋 Planned | - |
 
 ---
 

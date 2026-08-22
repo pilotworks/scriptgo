@@ -21,19 +21,19 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `console.assert(value[, ...message])` | `(...) => any` | `__console.console.assert` | ✅ Done | `internal/compiler/testdata/corpus/api/console/assert/` |
-| `console.clear()` | `(...) => any` | `__console.console.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/console/clear/` |
-| `console.count([label])` | `(...) => any` | `__console.console.count` | ✅ Done | `internal/compiler/testdata/corpus/api/console/count/` |
-| `console.debug(data[, ...args])` | `(...) => any` | `__console.console.debug` | ✅ Done | `internal/compiler/testdata/corpus/api/console/debug/` |
-| `console.dir(obj[, options])` | `(...) => any` | `__console.console.dir` | ✅ Done | `internal/compiler/testdata/corpus/api/console/dir/` |
-| `console.error([data][, ...args])` | `(...) => any` | `__console.console.error` | ✅ Done | `internal/compiler/testdata/corpus/api/console/error/` |
-| `console.group([...label])` | `(...) => any` | `__console.console.group` | ✅ Done | `internal/compiler/testdata/corpus/api/console/group/` |
-| `console.groupEnd()` | `(...) => any` | `__console.console.groupEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/console/groupEnd/` |
-| `console.info([data][, ...args])` | `(...) => any` | `__console.console.info` | ✅ Done | `internal/compiler/testdata/corpus/api/console/info/` |
-| `console.log([data][, ...args])` | `(...) => any` | `__console.console.log` | ✅ Done | `internal/compiler/testdata/corpus/api/console/log/` |
-| `console.time([label])` | `(...) => any` | `__console.console.time` | ✅ Done | `internal/compiler/testdata/corpus/api/console/time/` |
-| `console.trace([message][, ...args])` | `(...) => any` | `__console.console.trace` | ✅ Done | `internal/compiler/testdata/corpus/api/console/trace/` |
-| `console.warn([data][, ...args])` | `(...) => any` | `__console.console.warn` | ✅ Done | `internal/compiler/testdata/corpus/api/console/warn/` |
+| `console.assert(value[, ...message])` | `(...) => any` | `__console.console.assert` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.clear()` | `(...) => any` | `__console.console.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.count([label])` | `(...) => any` | `__console.console.count` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.debug(data[, ...args])` | `(...) => any` | `__console.console.debug` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.dir(obj[, options])` | `(...) => any` | `__console.console.dir` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.error([data][, ...args])` | `(...) => any` | `__console.console.error` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.group([...label])` | `(...) => any` | `__console.console.group` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.groupEnd()` | `(...) => any` | `__console.console.groupEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.info([data][, ...args])` | `(...) => any` | `__console.console.info` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.log([data][, ...args])` | `(...) => any` | `__console.console.log` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.time([label])` | `(...) => any` | `__console.console.time` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.trace([message][, ...args])` | `(...) => any` | `__console.console.trace` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.warn([data][, ...args])` | `(...) => any` | `__console.console.warn` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `Console` | `(...) => any` | `__console.Console` | 📋 Planned | - |
 | `console.countReset([label])` | `(...) => any` | `__console.console.countReset` | 📋 Planned | - |
 | `console.dirxml(...data)` | `(...) => any` | `__console.console.dirxml` | 📋 Planned | - |

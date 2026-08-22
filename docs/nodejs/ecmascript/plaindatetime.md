@@ -25,7 +25,6 @@ Provide a concise technical summary:
 | `PlainDateTime.compare(one: PlainDateTimeLike, two: PlainDateTimeLike): number` | `compare(one: PlainDateTimeLike, two: PlainDateTimeLike): number` | `__plaindatetime.compare` | 📋 Planned | - |
 | `PlainDateTime.equals(other: PlainDateTimeLike): boolean` | `equals(other: PlainDateTimeLike): boolean` | `__plaindatetime.equals` | 📋 Planned | - |
 | `PlainDateTime.from(item: PlainDateTimeLike, options?: OverflowOptions): PlainDateTime` | `from(item: PlainDateTimeLike, options?: OverflowOptions): PlainDateTime` | `__plaindatetime.from` | 📋 Planned | - |
-| `PlainDateTime.new (isoYear: number, isoMonth: number, isoDay: number, hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number, calendar?: string): PlainDateTime` | `new (isoYear: number, isoMonth: number, isoDay: number, hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number, calendar?: string): PlainDateTime` | `__plaindatetime.new` | 📋 Planned | - |
 | `PlainDateTime.readonly calendarId: string` | `readonly calendarId: string` | `__plaindatetime.calendarId` | 📋 Planned | - |
 | `PlainDateTime.readonly day: number` | `readonly day: number` | `__plaindatetime.day` | 📋 Planned | - |
 | `PlainDateTime.readonly dayOfWeek: number` | `readonly dayOfWeek: number` | `__plaindatetime.dayOfWeek` | 📋 Planned | - |
@@ -44,7 +43,6 @@ Provide a concise technical summary:
 | `PlainDateTime.readonly monthCode: string` | `readonly monthCode: string` | `__plaindatetime.monthCode` | 📋 Planned | - |
 | `PlainDateTime.readonly monthsInYear: number` | `readonly monthsInYear: number` | `__plaindatetime.monthsInYear` | 📋 Planned | - |
 | `PlainDateTime.readonly nanosecond: number` | `readonly nanosecond: number` | `__plaindatetime.nanosecond` | 📋 Planned | - |
-| `PlainDateTime.readonly prototype: PlainDateTime` | `readonly prototype: PlainDateTime` | `__plaindatetime.prototype` | 📋 Planned | - |
 | `PlainDateTime.readonly second: number` | `readonly second: number` | `__plaindatetime.second` | 📋 Planned | - |
 | `PlainDateTime.readonly weekOfYear: number \| undefined` | `readonly weekOfYear: number \| undefined` | `__plaindatetime.weekOfYear` | 📋 Planned | - |
 | `PlainDateTime.readonly year: number` | `readonly year: number` | `__plaindatetime.year` | 📋 Planned | - |
@@ -63,6 +61,7 @@ Provide a concise technical summary:
 | `PlainDateTime.with(dateTimeLike: PartialTemporalLike<DateTimeLikeObject>, options?: OverflowOptions): PlainDateTime` | `with(dateTimeLike: PartialTemporalLike<DateTimeLikeObject>, options?: OverflowOptions): PlainDateTime` | `__plaindatetime.with` | 📋 Planned | - |
 | `PlainDateTime.withCalendar(calendar: CalendarLike): PlainDateTime` | `withCalendar(calendar: CalendarLike): PlainDateTime` | `__plaindatetime.withCalendar` | 📋 Planned | - |
 | `PlainDateTime.withPlainTime(plainTime?: PlainTimeLike): PlainDateTime` | `withPlainTime(plainTime?: PlainTimeLike): PlainDateTime` | `__plaindatetime.withPlainTime` | 📋 Planned | - |
+| `new PlainDateTime(isoYear: number, isoMonth: number, isoDay: number, hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number, calendar?: string): PlainDateTime` | `new (isoYear: number, isoMonth: number, isoDay: number, hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number, calendar?: string): PlainDateTime` | `__plaindatetime.new` | 📋 Planned | - |
 
 ---
 

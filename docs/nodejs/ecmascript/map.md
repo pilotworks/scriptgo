@@ -21,23 +21,21 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Map.clear(): void` | `clear(): void` | `__map.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/map/clear/` |
-| `Map.delete(key: K): boolean` | `delete(key: K): boolean` | `__map.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/map/delete/` |
-| `Map.forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `__map.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/map/forEach/` |
-| `Map.get(key: K): V \| undefined` | `get(key: K): V \| undefined` | `__map.get` | ✅ Done | `internal/compiler/testdata/corpus/api/map/get/` |
-| `Map.has(key: K): boolean` | `has(key: K): boolean` | `__map.has` | ✅ Done | `internal/compiler/testdata/corpus/api/map/has/` |
-| `Map.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__map.set` | ✅ Done | `internal/compiler/testdata/corpus/api/map/set/` |
-| `Map.): Map<K, T[]>` | `): Map<K, T[]>` | `__map.)` | 📋 Planned | - |
+| `Map.clear(): void` | `clear(): void` | `__map.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
+| `Map.delete(key: K): boolean` | `delete(key: K): boolean` | `__map.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
+| `Map.forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void` | `__map.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
+| `Map.get(key: K): V \| undefined` | `get(key: K): V \| undefined` | `__map.get` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
+| `Map.has(key: K): boolean` | `has(key: K): boolean` | `__map.has` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
+| `Map.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__map.set` | ✅ Done | `internal/compiler/testdata/corpus/api/map.ts` |
 | `Map.entries(): MapIterator<[K, V]>` | `entries(): MapIterator<[K, V]>` | `__map.entries` | 📋 Planned | - |
 | `Map.getOrInsert(key: K, defaultValue: V): V` | `getOrInsert(key: K, defaultValue: V): V` | `__map.getOrInsert` | 📋 Planned | - |
 | `Map.getOrInsertComputed(key: K, callback: (key: K) => V): V` | `getOrInsertComputed(key: K, callback: (key: K) => V): V` | `__map.getOrInsertComputed` | 📋 Planned | - |
-| `Map.items: Iterable<T>,` | `items: Iterable<T>,` | `__map.items` | 📋 Planned | - |
-| `Map.keySelector: (item: T, index: number) => K,` | `keySelector: (item: T, index: number) => K,` | `__map.keySelector` | 📋 Planned | - |
+| `Map.groupBy<K, T>( items: Iterable<T>, keySelector: (item: T, index: number) => K, ): Map<K, T[]>` | `groupBy<K, T>( items: Iterable<T>, keySelector: (item: T, index: number) => K, ): Map<K, T[]>` | `__map.groupBy` | 📋 Planned | - |
 | `Map.keys(): MapIterator<K>` | `keys(): MapIterator<K>` | `__map.keys` | 📋 Planned | - |
-| `Map.new (): Map<any, any>` | `new (): Map<any, any>` | `__map.new` | 📋 Planned | - |
-| `Map.readonly prototype: Map<any, any>` | `readonly prototype: Map<any, any>` | `__map.prototype` | 📋 Planned | - |
+| `Map.new <K, V>(entries?: readonly (readonly [K, V])[] \| null): Map<K, V>` | `new <K, V>(entries?: readonly (readonly [K, V])[] \| null): Map<K, V>` | `__map.new` | 📋 Planned | - |
 | `Map.readonly size: number` | `readonly size: number` | `__map.size` | 📋 Planned | - |
 | `Map.values(): MapIterator<V>` | `values(): MapIterator<V>` | `__map.values` | 📋 Planned | - |
+| `new Map(): Map<any, any>` | `new (): Map<any, any>` | `__map.new` | 📋 Planned | - |
 
 ---
 

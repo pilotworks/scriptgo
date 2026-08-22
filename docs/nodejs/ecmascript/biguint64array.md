@@ -21,8 +21,6 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `BigUint64Array.): S \| undefined` | `): S \| undefined` | `__biguint64array.)` | 📋 Planned | - |
-| `BigUint64Array.array: this,` | `array: this,` | `__biguint64array.array` | 📋 Planned | - |
 | `BigUint64Array.at(index: number): bigint \| undefined` | `at(index: number): bigint \| undefined` | `__biguint64array.at` | 📋 Planned | - |
 | `BigUint64Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__biguint64array.copyWithin` | 📋 Planned | - |
 | `BigUint64Array.entries(): ArrayIterator<[number, bigint]>` | `entries(): ArrayIterator<[number, bigint]>` | `__biguint64array.entries` | 📋 Planned | - |
@@ -31,47 +29,39 @@ Provide a concise technical summary:
 | `BigUint64Array.filter(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => any, thisArg?: any): BigUint64Array<ArrayBuffer>` | `filter(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => any, thisArg?: any): BigUint64Array<ArrayBuffer>` | `__biguint64array.filter` | 📋 Planned | - |
 | `BigUint64Array.find(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): bigint \| undefined` | `find(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): bigint \| undefined` | `__biguint64array.find` | 📋 Planned | - |
 | `BigUint64Array.findIndex(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): number` | `findIndex(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): number` | `__biguint64array.findIndex` | 📋 Planned | - |
-| `BigUint64Array.findLast(` | `findLast(` | `__biguint64array.findLast` | 📋 Planned | - |
-| `BigUint64Array.findLastIndex(` | `findLastIndex(` | `__biguint64array.findLastIndex` | 📋 Planned | - |
+| `BigUint64Array.findLast<S extends bigint>( predicate: ( value: bigint, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `findLast<S extends bigint>( predicate: ( value: bigint, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `__biguint64array.findLast` | 📋 Planned | - |
+| `BigUint64Array.findLastIndex( predicate: ( value: bigint, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `findLastIndex( predicate: ( value: bigint, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `__biguint64array.findLastIndex` | 📋 Planned | - |
 | `BigUint64Array.forEach(callbackfn: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => void, thisArg?: any): void` | `__biguint64array.forEach` | 📋 Planned | - |
 | `BigUint64Array.from(arrayLike: ArrayLike<bigint>): BigUint64Array<ArrayBuffer>` | `from(arrayLike: ArrayLike<bigint>): BigUint64Array<ArrayBuffer>` | `__biguint64array.from` | 📋 Planned | - |
-| `BigUint64Array.from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `__biguint64array.from<T>` | 📋 Planned | - |
-| `BigUint64Array.from<U>(arrayLike: ArrayLike<U>, mapfn: (v: U, k: number) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `from<U>(arrayLike: ArrayLike<U>, mapfn: (v: U, k: number) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `__biguint64array.from<U>` | 📋 Planned | - |
 | `BigUint64Array.includes(searchElement: bigint, fromIndex?: number): boolean` | `includes(searchElement: bigint, fromIndex?: number): boolean` | `__biguint64array.includes` | 📋 Planned | - |
-| `BigUint64Array.index: number,` | `index: number,` | `__biguint64array.index` | 📋 Planned | - |
 | `BigUint64Array.indexOf(searchElement: bigint, fromIndex?: number): number` | `indexOf(searchElement: bigint, fromIndex?: number): number` | `__biguint64array.indexOf` | 📋 Planned | - |
 | `BigUint64Array.join(separator?: string): string` | `join(separator?: string): string` | `__biguint64array.join` | 📋 Planned | - |
 | `BigUint64Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__biguint64array.keys` | 📋 Planned | - |
 | `BigUint64Array.lastIndexOf(searchElement: bigint, fromIndex?: number): number` | `lastIndexOf(searchElement: bigint, fromIndex?: number): number` | `__biguint64array.lastIndexOf` | 📋 Planned | - |
 | `BigUint64Array.map(callbackfn: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `map(callbackfn: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => bigint, thisArg?: any): BigUint64Array<ArrayBuffer>` | `__biguint64array.map` | 📋 Planned | - |
-| `BigUint64Array.new (length?: number): BigUint64Array<ArrayBuffer>` | `new (length?: number): BigUint64Array<ArrayBuffer>` | `__biguint64array.new` | 📋 Planned | - |
+| `BigUint64Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): BigUint64Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): BigUint64Array<TArrayBuffer>` | `__biguint64array.new` | 📋 Planned | - |
 | `BigUint64Array.of(...items: bigint[]): BigUint64Array<ArrayBuffer>` | `of(...items: bigint[]): BigUint64Array<ArrayBuffer>` | `__biguint64array.of` | 📋 Planned | - |
-| `BigUint64Array.predicate: (` | `predicate: (` | `__biguint64array.predicate` | 📋 Planned | - |
 | `BigUint64Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__biguint64array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `BigUint64Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__biguint64array.buffer` | 📋 Planned | - |
 | `BigUint64Array.readonly byteLength: number` | `readonly byteLength: number` | `__biguint64array.byteLength` | 📋 Planned | - |
 | `BigUint64Array.readonly byteOffset: number` | `readonly byteOffset: number` | `__biguint64array.byteOffset` | 📋 Planned | - |
 | `BigUint64Array.readonly length: number` | `readonly length: number` | `__biguint64array.length` | 📋 Planned | - |
-| `BigUint64Array.readonly prototype: BigUint64Array<ArrayBufferLike>` | `readonly prototype: BigUint64Array<ArrayBufferLike>` | `__biguint64array.prototype` | 📋 Planned | - |
 | `BigUint64Array.reduce(callbackfn: (previousValue: bigint, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => bigint): bigint` | `reduce(callbackfn: (previousValue: bigint, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => bigint): bigint` | `__biguint64array.reduce` | 📋 Planned | - |
-| `BigUint64Array.reduce<U>(callbackfn: (previousValue: U, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => U, initialValue: U): U` | `__biguint64array.reduce<U>` | 📋 Planned | - |
 | `BigUint64Array.reduceRight(callbackfn: (previousValue: bigint, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => bigint): bigint` | `reduceRight(callbackfn: (previousValue: bigint, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => bigint): bigint` | `__biguint64array.reduceRight` | 📋 Planned | - |
-| `BigUint64Array.reduceRight<U>(callbackfn: (previousValue: U, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: bigint, currentIndex: number, array: BigUint64Array<TArrayBuffer>) => U, initialValue: U): U` | `__biguint64array.reduceRight<U>` | 📋 Planned | - |
 | `BigUint64Array.reverse(): this` | `reverse(): this` | `__biguint64array.reverse` | 📋 Planned | - |
 | `BigUint64Array.set(array: ArrayLike<bigint>, offset?: number): void` | `set(array: ArrayLike<bigint>, offset?: number): void` | `__biguint64array.set` | 📋 Planned | - |
 | `BigUint64Array.slice(start?: number, end?: number): BigUint64Array<ArrayBuffer>` | `slice(start?: number, end?: number): BigUint64Array<ArrayBuffer>` | `__biguint64array.slice` | 📋 Planned | - |
 | `BigUint64Array.some(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): boolean` | `some(predicate: (value: bigint, index: number, array: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): boolean` | `__biguint64array.some` | 📋 Planned | - |
 | `BigUint64Array.sort(compareFn?: (a: bigint, b: bigint) => number \| bigint): this` | `sort(compareFn?: (a: bigint, b: bigint) => number \| bigint): this` | `__biguint64array.sort` | 📋 Planned | - |
 | `BigUint64Array.subarray(begin?: number, end?: number): BigUint64Array<TArrayBuffer>` | `subarray(begin?: number, end?: number): BigUint64Array<TArrayBuffer>` | `__biguint64array.subarray` | 📋 Planned | - |
-| `BigUint64Array.thisArg?: any,` | `thisArg?: any,` | `__biguint64array.thisArg?` | 📋 Planned | - |
 | `BigUint64Array.toLocaleString(locales?: string \| string[], options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales?: string \| string[], options?: Intl.NumberFormatOptions): string` | `__biguint64array.toLocaleString` | 📋 Planned | - |
 | `BigUint64Array.toReversed(): BigUint64Array<ArrayBuffer>` | `toReversed(): BigUint64Array<ArrayBuffer>` | `__biguint64array.toReversed` | 📋 Planned | - |
 | `BigUint64Array.toSorted(compareFn?: (a: bigint, b: bigint) => number): BigUint64Array<ArrayBuffer>` | `toSorted(compareFn?: (a: bigint, b: bigint) => number): BigUint64Array<ArrayBuffer>` | `__biguint64array.toSorted` | 📋 Planned | - |
 | `BigUint64Array.toString(): string` | `toString(): string` | `__biguint64array.toString` | 📋 Planned | - |
-| `BigUint64Array.value: bigint,` | `value: bigint,` | `__biguint64array.value` | 📋 Planned | - |
 | `BigUint64Array.valueOf(): BigUint64Array<TArrayBuffer>` | `valueOf(): BigUint64Array<TArrayBuffer>` | `__biguint64array.valueOf` | 📋 Planned | - |
 | `BigUint64Array.values(): ArrayIterator<bigint>` | `values(): ArrayIterator<bigint>` | `__biguint64array.values` | 📋 Planned | - |
 | `BigUint64Array.with(index: number, value: bigint): BigUint64Array<ArrayBuffer>` | `with(index: number, value: bigint): BigUint64Array<ArrayBuffer>` | `__biguint64array.with` | 📋 Planned | - |
+| `new BigUint64Array(length?: number): BigUint64Array<ArrayBuffer>` | `new (length?: number): BigUint64Array<ArrayBuffer>` | `__biguint64array.new` | 📋 Planned | - |
 
 ---
 

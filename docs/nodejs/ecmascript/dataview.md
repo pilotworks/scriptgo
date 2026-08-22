@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DataView.getFloat64(byteOffset: number, littleEndian?: boolean): number` | `getFloat64(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat64` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getFloat64/` |
-| `DataView.getInt32(byteOffset: number, littleEndian?: boolean): number` | `getInt32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getInt32` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getInt32/` |
-| `DataView.getInt8(byteOffset: number): number` | `getInt8(byteOffset: number): number` | `__dataview.getInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview/getInt8/` |
+| `DataView.getFloat64(byteOffset: number, littleEndian?: boolean): number` | `getFloat64(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat64` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview.ts` |
+| `DataView.getInt32(byteOffset: number, littleEndian?: boolean): number` | `getInt32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getInt32` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview.ts` |
+| `DataView.getInt8(byteOffset: number): number` | `getInt8(byteOffset: number): number` | `__dataview.getInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/dataview.ts` |
 | `DataView.getBigInt64(byteOffset: number, littleEndian?: boolean): bigint` | `getBigInt64(byteOffset: number, littleEndian?: boolean): bigint` | `__dataview.getBigInt64` | 📋 Planned | - |
 | `DataView.getBigUint64(byteOffset: number, littleEndian?: boolean): bigint` | `getBigUint64(byteOffset: number, littleEndian?: boolean): bigint` | `__dataview.getBigUint64` | 📋 Planned | - |
 | `DataView.getFloat16(byteOffset: number, littleEndian?: boolean): number` | `getFloat16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getFloat16` | 📋 Planned | - |
@@ -32,10 +32,10 @@ Provide a concise technical summary:
 | `DataView.getUint16(byteOffset: number, littleEndian?: boolean): number` | `getUint16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint16` | 📋 Planned | - |
 | `DataView.getUint32(byteOffset: number, littleEndian?: boolean): number` | `getUint32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint32` | 📋 Planned | - |
 | `DataView.getUint8(byteOffset: number): number` | `getUint8(byteOffset: number): number` | `__dataview.getUint8` | 📋 Planned | - |
+| `DataView.new <TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `__dataview.new` | 📋 Planned | - |
 | `DataView.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__dataview.buffer` | 📋 Planned | - |
 | `DataView.readonly byteLength: number` | `readonly byteLength: number` | `__dataview.byteLength` | 📋 Planned | - |
 | `DataView.readonly byteOffset: number` | `readonly byteOffset: number` | `__dataview.byteOffset` | 📋 Planned | - |
-| `DataView.readonly prototype: DataView<ArrayBufferLike>` | `readonly prototype: DataView<ArrayBufferLike>` | `__dataview.prototype` | 📋 Planned | - |
 | `DataView.setBigInt64(byteOffset: number, value: bigint, littleEndian?: boolean): void` | `setBigInt64(byteOffset: number, value: bigint, littleEndian?: boolean): void` | `__dataview.setBigInt64` | 📋 Planned | - |
 | `DataView.setBigUint64(byteOffset: number, value: bigint, littleEndian?: boolean): void` | `setBigUint64(byteOffset: number, value: bigint, littleEndian?: boolean): void` | `__dataview.setBigUint64` | 📋 Planned | - |
 | `DataView.setFloat16(byteOffset: number, value: number, littleEndian?: boolean): void` | `setFloat16(byteOffset: number, value: number, littleEndian?: boolean): void` | `__dataview.setFloat16` | 📋 Planned | - |

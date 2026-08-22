@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ToStringRoundingOptionsWithFractionalSeconds.fractionalSecondDigits?: "auto" \| 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `fractionalSecondDigits?: "auto" \| 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `__tostringroundingoptionswithfractionalseconds.fractionalSecondDigits?` | 📋 Planned | - |
+| `ToStringRoundingOptionsWithFractionalSeconds.fractionalSecondDigits?: "auto" \| 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `fractionalSecondDigits?: "auto" \| 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `__tostringroundingoptionswithfractionalseconds.fractionalSecondDigits` | 📋 Planned | - |
 
 ---
 

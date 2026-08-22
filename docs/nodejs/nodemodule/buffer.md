@@ -21,23 +21,23 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `buf.compare(target[, targetStart[, targetEnd[, sourceStart[, sourceEnd]]]])` | `(...) => any` | `__buffer.buf.compare` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/compare/` |
-| `buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])` | `(...) => any` | `__buffer.buf.copy` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/copy/` |
-| `buf.equals(otherBuffer)` | `(...) => any` | `__buffer.buf.equals` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/equals/` |
-| `buf.indexOf(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/indexOf/` |
-| `buf.readDoubleLE([offset])` | `(...) => any` | `__buffer.buf.readDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readDoubleLE/` |
-| `buf.readFloatLE([offset])` | `(...) => any` | `__buffer.buf.readFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readFloatLE/` |
-| `buf.readInt32LE([offset])` | `(...) => any` | `__buffer.buf.readInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readInt32LE/` |
-| `buf.readUInt16LE([offset])` | `(...) => any` | `__buffer.buf.readUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt16LE/` |
-| `buf.readUInt32LE([offset])` | `(...) => any` | `__buffer.buf.readUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt32LE/` |
-| `buf.readUInt8([offset])` | `(...) => any` | `__buffer.buf.readUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/readUInt8/` |
-| `buf.toString([encoding[, start[, end]]])` | `(...) => any` | `__buffer.buf.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/toString/` |
-| `buf.writeDoubleLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeDoubleLE/` |
-| `buf.writeFloatLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeFloatLE/` |
-| `buf.writeInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeInt32LE/` |
-| `buf.writeUInt16LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt16LE/` |
-| `buf.writeUInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt32LE/` |
-| `buf.writeUInt8(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer/writeUInt8/` |
+| `buf.compare(target[, targetStart[, targetEnd[, sourceStart[, sourceEnd]]]])` | `(...) => any` | `__buffer.buf.compare` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])` | `(...) => any` | `__buffer.buf.copy` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.equals(otherBuffer)` | `(...) => any` | `__buffer.buf.equals` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.indexOf(value[, byteOffset][, encoding])` | `(...) => any` | `__buffer.buf.indexOf` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readDoubleLE([offset])` | `(...) => any` | `__buffer.buf.readDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readFloatLE([offset])` | `(...) => any` | `__buffer.buf.readFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readInt32LE([offset])` | `(...) => any` | `__buffer.buf.readInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readUInt16LE([offset])` | `(...) => any` | `__buffer.buf.readUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readUInt32LE([offset])` | `(...) => any` | `__buffer.buf.readUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.readUInt8([offset])` | `(...) => any` | `__buffer.buf.readUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.toString([encoding[, start[, end]]])` | `(...) => any` | `__buffer.buf.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeDoubleLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeDoubleLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeFloatLE(value[, offset])` | `(...) => any` | `__buffer.buf.writeFloatLE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeUInt16LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt16LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeUInt32LE(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt32LE` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
+| `buf.writeUInt8(value[, offset])` | `(...) => any` | `__buffer.buf.writeUInt8` | ✅ Done | `internal/compiler/testdata/corpus/api/buffer.ts` |
 | `Blob` | `(...) => any` | `__buffer.Blob` | 📋 Planned | - |
 | `Buffer` | `(...) => any` | `__buffer.Buffer` | 📋 Planned | - |
 | `File` | `(...) => any` | `__buffer.File` | 📋 Planned | - |

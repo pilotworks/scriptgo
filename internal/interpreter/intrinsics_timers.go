@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,7 +69,8 @@ func executeTimerIntrinsic(name string, arguments []string, env map[string]Value
 			fireTime:  now.Add(time.Duration(delay * float64(time.Millisecond))),
 		}
 		for k, v := range closureVal.Closure.Env {
-			if (k == "id" || k == "intervalId" || k == "timerId") && v.Number == 0 {
+			kl := strings.ToLower(k)
+			if (strings.Contains(kl, "id") || strings.Contains(kl, "timer") || strings.Contains(kl, "interval")) && v.Number == 0 {
 				closureVal.Closure.Env[k] = Value{Type: ir.TypeNumber, Number: float64(id)}
 			}
 		}

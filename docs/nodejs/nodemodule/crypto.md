@@ -21,16 +21,16 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `cipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.cipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
-| `crypto.createHash(algorithm[, options])` | `(...) => any` | `__crypto.crypto.createHash` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/createHash/` |
-| `crypto.randomUUID([options])` | `(...) => any` | `__crypto.crypto.randomUUID` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/randomUUID/` |
-| `decipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.decipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
-| `hash.digest([encoding])` | `(...) => any` | `__crypto.hash.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/digest/` |
-| `hash.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hash.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
-| `hmac.digest([encoding])` | `(...) => any` | `__crypto.hmac.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/digest/` |
-| `hmac.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hmac.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
-| `sign.update(data[, inputEncoding])` | `(...) => any` | `__crypto.sign.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
-| `verify.update(data[, inputEncoding])` | `(...) => any` | `__crypto.verify.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto/update/` |
+| `cipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.cipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `crypto.createHash(algorithm[, options])` | `(...) => any` | `__crypto.crypto.createHash` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `crypto.randomUUID([options])` | `(...) => any` | `__crypto.crypto.randomUUID` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `decipher.update(data[, inputEncoding][, outputEncoding])` | `(...) => any` | `__crypto.decipher.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `hash.digest([encoding])` | `(...) => any` | `__crypto.hash.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `hash.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hash.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `hmac.digest([encoding])` | `(...) => any` | `__crypto.hmac.digest` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `hmac.update(data[, inputEncoding])` | `(...) => any` | `__crypto.hmac.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `sign.update(data[, inputEncoding])` | `(...) => any` | `__crypto.sign.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
+| `verify.update(data[, inputEncoding])` | `(...) => any` | `__crypto.verify.update` | ✅ Done | `internal/compiler/testdata/corpus/api/crypto.ts` |
 | `Certificate` | `(...) => any` | `__crypto.Certificate` | 📋 Planned | - |
 | `Cipher` | `(...) => any` | `__crypto.Cipher` | 📋 Planned | - |
 | `Decipher` | `(...) => any` | `__crypto.Decipher` | 📋 Planned | - |

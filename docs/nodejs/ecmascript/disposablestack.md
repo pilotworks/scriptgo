@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DisposableStack.adopt<T>(value: T, onDispose: (value: T) => void): T` | `adopt<T>(value: T, onDispose: (value: T) => void): T` | `__disposablestack.adopt<T>` | 📋 Planned | - |
+| `DisposableStack.adopt<T>(value: T, onDispose: (value: T) => void): T` | `adopt<T>(value: T, onDispose: (value: T) => void): T` | `__disposablestack.adopt` | 📋 Planned | - |
 | `DisposableStack.defer(onDispose: () => void): void` | `defer(onDispose: () => void): void` | `__disposablestack.defer` | 📋 Planned | - |
 | `DisposableStack.dispose(): void` | `dispose(): void` | `__disposablestack.dispose` | 📋 Planned | - |
 | `DisposableStack.move(): DisposableStack` | `move(): DisposableStack` | `__disposablestack.move` | 📋 Planned | - |
-| `DisposableStack.new (): DisposableStack` | `new (): DisposableStack` | `__disposablestack.new` | 📋 Planned | - |
 | `DisposableStack.readonly disposed: boolean` | `readonly disposed: boolean` | `__disposablestack.disposed` | 📋 Planned | - |
-| `DisposableStack.readonly prototype: DisposableStack` | `readonly prototype: DisposableStack` | `__disposablestack.prototype` | 📋 Planned | - |
+| `DisposableStack.use<T extends Disposable \| null \| undefined>(value: T): T` | `use<T extends Disposable \| null \| undefined>(value: T): T` | `__disposablestack.use` | 📋 Planned | - |
+| `new DisposableStack(): DisposableStack` | `new (): DisposableStack` | `__disposablestack.new` | 📋 Planned | - |
 
 ---
 

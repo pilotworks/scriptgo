@@ -227,6 +227,7 @@ int scriptgo_buffer_concat(void *list_handle, double total_length_opt, void **ou
     typedef struct {
         int64_t length;
         int64_t capacity;
+        int64_t element_size;
         void **data;
     } scriptgo_array_raw;
 

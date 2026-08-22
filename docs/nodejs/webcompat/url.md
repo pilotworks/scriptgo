@@ -21,17 +21,17 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `URL` | `(...) => any` | `__url.URL` | ✅ Done | `internal/compiler/testdata/corpus/api/url/URL/` |
-| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | ✅ Done | `internal/compiler/testdata/corpus/api/url/canParse/` |
-| `URLSearchParams` | `(...) => any` | `__url.URLSearchParams` | ✅ Done | `internal/compiler/testdata/corpus/api/url/URLSearchParams/` |
-| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/url/toJSON/` |
-| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | ✅ Done | `internal/compiler/testdata/corpus/api/url/append/` |
-| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/url/delete/` |
-| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | ✅ Done | `internal/compiler/testdata/corpus/api/url/get/` |
-| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | ✅ Done | `internal/compiler/testdata/corpus/api/url/getAll/` |
-| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | ✅ Done | `internal/compiler/testdata/corpus/api/url/has/` |
-| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | ✅ Done | `internal/compiler/testdata/corpus/api/url/set/` |
-| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | ✅ Done | `internal/compiler/testdata/corpus/api/url/sort/` |
+| `URL` | `(...) => any` | `__url.URL` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URLSearchParams` | `(...) => any` | `__url.URLSearchParams` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
 | `URL.createObjectURL(blob)` | `(...) => any` | `__url.URL.createObjectURL` | 📋 Planned | - |
 | `URL.parse(input[, base])` | `(...) => any` | `__url.URL.parse` | 📋 Planned | - |
 | `URL.revokeObjectURL(id)` | `(...) => any` | `__url.URL.revokeObjectURL` | 📋 Planned | - |

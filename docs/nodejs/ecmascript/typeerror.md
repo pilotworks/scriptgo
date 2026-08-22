@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `TypeError.new (message?: string, options?: ErrorOptions): TypeError` | `new (message?: string, options?: ErrorOptions): TypeError` | `__typeerror.new` | 📋 Planned | - |
-| `TypeError.readonly prototype: TypeError` | `readonly prototype: TypeError` | `__typeerror.prototype` | 📋 Planned | - |
+| `new TypeError(message?: string, options?: ErrorOptions): TypeError` | `new (message?: string, options?: ErrorOptions): TypeError` | `__typeerror.new` | 📋 Planned | - |
 
 ---
 

@@ -25,10 +25,9 @@ Provide a concise technical summary:
 | `DateTimeFormat.formatRange(startDate: Date \| number \| bigint, endDate: Date \| number \| bigint): string` | `formatRange(startDate: Date \| number \| bigint, endDate: Date \| number \| bigint): string` | `__datetimeformat.formatRange` | 📋 Planned | - |
 | `DateTimeFormat.formatRangeToParts(startDate: Date \| number \| bigint, endDate: Date \| number \| bigint): DateTimeRangeFormatPart[]` | `formatRangeToParts(startDate: Date \| number \| bigint, endDate: Date \| number \| bigint): DateTimeRangeFormatPart[]` | `__datetimeformat.formatRangeToParts` | 📋 Planned | - |
 | `DateTimeFormat.formatToParts(date?: Date \| number): DateTimeFormatPart[]` | `formatToParts(date?: Date \| number): DateTimeFormatPart[]` | `__datetimeformat.formatToParts` | 📋 Planned | - |
-| `DateTimeFormat.new (locales?: LocalesArgument, options?: DateTimeFormatOptions): DateTimeFormat` | `new (locales?: LocalesArgument, options?: DateTimeFormatOptions): DateTimeFormat` | `__datetimeformat.new` | 📋 Planned | - |
-| `DateTimeFormat.readonly prototype: DateTimeFormat` | `readonly prototype: DateTimeFormat` | `__datetimeformat.prototype` | 📋 Planned | - |
 | `DateTimeFormat.resolvedOptions(): ResolvedDateTimeFormatOptions` | `resolvedOptions(): ResolvedDateTimeFormatOptions` | `__datetimeformat.resolvedOptions` | 📋 Planned | - |
 | `DateTimeFormat.supportedLocalesOf(locales: LocalesArgument, options?: DateTimeFormatOptions): string[]` | `supportedLocalesOf(locales: LocalesArgument, options?: DateTimeFormatOptions): string[]` | `__datetimeformat.supportedLocalesOf` | 📋 Planned | - |
+| `new DateTimeFormat(locales?: LocalesArgument, options?: DateTimeFormatOptions): DateTimeFormat` | `new (locales?: LocalesArgument, options?: DateTimeFormatOptions): DateTimeFormat` | `__datetimeformat.new` | 📋 Planned | - |
 
 ---
 

@@ -22,10 +22,9 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `SharedArrayBuffer.grow(newByteLength?: number): void` | `grow(newByteLength?: number): void` | `__sharedarraybuffer.grow` | 📋 Planned | - |
-| `SharedArrayBuffer.new (byteLength?: number): SharedArrayBuffer` | `new (byteLength?: number): SharedArrayBuffer` | `__sharedarraybuffer.new` | 📋 Planned | - |
 | `SharedArrayBuffer.readonly byteLength: number` | `readonly byteLength: number` | `__sharedarraybuffer.byteLength` | 📋 Planned | - |
-| `SharedArrayBuffer.readonly prototype: SharedArrayBuffer` | `readonly prototype: SharedArrayBuffer` | `__sharedarraybuffer.prototype` | 📋 Planned | - |
 | `SharedArrayBuffer.slice(begin?: number, end?: number): SharedArrayBuffer` | `slice(begin?: number, end?: number): SharedArrayBuffer` | `__sharedarraybuffer.slice` | 📋 Planned | - |
+| `new SharedArrayBuffer(byteLength?: number): SharedArrayBuffer` | `new (byteLength?: number): SharedArrayBuffer` | `__sharedarraybuffer.new` | 📋 Planned | - |
 
 ---
 

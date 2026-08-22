@@ -21,7 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `proxy` | `any` | `__proxy` | 📋 Planned | - |
+| `Proxy.new <T extends object>(target: T, handler: ProxyHandler<T>): T` | `new <T extends object>(target: T, handler: ProxyHandler<T>): T` | `__proxy.new` | 📋 Planned | - |
+| `Proxy.revocable<T extends object>(target: T, handler: ProxyHandler<T>): { proxy: T; revoke: () => void; }` | `revocable<T extends object>(target: T, handler: ProxyHandler<T>): { proxy: T; revoke: () => void; }` | `__proxy.revocable` | 📋 Planned | - |
 
 ---
 

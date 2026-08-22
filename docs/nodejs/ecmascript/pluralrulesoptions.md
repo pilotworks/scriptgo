@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PluralRulesOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__pluralrulesoptions.localeMatcher?` | 📋 Planned | - |
-| `PluralRulesOptions.maximumFractionDigits?: number \| undefined` | `maximumFractionDigits?: number \| undefined` | `__pluralrulesoptions.maximumFractionDigits?` | 📋 Planned | - |
-| `PluralRulesOptions.maximumSignificantDigits?: number \| undefined` | `maximumSignificantDigits?: number \| undefined` | `__pluralrulesoptions.maximumSignificantDigits?` | 📋 Planned | - |
-| `PluralRulesOptions.minimumFractionDigits?: number \| undefined` | `minimumFractionDigits?: number \| undefined` | `__pluralrulesoptions.minimumFractionDigits?` | 📋 Planned | - |
-| `PluralRulesOptions.minimumIntegerDigits?: number \| undefined` | `minimumIntegerDigits?: number \| undefined` | `__pluralrulesoptions.minimumIntegerDigits?` | 📋 Planned | - |
-| `PluralRulesOptions.minimumSignificantDigits?: number \| undefined` | `minimumSignificantDigits?: number \| undefined` | `__pluralrulesoptions.minimumSignificantDigits?` | 📋 Planned | - |
-| `PluralRulesOptions.type?: PluralRuleType \| undefined` | `type?: PluralRuleType \| undefined` | `__pluralrulesoptions.type?` | 📋 Planned | - |
+| `PluralRulesOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__pluralrulesoptions.localeMatcher` | 📋 Planned | - |
+| `PluralRulesOptions.maximumFractionDigits?: number \| undefined` | `maximumFractionDigits?: number \| undefined` | `__pluralrulesoptions.maximumFractionDigits` | 📋 Planned | - |
+| `PluralRulesOptions.maximumSignificantDigits?: number \| undefined` | `maximumSignificantDigits?: number \| undefined` | `__pluralrulesoptions.maximumSignificantDigits` | 📋 Planned | - |
+| `PluralRulesOptions.minimumFractionDigits?: number \| undefined` | `minimumFractionDigits?: number \| undefined` | `__pluralrulesoptions.minimumFractionDigits` | 📋 Planned | - |
+| `PluralRulesOptions.minimumIntegerDigits?: number \| undefined` | `minimumIntegerDigits?: number \| undefined` | `__pluralrulesoptions.minimumIntegerDigits` | 📋 Planned | - |
+| `PluralRulesOptions.minimumSignificantDigits?: number \| undefined` | `minimumSignificantDigits?: number \| undefined` | `__pluralrulesoptions.minimumSignificantDigits` | 📋 Planned | - |
+| `PluralRulesOptions.type?: PluralRuleType \| undefined` | `type?: PluralRuleType \| undefined` | `__pluralrulesoptions.type` | 📋 Planned | - |
 
 ---
 

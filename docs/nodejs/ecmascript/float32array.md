@@ -21,8 +21,6 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Float32Array.): S \| undefined` | `): S \| undefined` | `__float32array.)` | 📋 Planned | - |
-| `Float32Array.array: this,` | `array: this,` | `__float32array.array` | 📋 Planned | - |
 | `Float32Array.at(index: number): number \| undefined` | `at(index: number): number \| undefined` | `__float32array.at` | 📋 Planned | - |
 | `Float32Array.copyWithin(target: number, start: number, end?: number): this` | `copyWithin(target: number, start: number, end?: number): this` | `__float32array.copyWithin` | 📋 Planned | - |
 | `Float32Array.entries(): ArrayIterator<[number, number]>` | `entries(): ArrayIterator<[number, number]>` | `__float32array.entries` | 📋 Planned | - |
@@ -31,46 +29,39 @@ Provide a concise technical summary:
 | `Float32Array.filter(predicate: (value: number, index: number, array: this) => any, thisArg?: any): Float32Array<ArrayBuffer>` | `filter(predicate: (value: number, index: number, array: this) => any, thisArg?: any): Float32Array<ArrayBuffer>` | `__float32array.filter` | 📋 Planned | - |
 | `Float32Array.find(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number \| undefined` | `find(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number \| undefined` | `__float32array.find` | 📋 Planned | - |
 | `Float32Array.findIndex(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number` | `findIndex(predicate: (value: number, index: number, obj: this) => boolean, thisArg?: any): number` | `__float32array.findIndex` | 📋 Planned | - |
-| `Float32Array.findLast(` | `findLast(` | `__float32array.findLast` | 📋 Planned | - |
-| `Float32Array.findLastIndex(` | `findLastIndex(` | `__float32array.findLastIndex` | 📋 Planned | - |
+| `Float32Array.findLast<S extends number>( predicate: ( value: number, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `findLast<S extends number>( predicate: ( value: number, index: number, array: this, ) => value is S, thisArg?: any, ): S \| undefined` | `__float32array.findLast` | 📋 Planned | - |
+| `Float32Array.findLastIndex( predicate: ( value: number, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `findLastIndex( predicate: ( value: number, index: number, array: this, ) => unknown, thisArg?: any, ): number` | `__float32array.findLastIndex` | 📋 Planned | - |
 | `Float32Array.forEach(callbackfn: (value: number, index: number, array: this) => void, thisArg?: any): void` | `forEach(callbackfn: (value: number, index: number, array: this) => void, thisArg?: any): void` | `__float32array.forEach` | 📋 Planned | - |
 | `Float32Array.from(elements: Iterable<number>): Float32Array<ArrayBuffer>` | `from(elements: Iterable<number>): Float32Array<ArrayBuffer>` | `__float32array.from` | 📋 Planned | - |
-| `Float32Array.from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `from<T>(elements: Iterable<T>, mapfn?: (v: T, k: number) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `__float32array.from<T>` | 📋 Planned | - |
 | `Float32Array.includes(searchElement: number, fromIndex?: number): boolean` | `includes(searchElement: number, fromIndex?: number): boolean` | `__float32array.includes` | 📋 Planned | - |
-| `Float32Array.index: number,` | `index: number,` | `__float32array.index` | 📋 Planned | - |
 | `Float32Array.indexOf(searchElement: number, fromIndex?: number): number` | `indexOf(searchElement: number, fromIndex?: number): number` | `__float32array.indexOf` | 📋 Planned | - |
 | `Float32Array.join(separator?: string): string` | `join(separator?: string): string` | `__float32array.join` | 📋 Planned | - |
 | `Float32Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__float32array.keys` | 📋 Planned | - |
 | `Float32Array.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__float32array.lastIndexOf` | 📋 Planned | - |
 | `Float32Array.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `__float32array.map` | 📋 Planned | - |
-| `Float32Array.new (elements: Iterable<number>): Float32Array<ArrayBuffer>` | `new (elements: Iterable<number>): Float32Array<ArrayBuffer>` | `__float32array.new` | 📋 Planned | - |
+| `Float32Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float32Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float32Array<TArrayBuffer>` | `__float32array.new` | 📋 Planned | - |
 | `Float32Array.of(...items: number[]): Float32Array<ArrayBuffer>` | `of(...items: number[]): Float32Array<ArrayBuffer>` | `__float32array.of` | 📋 Planned | - |
-| `Float32Array.predicate: (` | `predicate: (` | `__float32array.predicate` | 📋 Planned | - |
 | `Float32Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__float32array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `Float32Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__float32array.buffer` | 📋 Planned | - |
 | `Float32Array.readonly byteLength: number` | `readonly byteLength: number` | `__float32array.byteLength` | 📋 Planned | - |
 | `Float32Array.readonly byteOffset: number` | `readonly byteOffset: number` | `__float32array.byteOffset` | 📋 Planned | - |
 | `Float32Array.readonly length: number` | `readonly length: number` | `__float32array.length` | 📋 Planned | - |
-| `Float32Array.readonly prototype: Float32Array<ArrayBufferLike>` | `readonly prototype: Float32Array<ArrayBufferLike>` | `__float32array.prototype` | 📋 Planned | - |
 | `Float32Array.reduce(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `reduce(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `__float32array.reduce` | 📋 Planned | - |
-| `Float32Array.reduce<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `__float32array.reduce<U>` | 📋 Planned | - |
 | `Float32Array.reduceRight(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `reduceRight(callbackfn: (previousValue: number, currentValue: number, currentIndex: number, array: this) => number): number` | `__float32array.reduceRight` | 📋 Planned | - |
-| `Float32Array.reduceRight<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: number, currentIndex: number, array: this) => U, initialValue: U): U` | `__float32array.reduceRight<U>` | 📋 Planned | - |
 | `Float32Array.reverse(): this` | `reverse(): this` | `__float32array.reverse` | 📋 Planned | - |
 | `Float32Array.set(array: ArrayLike<number>, offset?: number): void` | `set(array: ArrayLike<number>, offset?: number): void` | `__float32array.set` | 📋 Planned | - |
 | `Float32Array.slice(start?: number, end?: number): Float32Array<ArrayBuffer>` | `slice(start?: number, end?: number): Float32Array<ArrayBuffer>` | `__float32array.slice` | 📋 Planned | - |
 | `Float32Array.some(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): boolean` | `some(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): boolean` | `__float32array.some` | 📋 Planned | - |
 | `Float32Array.sort(compareFn?: (a: number, b: number) => number): this` | `sort(compareFn?: (a: number, b: number) => number): this` | `__float32array.sort` | 📋 Planned | - |
 | `Float32Array.subarray(begin?: number, end?: number): Float32Array<TArrayBuffer>` | `subarray(begin?: number, end?: number): Float32Array<TArrayBuffer>` | `__float32array.subarray` | 📋 Planned | - |
-| `Float32Array.thisArg?: any,` | `thisArg?: any,` | `__float32array.thisArg?` | 📋 Planned | - |
 | `Float32Array.toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions): string` | `__float32array.toLocaleString` | 📋 Planned | - |
 | `Float32Array.toReversed(): Float32Array<ArrayBuffer>` | `toReversed(): Float32Array<ArrayBuffer>` | `__float32array.toReversed` | 📋 Planned | - |
 | `Float32Array.toSorted(compareFn?: (a: number, b: number) => number): Float32Array<ArrayBuffer>` | `toSorted(compareFn?: (a: number, b: number) => number): Float32Array<ArrayBuffer>` | `__float32array.toSorted` | 📋 Planned | - |
 | `Float32Array.toString(): string` | `toString(): string` | `__float32array.toString` | 📋 Planned | - |
-| `Float32Array.value: number,` | `value: number,` | `__float32array.value` | 📋 Planned | - |
 | `Float32Array.valueOf(): this` | `valueOf(): this` | `__float32array.valueOf` | 📋 Planned | - |
 | `Float32Array.values(): ArrayIterator<number>` | `values(): ArrayIterator<number>` | `__float32array.values` | 📋 Planned | - |
 | `Float32Array.with(index: number, value: number): Float32Array<ArrayBuffer>` | `with(index: number, value: number): Float32Array<ArrayBuffer>` | `__float32array.with` | 📋 Planned | - |
+| `new Float32Array(elements: Iterable<number>): Float32Array<ArrayBuffer>` | `new (elements: Iterable<number>): Float32Array<ArrayBuffer>` | `__float32array.new` | 📋 Planned | - |
 
 ---
 

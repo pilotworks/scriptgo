@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ZonedDateTimeToStringOptions.offset?: "auto" \| "never" \| undefined` | `offset?: "auto" \| "never" \| undefined` | `__zoneddatetimetostringoptions.offset?` | 📋 Planned | - |
-| `ZonedDateTimeToStringOptions.timeZoneName?: "auto" \| "never" \| "critical" \| undefined` | `timeZoneName?: "auto" \| "never" \| "critical" \| undefined` | `__zoneddatetimetostringoptions.timeZoneName?` | 📋 Planned | - |
+| `ZonedDateTimeToStringOptions.offset?: "auto" \| "never" \| undefined` | `offset?: "auto" \| "never" \| undefined` | `__zoneddatetimetostringoptions.offset` | 📋 Planned | - |
+| `ZonedDateTimeToStringOptions.timeZoneName?: "auto" \| "never" \| "critical" \| undefined` | `timeZoneName?: "auto" \| "never" \| "critical" \| undefined` | `__zoneddatetimetostringoptions.timeZoneName` | 📋 Planned | - |
 
 ---
 

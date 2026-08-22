@@ -21,10 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `GeneratorFunction.new (...args: any[]): Generator` | `new (...args: any[]): Generator` | `__generatorfunction.new` | 📋 Planned | - |
 | `GeneratorFunction.readonly length: number` | `readonly length: number` | `__generatorfunction.length` | 📋 Planned | - |
 | `GeneratorFunction.readonly name: string` | `readonly name: string` | `__generatorfunction.name` | 📋 Planned | - |
-| `GeneratorFunction.readonly prototype: Generator` | `readonly prototype: Generator` | `__generatorfunction.prototype` | 📋 Planned | - |
+| `new GeneratorFunction(...args: any[]): Generator` | `new (...args: any[]): Generator` | `__generatorfunction.new` | 📋 Planned | - |
 
 ---
 

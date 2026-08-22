@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ListFormatOptions.localeMatcher?: ListFormatLocaleMatcher \| undefined` | `localeMatcher?: ListFormatLocaleMatcher \| undefined` | `__listformatoptions.localeMatcher?` | 📋 Planned | - |
-| `ListFormatOptions.style?: ListFormatStyle \| undefined` | `style?: ListFormatStyle \| undefined` | `__listformatoptions.style?` | 📋 Planned | - |
-| `ListFormatOptions.type?: ListFormatType \| undefined` | `type?: ListFormatType \| undefined` | `__listformatoptions.type?` | 📋 Planned | - |
+| `ListFormatOptions.localeMatcher?: ListFormatLocaleMatcher \| undefined` | `localeMatcher?: ListFormatLocaleMatcher \| undefined` | `__listformatoptions.localeMatcher` | 📋 Planned | - |
+| `ListFormatOptions.style?: ListFormatStyle \| undefined` | `style?: ListFormatStyle \| undefined` | `__listformatoptions.style` | 📋 Planned | - |
+| `ListFormatOptions.type?: ListFormatType \| undefined` | `type?: ListFormatType \| undefined` | `__listformatoptions.type` | 📋 Planned | - |
 
 ---
 

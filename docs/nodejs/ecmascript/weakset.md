@@ -24,7 +24,7 @@ Provide a concise technical summary:
 | `WeakSet.add(value: T): this` | `add(value: T): this` | `__weakset.add` | 📋 Planned | - |
 | `WeakSet.delete(value: T): boolean` | `delete(value: T): boolean` | `__weakset.delete` | 📋 Planned | - |
 | `WeakSet.has(value: T): boolean` | `has(value: T): boolean` | `__weakset.has` | 📋 Planned | - |
-| `WeakSet.readonly prototype: WeakSet<WeakKey>` | `readonly prototype: WeakSet<WeakKey>` | `__weakset.prototype` | 📋 Planned | - |
+| `WeakSet.new <T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `new <T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `__weakset.new` | 📋 Planned | - |
 
 ---
 

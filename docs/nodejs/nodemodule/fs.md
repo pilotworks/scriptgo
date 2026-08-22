@@ -21,17 +21,17 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `fs.appendFileSync(path, data[, options])` | `(...) => any` | `__fs.fs.appendFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/appendFileSync/` |
-| `fs.copyFileSync(src, dest[, mode])` | `(...) => any` | `__fs.fs.copyFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/copyFileSync/` |
-| `fs.existsSync(path)` | `(...) => any` | `__fs.fs.existsSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/existsSync/` |
-| `fs.mkdirSync(path[, options])` | `(...) => any` | `__fs.fs.mkdirSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/mkdirSync/` |
-| `fs.readFileSync(path[, options])` | `(...) => any` | `__fs.fs.readFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/readFileSync/` |
-| `fs.readdirSync(path[, options])` | `(...) => any` | `__fs.fs.readdirSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/readdirSync/` |
-| `fs.renameSync(oldPath, newPath)` | `(...) => any` | `__fs.fs.renameSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/renameSync/` |
-| `fs.rmSync(path[, options])` | `(...) => any` | `__fs.fs.rmSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/rmSync/` |
-| `fs.statSync(path[, options])` | `(...) => any` | `__fs.fs.statSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/statSync/` |
-| `fs.unlinkSync(path)` | `(...) => any` | `__fs.fs.unlinkSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/unlinkSync/` |
-| `fs.writeFileSync(file, data[, options])` | `(...) => any` | `__fs.fs.writeFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs/writeFileSync/` |
+| `fs.appendFileSync(path, data[, options])` | `(...) => any` | `__fs.fs.appendFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.copyFileSync(src, dest[, mode])` | `(...) => any` | `__fs.fs.copyFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.existsSync(path)` | `(...) => any` | `__fs.fs.existsSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.mkdirSync(path[, options])` | `(...) => any` | `__fs.fs.mkdirSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.readFileSync(path[, options])` | `(...) => any` | `__fs.fs.readFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.readdirSync(path[, options])` | `(...) => any` | `__fs.fs.readdirSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.renameSync(oldPath, newPath)` | `(...) => any` | `__fs.fs.renameSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.rmSync(path[, options])` | `(...) => any` | `__fs.fs.rmSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.statSync(path[, options])` | `(...) => any` | `__fs.fs.statSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.unlinkSync(path)` | `(...) => any` | `__fs.fs.unlinkSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
+| `fs.writeFileSync(file, data[, options])` | `(...) => any` | `__fs.fs.writeFileSync` | ✅ Done | `internal/compiler/testdata/corpus/api/fs.ts` |
 | `FileHandle` | `(...) => any` | `__fs.FileHandle` | 📋 Planned | - |
 | `atime` | `any` | `__fs.atime` | 📋 Planned | - |
 | `atimeMs` | `any` | `__fs.atimeMs` | 📋 Planned | - |

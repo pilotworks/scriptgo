@@ -312,7 +312,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
 		return nil
-	case "__array.map":
+	case "__array.map", "__array.flatMap":
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		fnName := "scriptgo_array_map_number"
@@ -569,7 +569,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
 		return nil
-	case "__array.values", "__array.flat", "__array.flatMap":
+	case "__array.values", "__array.flat":
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

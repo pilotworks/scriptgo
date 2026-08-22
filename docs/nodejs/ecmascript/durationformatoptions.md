@@ -21,30 +21,30 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DurationFormatOptions.days?: "long" \| "short" \| "narrow" \| undefined` | `days?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.days?` | 📋 Planned | - |
-| `DurationFormatOptions.daysDisplay?: DurationFormatDisplayOption \| undefined` | `daysDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.daysDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `__durationformatoptions.fractionalDigits?` | 📋 Planned | - |
-| `DurationFormatOptions.hours?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `hours?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.hours?` | 📋 Planned | - |
-| `DurationFormatOptions.hoursDisplay?: DurationFormatDisplayOption \| undefined` | `hoursDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.hoursDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.localeMatcher?: DurationFormatLocaleMatcher \| undefined` | `localeMatcher?: DurationFormatLocaleMatcher \| undefined` | `__durationformatoptions.localeMatcher?` | 📋 Planned | - |
-| `DurationFormatOptions.microseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `microseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.microseconds?` | 📋 Planned | - |
-| `DurationFormatOptions.microsecondsDisplay?: DurationFormatDisplayOption \| undefined` | `microsecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.microsecondsDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.milliseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `milliseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.milliseconds?` | 📋 Planned | - |
-| `DurationFormatOptions.millisecondsDisplay?: DurationFormatDisplayOption \| undefined` | `millisecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.millisecondsDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.minutes?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `minutes?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.minutes?` | 📋 Planned | - |
-| `DurationFormatOptions.minutesDisplay?: DurationFormatDisplayOption \| undefined` | `minutesDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.minutesDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.months?: "long" \| "short" \| "narrow" \| undefined` | `months?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.months?` | 📋 Planned | - |
-| `DurationFormatOptions.monthsDisplay?: DurationFormatDisplayOption \| undefined` | `monthsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.monthsDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.nanoseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `nanoseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.nanoseconds?` | 📋 Planned | - |
-| `DurationFormatOptions.nanosecondsDisplay?: DurationFormatDisplayOption \| undefined` | `nanosecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.nanosecondsDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__durationformatoptions.numberingSystem?` | 📋 Planned | - |
-| `DurationFormatOptions.seconds?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `seconds?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.seconds?` | 📋 Planned | - |
-| `DurationFormatOptions.secondsDisplay?: DurationFormatDisplayOption \| undefined` | `secondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.secondsDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.style?: DurationFormatStyle \| undefined` | `style?: DurationFormatStyle \| undefined` | `__durationformatoptions.style?` | 📋 Planned | - |
-| `DurationFormatOptions.weeks?: "long" \| "short" \| "narrow" \| undefined` | `weeks?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.weeks?` | 📋 Planned | - |
-| `DurationFormatOptions.weeksDisplay?: DurationFormatDisplayOption \| undefined` | `weeksDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.weeksDisplay?` | 📋 Planned | - |
-| `DurationFormatOptions.years?: "long" \| "short" \| "narrow" \| undefined` | `years?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.years?` | 📋 Planned | - |
-| `DurationFormatOptions.yearsDisplay?: DurationFormatDisplayOption \| undefined` | `yearsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.yearsDisplay?` | 📋 Planned | - |
+| `DurationFormatOptions.days?: "long" \| "short" \| "narrow" \| undefined` | `days?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.days` | 📋 Planned | - |
+| `DurationFormatOptions.daysDisplay?: DurationFormatDisplayOption \| undefined` | `daysDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.daysDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| undefined` | `__durationformatoptions.fractionalDigits` | 📋 Planned | - |
+| `DurationFormatOptions.hours?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `hours?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.hours` | 📋 Planned | - |
+| `DurationFormatOptions.hoursDisplay?: DurationFormatDisplayOption \| undefined` | `hoursDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.hoursDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.localeMatcher?: DurationFormatLocaleMatcher \| undefined` | `localeMatcher?: DurationFormatLocaleMatcher \| undefined` | `__durationformatoptions.localeMatcher` | 📋 Planned | - |
+| `DurationFormatOptions.microseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `microseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.microseconds` | 📋 Planned | - |
+| `DurationFormatOptions.microsecondsDisplay?: DurationFormatDisplayOption \| undefined` | `microsecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.microsecondsDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.milliseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `milliseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.milliseconds` | 📋 Planned | - |
+| `DurationFormatOptions.millisecondsDisplay?: DurationFormatDisplayOption \| undefined` | `millisecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.millisecondsDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.minutes?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `minutes?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.minutes` | 📋 Planned | - |
+| `DurationFormatOptions.minutesDisplay?: DurationFormatDisplayOption \| undefined` | `minutesDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.minutesDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.months?: "long" \| "short" \| "narrow" \| undefined` | `months?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.months` | 📋 Planned | - |
+| `DurationFormatOptions.monthsDisplay?: DurationFormatDisplayOption \| undefined` | `monthsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.monthsDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.nanoseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `nanoseconds?: "long" \| "short" \| "narrow" \| "numeric" \| undefined` | `__durationformatoptions.nanoseconds` | 📋 Planned | - |
+| `DurationFormatOptions.nanosecondsDisplay?: DurationFormatDisplayOption \| undefined` | `nanosecondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.nanosecondsDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__durationformatoptions.numberingSystem` | 📋 Planned | - |
+| `DurationFormatOptions.seconds?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `seconds?: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit" \| undefined` | `__durationformatoptions.seconds` | 📋 Planned | - |
+| `DurationFormatOptions.secondsDisplay?: DurationFormatDisplayOption \| undefined` | `secondsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.secondsDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.style?: DurationFormatStyle \| undefined` | `style?: DurationFormatStyle \| undefined` | `__durationformatoptions.style` | 📋 Planned | - |
+| `DurationFormatOptions.weeks?: "long" \| "short" \| "narrow" \| undefined` | `weeks?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.weeks` | 📋 Planned | - |
+| `DurationFormatOptions.weeksDisplay?: DurationFormatDisplayOption \| undefined` | `weeksDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.weeksDisplay` | 📋 Planned | - |
+| `DurationFormatOptions.years?: "long" \| "short" \| "narrow" \| undefined` | `years?: "long" \| "short" \| "narrow" \| undefined` | `__durationformatoptions.years` | 📋 Planned | - |
+| `DurationFormatOptions.yearsDisplay?: DurationFormatDisplayOption \| undefined` | `yearsDisplay?: DurationFormatDisplayOption \| undefined` | `__durationformatoptions.yearsDisplay` | 📋 Planned | - |
 
 ---
 

@@ -22,7 +22,7 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `ResolvedDisplayNamesOptions.fallback: DisplayNamesFallback` | `fallback: DisplayNamesFallback` | `__resolveddisplaynamesoptions.fallback` | 📋 Planned | - |
-| `ResolvedDisplayNamesOptions.languageDisplay?: DisplayNamesLanguageDisplay` | `languageDisplay?: DisplayNamesLanguageDisplay` | `__resolveddisplaynamesoptions.languageDisplay?` | 📋 Planned | - |
+| `ResolvedDisplayNamesOptions.languageDisplay?: DisplayNamesLanguageDisplay` | `languageDisplay?: DisplayNamesLanguageDisplay` | `__resolveddisplaynamesoptions.languageDisplay` | 📋 Planned | - |
 | `ResolvedDisplayNamesOptions.locale: UnicodeBCP47LocaleIdentifier` | `locale: UnicodeBCP47LocaleIdentifier` | `__resolveddisplaynamesoptions.locale` | 📋 Planned | - |
 | `ResolvedDisplayNamesOptions.style: RelativeTimeFormatStyle` | `style: RelativeTimeFormatStyle` | `__resolveddisplaynamesoptions.style` | 📋 Planned | - |
 | `ResolvedDisplayNamesOptions.type: DisplayNamesType` | `type: DisplayNamesType` | `__resolveddisplaynamesoptions.type` | 📋 Planned | - |

@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Symbol.for(key: string): symbol` | `for(key: string): symbol` | `__symbol.for` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/for/` |
-| `Symbol.keyFor(sym: symbol): string \| undefined` | `keyFor(sym: symbol): string \| undefined` | `__symbol.keyFor` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/keyFor/` |
-| `Symbol.readonly iterator: unique symbol` | `readonly iterator: unique symbol` | `__symbol.iterator` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/iterator/` |
-| `Symbol.toString(): string` | `toString(): string` | `__symbol.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol/toString/` |
+| `Symbol.for(key: string): symbol` | `for(key: string): symbol` | `__symbol.for` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.keyFor(sym: symbol): string \| undefined` | `keyFor(sym: symbol): string \| undefined` | `__symbol.keyFor` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly iterator: unique symbol` | `readonly iterator: unique symbol` | `__symbol.iterator` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.toString(): string` | `toString(): string` | `__symbol.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
 | `Symbol.readonly asyncDispose: unique symbol` | `readonly asyncDispose: unique symbol` | `__symbol.asyncDispose` | 📋 Planned | - |
 | `Symbol.readonly asyncIterator: unique symbol` | `readonly asyncIterator: unique symbol` | `__symbol.asyncIterator` | 📋 Planned | - |
 | `Symbol.readonly description: string \| undefined` | `readonly description: string \| undefined` | `__symbol.description` | 📋 Planned | - |
@@ -34,7 +34,6 @@ Provide a concise technical summary:
 | `Symbol.readonly match: unique symbol` | `readonly match: unique symbol` | `__symbol.match` | 📋 Planned | - |
 | `Symbol.readonly matchAll: unique symbol` | `readonly matchAll: unique symbol` | `__symbol.matchAll` | 📋 Planned | - |
 | `Symbol.readonly metadata: unique symbol` | `readonly metadata: unique symbol` | `__symbol.metadata` | 📋 Planned | - |
-| `Symbol.readonly prototype: Symbol` | `readonly prototype: Symbol` | `__symbol.prototype` | 📋 Planned | - |
 | `Symbol.readonly replace: unique symbol` | `readonly replace: unique symbol` | `__symbol.replace` | 📋 Planned | - |
 | `Symbol.readonly search: unique symbol` | `readonly search: unique symbol` | `__symbol.search` | 📋 Planned | - |
 | `Symbol.readonly species: unique symbol` | `readonly species: unique symbol` | `__symbol.species` | 📋 Planned | - |

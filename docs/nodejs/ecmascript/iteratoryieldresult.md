@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `IteratorYieldResult.done?: false` | `done?: false` | `__iteratoryieldresult.done?` | 📋 Planned | - |
+| `IteratorYieldResult.done?: false` | `done?: false` | `__iteratoryieldresult.done` | 📋 Planned | - |
 | `IteratorYieldResult.value: TYield` | `value: TYield` | `__iteratoryieldresult.value` | 📋 Planned | - |
 
 ---

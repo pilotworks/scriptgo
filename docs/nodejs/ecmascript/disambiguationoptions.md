@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DisambiguationOptions.disambiguation?: "compatible" \| "earlier" \| "later" \| "reject" \| undefined` | `disambiguation?: "compatible" \| "earlier" \| "later" \| "reject" \| undefined` | `__disambiguationoptions.disambiguation?` | 📋 Planned | - |
+| `DisambiguationOptions.disambiguation?: "compatible" \| "earlier" \| "later" \| "reject" \| undefined` | `disambiguation?: "compatible" \| "earlier" \| "later" \| "reject" \| undefined` | `__disambiguationoptions.disambiguation` | 📋 Planned | - |
 
 ---
 

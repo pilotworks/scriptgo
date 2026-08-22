@@ -1,7 +1,0 @@
-https://api.example.com/items
-POST
-secret123
-item=1
-201
-Created
-true

@@ -1,7 +1,0 @@
-start try
-end try
-in finally
-start try
-in catch:
-boom
-in finally

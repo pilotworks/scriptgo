@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `TextInfo.direction?: "ltr" \| "rtl"` | `direction?: "ltr" \| "rtl"` | `__textinfo.direction?` | 📋 Planned | - |
+| `TextInfo.direction?: "ltr" \| "rtl"` | `direction?: "ltr" \| "rtl"` | `__textinfo.direction` | 📋 Planned | - |
 
 ---
 

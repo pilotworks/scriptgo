@@ -26,7 +26,6 @@ Provide a concise technical summary:
 | `Duration.compare(one: DurationLike, two: DurationLike, options?: DurationRelativeToOptions): number` | `compare(one: DurationLike, two: DurationLike, options?: DurationRelativeToOptions): number` | `__duration.compare` | 📋 Planned | - |
 | `Duration.from(item: DurationLike): Duration` | `from(item: DurationLike): Duration` | `__duration.from` | 📋 Planned | - |
 | `Duration.negated(): Duration` | `negated(): Duration` | `__duration.negated` | 📋 Planned | - |
-| `Duration.new (years?: number, months?: number, weeks?: number, days?: number, hours?: number, minutes?: number, seconds?: number, milliseconds?: number, microseconds?: number, nanoseconds?: number): Duration` | `new (years?: number, months?: number, weeks?: number, days?: number, hours?: number, minutes?: number, seconds?: number, milliseconds?: number, microseconds?: number, nanoseconds?: number): Duration` | `__duration.new` | 📋 Planned | - |
 | `Duration.readonly blank: boolean` | `readonly blank: boolean` | `__duration.blank` | 📋 Planned | - |
 | `Duration.readonly days: number` | `readonly days: number` | `__duration.days` | 📋 Planned | - |
 | `Duration.readonly hours: number` | `readonly hours: number` | `__duration.hours` | 📋 Planned | - |
@@ -35,7 +34,6 @@ Provide a concise technical summary:
 | `Duration.readonly minutes: number` | `readonly minutes: number` | `__duration.minutes` | 📋 Planned | - |
 | `Duration.readonly months: number` | `readonly months: number` | `__duration.months` | 📋 Planned | - |
 | `Duration.readonly nanoseconds: number` | `readonly nanoseconds: number` | `__duration.nanoseconds` | 📋 Planned | - |
-| `Duration.readonly prototype: Duration` | `readonly prototype: Duration` | `__duration.prototype` | 📋 Planned | - |
 | `Duration.readonly seconds: number` | `readonly seconds: number` | `__duration.seconds` | 📋 Planned | - |
 | `Duration.readonly sign: number` | `readonly sign: number` | `__duration.sign` | 📋 Planned | - |
 | `Duration.readonly weeks: number` | `readonly weeks: number` | `__duration.weeks` | 📋 Planned | - |
@@ -48,6 +46,7 @@ Provide a concise technical summary:
 | `Duration.total(totalOf: PluralizeUnit<"day" \| TimeUnit>): number` | `total(totalOf: PluralizeUnit<"day" \| TimeUnit>): number` | `__duration.total` | 📋 Planned | - |
 | `Duration.valueOf(): never` | `valueOf(): never` | `__duration.valueOf` | 📋 Planned | - |
 | `Duration.with(durationLike: PartialTemporalLike<DurationLikeObject>): Duration` | `with(durationLike: PartialTemporalLike<DurationLikeObject>): Duration` | `__duration.with` | 📋 Planned | - |
+| `new Duration(years?: number, months?: number, weeks?: number, days?: number, hours?: number, minutes?: number, seconds?: number, milliseconds?: number, microseconds?: number, nanoseconds?: number): Duration` | `new (years?: number, months?: number, weeks?: number, days?: number, hours?: number, minutes?: number, seconds?: number, milliseconds?: number, microseconds?: number, nanoseconds?: number): Duration` | `__duration.new` | 📋 Planned | - |
 
 ---
 

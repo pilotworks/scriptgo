@@ -21,32 +21,12 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RegExp.exec(string: string): RegExpExecArray \| null` | `exec(string: string): RegExpExecArray \| null` | `__regexp.exec` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp/exec/` |
-| `RegExp.test(string: string): boolean` | `test(string: string): boolean` | `__regexp.test` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp/test/` |
-| `RegExp."$&": string` | `"$&": string` | `__regexp."$&"` | 📋 Planned | - |
-| `RegExp."$'": string` | `"$'": string` | `__regexp."$'"` | 📋 Planned | - |
-| `RegExp."$+": string` | `"$+": string` | `__regexp."$+"` | 📋 Planned | - |
-| `RegExp."$1": string` | `"$1": string` | `__regexp."$1"` | 📋 Planned | - |
-| `RegExp."$2": string` | `"$2": string` | `__regexp."$2"` | 📋 Planned | - |
-| `RegExp."$3": string` | `"$3": string` | `__regexp."$3"` | 📋 Planned | - |
-| `RegExp."$4": string` | `"$4": string` | `__regexp."$4"` | 📋 Planned | - |
-| `RegExp."$5": string` | `"$5": string` | `__regexp."$5"` | 📋 Planned | - |
-| `RegExp."$6": string` | `"$6": string` | `__regexp."$6"` | 📋 Planned | - |
-| `RegExp."$7": string` | `"$7": string` | `__regexp."$7"` | 📋 Planned | - |
-| `RegExp."$8": string` | `"$8": string` | `__regexp."$8"` | 📋 Planned | - |
-| `RegExp."$9": string` | `"$9": string` | `__regexp."$9"` | 📋 Planned | - |
-| `RegExp."$_": string` | `"$_": string` | `__regexp."$_"` | 📋 Planned | - |
-| `RegExp."$`": string` | `"$`": string` | `__regexp."$`"` | 📋 Planned | - |
-| `RegExp."input": string` | `"input": string` | `__regexp."input"` | 📋 Planned | - |
-| `RegExp."lastMatch": string` | `"lastMatch": string` | `__regexp."lastMatch"` | 📋 Planned | - |
-| `RegExp."lastParen": string` | `"lastParen": string` | `__regexp."lastParen"` | 📋 Planned | - |
-| `RegExp."leftContext": string` | `"leftContext": string` | `__regexp."leftContext"` | 📋 Planned | - |
-| `RegExp."rightContext": string` | `"rightContext": string` | `__regexp."rightContext"` | 📋 Planned | - |
+| `RegExp.exec(string: string): RegExpExecArray \| null` | `exec(string: string): RegExpExecArray \| null` | `__regexp.exec` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.test(string: string): boolean` | `test(string: string): boolean` | `__regexp.test` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `new RegExp(pattern: RegExp \| string, flags?: string): RegExp` | `new (pattern: RegExp \| string, flags?: string): RegExp` | `__regexp.new` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
 | `RegExp.compile(pattern: string, flags?: string): this` | `compile(pattern: string, flags?: string): this` | `__regexp.compile` | 📋 Planned | - |
 | `RegExp.escape(string: string): string` | `escape(string: string): string` | `__regexp.escape` | 📋 Planned | - |
 | `RegExp.lastIndex: number` | `lastIndex: number` | `__regexp.lastIndex` | 📋 Planned | - |
-| `RegExp.new (pattern: RegExp \| string, flags?: string): RegExp` | `new (pattern: RegExp \| string, flags?: string): RegExp` | `__regexp.new` | 📋 Planned | - |
-| `RegExp.readonly "prototype": RegExp` | `readonly "prototype": RegExp` | `__regexp."prototype"` | 📋 Planned | - |
 | `RegExp.readonly dotAll: boolean` | `readonly dotAll: boolean` | `__regexp.dotAll` | 📋 Planned | - |
 | `RegExp.readonly flags: string` | `readonly flags: string` | `__regexp.flags` | 📋 Planned | - |
 | `RegExp.readonly global: boolean` | `readonly global: boolean` | `__regexp.global` | 📋 Planned | - |

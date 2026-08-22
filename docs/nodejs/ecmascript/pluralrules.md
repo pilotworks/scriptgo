@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PluralRules.new (locales?: string \| readonly string[], options?: PluralRulesOptions): PluralRules` | `new (locales?: string \| readonly string[], options?: PluralRulesOptions): PluralRules` | `__pluralrules.new` | 📋 Planned | - |
 | `PluralRules.resolvedOptions(): ResolvedPluralRulesOptions` | `resolvedOptions(): ResolvedPluralRulesOptions` | `__pluralrules.resolvedOptions` | 📋 Planned | - |
 | `PluralRules.select(n: number): LDMLPluralRule` | `select(n: number): LDMLPluralRule` | `__pluralrules.select` | 📋 Planned | - |
 | `PluralRules.supportedLocalesOf(locales: string \| readonly string[], options?: { localeMatcher?: "lookup" \| "best fit"; }): string[]` | `supportedLocalesOf(locales: string \| readonly string[], options?: { localeMatcher?: "lookup" \| "best fit"; }): string[]` | `__pluralrules.supportedLocalesOf` | 📋 Planned | - |
+| `new PluralRules(locales?: string \| readonly string[], options?: PluralRulesOptions): PluralRules` | `new (locales?: string \| readonly string[], options?: PluralRulesOptions): PluralRules` | `__pluralrules.new` | 📋 Planned | - |
 
 ---
 

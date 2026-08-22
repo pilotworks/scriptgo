@@ -23,7 +23,7 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `ResolvedDurationFormatOptions.days: "long" \| "short" \| "narrow"` | `days: "long" \| "short" \| "narrow"` | `__resolveddurationformatoptions.days` | 📋 Planned | - |
 | `ResolvedDurationFormatOptions.daysDisplay: DurationFormatDisplayOption` | `daysDisplay: DurationFormatDisplayOption` | `__resolveddurationformatoptions.daysDisplay` | 📋 Planned | - |
-| `ResolvedDurationFormatOptions.fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9` | `fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9` | `__resolveddurationformatoptions.fractionalDigits?` | 📋 Planned | - |
+| `ResolvedDurationFormatOptions.fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9` | `fractionalDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9` | `__resolveddurationformatoptions.fractionalDigits` | 📋 Planned | - |
 | `ResolvedDurationFormatOptions.hours: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit"` | `hours: "long" \| "short" \| "narrow" \| "numeric" \| "2-digit"` | `__resolveddurationformatoptions.hours` | 📋 Planned | - |
 | `ResolvedDurationFormatOptions.hoursDisplay: DurationFormatDisplayOption` | `hoursDisplay: DurationFormatDisplayOption` | `__resolveddurationformatoptions.hoursDisplay` | 📋 Planned | - |
 | `ResolvedDurationFormatOptions.locale: UnicodeBCP47LocaleIdentifier` | `locale: UnicodeBCP47LocaleIdentifier` | `__resolveddurationformatoptions.locale` | 📋 Planned | - |

@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DisplayNamesOptions.fallback?: DisplayNamesFallback` | `fallback?: DisplayNamesFallback` | `__displaynamesoptions.fallback?` | 📋 Planned | - |
-| `DisplayNamesOptions.languageDisplay?: DisplayNamesLanguageDisplay` | `languageDisplay?: DisplayNamesLanguageDisplay` | `__displaynamesoptions.languageDisplay?` | 📋 Planned | - |
-| `DisplayNamesOptions.localeMatcher?: RelativeTimeFormatLocaleMatcher` | `localeMatcher?: RelativeTimeFormatLocaleMatcher` | `__displaynamesoptions.localeMatcher?` | 📋 Planned | - |
-| `DisplayNamesOptions.style?: RelativeTimeFormatStyle` | `style?: RelativeTimeFormatStyle` | `__displaynamesoptions.style?` | 📋 Planned | - |
+| `DisplayNamesOptions.fallback?: DisplayNamesFallback` | `fallback?: DisplayNamesFallback` | `__displaynamesoptions.fallback` | 📋 Planned | - |
+| `DisplayNamesOptions.languageDisplay?: DisplayNamesLanguageDisplay` | `languageDisplay?: DisplayNamesLanguageDisplay` | `__displaynamesoptions.languageDisplay` | 📋 Planned | - |
+| `DisplayNamesOptions.localeMatcher?: RelativeTimeFormatLocaleMatcher` | `localeMatcher?: RelativeTimeFormatLocaleMatcher` | `__displaynamesoptions.localeMatcher` | 📋 Planned | - |
+| `DisplayNamesOptions.style?: RelativeTimeFormatStyle` | `style?: RelativeTimeFormatStyle` | `__displaynamesoptions.style` | 📋 Planned | - |
 | `DisplayNamesOptions.type: DisplayNamesType` | `type: DisplayNamesType` | `__displaynamesoptions.type` | 📋 Planned | - |
 
 ---

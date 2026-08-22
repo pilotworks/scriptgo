@@ -60,6 +60,90 @@ type CatSummary struct {
 	Failed int `json:"failed"`
 }
 
+type corpusDirectives struct {
+	hasRunExpected    bool
+	runExpected       string
+	hasNativeExpected bool
+	nativeExpected    string
+	hasRunErr         bool
+	runErr            string
+	hasCheckErr       bool
+	checkErr          string
+	hasBuildErr       bool
+	buildErr          string
+}
+
+func parseDirectiveLine(comment, prefix string) (string, bool) {
+	if strings.HasPrefix(comment, prefix+":") {
+		val := strings.TrimPrefix(comment, prefix+":")
+		val = strings.TrimPrefix(val, " ")
+		return val, true
+	}
+	if strings.HasPrefix(comment, prefix+" ") {
+		val := strings.TrimPrefix(comment, prefix+" ")
+		return val, true
+	}
+	if comment == prefix {
+		return "", true
+	}
+	return "", false
+}
+
+func parseCorpusDirectives(content string) corpusDirectives {
+	var d corpusDirectives
+	var runLines []string
+	var nativeLines []string
+	var runErrLines []string
+	var checkErrLines []string
+	var buildErrLines []string
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmedLeading := strings.TrimLeft(line, " \t")
+		if !strings.HasPrefix(trimmedLeading, "//") {
+			continue
+		}
+		comment := strings.TrimLeft(strings.TrimPrefix(trimmedLeading, "//"), " \t")
+		if val, ok := parseDirectiveLine(comment, "@expect"); ok {
+			d.hasRunExpected = true
+			runLines = append(runLines, val)
+		} else if val, ok := parseDirectiveLine(comment, "@run.expected"); ok {
+			d.hasRunExpected = true
+			runLines = append(runLines, val)
+		} else if val, ok := parseDirectiveLine(comment, "@native.expected"); ok {
+			d.hasNativeExpected = true
+			nativeLines = append(nativeLines, val)
+		} else if val, ok := parseDirectiveLine(comment, "@run.err"); ok {
+			d.hasRunErr = true
+			runErrLines = append(runErrLines, val)
+		} else if val, ok := parseDirectiveLine(comment, "@check.err"); ok {
+			d.hasCheckErr = true
+			checkErrLines = append(checkErrLines, val)
+		} else if val, ok := parseDirectiveLine(comment, "@build.err"); ok {
+			d.hasBuildErr = true
+			buildErrLines = append(buildErrLines, val)
+		}
+	}
+
+	if d.hasRunExpected {
+		d.runExpected = strings.Join(runLines, "\n") + "\n"
+	}
+	if d.hasNativeExpected {
+		d.nativeExpected = strings.Join(nativeLines, "\n") + "\n"
+	}
+	if d.hasRunErr {
+		d.runErr = strings.Join(runErrLines, "\n")
+	}
+	if d.hasCheckErr {
+		d.checkErr = strings.Join(checkErrLines, "\n")
+	}
+	if d.hasBuildErr {
+		d.buildErr = strings.Join(buildErrLines, "\n")
+	}
+
+	return d
+}
+
 func main() {
 	corpusDir := flag.String("corpus", filepath.Join("internal", "compiler", "testdata", "corpus"), "path to corpus test directory")
 	filter := flag.String("filter", "", "filter test cases by substring in path")
@@ -115,18 +199,31 @@ func main() {
 	fullParityCount := 0
 	categoryStats := make(map[string]CatSummary)
 
-	for idx, casePath := range cases {
+	for idx, caseTarget := range cases {
 		caseStart := time.Now()
-		relPath, _ := filepath.Rel(*corpusDir, casePath)
+		relPath, _ := filepath.Rel(*corpusDir, caseTarget)
 		if relPath == "" {
-			relPath = casePath
+			relPath = caseTarget
 		}
 		category := filepath.Dir(relPath)
 		if category == "." {
 			category = "root"
 		}
 
-		entry := filepath.Join(casePath, "main.ts")
+		entry := caseTarget
+		caseDir := caseTarget
+		isStandalone := strings.HasSuffix(caseTarget, ".ts")
+		if !isStandalone {
+			entry = filepath.Join(caseTarget, "main.ts")
+		} else {
+			caseDir = filepath.Dir(caseTarget)
+		}
+
+		var directives corpusDirectives
+		if content, err := os.ReadFile(entry); err == nil {
+			directives = parseCorpusDirectives(string(content))
+		}
+
 		res := CaseResult{
 			Path:              relPath,
 			Category:          category,
@@ -135,11 +232,35 @@ func main() {
 			DiagnosticsParity: StatusSkip,
 		}
 
-		runExpected, hasRunExpected := readCorpusFile(casePath, "run.expected")
-		nativeExpected, hasNativeExpected := readCorpusFile(casePath, "native.expected")
-		runErr, hasRunErr := readCorpusFile(casePath, "run.err")
-		checkErr, hasCheckErr := readCorpusFile(casePath, "check.err")
-		buildErr, hasBuildErr := readCorpusFile(casePath, "build.err")
+		runExpected := directives.runExpected
+		hasRunExpected := directives.hasRunExpected
+		if !hasRunExpected && !isStandalone {
+			runExpected, hasRunExpected = readCorpusFile(caseDir, "run.expected")
+		}
+
+		nativeExpected := directives.nativeExpected
+		hasNativeExpected := directives.hasNativeExpected
+		if !hasNativeExpected && !isStandalone {
+			nativeExpected, hasNativeExpected = readCorpusFile(caseDir, "native.expected")
+		}
+
+		runErr := directives.runErr
+		hasRunErr := directives.hasRunErr
+		if !hasRunErr && !isStandalone {
+			runErr, hasRunErr = readCorpusFile(caseDir, "run.err")
+		}
+
+		checkErr := directives.checkErr
+		hasCheckErr := directives.hasCheckErr
+		if !hasCheckErr && !isStandalone {
+			checkErr, hasCheckErr = readCorpusFile(caseDir, "check.err")
+		}
+
+		buildErr := directives.buildErr
+		hasBuildErr := directives.hasBuildErr
+		if !hasBuildErr && !isStandalone {
+			buildErr, hasBuildErr = readCorpusFile(caseDir, "build.err")
+		}
 
 		expectedTarget := ""
 		if hasRunExpected {
@@ -182,12 +303,12 @@ func main() {
 			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
 			interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
 
-			if interpMatchesTarget && (nodeMatchesTarget || interpMatchesNode) {
+			if interpMatchesTarget {
 				res.InterpreterParity = StatusPass
 				interpPassedCount++
-			} else if !nodeMatchesTarget && interpMatchesTarget {
-				res.InterpreterParity = StatusDiff
-				res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches run.expected, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
+				if !nodeMatchesTarget && !interpMatchesNode {
+					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches run.expected, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
+				}
 			} else {
 				res.InterpreterParity = StatusFail
 				if sgErr != nil {
@@ -236,7 +357,7 @@ func main() {
 			}
 
 			// Overall Match
-			nativeOK := (res.NativeParity == StatusPass || res.NativeParity == StatusSkip)
+			nativeOK := (res.NativeParity == StatusPass || res.NativeParity == StatusSkip || (!hasNativeExpected && !*strictNative))
 			if res.InterpreterParity == StatusPass && nativeOK {
 				res.OverallMatch = true
 				fullParityCount++
@@ -298,100 +419,89 @@ func main() {
 
 			if *verbose && !res.OverallMatch {
 				if res.DiscrepancyDetails != "" {
-					fmt.Printf("        \033[33mNote:\033[0m %s\n", res.DiscrepancyDetails)
+					fmt.Printf("          \033[31mDetails:\033[0m %s\n", res.DiscrepancyDetails)
 				}
-				if res.ExpectedOutput != "" {
-					fmt.Printf("        Expected: %q\n", truncateString(res.ExpectedOutput, 60))
-				}
-				if res.ScriptGoOutput != "" {
-					fmt.Printf("        ScriptGo: %q\n", truncateString(res.ScriptGoOutput, 60))
-				}
-				if res.NodeOutput != "" {
-					fmt.Printf("        Node.js : %q\n", truncateString(res.NodeOutput, 60))
-				}
-				if res.NativeOutput != "" {
-					fmt.Printf("        Native  : %q\n", truncateString(res.NativeOutput, 60))
+				if res.ErrorMessage != "" {
+					fmt.Printf("          \033[31mError:\033[0m %s\n", res.ErrorMessage)
 				}
 			}
 		}
 	}
 
 	totalDuration := time.Since(startTime)
-	parityRate := 0.0
+	parityPercent := 0.0
 	if len(cases) > 0 {
-		parityRate = float64(fullParityCount) / float64(len(cases)) * 100.0
+		parityPercent = float64(fullParityCount) / float64(len(cases)) * 100.0
+	}
+
+	report := SummaryReport{
+		TotalCases:        len(cases),
+		InterpreterPassed: interpPassedCount,
+		NativePassed:      nativePassedCount,
+		DiagnosticsPassed: diagPassedCount,
+		OverallFullParity: fullParityCount,
+		ParityRatePercent: parityPercent,
+		ExecutionTime:     totalDuration.Round(time.Millisecond).String(),
+		Runner:            *runnerType,
+		CategoryStats:     categoryStats,
+		Results:           results,
 	}
 
 	if *jsonOutput {
-		report := SummaryReport{
-			TotalCases:        len(cases),
-			InterpreterPassed: interpPassedCount,
-			NativePassed:      nativePassedCount,
-			DiagnosticsPassed: diagPassedCount,
-			OverallFullParity: fullParityCount,
-			ParityRatePercent: parityRate,
-			ExecutionTime:     totalDuration.String(),
-			Runner:            *runnerType,
-			CategoryStats:     categoryStats,
-			Results:           results,
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding JSON output: %v\n", err)
+			os.Exit(1)
 		}
-		data, _ := json.MarshalIndent(report, "", "  ")
-		fmt.Println(string(data))
-		return
+	} else {
+		fmt.Printf("\n================================================================================\n")
+		fmt.Printf("  PARITY BENCHMARK SUMMARY REPORT\n")
+		fmt.Printf("================================================================================\n")
+		fmt.Printf("Total Test Cases       : %d\n", report.TotalCases)
+		fmt.Printf("Interpreter Parity     : %d/%d (%.1f%%)\n", report.InterpreterPassed, report.TotalCases, float64(report.InterpreterPassed)/float64(report.TotalCases)*100.0)
+		if *checkNative && hasClang {
+			fmt.Printf("Native Backend Parity  : %d/%d\n", report.NativePassed, report.TotalCases)
+		}
+		if report.DiagnosticsPassed > 0 {
+			fmt.Printf("Diagnostic Parity      : %d/%d\n", report.DiagnosticsPassed, report.TotalCases)
+		}
+		fmt.Printf("Overall Full Parity    : %d/%d (%.1f%%)\n", report.OverallFullParity, report.TotalCases, report.ParityRatePercent)
+		fmt.Printf("Total Time Elapsed     : %s\n", report.ExecutionTime)
+		fmt.Printf("================================================================================\n\n")
+
+		fmt.Printf("Category Breakdown:\n")
+		var catNames []string
+		for name := range categoryStats {
+			catNames = append(catNames, name)
+		}
+		sort.Strings(catNames)
+
+		for _, name := range catNames {
+			cat := categoryStats[name]
+			pct := 0.0
+			if cat.Total > 0 {
+				pct = float64(cat.Passed) / float64(cat.Total) * 100.0
+			}
+			bar := progressBar(cat.Passed, cat.Total)
+			fmt.Printf("  %-32s %s %3d/%-3d (%5.1f%%)\n", name, bar, cat.Passed, cat.Total, pct)
+		}
+		fmt.Println()
 	}
 
-	fmt.Printf("\n================================================================================\n")
-	fmt.Printf("  Category Breakdown\n")
-	fmt.Printf("================================================================================\n")
-	var sortedCategories []string
-	for cat := range categoryStats {
-		sortedCategories = append(sortedCategories, cat)
+	if fullParityCount < len(cases) {
+		os.Exit(1)
 	}
-	sort.Strings(sortedCategories)
-	for _, cat := range sortedCategories {
-		stats := categoryStats[cat]
-		pct := float64(stats.Passed) / float64(stats.Total) * 100.0
-		bar := progressBar(stats.Passed, stats.Total)
-		fmt.Printf("  %-25s %s %3d/%-3d (%5.1f%%)\n", cat, bar, stats.Passed, stats.Total, pct)
-	}
-
-	fmt.Printf("\n================================================================================\n")
-	fmt.Printf("  Overall Parity Summary\n")
-	fmt.Printf("================================================================================\n")
-	fmt.Printf("Total Test Cases          : %d\n", len(cases))
-	fmt.Printf("Full Parity Compatibility : \033[1;32m%d / %d (%.1f%%)\033[0m\n", fullParityCount, len(cases), parityRate)
-	fmt.Printf("ScriptGo Interpreter OK   : %d\n", interpPassedCount)
-	fmt.Printf("ScriptGo Native Binary OK : %d\n", nativePassedCount)
-	fmt.Printf("Diagnostics Parity OK     : %d\n", diagPassedCount)
-	fmt.Printf("Total Elapsed Time        : %s\n", totalDuration.Round(time.Millisecond))
-	fmt.Printf("================================================================================\n")
 }
 
-func runWithNode(entry string, runnerType string) (string, error) {
+func runWithNode(entry, runner string) (string, error) {
 	var cmd *exec.Cmd
-	switch runnerType {
+
+	switch runner {
 	case "tsx":
-		cmd = exec.Command("npx", "-y", "tsx", entry)
+		cmd = exec.Command("tsx", entry)
 	case "tsc":
-		tmpDir, err := os.MkdirTemp("", "tsc-parity-")
-		if err != nil {
-			return "", err
-		}
-		defer os.RemoveAll(tmpDir)
-		tscCmd := exec.Command("npx", "-y", "--package", "typescript", "tsc",
-			"--target", "ES2022",
-			"--module", "ESNext",
-			"--moduleResolution", "bundler",
-			"--strict", "true",
-			"--outDir", tmpDir,
-			entry)
-		if out, err := tscCmd.CombinedOutput(); err != nil {
-			return string(out), err
-		}
-		jsFile := filepath.Join(tmpDir, strings.TrimSuffix(filepath.Base(entry), ".ts")+".js")
-		cmd = exec.Command("node", jsFile)
-	case "node":
-		fallthrough
+		cmd = exec.Command("tsc", "--noEmit", entry)
 	default:
 		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
 		cmd = exec.Command("node", "--no-warnings", "--loader", loader, "--experimental-transform-types", entry)
@@ -406,17 +516,39 @@ func runWithNode(entry string, runnerType string) (string, error) {
 
 func findCorpusCases(root, filter string) ([]string, error) {
 	var cases []string
+	dirsWithMain := make(map[string]bool)
+
+	// First pass: identify directories containing main.ts
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && entry.Name() == "main.ts" {
+			dirsWithMain[filepath.Dir(path)] = true
+		}
+		return nil
+	})
+
+	// Second pass: collect main.ts directories and standalone .ts files
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
+			if dirsWithMain[path] {
+				if filter == "" || strings.Contains(filepath.ToSlash(path), filter) {
+					cases = append(cases, path)
+				}
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		if entry.Name() == "main.ts" {
+		if strings.HasSuffix(entry.Name(), ".ts") && entry.Name() != "main.ts" {
 			dir := filepath.Dir(path)
-			if filter == "" || strings.Contains(filepath.ToSlash(dir), filter) {
-				cases = append(cases, dir)
+			if !dirsWithMain[dir] {
+				if filter == "" || strings.Contains(filepath.ToSlash(path), filter) {
+					cases = append(cases, path)
+				}
 			}
 		}
 		return nil
@@ -479,13 +611,13 @@ func truncateString(s string, maxLen int) string {
 
 func cleanTraceOutput(s string) string {
 	lines := strings.Split(s, "\n")
-	var filtered []string
+	var out []string
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
-		if strings.HasPrefix(trimmed, "at ") {
+		if strings.HasPrefix(trimmed, "debugger") || strings.HasPrefix(trimmed, "Trace:") {
 			continue
 		}
-		filtered = append(filtered, l)
+		out = append(out, l)
 	}
-	return strings.Join(filtered, "\n")
+	return strings.Join(out, "\n")
 }

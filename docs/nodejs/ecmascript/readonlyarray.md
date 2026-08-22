@@ -21,35 +21,29 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ReadonlyArray.): U[]` | `): U[]` | `__readonlyarray.)` | 📋 Planned | - |
 | `ReadonlyArray.at(index: number): T \| undefined` | `at(index: number): T \| undefined` | `__readonlyarray.at` | 📋 Planned | - |
-| `ReadonlyArray.callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>,` | `__readonlyarray.callback` | 📋 Planned | - |
 | `ReadonlyArray.concat(...items: ConcatArray<T>[]): T[]` | `concat(...items: ConcatArray<T>[]): T[]` | `__readonlyarray.concat` | 📋 Planned | - |
-| `ReadonlyArray.depth?: D,` | `depth?: D,` | `__readonlyarray.depth?` | 📋 Planned | - |
 | `ReadonlyArray.entries(): ArrayIterator<[number, T]>` | `entries(): ArrayIterator<[number, T]>` | `__readonlyarray.entries` | 📋 Planned | - |
-| `ReadonlyArray.every(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean` | `every(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean` | `__readonlyarray.every` | 📋 Planned | - |
-| `ReadonlyArray.filter(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T[]` | `filter(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T[]` | `__readonlyarray.filter` | 📋 Planned | - |
-| `ReadonlyArray.find(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): T \| undefined` | `find(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): T \| undefined` | `__readonlyarray.find` | 📋 Planned | - |
+| `ReadonlyArray.every<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): this is readonly S[]` | `every<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): this is readonly S[]` | `__readonlyarray.every` | 📋 Planned | - |
+| `ReadonlyArray.filter<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): S[]` | `filter<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): S[]` | `__readonlyarray.filter` | 📋 Planned | - |
+| `ReadonlyArray.find<S extends T>(predicate: (value: T, index: number, obj: readonly T[]) => value is S, thisArg?: any): S \| undefined` | `find<S extends T>(predicate: (value: T, index: number, obj: readonly T[]) => value is S, thisArg?: any): S \| undefined` | `__readonlyarray.find` | 📋 Planned | - |
 | `ReadonlyArray.findIndex(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): number` | `findIndex(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): number` | `__readonlyarray.findIndex` | 📋 Planned | - |
-| `ReadonlyArray.findLast(` | `findLast(` | `__readonlyarray.findLast` | 📋 Planned | - |
-| `ReadonlyArray.findLastIndex(` | `findLastIndex(` | `__readonlyarray.findLastIndex` | 📋 Planned | - |
+| `ReadonlyArray.findLast<S extends T>( predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any, ): S \| undefined` | `findLast<S extends T>( predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any, ): S \| undefined` | `__readonlyarray.findLast` | 📋 Planned | - |
+| `ReadonlyArray.findLastIndex( predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any, ): number` | `findLastIndex( predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any, ): number` | `__readonlyarray.findLastIndex` | 📋 Planned | - |
+| `ReadonlyArray.flat<A, D extends number = 1>( this: A, depth?: D, ): FlatArray<A, D>[]` | `flat<A, D extends number = 1>( this: A, depth?: D, ): FlatArray<A, D>[]` | `__readonlyarray.flat` | 📋 Planned | - |
+| `ReadonlyArray.flatMap<U, This = undefined>( callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>, thisArg?: This, ): U[]` | `flatMap<U, This = undefined>( callback: (this: This, value: T, index: number, array: T[]) => U \| ReadonlyArray<U>, thisArg?: This, ): U[]` | `__readonlyarray.flatMap` | 📋 Planned | - |
 | `ReadonlyArray.forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void, thisArg?: any): void` | `__readonlyarray.forEach` | 📋 Planned | - |
 | `ReadonlyArray.includes(searchElement: T, fromIndex?: number): boolean` | `includes(searchElement: T, fromIndex?: number): boolean` | `__readonlyarray.includes` | 📋 Planned | - |
 | `ReadonlyArray.indexOf(searchElement: T, fromIndex?: number): number` | `indexOf(searchElement: T, fromIndex?: number): number` | `__readonlyarray.indexOf` | 📋 Planned | - |
 | `ReadonlyArray.join(separator?: string): string` | `join(separator?: string): string` | `__readonlyarray.join` | 📋 Planned | - |
 | `ReadonlyArray.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__readonlyarray.keys` | 📋 Planned | - |
 | `ReadonlyArray.lastIndexOf(searchElement: T, fromIndex?: number): number` | `lastIndexOf(searchElement: T, fromIndex?: number): number` | `__readonlyarray.lastIndexOf` | 📋 Planned | - |
-| `ReadonlyArray.map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[]` | `map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[]` | `__readonlyarray.map<U>` | 📋 Planned | - |
-| `ReadonlyArray.predicate: (value: T, index: number, array: readonly T[]) => value is S,` | `predicate: (value: T, index: number, array: readonly T[]) => value is S,` | `__readonlyarray.predicate` | 📋 Planned | - |
+| `ReadonlyArray.map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[]` | `map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[]` | `__readonlyarray.map` | 📋 Planned | - |
 | `ReadonlyArray.readonly length: number` | `readonly length: number` | `__readonlyarray.length` | 📋 Planned | - |
 | `ReadonlyArray.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T` | `__readonlyarray.reduce` | 📋 Planned | - |
-| `ReadonlyArray.reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U` | `reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U` | `__readonlyarray.reduce<U>` | 📋 Planned | - |
 | `ReadonlyArray.reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T` | `reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T` | `__readonlyarray.reduceRight` | 📋 Planned | - |
-| `ReadonlyArray.reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U` | `reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U` | `__readonlyarray.reduceRight<U>` | 📋 Planned | - |
 | `ReadonlyArray.slice(start?: number, end?: number): T[]` | `slice(start?: number, end?: number): T[]` | `__readonlyarray.slice` | 📋 Planned | - |
 | `ReadonlyArray.some(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean` | `some(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean` | `__readonlyarray.some` | 📋 Planned | - |
-| `ReadonlyArray.this: A,` | `this: A,` | `__readonlyarray.this` | 📋 Planned | - |
-| `ReadonlyArray.thisArg?: This,` | `thisArg?: This,` | `__readonlyarray.thisArg?` | 📋 Planned | - |
 | `ReadonlyArray.toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `toLocaleString(locales: string \| string[], options?: Intl.NumberFormatOptions & Intl.DateTimeFormatOptions): string` | `__readonlyarray.toLocaleString` | 📋 Planned | - |
 | `ReadonlyArray.toReversed(): T[]` | `toReversed(): T[]` | `__readonlyarray.toReversed` | 📋 Planned | - |
 | `ReadonlyArray.toSorted(compareFn?: (a: T, b: T) => number): T[]` | `toSorted(compareFn?: (a: T, b: T) => number): T[]` | `__readonlyarray.toSorted` | 📋 Planned | - |
@@ -57,7 +51,6 @@ Provide a concise technical summary:
 | `ReadonlyArray.toString(): string` | `toString(): string` | `__readonlyarray.toString` | 📋 Planned | - |
 | `ReadonlyArray.values(): ArrayIterator<T>` | `values(): ArrayIterator<T>` | `__readonlyarray.values` | 📋 Planned | - |
 | `ReadonlyArray.with(index: number, value: T): T[]` | `with(index: number, value: T): T[]` | `__readonlyarray.with` | 📋 Planned | - |
-| `ReadonlyArray.}` | `}` | `__readonlyarray.}` | 📋 Planned | - |
 
 ---
 

@@ -14,13 +14,31 @@ static void scriptgo_console_print_indent(FILE *stream) {
     }
 }
 
+static void scriptgo_format_double_shortest(char *buf, size_t size, double value) {
+    char b15[64], b16[64], b17[64];
+    snprintf(b15, sizeof(b15), "%.15g", value);
+    if (strtod(b15, NULL) == value) {
+        snprintf(buf, size, "%s", b15);
+        return;
+    }
+    snprintf(b16, sizeof(b16), "%.16g", value);
+    if (strtod(b16, NULL) == value) {
+        snprintf(buf, size, "%s", b16);
+        return;
+    }
+    snprintf(b17, sizeof(b17), "%.17g", value);
+    snprintf(buf, size, "%s", b17);
+}
+
 static int scriptgo_console_number(FILE *stream, double value) {
     scriptgo_console_print_indent(stream);
     int ret;
     if (value == (double)(long long)value && value >= -9007199254740991.0 && value <= 9007199254740991.0) {
         ret = fprintf(stream, "%lld\n", (long long)value);
     } else {
-        ret = fprintf(stream, "%.15g\n", value);
+        char buf[64];
+        scriptgo_format_double_shortest(buf, sizeof(buf), value);
+        ret = fprintf(stream, "%s\n", buf);
     }
     fflush(stream);
     if (ret < 0) return scriptgo_runtime_set_error("scriptgo number output failed");

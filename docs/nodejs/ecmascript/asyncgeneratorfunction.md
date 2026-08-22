@@ -21,10 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `AsyncGeneratorFunction.new (...args: any[]): AsyncGenerator` | `new (...args: any[]): AsyncGenerator` | `__asyncgeneratorfunction.new` | 📋 Planned | - |
 | `AsyncGeneratorFunction.readonly length: number` | `readonly length: number` | `__asyncgeneratorfunction.length` | 📋 Planned | - |
 | `AsyncGeneratorFunction.readonly name: string` | `readonly name: string` | `__asyncgeneratorfunction.name` | 📋 Planned | - |
-| `AsyncGeneratorFunction.readonly prototype: AsyncGenerator` | `readonly prototype: AsyncGenerator` | `__asyncgeneratorfunction.prototype` | 📋 Planned | - |
+| `new AsyncGeneratorFunction(...args: any[]): AsyncGenerator` | `new (...args: any[]): AsyncGenerator` | `__asyncgeneratorfunction.new` | 📋 Planned | - |
 
 ---
 

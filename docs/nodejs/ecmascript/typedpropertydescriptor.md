@@ -21,12 +21,12 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `TypedPropertyDescriptor.configurable?: boolean` | `configurable?: boolean` | `__typedpropertydescriptor.configurable?` | 📋 Planned | - |
-| `TypedPropertyDescriptor.enumerable?: boolean` | `enumerable?: boolean` | `__typedpropertydescriptor.enumerable?` | 📋 Planned | - |
-| `TypedPropertyDescriptor.get?: () => T` | `get?: () => T` | `__typedpropertydescriptor.get?` | 📋 Planned | - |
-| `TypedPropertyDescriptor.set?: (value: T) => void` | `set?: (value: T) => void` | `__typedpropertydescriptor.set?` | 📋 Planned | - |
-| `TypedPropertyDescriptor.value?: T` | `value?: T` | `__typedpropertydescriptor.value?` | 📋 Planned | - |
-| `TypedPropertyDescriptor.writable?: boolean` | `writable?: boolean` | `__typedpropertydescriptor.writable?` | 📋 Planned | - |
+| `TypedPropertyDescriptor.configurable?: boolean` | `configurable?: boolean` | `__typedpropertydescriptor.configurable` | 📋 Planned | - |
+| `TypedPropertyDescriptor.enumerable?: boolean` | `enumerable?: boolean` | `__typedpropertydescriptor.enumerable` | 📋 Planned | - |
+| `TypedPropertyDescriptor.get?: () => T` | `get?: () => T` | `__typedpropertydescriptor.get` | 📋 Planned | - |
+| `TypedPropertyDescriptor.set?: (value: T) => void` | `set?: (value: T) => void` | `__typedpropertydescriptor.set` | 📋 Planned | - |
+| `TypedPropertyDescriptor.value?: T` | `value?: T` | `__typedpropertydescriptor.value` | 📋 Planned | - |
+| `TypedPropertyDescriptor.writable?: boolean` | `writable?: boolean` | `__typedpropertydescriptor.writable` | 📋 Planned | - |
 
 ---
 

@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RelativeTimeFormatOptions.localeMatcher?: RelativeTimeFormatLocaleMatcher` | `localeMatcher?: RelativeTimeFormatLocaleMatcher` | `__relativetimeformatoptions.localeMatcher?` | 📋 Planned | - |
-| `RelativeTimeFormatOptions.numeric?: RelativeTimeFormatNumeric` | `numeric?: RelativeTimeFormatNumeric` | `__relativetimeformatoptions.numeric?` | 📋 Planned | - |
-| `RelativeTimeFormatOptions.style?: RelativeTimeFormatStyle` | `style?: RelativeTimeFormatStyle` | `__relativetimeformatoptions.style?` | 📋 Planned | - |
+| `RelativeTimeFormatOptions.localeMatcher?: RelativeTimeFormatLocaleMatcher` | `localeMatcher?: RelativeTimeFormatLocaleMatcher` | `__relativetimeformatoptions.localeMatcher` | 📋 Planned | - |
+| `RelativeTimeFormatOptions.numeric?: RelativeTimeFormatNumeric` | `numeric?: RelativeTimeFormatNumeric` | `__relativetimeformatoptions.numeric` | 📋 Planned | - |
+| `RelativeTimeFormatOptions.style?: RelativeTimeFormatStyle` | `style?: RelativeTimeFormatStyle` | `__relativetimeformatoptions.style` | 📋 Planned | - |
 
 ---
 

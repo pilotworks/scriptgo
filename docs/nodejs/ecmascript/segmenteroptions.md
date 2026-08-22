@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `SegmenterOptions.granularity?: "grapheme" \| "word" \| "sentence" \| undefined` | `granularity?: "grapheme" \| "word" \| "sentence" \| undefined` | `__segmenteroptions.granularity?` | 📋 Planned | - |
-| `SegmenterOptions.localeMatcher?: "best fit" \| "lookup" \| undefined` | `localeMatcher?: "best fit" \| "lookup" \| undefined` | `__segmenteroptions.localeMatcher?` | 📋 Planned | - |
+| `SegmenterOptions.granularity?: "grapheme" \| "word" \| "sentence" \| undefined` | `granularity?: "grapheme" \| "word" \| "sentence" \| undefined` | `__segmenteroptions.granularity` | 📋 Planned | - |
+| `SegmenterOptions.localeMatcher?: "best fit" \| "lookup" \| undefined` | `localeMatcher?: "best fit" \| "lookup" \| undefined` | `__segmenteroptions.localeMatcher` | 📋 Planned | - |
 
 ---
 

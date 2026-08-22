@@ -23,10 +23,10 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `ResolvedPluralRulesOptions.locale: string` | `locale: string` | `__resolvedpluralrulesoptions.locale` | 📋 Planned | - |
 | `ResolvedPluralRulesOptions.maximumFractionDigits: number` | `maximumFractionDigits: number` | `__resolvedpluralrulesoptions.maximumFractionDigits` | 📋 Planned | - |
-| `ResolvedPluralRulesOptions.maximumSignificantDigits?: number` | `maximumSignificantDigits?: number` | `__resolvedpluralrulesoptions.maximumSignificantDigits?` | 📋 Planned | - |
+| `ResolvedPluralRulesOptions.maximumSignificantDigits?: number` | `maximumSignificantDigits?: number` | `__resolvedpluralrulesoptions.maximumSignificantDigits` | 📋 Planned | - |
 | `ResolvedPluralRulesOptions.minimumFractionDigits: number` | `minimumFractionDigits: number` | `__resolvedpluralrulesoptions.minimumFractionDigits` | 📋 Planned | - |
 | `ResolvedPluralRulesOptions.minimumIntegerDigits: number` | `minimumIntegerDigits: number` | `__resolvedpluralrulesoptions.minimumIntegerDigits` | 📋 Planned | - |
-| `ResolvedPluralRulesOptions.minimumSignificantDigits?: number` | `minimumSignificantDigits?: number` | `__resolvedpluralrulesoptions.minimumSignificantDigits?` | 📋 Planned | - |
+| `ResolvedPluralRulesOptions.minimumSignificantDigits?: number` | `minimumSignificantDigits?: number` | `__resolvedpluralrulesoptions.minimumSignificantDigits` | 📋 Planned | - |
 | `ResolvedPluralRulesOptions.pluralCategories: LDMLPluralRule[]` | `pluralCategories: LDMLPluralRule[]` | `__resolvedpluralrulesoptions.pluralCategories` | 📋 Planned | - |
 | `ResolvedPluralRulesOptions.type: PluralRuleType` | `type: PluralRuleType` | `__resolvedpluralrulesoptions.type` | 📋 Planned | - |
 

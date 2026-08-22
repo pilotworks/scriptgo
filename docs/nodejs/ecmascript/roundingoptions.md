@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RoundingOptions.roundingIncrement?: number \| undefined` | `roundingIncrement?: number \| undefined` | `__roundingoptions.roundingIncrement?` | 📋 Planned | - |
-| `RoundingOptions.roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `__roundingoptions.roundingMode?` | 📋 Planned | - |
-| `RoundingOptions.smallestUnit?: PluralizeUnit<Units> \| undefined` | `smallestUnit?: PluralizeUnit<Units> \| undefined` | `__roundingoptions.smallestUnit?` | 📋 Planned | - |
+| `RoundingOptions.roundingIncrement?: number \| undefined` | `roundingIncrement?: number \| undefined` | `__roundingoptions.roundingIncrement` | 📋 Planned | - |
+| `RoundingOptions.roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `__roundingoptions.roundingMode` | 📋 Planned | - |
+| `RoundingOptions.smallestUnit?: PluralizeUnit<Units> \| undefined` | `smallestUnit?: PluralizeUnit<Units> \| undefined` | `__roundingoptions.smallestUnit` | 📋 Planned | - |
 
 ---
 

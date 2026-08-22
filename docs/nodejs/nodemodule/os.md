@@ -21,15 +21,15 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `os.arch()` | `(...) => any` | `__os.os.arch` | ✅ Done | `internal/compiler/testdata/corpus/api/os/arch/` |
-| `os.freemem()` | `(...) => any` | `__os.os.freemem` | ✅ Done | `internal/compiler/testdata/corpus/api/os/freemem/` |
-| `os.homedir()` | `(...) => any` | `__os.os.homedir` | ✅ Done | `internal/compiler/testdata/corpus/api/os/homedir/` |
-| `os.platform()` | `(...) => any` | `__os.os.platform` | ✅ Done | `internal/compiler/testdata/corpus/api/os/platform/` |
-| `os.release()` | `(...) => any` | `__os.os.release` | ✅ Done | `internal/compiler/testdata/corpus/api/os/release/` |
-| `os.tmpdir()` | `(...) => any` | `__os.os.tmpdir` | ✅ Done | `internal/compiler/testdata/corpus/api/os/tmpdir/` |
-| `os.totalmem()` | `(...) => any` | `__os.os.totalmem` | ✅ Done | `internal/compiler/testdata/corpus/api/os/totalmem/` |
-| `os.type()` | `(...) => any` | `__os.os.type` | ✅ Done | `internal/compiler/testdata/corpus/api/os/type/` |
-| `os.uptime()` | `(...) => any` | `__os.os.uptime` | ✅ Done | `internal/compiler/testdata/corpus/api/os/uptime/` |
+| `os.arch()` | `(...) => any` | `__os.os.arch` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.freemem()` | `(...) => any` | `__os.os.freemem` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.homedir()` | `(...) => any` | `__os.os.homedir` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.platform()` | `(...) => any` | `__os.os.platform` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.release()` | `(...) => any` | `__os.os.release` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.tmpdir()` | `(...) => any` | `__os.os.tmpdir` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.totalmem()` | `(...) => any` | `__os.os.totalmem` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.type()` | `(...) => any` | `__os.os.type` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
+| `os.uptime()` | `(...) => any` | `__os.os.uptime` | ✅ Done | `internal/compiler/testdata/corpus/api/os.ts` |
 | `EOL` | `any` | `__os.EOL` | 📋 Planned | - |
 | `constants` | `any` | `__os.constants` | 📋 Planned | - |
 | `devNull` | `any` | `__os.devNull` | 📋 Planned | - |

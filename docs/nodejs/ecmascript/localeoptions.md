@@ -21,16 +21,16 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `LocaleOptions.baseName?: string` | `baseName?: string` | `__localeoptions.baseName?` | 📋 Planned | - |
-| `LocaleOptions.calendar?: string` | `calendar?: string` | `__localeoptions.calendar?` | 📋 Planned | - |
-| `LocaleOptions.caseFirst?: LocaleCollationCaseFirst` | `caseFirst?: LocaleCollationCaseFirst` | `__localeoptions.caseFirst?` | 📋 Planned | - |
-| `LocaleOptions.collation?: string` | `collation?: string` | `__localeoptions.collation?` | 📋 Planned | - |
-| `LocaleOptions.hourCycle?: LocaleHourCycleKey` | `hourCycle?: LocaleHourCycleKey` | `__localeoptions.hourCycle?` | 📋 Planned | - |
-| `LocaleOptions.language?: string` | `language?: string` | `__localeoptions.language?` | 📋 Planned | - |
-| `LocaleOptions.numberingSystem?: string` | `numberingSystem?: string` | `__localeoptions.numberingSystem?` | 📋 Planned | - |
-| `LocaleOptions.numeric?: boolean` | `numeric?: boolean` | `__localeoptions.numeric?` | 📋 Planned | - |
-| `LocaleOptions.region?: string` | `region?: string` | `__localeoptions.region?` | 📋 Planned | - |
-| `LocaleOptions.script?: string` | `script?: string` | `__localeoptions.script?` | 📋 Planned | - |
+| `LocaleOptions.baseName?: string` | `baseName?: string` | `__localeoptions.baseName` | 📋 Planned | - |
+| `LocaleOptions.calendar?: string` | `calendar?: string` | `__localeoptions.calendar` | 📋 Planned | - |
+| `LocaleOptions.caseFirst?: LocaleCollationCaseFirst` | `caseFirst?: LocaleCollationCaseFirst` | `__localeoptions.caseFirst` | 📋 Planned | - |
+| `LocaleOptions.collation?: string` | `collation?: string` | `__localeoptions.collation` | 📋 Planned | - |
+| `LocaleOptions.hourCycle?: LocaleHourCycleKey` | `hourCycle?: LocaleHourCycleKey` | `__localeoptions.hourCycle` | 📋 Planned | - |
+| `LocaleOptions.language?: string` | `language?: string` | `__localeoptions.language` | 📋 Planned | - |
+| `LocaleOptions.numberingSystem?: string` | `numberingSystem?: string` | `__localeoptions.numberingSystem` | 📋 Planned | - |
+| `LocaleOptions.numeric?: boolean` | `numeric?: boolean` | `__localeoptions.numeric` | 📋 Planned | - |
+| `LocaleOptions.region?: string` | `region?: string` | `__localeoptions.region` | 📋 Planned | - |
+| `LocaleOptions.script?: string` | `script?: string` | `__localeoptions.script` | 📋 Planned | - |
 
 ---
 

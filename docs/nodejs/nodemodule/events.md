@@ -21,22 +21,22 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `EventEmitter` | `(...) => any` | `__events.EventEmitter` | ✅ Done | `internal/compiler/testdata/corpus/api/events/EventEmitter/` |
-| `emitter.emit(eventName[, ...args])` | `(...) => any` | `__events.emitter.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events/emit/` |
-| `emitter.eventNames()` | `(...) => any` | `__events.emitter.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events/eventNames/` |
-| `emitter.listenerCount(eventName[, listener])` | `(...) => any` | `__events.emitter.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
-| `emitter.off(eventName, listener)` | `(...) => any` | `__events.emitter.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events/off/` |
-| `emitter.on(eventName, listener)` | `(...) => any` | `__events.emitter.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
-| `emitter.once(eventName, listener)` | `(...) => any` | `__events.emitter.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
-| `events.listenerCount(emitter, eventName)` | `(...) => any` | `__events.events.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
-| `events.on(emitter, eventName[, options])` | `(...) => any` | `__events.events.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
-| `events.once(emitter, name[, options])` | `(...) => any` | `__events.events.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
-| `nodeEventTarget.emit(type, arg)` | `(...) => any` | `__events.nodeEventTarget.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events/emit/` |
-| `nodeEventTarget.eventNames()` | `(...) => any` | `__events.nodeEventTarget.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events/eventNames/` |
-| `nodeEventTarget.listenerCount(type)` | `(...) => any` | `__events.nodeEventTarget.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events/listenerCount/` |
-| `nodeEventTarget.off(type, listener[, options])` | `(...) => any` | `__events.nodeEventTarget.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events/off/` |
-| `nodeEventTarget.on(type, listener)` | `(...) => any` | `__events.nodeEventTarget.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events/on/` |
-| `nodeEventTarget.once(type, listener)` | `(...) => any` | `__events.nodeEventTarget.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events/once/` |
+| `EventEmitter` | `(...) => any` | `__events.EventEmitter` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.emit(eventName[, ...args])` | `(...) => any` | `__events.emitter.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.eventNames()` | `(...) => any` | `__events.emitter.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.listenerCount(eventName[, listener])` | `(...) => any` | `__events.emitter.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.off(eventName, listener)` | `(...) => any` | `__events.emitter.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.on(eventName, listener)` | `(...) => any` | `__events.emitter.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `emitter.once(eventName, listener)` | `(...) => any` | `__events.emitter.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `events.listenerCount(emitter, eventName)` | `(...) => any` | `__events.events.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `events.on(emitter, eventName[, options])` | `(...) => any` | `__events.events.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `events.once(emitter, name[, options])` | `(...) => any` | `__events.events.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.emit(type, arg)` | `(...) => any` | `__events.nodeEventTarget.emit` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.eventNames()` | `(...) => any` | `__events.nodeEventTarget.eventNames` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.listenerCount(type)` | `(...) => any` | `__events.nodeEventTarget.listenerCount` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.off(type, listener[, options])` | `(...) => any` | `__events.nodeEventTarget.off` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.on(type, listener)` | `(...) => any` | `__events.nodeEventTarget.on` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
+| `nodeEventTarget.once(type, listener)` | `(...) => any` | `__events.nodeEventTarget.once` | ✅ Done | `internal/compiler/testdata/corpus/api/events.ts` |
 | `CustomEvent` | `(...) => any` | `__events.CustomEvent` | 📋 Planned | - |
 | `Event` | `(...) => any` | `__events.Event` | 📋 Planned | - |
 | `EventTarget` | `(...) => any` | `__events.EventTarget` | 📋 Planned | - |

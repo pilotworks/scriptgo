@@ -157,6 +157,62 @@ func normalizeAPIName(raw string) string {
 	return strings.ToLower(strings.ReplaceAll(snake, "-", "_"))
 }
 
+var corpusFeatureAPIsCache = make(map[string]map[string]bool)
+var corpusFeaturePathCache = make(map[string]string)
+
+func getCorpusFeatureAPIs(featureName string) (string, map[string]bool) {
+	if apis, ok := corpusFeatureAPIsCache[featureName]; ok {
+		return corpusFeaturePathCache[featureName], apis
+	}
+	apis := make(map[string]bool)
+	resolvedPath := ""
+
+	singleTsPath := filepath.Join("internal", "compiler", "testdata", "corpus", "api", featureName+".ts")
+	mainTsPath := filepath.Join("internal", "compiler", "testdata", "corpus", "api", featureName, "main.ts")
+
+	targetPath := ""
+	if _, err := os.Stat(singleTsPath); err == nil {
+		targetPath = singleTsPath
+		resolvedPath = filepath.ToSlash(singleTsPath)
+	} else if _, err := os.Stat(mainTsPath); err == nil {
+		targetPath = mainTsPath
+		resolvedPath = filepath.ToSlash(filepath.Dir(mainTsPath)) + "/"
+	}
+
+	if targetPath != "" {
+		if content, err := os.ReadFile(targetPath); err == nil {
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if !strings.HasPrefix(trimmed, "//") {
+					continue
+				}
+				comment := strings.TrimSpace(strings.TrimPrefix(trimmed, "//"))
+				if strings.HasPrefix(comment, "@api:") || strings.HasPrefix(comment, "@api ") {
+					rawAPI := strings.TrimPrefix(comment, "@api:")
+					rawAPI = strings.TrimPrefix(rawAPI, "@api ")
+					rawAPI = strings.TrimSpace(rawAPI)
+					apis[rawAPI] = true
+					apis[strings.ToLower(rawAPI)] = true
+					clean := cleanHTML(strings.Split(rawAPI, "(")[0])
+					clean = strings.TrimPrefix(clean, "new ")
+					clean = strings.TrimPrefix(clean, "readonly ")
+					parts := strings.Split(clean, ".")
+					exactName := strings.Trim(parts[len(parts)-1], "` :;")
+					if exactName != "" {
+						apis[exactName] = true
+						apis[strings.ToLower(exactName)] = true
+						apis[normalizeAPIName(exactName)] = true
+					}
+				}
+			}
+		}
+	}
+	corpusFeatureAPIsCache[featureName] = apis
+	corpusFeaturePathCache[featureName] = resolvedPath
+	return resolvedPath, apis
+}
+
 // findCorpusAPITest checks if an API test folder exists under corpus/api/<feature>/ and contains any test cases
 func findCorpusAPITest(featureName, apiName string) (string, bool) {
 	clean := cleanHTML(strings.Split(apiName, "(")[0])
@@ -166,6 +222,7 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 	exactName := strings.Trim(parts[len(parts)-1], "` :;")
 
 	candidates := []string{
+		clean,
 		exactName,
 		strings.ToLower(exactName),
 		normalizeAPIName(apiName),
@@ -174,6 +231,17 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 		candidates = append(candidates, "constructor", "new", "create", "basic")
 	}
 
+	// 1. Check if the feature has a consolidated .ts / main.ts with @api: directives
+	testPath, inlineAPIs := getCorpusFeatureAPIs(featureName)
+	if len(inlineAPIs) > 0 {
+		for _, cand := range candidates {
+			if cand != "" && inlineAPIs[cand] {
+				return testPath, true
+			}
+		}
+	}
+
+	// 2. Check if subdirectories exist (legacy / unmigrated features)
 	for _, cand := range candidates {
 		if cand == "" {
 			continue

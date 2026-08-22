@@ -21,12 +21,12 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `TimeLikeObject.hour?: number \| undefined` | `hour?: number \| undefined` | `__timelikeobject.hour?` | 📋 Planned | - |
-| `TimeLikeObject.microsecond?: number \| undefined` | `microsecond?: number \| undefined` | `__timelikeobject.microsecond?` | 📋 Planned | - |
-| `TimeLikeObject.millisecond?: number \| undefined` | `millisecond?: number \| undefined` | `__timelikeobject.millisecond?` | 📋 Planned | - |
-| `TimeLikeObject.minute?: number \| undefined` | `minute?: number \| undefined` | `__timelikeobject.minute?` | 📋 Planned | - |
-| `TimeLikeObject.nanosecond?: number \| undefined` | `nanosecond?: number \| undefined` | `__timelikeobject.nanosecond?` | 📋 Planned | - |
-| `TimeLikeObject.second?: number \| undefined` | `second?: number \| undefined` | `__timelikeobject.second?` | 📋 Planned | - |
+| `TimeLikeObject.hour?: number \| undefined` | `hour?: number \| undefined` | `__timelikeobject.hour` | 📋 Planned | - |
+| `TimeLikeObject.microsecond?: number \| undefined` | `microsecond?: number \| undefined` | `__timelikeobject.microsecond` | 📋 Planned | - |
+| `TimeLikeObject.millisecond?: number \| undefined` | `millisecond?: number \| undefined` | `__timelikeobject.millisecond` | 📋 Planned | - |
+| `TimeLikeObject.minute?: number \| undefined` | `minute?: number \| undefined` | `__timelikeobject.minute` | 📋 Planned | - |
+| `TimeLikeObject.nanosecond?: number \| undefined` | `nanosecond?: number \| undefined` | `__timelikeobject.nanosecond` | 📋 Planned | - |
+| `TimeLikeObject.second?: number \| undefined` | `second?: number \| undefined` | `__timelikeobject.second` | 📋 Planned | - |
 
 ---
 

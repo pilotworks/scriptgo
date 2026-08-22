@@ -21,12 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RegExpExecArray.0: string` | `0: string` | `__regexpexecarray.0` | 📋 Planned | - |
-| `RegExpExecArray.groups?: {` | `groups?: {` | `__regexpexecarray.groups?` | 📋 Planned | - |
+| `RegExpExecArray.groups?: { [key: string]: string` | `groups?: { [key: string]: string` | `__regexpexecarray.groups` | 📋 Planned | - |
 | `RegExpExecArray.index: number` | `index: number` | `__regexpexecarray.index` | 📋 Planned | - |
-| `RegExpExecArray.indices?: RegExpIndicesArray` | `indices?: RegExpIndicesArray` | `__regexpexecarray.indices?` | 📋 Planned | - |
+| `RegExpExecArray.indices?: RegExpIndicesArray` | `indices?: RegExpIndicesArray` | `__regexpexecarray.indices` | 📋 Planned | - |
 | `RegExpExecArray.input: string` | `input: string` | `__regexpexecarray.input` | 📋 Planned | - |
-| `RegExpExecArray.}` | `}` | `__regexpexecarray.}` | 📋 Planned | - |
 
 ---
 

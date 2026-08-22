@@ -25,7 +25,6 @@ Provide a concise technical summary:
 | `PlainYearMonth.compare(one: PlainYearMonthLike, two: PlainYearMonthLike): number` | `compare(one: PlainYearMonthLike, two: PlainYearMonthLike): number` | `__plainyearmonth.compare` | 📋 Planned | - |
 | `PlainYearMonth.equals(other: PlainYearMonthLike): boolean` | `equals(other: PlainYearMonthLike): boolean` | `__plainyearmonth.equals` | 📋 Planned | - |
 | `PlainYearMonth.from(item: PlainYearMonthLike, options?: OverflowOptions): PlainYearMonth` | `from(item: PlainYearMonthLike, options?: OverflowOptions): PlainYearMonth` | `__plainyearmonth.from` | 📋 Planned | - |
-| `PlainYearMonth.new (isoYear: number, isoMonth: number, calendar?: string, referenceISODay?: number): PlainYearMonth` | `new (isoYear: number, isoMonth: number, calendar?: string, referenceISODay?: number): PlainYearMonth` | `__plainyearmonth.new` | 📋 Planned | - |
 | `PlainYearMonth.readonly calendarId: string` | `readonly calendarId: string` | `__plainyearmonth.calendarId` | 📋 Planned | - |
 | `PlainYearMonth.readonly daysInMonth: number` | `readonly daysInMonth: number` | `__plainyearmonth.daysInMonth` | 📋 Planned | - |
 | `PlainYearMonth.readonly daysInYear: number` | `readonly daysInYear: number` | `__plainyearmonth.daysInYear` | 📋 Planned | - |
@@ -35,7 +34,6 @@ Provide a concise technical summary:
 | `PlainYearMonth.readonly month: number` | `readonly month: number` | `__plainyearmonth.month` | 📋 Planned | - |
 | `PlainYearMonth.readonly monthCode: string` | `readonly monthCode: string` | `__plainyearmonth.monthCode` | 📋 Planned | - |
 | `PlainYearMonth.readonly monthsInYear: number` | `readonly monthsInYear: number` | `__plainyearmonth.monthsInYear` | 📋 Planned | - |
-| `PlainYearMonth.readonly prototype: PlainYearMonth` | `readonly prototype: PlainYearMonth` | `__plainyearmonth.prototype` | 📋 Planned | - |
 | `PlainYearMonth.readonly year: number` | `readonly year: number` | `__plainyearmonth.year` | 📋 Planned | - |
 | `PlainYearMonth.since(other: PlainYearMonthLike, options?: RoundingOptionsWithLargestUnit<"year" \| "month">): Duration` | `since(other: PlainYearMonthLike, options?: RoundingOptionsWithLargestUnit<"year" \| "month">): Duration` | `__plainyearmonth.since` | 📋 Planned | - |
 | `PlainYearMonth.subtract(duration: DurationLike, options?: OverflowOptions): PlainYearMonth` | `subtract(duration: DurationLike, options?: OverflowOptions): PlainYearMonth` | `__plainyearmonth.subtract` | 📋 Planned | - |
@@ -46,6 +44,7 @@ Provide a concise technical summary:
 | `PlainYearMonth.until(other: PlainYearMonthLike, options?: RoundingOptionsWithLargestUnit<"year" \| "month">): Duration` | `until(other: PlainYearMonthLike, options?: RoundingOptionsWithLargestUnit<"year" \| "month">): Duration` | `__plainyearmonth.until` | 📋 Planned | - |
 | `PlainYearMonth.valueOf(): never` | `valueOf(): never` | `__plainyearmonth.valueOf` | 📋 Planned | - |
 | `PlainYearMonth.with(yearMonthLike: PartialTemporalLike<YearMonthLikeObject>, options?: OverflowOptions): PlainYearMonth` | `with(yearMonthLike: PartialTemporalLike<YearMonthLikeObject>, options?: OverflowOptions): PlainYearMonth` | `__plainyearmonth.with` | 📋 Planned | - |
+| `new PlainYearMonth(isoYear: number, isoMonth: number, calendar?: string, referenceISODay?: number): PlainYearMonth` | `new (isoYear: number, isoMonth: number, calendar?: string, referenceISODay?: number): PlainYearMonth` | `__plainyearmonth.new` | 📋 Planned | - |
 
 ---
 

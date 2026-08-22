@@ -21,10 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `BigInt.toString(radix?: number): string` | `toString(radix?: number): string` | `__bigint.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint/toString/` |
+| `BigInt.toString(radix?: number): string` | `toString(radix?: number): string` | `__bigint.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 | `BigInt.asIntN(bits: number, int: bigint): bigint` | `asIntN(bits: number, int: bigint): bigint` | `__bigint.asIntN` | 📋 Planned | - |
 | `BigInt.asUintN(bits: number, int: bigint): bigint` | `asUintN(bits: number, int: bigint): bigint` | `__bigint.asUintN` | 📋 Planned | - |
-| `BigInt.readonly prototype: BigInt` | `readonly prototype: BigInt` | `__bigint.prototype` | 📋 Planned | - |
 | `BigInt.toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `__bigint.toLocaleString` | 📋 Planned | - |
 | `BigInt.valueOf(): bigint` | `valueOf(): bigint` | `__bigint.valueOf` | 📋 Planned | - |
 

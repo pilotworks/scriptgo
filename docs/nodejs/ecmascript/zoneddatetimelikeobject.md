@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ZonedDateTimeLikeObject.offset?: string \| undefined` | `offset?: string \| undefined` | `__zoneddatetimelikeobject.offset?` | 📋 Planned | - |
+| `ZonedDateTimeLikeObject.offset?: string \| undefined` | `offset?: string \| undefined` | `__zoneddatetimelikeobject.offset` | 📋 Planned | - |
 | `ZonedDateTimeLikeObject.timeZone: TimeZoneLike` | `timeZone: TimeZoneLike` | `__zoneddatetimelikeobject.timeZone` | 📋 Planned | - |
 
 ---

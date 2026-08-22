@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PlainDateToStringOptions.calendarName?: "auto" \| "always" \| "never" \| "critical" \| undefined` | `calendarName?: "auto" \| "always" \| "never" \| "critical" \| undefined` | `__plaindatetostringoptions.calendarName?` | 📋 Planned | - |
+| `PlainDateToStringOptions.calendarName?: "auto" \| "always" \| "never" \| "critical" \| undefined` | `calendarName?: "auto" \| "always" \| "never" \| "critical" \| undefined` | `__plaindatetostringoptions.calendarName` | 📋 Planned | - |
 
 ---
 

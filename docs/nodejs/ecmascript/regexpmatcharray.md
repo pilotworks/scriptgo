@@ -21,12 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RegExpMatchArray.0: string` | `0: string` | `__regexpmatcharray.0` | 📋 Planned | - |
-| `RegExpMatchArray.groups?: {` | `groups?: {` | `__regexpmatcharray.groups?` | 📋 Planned | - |
-| `RegExpMatchArray.index?: number` | `index?: number` | `__regexpmatcharray.index?` | 📋 Planned | - |
-| `RegExpMatchArray.indices?: RegExpIndicesArray` | `indices?: RegExpIndicesArray` | `__regexpmatcharray.indices?` | 📋 Planned | - |
-| `RegExpMatchArray.input?: string` | `input?: string` | `__regexpmatcharray.input?` | 📋 Planned | - |
-| `RegExpMatchArray.}` | `}` | `__regexpmatcharray.}` | 📋 Planned | - |
+| `RegExpMatchArray.groups?: { [key: string]: string` | `groups?: { [key: string]: string` | `__regexpmatcharray.groups` | 📋 Planned | - |
+| `RegExpMatchArray.index?: number` | `index?: number` | `__regexpmatcharray.index` | 📋 Planned | - |
+| `RegExpMatchArray.indices?: RegExpIndicesArray` | `indices?: RegExpIndicesArray` | `__regexpmatcharray.indices` | 📋 Planned | - |
+| `RegExpMatchArray.input?: string` | `input?: string` | `__regexpmatcharray.input` | 📋 Planned | - |
 
 ---
 

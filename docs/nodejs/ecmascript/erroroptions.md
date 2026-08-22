@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ErrorOptions.cause?: unknown` | `cause?: unknown` | `__erroroptions.cause?` | 📋 Planned | - |
+| `ErrorOptions.cause?: unknown` | `cause?: unknown` | `__erroroptions.cause` | 📋 Planned | - |
 
 ---
 

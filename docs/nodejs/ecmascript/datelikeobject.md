@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DateLikeObject.calendar?: string \| undefined` | `calendar?: string \| undefined` | `__datelikeobject.calendar?` | 📋 Planned | - |
+| `DateLikeObject.calendar?: string \| undefined` | `calendar?: string \| undefined` | `__datelikeobject.calendar` | 📋 Planned | - |
 | `DateLikeObject.day: number` | `day: number` | `__datelikeobject.day` | 📋 Planned | - |
-| `DateLikeObject.era?: string \| undefined` | `era?: string \| undefined` | `__datelikeobject.era?` | 📋 Planned | - |
-| `DateLikeObject.eraYear?: number \| undefined` | `eraYear?: number \| undefined` | `__datelikeobject.eraYear?` | 📋 Planned | - |
-| `DateLikeObject.month?: number \| undefined` | `month?: number \| undefined` | `__datelikeobject.month?` | 📋 Planned | - |
-| `DateLikeObject.monthCode?: string \| undefined` | `monthCode?: string \| undefined` | `__datelikeobject.monthCode?` | 📋 Planned | - |
-| `DateLikeObject.year?: number \| undefined` | `year?: number \| undefined` | `__datelikeobject.year?` | 📋 Planned | - |
+| `DateLikeObject.era?: string \| undefined` | `era?: string \| undefined` | `__datelikeobject.era` | 📋 Planned | - |
+| `DateLikeObject.eraYear?: number \| undefined` | `eraYear?: number \| undefined` | `__datelikeobject.eraYear` | 📋 Planned | - |
+| `DateLikeObject.month?: number \| undefined` | `month?: number \| undefined` | `__datelikeobject.month` | 📋 Planned | - |
+| `DateLikeObject.monthCode?: string \| undefined` | `monthCode?: string \| undefined` | `__datelikeobject.monthCode` | 📋 Planned | - |
+| `DateLikeObject.year?: number \| undefined` | `year?: number \| undefined` | `__datelikeobject.year` | 📋 Planned | - |
 
 ---
 

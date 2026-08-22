@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PlainDateToZonedDateTimeOptions.plainTime?: PlainTimeLike \| undefined` | `plainTime?: PlainTimeLike \| undefined` | `__plaindatetozoneddatetimeoptions.plainTime?` | 📋 Planned | - |
+| `PlainDateToZonedDateTimeOptions.plainTime?: PlainTimeLike \| undefined` | `plainTime?: PlainTimeLike \| undefined` | `__plaindatetozoneddatetimeoptions.plainTime` | 📋 Planned | - |
 | `PlainDateToZonedDateTimeOptions.timeZone: TimeZoneLike` | `timeZone: TimeZoneLike` | `__plaindatetozoneddatetimeoptions.timeZone` | 📋 Planned | - |
 
 ---

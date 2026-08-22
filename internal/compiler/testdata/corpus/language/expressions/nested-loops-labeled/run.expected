@@ -1,7 +1,0 @@
-skip middle at i=1, j=2
-break outer at i=2, j=2
-Total hits: 16
-Early break: true
-odd: 1
-odd: 3
-odd: 5

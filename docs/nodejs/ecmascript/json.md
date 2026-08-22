@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `JSON.parse(text: string, reviver?: (this: any, key: string, value: any) => any): any` | `parse(text: string, reviver?: (this: any, key: string, value: any) => any): any` | `__json.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/json/parse/` |
-| `JSON.stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string \| number): string` | `stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string \| number): string` | `__json.stringify` | ✅ Done | `internal/compiler/testdata/corpus/api/json/stringify/` |
+| `JSON.parse(text: string, reviver?: (this: any, key: string, value: any) => any): any` | `parse(text: string, reviver?: (this: any, key: string, value: any) => any): any` | `__json.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/json.ts` |
+| `JSON.stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string \| number): string` | `stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string \| number): string` | `__json.stringify` | ✅ Done | `internal/compiler/testdata/corpus/api/json.ts` |
 
 ---
 

@@ -23,17 +23,16 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `PlainMonthDay.equals(other: PlainMonthDayLike): boolean` | `equals(other: PlainMonthDayLike): boolean` | `__plainmonthday.equals` | 📋 Planned | - |
 | `PlainMonthDay.from(item: PlainMonthDayLike, options?: OverflowOptions): PlainMonthDay` | `from(item: PlainMonthDayLike, options?: OverflowOptions): PlainMonthDay` | `__plainmonthday.from` | 📋 Planned | - |
-| `PlainMonthDay.new (isoMonth: number, isoDay: number, calendar?: string, referenceISOYear?: number): PlainMonthDay` | `new (isoMonth: number, isoDay: number, calendar?: string, referenceISOYear?: number): PlainMonthDay` | `__plainmonthday.new` | 📋 Planned | - |
 | `PlainMonthDay.readonly calendarId: string` | `readonly calendarId: string` | `__plainmonthday.calendarId` | 📋 Planned | - |
 | `PlainMonthDay.readonly day: number` | `readonly day: number` | `__plainmonthday.day` | 📋 Planned | - |
 | `PlainMonthDay.readonly monthCode: string` | `readonly monthCode: string` | `__plainmonthday.monthCode` | 📋 Planned | - |
-| `PlainMonthDay.readonly prototype: PlainMonthDay` | `readonly prototype: PlainMonthDay` | `__plainmonthday.prototype` | 📋 Planned | - |
 | `PlainMonthDay.toJSON(): string` | `toJSON(): string` | `__plainmonthday.toJSON` | 📋 Planned | - |
 | `PlainMonthDay.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string` | `__plainmonthday.toLocaleString` | 📋 Planned | - |
 | `PlainMonthDay.toPlainDate(item: PlainMonthDayToPlainDateOptions): PlainDate` | `toPlainDate(item: PlainMonthDayToPlainDateOptions): PlainDate` | `__plainmonthday.toPlainDate` | 📋 Planned | - |
 | `PlainMonthDay.toString(options?: PlainDateToStringOptions): string` | `toString(options?: PlainDateToStringOptions): string` | `__plainmonthday.toString` | 📋 Planned | - |
 | `PlainMonthDay.valueOf(): never` | `valueOf(): never` | `__plainmonthday.valueOf` | 📋 Planned | - |
 | `PlainMonthDay.with(monthDayLike: PartialTemporalLike<DateLikeObject>, options?: OverflowOptions): PlainMonthDay` | `with(monthDayLike: PartialTemporalLike<DateLikeObject>, options?: OverflowOptions): PlainMonthDay` | `__plainmonthday.with` | 📋 Planned | - |
+| `new PlainMonthDay(isoMonth: number, isoDay: number, calendar?: string, referenceISOYear?: number): PlainMonthDay` | `new (isoMonth: number, isoDay: number, calendar?: string, referenceISOYear?: number): PlainMonthDay` | `__plainmonthday.new` | 📋 Planned | - |
 
 ---
 

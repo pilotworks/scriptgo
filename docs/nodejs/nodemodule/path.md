@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `path.basename(path[, suffix])` | `(...) => any` | `__path.path.basename` | ✅ Done | `internal/compiler/testdata/corpus/api/path/basename/` |
-| `path.dirname(path)` | `(...) => any` | `__path.path.dirname` | ✅ Done | `internal/compiler/testdata/corpus/api/path/dirname/` |
-| `path.extname(path)` | `(...) => any` | `__path.path.extname` | ✅ Done | `internal/compiler/testdata/corpus/api/path/extname/` |
-| `path.join([...paths])` | `(...) => any` | `__path.path.join` | ✅ Done | `internal/compiler/testdata/corpus/api/path/join/` |
+| `path.basename(path[, suffix])` | `(...) => any` | `__path.path.basename` | ✅ Done | `internal/compiler/testdata/corpus/api/path.ts` |
+| `path.dirname(path)` | `(...) => any` | `__path.path.dirname` | ✅ Done | `internal/compiler/testdata/corpus/api/path.ts` |
+| `path.extname(path)` | `(...) => any` | `__path.path.extname` | ✅ Done | `internal/compiler/testdata/corpus/api/path.ts` |
+| `path.join([...paths])` | `(...) => any` | `__path.path.join` | ✅ Done | `internal/compiler/testdata/corpus/api/path.ts` |
 | `delimiter` | `any` | `__path.delimiter` | 📋 Planned | - |
 | `path.format(pathObject)` | `(...) => any` | `__path.path.format` | 📋 Planned | - |
 | `path.isAbsolute(path)` | `(...) => any` | `__path.path.isAbsolute` | 📋 Planned | - |

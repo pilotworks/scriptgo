@@ -21,12 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `AggregateError.): AggregateError` | `): AggregateError` | `__aggregateerror.)` | 📋 Planned | - |
 | `AggregateError.errors: any[]` | `errors: any[]` | `__aggregateerror.errors` | 📋 Planned | - |
-| `AggregateError.message?: string,` | `message?: string,` | `__aggregateerror.message?` | 📋 Planned | - |
-| `AggregateError.new (errors: Iterable<any>, message?: string): AggregateError` | `new (errors: Iterable<any>, message?: string): AggregateError` | `__aggregateerror.new` | 📋 Planned | - |
-| `AggregateError.options?: ErrorOptions,` | `options?: ErrorOptions,` | `__aggregateerror.options?` | 📋 Planned | - |
-| `AggregateError.readonly prototype: AggregateError` | `readonly prototype: AggregateError` | `__aggregateerror.prototype` | 📋 Planned | - |
+| `new AggregateError(errors: Iterable<any>, message?: string): AggregateError` | `new (errors: Iterable<any>, message?: string): AggregateError` | `__aggregateerror.new` | 📋 Planned | - |
 
 ---
 

@@ -26,11 +26,10 @@ Provide a concise technical summary:
 | `Function.bind(this: Function, thisArg: any, ...argArray: any[]): any` | `bind(this: Function, thisArg: any, ...argArray: any[]): any` | `__function.bind` | 📋 Planned | - |
 | `Function.call(this: Function, thisArg: any, ...argArray: any[]): any` | `call(this: Function, thisArg: any, ...argArray: any[]): any` | `__function.call` | 📋 Planned | - |
 | `Function.caller: Function` | `caller: Function` | `__function.caller` | 📋 Planned | - |
-| `Function.new (...args: string[]): Function` | `new (...args: string[]): Function` | `__function.new` | 📋 Planned | - |
-| `Function.prototype: any` | `prototype: any` | `__function.prototype` | 📋 Planned | - |
 | `Function.readonly length: number` | `readonly length: number` | `__function.length` | 📋 Planned | - |
 | `Function.readonly name: string` | `readonly name: string` | `__function.name` | 📋 Planned | - |
 | `Function.toString(): string` | `toString(): string` | `__function.toString` | 📋 Planned | - |
+| `new Function(...args: string[]): Function` | `new (...args: string[]): Function` | `__function.new` | 📋 Planned | - |
 
 ---
 

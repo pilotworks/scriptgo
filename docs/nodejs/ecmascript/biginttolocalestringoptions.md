@@ -21,21 +21,21 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `BigIntToLocaleStringOptions.compactDisplay?: string` | `compactDisplay?: string` | `__biginttolocalestringoptions.compactDisplay?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.currency?: string` | `currency?: string` | `__biginttolocalestringoptions.currency?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.currencyDisplay?: string` | `currencyDisplay?: string` | `__biginttolocalestringoptions.currencyDisplay?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.localeMatcher?: string` | `localeMatcher?: string` | `__biginttolocalestringoptions.localeMatcher?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.maximumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `maximumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `__biginttolocalestringoptions.maximumFractionDigits?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.maximumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `maximumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.maximumSignificantDigits?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.minimumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `minimumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `__biginttolocalestringoptions.minimumFractionDigits?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.minimumIntegerDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `minimumIntegerDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.minimumIntegerDigits?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.minimumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `minimumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.minimumSignificantDigits?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.notation?: string` | `notation?: string` | `__biginttolocalestringoptions.notation?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.numberingSystem?: string` | `numberingSystem?: string` | `__biginttolocalestringoptions.numberingSystem?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.style?: string` | `style?: string` | `__biginttolocalestringoptions.style?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.unit?: string` | `unit?: string` | `__biginttolocalestringoptions.unit?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.unitDisplay?: string` | `unitDisplay?: string` | `__biginttolocalestringoptions.unitDisplay?` | 📋 Planned | - |
-| `BigIntToLocaleStringOptions.useGrouping?: boolean` | `useGrouping?: boolean` | `__biginttolocalestringoptions.useGrouping?` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.compactDisplay?: string` | `compactDisplay?: string` | `__biginttolocalestringoptions.compactDisplay` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.currency?: string` | `currency?: string` | `__biginttolocalestringoptions.currency` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.currencyDisplay?: string` | `currencyDisplay?: string` | `__biginttolocalestringoptions.currencyDisplay` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.localeMatcher?: string` | `localeMatcher?: string` | `__biginttolocalestringoptions.localeMatcher` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.maximumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `maximumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `__biginttolocalestringoptions.maximumFractionDigits` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.maximumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `maximumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.maximumSignificantDigits` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.minimumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `minimumFractionDigits?: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20` | `__biginttolocalestringoptions.minimumFractionDigits` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.minimumIntegerDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `minimumIntegerDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.minimumIntegerDigits` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.minimumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `minimumSignificantDigits?: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8 \| 9 \| 10 \| 11 \| 12 \| 13 \| 14 \| 15 \| 16 \| 17 \| 18 \| 19 \| 20 \| 21` | `__biginttolocalestringoptions.minimumSignificantDigits` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.notation?: string` | `notation?: string` | `__biginttolocalestringoptions.notation` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.numberingSystem?: string` | `numberingSystem?: string` | `__biginttolocalestringoptions.numberingSystem` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.style?: string` | `style?: string` | `__biginttolocalestringoptions.style` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.unit?: string` | `unit?: string` | `__biginttolocalestringoptions.unit` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.unitDisplay?: string` | `unitDisplay?: string` | `__biginttolocalestringoptions.unitDisplay` | 📋 Planned | - |
+| `BigIntToLocaleStringOptions.useGrouping?: boolean` | `useGrouping?: boolean` | `__biginttolocalestringoptions.useGrouping` | 📋 Planned | - |
 
 ---
 

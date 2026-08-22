@@ -21,16 +21,16 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DurationLikeObject.days?: number \| undefined` | `days?: number \| undefined` | `__durationlikeobject.days?` | 📋 Planned | - |
-| `DurationLikeObject.hours?: number \| undefined` | `hours?: number \| undefined` | `__durationlikeobject.hours?` | 📋 Planned | - |
-| `DurationLikeObject.microseconds?: number \| undefined` | `microseconds?: number \| undefined` | `__durationlikeobject.microseconds?` | 📋 Planned | - |
-| `DurationLikeObject.milliseconds?: number \| undefined` | `milliseconds?: number \| undefined` | `__durationlikeobject.milliseconds?` | 📋 Planned | - |
-| `DurationLikeObject.minutes?: number \| undefined` | `minutes?: number \| undefined` | `__durationlikeobject.minutes?` | 📋 Planned | - |
-| `DurationLikeObject.months?: number \| undefined` | `months?: number \| undefined` | `__durationlikeobject.months?` | 📋 Planned | - |
-| `DurationLikeObject.nanoseconds?: number \| undefined` | `nanoseconds?: number \| undefined` | `__durationlikeobject.nanoseconds?` | 📋 Planned | - |
-| `DurationLikeObject.seconds?: number \| undefined` | `seconds?: number \| undefined` | `__durationlikeobject.seconds?` | 📋 Planned | - |
-| `DurationLikeObject.weeks?: number \| undefined` | `weeks?: number \| undefined` | `__durationlikeobject.weeks?` | 📋 Planned | - |
-| `DurationLikeObject.years?: number \| undefined` | `years?: number \| undefined` | `__durationlikeobject.years?` | 📋 Planned | - |
+| `DurationLikeObject.days?: number \| undefined` | `days?: number \| undefined` | `__durationlikeobject.days` | 📋 Planned | - |
+| `DurationLikeObject.hours?: number \| undefined` | `hours?: number \| undefined` | `__durationlikeobject.hours` | 📋 Planned | - |
+| `DurationLikeObject.microseconds?: number \| undefined` | `microseconds?: number \| undefined` | `__durationlikeobject.microseconds` | 📋 Planned | - |
+| `DurationLikeObject.milliseconds?: number \| undefined` | `milliseconds?: number \| undefined` | `__durationlikeobject.milliseconds` | 📋 Planned | - |
+| `DurationLikeObject.minutes?: number \| undefined` | `minutes?: number \| undefined` | `__durationlikeobject.minutes` | 📋 Planned | - |
+| `DurationLikeObject.months?: number \| undefined` | `months?: number \| undefined` | `__durationlikeobject.months` | 📋 Planned | - |
+| `DurationLikeObject.nanoseconds?: number \| undefined` | `nanoseconds?: number \| undefined` | `__durationlikeobject.nanoseconds` | 📋 Planned | - |
+| `DurationLikeObject.seconds?: number \| undefined` | `seconds?: number \| undefined` | `__durationlikeobject.seconds` | 📋 Planned | - |
+| `DurationLikeObject.weeks?: number \| undefined` | `weeks?: number \| undefined` | `__durationlikeobject.weeks` | 📋 Planned | - |
+| `DurationLikeObject.years?: number \| undefined` | `years?: number \| undefined` | `__durationlikeobject.years` | 📋 Planned | - |
 
 ---
 

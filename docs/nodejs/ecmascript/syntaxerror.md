@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `SyntaxError.new (message?: string, options?: ErrorOptions): SyntaxError` | `new (message?: string, options?: ErrorOptions): SyntaxError` | `__syntaxerror.new` | 📋 Planned | - |
-| `SyntaxError.readonly prototype: SyntaxError` | `readonly prototype: SyntaxError` | `__syntaxerror.prototype` | 📋 Planned | - |
+| `new SyntaxError(message?: string, options?: ErrorOptions): SyntaxError` | `new (message?: string, options?: ErrorOptions): SyntaxError` | `__syntaxerror.new` | 📋 Planned | - |
 
 ---
 

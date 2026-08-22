@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RoundingOptionsWithLargestUnit.largestUnit?: "auto" \| PluralizeUnit<Units> \| undefined` | `largestUnit?: "auto" \| PluralizeUnit<Units> \| undefined` | `__roundingoptionswithlargestunit.largestUnit?` | 📋 Planned | - |
+| `RoundingOptionsWithLargestUnit.largestUnit?: "auto" \| PluralizeUnit<Units> \| undefined` | `largestUnit?: "auto" \| PluralizeUnit<Units> \| undefined` | `__roundingoptionswithlargestunit.largestUnit` | 📋 Planned | - |
 
 ---
 

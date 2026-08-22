@@ -22,9 +22,9 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `Collator.compare(x: string, y: string): number` | `compare(x: string, y: string): number` | `__collator.compare` | 📋 Planned | - |
-| `Collator.new (locales?: LocalesArgument, options?: CollatorOptions): Collator` | `new (locales?: LocalesArgument, options?: CollatorOptions): Collator` | `__collator.new` | 📋 Planned | - |
 | `Collator.resolvedOptions(): ResolvedCollatorOptions` | `resolvedOptions(): ResolvedCollatorOptions` | `__collator.resolvedOptions` | 📋 Planned | - |
 | `Collator.supportedLocalesOf(locales: LocalesArgument, options?: CollatorOptions): string[]` | `supportedLocalesOf(locales: LocalesArgument, options?: CollatorOptions): string[]` | `__collator.supportedLocalesOf` | 📋 Planned | - |
+| `new Collator(locales?: LocalesArgument, options?: CollatorOptions): Collator` | `new (locales?: LocalesArgument, options?: CollatorOptions): Collator` | `__collator.new` | 📋 Planned | - |
 
 ---
 

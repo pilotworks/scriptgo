@@ -25,7 +25,6 @@ Provide a concise technical summary:
 | `PlainDate.compare(one: PlainDateLike, two: PlainDateLike): number` | `compare(one: PlainDateLike, two: PlainDateLike): number` | `__plaindate.compare` | 📋 Planned | - |
 | `PlainDate.equals(other: PlainDateLike): boolean` | `equals(other: PlainDateLike): boolean` | `__plaindate.equals` | 📋 Planned | - |
 | `PlainDate.from(item: PlainDateLike, options?: OverflowOptions): PlainDate` | `from(item: PlainDateLike, options?: OverflowOptions): PlainDate` | `__plaindate.from` | 📋 Planned | - |
-| `PlainDate.new (isoYear: number, isoMonth: number, isoDay: number, calendar?: string): PlainDate` | `new (isoYear: number, isoMonth: number, isoDay: number, calendar?: string): PlainDate` | `__plaindate.new` | 📋 Planned | - |
 | `PlainDate.readonly calendarId: string` | `readonly calendarId: string` | `__plaindate.calendarId` | 📋 Planned | - |
 | `PlainDate.readonly day: number` | `readonly day: number` | `__plaindate.day` | 📋 Planned | - |
 | `PlainDate.readonly dayOfWeek: number` | `readonly dayOfWeek: number` | `__plaindate.dayOfWeek` | 📋 Planned | - |
@@ -39,7 +38,6 @@ Provide a concise technical summary:
 | `PlainDate.readonly month: number` | `readonly month: number` | `__plaindate.month` | 📋 Planned | - |
 | `PlainDate.readonly monthCode: string` | `readonly monthCode: string` | `__plaindate.monthCode` | 📋 Planned | - |
 | `PlainDate.readonly monthsInYear: number` | `readonly monthsInYear: number` | `__plaindate.monthsInYear` | 📋 Planned | - |
-| `PlainDate.readonly prototype: PlainDate` | `readonly prototype: PlainDate` | `__plaindate.prototype` | 📋 Planned | - |
 | `PlainDate.readonly weekOfYear: number \| undefined` | `readonly weekOfYear: number \| undefined` | `__plaindate.weekOfYear` | 📋 Planned | - |
 | `PlainDate.readonly year: number` | `readonly year: number` | `__plaindate.year` | 📋 Planned | - |
 | `PlainDate.readonly yearOfWeek: number \| undefined` | `readonly yearOfWeek: number \| undefined` | `__plaindate.yearOfWeek` | 📋 Planned | - |
@@ -56,6 +54,7 @@ Provide a concise technical summary:
 | `PlainDate.valueOf(): never` | `valueOf(): never` | `__plaindate.valueOf` | 📋 Planned | - |
 | `PlainDate.with(dateLike: PartialTemporalLike<DateLikeObject>, options?: OverflowOptions): PlainDate` | `with(dateLike: PartialTemporalLike<DateLikeObject>, options?: OverflowOptions): PlainDate` | `__plaindate.with` | 📋 Planned | - |
 | `PlainDate.withCalendar(calendarLike: CalendarLike): PlainDate` | `withCalendar(calendarLike: CalendarLike): PlainDate` | `__plaindate.withCalendar` | 📋 Planned | - |
+| `new PlainDate(isoYear: number, isoMonth: number, isoDay: number, calendar?: string): PlainDate` | `new (isoYear: number, isoMonth: number, isoDay: number, calendar?: string): PlainDate` | `__plaindate.new` | 📋 Planned | - |
 
 ---
 

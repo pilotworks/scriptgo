@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RangeError.new (message?: string, options?: ErrorOptions): RangeError` | `new (message?: string, options?: ErrorOptions): RangeError` | `__rangeerror.new` | 📋 Planned | - |
-| `RangeError.readonly prototype: RangeError` | `readonly prototype: RangeError` | `__rangeerror.prototype` | 📋 Planned | - |
+| `new RangeError(message?: string, options?: ErrorOptions): RangeError` | `new (message?: string, options?: ErrorOptions): RangeError` | `__rangeerror.new` | 📋 Planned | - |
 
 ---
 

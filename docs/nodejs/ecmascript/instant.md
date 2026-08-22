@@ -27,10 +27,8 @@ Provide a concise technical summary:
 | `Instant.from(item: InstantLike): Instant` | `from(item: InstantLike): Instant` | `__instant.from` | 📋 Planned | - |
 | `Instant.fromEpochMilliseconds(epochMilliseconds: number): Instant` | `fromEpochMilliseconds(epochMilliseconds: number): Instant` | `__instant.fromEpochMilliseconds` | 📋 Planned | - |
 | `Instant.fromEpochNanoseconds(epochNanoseconds: bigint): Instant` | `fromEpochNanoseconds(epochNanoseconds: bigint): Instant` | `__instant.fromEpochNanoseconds` | 📋 Planned | - |
-| `Instant.new (epochNanoseconds: bigint): Instant` | `new (epochNanoseconds: bigint): Instant` | `__instant.new` | 📋 Planned | - |
 | `Instant.readonly epochMilliseconds: number` | `readonly epochMilliseconds: number` | `__instant.epochMilliseconds` | 📋 Planned | - |
 | `Instant.readonly epochNanoseconds: bigint` | `readonly epochNanoseconds: bigint` | `__instant.epochNanoseconds` | 📋 Planned | - |
-| `Instant.readonly prototype: Instant` | `readonly prototype: Instant` | `__instant.prototype` | 📋 Planned | - |
 | `Instant.round(roundTo: PluralizeUnit<TimeUnit>): Instant` | `round(roundTo: PluralizeUnit<TimeUnit>): Instant` | `__instant.round` | 📋 Planned | - |
 | `Instant.since(other: InstantLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `since(other: InstantLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `__instant.since` | 📋 Planned | - |
 | `Instant.subtract(duration: DurationLike): Instant` | `subtract(duration: DurationLike): Instant` | `__instant.subtract` | 📋 Planned | - |
@@ -40,6 +38,7 @@ Provide a concise technical summary:
 | `Instant.toZonedDateTimeISO(timeZone: TimeZoneLike): ZonedDateTime` | `toZonedDateTimeISO(timeZone: TimeZoneLike): ZonedDateTime` | `__instant.toZonedDateTimeISO` | 📋 Planned | - |
 | `Instant.until(other: InstantLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `until(other: InstantLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `__instant.until` | 📋 Planned | - |
 | `Instant.valueOf(): never` | `valueOf(): never` | `__instant.valueOf` | 📋 Planned | - |
+| `new Instant(epochNanoseconds: bigint): Instant` | `new (epochNanoseconds: bigint): Instant` | `__instant.new` | 📋 Planned | - |
 
 ---
 

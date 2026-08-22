@@ -25,10 +25,9 @@ Provide a concise technical summary:
 | `NumberFormat.formatRange(start: number \| bigint \| StringNumericLiteral, end: number \| bigint \| StringNumericLiteral): string` | `formatRange(start: number \| bigint \| StringNumericLiteral, end: number \| bigint \| StringNumericLiteral): string` | `__numberformat.formatRange` | 📋 Planned | - |
 | `NumberFormat.formatRangeToParts(start: number \| bigint \| StringNumericLiteral, end: number \| bigint \| StringNumericLiteral): NumberRangeFormatPart[]` | `formatRangeToParts(start: number \| bigint \| StringNumericLiteral, end: number \| bigint \| StringNumericLiteral): NumberRangeFormatPart[]` | `__numberformat.formatRangeToParts` | 📋 Planned | - |
 | `NumberFormat.formatToParts(number?: number \| bigint): NumberFormatPart[]` | `formatToParts(number?: number \| bigint): NumberFormatPart[]` | `__numberformat.formatToParts` | 📋 Planned | - |
-| `NumberFormat.new (locales?: LocalesArgument, options?: NumberFormatOptions): NumberFormat` | `new (locales?: LocalesArgument, options?: NumberFormatOptions): NumberFormat` | `__numberformat.new` | 📋 Planned | - |
-| `NumberFormat.readonly prototype: NumberFormat` | `readonly prototype: NumberFormat` | `__numberformat.prototype` | 📋 Planned | - |
 | `NumberFormat.resolvedOptions(): ResolvedNumberFormatOptions` | `resolvedOptions(): ResolvedNumberFormatOptions` | `__numberformat.resolvedOptions` | 📋 Planned | - |
 | `NumberFormat.supportedLocalesOf(locales: LocalesArgument, options?: NumberFormatOptions): string[]` | `supportedLocalesOf(locales: LocalesArgument, options?: NumberFormatOptions): string[]` | `__numberformat.supportedLocalesOf` | 📋 Planned | - |
+| `new NumberFormat(locales?: LocalesArgument, options?: NumberFormatOptions): NumberFormat` | `new (locales?: LocalesArgument, options?: NumberFormatOptions): NumberFormat` | `__numberformat.new` | 📋 Planned | - |
 
 ---
 

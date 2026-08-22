@@ -22,25 +22,25 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `ResolvedDateTimeFormatOptions.calendar: string` | `calendar: string` | `__resolveddatetimeformatoptions.calendar` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.dateStyle?: "full" \| "long" \| "medium" \| "short"` | `dateStyle?: "full" \| "long" \| "medium" \| "short"` | `__resolveddatetimeformatoptions.dateStyle?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.day?: string` | `day?: string` | `__resolveddatetimeformatoptions.day?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.dayPeriod?: "narrow" \| "short" \| "long"` | `dayPeriod?: "narrow" \| "short" \| "long"` | `__resolveddatetimeformatoptions.dayPeriod?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.era?: string` | `era?: string` | `__resolveddatetimeformatoptions.era?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.formatMatcher?: "basic" \| "best fit" \| "best fit"` | `formatMatcher?: "basic" \| "best fit" \| "best fit"` | `__resolveddatetimeformatoptions.formatMatcher?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.fractionalSecondDigits?: 1 \| 2 \| 3` | `fractionalSecondDigits?: 1 \| 2 \| 3` | `__resolveddatetimeformatoptions.fractionalSecondDigits?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.hour12?: boolean` | `hour12?: boolean` | `__resolveddatetimeformatoptions.hour12?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.hour?: string` | `hour?: string` | `__resolveddatetimeformatoptions.hour?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.hourCycle?: "h11" \| "h12" \| "h23" \| "h24"` | `hourCycle?: "h11" \| "h12" \| "h23" \| "h24"` | `__resolveddatetimeformatoptions.hourCycle?` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.dateStyle?: "full" \| "long" \| "medium" \| "short"` | `dateStyle?: "full" \| "long" \| "medium" \| "short"` | `__resolveddatetimeformatoptions.dateStyle` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.day?: string` | `day?: string` | `__resolveddatetimeformatoptions.day` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.dayPeriod?: "narrow" \| "short" \| "long"` | `dayPeriod?: "narrow" \| "short" \| "long"` | `__resolveddatetimeformatoptions.dayPeriod` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.era?: string` | `era?: string` | `__resolveddatetimeformatoptions.era` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.formatMatcher?: "basic" \| "best fit" \| "best fit"` | `formatMatcher?: "basic" \| "best fit" \| "best fit"` | `__resolveddatetimeformatoptions.formatMatcher` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.fractionalSecondDigits?: 1 \| 2 \| 3` | `fractionalSecondDigits?: 1 \| 2 \| 3` | `__resolveddatetimeformatoptions.fractionalSecondDigits` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.hour12?: boolean` | `hour12?: boolean` | `__resolveddatetimeformatoptions.hour12` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.hour?: string` | `hour?: string` | `__resolveddatetimeformatoptions.hour` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.hourCycle?: "h11" \| "h12" \| "h23" \| "h24"` | `hourCycle?: "h11" \| "h12" \| "h23" \| "h24"` | `__resolveddatetimeformatoptions.hourCycle` | 📋 Planned | - |
 | `ResolvedDateTimeFormatOptions.locale: string` | `locale: string` | `__resolveddatetimeformatoptions.locale` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.minute?: string` | `minute?: string` | `__resolveddatetimeformatoptions.minute?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.month?: string` | `month?: string` | `__resolveddatetimeformatoptions.month?` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.minute?: string` | `minute?: string` | `__resolveddatetimeformatoptions.minute` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.month?: string` | `month?: string` | `__resolveddatetimeformatoptions.month` | 📋 Planned | - |
 | `ResolvedDateTimeFormatOptions.numberingSystem: string` | `numberingSystem: string` | `__resolveddatetimeformatoptions.numberingSystem` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.second?: string` | `second?: string` | `__resolveddatetimeformatoptions.second?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.timeStyle?: "full" \| "long" \| "medium" \| "short"` | `timeStyle?: "full" \| "long" \| "medium" \| "short"` | `__resolveddatetimeformatoptions.timeStyle?` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.second?: string` | `second?: string` | `__resolveddatetimeformatoptions.second` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.timeStyle?: "full" \| "long" \| "medium" \| "short"` | `timeStyle?: "full" \| "long" \| "medium" \| "short"` | `__resolveddatetimeformatoptions.timeStyle` | 📋 Planned | - |
 | `ResolvedDateTimeFormatOptions.timeZone: string` | `timeZone: string` | `__resolveddatetimeformatoptions.timeZone` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.timeZoneName?: string` | `timeZoneName?: string` | `__resolveddatetimeformatoptions.timeZoneName?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.weekday?: string` | `weekday?: string` | `__resolveddatetimeformatoptions.weekday?` | 📋 Planned | - |
-| `ResolvedDateTimeFormatOptions.year?: string` | `year?: string` | `__resolveddatetimeformatoptions.year?` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.timeZoneName?: string` | `timeZoneName?: string` | `__resolveddatetimeformatoptions.timeZoneName` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.weekday?: string` | `weekday?: string` | `__resolveddatetimeformatoptions.weekday` | 📋 Planned | - |
+| `ResolvedDateTimeFormatOptions.year?: string` | `year?: string` | `__resolveddatetimeformatoptions.year` | 📋 Planned | - |
 
 ---
 

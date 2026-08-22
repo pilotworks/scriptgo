@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `EvalError.new (message?: string, options?: ErrorOptions): EvalError` | `new (message?: string, options?: ErrorOptions): EvalError` | `__evalerror.new` | 📋 Planned | - |
-| `EvalError.readonly prototype: EvalError` | `readonly prototype: EvalError` | `__evalerror.prototype` | 📋 Planned | - |
+| `new EvalError(message?: string, options?: ErrorOptions): EvalError` | `new (message?: string, options?: ErrorOptions): EvalError` | `__evalerror.new` | 📋 Planned | - |
 
 ---
 

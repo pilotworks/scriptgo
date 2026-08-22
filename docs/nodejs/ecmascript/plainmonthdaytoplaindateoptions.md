@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `PlainMonthDayToPlainDateOptions.era?: string \| undefined` | `era?: string \| undefined` | `__plainmonthdaytoplaindateoptions.era?` | 📋 Planned | - |
-| `PlainMonthDayToPlainDateOptions.eraYear?: number \| undefined` | `eraYear?: number \| undefined` | `__plainmonthdaytoplaindateoptions.eraYear?` | 📋 Planned | - |
-| `PlainMonthDayToPlainDateOptions.year?: number \| undefined` | `year?: number \| undefined` | `__plainmonthdaytoplaindateoptions.year?` | 📋 Planned | - |
+| `PlainMonthDayToPlainDateOptions.era?: string \| undefined` | `era?: string \| undefined` | `__plainmonthdaytoplaindateoptions.era` | 📋 Planned | - |
+| `PlainMonthDayToPlainDateOptions.eraYear?: number \| undefined` | `eraYear?: number \| undefined` | `__plainmonthdaytoplaindateoptions.eraYear` | 📋 Planned | - |
+| `PlainMonthDayToPlainDateOptions.year?: number \| undefined` | `year?: number \| undefined` | `__plainmonthdaytoplaindateoptions.year` | 📋 Planned | - |
 
 ---
 

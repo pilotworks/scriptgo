@@ -1,6 +1,0 @@
-8080
-localhost
-http://localhost:8080
-v1
-http://localhost:8080/v1/users
-http://localhost:8080/v1/orders

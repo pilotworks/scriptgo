@@ -21,27 +21,27 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `NumberFormatOptions.compactDisplay?: "short" \| "long" \| undefined` | `compactDisplay?: "short" \| "long" \| undefined` | `__numberformatoptions.compactDisplay?` | 📋 Planned | - |
-| `NumberFormatOptions.currency?: string \| undefined` | `currency?: string \| undefined` | `__numberformatoptions.currency?` | 📋 Planned | - |
-| `NumberFormatOptions.currencyDisplay?: NumberFormatOptionsCurrencyDisplay \| undefined` | `currencyDisplay?: NumberFormatOptionsCurrencyDisplay \| undefined` | `__numberformatoptions.currencyDisplay?` | 📋 Planned | - |
-| `NumberFormatOptions.currencySign?: "standard" \| "accounting" \| undefined` | `currencySign?: "standard" \| "accounting" \| undefined` | `__numberformatoptions.currencySign?` | 📋 Planned | - |
-| `NumberFormatOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__numberformatoptions.localeMatcher?` | 📋 Planned | - |
-| `NumberFormatOptions.maximumFractionDigits?: number \| undefined` | `maximumFractionDigits?: number \| undefined` | `__numberformatoptions.maximumFractionDigits?` | 📋 Planned | - |
-| `NumberFormatOptions.maximumSignificantDigits?: number \| undefined` | `maximumSignificantDigits?: number \| undefined` | `__numberformatoptions.maximumSignificantDigits?` | 📋 Planned | - |
-| `NumberFormatOptions.minimumFractionDigits?: number \| undefined` | `minimumFractionDigits?: number \| undefined` | `__numberformatoptions.minimumFractionDigits?` | 📋 Planned | - |
-| `NumberFormatOptions.minimumIntegerDigits?: number \| undefined` | `minimumIntegerDigits?: number \| undefined` | `__numberformatoptions.minimumIntegerDigits?` | 📋 Planned | - |
-| `NumberFormatOptions.minimumSignificantDigits?: number \| undefined` | `minimumSignificantDigits?: number \| undefined` | `__numberformatoptions.minimumSignificantDigits?` | 📋 Planned | - |
-| `NumberFormatOptions.notation?: "standard" \| "scientific" \| "engineering" \| "compact" \| undefined` | `notation?: "standard" \| "scientific" \| "engineering" \| "compact" \| undefined` | `__numberformatoptions.notation?` | 📋 Planned | - |
-| `NumberFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__numberformatoptions.numberingSystem?` | 📋 Planned | - |
-| `NumberFormatOptions.roundingIncrement?: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000 \| undefined` | `roundingIncrement?: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000 \| undefined` | `__numberformatoptions.roundingIncrement?` | 📋 Planned | - |
-| `NumberFormatOptions.roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `__numberformatoptions.roundingMode?` | 📋 Planned | - |
-| `NumberFormatOptions.roundingPriority?: "auto" \| "morePrecision" \| "lessPrecision" \| undefined` | `roundingPriority?: "auto" \| "morePrecision" \| "lessPrecision" \| undefined` | `__numberformatoptions.roundingPriority?` | 📋 Planned | - |
-| `NumberFormatOptions.signDisplay?: NumberFormatOptionsSignDisplay \| undefined` | `signDisplay?: NumberFormatOptionsSignDisplay \| undefined` | `__numberformatoptions.signDisplay?` | 📋 Planned | - |
-| `NumberFormatOptions.style?: NumberFormatOptionsStyle \| undefined` | `style?: NumberFormatOptionsStyle \| undefined` | `__numberformatoptions.style?` | 📋 Planned | - |
-| `NumberFormatOptions.trailingZeroDisplay?: "auto" \| "stripIfInteger" \| undefined` | `trailingZeroDisplay?: "auto" \| "stripIfInteger" \| undefined` | `__numberformatoptions.trailingZeroDisplay?` | 📋 Planned | - |
-| `NumberFormatOptions.unit?: string \| undefined` | `unit?: string \| undefined` | `__numberformatoptions.unit?` | 📋 Planned | - |
-| `NumberFormatOptions.unitDisplay?: "short" \| "long" \| "narrow" \| undefined` | `unitDisplay?: "short" \| "long" \| "narrow" \| undefined` | `__numberformatoptions.unitDisplay?` | 📋 Planned | - |
-| `NumberFormatOptions.useGrouping?: NumberFormatOptionsUseGrouping \| undefined` | `useGrouping?: NumberFormatOptionsUseGrouping \| undefined` | `__numberformatoptions.useGrouping?` | 📋 Planned | - |
+| `NumberFormatOptions.compactDisplay?: "short" \| "long" \| undefined` | `compactDisplay?: "short" \| "long" \| undefined` | `__numberformatoptions.compactDisplay` | 📋 Planned | - |
+| `NumberFormatOptions.currency?: string \| undefined` | `currency?: string \| undefined` | `__numberformatoptions.currency` | 📋 Planned | - |
+| `NumberFormatOptions.currencyDisplay?: NumberFormatOptionsCurrencyDisplay \| undefined` | `currencyDisplay?: NumberFormatOptionsCurrencyDisplay \| undefined` | `__numberformatoptions.currencyDisplay` | 📋 Planned | - |
+| `NumberFormatOptions.currencySign?: "standard" \| "accounting" \| undefined` | `currencySign?: "standard" \| "accounting" \| undefined` | `__numberformatoptions.currencySign` | 📋 Planned | - |
+| `NumberFormatOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__numberformatoptions.localeMatcher` | 📋 Planned | - |
+| `NumberFormatOptions.maximumFractionDigits?: number \| undefined` | `maximumFractionDigits?: number \| undefined` | `__numberformatoptions.maximumFractionDigits` | 📋 Planned | - |
+| `NumberFormatOptions.maximumSignificantDigits?: number \| undefined` | `maximumSignificantDigits?: number \| undefined` | `__numberformatoptions.maximumSignificantDigits` | 📋 Planned | - |
+| `NumberFormatOptions.minimumFractionDigits?: number \| undefined` | `minimumFractionDigits?: number \| undefined` | `__numberformatoptions.minimumFractionDigits` | 📋 Planned | - |
+| `NumberFormatOptions.minimumIntegerDigits?: number \| undefined` | `minimumIntegerDigits?: number \| undefined` | `__numberformatoptions.minimumIntegerDigits` | 📋 Planned | - |
+| `NumberFormatOptions.minimumSignificantDigits?: number \| undefined` | `minimumSignificantDigits?: number \| undefined` | `__numberformatoptions.minimumSignificantDigits` | 📋 Planned | - |
+| `NumberFormatOptions.notation?: "standard" \| "scientific" \| "engineering" \| "compact" \| undefined` | `notation?: "standard" \| "scientific" \| "engineering" \| "compact" \| undefined` | `__numberformatoptions.notation` | 📋 Planned | - |
+| `NumberFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__numberformatoptions.numberingSystem` | 📋 Planned | - |
+| `NumberFormatOptions.roundingIncrement?: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000 \| undefined` | `roundingIncrement?: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000 \| undefined` | `__numberformatoptions.roundingIncrement` | 📋 Planned | - |
+| `NumberFormatOptions.roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `roundingMode?: "ceil" \| "floor" \| "expand" \| "trunc" \| "halfCeil" \| "halfFloor" \| "halfExpand" \| "halfTrunc" \| "halfEven" \| undefined` | `__numberformatoptions.roundingMode` | 📋 Planned | - |
+| `NumberFormatOptions.roundingPriority?: "auto" \| "morePrecision" \| "lessPrecision" \| undefined` | `roundingPriority?: "auto" \| "morePrecision" \| "lessPrecision" \| undefined` | `__numberformatoptions.roundingPriority` | 📋 Planned | - |
+| `NumberFormatOptions.signDisplay?: NumberFormatOptionsSignDisplay \| undefined` | `signDisplay?: NumberFormatOptionsSignDisplay \| undefined` | `__numberformatoptions.signDisplay` | 📋 Planned | - |
+| `NumberFormatOptions.style?: NumberFormatOptionsStyle \| undefined` | `style?: NumberFormatOptionsStyle \| undefined` | `__numberformatoptions.style` | 📋 Planned | - |
+| `NumberFormatOptions.trailingZeroDisplay?: "auto" \| "stripIfInteger" \| undefined` | `trailingZeroDisplay?: "auto" \| "stripIfInteger" \| undefined` | `__numberformatoptions.trailingZeroDisplay` | 📋 Planned | - |
+| `NumberFormatOptions.unit?: string \| undefined` | `unit?: string \| undefined` | `__numberformatoptions.unit` | 📋 Planned | - |
+| `NumberFormatOptions.unitDisplay?: "short" \| "long" \| "narrow" \| undefined` | `unitDisplay?: "short" \| "long" \| "narrow" \| undefined` | `__numberformatoptions.unitDisplay` | 📋 Planned | - |
+| `NumberFormatOptions.useGrouping?: NumberFormatOptionsUseGrouping \| undefined` | `useGrouping?: NumberFormatOptionsUseGrouping \| undefined` | `__numberformatoptions.useGrouping` | 📋 Planned | - |
 
 ---
 

@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `OverflowOptions.overflow?: "constrain" \| "reject" \| undefined` | `overflow?: "constrain" \| "reject" \| undefined` | `__overflowoptions.overflow?` | 📋 Planned | - |
+| `OverflowOptions.overflow?: "constrain" \| "reject" \| undefined` | `overflow?: "constrain" \| "reject" \| undefined` | `__overflowoptions.overflow` | 📋 Planned | - |
 
 ---
 

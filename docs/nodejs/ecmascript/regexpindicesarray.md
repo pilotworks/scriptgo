@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `RegExpIndicesArray.groups?: {` | `groups?: {` | `__regexpindicesarray.groups?` | 📋 Planned | - |
-| `RegExpIndicesArray.}` | `}` | `__regexpindicesarray.}` | 📋 Planned | - |
+| `RegExpIndicesArray.groups?: { [key: string]: [number, number]` | `groups?: { [key: string]: [number, number]` | `__regexpindicesarray.groups` | 📋 Planned | - |
 
 ---
 

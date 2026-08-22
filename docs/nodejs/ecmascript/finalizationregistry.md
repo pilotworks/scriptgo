@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `FinalizationRegistry.readonly prototype: FinalizationRegistry<any>` | `readonly prototype: FinalizationRegistry<any>` | `__finalizationregistry.prototype` | 📋 Planned | - |
+| `FinalizationRegistry.new <T>(cleanupCallback: (heldValue: T) => void): FinalizationRegistry<T>` | `new <T>(cleanupCallback: (heldValue: T) => void): FinalizationRegistry<T>` | `__finalizationregistry.new` | 📋 Planned | - |
 | `FinalizationRegistry.register(target: WeakKey, heldValue: T, unregisterToken?: WeakKey): void` | `register(target: WeakKey, heldValue: T, unregisterToken?: WeakKey): void` | `__finalizationregistry.register` | 📋 Planned | - |
 | `FinalizationRegistry.unregister(unregisterToken: WeakKey): boolean` | `unregister(unregisterToken: WeakKey): boolean` | `__finalizationregistry.unregister` | 📋 Planned | - |
 

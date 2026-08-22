@@ -21,14 +21,14 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `clearImmediate(immediate)` | `(...) => any` | `__timers.clearImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/clearImmediate/` |
-| `clearTimeout(timeout)` | `(...) => any` | `__timers.clearTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/clearTimeout/` |
-| `setImmediate(callback[, ...args])` | `(...) => any` | `__timers.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setImmediate/` |
-| `setInterval(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setInterval/` |
-| `setTimeout(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setTimeout/` |
-| `timersPromises.setImmediate([value[, options]])` | `(...) => any` | `__timers.timersPromises.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setImmediate/` |
-| `timersPromises.setInterval([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setInterval/` |
-| `timersPromises.setTimeout([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers/setTimeout/` |
+| `clearImmediate(immediate)` | `(...) => any` | `__timers.clearImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `clearTimeout(timeout)` | `(...) => any` | `__timers.clearTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setImmediate(callback[, ...args])` | `(...) => any` | `__timers.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setInterval(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setTimeout(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setImmediate([value[, options]])` | `(...) => any` | `__timers.timersPromises.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setInterval([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setTimeout([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
 | `Immediate` | `(...) => any` | `__timers.Immediate` | 📋 Planned | - |
 | `Timeout` | `(...) => any` | `__timers.Timeout` | 📋 Planned | - |
 | `clearInterval(timeout)` | `(...) => any` | `__timers.clearInterval` | 📋 Planned | - |

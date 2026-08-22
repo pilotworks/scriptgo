@@ -21,10 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Boolean.<T>(value?: T): boolean` | `<T>(value?: T): boolean` | `__boolean.<T>` | 📋 Planned | - |
-| `Boolean.new (value?: any): Boolean` | `new (value?: any): Boolean` | `__boolean.new` | 📋 Planned | - |
-| `Boolean.readonly prototype: Boolean` | `readonly prototype: Boolean` | `__boolean.prototype` | 📋 Planned | - |
 | `Boolean.valueOf(): boolean` | `valueOf(): boolean` | `__boolean.valueOf` | 📋 Planned | - |
+| `new Boolean(value?: any): Boolean` | `new (value?: any): Boolean` | `__boolean.new` | 📋 Planned | - |
 
 ---
 

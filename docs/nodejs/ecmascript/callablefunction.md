@@ -21,7 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `CallableFunction.bind<T>(this: T, thisArg: ThisParameterType<T>): OmitThisParameter<T>` | `bind<T>(this: T, thisArg: ThisParameterType<T>): OmitThisParameter<T>` | `__callablefunction.bind<T>` | 📋 Planned | - |
+| `CallableFunction.apply<T, R>(this: (this: T) => R, thisArg: T): R` | `apply<T, R>(this: (this: T) => R, thisArg: T): R` | `__callablefunction.apply` | 📋 Planned | - |
+| `CallableFunction.bind<T>(this: T, thisArg: ThisParameterType<T>): OmitThisParameter<T>` | `bind<T>(this: T, thisArg: ThisParameterType<T>): OmitThisParameter<T>` | `__callablefunction.bind` | 📋 Planned | - |
+| `CallableFunction.call<T, A extends any[], R>(this: (this: T, ...args: A) => R, thisArg: T, ...args: A): R` | `call<T, A extends any[], R>(this: (this: T, ...args: A) => R, thisArg: T, ...args: A): R` | `__callablefunction.call` | 📋 Planned | - |
 
 ---
 

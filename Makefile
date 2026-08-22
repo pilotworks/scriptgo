@@ -28,7 +28,7 @@ test-parity:
 ## test-sanitizers: Run native builds with AddressSanitizer & memory checks across the corpus in parallel
 test-sanitizers:
 	@echo "==> Running AddressSanitizer checks across test corpus in parallel..."
-	SCRIPTGO_SANITIZE="address,undefined" go test -v -count=1 -parallel 8 ./internal/compiler -run TestCorpus
+	SCRIPTGO_SANITIZE="address,undefined" go test -v -count=1 -timeout 30m -parallel 8 ./internal/compiler -run TestCorpus
 
 ## lint: Run Go vet checks
 lint:

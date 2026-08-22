@@ -21,13 +21,12 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Error.cause?: unknown` | `cause?: unknown` | `__error.cause?` | 📋 Planned | - |
+| `Error.cause?: unknown` | `cause?: unknown` | `__error.cause` | 📋 Planned | - |
 | `Error.isError(error: unknown): error is Error` | `isError(error: unknown): error is Error` | `__error.isError` | 📋 Planned | - |
 | `Error.message: string` | `message: string` | `__error.message` | 📋 Planned | - |
 | `Error.name: string` | `name: string` | `__error.name` | 📋 Planned | - |
-| `Error.new (message?: string, options?: ErrorOptions): Error` | `new (message?: string, options?: ErrorOptions): Error` | `__error.new` | 📋 Planned | - |
-| `Error.readonly prototype: Error` | `readonly prototype: Error` | `__error.prototype` | 📋 Planned | - |
-| `Error.stack?: string` | `stack?: string` | `__error.stack?` | 📋 Planned | - |
+| `Error.stack?: string` | `stack?: string` | `__error.stack` | 📋 Planned | - |
+| `new Error(message?: string, options?: ErrorOptions): Error` | `new (message?: string, options?: ErrorOptions): Error` | `__error.new` | 📋 Planned | - |
 
 ---
 

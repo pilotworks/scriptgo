@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ZonedDateTimeFromOptions.offset?: "use" \| "ignore" \| "prefer" \| "reject" \| undefined` | `offset?: "use" \| "ignore" \| "prefer" \| "reject" \| undefined` | `__zoneddatetimefromoptions.offset?` | 📋 Planned | - |
+| `ZonedDateTimeFromOptions.offset?: "use" \| "ignore" \| "prefer" \| "reject" \| undefined` | `offset?: "use" \| "ignore" \| "prefer" \| "reject" \| undefined` | `__zoneddatetimefromoptions.offset` | 📋 Planned | - |
 
 ---
 

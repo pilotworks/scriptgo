@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `CollatorOptions.caseFirst?: "upper" \| "lower" \| "false" \| undefined` | `caseFirst?: "upper" \| "lower" \| "false" \| undefined` | `__collatoroptions.caseFirst?` | 📋 Planned | - |
-| `CollatorOptions.collation?: "big5han" \| "compat" \| "default" \| "dict" \| "direct" \| "ducet" \| "emoji" \| "eor" \| "gb2312" \| "phonebk" \| "phonetic" \| "pinyin" \| "reformed" \| "searchjl" \| "stroke" \| "trad" \| "unihan" \| "zhuyin" \| undefined` | `collation?: "big5han" \| "compat" \| "default" \| "dict" \| "direct" \| "ducet" \| "emoji" \| "eor" \| "gb2312" \| "phonebk" \| "phonetic" \| "pinyin" \| "reformed" \| "searchjl" \| "stroke" \| "trad" \| "unihan" \| "zhuyin" \| undefined` | `__collatoroptions.collation?` | 📋 Planned | - |
-| `CollatorOptions.ignorePunctuation?: boolean \| undefined` | `ignorePunctuation?: boolean \| undefined` | `__collatoroptions.ignorePunctuation?` | 📋 Planned | - |
-| `CollatorOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__collatoroptions.localeMatcher?` | 📋 Planned | - |
-| `CollatorOptions.numeric?: boolean \| undefined` | `numeric?: boolean \| undefined` | `__collatoroptions.numeric?` | 📋 Planned | - |
-| `CollatorOptions.sensitivity?: "base" \| "accent" \| "case" \| "variant" \| undefined` | `sensitivity?: "base" \| "accent" \| "case" \| "variant" \| undefined` | `__collatoroptions.sensitivity?` | 📋 Planned | - |
-| `CollatorOptions.usage?: "sort" \| "search" \| undefined` | `usage?: "sort" \| "search" \| undefined` | `__collatoroptions.usage?` | 📋 Planned | - |
+| `CollatorOptions.caseFirst?: "upper" \| "lower" \| "false" \| undefined` | `caseFirst?: "upper" \| "lower" \| "false" \| undefined` | `__collatoroptions.caseFirst` | 📋 Planned | - |
+| `CollatorOptions.collation?: "big5han" \| "compat" \| "default" \| "dict" \| "direct" \| "ducet" \| "emoji" \| "eor" \| "gb2312" \| "phonebk" \| "phonetic" \| "pinyin" \| "reformed" \| "searchjl" \| "stroke" \| "trad" \| "unihan" \| "zhuyin" \| undefined` | `collation?: "big5han" \| "compat" \| "default" \| "dict" \| "direct" \| "ducet" \| "emoji" \| "eor" \| "gb2312" \| "phonebk" \| "phonetic" \| "pinyin" \| "reformed" \| "searchjl" \| "stroke" \| "trad" \| "unihan" \| "zhuyin" \| undefined` | `__collatoroptions.collation` | 📋 Planned | - |
+| `CollatorOptions.ignorePunctuation?: boolean \| undefined` | `ignorePunctuation?: boolean \| undefined` | `__collatoroptions.ignorePunctuation` | 📋 Planned | - |
+| `CollatorOptions.localeMatcher?: "lookup" \| "best fit" \| undefined` | `localeMatcher?: "lookup" \| "best fit" \| undefined` | `__collatoroptions.localeMatcher` | 📋 Planned | - |
+| `CollatorOptions.numeric?: boolean \| undefined` | `numeric?: boolean \| undefined` | `__collatoroptions.numeric` | 📋 Planned | - |
+| `CollatorOptions.sensitivity?: "base" \| "accent" \| "case" \| "variant" \| undefined` | `sensitivity?: "base" \| "accent" \| "case" \| "variant" \| undefined` | `__collatoroptions.sensitivity` | 📋 Planned | - |
+| `CollatorOptions.usage?: "sort" \| "search" \| undefined` | `usage?: "sort" \| "search" \| undefined` | `__collatoroptions.usage` | 📋 Planned | - |
 
 ---
 

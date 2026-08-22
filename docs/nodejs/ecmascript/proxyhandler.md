@@ -21,19 +21,19 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ProxyHandler.apply?(target: T, thisArg: any, argArray: any[]): any` | `apply?(target: T, thisArg: any, argArray: any[]): any` | `__proxyhandler.apply?` | 📋 Planned | - |
-| `ProxyHandler.construct?(target: T, argArray: any[], newTarget: Function): object` | `construct?(target: T, argArray: any[], newTarget: Function): object` | `__proxyhandler.construct?` | 📋 Planned | - |
-| `ProxyHandler.defineProperty?(target: T, property: string \| symbol, attributes: PropertyDescriptor): boolean` | `defineProperty?(target: T, property: string \| symbol, attributes: PropertyDescriptor): boolean` | `__proxyhandler.defineProperty?` | 📋 Planned | - |
-| `ProxyHandler.deleteProperty?(target: T, p: string \| symbol): boolean` | `deleteProperty?(target: T, p: string \| symbol): boolean` | `__proxyhandler.deleteProperty?` | 📋 Planned | - |
-| `ProxyHandler.get?(target: T, p: string \| symbol, receiver: any): any` | `get?(target: T, p: string \| symbol, receiver: any): any` | `__proxyhandler.get?` | 📋 Planned | - |
-| `ProxyHandler.getOwnPropertyDescriptor?(target: T, p: string \| symbol): PropertyDescriptor \| undefined` | `getOwnPropertyDescriptor?(target: T, p: string \| symbol): PropertyDescriptor \| undefined` | `__proxyhandler.getOwnPropertyDescriptor?` | 📋 Planned | - |
-| `ProxyHandler.getPrototypeOf?(target: T): object \| null` | `getPrototypeOf?(target: T): object \| null` | `__proxyhandler.getPrototypeOf?` | 📋 Planned | - |
-| `ProxyHandler.has?(target: T, p: string \| symbol): boolean` | `has?(target: T, p: string \| symbol): boolean` | `__proxyhandler.has?` | 📋 Planned | - |
-| `ProxyHandler.isExtensible?(target: T): boolean` | `isExtensible?(target: T): boolean` | `__proxyhandler.isExtensible?` | 📋 Planned | - |
-| `ProxyHandler.ownKeys?(target: T): ArrayLike<string \| symbol>` | `ownKeys?(target: T): ArrayLike<string \| symbol>` | `__proxyhandler.ownKeys?` | 📋 Planned | - |
-| `ProxyHandler.preventExtensions?(target: T): boolean` | `preventExtensions?(target: T): boolean` | `__proxyhandler.preventExtensions?` | 📋 Planned | - |
-| `ProxyHandler.set?(target: T, p: string \| symbol, newValue: any, receiver: any): boolean` | `set?(target: T, p: string \| symbol, newValue: any, receiver: any): boolean` | `__proxyhandler.set?` | 📋 Planned | - |
-| `ProxyHandler.setPrototypeOf?(target: T, v: object \| null): boolean` | `setPrototypeOf?(target: T, v: object \| null): boolean` | `__proxyhandler.setPrototypeOf?` | 📋 Planned | - |
+| `ProxyHandler.apply?(target: T, thisArg: any, argArray: any[]): any` | `apply?(target: T, thisArg: any, argArray: any[]): any` | `__proxyhandler.apply` | 📋 Planned | - |
+| `ProxyHandler.construct?(target: T, argArray: any[], newTarget: Function): object` | `construct?(target: T, argArray: any[], newTarget: Function): object` | `__proxyhandler.construct` | 📋 Planned | - |
+| `ProxyHandler.defineProperty?(target: T, property: string \| symbol, attributes: PropertyDescriptor): boolean` | `defineProperty?(target: T, property: string \| symbol, attributes: PropertyDescriptor): boolean` | `__proxyhandler.defineProperty` | 📋 Planned | - |
+| `ProxyHandler.deleteProperty?(target: T, p: string \| symbol): boolean` | `deleteProperty?(target: T, p: string \| symbol): boolean` | `__proxyhandler.deleteProperty` | 📋 Planned | - |
+| `ProxyHandler.get?(target: T, p: string \| symbol, receiver: any): any` | `get?(target: T, p: string \| symbol, receiver: any): any` | `__proxyhandler.get` | 📋 Planned | - |
+| `ProxyHandler.getOwnPropertyDescriptor?(target: T, p: string \| symbol): PropertyDescriptor \| undefined` | `getOwnPropertyDescriptor?(target: T, p: string \| symbol): PropertyDescriptor \| undefined` | `__proxyhandler.getOwnPropertyDescriptor` | 📋 Planned | - |
+| `ProxyHandler.getPrototypeOf?(target: T): object \| null` | `getPrototypeOf?(target: T): object \| null` | `__proxyhandler.getPrototypeOf` | 📋 Planned | - |
+| `ProxyHandler.has?(target: T, p: string \| symbol): boolean` | `has?(target: T, p: string \| symbol): boolean` | `__proxyhandler.has` | 📋 Planned | - |
+| `ProxyHandler.isExtensible?(target: T): boolean` | `isExtensible?(target: T): boolean` | `__proxyhandler.isExtensible` | 📋 Planned | - |
+| `ProxyHandler.ownKeys?(target: T): ArrayLike<string \| symbol>` | `ownKeys?(target: T): ArrayLike<string \| symbol>` | `__proxyhandler.ownKeys` | 📋 Planned | - |
+| `ProxyHandler.preventExtensions?(target: T): boolean` | `preventExtensions?(target: T): boolean` | `__proxyhandler.preventExtensions` | 📋 Planned | - |
+| `ProxyHandler.set?(target: T, p: string \| symbol, newValue: any, receiver: any): boolean` | `set?(target: T, p: string \| symbol, newValue: any, receiver: any): boolean` | `__proxyhandler.set` | 📋 Planned | - |
+| `ProxyHandler.setPrototypeOf?(target: T, v: object \| null): boolean` | `setPrototypeOf?(target: T, v: object \| null): boolean` | `__proxyhandler.setPrototypeOf` | 📋 Planned | - |
 
 ---
 

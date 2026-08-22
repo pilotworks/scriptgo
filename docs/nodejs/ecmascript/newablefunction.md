@@ -21,8 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `NewableFunction.apply<T>(this: new () => T, thisArg: T): void` | `apply<T>(this: new () => T, thisArg: T): void` | `__newablefunction.apply<T>` | 📋 Planned | - |
-| `NewableFunction.bind<T>(this: T, thisArg: any): T` | `bind<T>(this: T, thisArg: any): T` | `__newablefunction.bind<T>` | 📋 Planned | - |
+| `NewableFunction.apply<T>(this: new () => T, thisArg: T): void` | `apply<T>(this: new () => T, thisArg: T): void` | `__newablefunction.apply` | 📋 Planned | - |
+| `NewableFunction.bind<T>(this: T, thisArg: any): T` | `bind<T>(this: T, thisArg: any): T` | `__newablefunction.bind` | 📋 Planned | - |
+| `NewableFunction.call<T, A extends any[]>(this: new (...args: A) => T, thisArg: T, ...args: A): void` | `call<T, A extends any[]>(this: new (...args: A) => T, thisArg: T, ...args: A): void` | `__newablefunction.call` | 📋 Planned | - |
 
 ---
 

@@ -21,15 +21,14 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Number.isFinite(number: unknown): boolean` | `isFinite(number: unknown): boolean` | `__number.isFinite` | ✅ Done | `internal/compiler/testdata/corpus/api/number/isFinite/` |
-| `Number.isInteger(number: unknown): boolean` | `isInteger(number: unknown): boolean` | `__number.isInteger` | ✅ Done | `internal/compiler/testdata/corpus/api/number/isInteger/` |
-| `Number.isNaN(number: unknown): boolean` | `isNaN(number: unknown): boolean` | `__number.isNaN` | ✅ Done | `internal/compiler/testdata/corpus/api/number/isNaN/` |
-| `Number.parseFloat(string: string): number` | `parseFloat(string: string): number` | `__number.parseFloat` | ✅ Done | `internal/compiler/testdata/corpus/api/number/parseFloat/` |
-| `Number.parseInt(string: string, radix?: number): number` | `parseInt(string: string, radix?: number): number` | `__number.parseInt` | ✅ Done | `internal/compiler/testdata/corpus/api/number/parseInt/` |
-| `Number.toFixed(fractionDigits?: number): string` | `toFixed(fractionDigits?: number): string` | `__number.toFixed` | ✅ Done | `internal/compiler/testdata/corpus/api/number/toFixed/` |
-| `Number.toString(radix?: number): string` | `toString(radix?: number): string` | `__number.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/number/toString/` |
+| `Number.isFinite(number: unknown): boolean` | `isFinite(number: unknown): boolean` | `__number.isFinite` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.isInteger(number: unknown): boolean` | `isInteger(number: unknown): boolean` | `__number.isInteger` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.isNaN(number: unknown): boolean` | `isNaN(number: unknown): boolean` | `__number.isNaN` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.parseFloat(string: string): number` | `parseFloat(string: string): number` | `__number.parseFloat` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.parseInt(string: string, radix?: number): number` | `parseInt(string: string, radix?: number): number` | `__number.parseInt` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.toFixed(fractionDigits?: number): string` | `toFixed(fractionDigits?: number): string` | `__number.toFixed` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.toString(radix?: number): string` | `toString(radix?: number): string` | `__number.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.isSafeInteger(number: unknown): boolean` | `isSafeInteger(number: unknown): boolean` | `__number.isSafeInteger` | 📋 Planned | - |
-| `Number.new (value?: any): Number` | `new (value?: any): Number` | `__number.new` | 📋 Planned | - |
 | `Number.readonly EPSILON: number` | `readonly EPSILON: number` | `__number.EPSILON` | 📋 Planned | - |
 | `Number.readonly MAX_SAFE_INTEGER: number` | `readonly MAX_SAFE_INTEGER: number` | `__number.MAX_SAFE_INTEGER` | 📋 Planned | - |
 | `Number.readonly MAX_VALUE: number` | `readonly MAX_VALUE: number` | `__number.MAX_VALUE` | 📋 Planned | - |
@@ -38,11 +37,11 @@ Provide a concise technical summary:
 | `Number.readonly NEGATIVE_INFINITY: number` | `readonly NEGATIVE_INFINITY: number` | `__number.NEGATIVE_INFINITY` | 📋 Planned | - |
 | `Number.readonly NaN: number` | `readonly NaN: number` | `__number.NaN` | 📋 Planned | - |
 | `Number.readonly POSITIVE_INFINITY: number` | `readonly POSITIVE_INFINITY: number` | `__number.POSITIVE_INFINITY` | 📋 Planned | - |
-| `Number.readonly prototype: Number` | `readonly prototype: Number` | `__number.prototype` | 📋 Planned | - |
 | `Number.toExponential(fractionDigits?: number): string` | `toExponential(fractionDigits?: number): string` | `__number.toExponential` | 📋 Planned | - |
 | `Number.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `__number.toLocaleString` | 📋 Planned | - |
 | `Number.toPrecision(precision?: number): string` | `toPrecision(precision?: number): string` | `__number.toPrecision` | 📋 Planned | - |
 | `Number.valueOf(): number` | `valueOf(): number` | `__number.valueOf` | 📋 Planned | - |
+| `new Number(value?: any): Number` | `new (value?: any): Number` | `__number.new` | 📋 Planned | - |
 
 ---
 

@@ -21,8 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ReferenceError.new (message?: string, options?: ErrorOptions): ReferenceError` | `new (message?: string, options?: ErrorOptions): ReferenceError` | `__referenceerror.new` | 📋 Planned | - |
-| `ReferenceError.readonly prototype: ReferenceError` | `readonly prototype: ReferenceError` | `__referenceerror.prototype` | 📋 Planned | - |
+| `new ReferenceError(message?: string, options?: ErrorOptions): ReferenceError` | `new (message?: string, options?: ErrorOptions): ReferenceError` | `__referenceerror.new` | 📋 Planned | - |
 
 ---
 

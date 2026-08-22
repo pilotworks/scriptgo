@@ -23,7 +23,7 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `SegmentData.index: number` | `index: number` | `__segmentdata.index` | 📋 Planned | - |
 | `SegmentData.input: string` | `input: string` | `__segmentdata.input` | 📋 Planned | - |
-| `SegmentData.isWordLike?: boolean` | `isWordLike?: boolean` | `__segmentdata.isWordLike?` | 📋 Planned | - |
+| `SegmentData.isWordLike?: boolean` | `isWordLike?: boolean` | `__segmentdata.isWordLike` | 📋 Planned | - |
 | `SegmentData.segment: string` | `segment: string` | `__segmentdata.segment` | 📋 Planned | - |
 
 ---

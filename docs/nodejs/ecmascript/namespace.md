@@ -21,17 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `namespace.): R` | `): R` | `__namespace.)` | 📋 Planned | - |
-| `namespace.argumentsList: Readonly<A>,` | `argumentsList: Readonly<A>,` | `__namespace.argumentsList` | 📋 Planned | - |
-| `namespace.newTarget?: new (...args: any) => any,` | `newTarget?: new (...args: any) => any,` | `__namespace.newTarget?` | 📋 Planned | - |
-| `namespace.propertyKey: P,` | `propertyKey: P,` | `__namespace.propertyKey` | 📋 Planned | - |
-| `namespace.receiver?: unknown,` | `receiver?: unknown,` | `__namespace.receiver?` | 📋 Planned | - |
-| `namespace.target: (this: T, ...args: A) => R,` | `target: (this: T, ...args: A) => R,` | `__namespace.target` | 📋 Planned | - |
-| `namespace.thisArgument: T,` | `thisArgument: T,` | `__namespace.thisArgument` | 📋 Planned | - |
-| `namespace.type: "literal"` | `type: "literal"` | `__namespace.type` | 📋 Planned | - |
-| `namespace.unit?: DurationFormatUnitSingular` | `unit?: DurationFormatUnitSingular` | `__namespace.unit?` | 📋 Planned | - |
-| `namespace.value: P extends keyof T ? T[P] : any,` | `value: P extends keyof T ? T[P] : any,` | `__namespace.value` | 📋 Planned | - |
-| `namespace.}` | `}` | `__namespace.}` | 📋 Planned | - |
+| `namespace.unit?: DurationFormatUnitSingular` | `unit?: DurationFormatUnitSingular` | `__namespace.unit` | 📋 Planned | - |
+| `namespace.value: string` | `value: string` | `__namespace.value` | 📋 Planned | - |
 
 ---
 

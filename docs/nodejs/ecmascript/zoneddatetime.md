@@ -26,7 +26,6 @@ Provide a concise technical summary:
 | `ZonedDateTime.equals(other: ZonedDateTimeLike): boolean` | `equals(other: ZonedDateTimeLike): boolean` | `__zoneddatetime.equals` | 📋 Planned | - |
 | `ZonedDateTime.from(item: ZonedDateTimeLike, options?: ZonedDateTimeFromOptions): ZonedDateTime` | `from(item: ZonedDateTimeLike, options?: ZonedDateTimeFromOptions): ZonedDateTime` | `__zoneddatetime.from` | 📋 Planned | - |
 | `ZonedDateTime.getTimeZoneTransition(direction: "next" \| "previous"): ZonedDateTime \| null` | `getTimeZoneTransition(direction: "next" \| "previous"): ZonedDateTime \| null` | `__zoneddatetime.getTimeZoneTransition` | 📋 Planned | - |
-| `ZonedDateTime.new (epochNanoseconds: bigint, timeZone: string, calendar?: string): ZonedDateTime` | `new (epochNanoseconds: bigint, timeZone: string, calendar?: string): ZonedDateTime` | `__zoneddatetime.new` | 📋 Planned | - |
 | `ZonedDateTime.readonly calendarId: string` | `readonly calendarId: string` | `__zoneddatetime.calendarId` | 📋 Planned | - |
 | `ZonedDateTime.readonly day: number` | `readonly day: number` | `__zoneddatetime.day` | 📋 Planned | - |
 | `ZonedDateTime.readonly dayOfWeek: number` | `readonly dayOfWeek: number` | `__zoneddatetime.dayOfWeek` | 📋 Planned | - |
@@ -50,7 +49,6 @@ Provide a concise technical summary:
 | `ZonedDateTime.readonly nanosecond: number` | `readonly nanosecond: number` | `__zoneddatetime.nanosecond` | 📋 Planned | - |
 | `ZonedDateTime.readonly offset: string` | `readonly offset: string` | `__zoneddatetime.offset` | 📋 Planned | - |
 | `ZonedDateTime.readonly offsetNanoseconds: number` | `readonly offsetNanoseconds: number` | `__zoneddatetime.offsetNanoseconds` | 📋 Planned | - |
-| `ZonedDateTime.readonly prototype: ZonedDateTime` | `readonly prototype: ZonedDateTime` | `__zoneddatetime.prototype` | 📋 Planned | - |
 | `ZonedDateTime.readonly second: number` | `readonly second: number` | `__zoneddatetime.second` | 📋 Planned | - |
 | `ZonedDateTime.readonly timeZoneId: string` | `readonly timeZoneId: string` | `__zoneddatetime.timeZoneId` | 📋 Planned | - |
 | `ZonedDateTime.readonly weekOfYear: number \| undefined` | `readonly weekOfYear: number \| undefined` | `__zoneddatetime.weekOfYear` | 📋 Planned | - |
@@ -73,6 +71,7 @@ Provide a concise technical summary:
 | `ZonedDateTime.withCalendar(calendar: CalendarLike): ZonedDateTime` | `withCalendar(calendar: CalendarLike): ZonedDateTime` | `__zoneddatetime.withCalendar` | 📋 Planned | - |
 | `ZonedDateTime.withPlainTime(plainTime?: PlainTimeLike): ZonedDateTime` | `withPlainTime(plainTime?: PlainTimeLike): ZonedDateTime` | `__zoneddatetime.withPlainTime` | 📋 Planned | - |
 | `ZonedDateTime.withTimeZone(timeZone: TimeZoneLike): ZonedDateTime` | `withTimeZone(timeZone: TimeZoneLike): ZonedDateTime` | `__zoneddatetime.withTimeZone` | 📋 Planned | - |
+| `new ZonedDateTime(epochNanoseconds: bigint, timeZone: string, calendar?: string): ZonedDateTime` | `new (epochNanoseconds: bigint, timeZone: string, calendar?: string): ZonedDateTime` | `__zoneddatetime.new` | 📋 Planned | - |
 
 ---
 

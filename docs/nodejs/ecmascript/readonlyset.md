@@ -21,18 +21,18 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ReadonlySet.difference<U>(other: ReadonlySetLike<U>): Set<T>` | `difference<U>(other: ReadonlySetLike<U>): Set<T>` | `__readonlyset.difference<U>` | 📋 Planned | - |
+| `ReadonlySet.difference<U>(other: ReadonlySetLike<U>): Set<T>` | `difference<U>(other: ReadonlySetLike<U>): Set<T>` | `__readonlyset.difference` | 📋 Planned | - |
 | `ReadonlySet.entries(): SetIterator<[T, T]>` | `entries(): SetIterator<[T, T]>` | `__readonlyset.entries` | 📋 Planned | - |
 | `ReadonlySet.forEach(callbackfn: (value: T, value2: T, set: ReadonlySet<T>) => void, thisArg?: any): void` | `forEach(callbackfn: (value: T, value2: T, set: ReadonlySet<T>) => void, thisArg?: any): void` | `__readonlyset.forEach` | 📋 Planned | - |
 | `ReadonlySet.has(value: T): boolean` | `has(value: T): boolean` | `__readonlyset.has` | 📋 Planned | - |
-| `ReadonlySet.intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `__readonlyset.intersection<U>` | 📋 Planned | - |
+| `ReadonlySet.intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `intersection<U>(other: ReadonlySetLike<U>): Set<T & U>` | `__readonlyset.intersection` | 📋 Planned | - |
 | `ReadonlySet.isDisjointFrom(other: ReadonlySetLike<unknown>): boolean` | `isDisjointFrom(other: ReadonlySetLike<unknown>): boolean` | `__readonlyset.isDisjointFrom` | 📋 Planned | - |
 | `ReadonlySet.isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `__readonlyset.isSubsetOf` | 📋 Planned | - |
 | `ReadonlySet.isSupersetOf(other: ReadonlySetLike<unknown>): boolean` | `isSupersetOf(other: ReadonlySetLike<unknown>): boolean` | `__readonlyset.isSupersetOf` | 📋 Planned | - |
 | `ReadonlySet.keys(): SetIterator<T>` | `keys(): SetIterator<T>` | `__readonlyset.keys` | 📋 Planned | - |
 | `ReadonlySet.readonly size: number` | `readonly size: number` | `__readonlyset.size` | 📋 Planned | - |
-| `ReadonlySet.symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__readonlyset.symmetricDifference<U>` | 📋 Planned | - |
-| `ReadonlySet.union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__readonlyset.union<U>` | 📋 Planned | - |
+| `ReadonlySet.symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__readonlyset.symmetricDifference` | 📋 Planned | - |
+| `ReadonlySet.union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__readonlyset.union` | 📋 Planned | - |
 | `ReadonlySet.values(): SetIterator<T>` | `values(): SetIterator<T>` | `__readonlyset.values` | 📋 Planned | - |
 
 ---

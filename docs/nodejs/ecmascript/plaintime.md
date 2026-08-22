@@ -25,13 +25,11 @@ Provide a concise technical summary:
 | `PlainTime.compare(one: PlainTimeLike, two: PlainTimeLike): number` | `compare(one: PlainTimeLike, two: PlainTimeLike): number` | `__plaintime.compare` | 📋 Planned | - |
 | `PlainTime.equals(other: PlainTimeLike): boolean` | `equals(other: PlainTimeLike): boolean` | `__plaintime.equals` | 📋 Planned | - |
 | `PlainTime.from(item: PlainTimeLike, options?: OverflowOptions): PlainTime` | `from(item: PlainTimeLike, options?: OverflowOptions): PlainTime` | `__plaintime.from` | 📋 Planned | - |
-| `PlainTime.new (hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number): PlainTime` | `new (hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number): PlainTime` | `__plaintime.new` | 📋 Planned | - |
 | `PlainTime.readonly hour: number` | `readonly hour: number` | `__plaintime.hour` | 📋 Planned | - |
 | `PlainTime.readonly microsecond: number` | `readonly microsecond: number` | `__plaintime.microsecond` | 📋 Planned | - |
 | `PlainTime.readonly millisecond: number` | `readonly millisecond: number` | `__plaintime.millisecond` | 📋 Planned | - |
 | `PlainTime.readonly minute: number` | `readonly minute: number` | `__plaintime.minute` | 📋 Planned | - |
 | `PlainTime.readonly nanosecond: number` | `readonly nanosecond: number` | `__plaintime.nanosecond` | 📋 Planned | - |
-| `PlainTime.readonly prototype: PlainTime` | `readonly prototype: PlainTime` | `__plaintime.prototype` | 📋 Planned | - |
 | `PlainTime.readonly second: number` | `readonly second: number` | `__plaintime.second` | 📋 Planned | - |
 | `PlainTime.round(roundTo: PluralizeUnit<TimeUnit>): PlainTime` | `round(roundTo: PluralizeUnit<TimeUnit>): PlainTime` | `__plaintime.round` | 📋 Planned | - |
 | `PlainTime.since(other: PlainTimeLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `since(other: PlainTimeLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `__plaintime.since` | 📋 Planned | - |
@@ -42,6 +40,7 @@ Provide a concise technical summary:
 | `PlainTime.until(other: PlainTimeLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `until(other: PlainTimeLike, options?: RoundingOptionsWithLargestUnit<TimeUnit>): Duration` | `__plaintime.until` | 📋 Planned | - |
 | `PlainTime.valueOf(): never` | `valueOf(): never` | `__plaintime.valueOf` | 📋 Planned | - |
 | `PlainTime.with(timeLike: PartialTemporalLike<TimeLikeObject>, options?: OverflowOptions): PlainTime` | `with(timeLike: PartialTemporalLike<TimeLikeObject>, options?: OverflowOptions): PlainTime` | `__plaintime.with` | 📋 Planned | - |
+| `new PlainTime(hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number): PlainTime` | `new (hour?: number, minute?: number, second?: number, millisecond?: number, microsecond?: number, nanosecond?: number): PlainTime` | `__plaintime.new` | 📋 Planned | - |
 
 ---
 

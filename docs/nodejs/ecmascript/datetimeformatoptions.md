@@ -21,26 +21,26 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `DateTimeFormatOptions.calendar?: string \| undefined` | `calendar?: string \| undefined` | `__datetimeformatoptions.calendar?` | 📋 Planned | - |
-| `DateTimeFormatOptions.dateStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `dateStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `__datetimeformatoptions.dateStyle?` | 📋 Planned | - |
-| `DateTimeFormatOptions.day?: "numeric" \| "2-digit" \| undefined` | `day?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.day?` | 📋 Planned | - |
-| `DateTimeFormatOptions.dayPeriod?: "narrow" \| "short" \| "long" \| undefined` | `dayPeriod?: "narrow" \| "short" \| "long" \| undefined` | `__datetimeformatoptions.dayPeriod?` | 📋 Planned | - |
-| `DateTimeFormatOptions.era?: "long" \| "short" \| "narrow" \| undefined` | `era?: "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.era?` | 📋 Planned | - |
-| `DateTimeFormatOptions.formatMatcher?: "basic" \| "best fit" \| "best fit" \| undefined` | `formatMatcher?: "basic" \| "best fit" \| "best fit" \| undefined` | `__datetimeformatoptions.formatMatcher?` | 📋 Planned | - |
-| `DateTimeFormatOptions.fractionalSecondDigits?: 1 \| 2 \| 3 \| undefined` | `fractionalSecondDigits?: 1 \| 2 \| 3 \| undefined` | `__datetimeformatoptions.fractionalSecondDigits?` | 📋 Planned | - |
-| `DateTimeFormatOptions.hour12?: boolean \| undefined` | `hour12?: boolean \| undefined` | `__datetimeformatoptions.hour12?` | 📋 Planned | - |
-| `DateTimeFormatOptions.hour?: "numeric" \| "2-digit" \| undefined` | `hour?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.hour?` | 📋 Planned | - |
-| `DateTimeFormatOptions.hourCycle?: "h11" \| "h12" \| "h23" \| "h24" \| undefined` | `hourCycle?: "h11" \| "h12" \| "h23" \| "h24" \| undefined` | `__datetimeformatoptions.hourCycle?` | 📋 Planned | - |
-| `DateTimeFormatOptions.localeMatcher?: "best fit" \| "lookup" \| undefined` | `localeMatcher?: "best fit" \| "lookup" \| undefined` | `__datetimeformatoptions.localeMatcher?` | 📋 Planned | - |
-| `DateTimeFormatOptions.minute?: "numeric" \| "2-digit" \| undefined` | `minute?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.minute?` | 📋 Planned | - |
-| `DateTimeFormatOptions.month?: "numeric" \| "2-digit" \| "long" \| "short" \| "narrow" \| undefined` | `month?: "numeric" \| "2-digit" \| "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.month?` | 📋 Planned | - |
-| `DateTimeFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__datetimeformatoptions.numberingSystem?` | 📋 Planned | - |
-| `DateTimeFormatOptions.second?: "numeric" \| "2-digit" \| undefined` | `second?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.second?` | 📋 Planned | - |
-| `DateTimeFormatOptions.timeStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `timeStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `__datetimeformatoptions.timeStyle?` | 📋 Planned | - |
-| `DateTimeFormatOptions.timeZone?: string \| undefined` | `timeZone?: string \| undefined` | `__datetimeformatoptions.timeZone?` | 📋 Planned | - |
-| `DateTimeFormatOptions.timeZoneName?: "short" \| "long" \| "shortOffset" \| "longOffset" \| "shortGeneric" \| "longGeneric" \| undefined` | `timeZoneName?: "short" \| "long" \| "shortOffset" \| "longOffset" \| "shortGeneric" \| "longGeneric" \| undefined` | `__datetimeformatoptions.timeZoneName?` | 📋 Planned | - |
-| `DateTimeFormatOptions.weekday?: "long" \| "short" \| "narrow" \| undefined` | `weekday?: "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.weekday?` | 📋 Planned | - |
-| `DateTimeFormatOptions.year?: "numeric" \| "2-digit" \| undefined` | `year?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.year?` | 📋 Planned | - |
+| `DateTimeFormatOptions.calendar?: string \| undefined` | `calendar?: string \| undefined` | `__datetimeformatoptions.calendar` | 📋 Planned | - |
+| `DateTimeFormatOptions.dateStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `dateStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `__datetimeformatoptions.dateStyle` | 📋 Planned | - |
+| `DateTimeFormatOptions.day?: "numeric" \| "2-digit" \| undefined` | `day?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.day` | 📋 Planned | - |
+| `DateTimeFormatOptions.dayPeriod?: "narrow" \| "short" \| "long" \| undefined` | `dayPeriod?: "narrow" \| "short" \| "long" \| undefined` | `__datetimeformatoptions.dayPeriod` | 📋 Planned | - |
+| `DateTimeFormatOptions.era?: "long" \| "short" \| "narrow" \| undefined` | `era?: "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.era` | 📋 Planned | - |
+| `DateTimeFormatOptions.formatMatcher?: "basic" \| "best fit" \| "best fit" \| undefined` | `formatMatcher?: "basic" \| "best fit" \| "best fit" \| undefined` | `__datetimeformatoptions.formatMatcher` | 📋 Planned | - |
+| `DateTimeFormatOptions.fractionalSecondDigits?: 1 \| 2 \| 3 \| undefined` | `fractionalSecondDigits?: 1 \| 2 \| 3 \| undefined` | `__datetimeformatoptions.fractionalSecondDigits` | 📋 Planned | - |
+| `DateTimeFormatOptions.hour12?: boolean \| undefined` | `hour12?: boolean \| undefined` | `__datetimeformatoptions.hour12` | 📋 Planned | - |
+| `DateTimeFormatOptions.hour?: "numeric" \| "2-digit" \| undefined` | `hour?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.hour` | 📋 Planned | - |
+| `DateTimeFormatOptions.hourCycle?: "h11" \| "h12" \| "h23" \| "h24" \| undefined` | `hourCycle?: "h11" \| "h12" \| "h23" \| "h24" \| undefined` | `__datetimeformatoptions.hourCycle` | 📋 Planned | - |
+| `DateTimeFormatOptions.localeMatcher?: "best fit" \| "lookup" \| undefined` | `localeMatcher?: "best fit" \| "lookup" \| undefined` | `__datetimeformatoptions.localeMatcher` | 📋 Planned | - |
+| `DateTimeFormatOptions.minute?: "numeric" \| "2-digit" \| undefined` | `minute?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.minute` | 📋 Planned | - |
+| `DateTimeFormatOptions.month?: "numeric" \| "2-digit" \| "long" \| "short" \| "narrow" \| undefined` | `month?: "numeric" \| "2-digit" \| "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.month` | 📋 Planned | - |
+| `DateTimeFormatOptions.numberingSystem?: string \| undefined` | `numberingSystem?: string \| undefined` | `__datetimeformatoptions.numberingSystem` | 📋 Planned | - |
+| `DateTimeFormatOptions.second?: "numeric" \| "2-digit" \| undefined` | `second?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.second` | 📋 Planned | - |
+| `DateTimeFormatOptions.timeStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `timeStyle?: "full" \| "long" \| "medium" \| "short" \| undefined` | `__datetimeformatoptions.timeStyle` | 📋 Planned | - |
+| `DateTimeFormatOptions.timeZone?: string \| undefined` | `timeZone?: string \| undefined` | `__datetimeformatoptions.timeZone` | 📋 Planned | - |
+| `DateTimeFormatOptions.timeZoneName?: "short" \| "long" \| "shortOffset" \| "longOffset" \| "shortGeneric" \| "longGeneric" \| undefined` | `timeZoneName?: "short" \| "long" \| "shortOffset" \| "longOffset" \| "shortGeneric" \| "longGeneric" \| undefined` | `__datetimeformatoptions.timeZoneName` | 📋 Planned | - |
+| `DateTimeFormatOptions.weekday?: "long" \| "short" \| "narrow" \| undefined` | `weekday?: "long" \| "short" \| "narrow" \| undefined` | `__datetimeformatoptions.weekday` | 📋 Planned | - |
+| `DateTimeFormatOptions.year?: "numeric" \| "2-digit" \| undefined` | `year?: "numeric" \| "2-digit" \| undefined` | `__datetimeformatoptions.year` | 📋 Planned | - |
 
 ---
 

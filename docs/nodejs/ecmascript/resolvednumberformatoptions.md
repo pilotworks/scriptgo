@@ -21,16 +21,16 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `ResolvedNumberFormatOptions.compactDisplay?: "short" \| "long"` | `compactDisplay?: "short" \| "long"` | `__resolvednumberformatoptions.compactDisplay?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.currency?: string` | `currency?: string` | `__resolvednumberformatoptions.currency?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.currencyDisplay?: NumberFormatOptionsCurrencyDisplay` | `currencyDisplay?: NumberFormatOptionsCurrencyDisplay` | `__resolvednumberformatoptions.currencyDisplay?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.currencySign?: "standard" \| "accounting"` | `currencySign?: "standard" \| "accounting"` | `__resolvednumberformatoptions.currencySign?` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.compactDisplay?: "short" \| "long"` | `compactDisplay?: "short" \| "long"` | `__resolvednumberformatoptions.compactDisplay` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.currency?: string` | `currency?: string` | `__resolvednumberformatoptions.currency` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.currencyDisplay?: NumberFormatOptionsCurrencyDisplay` | `currencyDisplay?: NumberFormatOptionsCurrencyDisplay` | `__resolvednumberformatoptions.currencyDisplay` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.currencySign?: "standard" \| "accounting"` | `currencySign?: "standard" \| "accounting"` | `__resolvednumberformatoptions.currencySign` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.locale: string` | `locale: string` | `__resolvednumberformatoptions.locale` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.maximumFractionDigits?: number` | `maximumFractionDigits?: number` | `__resolvednumberformatoptions.maximumFractionDigits?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.maximumSignificantDigits?: number` | `maximumSignificantDigits?: number` | `__resolvednumberformatoptions.maximumSignificantDigits?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.minimumFractionDigits?: number` | `minimumFractionDigits?: number` | `__resolvednumberformatoptions.minimumFractionDigits?` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.maximumFractionDigits?: number` | `maximumFractionDigits?: number` | `__resolvednumberformatoptions.maximumFractionDigits` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.maximumSignificantDigits?: number` | `maximumSignificantDigits?: number` | `__resolvednumberformatoptions.maximumSignificantDigits` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.minimumFractionDigits?: number` | `minimumFractionDigits?: number` | `__resolvednumberformatoptions.minimumFractionDigits` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.minimumIntegerDigits: number` | `minimumIntegerDigits: number` | `__resolvednumberformatoptions.minimumIntegerDigits` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.minimumSignificantDigits?: number` | `minimumSignificantDigits?: number` | `__resolvednumberformatoptions.minimumSignificantDigits?` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.minimumSignificantDigits?: number` | `minimumSignificantDigits?: number` | `__resolvednumberformatoptions.minimumSignificantDigits` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.notation: "standard" \| "scientific" \| "engineering" \| "compact"` | `notation: "standard" \| "scientific" \| "engineering" \| "compact"` | `__resolvednumberformatoptions.notation` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.numberingSystem: string` | `numberingSystem: string` | `__resolvednumberformatoptions.numberingSystem` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.roundingIncrement: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000` | `roundingIncrement: 1 \| 2 \| 5 \| 10 \| 20 \| 25 \| 50 \| 100 \| 200 \| 250 \| 500 \| 1000 \| 2000 \| 2500 \| 5000` | `__resolvednumberformatoptions.roundingIncrement` | 📋 Planned | - |
@@ -39,8 +39,8 @@ Provide a concise technical summary:
 | `ResolvedNumberFormatOptions.signDisplay: NumberFormatOptionsSignDisplay` | `signDisplay: NumberFormatOptionsSignDisplay` | `__resolvednumberformatoptions.signDisplay` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.style: NumberFormatOptionsStyle` | `style: NumberFormatOptionsStyle` | `__resolvednumberformatoptions.style` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.trailingZeroDisplay: "auto" \| "stripIfInteger"` | `trailingZeroDisplay: "auto" \| "stripIfInteger"` | `__resolvednumberformatoptions.trailingZeroDisplay` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.unit?: string` | `unit?: string` | `__resolvednumberformatoptions.unit?` | 📋 Planned | - |
-| `ResolvedNumberFormatOptions.unitDisplay?: "short" \| "long" \| "narrow"` | `unitDisplay?: "short" \| "long" \| "narrow"` | `__resolvednumberformatoptions.unitDisplay?` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.unit?: string` | `unit?: string` | `__resolvednumberformatoptions.unit` | 📋 Planned | - |
+| `ResolvedNumberFormatOptions.unitDisplay?: "short" \| "long" \| "narrow"` | `unitDisplay?: "short" \| "long" \| "narrow"` | `__resolvednumberformatoptions.unitDisplay` | 📋 Planned | - |
 | `ResolvedNumberFormatOptions.useGrouping: ResolvedNumberFormatOptionsUseGrouping` | `useGrouping: ResolvedNumberFormatOptionsUseGrouping` | `__resolvednumberformatoptions.useGrouping` | 📋 Planned | - |
 
 ---

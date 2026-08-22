@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `AsyncDisposableStack.adopt<T>(value: T, onDisposeAsync: (value: T) => PromiseLike<void> \| void): T` | `adopt<T>(value: T, onDisposeAsync: (value: T) => PromiseLike<void> \| void): T` | `__asyncdisposablestack.adopt<T>` | 📋 Planned | - |
+| `AsyncDisposableStack.adopt<T>(value: T, onDisposeAsync: (value: T) => PromiseLike<void> \| void): T` | `adopt<T>(value: T, onDisposeAsync: (value: T) => PromiseLike<void> \| void): T` | `__asyncdisposablestack.adopt` | 📋 Planned | - |
 | `AsyncDisposableStack.defer(onDisposeAsync: () => PromiseLike<void> \| void): void` | `defer(onDisposeAsync: () => PromiseLike<void> \| void): void` | `__asyncdisposablestack.defer` | 📋 Planned | - |
 | `AsyncDisposableStack.disposeAsync(): Promise<void>` | `disposeAsync(): Promise<void>` | `__asyncdisposablestack.disposeAsync` | 📋 Planned | - |
 | `AsyncDisposableStack.move(): AsyncDisposableStack` | `move(): AsyncDisposableStack` | `__asyncdisposablestack.move` | 📋 Planned | - |
-| `AsyncDisposableStack.new (): AsyncDisposableStack` | `new (): AsyncDisposableStack` | `__asyncdisposablestack.new` | 📋 Planned | - |
 | `AsyncDisposableStack.readonly disposed: boolean` | `readonly disposed: boolean` | `__asyncdisposablestack.disposed` | 📋 Planned | - |
-| `AsyncDisposableStack.readonly prototype: AsyncDisposableStack` | `readonly prototype: AsyncDisposableStack` | `__asyncdisposablestack.prototype` | 📋 Planned | - |
+| `AsyncDisposableStack.use<T extends AsyncDisposable \| Disposable \| null \| undefined>(value: T): T` | `use<T extends AsyncDisposable \| Disposable \| null \| undefined>(value: T): T` | `__asyncdisposablestack.use` | 📋 Planned | - |
+| `new AsyncDisposableStack(): AsyncDisposableStack` | `new (): AsyncDisposableStack` | `__asyncdisposablestack.new` | 📋 Planned | - |
 
 ---
 
