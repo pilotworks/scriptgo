@@ -6,6 +6,11 @@
 *.out
 *.ll
 
+# Temporary directories
+tmp/
+**/tmp/
+!tmp/.gitkeep
+
 # Go tooling
 coverage.out
 coverage.html

@@ -4,15 +4,19 @@
 import * as fs from "fs";
 import { promises } from "node:fs";
 
+if (!fs.existsSync("tmp")) {
+    fs.mkdirSync("tmp", { recursive: true });
+}
+
 // --- Context Case: scenarios_fs_basic ---
 // @expect: hello from fs!
 // @expect: true
 // @expect: false
-fs.writeFileSync("test_out.txt", "hello from fs!");
-const content_fs_basic_0: string = fs.readFileSync("test_out.txt", "utf-8");
+fs.writeFileSync("tmp/test_out.txt", "hello from fs!");
+const content_fs_basic_0: string = fs.readFileSync("tmp/test_out.txt", "utf-8");
 console.log(content_fs_basic_0);
-console.log(fs.existsSync("test_out.txt"));
-console.log(fs.existsSync("non_existent_file.xyz"));
+console.log(fs.existsSync("tmp/test_out.txt"));
+console.log(fs.existsSync("tmp/non_existent_file.xyz"));
 
 // --- Context Case: scenarios_fs_extended_sync ---
 // @expect: 12
@@ -25,7 +29,7 @@ console.log(fs.existsSync("non_existent_file.xyz"));
 // @expect: false
 // @expect: 2
 // @expect: false
-const testDir_fs_extended_sync_1 = "test_fs_extended_tmp";
+const testDir_fs_extended_sync_1 = "tmp/test_fs_extended_tmp";
 const mkdirOpts_fs_extended_sync_1: fs.MkdirOptions = { recursive: true };
 fs.mkdirSync(testDir_fs_extended_sync_1, mkdirOpts_fs_extended_sync_1);
 
@@ -68,7 +72,7 @@ console.log(fs.existsSync(testDir_fs_extended_sync_1));
 // @expect: 2
 // @expect: false
 async function run_fs_promises_2(): Promise<void> {
-    const dir_fs_promises_2 = "test_fs_promises_tmp";
+    const dir_fs_promises_2 = "tmp/test_fs_promises_tmp";
     const mkdirOpts_fs_promises_2: fs.MkdirOptions = { recursive: true };
     await promises.mkdir(dir_fs_promises_2, mkdirOpts_fs_promises_2);
 
