@@ -41,7 +41,6 @@ Provide a concise technical summary:
 | `Uint8Array.lastChunkHandling?: "loose" \| "strict" \| "stop-before-partial" \| undefined` | `lastChunkHandling?: "loose" \| "strict" \| "stop-before-partial" \| undefined` | `__uint8array.lastChunkHandling` | 📋 Planned | - |
 | `Uint8Array.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__uint8array.lastIndexOf` | 📋 Planned | - |
 | `Uint8Array.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Uint8Array<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Uint8Array<ArrayBuffer>` | `__uint8array.map` | 📋 Planned | - |
-| `Uint8Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Uint8Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Uint8Array<TArrayBuffer>` | `__uint8array.new` | 📋 Planned | - |
 | `Uint8Array.of(...items: number[]): Uint8Array<ArrayBuffer>` | `of(...items: number[]): Uint8Array<ArrayBuffer>` | `__uint8array.of` | 📋 Planned | - |
 | `Uint8Array.omitPadding?: boolean \| undefined` | `omitPadding?: boolean \| undefined` | `__uint8array.omitPadding` | 📋 Planned | - |
 | `Uint8Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__uint8array.BYTES_PER_ELEMENT` | 📋 Planned | - |

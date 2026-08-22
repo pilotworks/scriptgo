@@ -39,7 +39,6 @@ Provide a concise technical summary:
 | `BigInt64Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__bigint64array.keys` | 📋 Planned | - |
 | `BigInt64Array.lastIndexOf(searchElement: bigint, fromIndex?: number): number` | `lastIndexOf(searchElement: bigint, fromIndex?: number): number` | `__bigint64array.lastIndexOf` | 📋 Planned | - |
 | `BigInt64Array.map(callbackfn: (value: bigint, index: number, array: BigInt64Array<TArrayBuffer>) => bigint, thisArg?: any): BigInt64Array<ArrayBuffer>` | `map(callbackfn: (value: bigint, index: number, array: BigInt64Array<TArrayBuffer>) => bigint, thisArg?: any): BigInt64Array<ArrayBuffer>` | `__bigint64array.map` | 📋 Planned | - |
-| `BigInt64Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): BigInt64Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): BigInt64Array<TArrayBuffer>` | `__bigint64array.new` | 📋 Planned | - |
 | `BigInt64Array.of(...items: bigint[]): BigInt64Array<ArrayBuffer>` | `of(...items: bigint[]): BigInt64Array<ArrayBuffer>` | `__bigint64array.of` | 📋 Planned | - |
 | `BigInt64Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__bigint64array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `BigInt64Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__bigint64array.buffer` | 📋 Planned | - |

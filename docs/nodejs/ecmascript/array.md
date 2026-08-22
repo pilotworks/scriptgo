@@ -64,8 +64,7 @@ Provide a concise technical summary:
 | `Array.unshift(...items: T[]): number` | `unshift(...items: T[]): number` | `__array.unshift` | ✅ Done | `internal/compiler/testdata/corpus/api/array.ts` |
 | `Array.values(): ArrayIterator<T>` | `values(): ArrayIterator<T>` | `__array.values` | ✅ Done | `internal/compiler/testdata/corpus/api/array.ts` |
 | `Array.with(index: number, value: T): T[]` | `with(index: number, value: T): T[]` | `__array.with` | ✅ Done | `internal/compiler/testdata/corpus/api/array.ts` |
-| `Array.new <T>(arrayLength: number): T[]` | `new <T>(arrayLength: number): T[]` | `__array.new` | 📋 Planned | - |
-| `new Array(arrayLength?: number): any[]` | `new (arrayLength?: number): any[]` | `__array.new` | 📋 Planned | - |
+| `new Array(arrayLength?: number): any[]` | `new (arrayLength?: number): any[]` | `__array.new` | ✅ Done | `internal/compiler/testdata/corpus/api/array.ts` |
 
 ---
 

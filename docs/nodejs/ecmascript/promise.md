@@ -26,13 +26,13 @@ Provide a concise technical summary:
 | `Promise.any<T extends readonly unknown[] \| []>(values: T): Promise<Awaited<T[number]>>` | `any<T extends readonly unknown[] \| []>(values: T): Promise<Awaited<T[number]>>` | `__promise.any` | 📋 Planned | - |
 | `Promise.catch<TResult = never>(onrejected?: ((reason: any) => TResult \| PromiseLike<TResult>) \| undefined \| null): Promise<T \| TResult>` | `catch<TResult = never>(onrejected?: ((reason: any) => TResult \| PromiseLike<TResult>) \| undefined \| null): Promise<T \| TResult>` | `__promise.catch` | 📋 Planned | - |
 | `Promise.finally(onfinally?: (() => void) \| undefined \| null): Promise<T>` | `finally(onfinally?: (() => void) \| undefined \| null): Promise<T>` | `__promise.finally` | 📋 Planned | - |
-| `Promise.new <T>(executor: (resolve: (value: T \| PromiseLike<T>) => void, reject: (reason?: any) => void) => void): Promise<T>` | `new <T>(executor: (resolve: (value: T \| PromiseLike<T>) => void, reject: (reason?: any) => void) => void): Promise<T>` | `__promise.new` | 📋 Planned | - |
 | `Promise.race<T>(values: Iterable<T \| PromiseLike<T>>): Promise<Awaited<T>>` | `race<T>(values: Iterable<T \| PromiseLike<T>>): Promise<Awaited<T>>` | `__promise.race` | 📋 Planned | - |
 | `Promise.reject<T = never>(reason?: any): Promise<T>` | `reject<T = never>(reason?: any): Promise<T>` | `__promise.reject` | 📋 Planned | - |
 | `Promise.resolve(): Promise<void>` | `resolve(): Promise<void>` | `__promise.resolve` | 📋 Planned | - |
 | `Promise.then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 \| PromiseLike<TResult1>) \| undefined \| null, onrejected?: ((reason: any) => TResult2 \| PromiseLike<TResult2>) \| undefined \| null): Promise<TResult1 \| TResult2>` | `then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 \| PromiseLike<TResult1>) \| undefined \| null, onrejected?: ((reason: any) => TResult2 \| PromiseLike<TResult2>) \| undefined \| null): Promise<TResult1 \| TResult2>` | `__promise.then` | 📋 Planned | - |
 | `Promise.try<T, U extends unknown[]>(callbackFn: (...args: U) => T \| PromiseLike<T>, ...args: U): Promise<Awaited<T>>` | `try<T, U extends unknown[]>(callbackFn: (...args: U) => T \| PromiseLike<T>, ...args: U): Promise<Awaited<T>>` | `__promise.try` | 📋 Planned | - |
 | `Promise.withResolvers<T>(): PromiseWithResolvers<T>` | `withResolvers<T>(): PromiseWithResolvers<T>` | `__promise.withResolvers` | 📋 Planned | - |
+| `new Promise<T>(executor: (resolve: (value: T \| PromiseLike<T>) => void, reject: (reason?: any) => void) => void): Promise<T>` | `new <T>(executor: (resolve: (value: T \| PromiseLike<T>) => void, reject: (reason?: any) => void) => void): Promise<T>` | `__promise.new` | 📋 Planned | - |
 
 ---
 

@@ -39,7 +39,6 @@ Provide a concise technical summary:
 | `Int8Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__int8array.keys` | 📋 Planned | - |
 | `Int8Array.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__int8array.lastIndexOf` | 📋 Planned | - |
 | `Int8Array.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Int8Array<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Int8Array<ArrayBuffer>` | `__int8array.map` | 📋 Planned | - |
-| `Int8Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Int8Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Int8Array<TArrayBuffer>` | `__int8array.new` | 📋 Planned | - |
 | `Int8Array.of(...items: number[]): Int8Array<ArrayBuffer>` | `of(...items: number[]): Int8Array<ArrayBuffer>` | `__int8array.of` | 📋 Planned | - |
 | `Int8Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__int8array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `Int8Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__int8array.buffer` | 📋 Planned | - |

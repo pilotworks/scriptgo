@@ -254,3 +254,9 @@ const a_array_with_42: number[] = [1, 2, 3];
 const w_array_with_42 = a_array_with_42.with(1, 99);
 console.log(w_array_with_42.join(","));
 console.log(a_array_with_42.join(","));
+
+// @api: array.constructor
+// @expect: 1,2,3
+const a_array_constructor_43: number[] = new Array(1, 2, 3);
+console.log(a_array_constructor_43.join(","));
+

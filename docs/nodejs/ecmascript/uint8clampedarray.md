@@ -39,7 +39,6 @@ Provide a concise technical summary:
 | `Uint8ClampedArray.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__uint8clampedarray.keys` | 📋 Planned | - |
 | `Uint8ClampedArray.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__uint8clampedarray.lastIndexOf` | 📋 Planned | - |
 | `Uint8ClampedArray.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Uint8ClampedArray<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Uint8ClampedArray<ArrayBuffer>` | `__uint8clampedarray.map` | 📋 Planned | - |
-| `Uint8ClampedArray.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Uint8ClampedArray<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Uint8ClampedArray<TArrayBuffer>` | `__uint8clampedarray.new` | 📋 Planned | - |
 | `Uint8ClampedArray.of(...items: number[]): Uint8ClampedArray<ArrayBuffer>` | `of(...items: number[]): Uint8ClampedArray<ArrayBuffer>` | `__uint8clampedarray.of` | 📋 Planned | - |
 | `Uint8ClampedArray.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__uint8clampedarray.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `Uint8ClampedArray.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__uint8clampedarray.buffer` | 📋 Planned | - |

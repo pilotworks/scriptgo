@@ -26,8 +26,8 @@ Provide a concise technical summary:
 | `WeakMap.getOrInsert(key: K, defaultValue: V): V` | `getOrInsert(key: K, defaultValue: V): V` | `__weakmap.getOrInsert` | 📋 Planned | - |
 | `WeakMap.getOrInsertComputed(key: K, callback: (key: K) => V): V` | `getOrInsertComputed(key: K, callback: (key: K) => V): V` | `__weakmap.getOrInsertComputed` | 📋 Planned | - |
 | `WeakMap.has(key: K): boolean` | `has(key: K): boolean` | `__weakmap.has` | 📋 Planned | - |
-| `WeakMap.new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `__weakmap.new` | 📋 Planned | - |
 | `WeakMap.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__weakmap.set` | 📋 Planned | - |
+| `new WeakMap<K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `__weakmap.new` | 📋 Planned | - |
 
 ---
 

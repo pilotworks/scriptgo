@@ -575,6 +575,42 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
 		ensureErrorShape(shapes, className)
 	}
+	if className == "Array" {
+		var args []string
+		elemType := ir.TypeNumber
+		for _, argExpr := range expression.Arguments {
+			argVal, aType, err := lowerExpression(path, argExpr, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, argVal)
+			if aType != "" {
+				elemType = aType
+			}
+		}
+		retType := ir.Type(string(elemType) + "[]")
+		if elemType == ir.TypeNumber {
+			retType = ir.TypeNumberArray
+		} else if elemType == ir.TypeString {
+			retType = ir.TypeStringArray
+		} else if elemType == ir.TypeBool {
+			retType = ir.TypeBoolArray
+		} else if elemType == ir.TypeBigInt {
+			retType = ir.TypeBigIntArray
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpArray,
+			Type:   retType,
+			Result: result,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
+
 	if className == "ArrayBuffer" {
 		byteLenVal := ""
 		if len(expression.Arguments) > 0 {

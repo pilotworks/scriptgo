@@ -32,7 +32,6 @@ Provide a concise technical summary:
 | `DataView.getUint16(byteOffset: number, littleEndian?: boolean): number` | `getUint16(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint16` | 📋 Planned | - |
 | `DataView.getUint32(byteOffset: number, littleEndian?: boolean): number` | `getUint32(byteOffset: number, littleEndian?: boolean): number` | `__dataview.getUint32` | 📋 Planned | - |
 | `DataView.getUint8(byteOffset: number): number` | `getUint8(byteOffset: number): number` | `__dataview.getUint8` | 📋 Planned | - |
-| `DataView.new <TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `__dataview.new` | 📋 Planned | - |
 | `DataView.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__dataview.buffer` | 📋 Planned | - |
 | `DataView.readonly byteLength: number` | `readonly byteLength: number` | `__dataview.byteLength` | 📋 Planned | - |
 | `DataView.readonly byteOffset: number` | `readonly byteOffset: number` | `__dataview.byteOffset` | 📋 Planned | - |
@@ -47,6 +46,7 @@ Provide a concise technical summary:
 | `DataView.setUint16(byteOffset: number, value: number, littleEndian?: boolean): void` | `setUint16(byteOffset: number, value: number, littleEndian?: boolean): void` | `__dataview.setUint16` | 📋 Planned | - |
 | `DataView.setUint32(byteOffset: number, value: number, littleEndian?: boolean): void` | `setUint32(byteOffset: number, value: number, littleEndian?: boolean): void` | `__dataview.setUint32` | 📋 Planned | - |
 | `DataView.setUint8(byteOffset: number, value: number): void` | `setUint8(byteOffset: number, value: number): void` | `__dataview.setUint8` | 📋 Planned | - |
+| `new DataView<TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike & { BYTES_PER_ELEMENT?: never; }>(buffer: TArrayBuffer, byteOffset?: number, byteLength?: number): DataView<TArrayBuffer>` | `__dataview.new` | 📋 Planned | - |
 
 ---
 

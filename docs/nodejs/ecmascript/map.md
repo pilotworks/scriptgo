@@ -32,7 +32,6 @@ Provide a concise technical summary:
 | `Map.getOrInsertComputed(key: K, callback: (key: K) => V): V` | `getOrInsertComputed(key: K, callback: (key: K) => V): V` | `__map.getOrInsertComputed` | 📋 Planned | - |
 | `Map.groupBy<K, T>( items: Iterable<T>, keySelector: (item: T, index: number) => K, ): Map<K, T[]>` | `groupBy<K, T>( items: Iterable<T>, keySelector: (item: T, index: number) => K, ): Map<K, T[]>` | `__map.groupBy` | 📋 Planned | - |
 | `Map.keys(): MapIterator<K>` | `keys(): MapIterator<K>` | `__map.keys` | 📋 Planned | - |
-| `Map.new <K, V>(entries?: readonly (readonly [K, V])[] \| null): Map<K, V>` | `new <K, V>(entries?: readonly (readonly [K, V])[] \| null): Map<K, V>` | `__map.new` | 📋 Planned | - |
 | `Map.readonly size: number` | `readonly size: number` | `__map.size` | 📋 Planned | - |
 | `Map.values(): MapIterator<V>` | `values(): MapIterator<V>` | `__map.values` | 📋 Planned | - |
 | `new Map(): Map<any, any>` | `new (): Map<any, any>` | `__map.new` | 📋 Planned | - |

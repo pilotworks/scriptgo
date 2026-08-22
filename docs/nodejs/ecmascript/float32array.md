@@ -39,7 +39,6 @@ Provide a concise technical summary:
 | `Float32Array.keys(): ArrayIterator<number>` | `keys(): ArrayIterator<number>` | `__float32array.keys` | 📋 Planned | - |
 | `Float32Array.lastIndexOf(searchElement: number, fromIndex?: number): number` | `lastIndexOf(searchElement: number, fromIndex?: number): number` | `__float32array.lastIndexOf` | 📋 Planned | - |
 | `Float32Array.map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `map(callbackfn: (value: number, index: number, array: this) => number, thisArg?: any): Float32Array<ArrayBuffer>` | `__float32array.map` | 📋 Planned | - |
-| `Float32Array.new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float32Array<TArrayBuffer>` | `new <TArrayBuffer extends ArrayBufferLike = ArrayBuffer>(buffer: TArrayBuffer, byteOffset?: number, length?: number): Float32Array<TArrayBuffer>` | `__float32array.new` | 📋 Planned | - |
 | `Float32Array.of(...items: number[]): Float32Array<ArrayBuffer>` | `of(...items: number[]): Float32Array<ArrayBuffer>` | `__float32array.of` | 📋 Planned | - |
 | `Float32Array.readonly BYTES_PER_ELEMENT: number` | `readonly BYTES_PER_ELEMENT: number` | `__float32array.BYTES_PER_ELEMENT` | 📋 Planned | - |
 | `Float32Array.readonly buffer: TArrayBuffer` | `readonly buffer: TArrayBuffer` | `__float32array.buffer` | 📋 Planned | - |

@@ -33,11 +33,11 @@ Provide a concise technical summary:
 | `Set.isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `isSubsetOf(other: ReadonlySetLike<unknown>): boolean` | `__set.isSubsetOf` | 📋 Planned | - |
 | `Set.isSupersetOf(other: ReadonlySetLike<unknown>): boolean` | `isSupersetOf(other: ReadonlySetLike<unknown>): boolean` | `__set.isSupersetOf` | 📋 Planned | - |
 | `Set.keys(): SetIterator<T>` | `keys(): SetIterator<T>` | `__set.keys` | 📋 Planned | - |
-| `Set.new <T = any>(values?: readonly T[] \| null): Set<T>` | `new <T = any>(values?: readonly T[] \| null): Set<T>` | `__set.new` | 📋 Planned | - |
 | `Set.readonly size: number` | `readonly size: number` | `__set.size` | 📋 Planned | - |
 | `Set.symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__set.symmetricDifference` | 📋 Planned | - |
 | `Set.union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `union<U>(other: ReadonlySetLike<U>): Set<T \| U>` | `__set.union` | 📋 Planned | - |
 | `Set.values(): SetIterator<T>` | `values(): SetIterator<T>` | `__set.values` | 📋 Planned | - |
+| `new Set<T = any>(values?: readonly T[] \| null): Set<T>` | `new <T = any>(values?: readonly T[] \| null): Set<T>` | `__set.new` | 📋 Planned | - |
 
 ---
 

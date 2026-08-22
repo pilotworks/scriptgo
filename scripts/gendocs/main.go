@@ -361,7 +361,7 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 
 				var rawName string
 				isConstructor := false
-				if strings.HasPrefix(stmt, "new(") || strings.HasPrefix(stmt, "new (") || strings.HasPrefix(stmt, "new<") {
+				if strings.HasPrefix(stmt, "new(") || strings.HasPrefix(stmt, "new (") || strings.HasPrefix(stmt, "new<") || strings.HasPrefix(stmt, "new <") || strings.HasPrefix(stmt, "new ") {
 					isConstructor = true
 					rawName = "constructor"
 				} else {
