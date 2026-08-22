@@ -641,6 +641,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"performance.now"}, CategoryWebCompat, "__performance.now", nil, ir.TypeNumber, 0, 0)
 	register([]string{"queueMicrotask"}, CategoryWebCompat, "__async.queueMicrotask", []ir.Type{ir.TypeClosure}, ir.TypeVoid, 1, 1)
 	register([]string{"Promise.resolve"}, CategoryECMAScript, "__async.promise_resolve", []ir.Type{ir.TypeNumber}, ir.Type("object:Promise"), 1, 1)
+	register([]string{"Promise.all"}, CategoryECMAScript, "__async.promise_all", []ir.Type{ir.TypeObject}, ir.Type("object:Promise"), 1, 1)
 	register([]string{"setTimeout", "__scriptgo.setTimeout", "timers.setTimeout"}, CategoryWebCompat, "__timers.setTimeout", []ir.Type{ir.TypeClosure, ir.TypeNumber}, ir.TypeNumber, 1, 2)
 	register([]string{"clearTimeout", "__scriptgo.clearTimeout", "timers.clearTimeout"}, CategoryWebCompat, "__timers.clearTimeout", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"setInterval", "__scriptgo.setInterval", "timers.setInterval"}, CategoryWebCompat, "__timers.setInterval", []ir.Type{ir.TypeClosure, ir.TypeNumber}, ir.TypeNumber, 1, 2)

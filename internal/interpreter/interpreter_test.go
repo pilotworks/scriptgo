@@ -119,4 +119,3 @@ func TestExecuteSelectOp(t *testing.T) {
 		t.Fatalf("select output = %q, want %q", result.Output, "42\n")
 	}
 }
-

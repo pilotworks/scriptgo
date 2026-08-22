@@ -593,5 +593,3 @@ func isTypedArrayType(t ir.Type) bool {
 		return false
 	}
 }
-
-

@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
@@ -510,7 +511,9 @@ func lowerCallExpression(
 						result = nextTemp(counter)
 					}
 					retType := ir.TypeUnknown
-					if expression.InferredType != "" {
+					if _, valType := resolveMapTypes(expression.Left, env); valType != "" {
+						retType = toIRType(valType)
+					} else if expression.InferredType != "" {
 						retType = toIRType(expression.InferredType)
 					}
 					function.Body = append(function.Body, ir.Instruction{
@@ -596,6 +599,15 @@ func lowerCallExpression(
 				case "forEach":
 					if len(expression.Arguments) < 1 {
 						return "", "", fmt.Errorf("Map.forEach requires callback argument")
+					}
+					if cb := expression.Arguments[0]; cb != nil && (cb.Kind == "arrow_function" || cb.Kind == "function") && cb.Function != nil {
+						keyType, valType := resolveMapTypes(expression.Left, env)
+						if valType != "" && len(cb.Function.Parameters) > 0 && cb.Function.Parameters[0].Type == "" && cb.Function.Parameters[0].InferredType == "" {
+							cb.Function.Parameters[0].Type = valType
+						}
+						if keyType != "" && len(cb.Function.Parameters) > 1 && cb.Function.Parameters[1].Type == "" && cb.Function.Parameters[1].InferredType == "" {
+							cb.Function.Parameters[1].Type = keyType
+						}
 					}
 					cbVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 					if err != nil {
@@ -990,6 +1002,29 @@ func lowerCallExpression(
 						if defaults != nil {
 							for i := len(args); i < len(target.Parameters); i++ {
 								if initExpr, ok := defaults[i]; ok {
+									if target.Parameters[i].Type == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+										numConst := nextTemp(counter)
+										function.Body = append(function.Body, ir.Instruction{
+											Op:     ir.OpConst,
+											Type:   ir.TypeNumber,
+											Result: numConst,
+											Value:  "0",
+											Span:   toIRSpan(path, initExpr.Span),
+										})
+										args = append(args, numConst)
+										continue
+									} else if target.Parameters[i].Type == ir.TypeBool && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+										boolConst := nextTemp(counter)
+										function.Body = append(function.Body, ir.Instruction{
+											Op:     ir.OpConst,
+											Type:   ir.TypeBool,
+											Result: boolConst,
+											Value:  "false",
+											Span:   toIRSpan(path, initExpr.Span),
+										})
+										args = append(args, boolConst)
+										continue
+									}
 									val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
 									if err != nil {
 										return "", "", err
@@ -1306,7 +1341,123 @@ func lowerCallExpression(
 		return result, ir.Type("object:Promise"), nil
 	}
 
+	if expression.Left != nil && expression.Left.Kind == "arrow_function" {
+		closureVal, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		args := make([]string, 0, len(expression.Arguments))
+		for _, argument := range expression.Arguments {
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, value)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeNumber
+		if rt, ok := env[closureVal+".retType"]; ok && rt != "" {
+			retType = rt
+		} else if target, ok := signatures[closureVal]; ok && target.ReturnType != "" {
+			retType = target.ReturnType
+		} else if expression.InferredType != "" {
+			retType = toIRType(expression.InferredType)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpClosureCall,
+			Type:   retType,
+			Result: result,
+			Callee: closureVal,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
+
 	callee := callName(expression.Left)
+	if callee == "Promise.all" && len(expression.Arguments) > 0 {
+		arrExpr := expression.Arguments[0]
+		if arrExpr.Kind == "array" {
+			var resArgs []string
+			var resElemType ir.Type = ir.TypeUnknown
+			for _, elem := range arrExpr.Arguments {
+				promVal, promType, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				awaitedVal := nextTemp(counter)
+				elemType := ir.TypeNumber
+				if strings.HasPrefix(string(promType), "object:Promise_") {
+					elemType = toIRType(strings.TrimPrefix(string(promType), "object:Promise_"))
+				} else if strings.HasPrefix(string(promType), "object:Promise<") && strings.HasSuffix(string(promType), ">") {
+					elemType = toIRType(strings.TrimSuffix(strings.TrimPrefix(string(promType), "object:Promise<"), ">"))
+				} else if strings.HasPrefix(string(promType), "object:") {
+					elemType = promType
+				}
+				resElemType = elemType
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   elemType,
+					Result: awaitedVal,
+					Callee: "__async.await",
+					Args:   []string{promVal},
+					Span:   toIRSpan(path, elem.Span),
+				})
+				resArgs = append(resArgs, awaitedVal)
+			}
+			var fields []ir.Field
+			for i := range arrExpr.Arguments {
+				fields = append(fields, ir.Field{
+					Name: strconv.Itoa(i),
+					Type: resElemType,
+					Span: toIRSpan(path, expression.Span),
+				})
+			}
+			shapeName := anonymousShapeName(fields)
+			if _, ok := shapes[shapeName]; !ok {
+				shapes[shapeName] = ir.ObjectShape{
+					Name:   shapeName,
+					Span:   toIRSpan(path, expression.Span),
+					Fields: fields,
+				}
+			}
+			objType := ir.Type("object:" + shapeName)
+			arrRes := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpObjectNew,
+				Type:       objType,
+				Result:     arrRes,
+				Callee:     shapeName,
+				FieldCount: len(fields),
+				Span:       toIRSpan(path, expression.Span),
+			})
+			for i, field := range fields {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     shapeName,
+					Field:      field.Name,
+					FieldIndex: i,
+					Args:       []string{arrRes, resArgs[i]},
+					Span:       toIRSpan(path, expression.Span),
+				})
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.Type("object:Promise"),
+				Result: result,
+				Callee: "__async.promise_resolve",
+				Args:   []string{arrRes},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.Type("object:Promise"), nil
+		}
+	}
 	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || strings.HasPrefix(string(calleeType), "object:") || strings.Contains(string(calleeType), "=>")) {
 		args := make([]string, 0, len(expression.Arguments))
 		for _, argument := range expression.Arguments {
@@ -1419,6 +1570,29 @@ func lowerCallExpression(
 		if defaults != nil {
 			for i := len(args); i < len(target.Parameters); i++ {
 				if initExpr, ok := defaults[i]; ok {
+					if target.Parameters[i].Type == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+						numConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeNumber,
+							Result: numConst,
+							Value:  "0",
+							Span:   toIRSpan(path, initExpr.Span),
+						})
+						args = append(args, numConst)
+						continue
+					} else if target.Parameters[i].Type == ir.TypeBool && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+						boolConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeBool,
+							Result: boolConst,
+							Value:  "false",
+							Span:   toIRSpan(path, initExpr.Span),
+						})
+						args = append(args, boolConst)
+						continue
+					}
 					val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
 					if err != nil {
 						return "", "", err
@@ -1518,4 +1692,42 @@ func arrayMethod(expression *typescriptgo.SyntaxExpression) string {
 		return expression.Text
 	}
 	return ""
+}
+
+func resolveMapTypes(expr *typescriptgo.SyntaxExpression, env map[string]ir.Type) (string, string) {
+	if expr == nil {
+		return "", ""
+	}
+	target := expr
+	if target.Kind == "property" && target.Left != nil && (target.Text == "get" || target.Text == "forEach" || target.Text == "set" || target.Text == "has" || target.Text == "delete") {
+		target = target.Left
+	}
+	rawType := target.InferredType
+	if target.Kind == "property" {
+		propName := target.Text
+		for _, meta := range classHierarchy {
+			for _, f := range meta.Fields {
+				if f.Name == propName && strings.HasPrefix(f.Type, "Map<") {
+					rawType = f.Type
+					break
+				}
+			}
+			if rawType != "" {
+				break
+			}
+		}
+	} else if target.Kind == "identifier" {
+		if t, ok := env[target.Text]; ok {
+			rawType = string(t)
+		}
+	}
+	if strings.Contains(rawType, "<") && strings.HasSuffix(rawType, ">") {
+		idx := strings.Index(rawType, "<")
+		inner := rawType[idx+1 : len(rawType)-1]
+		parts := splitTypeArguments(inner)
+		if len(parts) >= 2 {
+			return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		}
+	}
+	return "", ""
 }

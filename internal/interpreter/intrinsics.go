@@ -2268,4 +2268,3 @@ func executeGeneratorIntrinsic(instruction ir.Instruction, env map[string]Value,
 	}
 	return Value{}, fmt.Errorf("unsupported generator intrinsic %q", instruction.Callee)
 }
-

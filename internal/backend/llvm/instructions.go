@@ -20,12 +20,12 @@ type functionEmitter struct {
 	debug          *debugInfo
 	module         ir.Module
 
-	types         map[string]ir.Type
-	varSlots      map[string]string
-	loadCounter   int
-	arrayTypes    []arrayReference
-	objects       []string
-	ownedStrings  []string
+	types              map[string]ir.Type
+	varSlots           map[string]string
+	loadCounter        int
+	arrayTypes         []arrayReference
+	objects            []string
+	ownedStrings       []string
 	labelCounter       int
 	loopBreakLabels    []string
 	loopContinueLabels []string
@@ -1577,4 +1577,3 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 	out.WriteString(fmt.Sprintf("  %%%s = call ptr @__scriptgo_typeof_unknown(i32 %%%s)\n", instruction.Result, tagVar))
 	return nil
 }
-

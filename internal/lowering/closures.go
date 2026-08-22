@@ -162,6 +162,9 @@ func lowerClosureExpression(
 	if (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) && fnStmt.InferredType != "" {
 		targetFn.ReturnType = toIRType(fnStmt.InferredType)
 	}
+	if (fnStmt.IsAsync || fnStmt.Kind == "async_function") && (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) {
+		targetFn.ReturnType = ir.Type("object:Promise")
+	}
 	if targetFn.ReturnType == "" {
 		targetFn.ReturnType = ir.TypeVoid
 	}
@@ -318,7 +321,26 @@ func lowerClosureExpression(
 			}
 		}
 		if !returned {
-			if targetFn.ReturnType != ir.TypeVoid {
+			if strings.HasPrefix(string(targetFn.ReturnType), "object:Promise") {
+				prom := nextTemp(&closureBodyCounter)
+				zeroVal := nextTemp(&closureBodyCounter)
+				targetFn.Body = append(targetFn.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeNumber,
+					Result: zeroVal,
+					Value:  "0",
+					Span:   targetFn.Span,
+				})
+				targetFn.Body = append(targetFn.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.Type("object:Promise"),
+					Result: prom,
+					Callee: "__async.promise_resolve",
+					Args:   []string{zeroVal},
+					Span:   targetFn.Span,
+				})
+				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Args: []string{prom}, Span: targetFn.Span})
+			} else if targetFn.ReturnType != ir.TypeVoid {
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Span: targetFn.Span})
 			} else {
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: targetFn.Span})

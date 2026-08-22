@@ -3,8 +3,8 @@ package interpreter
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/hex"
 	encbinary "encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strings"

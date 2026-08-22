@@ -355,4 +355,3 @@ func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string
 	})
 	return result
 }
-

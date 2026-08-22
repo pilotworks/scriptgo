@@ -18,15 +18,16 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		return "", "", err
 	}
 	if expression.Operator == "!" {
-		if valType != ir.TypeBool {
-			return "", "", fmt.Errorf("unary ! requires a bool operand")
+		boolVal, err := coerceToBool(path, value, valType, function, counter, expression.Span)
+		if err != nil {
+			return "", "", err
 		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
 		falseConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: falseConst, Value: "false", Span: toIRSpan(path, expression.Span)})
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: "==", Args: []string{value, falseConst}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: "==", Args: []string{boolVal, falseConst}, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeBool, nil
 	}
 	if expression.Operator == "-" {

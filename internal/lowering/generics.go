@@ -93,6 +93,14 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	var requestMethodSpec func(className, methodName string, typeArgs []string) string
 
 	requestFuncSpec = func(name string, typeArgs []string, originFile string) string {
+		if originFile == "" {
+			for _, f := range program.Files {
+				if !strings.HasSuffix(f.FileName, ".d.ts") {
+					originFile = f.FileName
+					break
+				}
+			}
+		}
 		fnTemplate, ok := genericFuncs[name]
 		if !ok || len(typeArgs) != len(fnTemplate.TypeParameters) {
 			return name
@@ -112,6 +120,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		specFn.Name = mangled
 		specFn.TypeParameters = nil
 		specFn.Type = substituteType(specFn.Type, subst)
+		specFn.InferredType = substituteType(specFn.InferredType, subst)
 		for i := range specFn.Parameters {
 			specFn.Parameters[i].Type = substituteType(specFn.Parameters[i].Type, subst)
 			specFn.Parameters[i].InferredType = substituteType(specFn.Parameters[i].InferredType, subst)
@@ -124,6 +133,19 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		}
 
 		funcInstances[originFile] = append(funcInstances[originFile], specFn)
+
+		// Scan specialized function body for other generic dependencies
+		specEnv := map[string]string{}
+		for _, p := range specFn.Parameters {
+			if p.Type != "" {
+				specEnv[p.Name] = p.Type
+				scanTypeForGenerics(p.Type, originFile, genericClasses, requestClassSpec)
+			}
+		}
+		for _, stmt := range specFn.Body {
+			scanAndSpecializeStmt(stmt, originFile, specEnv, funcTypes, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec)
+		}
+
 		return mangled
 	}
 
@@ -181,6 +203,14 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	}
 
 	requestClassSpec = func(name string, typeArgs []string, originFile string) string {
+		if originFile == "" {
+			for _, f := range program.Files {
+				if !strings.HasSuffix(f.FileName, ".d.ts") {
+					originFile = f.FileName
+					break
+				}
+			}
+		}
 		clsTemplate, ok := genericClasses[name]
 		if !ok || len(typeArgs) != len(clsTemplate.TypeParameters) {
 			return name
@@ -324,8 +354,8 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			if stmt.Kind == "function" && len(stmt.TypeParameters) > 0 {
 				continue // Skip generic function template
 			}
-			if stmt.Kind == "class" && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
-				continue // Skip generic class template
+			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
+				continue // Skip generic class/interface/type_alias template
 			}
 			if stmt.Kind == "variable" && stmt.Expression != nil && stmt.Expression.Kind == "arrow_function" && stmt.Expression.Function != nil && len(stmt.Expression.Function.TypeParameters) > 0 {
 				continue // Skip generic arrow function template
@@ -352,7 +382,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			newStmts = append(newStmts, rewritten)
 		}
 		// Append specialized class instances then function instances
-		for i := range classInstances[file.FileName] {
+		for i := 0; i < len(classInstances[file.FileName]); i++ {
 			clsStmt := classInstances[file.FileName][i]
 			clsStmt = rewriteStatementTypes(clsStmt, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
 			if clsStmt.Class != nil {
@@ -375,7 +405,8 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			}
 			newStmts = append(newStmts, clsStmt)
 		}
-		for _, fnStmt := range funcInstances[file.FileName] {
+		for i := 0; i < len(funcInstances[file.FileName]); i++ {
+			fnStmt := funcInstances[file.FileName][i]
 			rewrittenFn := rewriteStatementTypes(fnStmt, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
 			newStmts = append(newStmts, rewrittenFn)
 		}
@@ -623,6 +654,30 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 
 func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescriptgo.SyntaxClass, reqCls func(string, []string, string) string) {
 	clean := strings.TrimPrefix(typ, "object:")
+	if strings.HasSuffix(clean, "[]") {
+		scanTypeForGenerics(clean[:len(clean)-2], fileName, genericClasses, reqCls)
+		return
+	}
+	if strings.Contains(clean, "|") {
+		for _, part := range strings.Split(clean, "|") {
+			scanTypeForGenerics(strings.TrimSpace(part), fileName, genericClasses, reqCls)
+		}
+		return
+	}
+	if strings.Contains(clean, "__") {
+		idx := strings.Index(clean, "__")
+		name := clean[:idx]
+		inner := clean[idx+2:]
+		inner = strings.TrimSuffix(inner, "_arr")
+		parts := strings.Split(inner, "_")
+		if _, ok := genericClasses[name]; ok {
+			reqCls(name, parts, fileName)
+		}
+		for _, p := range parts {
+			scanTypeForGenerics(p, fileName, genericClasses, reqCls)
+		}
+		return
+	}
 	if strings.Contains(clean, "<") && strings.HasSuffix(clean, ">") {
 		idx := strings.Index(clean, "<")
 		name := clean[:idx]

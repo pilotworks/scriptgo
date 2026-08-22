@@ -438,6 +438,35 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 	var fields []ir.Field
 	var propValues []string
 	for _, prop := range expression.Arguments {
+		if prop.Kind == "spread" {
+			val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			srcShapeName := strings.TrimPrefix(string(valType), "object:")
+			if s, ok := shapes[srcShapeName]; ok {
+				for sIdx, f := range s.Fields {
+					fieldVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:         ir.OpFieldGet,
+						Type:       f.Type,
+						Result:     fieldVal,
+						Callee:     srcShapeName,
+						Field:      f.Name,
+						FieldIndex: sIdx,
+						Args:       []string{val},
+						Span:       toIRSpan(path, prop.Span),
+					})
+					fields = append(fields, ir.Field{
+						Name: f.Name,
+						Type: f.Type,
+						Span: toIRSpan(path, prop.Span),
+					})
+					propValues = append(propValues, fieldVal)
+				}
+			}
+			continue
+		}
 		val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err

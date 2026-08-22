@@ -501,7 +501,6 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		out.WriteString("  call void @scriptgo_process_init(i32 %argc, ptr %argv)\n")
 	}
 
-
 	emitter := &functionEmitter{
 		function:       function,
 		functions:      functions,

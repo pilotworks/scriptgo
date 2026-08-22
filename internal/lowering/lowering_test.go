@@ -278,4 +278,3 @@ func TestLowerWarnRuntimeCastsOption(t *testing.T) {
 		t.Fatalf("want CodeWarnCheckedCast (SG4005) warning, got %v", warns)
 	}
 }
-

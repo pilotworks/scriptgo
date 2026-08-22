@@ -348,4 +348,3 @@ console.log(s1, s2, k, desc, str, iter);
 		t.Errorf("stmt[0].Type = %q, want %q", file.Syntax.Statements[0].Type, "symbol")
 	}
 }
-

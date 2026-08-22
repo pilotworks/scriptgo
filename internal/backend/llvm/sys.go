@@ -845,6 +845,3 @@ func (e *functionEmitter) emitHttpIntrinsic(out *strings.Builder, instruction ir
 		return fmt.Errorf("unknown http intrinsic %q", instruction.Callee)
 	}
 }
-
-
-

@@ -537,10 +537,10 @@ func lowerGeneratorFunction(
 	}
 
 	factoryFn.Body = append(factoryFn.Body, ir.Instruction{
-		Op:     ir.OpReturn,
-		Type:   ir.Type("object:" + genClassName),
-		Args:   []string{genObj},
-		Span:   toIRSpan(path, statement.Span),
+		Op:   ir.OpReturn,
+		Type: ir.Type("object:" + genClassName),
+		Args: []string{genObj},
+		Span: toIRSpan(path, statement.Span),
 	})
 
 	signatures[name] = factoryFn

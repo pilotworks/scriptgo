@@ -470,7 +470,11 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			}
 		}
 		var fields []SyntaxField
-		for _, member := range node.Members() {
+		members := node.Members()
+		if len(members) == 0 && iface != nil && iface.Members != nil {
+			members = iface.Members.Nodes
+		}
+		for _, member := range members {
 			if member.Kind == ast.KindPropertySignature {
 				fType := syntaxType(member.Type())
 				inferredFType := resolveInferredType(chk, member.Name())
@@ -489,11 +493,9 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				})
 			}
 		}
-		var tParams []string
-		if iface != nil && iface.TypeParameters != nil {
+		tParams := syntaxTypeParameters(node.TypeParameters())
+		if len(tParams) == 0 && iface != nil && iface.TypeParameters != nil {
 			tParams = syntaxTypeParameters(iface.TypeParameters.Nodes)
-		} else {
-			tParams = syntaxTypeParameters(node.TypeParameters())
 		}
 		cls := &SyntaxClass{
 			Span:           span,

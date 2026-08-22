@@ -240,6 +240,13 @@ func rewriteTypeString(typ string) string {
 	if typ == "" {
 		return typ
 	}
+	if strings.Contains(typ, "|") {
+		var parts []string
+		for _, part := range strings.Split(typ, "|") {
+			parts = append(parts, rewriteTypeString(strings.TrimSpace(part)))
+		}
+		return strings.Join(parts, " | ")
+	}
 	if strings.HasSuffix(typ, "[]") {
 		return rewriteTypeString(typ[:len(typ)-2]) + "[]"
 	}

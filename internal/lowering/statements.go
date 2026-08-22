@@ -62,6 +62,30 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 	if !returned {
 		if function.ReturnType == ir.TypeVoid {
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: function.Span})
+		} else if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
+			prom := nextTemp(&counter)
+			zeroVal := nextTemp(&counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: zeroVal,
+				Value:  "0",
+				Span:   function.Span,
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.Type("object:Promise"),
+				Result: prom,
+				Callee: "__async.promise_resolve",
+				Args:   []string{zeroVal},
+				Span:   function.Span,
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpReturn,
+				Type: function.ReturnType,
+				Args: []string{prom},
+				Span: function.Span,
+			})
 		} else {
 			defVal := ""
 			if function.ReturnType == ir.TypeNumber {
@@ -529,9 +553,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Expression != nil && statement.Expression.Kind == "array" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
 			statement.Expression.InferredType = string(shape.Fields[fIndex].Type)
 		}
-		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return err
+		var val string
+		var valType ir.Type
+		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && strings.HasPrefix(string(shape.Fields[fIndex].Type), "object:") {
+			val = nextTemp(counter)
+			valType = shape.Fields[fIndex].Type
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   valType,
+				Result: val,
+				Value:  "null",
+				Span:   toIRSpan(path, statement.Span),
+			})
+		} else {
+			var err error
+			val, valType, err = lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
 		}
 		if valType != shape.Fields[fIndex].Type {
 			return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)

@@ -18,6 +18,18 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if err != nil {
 			return "", "", err
 		}
+		if (expression.Right.Kind == "null" || expression.Right.Kind == "undefined") && rightTyp != leftTyp {
+			rightTyp = leftTyp
+			nullVal := "null"
+			switch leftTyp {
+			case ir.TypeNumber:
+				nullVal = "0"
+			case ir.TypeBool:
+				nullVal = "false"
+			}
+			rightVal = nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: rightVal, Value: nullVal, Span: toIRSpan(path, expression.Right.Span)})
+		}
 		if leftTyp != rightTyp {
 			return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
 		}

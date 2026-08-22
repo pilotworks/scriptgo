@@ -249,4 +249,3 @@ func Check(entryPath string) error {
 	}
 	return lowering.ValidateSubset(program)
 }
-

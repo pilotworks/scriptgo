@@ -269,4 +269,3 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 	}
 	return nil
 }
-

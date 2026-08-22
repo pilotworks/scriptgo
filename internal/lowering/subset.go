@@ -502,6 +502,9 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 				return err
 			}
 		}
+		if expression.Left != nil && expression.Left.Kind == "arrow_function" {
+			return validateExpression(fileName, expression.Left)
+		}
 		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" && expression.Left.Kind != "optional_property" {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
