@@ -13,8 +13,12 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	span := sourceSpan(node)
 	switch node.Kind {
 	case ast.KindVariableStatement:
-		declarations := node.AsVariableStatement().DeclarationList.AsVariableDeclarationList().Declarations.Nodes
-		return syntaxVariableDeclarations(declarations, span, chk)
+		varStmt := node.AsVariableStatement()
+		declList := varStmt.DeclarationList.AsVariableDeclarationList()
+		declarations := declList.Declarations.Nodes
+		isUsing := (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsUsing
+		isAwaitUsing := (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsAwaitUsing
+		return syntaxVariableDeclarations(declarations, span, chk, isUsing, isAwaitUsing)
 	case ast.KindFunctionDeclaration:
 		fnType := syntaxType(node.Type())
 		inferredRetType := resolveFunctionReturnType(chk, node)
@@ -336,7 +340,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		if forNode.Initializer != nil {
 			if forNode.Initializer.Kind == ast.KindVariableDeclarationList {
 				decls := forNode.Initializer.AsVariableDeclarationList().Declarations.Nodes
-				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk)
+				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk, false, false)
 				if ok {
 					return SyntaxStatement{
 						Span: span,
@@ -437,8 +441,33 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			}
 		}
 		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
-	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindModuleDeclaration:
+	case ast.KindImportDeclaration, ast.KindExportDeclaration:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
+	case ast.KindModuleDeclaration:
+		if ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient) || (node.Name() != nil && (strings.HasPrefix(node.Name().Text(), "\"") || strings.HasPrefix(node.Name().Text(), "'"))) {
+			return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
+		}
+		modDecl := node.AsModuleDeclaration()
+		name := ""
+		if node.Name() != nil {
+			name = node.Name().Text()
+		}
+		var bodyStmts []SyntaxStatement
+		if modDecl != nil && modDecl.Body != nil {
+			if modBlock := modDecl.Body.AsModuleBlock(); modBlock != nil && modBlock.Statements != nil {
+				for _, s := range modBlock.Statements.Nodes {
+					if conv, ok := syntaxStatement(s, chk); ok {
+						bodyStmts = append(bodyStmts, conv)
+					}
+				}
+			}
+		}
+		return SyntaxStatement{
+			Span: span,
+			Kind: "namespace",
+			Name: name,
+			Body: bodyStmts,
+		}, true
 	case ast.KindInterfaceDeclaration:
 		iface := node.AsInterfaceDeclaration()
 		name := ""
@@ -571,7 +600,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	}
 }
 
-func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker) (SyntaxStatement, bool) {
+func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker, isUsing, isAwaitUsing bool) (SyntaxStatement, bool) {
 	var stmts []SyntaxStatement
 	for _, declaration := range decls {
 		nameNode := declaration.Name()
@@ -683,9 +712,15 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker
 			if varType == "" && inferredVarType != "" {
 				varType = inferredVarType
 			}
+			kind := "variable"
+			if isAwaitUsing {
+				kind = "await_using"
+			} else if isUsing {
+				kind = "using"
+			}
 			result := SyntaxStatement{
 				Span:         sourceSpan(declaration),
-				Kind:         "variable",
+				Kind:         kind,
 				Name:         nameNode.Text(),
 				Type:         varType,
 				InferredType: inferredVarType,

@@ -343,7 +343,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]")) && expression.Text == "length" {
+	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]") || objectType == ir.Type("object:Array")) && expression.Text == "length" {
 		if result == "" {
 			result = nextTemp(counter)
 		}
@@ -390,6 +390,32 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 
 	shape, ok := shapes[className]
 	if !ok {
+		if className == "Record" || objectType == ir.TypeObject {
+			propNameConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeString,
+				Result: propNameConst,
+				Value:  expression.Text,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			retType := ir.TypeNumber
+			if expression.InferredType != "" {
+				retType = toIRType(expression.InferredType)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   retType,
+				Result: result,
+				Callee: "__object.get_prop",
+				Args:   []string{object, propNameConst},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, retType, nil
+		}
 		return "", "", fmt.Errorf("unknown object shape %q for property %q", className, expression.Text)
 	}
 	for _, field := range shape.Fields {

@@ -116,7 +116,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 
 func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	switch statement.Kind {
-	case "variable":
+	case "variable", "using", "await_using":
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
 		}
@@ -310,6 +310,20 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		for _, s := range statement.Body {
 			if err := lowerStatement(path, s, function, env, counter, shapes, signatures); err != nil {
 				return err
+			}
+		}
+	case "namespace":
+		for _, s := range statement.Body {
+			if s.Kind == "variable" || s.Kind == "using" || s.Kind == "await_using" {
+				varCopy := s
+				varCopy.Name = statement.Name + "." + s.Name
+				if err := lowerStatement(path, varCopy, function, env, counter, shapes, signatures); err != nil {
+					return err
+				}
+			} else {
+				if err := lowerStatement(path, s, function, env, counter, shapes, signatures); err != nil {
+					return err
+				}
 			}
 		}
 	case "assign":

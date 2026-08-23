@@ -820,7 +820,7 @@ func lowerCallExpression(
 				}
 			}
 			if receiverType == ir.TypeString && isStringMethod(methodName) {
-				if methodName == "match" || methodName == "search" {
+				if methodName == "match" || methodName == "search" || methodName == "matchAll" {
 					if len(expression.Arguments) > 0 {
 						argVal, argTyp, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 						if err != nil {
@@ -838,10 +838,14 @@ func lowerCallExpression(
 						if result == "" {
 							result = nextTemp(counter)
 						}
-						if methodName == "match" {
+						switch methodName {
+						case "match":
 							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.match", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
 							return result, ir.TypeStringArray, nil
-						} else {
+						case "matchAll":
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.matchAll", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
+							return result, ir.TypeStringArray, nil
+						default:
 							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__string.search", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
 							return result, ir.TypeNumber, nil
 						}
@@ -881,19 +885,26 @@ func lowerCallExpression(
 				}
 				returnType := ir.TypeNumber
 				switch methodName {
-				case "slice", "trim", "trimStart", "trimEnd", "replace", "replaceAll", "substring", "charAt", "toLowerCase", "toUpperCase", "repeat", "padStart", "padEnd", "concat":
+				case "slice", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "substring", "substr", "charAt", "at", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "repeat", "padStart", "padEnd", "concat", "toWellFormed", "normalize", "valueOf", "toString", "anchor", "big", "blink", "bold", "fixed", "fontcolor", "fontsize", "italics", "link", "small", "strike", "sub", "sup":
 					returnType = ir.TypeString
-				case "startsWith", "endsWith", "includes":
+				case "startsWith", "endsWith", "includes", "isWellFormed":
 					returnType = ir.TypeBool
-				case "split":
+				case "split", "matchAll":
 					returnType = ir.TypeStringArray
-				case "indexOf", "lastIndexOf", "charCodeAt":
+				case "indexOf", "lastIndexOf", "charCodeAt", "codePointAt", "localeCompare":
 					returnType = ir.TypeNumber
 				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				env[result] = returnType
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, returnType, nil
 			}
-			if receiverType == ir.TypeNumber && (methodName == "toFixed" || methodName == "toString") {
+			if receiverType == ir.TypeNumber && methodName == "valueOf" {
+				return receiver, ir.TypeNumber, nil
+			}
+			if receiverType == ir.TypeNumber && (methodName == "toFixed" || methodName == "toString" || methodName == "toExponential" || methodName == "toPrecision" || methodName == "toLocaleString") {
 				args := []string{receiver}
 				for _, argument := range expression.Arguments {
 					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -905,6 +916,7 @@ func lowerCallExpression(
 				if result == "" {
 					result = nextTemp(counter)
 				}
+				env[result] = ir.TypeString
 				callee := "__number." + methodName
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeString, nil
@@ -974,7 +986,7 @@ func lowerCallExpression(
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__array." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
 				return result, returnType, nil
 			}
-			if after, ok := strings.CutPrefix(string(receiverType), "object:"); ok {
+			if after, ok := strings.CutPrefix(string(receiverType), "object:"); ok || receiverType == ir.TypeObject {
 				className := after
 				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 					args := []string{receiver}
@@ -1157,6 +1169,39 @@ func lowerCallExpression(
 					}
 					function.Body = append(function.Body, currElse...)
 					return result, target.ReturnType, nil
+				}
+				if methodName == "hasOwnProperty" || methodName == "propertyIsEnumerable" || methodName == "isPrototypeOf" || methodName == "toString" || methodName == "toLocaleString" || methodName == "valueOf" {
+					var args []string
+					args = append(args, receiver)
+					for _, argument := range expression.Arguments {
+						argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, argVal)
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					retType := ir.TypeString
+					if methodName == "hasOwnProperty" || methodName == "propertyIsEnumerable" || methodName == "isPrototypeOf" {
+						retType = ir.TypeBool
+					} else if methodName == "valueOf" {
+						return receiver, receiverType, nil
+					}
+					callee := "__object." + methodName
+					if methodName == "hasOwnProperty" {
+						callee = "__object.hasOwn"
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   retType,
+						Result: result,
+						Callee: callee,
+						Args:   args,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
 				}
 			}
 		}
@@ -1447,16 +1492,248 @@ func lowerCallExpression(
 			if result == "" {
 				result = nextTemp(counter)
 			}
+			promRetType := ir.Type("object:Promise<" + string(objType) + ">")
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpCall,
-				Type:   ir.Type("object:Promise"),
+				Type:   promRetType,
 				Result: result,
 				Callee: "__async.promise_resolve",
 				Args:   []string{arrRes},
 				Span:   toIRSpan(path, expression.Span),
 			})
+			return result, promRetType, nil
+		}
+	}
+	if callee == "Promise.allSettled" && len(expression.Arguments) > 0 {
+		arrExpr := expression.Arguments[0]
+		if arrExpr.Kind == "array" {
+			var resArgs []string
+			settledShapeName := "PromiseSettledResult"
+			if _, ok := shapes[settledShapeName]; !ok {
+				shapes[settledShapeName] = ir.ObjectShape{
+					Name: settledShapeName,
+					Span: toIRSpan(path, expression.Span),
+					Fields: []ir.Field{
+						{Name: "status", Type: ir.TypeString, Span: toIRSpan(path, expression.Span)},
+						{Name: "value", Type: ir.TypeUnknown, Span: toIRSpan(path, expression.Span)},
+					},
+				}
+			}
+			for _, elem := range arrExpr.Arguments {
+				promVal, promType, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				awaitedVal := nextTemp(counter)
+				elemType := ir.TypeNumber
+				if strings.HasPrefix(string(promType), "object:Promise_") {
+					elemType = toIRType(strings.TrimPrefix(string(promType), "object:Promise_"))
+				} else if strings.HasPrefix(string(promType), "object:Promise<") && strings.HasSuffix(string(promType), ">") {
+					elemType = toIRType(strings.TrimSuffix(strings.TrimPrefix(string(promType), "object:Promise<"), ">"))
+				} else if strings.HasPrefix(string(promType), "object:") {
+					elemType = promType
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   elemType,
+					Result: awaitedVal,
+					Callee: "__async.await",
+					Args:   []string{promVal},
+					Span:   toIRSpan(path, elem.Span),
+				})
+				statusConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: statusConst,
+					Value:  "fulfilled",
+					Span:   toIRSpan(path, elem.Span),
+				})
+				itemObj := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpObjectNew,
+					Type:       ir.Type("object:" + settledShapeName),
+					Result:     itemObj,
+					Callee:     settledShapeName,
+					FieldCount: 2,
+					Span:       toIRSpan(path, elem.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     settledShapeName,
+					Field:      "status",
+					FieldIndex: 0,
+					Args:       []string{itemObj, statusConst},
+					Span:       toIRSpan(path, elem.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     settledShapeName,
+					Field:      "value",
+					FieldIndex: 1,
+					Args:       []string{itemObj, awaitedVal},
+					Span:       toIRSpan(path, elem.Span),
+				})
+				resArgs = append(resArgs, itemObj)
+			}
+			var fields []ir.Field
+			for i := range arrExpr.Arguments {
+				fields = append(fields, ir.Field{
+					Name: strconv.Itoa(i),
+					Type: ir.Type("object:" + settledShapeName),
+					Span: toIRSpan(path, expression.Span),
+				})
+			}
+			shapeName := anonymousShapeName(fields)
+			if _, ok := shapes[shapeName]; !ok {
+				shapes[shapeName] = ir.ObjectShape{
+					Name:   shapeName,
+					Span:   toIRSpan(path, expression.Span),
+					Fields: fields,
+				}
+			}
+			objType := ir.Type("object:" + shapeName)
+			arrRes := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpObjectNew,
+				Type:       objType,
+				Result:     arrRes,
+				Callee:     shapeName,
+				FieldCount: len(fields),
+				Span:       toIRSpan(path, expression.Span),
+			})
+			for i, field := range fields {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     shapeName,
+					Field:      field.Name,
+					FieldIndex: i,
+					Args:       []string{arrRes, resArgs[i]},
+					Span:       toIRSpan(path, expression.Span),
+				})
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			promRetType := ir.Type("object:Promise<" + string(objType) + ">")
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   promRetType,
+				Result: result,
+				Callee: "__async.promise_resolve",
+				Args:   []string{arrRes},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, promRetType, nil
+		}
+	}
+	if callee == "Promise.any" && len(expression.Arguments) > 0 {
+		arrExpr := expression.Arguments[0]
+		if arrExpr.Kind == "array" && len(arrExpr.Arguments) > 0 {
+			elem := arrExpr.Arguments[0]
+			promVal, promType, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			awaitedVal := nextTemp(counter)
+			elemType := ir.TypeNumber
+			if strings.HasPrefix(string(promType), "object:Promise_") {
+				elemType = toIRType(strings.TrimPrefix(string(promType), "object:Promise_"))
+			} else if strings.HasPrefix(string(promType), "object:Promise<") && strings.HasSuffix(string(promType), ">") {
+				elemType = toIRType(strings.TrimSuffix(strings.TrimPrefix(string(promType), "object:Promise<"), ">"))
+			} else if strings.HasPrefix(string(promType), "object:") {
+				elemType = promType
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   elemType,
+				Result: awaitedVal,
+				Callee: "__async.await",
+				Args:   []string{promVal},
+				Span:   toIRSpan(path, elem.Span),
+			})
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.Type("object:Promise"),
+				Result: result,
+				Callee: "__async.promise_resolve",
+				Args:   []string{awaitedVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
 			return result, ir.Type("object:Promise"), nil
 		}
+	}
+	if callee == "Promise.withResolvers" {
+		promRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:Promise"),
+			Result: promRes,
+			Callee: "__async.promise_create",
+			Args:   nil,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		fields := []ir.Field{
+			{Name: "promise", Type: ir.Type("object:Promise"), Span: toIRSpan(path, expression.Span)},
+			{Name: "resolve", Type: ir.TypeClosure, Span: toIRSpan(path, expression.Span)},
+			{Name: "reject", Type: ir.TypeClosure, Span: toIRSpan(path, expression.Span)},
+		}
+		shapeName := "PromiseWithResolvers"
+		if _, ok := shapes[shapeName]; !ok {
+			shapes[shapeName] = ir.ObjectShape{
+				Name:   shapeName,
+				Span:   toIRSpan(path, expression.Span),
+				Fields: fields,
+			}
+		}
+		resObj := result
+		if resObj == "" {
+			resObj = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:         ir.OpObjectNew,
+			Type:       ir.Type("object:" + shapeName),
+			Result:     resObj,
+			Callee:     shapeName,
+			FieldCount: 3,
+			Span:       toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op:         ir.OpFieldSet,
+			Type:       ir.TypeVoid,
+			Callee:     shapeName,
+			Field:      "promise",
+			FieldIndex: 0,
+			Args:       []string{resObj, promRes},
+			Span:       toIRSpan(path, expression.Span),
+		})
+		return resObj, ir.Type("object:" + shapeName), nil
+	}
+	if callee == "Array.fromAsync" && len(expression.Arguments) > 0 {
+		srcExpr := expression.Arguments[0]
+		srcVal, srcType, err := lowerExpression(path, srcExpr, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:Promise"),
+			Result: result,
+			Callee: "__async.promise_resolve",
+			Args:   []string{srcVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		_ = srcType
+		return result, ir.Type("object:Promise"), nil
 	}
 	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || strings.HasPrefix(string(calleeType), "object:") || strings.Contains(string(calleeType), "=>")) {
 		args := make([]string, 0, len(expression.Arguments))
@@ -1658,7 +1935,7 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 
 func isStringMethod(name string) bool {
 	switch name {
-	case "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "trimStart", "trimEnd", "replace", "replaceAll", "substring", "split", "charAt", "charCodeAt", "includes", "toLowerCase", "toUpperCase", "repeat", "padStart", "padEnd", "concat", "match", "search":
+	case "split", "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "substring", "substr", "charAt", "at", "charCodeAt", "includes", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "repeat", "padStart", "padEnd", "concat", "match", "matchAll", "search", "codePointAt", "isWellFormed", "toWellFormed", "localeCompare", "normalize", "valueOf", "toString", "anchor", "big", "blink", "bold", "fixed", "fontcolor", "fontsize", "italics", "link", "small", "strike", "sub", "sup":
 		return true
 	default:
 		return false

@@ -51,6 +51,7 @@ declare var performance: Performance;
 declare function btoa(data: string): string;
 declare function atob(data: string): string;
 declare function queueMicrotask(callback: () => void): void;
+declare function structuredClone<T>(value: T): T;
 
 interface BigInt {
     toString(radix?: number): string;

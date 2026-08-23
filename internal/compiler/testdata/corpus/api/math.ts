@@ -20,6 +20,9 @@ console.log(Math.atan2(0, 1));
 console.log(Math.ceil(4.2)); console.log(Math.ceil(-4.8));
 
 // @api: math.constants
+// @api: Math.E
+// @api: Math.LN2
+// @api: Math.PI
 // @expect: true
 // @expect: true
 // @expect: true
@@ -101,3 +104,87 @@ console.log(Math.tan(0));
 // @expect: 4
 // @expect: -4
 console.log(Math.trunc(4.9)); console.log(Math.trunc(-4.9));
+
+// @api: math.acos
+// @expect: 0
+console.log(Math.acos(1));
+
+// @api: math.acosh
+// @expect: 0
+console.log(Math.acosh(1));
+
+// @api: math.asin
+// @expect: 0
+console.log(Math.asin(0));
+
+// @api: math.asinh
+// @expect: 0
+console.log(Math.asinh(0));
+
+// @api: math.atanh
+// @expect: 0
+console.log(Math.atanh(0));
+
+// @api: math.cbrt
+// @expect: 3
+// @expect: -2
+console.log(Math.cbrt(27)); console.log(Math.cbrt(-8));
+
+// @api: math.clz32
+// @expect: 27
+// @expect: 32
+console.log(Math.clz32(16)); console.log(Math.clz32(0));
+
+// @api: math.cosh
+// @expect: 1
+console.log(Math.cosh(0));
+
+// @api: math.expm1
+// @expect: 0
+console.log(Math.expm1(0));
+
+// @api: math.fround
+// @expect: 1.5
+console.log(Math.fround(1.5));
+
+// @api: math.imul
+// @expect: 12
+// @expect: -12
+console.log(Math.imul(3, 4)); console.log(Math.imul(-3, 4));
+
+// @api: math.log1p
+// @expect: 0
+console.log(Math.log1p(0));
+
+// @api: math.sinh
+// @expect: 0
+console.log(Math.sinh(0));
+
+// @api: math.tanh
+// @expect: 0
+console.log(Math.tanh(0));
+
+// @api: Math.LN10
+// @expect: true
+console.log(Math.LN10 > 2.3);
+
+// @api: Math.LOG10E
+// @expect: true
+console.log(Math.LOG10E > 0.43);
+
+// @api: Math.LOG2E
+// @expect: true
+console.log(Math.LOG2E > 1.44);
+
+// @api: Math.SQRT1_2
+// @expect: true
+console.log(Math.SQRT1_2 > 0.7);
+
+// @api: Math.SQRT2
+// @expect: true
+console.log(Math.SQRT2 > 1.41);
+
+// @api: Math.f16round
+// @expect: 1.5
+console.log(Math.f16round(1.5));
+

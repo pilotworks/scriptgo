@@ -24,24 +24,24 @@ Provide a concise technical summary:
 | `Number.isFinite(number: unknown): boolean` | `isFinite(number: unknown): boolean` | `__number.isFinite` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.isInteger(number: unknown): boolean` | `isInteger(number: unknown): boolean` | `__number.isInteger` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.isNaN(number: unknown): boolean` | `isNaN(number: unknown): boolean` | `__number.isNaN` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.isSafeInteger(number: unknown): boolean` | `isSafeInteger(number: unknown): boolean` | `__number.isSafeInteger` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.parseFloat(string: string): number` | `parseFloat(string: string): number` | `__number.parseFloat` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.parseInt(string: string, radix?: number): number` | `parseInt(string: string, radix?: number): number` | `__number.parseInt` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly EPSILON: number` | `readonly EPSILON: number` | `__number.EPSILON` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly MAX_SAFE_INTEGER: number` | `readonly MAX_SAFE_INTEGER: number` | `__number.MAX_SAFE_INTEGER` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly MAX_VALUE: number` | `readonly MAX_VALUE: number` | `__number.MAX_VALUE` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly MIN_SAFE_INTEGER: number` | `readonly MIN_SAFE_INTEGER: number` | `__number.MIN_SAFE_INTEGER` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly MIN_VALUE: number` | `readonly MIN_VALUE: number` | `__number.MIN_VALUE` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly NEGATIVE_INFINITY: number` | `readonly NEGATIVE_INFINITY: number` | `__number.NEGATIVE_INFINITY` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly NaN: number` | `readonly NaN: number` | `__number.NaN` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.readonly POSITIVE_INFINITY: number` | `readonly POSITIVE_INFINITY: number` | `__number.POSITIVE_INFINITY` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.toExponential(fractionDigits?: number): string` | `toExponential(fractionDigits?: number): string` | `__number.toExponential` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.toFixed(fractionDigits?: number): string` | `toFixed(fractionDigits?: number): string` | `__number.toFixed` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `__number.toLocaleString` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `Number.toPrecision(precision?: number): string` | `toPrecision(precision?: number): string` | `__number.toPrecision` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 | `Number.toString(radix?: number): string` | `toString(radix?: number): string` | `__number.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
-| `Number.isSafeInteger(number: unknown): boolean` | `isSafeInteger(number: unknown): boolean` | `__number.isSafeInteger` | 📋 Planned | - |
-| `Number.readonly EPSILON: number` | `readonly EPSILON: number` | `__number.EPSILON` | 📋 Planned | - |
-| `Number.readonly MAX_SAFE_INTEGER: number` | `readonly MAX_SAFE_INTEGER: number` | `__number.MAX_SAFE_INTEGER` | 📋 Planned | - |
-| `Number.readonly MAX_VALUE: number` | `readonly MAX_VALUE: number` | `__number.MAX_VALUE` | 📋 Planned | - |
-| `Number.readonly MIN_SAFE_INTEGER: number` | `readonly MIN_SAFE_INTEGER: number` | `__number.MIN_SAFE_INTEGER` | 📋 Planned | - |
-| `Number.readonly MIN_VALUE: number` | `readonly MIN_VALUE: number` | `__number.MIN_VALUE` | 📋 Planned | - |
-| `Number.readonly NEGATIVE_INFINITY: number` | `readonly NEGATIVE_INFINITY: number` | `__number.NEGATIVE_INFINITY` | 📋 Planned | - |
-| `Number.readonly NaN: number` | `readonly NaN: number` | `__number.NaN` | 📋 Planned | - |
-| `Number.readonly POSITIVE_INFINITY: number` | `readonly POSITIVE_INFINITY: number` | `__number.POSITIVE_INFINITY` | 📋 Planned | - |
-| `Number.toExponential(fractionDigits?: number): string` | `toExponential(fractionDigits?: number): string` | `__number.toExponential` | 📋 Planned | - |
-| `Number.toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): string` | `__number.toLocaleString` | 📋 Planned | - |
-| `Number.toPrecision(precision?: number): string` | `toPrecision(precision?: number): string` | `__number.toPrecision` | 📋 Planned | - |
-| `Number.valueOf(): number` | `valueOf(): number` | `__number.valueOf` | 📋 Planned | - |
-| `new Number(value?: any): Number` | `new (value?: any): Number` | `__number.new` | 📋 Planned | - |
+| `Number.valueOf(): number` | `valueOf(): number` | `__number.valueOf` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
+| `new Number(value?: any): Number` | `new (value?: any): Number` | `__number.new` | ✅ Done | `internal/compiler/testdata/corpus/api/number.ts` |
 
 ---
 

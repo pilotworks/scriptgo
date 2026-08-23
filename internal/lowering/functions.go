@@ -114,6 +114,29 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					}
 				}
 				functionsByFile[fileName] = append(functionsByFile[fileName], function)
+			} else if statement.Kind == "namespace" {
+				for _, subStmt := range statement.Body {
+					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
+						retType := subStmt.Type
+						if retType == "" && subStmt.InferredType != "" {
+							retType = subStmt.InferredType
+						}
+						fullName := statement.Name + "." + subStmt.Name
+						function := ir.Function{Name: fullName, ReturnType: toIRType(retType)}
+						if function.ReturnType == "" {
+							function.ReturnType = ir.TypeVoid
+						}
+						for _, parameter := range subStmt.Parameters {
+							pType := parameter.Type
+							if pType == "" && parameter.InferredType != "" {
+								pType = parameter.InferredType
+							}
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRType(pType)})
+						}
+						index[fullName] = function
+						functionsByFile[fileName] = append(functionsByFile[fileName], function)
+					}
+				}
 			} else if statement.Kind == "class" && statement.Class != nil {
 				// 1. Index constructor
 				if statement.Class.Constructor != nil {

@@ -634,3 +634,24 @@ func maxInt(left, right int) int {
 	}
 	return right
 }
+
+func deepCloneValue(v Value) Value {
+	res := v
+	if v.Object != nil {
+		newObj := make(map[string]Value)
+		for k, val := range v.Object {
+			newObj[k] = deepCloneValue(val)
+		}
+		res.Object = newObj
+	}
+	if v.ArrayRef != nil || len(v.Array) > 0 {
+		arr := v.GetArray()
+		newArr := make([]Value, len(arr))
+		for i, val := range arr {
+			newArr[i] = deepCloneValue(val)
+		}
+		res.Array = newArr
+		res.ArrayRef = nil
+	}
+	return res
+}

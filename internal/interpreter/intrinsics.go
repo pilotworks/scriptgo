@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/bits"
 	"net/http"
 	"os"
 	"os/exec"
@@ -82,6 +83,84 @@ func executeMathIntrinsic(name string, arguments []string, env map[string]Value)
 			return Value{}, fmt.Errorf("%s requires 1 argument", name)
 		}
 		return Value{Type: ir.TypeNumber, Number: math.Atan(values[0])}, nil
+	case "__Math.asin":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Asin(values[0])}, nil
+	case "__Math.acos":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Acos(values[0])}, nil
+	case "__Math.cbrt":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Cbrt(values[0])}, nil
+	case "__Math.fround":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(float32(values[0]))}, nil
+	case "__Math.f16round":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: float16round(values[0])}, nil
+	case "__Math.clz32":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		u := uint32(int64(values[0]))
+		return Value{Type: ir.TypeNumber, Number: float64(bits.LeadingZeros32(u))}, nil
+	case "__Math.imul":
+		if len(values) != 2 {
+			return Value{}, fmt.Errorf("%s requires 2 arguments", name)
+		}
+		a := int32(uint32(int64(values[0])))
+		b := int32(uint32(int64(values[1])))
+		return Value{Type: ir.TypeNumber, Number: float64(a * b)}, nil
+	case "__Math.sinh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Sinh(values[0])}, nil
+	case "__Math.cosh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Cosh(values[0])}, nil
+	case "__Math.tanh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Tanh(values[0])}, nil
+	case "__Math.asinh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Asinh(values[0])}, nil
+	case "__Math.acosh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Acosh(values[0])}, nil
+	case "__Math.atanh":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Atanh(values[0])}, nil
+	case "__Math.expm1":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Expm1(values[0])}, nil
+	case "__Math.log1p":
+		if len(values) != 1 {
+			return Value{}, fmt.Errorf("%s requires 1 argument", name)
+		}
+		return Value{Type: ir.TypeNumber, Number: math.Log1p(values[0])}, nil
 	case "__Math.atan2":
 		if len(values) != 2 {
 			return Value{}, fmt.Errorf("%s requires 2 arguments", name)
@@ -260,6 +339,42 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
 		}
 		return Value{Type: ir.TypeNumber, Number: float64(values[0].String[pos])}, nil
+	case "__string.codePointAt":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.codePointAt requires a string")
+		}
+		pos := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			pos = int(values[1].Number)
+		}
+		str := values[0].String
+		if pos < 0 || pos >= len(str) {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		r := []rune(str[pos:])
+		if len(r) == 0 {
+			return Value{Type: ir.TypeNumber, Number: math.NaN()}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(r[0])}, nil
+	case "__string.fromCodePoint":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("string.fromCodePoint requires a number")
+		}
+		cp := rune(int(values[0].Number))
+		return Value{Type: ir.TypeString, String: string(cp)}, nil
+	case "__string.isWellFormed":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.isWellFormed requires a string")
+		}
+		return Value{Type: ir.TypeBool, Bool: true}, nil
+	case "__string.toWellFormed":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("string.toWellFormed requires a string")
+		}
+		return Value{Type: ir.TypeString, String: values[0].String}, nil
+	case "__string.matchAll":
+		val, _, err := executeRegexStringIntrinsic("__string.match", values)
+		return val, err
 	case "__string.includes":
 		if (len(values) != 2 && len(values) != 3) || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
 			return Value{}, fmt.Errorf("string.includes requires two strings and optional start position")
@@ -353,6 +468,149 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 			elems[i] = Value{Type: ir.TypeString, String: p}
 		}
 		return Value{Type: ir.TypeStringArray, Array: elems}, nil
+	case "__string.trimLeft":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("trimLeft requires a string")
+		}
+		return Value{Type: ir.TypeString, String: strings.TrimLeft(values[0].String, " \t\n\r")}, nil
+	case "__string.trimRight":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("trimRight requires a string")
+		}
+		return Value{Type: ir.TypeString, String: strings.TrimRight(values[0].String, " \t\n\r")}, nil
+	case "__string.toLocaleLowerCase":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("toLocaleLowerCase requires a string")
+		}
+		return Value{Type: ir.TypeString, String: strings.ToLower(values[0].String)}, nil
+	case "__string.toLocaleUpperCase":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("toLocaleUpperCase requires a string")
+		}
+		return Value{Type: ir.TypeString, String: strings.ToUpper(values[0].String)}, nil
+	case "__string.fromCharCode":
+		var b strings.Builder
+		for _, v := range values {
+			if v.Type == ir.TypeNumber {
+				b.WriteRune(rune(uint16(v.Number)))
+			}
+		}
+		return Value{Type: ir.TypeString, String: b.String()}, nil
+	case "__string.at":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("at requires a string")
+		}
+		runes := []rune(values[0].String)
+		idx := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			idx = int(values[1].Number)
+		}
+		if idx < 0 {
+			idx += len(runes)
+		}
+		if idx >= 0 && idx < len(runes) {
+			return Value{Type: ir.TypeString, String: string(runes[idx])}, nil
+		}
+		return Value{Type: ir.TypeString, String: ""}, nil
+	case "__string.substr":
+		if len(values) < 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("substr requires a string")
+		}
+		runes := []rune(values[0].String)
+		start := 0
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			start = int(values[1].Number)
+		}
+		if start < 0 {
+			start += len(runes)
+			if start < 0 {
+				start = 0
+			}
+		}
+		length := len(runes)
+		if len(values) >= 3 && values[2].Type == ir.TypeNumber {
+			length = int(values[2].Number)
+		}
+		if start >= len(runes) || length <= 0 {
+			return Value{Type: ir.TypeString, String: ""}, nil
+		}
+		end := start + length
+		if end > len(runes) {
+			end = len(runes)
+		}
+		return Value{Type: ir.TypeString, String: string(runes[start:end])}, nil
+	case "__string.localeCompare":
+		if len(values) < 2 || values[0].Type != ir.TypeString || values[1].Type != ir.TypeString {
+			return Value{Type: ir.TypeNumber, Number: 0}, nil
+		}
+		s1 := values[0].String
+		s2 := values[1].String
+		if s1 < s2 {
+			return Value{Type: ir.TypeNumber, Number: -1}, nil
+		} else if s1 > s2 {
+			return Value{Type: ir.TypeNumber, Number: 1}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: 0}, nil
+	case "__string.normalize", "__string.valueOf", "__string.toString":
+		if len(values) >= 1 && values[0].Type == ir.TypeString {
+			return values[0], nil
+		}
+		return Value{Type: ir.TypeString, String: ""}, nil
+	case "__string.raw":
+		if len(values) >= 1 {
+			if values[0].Type == ir.TypeStringArray && len(values[0].Array) > 0 {
+				return values[0].Array[0], nil
+			}
+			return values[0], nil
+		}
+		return Value{Type: ir.TypeString, String: ""}, nil
+	case "__string.new":
+		if len(values) >= 1 {
+			return Value{Type: ir.TypeString, String: format(values[0])}, nil
+		}
+		return Value{Type: ir.TypeString, String: ""}, nil
+	case "__string.anchor":
+		nameStr := ""
+		if len(values) >= 2 {
+			nameStr = values[1].String
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<a name=\"%s\">%s</a>", nameStr, values[0].String)}, nil
+	case "__string.big":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<big>%s</big>", values[0].String)}, nil
+	case "__string.blink":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<blink>%s</blink>", values[0].String)}, nil
+	case "__string.bold":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<b>%s</b>", values[0].String)}, nil
+	case "__string.fixed":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<tt>%s</tt>", values[0].String)}, nil
+	case "__string.fontcolor":
+		c := ""
+		if len(values) >= 2 {
+			c = values[1].String
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<font color=\"%s\">%s</font>", c, values[0].String)}, nil
+	case "__string.fontsize":
+		s := ""
+		if len(values) >= 2 {
+			s = format(values[1])
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<font size=\"%s\">%s</font>", s, values[0].String)}, nil
+	case "__string.italics":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<i>%s</i>", values[0].String)}, nil
+	case "__string.link":
+		u := ""
+		if len(values) >= 2 {
+			u = values[1].String
+		}
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<a href=\"%s\">%s</a>", u, values[0].String)}, nil
+	case "__string.small":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<small>%s</small>", values[0].String)}, nil
+	case "__string.strike":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<strike>%s</strike>", values[0].String)}, nil
+	case "__string.sub":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<sub>%s</sub>", values[0].String)}, nil
+	case "__string.sup":
+		return Value{Type: ir.TypeString, String: fmt.Sprintf("<sup>%s</sup>", values[0].String)}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown string intrinsic %q", name)
 	}
@@ -418,6 +676,13 @@ func executeNumberIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{}, fmt.Errorf("isInteger requires a number")
 		}
 		return Value{Type: ir.TypeBool, Bool: !math.IsNaN(values[0].Number) && !math.IsInf(values[0].Number, 0) && math.Trunc(values[0].Number) == values[0].Number}, nil
+	case "__number.isSafeInteger":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("isSafeInteger requires a number")
+		}
+		v := values[0].Number
+		isSafe := !math.IsNaN(v) && !math.IsInf(v, 0) && math.Trunc(v) == v && math.Abs(v) <= 9007199254740991
+		return Value{Type: ir.TypeBool, Bool: isSafe}, nil
 	case "__number.toFixed":
 		if len(values) < 1 || values[0].Type != ir.TypeNumber {
 			return Value{}, fmt.Errorf("toFixed requires a number")
@@ -452,6 +717,52 @@ func executeNumberIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{Type: ir.TypeString, String: fmt.Sprintf("%d", int64(v))}, nil
 		}
 		return Value{Type: ir.TypeString, String: fmt.Sprintf("%g", v)}, nil
+	case "__number.toExponential":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("toExponential requires a number")
+		}
+		digits := -1
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			digits = int(values[1].Number)
+		}
+		if digits >= 0 {
+			return Value{Type: ir.TypeString, String: strconv.FormatFloat(values[0].Number, 'e', digits, 64)}, nil
+		}
+		return Value{Type: ir.TypeString, String: strconv.FormatFloat(values[0].Number, 'e', -1, 64)}, nil
+	case "__number.toPrecision":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("toPrecision requires a number")
+		}
+		prec := -1
+		if len(values) >= 2 && values[1].Type == ir.TypeNumber {
+			prec = int(values[1].Number)
+		}
+		if prec > 0 {
+			return Value{Type: ir.TypeString, String: strconv.FormatFloat(values[0].Number, 'g', prec, 64)}, nil
+		}
+		return Value{Type: ir.TypeString, String: format(values[0])}, nil
+	case "__number.toLocaleString":
+		if len(values) < 1 || values[0].Type != ir.TypeNumber {
+			return Value{}, fmt.Errorf("toLocaleString requires a number")
+		}
+		return Value{Type: ir.TypeString, String: format(values[0])}, nil
+	case "__number.new":
+		if len(values) == 0 {
+			return Value{Type: ir.TypeNumber, Number: 0}, nil
+		}
+		if values[0].Type == ir.TypeNumber {
+			return values[0], nil
+		}
+		if values[0].Type == ir.TypeBool {
+			if values[0].Bool {
+				return Value{Type: ir.TypeNumber, Number: 1}, nil
+			}
+			return Value{Type: ir.TypeNumber, Number: 0}, nil
+		}
+		if num, err := strconv.ParseFloat(strings.TrimSpace(values[0].String), 64); err == nil {
+			return Value{Type: ir.TypeNumber, Number: num}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: 0}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown number intrinsic %q", name)
 	}
@@ -513,7 +824,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		return Value{}, fmt.Errorf("array intrinsic requires at least one argument")
 	}
 	array, ok := env[arguments[0]]
-	if !ok || (!strings.HasSuffix(string(array.Type), "[]") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray) {
+	if !ok || (!strings.HasSuffix(string(array.Type), "[]") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray && array.Type != ir.TypeBoolArray && array.Type != ir.TypeBigIntArray) {
 		return Value{}, fmt.Errorf("array intrinsic requires an array")
 	}
 	array.Array = array.GetArray()
@@ -1948,6 +2259,8 @@ func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		microtasks = append(microtasks, microtaskItem{closure: closureVal.Closure})
 		return Value{Type: ir.TypeVoid}, nil
+	case "__async.promise_create":
+		return Value{Type: ir.TypeObject, Object: map[string]Value{"__state": {Type: ir.TypeNumber, Number: 0}, "__value": {Type: ir.TypeVoid}}}, nil
 	case "__async.promise_resolve":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("Promise.resolve requires 1 argument")
@@ -2267,4 +2580,56 @@ func executeGeneratorIntrinsic(instruction ir.Instruction, env map[string]Value,
 		}, nil
 	}
 	return Value{}, fmt.Errorf("unsupported generator intrinsic %q", instruction.Callee)
+}
+
+func float16round(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v == 0 {
+		return v
+	}
+	f32 := float32(v)
+	bits := math.Float32bits(f32)
+	sign := uint16((bits >> 16) & 0x8000)
+	exp := int((bits >> 23) & 0xff) - 127 + 15
+	mant := bits & 0x7fffff
+
+	var h uint16
+	if exp <= 0 {
+		if exp < -10 {
+			h = sign
+		} else {
+			mant = (mant | 0x800000) >> uint(1-exp)
+			h = sign | uint16((mant+0x1000)>>13)
+		}
+	} else if exp >= 31 {
+		h = sign | 0x7c00
+	} else {
+		h = sign | uint16(exp<<10) | uint16((mant+0x1000)>>13)
+	}
+
+	hSign := uint32(h&0x8000) << 16
+	hExp := int((h >> 10) & 0x1f)
+	hMant := uint32(h & 0x3ff)
+	var outBits uint32
+	if hExp == 0 {
+		if hMant == 0 {
+			outBits = hSign
+		} else {
+			for (hMant & 0x400) == 0 {
+				hMant <<= 1
+				hExp--
+			}
+			hExp++
+			hMant &= 0x3ff
+			outBits = hSign | uint32((hExp+127-15)<<23) | (hMant << 13)
+		}
+	} else if hExp == 31 {
+		if hMant == 0 {
+			outBits = hSign | 0x7f800000
+		} else {
+			outBits = hSign | 0x7f800000 | (hMant << 13)
+		}
+	} else {
+		outBits = hSign | uint32((hExp+127-15)<<23) | (hMant << 13)
+	}
+	return float64(math.Float32frombits(outBits))
 }

@@ -49,21 +49,92 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		switch member.Kind {
 		case ast.KindPropertyDeclaration:
 			property := member.AsPropertyDeclaration()
+			name := property.Name().Text()
 			fType := syntaxType(property.Type)
 			inferredFType := resolveInferredType(chk, property.Name())
 			if inferredFType == "" {
 				inferredFType = resolveInferredType(chk, member)
 			}
-			class.Fields = append(class.Fields, SyntaxField{
-				Span:         sourceSpan(member),
-				Name:         property.Name().Text(),
-				Type:         fType,
-				InferredType: inferredFType,
-				Initializer:  syntaxExpression(property.Initializer, chk),
-				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
-				IsPrivate:    ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
-				IsReadonly:   ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
-			})
+			isStatic := ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic)
+			isAccessor := ast.HasSyntacticModifier(member, ast.ModifierFlagsAccessor)
+			if isAccessor {
+				storageName := "__accessor_storage_" + name
+				class.Fields = append(class.Fields, SyntaxField{
+					Span:         sourceSpan(member),
+					Name:         storageName,
+					Type:         fType,
+					InferredType: inferredFType,
+					Initializer:  syntaxExpression(property.Initializer, chk),
+					IsStatic:     isStatic,
+					IsPrivate:    true,
+				})
+				getterBody := []SyntaxStatement{
+					{
+						Span: sourceSpan(member),
+						Kind: "return",
+						Expression: &SyntaxExpression{
+							Span: sourceSpan(member),
+							Kind: "property",
+							Text: storageName,
+							Left: &SyntaxExpression{Span: sourceSpan(member), Kind: "identifier", Text: "this"},
+						},
+					},
+				}
+				class.Methods = append(class.Methods, SyntaxMethod{
+					Span:         sourceSpan(member),
+					Name:         name,
+					Type:         fType,
+					InferredType: inferredFType,
+					Body:         getterBody,
+					IsStatic:     isStatic,
+					Kind:         "get",
+				})
+				setterBody := []SyntaxStatement{
+					{
+						Span: sourceSpan(member),
+						Kind: "field_set",
+						Name: storageName,
+						Left: &SyntaxExpression{
+							Span: sourceSpan(member),
+							Kind: "identifier",
+							Text: "this",
+						},
+						Expression: &SyntaxExpression{
+							Span: sourceSpan(member),
+							Kind: "identifier",
+							Text: "value",
+						},
+					},
+				}
+				class.Methods = append(class.Methods, SyntaxMethod{
+					Span:         sourceSpan(member),
+					Name:         name,
+					Type:         "void",
+					InferredType: "void",
+					Parameters: []SyntaxParameter{
+						{
+							Span:         sourceSpan(member),
+							Name:         "value",
+							Type:         fType,
+							InferredType: inferredFType,
+						},
+					},
+					Body:     setterBody,
+					IsStatic: isStatic,
+					Kind:     "set",
+				})
+			} else {
+				class.Fields = append(class.Fields, SyntaxField{
+					Span:         sourceSpan(member),
+					Name:         property.Name().Text(),
+					Type:         fType,
+					InferredType: inferredFType,
+					Initializer:  syntaxExpression(property.Initializer, chk),
+					IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
+					IsPrivate:    ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
+					IsReadonly:   ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
+				})
+			}
 		case ast.KindConstructor:
 			var params []SyntaxParameter
 			var paramPropStmts []SyntaxStatement

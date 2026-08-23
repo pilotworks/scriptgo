@@ -201,6 +201,27 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				module.Functions = append(module.Functions, function)
 				continue
 			}
+			if statement.Kind == "namespace" {
+				for _, subStmt := range statement.Body {
+					if subStmt.Kind == "declare_function" || subStmt.Kind == "interface" || subStmt.Kind == "type_alias" || subStmt.Kind == "module" || subStmt.Kind == "enum" {
+						continue
+					}
+					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
+						fnCopy := subStmt
+						fnCopy.Name = statement.Name + "." + subStmt.Name
+						function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
+						if err != nil {
+							return ir.Module{}, fmt.Errorf("lower namespace function %q: %w", fnCopy.Name, sourceError(file.FileName, fnCopy.Span, err))
+						}
+						module.Functions = append(module.Functions, function)
+					} else {
+						if err := lowerStatement(file.FileName, subStmt, &main, env, &counter, shapes, signatures); err != nil {
+							return ir.Module{}, fmt.Errorf("lower namespace statement: %w", sourceError(file.FileName, subStmt.Span, err))
+						}
+					}
+				}
+				continue
+			}
 			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" {
 				continue
 			}

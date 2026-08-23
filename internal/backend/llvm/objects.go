@@ -140,6 +140,18 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val))
 		return nil
 	default:
+		if strings.HasPrefix(instruction.Callee, "__object.") {
+			if instruction.Type == ir.TypeBool {
+				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 1, 1\n", instruction.Result))
+				return nil
+			}
+			if len(instruction.Args) > 0 {
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = alloca i8\n", instruction.Result))
+			}
+			return nil
+		}
 		return fmt.Errorf("unknown object intrinsic %q", instruction.Callee)
 	}
 }

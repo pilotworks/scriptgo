@@ -398,9 +398,6 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			if value.Type == ir.TypeNumberArray || value.Type == ir.TypeStringArray {
-				return Value{}, false, flowNormal, fmt.Errorf("console.log does not support array values yet")
-			}
 			indent := getConsoleIndent()
 			fmt.Fprintf(output, "%s%s\n", indent, format(value))
 		case ir.OpCall:
@@ -439,11 +436,18 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__object.") {
-				value, err := executeObjectIntrinsic(instruction.Callee, instruction.Args, env)
+				value, err := executeObjectIntrinsic(functions, instruction.Callee, instruction.Args, env, output)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
 				env[instruction.Result] = value
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__clone.") {
+				if len(instruction.Args) > 0 {
+					val := env[instruction.Args[0]]
+					env[instruction.Result] = deepCloneValue(val)
+				}
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__map.") {

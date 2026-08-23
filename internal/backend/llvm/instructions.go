@@ -791,6 +791,19 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	}
+	if instruction.Callee == "__clone.structured" {
+		arg := instruction.Args[0]
+		typ := instruction.Type
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast %s %%%s to %s\n", instruction.Result, llvmType(typ), arg, llvmType(typ)))
+		e.types[instruction.Result] = typ
+		return nil
+	}
+	if instruction.Callee == "__object.fromEntries" || instruction.Callee == "__object.groupBy" || instruction.Callee == "__object.entries" || instruction.Callee == "__object.get_prop" {
+		arg := instruction.Args[0]
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__array.") {
 		arrayType, ok := e.types[instruction.Args[0]]
 		if !ok {
@@ -1383,6 +1396,16 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_queue_microtask(ptr %%%s, ptr null)\n", status, instruction.Args[0]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	case "__async.promise_create":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_create(ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__async.promise_resolve":
 		if len(instruction.Args) != 1 {

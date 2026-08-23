@@ -178,11 +178,21 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		return nil
-	case "variable":
+	case "variable", "using", "await_using":
 		if statement.Expression == nil {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "variable declaration without an initializer")
 		}
 		return validateExpression(fileName, statement.Expression)
+	case "namespace":
+		for _, s := range statement.Body {
+			if s.Kind == "declare_function" || s.Kind == "interface" || s.Kind == "type_alias" || s.Kind == "module" || s.Kind == "enum" {
+				continue
+			}
+			if err := validateStatement(fileName, s); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "expression", "return":
 		if statement.Expression == nil {
 			return nil

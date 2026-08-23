@@ -345,12 +345,12 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	m := make(map[string]BuiltinIntrinsic)
 
 	// Math functions (Category 1: ECMAScript)
-	math1 := []string{"abs", "ceil", "floor", "trunc", "sqrt", "round", "sin", "cos", "tan", "atan", "log", "log2", "log10", "exp", "sign"}
+	math1 := []string{"abs", "ceil", "floor", "trunc", "sqrt", "cbrt", "round", "fround", "f16round", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "log", "log2", "log10", "log1p", "exp", "expm1", "sign", "clz32"}
 	for _, fn := range math1 {
 		name := "Math." + fn
 		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerCall("__"+name, ir.TypeNumber)}
 	}
-	math2 := []string{"min", "max", "pow", "atan2", "hypot"}
+	math2 := []string{"min", "max", "pow", "atan2", "hypot", "imul"}
 	for _, fn := range math2 {
 		name := "Math." + fn
 		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerCall("__"+name, ir.TypeNumber)}
@@ -369,6 +369,13 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"isNaN", "Number.isNaN"}, CategoryECMAScript, "__number.isNaN", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
 	register([]string{"isFinite", "Number.isFinite"}, CategoryECMAScript, "__number.isFinite", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
 	register([]string{"Number.isInteger"}, CategoryECMAScript, "__number.isInteger", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"Number.isSafeInteger"}, CategoryECMAScript, "__number.isSafeInteger", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"String.fromCodePoint"}, CategoryECMAScript, "__string.fromCodePoint", []ir.Type{ir.TypeNumber}, ir.TypeString, 1, 1)
+	register([]string{"String.fromCharCode"}, CategoryECMAScript, "__string.fromCharCode", []ir.Type{ir.TypeNumber}, ir.TypeString, 0, -1)
+	register([]string{"String.raw"}, CategoryECMAScript, "__string.raw", nil, ir.TypeString, 1, -1)
+	register([]string{"Number"}, CategoryECMAScript, "__number.new", nil, ir.TypeNumber, 0, 1)
+	register([]string{"String"}, CategoryECMAScript, "__string.new", nil, ir.TypeString, 0, 1)
+	register([]string{"Object"}, CategoryECMAScript, "__object.new", nil, ir.TypeObject, 0, 1)
 	register([]string{"JSON.parse"}, CategoryECMAScript, "__json.parse_string", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	m["JSON.stringify"] = BuiltinIntrinsic{
 		Category: CategoryECMAScript,
@@ -537,6 +544,32 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 				Span:   toIRSpan(call.Path, call.Expression.Span),
 			})
 			return result, ir.TypeString, nil
+		},
+	}
+
+	m["structuredClone"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "structuredClone",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   argType,
+				Result: result,
+				Callee: "__clone.structured",
+				Args:   []string{argVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, argType, nil
 		},
 	}
 
@@ -740,7 +773,7 @@ func BuiltinsByCategory(cat BuiltinCategory) ([]BuiltinGlobal, []BuiltinIntrinsi
 }
 
 func (call IntrinsicCall) arguments(intrinsic BuiltinIntrinsic) ([]string, []ir.Type, error) {
-	if len(call.Expression.Arguments) < intrinsic.MinArgs || len(call.Expression.Arguments) > intrinsic.MaxArgs {
+	if len(call.Expression.Arguments) < intrinsic.MinArgs || (intrinsic.MaxArgs >= 0 && len(call.Expression.Arguments) > intrinsic.MaxArgs) {
 		return nil, nil, fmt.Errorf("builtin %s expects between %d and %d argument(s)", intrinsic.Name, intrinsic.MinArgs, intrinsic.MaxArgs)
 	}
 	args := make([]string, 0, len(call.Expression.Arguments))
@@ -750,8 +783,7 @@ func (call IntrinsicCall) arguments(intrinsic BuiltinIntrinsic) ([]string, []ir.
 		if err != nil {
 			return nil, nil, err
 		}
-		accepted := slices.Contains(intrinsic.ArgumentTypes, typ)
-		if !accepted {
+		if len(intrinsic.ArgumentTypes) > 0 && !slices.Contains(intrinsic.ArgumentTypes, typ) {
 			return nil, nil, fmt.Errorf("builtin %s does not support %s", intrinsic.Name, typ)
 		}
 		args = append(args, value)

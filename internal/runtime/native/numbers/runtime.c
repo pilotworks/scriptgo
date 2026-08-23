@@ -52,6 +52,12 @@ int scriptgo_number_is_integer(double val, double *out_bool) {
     return 0;
 }
 
+int scriptgo_number_is_safe_integer(double val, double *out_bool) {
+    if (out_bool == NULL) return scriptgo_runtime_set_error("invalid argument to isSafeInteger");
+    *out_bool = (isfinite(val) && trunc(val) == val && fabs(val) <= 9007199254740991.0) ? 1.0 : 0.0;
+    return 0;
+}
+
 int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toFixed");
     int d = 0;
@@ -120,5 +126,64 @@ int scriptgo_number_to_string(double val, double radix, char **out_value) {
     if (res == NULL) return scriptgo_runtime_set_error("scriptgo string allocation failed");
     memcpy(res, buf, len + 1);
     *out_value = res;
+    return 0;
+}
+
+int scriptgo_number_to_exponential(double val, double fractionDigits, char **out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toExponential");
+    char buf[128];
+    if (isnan(val)) {
+        snprintf(buf, sizeof(buf), "NaN");
+    } else if (isinf(val)) {
+        if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
+        else snprintf(buf, sizeof(buf), "-Infinity");
+    } else if (!isnan(fractionDigits) && fractionDigits >= 0.0) {
+        int d = (int)fractionDigits;
+        if (d > 20) d = 20;
+        snprintf(buf, sizeof(buf), "%.*e", d, val);
+    } else {
+        snprintf(buf, sizeof(buf), "%e", val);
+    }
+    size_t len = strlen(buf);
+    char *res = malloc(len + 1);
+    if (res == NULL) return scriptgo_runtime_set_error("scriptgo string allocation failed");
+    memcpy(res, buf, len + 1);
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_number_to_precision(double val, double precision, char **out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toPrecision");
+    char buf[128];
+    if (isnan(val)) {
+        snprintf(buf, sizeof(buf), "NaN");
+    } else if (isinf(val)) {
+        if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
+        else snprintf(buf, sizeof(buf), "-Infinity");
+    } else if (!isnan(precision) && precision > 0.0) {
+        int p = (int)precision;
+        if (p > 21) p = 21;
+        snprintf(buf, sizeof(buf), "%.*g", p, val);
+    } else {
+        snprintf(buf, sizeof(buf), "%g", val);
+    }
+    size_t len = strlen(buf);
+    char *res = malloc(len + 1);
+    if (res == NULL) return scriptgo_runtime_set_error("scriptgo string allocation failed");
+    memcpy(res, buf, len + 1);
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_number_to_locale_string(double val, char **out_value) {
+    return scriptgo_number_to_string(val, 10.0, out_value);
+}
+
+int scriptgo_math_f16round(double val, double *out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to f16round");
+    if (isnan(val)) { *out_value = NAN; return 0; }
+    if (isinf(val)) { *out_value = val; return 0; }
+    __fp16 h = (__fp16)val;
+    *out_value = (double)h;
     return 0;
 }

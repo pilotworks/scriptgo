@@ -454,6 +454,121 @@ int scriptgo_string_pad_end(const char *value, double target_len, const char *pa
     return 0;
 }
 
+int scriptgo_string_code_point_at(const char *value, double pos, double *out_code_point) {
+    if (value == NULL || out_code_point == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    if (isnan(pos) || pos < 0.0 || pos >= (double)len) {
+        *out_code_point = NAN;
+        return 0;
+    }
+    size_t p = (size_t)pos;
+    unsigned char c = (unsigned char)value[p];
+    uint32_t cp = 0;
+    if (c < 0x80) {
+        cp = c;
+    } else if ((c & 0xE0) == 0xC0 && p + 1 < len) {
+        cp = ((c & 0x1F) << 6) | ((unsigned char)value[p+1] & 0x3F);
+    } else if ((c & 0xF0) == 0xE0 && p + 2 < len) {
+        cp = ((c & 0x0F) << 12) | (((unsigned char)value[p+1] & 0x3F) << 6) | ((unsigned char)value[p+2] & 0x3F);
+    } else if ((c & 0xF8) == 0xF0 && p + 3 < len) {
+        cp = ((c & 0x07) << 18) | (((unsigned char)value[p+1] & 0x3F) << 12) | (((unsigned char)value[p+2] & 0x3F) << 6) | ((unsigned char)value[p+3] & 0x3F);
+    } else {
+        cp = c;
+    }
+    *out_code_point = (double)cp;
+    return 0;
+}
+
+int scriptgo_string_from_code_point(double code_point, char **out_value) {
+    if (out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (isnan(code_point) || code_point < 0.0 || code_point > 0x10FFFF) {
+        return string_fail("Invalid code point");
+    }
+    uint32_t cp = (uint32_t)code_point;
+    char buf[5] = {0};
+    if (cp <= 0x7F) {
+        buf[0] = (char)cp;
+    } else if (cp <= 0x7FF) {
+        buf[0] = (char)(0xC0 | (cp >> 6));
+        buf[1] = (char)(0x80 | (cp & 0x3F));
+    } else if (cp <= 0xFFFF) {
+        buf[0] = (char)(0xE0 | (cp >> 12));
+        buf[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (cp & 0x3F));
+    } else {
+        buf[0] = (char)(0xF0 | (cp >> 18));
+        buf[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (cp & 0x3F));
+    }
+    size_t blen = strlen(buf);
+    char *res = malloc(blen + 1);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    memcpy(res, buf, blen + 1);
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_is_well_formed(const char *value, double *out_bool) {
+    if (value == NULL || out_bool == NULL) return string_fail("scriptgo string argument is invalid");
+    const unsigned char *s = (const unsigned char *)value;
+    int well_formed = 1;
+    while (*s) {
+        if (*s < 0x80) {
+            s++;
+        } else if ((*s & 0xE0) == 0xC0) {
+            if ((s[1] & 0xC0) != 0x80 || (*s & 0x1E) == 0) { well_formed = 0; break; }
+            s += 2;
+        } else if ((*s & 0xF0) == 0xE0) {
+            if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80) { well_formed = 0; break; }
+            uint32_t cp = ((*s & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+            if (cp >= 0xD800 && cp <= 0xDFFF) { well_formed = 0; break; }
+            s += 3;
+        } else if ((*s & 0xF8) == 0xF0) {
+            if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80 || (s[3] & 0xC0) != 0x80) { well_formed = 0; break; }
+            s += 4;
+        } else {
+            well_formed = 0;
+            break;
+        }
+    }
+    *out_bool = well_formed ? 1.0 : 0.0;
+    return 0;
+}
+
+int scriptgo_string_to_well_formed(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    char *res = malloc(len * 3 + 4);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    const unsigned char *s = (const unsigned char *)value;
+    char *d = res;
+    while (*s) {
+        if (*s < 0x80) {
+            *d++ = *s++;
+        } else if ((*s & 0xE0) == 0xC0 && (s[1] & 0xC0) == 0x80) {
+            *d++ = *s++;
+            *d++ = *s++;
+        } else if ((*s & 0xF0) == 0xE0 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
+            uint32_t cp = ((*s & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+            if (cp >= 0xD800 && cp <= 0xDFFF) {
+                *d++ = (char)0xEF; *d++ = (char)0xBF; *d++ = (char)0xBD;
+                s += 3;
+            } else {
+                *d++ = *s++; *d++ = *s++; *d++ = *s++;
+            }
+        } else if ((*s & 0xF8) == 0xF0 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
+            *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
+        } else {
+            *d++ = (char)0xEF; *d++ = (char)0xBF; *d++ = (char)0xBD;
+            s++;
+        }
+    }
+    *d = '\0';
+    *out_value = res;
+    return 0;
+}
+
 int scriptgo_string_release(char *value) {
     free(value);
     return 0;

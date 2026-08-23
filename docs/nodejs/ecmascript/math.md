@@ -22,49 +22,49 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `Math.abs(x: number): number` | `abs(x: number): number` | `__math.abs` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.acos(x: number): number` | `acos(x: number): number` | `__math.acos` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.acosh(x: number): number` | `acosh(x: number): number` | `__math.acosh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.asin(x: number): number` | `asin(x: number): number` | `__math.asin` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.asinh(x: number): number` | `asinh(x: number): number` | `__math.asinh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.atan(x: number): number` | `atan(x: number): number` | `__math.atan` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.atan2(y: number, x: number): number` | `atan2(y: number, x: number): number` | `__math.atan2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.atanh(x: number): number` | `atanh(x: number): number` | `__math.atanh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.cbrt(x: number): number` | `cbrt(x: number): number` | `__math.cbrt` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.ceil(x: number): number` | `ceil(x: number): number` | `__math.ceil` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.clz32(x: number): number` | `clz32(x: number): number` | `__math.clz32` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.cos(x: number): number` | `cos(x: number): number` | `__math.cos` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.cosh(x: number): number` | `cosh(x: number): number` | `__math.cosh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.exp(x: number): number` | `exp(x: number): number` | `__math.exp` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.expm1(x: number): number` | `expm1(x: number): number` | `__math.expm1` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.f16round(x: number): number` | `f16round(x: number): number` | `__math.f16round` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.floor(x: number): number` | `floor(x: number): number` | `__math.floor` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.fround(x: number): number` | `fround(x: number): number` | `__math.fround` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.hypot(...values: number[]): number` | `hypot(...values: number[]): number` | `__math.hypot` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.imul(x: number, y: number): number` | `imul(x: number, y: number): number` | `__math.imul` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.log(x: number): number` | `log(x: number): number` | `__math.log` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.log10(x: number): number` | `log10(x: number): number` | `__math.log10` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.log1p(x: number): number` | `log1p(x: number): number` | `__math.log1p` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.log2(x: number): number` | `log2(x: number): number` | `__math.log2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.max(...values: number[]): number` | `max(...values: number[]): number` | `__math.max` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.min(...values: number[]): number` | `min(...values: number[]): number` | `__math.min` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.pow(x: number, y: number): number` | `pow(x: number, y: number): number` | `__math.pow` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.random(): number` | `random(): number` | `__math.random` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly E: number` | `readonly E: number` | `__math.E` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly LN10: number` | `readonly LN10: number` | `__math.LN10` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly LN2: number` | `readonly LN2: number` | `__math.LN2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly LOG10E: number` | `readonly LOG10E: number` | `__math.LOG10E` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly LOG2E: number` | `readonly LOG2E: number` | `__math.LOG2E` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly PI: number` | `readonly PI: number` | `__math.PI` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly SQRT1_2: number` | `readonly SQRT1_2: number` | `__math.SQRT1_2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.readonly SQRT2: number` | `readonly SQRT2: number` | `__math.SQRT2` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.round(x: number): number` | `round(x: number): number` | `__math.round` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.sign(x: number): number` | `sign(x: number): number` | `__math.sign` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.sin(x: number): number` | `sin(x: number): number` | `__math.sin` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.sinh(x: number): number` | `sinh(x: number): number` | `__math.sinh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.sqrt(x: number): number` | `sqrt(x: number): number` | `__math.sqrt` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.tan(x: number): number` | `tan(x: number): number` | `__math.tan` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
+| `Math.tanh(x: number): number` | `tanh(x: number): number` | `__math.tanh` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
 | `Math.trunc(x: number): number` | `trunc(x: number): number` | `__math.trunc` | ✅ Done | `internal/compiler/testdata/corpus/api/math.ts` |
-| `Math.acos(x: number): number` | `acos(x: number): number` | `__math.acos` | 📋 Planned | - |
-| `Math.acosh(x: number): number` | `acosh(x: number): number` | `__math.acosh` | 📋 Planned | - |
-| `Math.asin(x: number): number` | `asin(x: number): number` | `__math.asin` | 📋 Planned | - |
-| `Math.asinh(x: number): number` | `asinh(x: number): number` | `__math.asinh` | 📋 Planned | - |
-| `Math.atanh(x: number): number` | `atanh(x: number): number` | `__math.atanh` | 📋 Planned | - |
-| `Math.cbrt(x: number): number` | `cbrt(x: number): number` | `__math.cbrt` | 📋 Planned | - |
-| `Math.clz32(x: number): number` | `clz32(x: number): number` | `__math.clz32` | 📋 Planned | - |
-| `Math.cosh(x: number): number` | `cosh(x: number): number` | `__math.cosh` | 📋 Planned | - |
-| `Math.expm1(x: number): number` | `expm1(x: number): number` | `__math.expm1` | 📋 Planned | - |
-| `Math.f16round(x: number): number` | `f16round(x: number): number` | `__math.f16round` | 📋 Planned | - |
-| `Math.fround(x: number): number` | `fround(x: number): number` | `__math.fround` | 📋 Planned | - |
-| `Math.imul(x: number, y: number): number` | `imul(x: number, y: number): number` | `__math.imul` | 📋 Planned | - |
-| `Math.log1p(x: number): number` | `log1p(x: number): number` | `__math.log1p` | 📋 Planned | - |
-| `Math.readonly E: number` | `readonly E: number` | `__math.E` | 📋 Planned | - |
-| `Math.readonly LN10: number` | `readonly LN10: number` | `__math.LN10` | 📋 Planned | - |
-| `Math.readonly LN2: number` | `readonly LN2: number` | `__math.LN2` | 📋 Planned | - |
-| `Math.readonly LOG10E: number` | `readonly LOG10E: number` | `__math.LOG10E` | 📋 Planned | - |
-| `Math.readonly LOG2E: number` | `readonly LOG2E: number` | `__math.LOG2E` | 📋 Planned | - |
-| `Math.readonly PI: number` | `readonly PI: number` | `__math.PI` | 📋 Planned | - |
-| `Math.readonly SQRT1_2: number` | `readonly SQRT1_2: number` | `__math.SQRT1_2` | 📋 Planned | - |
-| `Math.readonly SQRT2: number` | `readonly SQRT2: number` | `__math.SQRT2` | 📋 Planned | - |
-| `Math.sinh(x: number): number` | `sinh(x: number): number` | `__math.sinh` | 📋 Planned | - |
-| `Math.tanh(x: number): number` | `tanh(x: number): number` | `__math.tanh` | 📋 Planned | - |
 
 ---
 

@@ -111,3 +111,136 @@ console.log("!" + s_string_trimEnd_21.trimEnd());
 // @expect: hello  !
 const s_string_trimStart_22: string = "  hello  ";
 console.log(s_string_trimStart_22.trimStart() + "!");
+
+// @api: string.codePointAt
+// @expect: 65
+console.log("ABC".codePointAt(0));
+
+// @api: String.fromCodePoint
+// @expect: A
+console.log(String.fromCodePoint(65));
+
+// @api: string.isWellFormed
+// @expect: true
+console.log("hello".isWellFormed());
+
+// @api: string.toWellFormed
+// @expect: hello
+console.log("hello".toWellFormed());
+
+// @api: string.matchAll
+// @expect: 2
+const s_string_matchAll = "test1test2";
+const it_string_matchAll = Array.from(s_string_matchAll.matchAll(/test[0-9]/g));
+console.log(it_string_matchAll.length);
+
+// @api: string.anchor
+// @expect: <a name="top">hello</a>
+console.log("hello".anchor("top"));
+
+// @api: string.at
+// @expect: h
+// @expect: o
+console.log("hello".at(0));
+console.log("hello".at(-1));
+
+// @api: string.big
+// @expect: <big>hello</big>
+console.log("hello".big());
+
+// @api: string.blink
+// @expect: <blink>hello</blink>
+console.log("hello".blink());
+
+// @api: string.bold
+// @expect: <b>hello</b>
+console.log("hello".bold());
+
+// @api: string.fixed
+// @expect: <tt>hello</tt>
+console.log("hello".fixed());
+
+// @api: string.fontcolor
+// @expect: <font color="red">hello</font>
+console.log("hello".fontcolor("red"));
+
+// @api: string.fontsize
+// @expect: <font size="7">hello</font>
+console.log("hello".fontsize(7));
+
+// @api: String.fromCharCode
+// @expect: AB
+console.log(String.fromCharCode(65, 66));
+
+// @api: string.italics
+// @expect: <i>hello</i>
+console.log("hello".italics());
+
+// @api: string.link
+// @expect: <a href="https://example.com">hello</a>
+console.log("hello".link("https://example.com"));
+
+// @api: string.localeCompare
+// @expect: 0
+console.log("a".localeCompare("a"));
+
+// @api: string.normalize
+// @expect: hello
+console.log("hello".normalize());
+
+// @api: String.raw
+// @expect: hello
+console.log(String.raw`hello`);
+
+// @api: string.small
+// @expect: <small>hello</small>
+console.log("hello".small());
+
+// @api: string.strike
+// @expect: <strike>hello</strike>
+console.log("hello".strike());
+
+// @api: string.sub
+// @expect: <sub>hello</sub>
+console.log("hello".sub());
+
+// @api: string.substr
+// @expect: ell
+console.log("hello".substr(1, 3));
+
+// @api: string.sup
+// @expect: <sup>hello</sup>
+console.log("hello".sup());
+
+// @api: string.toLocaleLowerCase
+// @expect: hello
+console.log("HELLO".toLocaleLowerCase());
+
+// @api: string.toLocaleUpperCase
+// @expect: HELLO
+console.log("hello".toLocaleUpperCase());
+
+// @api: string.toString
+// @expect: hello
+console.log("hello".toString());
+
+// @api: string.trimLeft
+// @expect: hello 
+console.log("  hello ".trimLeft());
+
+// @api: string.trimRight
+// @expect:   hello
+console.log("  hello ".trimRight());
+
+// @api: string.valueOf
+// @expect: hello
+console.log("hello".valueOf());
+
+// @api: String.new
+// @expect: hello
+console.log(String("hello"));
+
+// @api: string.length
+// @expect: 5
+console.log("hello".length);
+
