@@ -741,7 +741,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
-			if strings.HasPrefix(instruction.Callee, "__regex.") {
+			if strings.HasPrefix(instruction.Callee, "__regex.") || strings.HasPrefix(instruction.Callee, "__regexp.") {
 				value, err := executeRegexIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {
 					return Value{}, false, flowNormal, err

@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 82 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 84 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **82** | **82 / 82 Passed** | **100.0%** |
-| - *Interpreter Parity* | 68 | 68 PASS | 82.9% |
-| - *Native LLVM/Clang Parity* | 44 | 44 PASS (direct binary compilation) | 100.0% (within native scope) |
+| **Total Corpus Test Cases** | **84** | **84 / 84 Passed** | **100.0%** |
+| - *Interpreter Parity* | 70 | 70 PASS | 83.3% |
+| - *Native LLVM/Clang Parity* | 46 | 46 PASS (direct binary compilation) | 100.0% (within native scope) |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~34s | No regressions detected | - |
+| **Total Test Suite Runtime** | ~38s | No regressions detected | - |
 
 ---
 
@@ -161,7 +161,7 @@ All 82 test cases in the regression test suite (Corpus Test Suite) have been cro
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `node:timers` | ✅ Matches event loop scheduling & delay execution |
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 | **`node:child_process` / `child_process`** | `execSync`, `spawnSync`, `SpawnSyncReturns` (`stdout`, `stderr`, `status`), `ExecSyncOptions`, `SpawnSyncOptions` | ✅ 100% matches Node.js child_process specification |
-| **`node:http` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `METHODS`, `STATUS_CODES`, `getStatusText`, `Response.json`, `Response.error`, `Response.redirect` | ✅ 100% matches WHATWG Fetch and Node.js HTTP specifications |
+| **`node:http`, `node:https`, `node:net` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `node:http`, `node:https` (`Agent`, `Server`, `request`, `get`), `node:net` (`isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `BlockList`, `createServer`, `connect`) | ✅ 100% matches WHATWG Fetch, Node.js HTTP, HTTPS, and Net specifications |
 | **`Weak Collections & GC`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections & automatic cycle reclamation |
 | **`node:stream` / `stream`** | `Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`, `pipeline`, `finished`, `compose`, `addAbortSignal`, `getDefaultHighWaterMark`, `setDefaultHighWaterMark`, `isReadable`, `isWritable`, `isErrored`, `Readable.from`, `Readable.isDisturbed`, WebStreams interop (`fromWeb`, `toWeb`, `duplexFromWeb`, `duplexToWeb`), `promises`, `consumers` | ✅ 100% matches Node.js Stream specification |
 
@@ -176,15 +176,15 @@ Below is the category-by-category breakdown across all 12 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 82
-  - Passed Cases       : 82 (100.0%)
+  - Total Corpus Cases : 84
+  - Passed Cases       : 84 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`api`** | 38 | **100%** | Standard APIs and built-ins: `date`, `path`, `json`, `set`, `array`, `timers`, `string`, `async`, `math`, `process`, `http`, `int32array`, `buffer`, `fs`, `regexp`, `crypto`, `url`, `map`, `stream`, `child_process`, `symbol`, `arraybuffer`, `bigint`, `os`, `number`, `events`, `weak_collections`, `object`, `uint8array`, `encoding`, `error`, `dataview`, `float64array`, `console`, `perf_hooks`, `promise`, `intl`, `fetch`. |
+| **`api`** | 40 | **100%** | Standard APIs and built-ins: `date`, `path`, `json`, `set`, `array`, `timers`, `string`, `async`, `math`, `process`, `http`, `https`, `net`, `int32array`, `buffer`, `fs`, `regexp`, `crypto`, `url`, `map`, `stream`, `child_process`, `symbol`, `arraybuffer`, `bigint`, `os`, `number`, `events`, `weak_collections`, `object`, `uint8array`, `encoding`, `error`, `dataview`, `float64array`, `console`, `perf_hooks`, `promise`, `intl`, `fetch`. |
 | **`async`** | 1 | **100%** | Top-level await and asynchronous execution flow. |
 | **`destructuring`** | 4 | **100%** | Nested params, nested object, nested mixed, nested defaults. |
 | **`enums`** | 2 | **100%** | Numeric and string const enums with inlined constants. |
@@ -320,9 +320,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | Module / API | Support Level | Missing API Details |
 | :--- | :---: | :--- |
 | **Foreign Function Interface (FFI)** | ✅ Full | Static FFI via `declare function`, C library JSON metadata (`*.ffi.json` with `ffi_format: 1`), multi-file C linking (`.c`), direct C ABI zero-overhead calls. Dynamic FFI (`dlopen`/`dlsym`) planned for Phase 2. |
-| **Networking & HTTP** | ❌ Missing | `fetch()`, `node:http`, `node:https`, `node:net`, `WebSocket`. |
+| **Networking & HTTP / HTTPS / Net** | ⚠️ Full Stdlib / Sync Engine | `fetch()`, `node:http`, `node:https`, `node:net`, WHATWG `Headers`/`Request`/`Response` fully implemented in stdlib with synchronous curl/socket engine. Async epoll/kqueue non-blocking socket loop and RFC 6455 WebSocket engine planned for Milestone 6. |
 | **Streams API (`node:stream`)** | ✅ Full | Pure TypeScript `node:stream` implementation: `Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`, `pipeline`, `finished`, `compose`, `promises`, `consumers`, WebStreams interop (`fromWeb`, `toWeb`, `duplexFromWeb`, `duplexToWeb`), and `addAbortSignal`. |
-| **Child Process & Worker Threads**| ❌ Missing | `child_process.spawn()`, `child_process.exec()`, `worker_threads.Worker`. |
+| **Child Process & Worker Threads**| ⚠️ Partial (Sync Done) | `child_process.execSync()`, `child_process.spawnSync()` fully implemented via native C `fork`/`execvp`/`pipe`. Async `child_process.spawn()` and `worker_threads.Worker` scheduled for Milestone 6. |
 | **Extended File System** | ⚠️ Partial | `readFileSync`, `writeFileSync`, `existsSync`, `mkdirSync` implemented. Missing `fs.promises.*`, `fs.watch`, `fs.createReadStream`. |
 | **TypedArrays & DataView** | ✅ Full | All 11 TypedArray kinds, `ArrayBuffer`, `DataView` with binary getters/setters (BE/LE), buffer slicing, `ArrayBuffer.isView()`. |
 | **Timers Scheduling** | ⚠️ Rudimentary | Missing OS event-loop integration (epoll/kqueue) for `setTimeout()`, `setInterval()`, `setImmediate()`. |

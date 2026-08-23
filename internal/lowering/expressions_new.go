@@ -19,6 +19,21 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Date" {
 		ensureDateShape(shapes)
 	}
+	if className == "Promise" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		promType := ir.Type("object:Promise<unknown>")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   promType,
+			Result: result,
+			Callee: "__async.promise_create",
+			Args:   []string{},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, promType, nil
+	}
 	if className == "WeakRef" {
 		var targetArg string
 		var targetType ir.Type = ir.TypeObject

@@ -34,12 +34,15 @@ func lowerCallExpression(
 			if res, typ, handled, err := lowerIntlReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
-			if receiverType == ir.TypeBigInt && methodName == "toString" {
+			if receiverType == ir.TypeBigInt && (methodName == "toString" || methodName == "toLocaleString") {
 				if result == "" {
 					result = nextTemp(counter)
 				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.fromBigInt", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeString, nil
+			}
+			if receiverType == ir.TypeBigInt && methodName == "valueOf" {
+				return receiver, ir.TypeBigInt, nil
 			}
 			if receiverType == ir.TypeSymbol && methodName == "toString" {
 				if result == "" {

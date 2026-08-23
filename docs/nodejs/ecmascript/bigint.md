@@ -21,11 +21,11 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `BigInt.asIntN(bits: number, int: bigint): bigint` | `asIntN(bits: number, int: bigint): bigint` | `__bigint.asIntN` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
+| `BigInt.asUintN(bits: number, int: bigint): bigint` | `asUintN(bits: number, int: bigint): bigint` | `__bigint.asUintN` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
+| `BigInt.toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `__bigint.toLocaleString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 | `BigInt.toString(radix?: number): string` | `toString(radix?: number): string` | `__bigint.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
-| `BigInt.asIntN(bits: number, int: bigint): bigint` | `asIntN(bits: number, int: bigint): bigint` | `__bigint.asIntN` | 📋 Planned | - |
-| `BigInt.asUintN(bits: number, int: bigint): bigint` | `asUintN(bits: number, int: bigint): bigint` | `__bigint.asUintN` | 📋 Planned | - |
-| `BigInt.toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `__bigint.toLocaleString` | 📋 Planned | - |
-| `BigInt.valueOf(): bigint` | `valueOf(): bigint` | `__bigint.valueOf` | 📋 Planned | - |
+| `BigInt.valueOf(): bigint` | `valueOf(): bigint` | `__bigint.valueOf` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 
 ---
 

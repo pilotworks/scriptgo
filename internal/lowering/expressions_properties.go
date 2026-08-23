@@ -370,6 +370,36 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		return result, ir.TypeString, nil
 	}
 
+	if objectType == ir.Type("object:RegExp") {
+		switch expression.Text {
+		case "global", "ignoreCase", "multiline", "dotAll", "unicode", "sticky", "hasIndices", "unicodeSets":
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBool,
+				Result: result,
+				Callee: "__regexp." + expression.Text,
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		case "lastIndex":
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Value:  "0",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+	}
+
 	className := strings.TrimPrefix(string(objectType), "object:")
 
 	// Check instance getters

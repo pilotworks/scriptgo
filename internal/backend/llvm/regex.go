@@ -61,6 +61,28 @@ func emitBigIntIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
 
+	case "__bigint.asIntN":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("bigint.asIntN has invalid signature")
+		}
+		bitsI64 := instruction.Result + ".bits_i64"
+		fmt.Fprintf(out, "  %%%s = fptosi double %%%s to i64\n", bitsI64, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = alloca i64\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_bigint_as_int_n(i64 %%%s, i64 %%%s, ptr %%%s)\n", status, bitsI64, instruction.Args[1], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
+
+	case "__bigint.asUintN":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("bigint.asUintN has invalid signature")
+		}
+		bitsI64 := instruction.Result + ".bits_i64"
+		fmt.Fprintf(out, "  %%%s = fptosi double %%%s to i64\n", bitsI64, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = alloca i64\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_bigint_as_uint_n(i64 %%%s, i64 %%%s, ptr %%%s)\n", status, bitsI64, instruction.Args[1], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
+
 	default:
 		return fmt.Errorf("unknown bigint intrinsic %q", instruction.Callee)
 	}

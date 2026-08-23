@@ -232,3 +232,40 @@ int scriptgo_bigint_from_string(const char *str, long long *out_value) {
     *out_value = strtoll(str, &endptr, 10);
     return 0;
 }
+
+int scriptgo_bigint_as_int_n(long long bits, long long value, long long *out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint asIntN");
+    if (bits <= 0) {
+        *out_value = 0;
+        return 0;
+    }
+    if (bits >= 64) {
+        *out_value = value;
+        return 0;
+    }
+    unsigned long long uval = (unsigned long long)value;
+    unsigned long long mask = (1ULL << bits) - 1ULL;
+    uval = uval & mask;
+    if (uval & (1ULL << (bits - 1))) {
+        uval |= (~mask);
+    }
+    *out_value = (long long)uval;
+    return 0;
+}
+
+int scriptgo_bigint_as_uint_n(long long bits, long long value, long long *out_value) {
+    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint asUintN");
+    if (bits <= 0) {
+        *out_value = 0;
+        return 0;
+    }
+    if (bits >= 64) {
+        *out_value = value;
+        return 0;
+    }
+    unsigned long long uval = (unsigned long long)value;
+    unsigned long long mask = (1ULL << bits) - 1ULL;
+    *out_value = (long long)(uval & mask);
+    return 0;
+}
+

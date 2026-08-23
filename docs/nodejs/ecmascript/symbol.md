@@ -23,25 +23,25 @@ Provide a concise technical summary:
 | :--- | :--- | :--- | :---: | :--- |
 | `Symbol.for(key: string): symbol` | `for(key: string): symbol` | `__symbol.for` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
 | `Symbol.keyFor(sym: symbol): string \| undefined` | `keyFor(sym: symbol): string \| undefined` | `__symbol.keyFor` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly asyncDispose: unique symbol` | `readonly asyncDispose: unique symbol` | `__symbol.asyncDispose` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly asyncIterator: unique symbol` | `readonly asyncIterator: unique symbol` | `__symbol.asyncIterator` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly description: string \| undefined` | `readonly description: string \| undefined` | `__symbol.description` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly dispose: unique symbol` | `readonly dispose: unique symbol` | `__symbol.dispose` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly hasInstance: unique symbol` | `readonly hasInstance: unique symbol` | `__symbol.hasInstance` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly isConcatSpreadable: unique symbol` | `readonly isConcatSpreadable: unique symbol` | `__symbol.isConcatSpreadable` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
 | `Symbol.readonly iterator: unique symbol` | `readonly iterator: unique symbol` | `__symbol.iterator` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly match: unique symbol` | `readonly match: unique symbol` | `__symbol.match` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly matchAll: unique symbol` | `readonly matchAll: unique symbol` | `__symbol.matchAll` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly metadata: unique symbol` | `readonly metadata: unique symbol` | `__symbol.metadata` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly replace: unique symbol` | `readonly replace: unique symbol` | `__symbol.replace` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly search: unique symbol` | `readonly search: unique symbol` | `__symbol.search` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly species: unique symbol` | `readonly species: unique symbol` | `__symbol.species` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly split: unique symbol` | `readonly split: unique symbol` | `__symbol.split` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly toPrimitive: unique symbol` | `readonly toPrimitive: unique symbol` | `__symbol.toPrimitive` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly toStringTag: unique symbol` | `readonly toStringTag: unique symbol` | `__symbol.toStringTag` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
+| `Symbol.readonly unscopables: unique symbol` | `readonly unscopables: unique symbol` | `__symbol.unscopables` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
 | `Symbol.toString(): string` | `toString(): string` | `__symbol.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
-| `Symbol.readonly asyncDispose: unique symbol` | `readonly asyncDispose: unique symbol` | `__symbol.asyncDispose` | 📋 Planned | - |
-| `Symbol.readonly asyncIterator: unique symbol` | `readonly asyncIterator: unique symbol` | `__symbol.asyncIterator` | 📋 Planned | - |
-| `Symbol.readonly description: string \| undefined` | `readonly description: string \| undefined` | `__symbol.description` | 📋 Planned | - |
-| `Symbol.readonly dispose: unique symbol` | `readonly dispose: unique symbol` | `__symbol.dispose` | 📋 Planned | - |
-| `Symbol.readonly hasInstance: unique symbol` | `readonly hasInstance: unique symbol` | `__symbol.hasInstance` | 📋 Planned | - |
-| `Symbol.readonly isConcatSpreadable: unique symbol` | `readonly isConcatSpreadable: unique symbol` | `__symbol.isConcatSpreadable` | 📋 Planned | - |
-| `Symbol.readonly match: unique symbol` | `readonly match: unique symbol` | `__symbol.match` | 📋 Planned | - |
-| `Symbol.readonly matchAll: unique symbol` | `readonly matchAll: unique symbol` | `__symbol.matchAll` | 📋 Planned | - |
-| `Symbol.readonly metadata: unique symbol` | `readonly metadata: unique symbol` | `__symbol.metadata` | 📋 Planned | - |
-| `Symbol.readonly replace: unique symbol` | `readonly replace: unique symbol` | `__symbol.replace` | 📋 Planned | - |
-| `Symbol.readonly search: unique symbol` | `readonly search: unique symbol` | `__symbol.search` | 📋 Planned | - |
-| `Symbol.readonly species: unique symbol` | `readonly species: unique symbol` | `__symbol.species` | 📋 Planned | - |
-| `Symbol.readonly split: unique symbol` | `readonly split: unique symbol` | `__symbol.split` | 📋 Planned | - |
-| `Symbol.readonly toPrimitive: unique symbol` | `readonly toPrimitive: unique symbol` | `__symbol.toPrimitive` | 📋 Planned | - |
-| `Symbol.readonly toStringTag: unique symbol` | `readonly toStringTag: unique symbol` | `__symbol.toStringTag` | 📋 Planned | - |
-| `Symbol.readonly unscopables: unique symbol` | `readonly unscopables: unique symbol` | `__symbol.unscopables` | 📋 Planned | - |
-| `Symbol.valueOf(): symbol` | `valueOf(): symbol` | `__symbol.valueOf` | 📋 Planned | - |
+| `Symbol.valueOf(): symbol` | `valueOf(): symbol` | `__symbol.valueOf` | ✅ Done | `internal/compiler/testdata/corpus/api/symbol.ts` |
 
 ---
 

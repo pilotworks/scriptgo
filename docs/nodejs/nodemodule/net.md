@@ -21,73 +21,73 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `BlockList.isBlockList(value)` | `(...) => any` | `__net.BlockList.isBlockList` | 📋 Planned | - |
-| `SocketAddress.parse(input)` | `(...) => any` | `__net.SocketAddress.parse` | 📋 Planned | - |
-| `address` | `any` | `__net.address` | 📋 Planned | - |
-| `autoSelectFamilyAttemptedAddresses` | `any` | `__net.autoSelectFamilyAttemptedAddresses` | 📋 Planned | - |
-| `blockList.addAddress(address[, type])` | `(...) => any` | `__net.blockList.addAddress` | 📋 Planned | - |
-| `blockList.addRange(start, end[, type])` | `(...) => any` | `__net.blockList.addRange` | 📋 Planned | - |
-| `blockList.addSubnet(net, prefix[, type])` | `(...) => any` | `__net.blockList.addSubnet` | 📋 Planned | - |
-| `blockList.check(address[, type])` | `(...) => any` | `__net.blockList.check` | 📋 Planned | - |
-| `blockList.fromJSON(value)` | `(...) => any` | `__net.blockList.fromJSON` | 📋 Planned | - |
-| `blockList.toJSON()` | `(...) => any` | `__net.blockList.toJSON` | 📋 Planned | - |
-| `bufferSize` | `any` | `__net.bufferSize` | 📋 Planned | - |
-| `bytesRead` | `any` | `__net.bytesRead` | 📋 Planned | - |
-| `bytesWritten` | `any` | `__net.bytesWritten` | 📋 Planned | - |
-| `connecting` | `any` | `__net.connecting` | 📋 Planned | - |
-| `destroyed` | `any` | `__net.destroyed` | 📋 Planned | - |
-| `dropMaxConnection` | `any` | `__net.dropMaxConnection` | 📋 Planned | - |
-| `family` | `any` | `__net.family` | 📋 Planned | - |
-| `flowlabel` | `any` | `__net.flowlabel` | 📋 Planned | - |
-| `listening` | `any` | `__net.listening` | 📋 Planned | - |
-| `localAddress` | `any` | `__net.localAddress` | 📋 Planned | - |
-| `localFamily` | `any` | `__net.localFamily` | 📋 Planned | - |
-| `localPort` | `any` | `__net.localPort` | 📋 Planned | - |
-| `maxConnections` | `any` | `__net.maxConnections` | 📋 Planned | - |
-| `net.BlockList` | `(...) => any` | `__net.net.BlockList` | 📋 Planned | - |
-| `net.Server` | `(...) => any` | `__net.net.Server` | 📋 Planned | - |
-| `net.Socket` | `(...) => any` | `__net.net.Socket` | 📋 Planned | - |
-| `net.SocketAddress` | `(...) => any` | `__net.net.SocketAddress` | 📋 Planned | - |
-| `net.connect()` | `(...) => any` | `__net.net.connect` | 📋 Planned | - |
-| `net.createConnection()` | `(...) => any` | `__net.net.createConnection` | 📋 Planned | - |
-| `net.createServer([options][, connectionListener])` | `(...) => any` | `__net.net.createServer` | 📋 Planned | - |
-| `net.getDefaultAutoSelectFamily()` | `(...) => any` | `__net.net.getDefaultAutoSelectFamily` | 📋 Planned | - |
-| `net.getDefaultAutoSelectFamilyAttemptTimeout()` | `(...) => any` | `__net.net.getDefaultAutoSelectFamilyAttemptTimeout` | 📋 Planned | - |
-| `net.isIP(input)` | `(...) => any` | `__net.net.isIP` | 📋 Planned | - |
-| `net.isIPv4(input)` | `(...) => any` | `__net.net.isIPv4` | 📋 Planned | - |
-| `net.isIPv6(input)` | `(...) => any` | `__net.net.isIPv6` | 📋 Planned | - |
-| `net.setDefaultAutoSelectFamily(value)` | `(...) => any` | `__net.net.setDefaultAutoSelectFamily` | 📋 Planned | - |
-| `net.setDefaultAutoSelectFamilyAttemptTimeout(value)` | `(...) => any` | `__net.net.setDefaultAutoSelectFamilyAttemptTimeout` | 📋 Planned | - |
-| `pending` | `any` | `__net.pending` | 📋 Planned | - |
-| `port` | `any` | `__net.port` | 📋 Planned | - |
-| `readyState` | `any` | `__net.readyState` | 📋 Planned | - |
-| `remoteAddress` | `any` | `__net.remoteAddress` | 📋 Planned | - |
-| `remoteFamily` | `any` | `__net.remoteFamily` | 📋 Planned | - |
-| `remotePort` | `any` | `__net.remotePort` | 📋 Planned | - |
-| `rules` | `any` | `__net.rules` | 📋 Planned | - |
-| `server.address()` | `(...) => any` | `__net.server.address` | 📋 Planned | - |
-| `server.close([callback])` | `(...) => any` | `__net.server.close` | 📋 Planned | - |
-| `server.getConnections(callback)` | `(...) => any` | `__net.server.getConnections` | 📋 Planned | - |
-| `server.listen()` | `(...) => any` | `__net.server.listen` | 📋 Planned | - |
-| `server.ref()` | `(...) => any` | `__net.server.ref` | 📋 Planned | - |
-| `server.unref()` | `(...) => any` | `__net.server.unref` | 📋 Planned | - |
-| `server[Symbol.asyncDispose]()` | `(...) => any` | `__net.server[Symbol.asyncDispose]` | 📋 Planned | - |
-| `socket.address()` | `(...) => any` | `__net.socket.address` | 📋 Planned | - |
-| `socket.connect()` | `(...) => any` | `__net.socket.connect` | 📋 Planned | - |
-| `socket.destroy([error])` | `(...) => any` | `__net.socket.destroy` | 📋 Planned | - |
-| `socket.destroySoon()` | `(...) => any` | `__net.socket.destroySoon` | 📋 Planned | - |
-| `socket.end([data[, encoding]][, callback])` | `(...) => any` | `__net.socket.end` | 📋 Planned | - |
-| `socket.pause()` | `(...) => any` | `__net.socket.pause` | 📋 Planned | - |
-| `socket.ref()` | `(...) => any` | `__net.socket.ref` | 📋 Planned | - |
-| `socket.resetAndDestroy()` | `(...) => any` | `__net.socket.resetAndDestroy` | 📋 Planned | - |
-| `socket.resume()` | `(...) => any` | `__net.socket.resume` | 📋 Planned | - |
-| `socket.setEncoding([encoding])` | `(...) => any` | `__net.socket.setEncoding` | 📋 Planned | - |
-| `socket.setKeepAlive([enable][, initialDelay])` | `(...) => any` | `__net.socket.setKeepAlive` | 📋 Planned | - |
-| `socket.setNoDelay([noDelay])` | `(...) => any` | `__net.socket.setNoDelay` | 📋 Planned | - |
-| `socket.setTimeout(timeout[, callback])` | `(...) => any` | `__net.socket.setTimeout` | 📋 Planned | - |
-| `socket.unref()` | `(...) => any` | `__net.socket.unref` | 📋 Planned | - |
-| `socket.write(data[, encoding][, callback])` | `(...) => any` | `__net.socket.write` | 📋 Planned | - |
-| `timeout` | `any` | `__net.timeout` | 📋 Planned | - |
+| `BlockList.isBlockList(value)` | `(...) => any` | `__net.BlockList.isBlockList` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `SocketAddress.parse(input)` | `(...) => any` | `__net.SocketAddress.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `address` | `any` | `__net.address` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `autoSelectFamilyAttemptedAddresses` | `any` | `__net.autoSelectFamilyAttemptedAddresses` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.addAddress(address[, type])` | `(...) => any` | `__net.blockList.addAddress` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.addRange(start, end[, type])` | `(...) => any` | `__net.blockList.addRange` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.addSubnet(net, prefix[, type])` | `(...) => any` | `__net.blockList.addSubnet` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.check(address[, type])` | `(...) => any` | `__net.blockList.check` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.fromJSON(value)` | `(...) => any` | `__net.blockList.fromJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `blockList.toJSON()` | `(...) => any` | `__net.blockList.toJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `bufferSize` | `any` | `__net.bufferSize` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `bytesRead` | `any` | `__net.bytesRead` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `bytesWritten` | `any` | `__net.bytesWritten` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `connecting` | `any` | `__net.connecting` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `destroyed` | `any` | `__net.destroyed` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `dropMaxConnection` | `any` | `__net.dropMaxConnection` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `family` | `any` | `__net.family` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `flowlabel` | `any` | `__net.flowlabel` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `listening` | `any` | `__net.listening` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `localAddress` | `any` | `__net.localAddress` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `localFamily` | `any` | `__net.localFamily` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `localPort` | `any` | `__net.localPort` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `maxConnections` | `any` | `__net.maxConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.BlockList` | `(...) => any` | `__net.net.BlockList` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.Server` | `(...) => any` | `__net.net.Server` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.Socket` | `(...) => any` | `__net.net.Socket` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.SocketAddress` | `(...) => any` | `__net.net.SocketAddress` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.connect()` | `(...) => any` | `__net.net.connect` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.createConnection()` | `(...) => any` | `__net.net.createConnection` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.createServer([options][, connectionListener])` | `(...) => any` | `__net.net.createServer` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.getDefaultAutoSelectFamily()` | `(...) => any` | `__net.net.getDefaultAutoSelectFamily` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.getDefaultAutoSelectFamilyAttemptTimeout()` | `(...) => any` | `__net.net.getDefaultAutoSelectFamilyAttemptTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.isIP(input)` | `(...) => any` | `__net.net.isIP` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.isIPv4(input)` | `(...) => any` | `__net.net.isIPv4` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.isIPv6(input)` | `(...) => any` | `__net.net.isIPv6` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.setDefaultAutoSelectFamily(value)` | `(...) => any` | `__net.net.setDefaultAutoSelectFamily` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `net.setDefaultAutoSelectFamilyAttemptTimeout(value)` | `(...) => any` | `__net.net.setDefaultAutoSelectFamilyAttemptTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `pending` | `any` | `__net.pending` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `port` | `any` | `__net.port` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `readyState` | `any` | `__net.readyState` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `remoteAddress` | `any` | `__net.remoteAddress` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `remoteFamily` | `any` | `__net.remoteFamily` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `remotePort` | `any` | `__net.remotePort` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `rules` | `any` | `__net.rules` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.address()` | `(...) => any` | `__net.server.address` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.close([callback])` | `(...) => any` | `__net.server.close` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.getConnections(callback)` | `(...) => any` | `__net.server.getConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.listen()` | `(...) => any` | `__net.server.listen` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.ref()` | `(...) => any` | `__net.server.ref` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server.unref()` | `(...) => any` | `__net.server.unref` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `server[Symbol.asyncDispose]()` | `(...) => any` | `__net.server[Symbol.asyncDispose]` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.address()` | `(...) => any` | `__net.socket.address` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.connect()` | `(...) => any` | `__net.socket.connect` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.destroy([error])` | `(...) => any` | `__net.socket.destroy` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.destroySoon()` | `(...) => any` | `__net.socket.destroySoon` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.end([data[, encoding]][, callback])` | `(...) => any` | `__net.socket.end` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.pause()` | `(...) => any` | `__net.socket.pause` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.ref()` | `(...) => any` | `__net.socket.ref` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.resetAndDestroy()` | `(...) => any` | `__net.socket.resetAndDestroy` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.resume()` | `(...) => any` | `__net.socket.resume` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.setEncoding([encoding])` | `(...) => any` | `__net.socket.setEncoding` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.setKeepAlive([enable][, initialDelay])` | `(...) => any` | `__net.socket.setKeepAlive` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.setNoDelay([noDelay])` | `(...) => any` | `__net.socket.setNoDelay` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.setTimeout(timeout[, callback])` | `(...) => any` | `__net.socket.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.unref()` | `(...) => any` | `__net.socket.unref` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `socket.write(data[, encoding][, callback])` | `(...) => any` | `__net.socket.write` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
+| `timeout` | `any` | `__net.timeout` | ✅ Done | `internal/compiler/testdata/corpus/api/net.ts` |
 
 ---
 

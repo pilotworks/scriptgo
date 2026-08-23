@@ -197,10 +197,15 @@ func getCorpusFeatureAPIs(featureName string) (string, map[string]bool) {
 					clean := cleanHTML(strings.Split(rawAPI, "(")[0])
 					clean = strings.TrimPrefix(clean, "new ")
 					clean = strings.TrimPrefix(clean, "readonly ")
+					clean = strings.TrimSpace(strings.Split(clean, ":")[0])
+					clean = strings.TrimSpace(strings.Split(clean, "<")[0])
 					apis[clean] = true
 					apis[strings.ToLower(clean)] = true
 					parts := strings.Split(clean, ".")
-					exactName := strings.Trim(parts[len(parts)-1], "` :;")
+					rawExact := strings.Trim(parts[len(parts)-1], "` :;")
+					exactName := strings.TrimPrefix(rawExact, "readonly ")
+					exactName = strings.TrimSpace(strings.Split(exactName, ":")[0])
+					exactName = strings.TrimSpace(strings.Split(exactName, "<")[0])
 					if exactName != "" {
 						apis[exactName] = true
 						apis[strings.ToLower(exactName)] = true
@@ -220,14 +225,21 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 	clean := cleanHTML(strings.Split(apiName, "(")[0])
 	clean = strings.TrimPrefix(clean, "new ")
 	clean = strings.TrimPrefix(clean, "readonly ")
+	clean = strings.TrimSpace(strings.Split(clean, ":")[0])
+	clean = strings.TrimSpace(strings.Split(clean, "<")[0])
 	parts := strings.Split(clean, ".")
-	exactName := strings.Trim(parts[len(parts)-1], "` :;")
+	rawExact := strings.Trim(parts[len(parts)-1], "` :;")
+	exactName := strings.TrimPrefix(rawExact, "readonly ")
+	exactName = strings.TrimSpace(strings.Split(exactName, ":")[0])
+	exactName = strings.TrimSpace(strings.Split(exactName, "<")[0])
 
 	candidates := []string{
 		clean,
 		strings.ToLower(clean),
 		exactName,
 		strings.ToLower(exactName),
+		rawExact,
+		strings.ToLower(rawExact),
 		normalizeAPIName(apiName),
 		apiName,
 		strings.ToLower(apiName),

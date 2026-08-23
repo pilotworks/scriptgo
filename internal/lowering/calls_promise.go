@@ -19,6 +19,25 @@ func lowerPromiseStaticCall(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
+	if callee == "Promise.try" && len(expression.Arguments) > 0 {
+		fnVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", true, err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		promType := ir.Type("object:Promise<unknown>")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   promType,
+			Result: result,
+			Callee: "__async.promise_try",
+			Args:   []string{fnVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, promType, true, nil
+	}
 	if callee == "Promise.resolve" || callee == "Promise.reject" {
 		var argVal string
 		var argType ir.Type = ir.TypeVoid

@@ -59,6 +59,68 @@ func executeRegexIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		return Value{Type: ir.TypeStringArray, Array: arr}, nil
 
+	case "__regexp.escape":
+		if len(values) != 1 || values[0].Type != ir.TypeString {
+			return Value{}, fmt.Errorf("__regexp.escape requires one string")
+		}
+		return Value{Type: ir.TypeString, String: regexp.QuoteMeta(values[0].String)}, nil
+
+	case "__regexp.global":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "g")}, nil
+
+	case "__regexp.ignoreCase":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "i")}, nil
+
+	case "__regexp.multiline":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "m")}, nil
+
+	case "__regexp.dotAll":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "s")}, nil
+
+	case "__regexp.unicode":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "u")}, nil
+
+	case "__regexp.sticky":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "y")}, nil
+
+	case "__regexp.hasIndices":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "d")}, nil
+
+	case "__regexp.unicodeSets":
+		if len(values) != 1 || values[0].Object == nil {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		flags := values[0].Object["flags"].String
+		return Value{Type: ir.TypeBool, Bool: strings.Contains(flags, "v")}, nil
+
 	default:
 		return Value{}, fmt.Errorf("unknown regex intrinsic %q", name)
 	}
@@ -91,6 +153,40 @@ func executeBigIntIntrinsic(name string, arguments []string, env map[string]Valu
 			return Value{}, fmt.Errorf("invalid bigint string %q: %w", values[0].String, err)
 		}
 		return Value{Type: ir.TypeBigInt, BigInt: bi}, nil
+
+	case "__bigint.asIntN":
+		if len(values) != 2 || values[0].Type != ir.TypeNumber || values[1].Type != ir.TypeBigInt {
+			return Value{}, fmt.Errorf("__bigint.asIntN requires (number, bigint)")
+		}
+		bits := int64(values[0].Number)
+		val := uint64(values[1].BigInt)
+		if bits <= 0 {
+			return Value{Type: ir.TypeBigInt, BigInt: 0}, nil
+		}
+		if bits >= 64 {
+			return Value{Type: ir.TypeBigInt, BigInt: values[1].BigInt}, nil
+		}
+		mask := (uint64(1) << uint(bits)) - 1
+		val = val & mask
+		if (val & (uint64(1) << uint(bits-1))) != 0 {
+			val = val | (^mask)
+		}
+		return Value{Type: ir.TypeBigInt, BigInt: int64(val)}, nil
+
+	case "__bigint.asUintN":
+		if len(values) != 2 || values[0].Type != ir.TypeNumber || values[1].Type != ir.TypeBigInt {
+			return Value{}, fmt.Errorf("__bigint.asUintN requires (number, bigint)")
+		}
+		bits := int64(values[0].Number)
+		val := uint64(values[1].BigInt)
+		if bits <= 0 {
+			return Value{Type: ir.TypeBigInt, BigInt: 0}, nil
+		}
+		if bits >= 64 {
+			return Value{Type: ir.TypeBigInt, BigInt: values[1].BigInt}, nil
+		}
+		mask := (uint64(1) << uint(bits)) - 1
+		return Value{Type: ir.TypeBigInt, BigInt: int64(val & mask)}, nil
 
 	default:
 		return Value{}, fmt.Errorf("unknown bigint intrinsic %q", name)

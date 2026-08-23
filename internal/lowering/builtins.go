@@ -80,9 +80,13 @@ var builtinGlobals = map[string]BuiltinGlobal{
 	// Well-known Symbols (Category 1: ECMAScript)
 	"Symbol.iterator":           {Category: CategoryECMAScript, Name: "Symbol.iterator", Type: ir.TypeSymbol, Value: "Symbol.iterator"},
 	"Symbol.asyncIterator":      {Category: CategoryECMAScript, Name: "Symbol.asyncIterator", Type: ir.TypeSymbol, Value: "Symbol.asyncIterator"},
+	"Symbol.dispose":            {Category: CategoryECMAScript, Name: "Symbol.dispose", Type: ir.TypeSymbol, Value: "Symbol.dispose"},
+	"Symbol.asyncDispose":       {Category: CategoryECMAScript, Name: "Symbol.asyncDispose", Type: ir.TypeSymbol, Value: "Symbol.asyncDispose"},
 	"Symbol.hasInstance":        {Category: CategoryECMAScript, Name: "Symbol.hasInstance", Type: ir.TypeSymbol, Value: "Symbol.hasInstance"},
 	"Symbol.isConcatSpreadable": {Category: CategoryECMAScript, Name: "Symbol.isConcatSpreadable", Type: ir.TypeSymbol, Value: "Symbol.isConcatSpreadable"},
 	"Symbol.match":              {Category: CategoryECMAScript, Name: "Symbol.match", Type: ir.TypeSymbol, Value: "Symbol.match"},
+	"Symbol.matchAll":           {Category: CategoryECMAScript, Name: "Symbol.matchAll", Type: ir.TypeSymbol, Value: "Symbol.matchAll"},
+	"Symbol.metadata":           {Category: CategoryECMAScript, Name: "Symbol.metadata", Type: ir.TypeSymbol, Value: "Symbol.metadata"},
 	"Symbol.replace":            {Category: CategoryECMAScript, Name: "Symbol.replace", Type: ir.TypeSymbol, Value: "Symbol.replace"},
 	"Symbol.search":             {Category: CategoryECMAScript, Name: "Symbol.search", Type: ir.TypeSymbol, Value: "Symbol.search"},
 	"Symbol.species":            {Category: CategoryECMAScript, Name: "Symbol.species", Type: ir.TypeSymbol, Value: "Symbol.species"},
@@ -416,6 +420,64 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 			return "", "", fmt.Errorf("BigInt does not support %s", argType)
 		},
 	}
+	m["BigInt.asIntN"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "BigInt.asIntN",
+		MinArgs:  2,
+		MaxArgs:  2,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			bitsVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			intVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBigInt,
+				Result: result,
+				Callee: "__bigint.asIntN",
+				Args:   []string{bitsVal, intVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeBigInt, nil
+		},
+	}
+	m["BigInt.asUintN"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "BigInt.asUintN",
+		MinArgs:  2,
+		MaxArgs:  2,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			bitsVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			intVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBigInt,
+				Result: result,
+				Callee: "__bigint.asUintN",
+				Args:   []string{bitsVal, intVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeBigInt, nil
+		},
+	}
 	m["RegExp"] = BuiltinIntrinsic{
 		Category: CategoryECMAScript,
 		Name:     "RegExp",
@@ -453,6 +515,31 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{res, flagsVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 			return res, ir.Type("object:RegExp"), nil
+		},
+	}
+	m["RegExp.escape"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "RegExp.escape",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			strVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: result,
+				Callee: "__regexp.escape",
+				Args:   []string{strVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeString, nil
 		},
 	}
 	m["Symbol"] = BuiltinIntrinsic{

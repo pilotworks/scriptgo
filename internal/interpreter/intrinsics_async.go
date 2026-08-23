@@ -33,6 +33,19 @@ func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value
 		return Value{Type: ir.TypeVoid}, nil
 	case "__async.promise_create":
 		return Value{Type: ir.TypeObject, Object: map[string]Value{"__state": {Type: ir.TypeNumber, Number: 0}, "__value": {Type: ir.TypeVoid}}}, nil
+	case "__async.promise_try":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("Promise.try requires a callback")
+		}
+		closureVal, ok := env[arguments[0]]
+		if !ok || closureVal.Closure == nil {
+			return Value{}, fmt.Errorf("Promise.try callback must be a closure")
+		}
+		retVal, _, err := executeClosure(functions, closureVal.Closure, nil, output)
+		if err != nil {
+			return Value{Type: ir.TypeObject, Object: map[string]Value{"__state": {Type: ir.TypeNumber, Number: 2}, "__value": {Type: ir.TypeString, String: err.Error()}}}, nil
+		}
+		return Value{Type: ir.TypeObject, Object: map[string]Value{"__state": {Type: ir.TypeNumber, Number: 1}, "__value": retVal}}, nil
 	case "__async.promise_resolve":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("Promise.resolve requires 1 argument")

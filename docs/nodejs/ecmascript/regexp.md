@@ -21,22 +21,22 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `RegExp.compile(pattern: string, flags?: string): this` | `compile(pattern: string, flags?: string): this` | `__regexp.compile` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.escape(string: string): string` | `escape(string: string): string` | `__regexp.escape` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
 | `RegExp.exec(string: string): RegExpExecArray \| null` | `exec(string: string): RegExpExecArray \| null` | `__regexp.exec` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.lastIndex: number` | `lastIndex: number` | `__regexp.lastIndex` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly dotAll: boolean` | `readonly dotAll: boolean` | `__regexp.dotAll` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly flags: string` | `readonly flags: string` | `__regexp.flags` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly global: boolean` | `readonly global: boolean` | `__regexp.global` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly hasIndices: boolean` | `readonly hasIndices: boolean` | `__regexp.hasIndices` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly ignoreCase: boolean` | `readonly ignoreCase: boolean` | `__regexp.ignoreCase` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly multiline: boolean` | `readonly multiline: boolean` | `__regexp.multiline` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly source: string` | `readonly source: string` | `__regexp.source` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly sticky: boolean` | `readonly sticky: boolean` | `__regexp.sticky` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly unicode: boolean` | `readonly unicode: boolean` | `__regexp.unicode` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
+| `RegExp.readonly unicodeSets: boolean` | `readonly unicodeSets: boolean` | `__regexp.unicodeSets` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
 | `RegExp.test(string: string): boolean` | `test(string: string): boolean` | `__regexp.test` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
 | `new RegExp(pattern: RegExp \| string, flags?: string): RegExp` | `new (pattern: RegExp \| string, flags?: string): RegExp` | `__regexp.new` | ✅ Done | `internal/compiler/testdata/corpus/api/regexp.ts` |
-| `RegExp.compile(pattern: string, flags?: string): this` | `compile(pattern: string, flags?: string): this` | `__regexp.compile` | 📋 Planned | - |
-| `RegExp.escape(string: string): string` | `escape(string: string): string` | `__regexp.escape` | 📋 Planned | - |
-| `RegExp.lastIndex: number` | `lastIndex: number` | `__regexp.lastIndex` | 📋 Planned | - |
-| `RegExp.readonly dotAll: boolean` | `readonly dotAll: boolean` | `__regexp.dotAll` | 📋 Planned | - |
-| `RegExp.readonly flags: string` | `readonly flags: string` | `__regexp.flags` | 📋 Planned | - |
-| `RegExp.readonly global: boolean` | `readonly global: boolean` | `__regexp.global` | 📋 Planned | - |
-| `RegExp.readonly hasIndices: boolean` | `readonly hasIndices: boolean` | `__regexp.hasIndices` | 📋 Planned | - |
-| `RegExp.readonly ignoreCase: boolean` | `readonly ignoreCase: boolean` | `__regexp.ignoreCase` | 📋 Planned | - |
-| `RegExp.readonly multiline: boolean` | `readonly multiline: boolean` | `__regexp.multiline` | 📋 Planned | - |
-| `RegExp.readonly source: string` | `readonly source: string` | `__regexp.source` | 📋 Planned | - |
-| `RegExp.readonly sticky: boolean` | `readonly sticky: boolean` | `__regexp.sticky` | 📋 Planned | - |
-| `RegExp.readonly unicode: boolean` | `readonly unicode: boolean` | `__regexp.unicode` | 📋 Planned | - |
-| `RegExp.readonly unicodeSets: boolean` | `readonly unicodeSets: boolean` | `__regexp.unicodeSets` | 📋 Planned | - |
 
 ---
 

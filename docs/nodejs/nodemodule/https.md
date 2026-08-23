@@ -21,25 +21,25 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `headersTimeout` | `any` | `__https.headersTimeout` | 📋 Planned | - |
-| `https.Agent` | `(...) => any` | `__https.https.Agent` | 📋 Planned | - |
-| `https.Server` | `(...) => any` | `__https.https.Server` | 📋 Planned | - |
-| `https.createServer([options][, requestListener])` | `(...) => any` | `__https.https.createServer` | 📋 Planned | - |
-| `https.get(options[, callback])` | `(...) => any` | `__https.https.get` | 📋 Planned | - |
-| `https.get(url[, options][, callback])` | `(...) => any` | `__https.https.get` | 📋 Planned | - |
-| `https.globalAgent` | `any` | `__https.https.globalAgent` | 📋 Planned | - |
-| `https.request(options[, callback])` | `(...) => any` | `__https.https.request` | 📋 Planned | - |
-| `https.request(url[, options][, callback])` | `(...) => any` | `__https.https.request` | 📋 Planned | - |
-| `keepAliveTimeout` | `any` | `__https.keepAliveTimeout` | 📋 Planned | - |
-| `maxHeadersCount` | `any` | `__https.maxHeadersCount` | 📋 Planned | - |
-| `requestTimeout` | `any` | `__https.requestTimeout` | 📋 Planned | - |
-| `server.close([callback])` | `(...) => any` | `__https.server.close` | 📋 Planned | - |
-| `server.closeAllConnections()` | `(...) => any` | `__https.server.closeAllConnections` | 📋 Planned | - |
-| `server.closeIdleConnections()` | `(...) => any` | `__https.server.closeIdleConnections` | 📋 Planned | - |
-| `server.listen()` | `(...) => any` | `__https.server.listen` | 📋 Planned | - |
-| `server.setTimeout([msecs][, callback])` | `(...) => any` | `__https.server.setTimeout` | 📋 Planned | - |
-| `server[Symbol.asyncDispose]()` | `(...) => any` | `__https.server[Symbol.asyncDispose]` | 📋 Planned | - |
-| `timeout` | `any` | `__https.timeout` | 📋 Planned | - |
+| `headersTimeout` | `any` | `__https.headersTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.Agent` | `(...) => any` | `__https.https.Agent` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.Server` | `(...) => any` | `__https.https.Server` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.createServer([options][, requestListener])` | `(...) => any` | `__https.https.createServer` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.get(options[, callback])` | `(...) => any` | `__https.https.get` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.get(url[, options][, callback])` | `(...) => any` | `__https.https.get` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.globalAgent` | `any` | `__https.https.globalAgent` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.request(options[, callback])` | `(...) => any` | `__https.https.request` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `https.request(url[, options][, callback])` | `(...) => any` | `__https.https.request` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `keepAliveTimeout` | `any` | `__https.keepAliveTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `maxHeadersCount` | `any` | `__https.maxHeadersCount` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `requestTimeout` | `any` | `__https.requestTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server.close([callback])` | `(...) => any` | `__https.server.close` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server.closeAllConnections()` | `(...) => any` | `__https.server.closeAllConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server.closeIdleConnections()` | `(...) => any` | `__https.server.closeIdleConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server.listen()` | `(...) => any` | `__https.server.listen` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server.setTimeout([msecs][, callback])` | `(...) => any` | `__https.server.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `server[Symbol.asyncDispose]()` | `(...) => any` | `__https.server[Symbol.asyncDispose]` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
+| `timeout` | `any` | `__https.timeout` | ✅ Done | `internal/compiler/testdata/corpus/api/https.ts` |
 
 ---
 
