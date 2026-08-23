@@ -610,6 +610,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				}
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__iterator.") {
+				value, err := executeIteratorIntrinsic(instruction, env, functions, output)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
+				continue
+			}
 			if strings.HasPrefix(instruction.Callee, "__timers.") {
 				value, err := executeTimerIntrinsic(instruction.Callee, instruction.Args, env)
 				if err != nil {

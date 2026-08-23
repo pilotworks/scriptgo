@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Iterator.from<T>(value: Iterator<T, unknown, undefined> \| Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>` | `from<T>(value: Iterator<T, unknown, undefined> \| Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>` | `__iterator.from` | 📋 Planned | - |
-| `Iterator.next(...[value]: [] \| [TNext]): IteratorResult<T, TReturn>` | `next(...[value]: [] \| [TNext]): IteratorResult<T, TReturn>` | `__iterator.next` | 📋 Planned | - |
-| `Iterator.return?(value?: TReturn): IteratorResult<T, TReturn>` | `return?(value?: TReturn): IteratorResult<T, TReturn>` | `__iterator.return` | 📋 Planned | - |
-| `Iterator.throw?(e?: any): IteratorResult<T, TReturn>` | `throw?(e?: any): IteratorResult<T, TReturn>` | `__iterator.throw` | 📋 Planned | - |
+| `Iterator.from<T>(value: Iterator<T, unknown, undefined> \| Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>` | `from<T>(value: Iterator<T, unknown, undefined> \| Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>` | `__iterator.from` | ✅ Done | `internal/compiler/testdata/corpus/api/iterator.ts` |
+| `Iterator.next(...[value]: [] \| [TNext]): IteratorResult<T, TReturn>` | `next(...[value]: [] \| [TNext]): IteratorResult<T, TReturn>` | `__iterator.next` | ✅ Done | `internal/compiler/testdata/corpus/api/iterator.ts` |
+| `Iterator.return?(value?: TReturn): IteratorResult<T, TReturn>` | `return?(value?: TReturn): IteratorResult<T, TReturn>` | `__iterator.return` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `Iterator.throw?(e?: any): IteratorResult<T, TReturn>` | `throw?(e?: any): IteratorResult<T, TReturn>` | `__iterator.throw` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
 
 ---
 

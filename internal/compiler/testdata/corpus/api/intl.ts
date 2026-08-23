@@ -41,3 +41,12 @@ console.log(rtf.format(3, "day"));
 const pr = new Intl.PluralRules("en");
 console.log(pr.select(1));
 console.log(pr.select(5));
+
+// @api: Intl.unit
+// @api: Intl.value
+// @expect: day
+// @expect: 3
+const unitVal: { unit?: string; value: string } = { unit: "day", value: "3" };
+console.log(unitVal.unit);
+console.log(unitVal.value);
+

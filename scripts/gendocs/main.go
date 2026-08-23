@@ -177,6 +177,15 @@ func getCorpusFeatureAPIs(featureName string) (string, map[string]bool) {
 	} else if _, err := os.Stat(mainTsPath); err == nil {
 		targetPath = mainTsPath
 		resolvedPath = filepath.ToSlash(filepath.Dir(mainTsPath)) + "/"
+	} else if langTsPath := filepath.Join("internal", "compiler", "testdata", "corpus", "language", featureName+".ts"); func() bool { _, err := os.Stat(langTsPath); return err == nil }() {
+		targetPath = filepath.Join("internal", "compiler", "testdata", "corpus", "language", featureName+".ts")
+		resolvedPath = filepath.ToSlash(targetPath)
+	} else if featureName == "reflect" {
+		decPath := filepath.Join("internal", "compiler", "testdata", "corpus", "language", "decorators.ts")
+		if _, err := os.Stat(decPath); err == nil {
+			targetPath = decPath
+			resolvedPath = filepath.ToSlash(decPath)
+		}
 	}
 
 	if targetPath != "" {
@@ -223,15 +232,20 @@ func getCorpusFeatureAPIs(featureName string) (string, map[string]bool) {
 // findCorpusAPITest checks if an API test folder exists under corpus/api/<feature>/ and contains any test cases
 func findCorpusAPITest(featureName, apiName string) (string, bool) {
 	clean := cleanHTML(strings.Split(apiName, "(")[0])
+	clean = strings.ReplaceAll(clean, "`", "")
 	clean = strings.TrimPrefix(clean, "new ")
 	clean = strings.TrimPrefix(clean, "readonly ")
 	clean = strings.TrimSpace(strings.Split(clean, ":")[0])
 	clean = strings.TrimSpace(strings.Split(clean, "<")[0])
 	parts := strings.Split(clean, ".")
 	rawExact := strings.Trim(parts[len(parts)-1], "` :;")
+	rawExact = strings.ReplaceAll(rawExact, "`", "")
 	exactName := strings.TrimPrefix(rawExact, "readonly ")
 	exactName = strings.TrimSpace(strings.Split(exactName, ":")[0])
 	exactName = strings.TrimSpace(strings.Split(exactName, "<")[0])
+	if strings.Contains(exactName, " ") {
+		exactName = strings.Fields(exactName)[0]
+	}
 
 	candidates := []string{
 		clean,
@@ -248,12 +262,36 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 		candidates = append(candidates, "constructor", "new", "create", "basic")
 	}
 
-	// 1. Check if the feature has a consolidated .ts / main.ts with @api: directives
-	testPath, inlineAPIs := getCorpusFeatureAPIs(featureName)
-	if len(inlineAPIs) > 0 {
-		for _, cand := range candidates {
-			if cand != "" && inlineAPIs[cand] {
-				return testPath, true
+	features := []string{featureName}
+	switch featureName {
+	case "headers":
+		features = append(features, "fetch", "http")
+	case "request", "requestinit":
+		features = append(features, "request", "requestinit", "fetch", "http")
+	case "response", "responseinit":
+		features = append(features, "response", "responseinit", "fetch", "http")
+	case "textdecoder", "textdecodeoptions", "textdecoderoptions":
+		features = append(features, "textdecoder", "textdecodeoptions", "textdecoderoptions", "encoding")
+	case "textencoder", "textencoderencodeintoresult":
+		features = append(features, "textencoder", "textencoderencodeintoresult", "encoding")
+	case "urlsearchparams":
+		features = append(features, "url")
+	case "performance":
+		features = append(features, "perf_hooks")
+	case "iteratorresult", "iteratorobject", "iterator", "asynciterator":
+		features = append(features, "iterator", "iteratorresult", "iteratorobject")
+	case "erroroptions", "typeerror", "rangeerror", "syntaxerror", "referenceerror", "urierror", "evalerror", "aggregateerror", "suppressederror":
+		features = append(features, "error", "suppressederror", "syntaxerror")
+	}
+
+	// 1. Check if any feature has a consolidated .ts / main.ts with @api: directives
+	for _, feat := range features {
+		testPath, inlineAPIs := getCorpusFeatureAPIs(feat)
+		if len(inlineAPIs) > 0 {
+			for _, cand := range candidates {
+				if cand != "" && inlineAPIs[cand] {
+					return testPath, true
+				}
 			}
 		}
 	}
@@ -305,6 +343,11 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 		return nil
 	}
 
+	localGlobals := filepath.Join("internal", "typescriptgo", "stdlib", "globals.d.ts")
+	if _, statErr := os.Stat(localGlobals); statErr == nil {
+		dtsFiles = append(dtsFiles, localGlobals)
+	}
+
 	type rawEntry struct {
 		name      string
 		signature string
@@ -342,10 +385,23 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 				continue
 			}
 
-			if strings.HasPrefix(line, "interface ") || strings.HasPrefix(line, "declare namespace ") {
+			if strings.HasPrefix(line, "interface ") {
 				parts := strings.Fields(line)
 				if len(parts) >= 2 {
 					name := strings.Split(parts[1], "<")[0]
+					name = strings.Split(name, " ")[0]
+					currentInterface = name
+					memberBuffer.Reset()
+					continue
+				}
+			} else if strings.HasPrefix(line, "declare namespace ") || strings.HasPrefix(line, "namespace ") {
+				parts := strings.Fields(line)
+				idx := 1
+				if parts[0] == "declare" {
+					idx = 2
+				}
+				if len(parts) > idx {
+					name := strings.Split(parts[idx], "<")[0]
 					name = strings.Split(name, " ")[0]
 					currentInterface = name
 					memberBuffer.Reset()
@@ -384,6 +440,8 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 				} else {
 					rawName = stmt
 					rawName = strings.TrimPrefix(rawName, "readonly ")
+					rawName = strings.TrimPrefix(rawName, "declare function ")
+					rawName = strings.TrimPrefix(rawName, "function ")
 					rawName = strings.Split(rawName, "<")[0]
 					rawName = strings.Split(rawName, "(")[0]
 					rawName = strings.Split(rawName, ":")[0]
@@ -395,6 +453,9 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 				}
 
 				baseName := strings.TrimSuffix(currentInterface, "Constructor")
+				if baseName == "namespace" {
+					continue
+				}
 				interfaces[baseName] = append(interfaces[baseName], rawEntry{
 					name:      rawName,
 					signature: stmt,
@@ -417,7 +478,9 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 			}
 			seen[item.name] = true
 
-			displayName := fmt.Sprintf("%s.%s", baseName, item.signature)
+			cleanSig := strings.TrimPrefix(item.signature, "declare function ")
+			cleanSig = strings.TrimPrefix(cleanSig, "function ")
+			displayName := fmt.Sprintf("%s.%s", baseName, cleanSig)
 			callee := fmt.Sprintf("__%s.%s", featName, item.name)
 			if item.name == "constructor" {
 				sigArgs := strings.TrimPrefix(strings.TrimPrefix(item.signature, "new"), " ")
@@ -432,7 +495,7 @@ func discoverAndParseECMAScript() []ModuleDocConfig {
 
 			entries = append(entries, APIEntry{
 				Name:      displayName,
-				Signature: item.signature,
+				Signature: cleanSig,
 				Callee:    callee,
 				Status:    status,
 				TestPath:  testPath,

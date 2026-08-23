@@ -1,5 +1,6 @@
 // ScriptGo Corpus: Array Standard Builtin APIs
 // Consolidated test suite with inline assertions.
+export {};
 
 // @api: array.at
 // @expect: 10
@@ -91,9 +92,9 @@ const arr_array_from_14 = Array.from(s_array_from_14);
 console.log(arr_array_from_14.join(","));
 
 // @api: array.fromAsync
-// @expect: 1,2,3
+// @expect: 2,4,6
 const a_array_fromAsync_15: number[] = [1, 2, 3];
-const arr_array_fromAsync_15 = Array.from(a_array_fromAsync_15);
+const arr_array_fromAsync_15 = await Array.fromAsync(a_array_fromAsync_15, (x: number) => x * 2);
 console.log(arr_array_fromAsync_15.join(","));
 
 // @api: array.includes

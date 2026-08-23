@@ -47,6 +47,9 @@ func isObjectBuiltinCall(expr *typescriptgo.SyntaxExpression) bool {
 			name = expr.Left.Left.Text + "." + expr.Left.Text
 		}
 	}
+	if strings.HasPrefix(name, "Reflect.") {
+		return true
+	}
 	return name == "Object.values" || name == "Object.entries" || name == "Object.assign" || name == "Object.keys"
 }
 
@@ -127,7 +130,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		if statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic class %q", statement.Class.Name))
 		}
-		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0 && len(statement.Class.StaticBlocks) == 0) {
+		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0 && len(statement.Class.StaticBlocks) == 0 && len(statement.Class.Decorators) == 0) {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "empty class shape")
 		}
 		if statement.Class.Constructor != nil {
@@ -288,7 +291,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 
 func isHeterogeneousUnion(typ string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
-	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") {
+	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") || strings.Contains(normalized, "string | symbol") || strings.Contains(normalized, "symbol | string") {
 		return false
 	}
 	if !strings.Contains(normalized, "|") {

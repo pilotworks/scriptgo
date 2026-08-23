@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `new URIError(message?: string, options?: ErrorOptions): URIError` | `new (message?: string, options?: ErrorOptions): URIError` | `__urierror.new` | 📋 Planned | - |
+| `new URIError(message?: string, options?: ErrorOptions): URIError` | `new (message?: string, options?: ErrorOptions): URIError` | `__urierror.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 
 ---
 

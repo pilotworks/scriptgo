@@ -101,6 +101,16 @@ type SyntaxEnumMember struct {
 	Initializer *SyntaxExpression
 }
 
+type SyntaxDecorator struct {
+	Span       SourceSpan
+	Name       string
+	Expression *SyntaxExpression
+	Arguments  []*SyntaxExpression
+	DesignType string
+	ParamTypes []string
+	ReturnType string
+}
+
 type SyntaxClass struct {
 	Span           SourceSpan
 	Name           string
@@ -108,6 +118,7 @@ type SyntaxClass struct {
 	Extends        string
 	Implements     []string
 	IsAbstract     bool
+	Decorators     []SyntaxDecorator
 	Fields         []SyntaxField
 	Constructor    *SyntaxConstructor
 	Methods        []SyntaxMethod
@@ -127,6 +138,7 @@ type SyntaxMethod struct {
 	InferredType   string
 	TypeParameters []string
 	Parameters     []SyntaxParameter
+	Decorators     []SyntaxDecorator
 	Body           []SyntaxStatement
 	IsStatic       bool
 	IsAbstract     bool
@@ -141,6 +153,7 @@ type SyntaxField struct {
 	Type         string
 	InferredType string
 	Initializer  *SyntaxExpression
+	Decorators   []SyntaxDecorator
 	IsStatic     bool
 	IsPrivate    bool
 	IsReadonly   bool
@@ -151,6 +164,7 @@ type SyntaxParameter struct {
 	Name         string
 	Type         string
 	InferredType string
+	Decorators   []SyntaxDecorator
 	Rest         bool
 	Optional     bool
 	Initializer  *SyntaxExpression

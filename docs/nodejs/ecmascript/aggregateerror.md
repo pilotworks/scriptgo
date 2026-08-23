@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `new AggregateError(errors: Iterable<any>, message?: string): AggregateError` | `new (errors: Iterable<any>, message?: string): AggregateError` | `__aggregateerror.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 | `AggregateError.errors: any[]` | `errors: any[]` | `__aggregateerror.errors` | 📋 Planned | - |
-| `new AggregateError(errors: Iterable<any>, message?: string): AggregateError` | `new (errors: Iterable<any>, message?: string): AggregateError` | `__aggregateerror.new` | 📋 Planned | - |
 
 ---
 

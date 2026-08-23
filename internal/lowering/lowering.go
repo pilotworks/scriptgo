@@ -41,6 +41,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
 	inProgressVars = map[string]bool{}
+	clearMetadataRegistry()
 	ClearDiagnostics()
 	var err error
 	program, err = SpecializeGenerics(program)
@@ -80,10 +81,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	hierarchy := buildClassHierarchy(program)
 	shapes := map[string]ir.ObjectShape{}
 	builtinShapes := []ir.ObjectShape{
-		{Name: "Error", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
-		{Name: "TypeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
-		{Name: "RangeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
-		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}}},
+		{Name: "Error", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "TypeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "RangeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "SuppressedError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "error", Type: ir.TypeString}, {Name: "suppressed", Type: ir.TypeString}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
 		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}}},
 	}
@@ -109,6 +111,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						val = "false"
 					}
 					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
+				}
+				if len(shape.Fields) == 0 && statement.Kind == "class" {
+					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(file.FileName, statement.Class.Span)})
 				}
 				if len(shape.Fields) > 0 || statement.Kind == "class" {
 					shapes[shape.Name] = shape
@@ -338,6 +343,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 							return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
 						}
 					}
+				}
+				if err := lowerClassDecorators(file.FileName, statement.Class, &main, env, &counter, shapes, signatures); err != nil {
+					return ir.Module{}, fmt.Errorf("lower class %s decorators: %w", statement.Class.Name, err)
 				}
 				continue
 			}

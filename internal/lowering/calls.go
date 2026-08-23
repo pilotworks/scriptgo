@@ -138,6 +138,9 @@ func lowerCallExpression(
 			if res, typ, handled, err := lowerArrayReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
+			if res, typ, handled, err := lowerIteratorReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+				return res, typ, err
+			}
 			if after, ok := strings.CutPrefix(string(receiverType), "object:"); ok || receiverType == ir.TypeObject {
 				className := after
 				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {

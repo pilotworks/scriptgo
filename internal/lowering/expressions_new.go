@@ -19,6 +19,19 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Date" {
 		ensureDateShape(shapes)
 	}
+	if className == "Console" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:Console"),
+			Result: result,
+			Callee: "__console.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:Console"), nil
+	}
 	if className == "Promise" {
 		if result == "" {
 			result = nextTemp(counter)
@@ -451,6 +464,56 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		function.Body = append(function.Body, ir.Instruction{
 			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{result, nameVal}, Span: toIRSpan(path, expression.Span),
 		})
+		stackVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: className + ": " + path, Span: toIRSpan(path, expression.Span),
+		})
+		causeVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{result, stackVal}, Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{result, causeVal}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
+	}
+	if className == "SuppressedError" {
+		errVal := nextTemp(counter)
+		suppVal := nextTemp(counter)
+		msgVal := nextTemp(counter)
+		if len(expression.Arguments) > 0 {
+			ev, _, _ := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			errVal = ev
+		} else {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: errVal, Value: "", Span: toIRSpan(path, expression.Span)})
+		}
+		if len(expression.Arguments) > 1 {
+			sv, _, _ := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			suppVal = sv
+		} else {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: suppVal, Value: "", Span: toIRSpan(path, expression.Span)})
+		}
+		if len(expression.Arguments) > 2 {
+			mv, _, _ := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+			msgVal = mv
+		} else {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: msgVal, Value: "", Span: toIRSpan(path, expression.Span)})
+		}
+		nameVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: "SuppressedError", Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{result, msgVal}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{result, nameVal}, Span: toIRSpan(path, expression.Span)})
+		stackVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: "SuppressedError: " + path, Span: toIRSpan(path, expression.Span)})
+		causeVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{result, stackVal}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{result, causeVal}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "error", FieldIndex: 4, Args: []string{result, errVal}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "suppressed", FieldIndex: 5, Args: []string{result, suppVal}, Span: toIRSpan(path, expression.Span)})
 		return result, objType, nil
 	}
 	for _, field := range shape.Fields {

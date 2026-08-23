@@ -182,6 +182,27 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__iterator.") {
+		arg := instruction.Args[0]
+		if instruction.Callee == "__iterator.to_array" {
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.for_each" {
+			return nil
+		}
+		if instruction.Callee == "__iterator.some" || instruction.Callee == "__iterator.every" {
+			out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 1.0, 0.000000e+00\n", instruction.Result))
+			e.types[instruction.Result] = ir.TypeBool
+			return nil
+		}
+		if instruction.Result != "" {
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__async.") {
 		if err := e.emitAsyncIntrinsic(out, instruction); err != nil {
 			return err
@@ -658,6 +679,25 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		}
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	case "__async.array_from_async":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("Array.fromAsync requires at least 1 argument")
+		}
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_create(ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		pVal := fmt.Sprintf("%s.p", instruction.Result)
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
+		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	default:

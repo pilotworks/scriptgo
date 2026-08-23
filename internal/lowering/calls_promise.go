@@ -365,25 +365,5 @@ func lowerPromiseStaticCall(
 		})
 		return resObj, ir.Type("object:" + shapeName), true, nil
 	}
-	if callee == "Array.fromAsync" && len(expression.Arguments) > 0 {
-		srcExpr := expression.Arguments[0]
-		srcVal, srcType, err := lowerExpression(path, srcExpr, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", true, err
-		}
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.Type("object:Promise"),
-			Result: result,
-			Callee: "__async.promise_resolve",
-			Args:   []string{srcVal},
-			Span:   toIRSpan(path, expression.Span),
-		})
-		_ = srcType
-		return result, ir.Type("object:Promise"), true, nil
-	}
 	return "", "", false, nil
 }

@@ -770,7 +770,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"clearImmediate", "__scriptgo.clearImmediate", "timers.clearImmediate"}, CategoryWebCompat, "__timers.clearImmediate", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 
 	// Node-specific globals (Category 3: NodeGlobal)
-	for _, logMethod := range []string{"log", "info", "debug", "warn", "error", "dir", "dirxml"} {
+	for _, logMethod := range []string{"log", "info", "debug", "warn", "error", "dir", "dirxml", "table"} {
 		name := "console." + logMethod
 		m[name] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: name, ArgumentTypes: []ir.Type{
 			ir.TypeNumber, ir.TypeBigInt, ir.TypeSymbol, ir.TypeString, ir.TypeBool, ir.TypeUnknown,
@@ -828,6 +828,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	registerObjectIntrinsics(m)
 	registerBufferIntrinsics(m)
 	registerArrayBuiltins(m)
+	registerReflectIntrinsics(m)
+	registerIteratorBuiltins(m)
 
 	return m
 }

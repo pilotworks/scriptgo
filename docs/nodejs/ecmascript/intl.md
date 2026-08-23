@@ -1,8 +1,8 @@
-# namespace Implementation Checklist
+# Intl Implementation Checklist
 
 > **Category**: `CategoryECMAScript`  
 > **Import Path**: `N/A (Global Scope)`  
-> **Specification Reference**: [TC39 ECMA-262 namespace Specification](https://tc39.es/ecma262/#sec-namespace-objects)  
+> **Specification Reference**: [TC39 ECMA-262 Intl Specification](https://tc39.es/ecma262/#sec-intl-objects)  
 > **Type Definition Source**: [microsoft/TypeScript lib.es2024.d.ts](https://github.com/microsoft/TypeScript/tree/main/src/lib)  
 > **Gate Oracle**: TC39 Test262 Test Suite & TypeScript baselines
 
@@ -21,8 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `namespace.unit?: DurationFormatUnitSingular` | `unit?: DurationFormatUnitSingular` | `__namespace.unit` | 📋 Planned | - |
-| `namespace.value: string` | `value: string` | `__namespace.value` | 📋 Planned | - |
+| `Intl.getCanonicalLocales(locale?: string \| readonly string[]): string[]` | `getCanonicalLocales(locale?: string \| readonly string[]): string[]` | `__intl.getCanonicalLocales` | ✅ Done | `internal/compiler/testdata/corpus/api/intl.ts` |
+| `Intl.unit?: DurationFormatUnitSingular` | `unit?: DurationFormatUnitSingular` | `__intl.unit` | ✅ Done | `internal/compiler/testdata/corpus/api/intl.ts` |
+| `Intl.value: string` | `value: string` | `__intl.value` | ✅ Done | `internal/compiler/testdata/corpus/api/intl.ts` |
 
 ---
 
@@ -35,7 +36,7 @@ Describe expected standard semantics (e.g., IEEE-754 float precision, UTF-8 stri
 Document any constraints imposed by Ahead-Of-Time compilation (e.g., monomorphic type requirements, unsupported dynamic reflection).
 
 ### 3.3. Dual-Surface Mapping (if applicable)
-Corpus test cases for `namespace` are organized per API under `internal/compiler/testdata/corpus/namespace/<api_name>/<test_case>/` and verify identical lowering semantics across surfaces.
+Corpus test cases for `intl` are organized per API under `internal/compiler/testdata/corpus/intl/<api_name>/<test_case>/` and verify identical lowering semantics across surfaces.
 
 ---
 
@@ -48,7 +49,7 @@ When implementing or extending any symbol in this file, execute the following te
 - [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).
 - [ ] **Step 4: Interpreter Handler**: Implement or bind reference execution in `internal/interpreter/`.
 - [ ] **Step 5: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
-- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/namespace/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
+- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/intl/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
 - [ ] **Step 7: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
 
 ---

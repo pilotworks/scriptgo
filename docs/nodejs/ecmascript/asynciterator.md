@@ -21,9 +21,9 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `AsyncIterator.next(...[value]: [] \| [TNext]): Promise<IteratorResult<T, TReturn>>` | `next(...[value]: [] \| [TNext]): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.next` | 📋 Planned | - |
-| `AsyncIterator.return?(value?: TReturn \| PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>` | `return?(value?: TReturn \| PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.return` | 📋 Planned | - |
-| `AsyncIterator.throw?(e?: any): Promise<IteratorResult<T, TReturn>>` | `throw?(e?: any): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.throw` | 📋 Planned | - |
+| `AsyncIterator.next(...[value]: [] \| [TNext]): Promise<IteratorResult<T, TReturn>>` | `next(...[value]: [] \| [TNext]): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.next` | ✅ Done | `internal/compiler/testdata/corpus/api/iterator.ts` |
+| `AsyncIterator.return?(value?: TReturn \| PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>` | `return?(value?: TReturn \| PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.return` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `AsyncIterator.throw?(e?: any): Promise<IteratorResult<T, TReturn>>` | `throw?(e?: any): Promise<IteratorResult<T, TReturn>>` | `__asynciterator.throw` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
 
 ---
 

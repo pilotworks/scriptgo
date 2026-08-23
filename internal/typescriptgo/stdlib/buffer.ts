@@ -32,6 +32,10 @@ export interface Buffer extends Uint8Array {
     readUInt16BE(offset: number): number;
     writeUInt16LE(value: number, offset: number): number;
     writeUInt16BE(value: number, offset: number): number;
+    readInt16LE(offset: number): number;
+    readInt16BE(offset: number): number;
+    writeInt16LE(value: number, offset: number): number;
+    writeInt16BE(value: number, offset: number): number;
     readUInt32LE(offset: number): number;
     readUInt32BE(offset: number): number;
     writeUInt32LE(value: number, offset: number): number;

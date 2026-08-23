@@ -224,6 +224,8 @@ func executeProcessIntrinsic(name string, arguments []string, env map[string]Val
 			return Value{}, fmt.Errorf("process.env requires a string key")
 		}
 		return Value{Type: ir.TypeString, String: os.Getenv(keyVal.String)}, nil
+	case "__process.env_obj":
+		return Value{Type: ir.TypeObject, Object: map[string]Value{}}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown process intrinsic %q", name)
 	}

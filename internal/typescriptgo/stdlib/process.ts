@@ -1,7 +1,6 @@
 declare namespace __scriptgo {
     function exit(code: number): void;
     function cwd(): string;
-    const argv: string[];
 }
 
 export function exit(code: number): void {
@@ -12,4 +11,7 @@ export function cwd(): string {
     return __scriptgo.cwd();
 }
 
-export const argv: string[] = __scriptgo.argv;
+export const argv: string[] = ["scriptgo"];
+export const env: Record<string, string | undefined> = { NODE_ENV: "production" };
+
+

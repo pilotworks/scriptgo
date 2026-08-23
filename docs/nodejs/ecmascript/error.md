@@ -21,12 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Error.cause?: unknown` | `cause?: unknown` | `__error.cause` | 📋 Planned | - |
-| `Error.isError(error: unknown): error is Error` | `isError(error: unknown): error is Error` | `__error.isError` | 📋 Planned | - |
-| `Error.message: string` | `message: string` | `__error.message` | 📋 Planned | - |
-| `Error.name: string` | `name: string` | `__error.name` | 📋 Planned | - |
-| `Error.stack?: string` | `stack?: string` | `__error.stack` | 📋 Planned | - |
-| `new Error(message?: string, options?: ErrorOptions): Error` | `new (message?: string, options?: ErrorOptions): Error` | `__error.new` | 📋 Planned | - |
+| `Error.cause?: unknown` | `cause?: unknown` | `__error.cause` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `Error.isError(error: unknown): error is Error` | `isError(error: unknown): error is Error` | `__error.isError` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `Error.message: string` | `message: string` | `__error.message` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `Error.name: string` | `name: string` | `__error.name` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `Error.stack?: string` | `stack?: string` | `__error.stack` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `Error.toString(): string` | `toString(): string` | `__error.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
+| `new Error(message?: string, options?: ErrorOptions): Error` | `new (message?: string, options?: ErrorOptions): Error` | `__error.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 
 ---
 

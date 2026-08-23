@@ -219,6 +219,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 	// Binary read operations (1 arg: offset)
 	case "readUInt8", "readInt8",
 		"readUInt16LE", "readUInt16BE",
+		"readInt16LE", "readInt16BE",
 		"readUInt32LE", "readUInt32BE",
 		"readInt32LE", "readInt32BE",
 		"readFloatLE", "readFloatBE",
@@ -243,6 +244,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 	// Binary write operations (2 args: value, offset)
 	case "writeUInt8", "writeInt8",
 		"writeUInt16LE", "writeUInt16BE",
+		"writeInt16LE", "writeInt16BE",
 		"writeUInt32LE", "writeUInt32BE",
 		"writeInt32LE", "writeInt32BE",
 		"writeFloatLE", "writeFloatBE",

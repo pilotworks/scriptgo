@@ -98,6 +98,75 @@ func executeAsyncIntrinsic(name string, arguments []string, env map[string]Value
 			return promiseVal.Object["__value"], nil
 		}
 		return promiseVal, nil
+	case "__async.array_from_async":
+		if len(arguments) < 1 {
+			return Value{}, fmt.Errorf("Array.fromAsync requires at least 1 argument")
+		}
+		sourceVal, ok := env[arguments[0]]
+		if !ok {
+			return Value{}, fmt.Errorf("unknown source %q", arguments[0])
+		}
+		var mapClosure *Closure
+		if len(arguments) > 1 {
+			if cv, exists := env[arguments[1]]; exists && cv.Closure != nil {
+				mapClosure = cv.Closure
+			}
+		}
+
+		var items []Value
+		arr := sourceVal.GetArray()
+		if len(arr) > 0 {
+			items = arr
+		} else if sourceVal.Type == ir.TypeString {
+			for _, r := range sourceVal.String {
+				items = append(items, Value{Type: ir.TypeString, String: string(r)})
+			}
+		} else if sourceVal.Object != nil {
+			if it, hasIt := sourceVal.Object["__items"]; hasIt {
+				items = it.GetArray()
+			} else if it, hasIt := sourceVal.Object["__elements"]; hasIt {
+				items = it.GetArray()
+			}
+		}
+
+		var resultItems []Value
+		for i, itm := range items {
+			val := itm
+			if val.Type == ir.TypeObject && val.Object != nil {
+				if v, hasVal := val.Object["__value"]; hasVal {
+					val = v
+				}
+			}
+			if mapClosure != nil {
+				ret, _, err := executeClosure(functions, mapClosure, []Value{val, {Type: ir.TypeNumber, Number: float64(i)}}, output)
+				if err != nil {
+					return Value{}, err
+				}
+				if ret.Type == ir.TypeObject && ret.Object != nil {
+					if v, hasVal := ret.Object["__value"]; hasVal {
+						ret = v
+					}
+				}
+				val = ret
+			}
+			resultItems = append(resultItems, val)
+		}
+
+		elemType := ir.TypeNumber
+		if len(resultItems) > 0 {
+			elemType = resultItems[0].Type
+		}
+		arrVal := Value{
+			Type:  ir.Type(string(elemType) + "[]"),
+			Array: resultItems,
+		}
+		return Value{
+			Type: ir.TypeObject,
+			Object: map[string]Value{
+				"__state": {Type: ir.TypeNumber, Number: 1},
+				"__value": arrVal,
+			},
+		}, nil
 	default:
 		return Value{}, fmt.Errorf("unknown async intrinsic %q", name)
 	}

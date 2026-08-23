@@ -21,29 +21,29 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `Console` | `(...) => any` | `__console.Console` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.assert(value[, ...message])` | `(...) => any` | `__console.console.assert` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.clear()` | `(...) => any` | `__console.console.clear` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.count([label])` | `(...) => any` | `__console.console.count` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.countReset([label])` | `(...) => any` | `__console.console.countReset` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.debug(data[, ...args])` | `(...) => any` | `__console.console.debug` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.dir(obj[, options])` | `(...) => any` | `__console.console.dir` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.dirxml(...data)` | `(...) => any` | `__console.console.dirxml` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.error([data][, ...args])` | `(...) => any` | `__console.console.error` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.group([...label])` | `(...) => any` | `__console.console.group` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.groupCollapsed()` | `(...) => any` | `__console.console.groupCollapsed` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.groupEnd()` | `(...) => any` | `__console.console.groupEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.info([data][, ...args])` | `(...) => any` | `__console.console.info` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.log([data][, ...args])` | `(...) => any` | `__console.console.log` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.profile([label])` | `(...) => any` | `__console.console.profile` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.profileEnd([label])` | `(...) => any` | `__console.console.profileEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.table(tabularData[, properties])` | `(...) => any` | `__console.console.table` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.time([label])` | `(...) => any` | `__console.console.time` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.timeEnd([label])` | `(...) => any` | `__console.console.timeEnd` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.timeLog([label][, ...data])` | `(...) => any` | `__console.console.timeLog` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
+| `console.timeStamp([label])` | `(...) => any` | `__console.console.timeStamp` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.trace([message][, ...args])` | `(...) => any` | `__console.console.trace` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
 | `console.warn([data][, ...args])` | `(...) => any` | `__console.console.warn` | ✅ Done | `internal/compiler/testdata/corpus/api/console.ts` |
-| `Console` | `(...) => any` | `__console.Console` | 📋 Planned | - |
-| `console.countReset([label])` | `(...) => any` | `__console.console.countReset` | 📋 Planned | - |
-| `console.dirxml(...data)` | `(...) => any` | `__console.console.dirxml` | 📋 Planned | - |
-| `console.groupCollapsed()` | `(...) => any` | `__console.console.groupCollapsed` | 📋 Planned | - |
-| `console.profile([label])` | `(...) => any` | `__console.console.profile` | 📋 Planned | - |
-| `console.profileEnd([label])` | `(...) => any` | `__console.console.profileEnd` | 📋 Planned | - |
-| `console.table(tabularData[, properties])` | `(...) => any` | `__console.console.table` | 📋 Planned | - |
-| `console.timeEnd([label])` | `(...) => any` | `__console.console.timeEnd` | 📋 Planned | - |
-| `console.timeLog([label][, ...data])` | `(...) => any` | `__console.console.timeLog` | 📋 Planned | - |
-| `console.timeStamp([label])` | `(...) => any` | `__console.console.timeStamp` | 📋 Planned | - |
 
 ---
 

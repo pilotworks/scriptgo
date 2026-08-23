@@ -26,6 +26,29 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			return result, global.Type, nil
 		}
 
+		if propKey == "process.argv" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			elem := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: elem, Value: "scriptgo", Span: toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpArray, Type: ir.TypeStringArray, Result: result, Args: []string{elem}, Span: toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeStringArray, nil
+		}
+		if propKey == "process.env" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeObject, Result: result, Callee: "__process.env_obj", Span: toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeObject, nil
+		}
+
 		// 2. Check static getters
 		if getter, getterName, ok := findGetterInHierarchy(expression.Left.Text, expression.Text, signatures, classHierarchy); ok && getter.Parameters == nil {
 			if result == "" {

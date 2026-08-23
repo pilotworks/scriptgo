@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `new TypeError(message?: string, options?: ErrorOptions): TypeError` | `new (message?: string, options?: ErrorOptions): TypeError` | `__typeerror.new` | 📋 Planned | - |
+| `new TypeError(message?: string, options?: ErrorOptions): TypeError` | `new (message?: string, options?: ErrorOptions): TypeError` | `__typeerror.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 
 ---
 

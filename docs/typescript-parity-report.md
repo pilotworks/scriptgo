@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: August 20, 2026  
+> **Report Date**: August 23, 2026  
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon) & Linux x86_64 / ARM64  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 84 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 108 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **84** | **84 / 84 Passed** | **100.0%** |
-| - *Interpreter Parity* | 70 | 70 PASS | 83.3% |
-| - *Native LLVM/Clang Parity* | 46 | 46 PASS (direct binary compilation) | 100.0% (within native scope) |
-| - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~38s | No regressions detected | - |
+| **Total Corpus Test Cases** | **108** | **108 / 108 Passed** | **100.0%** |
+| - *Interpreter Parity* | 94 | 94 PASS | 87.0% |
+| - *Native LLVM/Clang Parity* | 58 | 58 PASS (direct binary compilation) | 100.0% (within native scope) |
+| - *Static Subset Diagnostics* | 14 | 14 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Test Suite Runtime** | ~33s | No regressions detected | - |
 
 ---
 
@@ -164,6 +164,7 @@ All 84 test cases in the regression test suite (Corpus Test Suite) have been cro
 | **`node:http`, `node:https`, `node:net` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `node:http`, `node:https` (`Agent`, `Server`, `request`, `get`), `node:net` (`isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `BlockList`, `createServer`, `connect`) | ✅ 100% matches WHATWG Fetch, Node.js HTTP, HTTPS, and Net specifications |
 | **`Weak Collections & GC`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections & automatic cycle reclamation |
 | **`node:stream` / `stream`** | `Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`, `pipeline`, `finished`, `compose`, `addAbortSignal`, `getDefaultHighWaterMark`, `setDefaultHighWaterMark`, `isReadable`, `isWritable`, `isErrored`, `Readable.from`, `Readable.isDisturbed`, WebStreams interop (`fromWeb`, `toWeb`, `duplexFromWeb`, `duplexToWeb`), `promises`, `consumers` | ✅ 100% matches Node.js Stream specification |
+| **`Iterator Helpers` (ES2025)** | `Iterator.from`, `map`, `filter`, `take`, `drop`, `flatMap`, `reduce`, `toArray`, `forEach`, `some`, `every`, `find`, `next` | ✅ 100% matches ECMAScript 2025 Iterator Helpers specification |
 
 
 ---
@@ -176,20 +177,20 @@ Below is the category-by-category breakdown across all 12 test suites (`go run .
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 84
-  - Passed Cases       : 84 (100.0%)
+  - Total Corpus Cases : 87
+  - Passed Cases       : 87 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`api`** | 40 | **100%** | Standard APIs and built-ins: `date`, `path`, `json`, `set`, `array`, `timers`, `string`, `async`, `math`, `process`, `http`, `https`, `net`, `int32array`, `buffer`, `fs`, `regexp`, `crypto`, `url`, `map`, `stream`, `child_process`, `symbol`, `arraybuffer`, `bigint`, `os`, `number`, `events`, `weak_collections`, `object`, `uint8array`, `encoding`, `error`, `dataview`, `float64array`, `console`, `perf_hooks`, `promise`, `intl`, `fetch`. |
+| **`api`** | 42 | **100%** | Standard APIs and built-ins: `date`, `path`, `json`, `set`, `array`, `timers`, `string`, `async`, `math`, `process`, `http`, `https`, `net`, `int32array`, `buffer`, `fs`, `regexp`, `crypto`, `url`, `map`, `stream`, `child_process`, `symbol`, `arraybuffer`, `bigint`, `os`, `number`, `events`, `weak_collections`, `object`, `uint8array`, `encoding`, `error`, `dataview`, `float64array`, `console`, `perf_hooks`, `promise`, `intl`, `fetch`, `iterator`. |
 | **`async`** | 1 | **100%** | Top-level await and asynchronous execution flow. |
 | **`destructuring`** | 4 | **100%** | Nested params, nested object, nested mixed, nested defaults. |
 | **`enums`** | 2 | **100%** | Numeric and string const enums with inlined constants. |
 | **`generics`** | 1 | **100%** | Const type parameters (`<const T>`) and generic specialization. |
-| **`language`** | 9 | **100%** | Static tier features, syntax, async & generators, circular references, types and generics, functions and closures, expressions, classes and objects, generics specialization. |
+| **`language`** | 10 | **100%** | Static tier features, syntax, async & generators, circular references, types and generics, functions and closures, expressions, classes and objects, generics specialization, decorators. |
 | **`language/diagnostics`** | 5 | **100%** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100%** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100%** | Named/default exports/imports, initialization order, multi-level re-exports. |
@@ -284,7 +285,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **`bigint`** | ✅ Full | 64-bit integer type (`100n`, `BigInt(...)`, arithmetic, bitwise, comparison operators, `.toString()`). |
 | **`symbol`** | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known symbols (`Symbol.iterator`), `.description`, `.toString()`. |
 | **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `search`, `replace` via POSIX regex runtime. |
-| **Decorators (Stage 3 / Experimental)** | ❌ Unsupported | `@decorator` on classes, methods, properties, and accessors is not yet handled by lowering. |
+| **Decorators (Stage 3 / Experimental & Reflection)** | ✅ Full | Standardized in Frontend; desugared to static wrappers & compile-time metadata registry (`Reflect.getMetadata`, `defineMetadata`, `hasMetadata`) in Static Tier. |
 | **User-defined Type Predicates** | ⚠️ Rudimentary | Complex `x is Type` functions (beyond basic `typeof` and `instanceof`) are not yet deeply narrowed in the backend. |
 | **Complex Conditional & Mapped Types** | ⚠️ Frontend only | Resolved at compile-time by TypeScript-Go, but complex dynamic layout generation is not fully lowered to IR. |
 | **Polymorphic Discriminated Unions** | ✅ Full | Supported via tagged shape unions, type assertion/narrowing (`s as Circle`), and dynamic `instanceof` / tag checks across multi-branch control flow. |
@@ -300,7 +301,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Dynamic Key Access (`obj[key]`)** | ⚠️ Deliberate limitation | Supports static string keys `obj["prop"]` (lowered to C-struct offsets). Dynamic variables `obj[dynamicVar]` require `Record<string, V>` or `Map<K, V>` to preserve AOT memory layouts. |
 | **Dynamic `import('./mod')`** | ❌ Unsupported | Currently supports closed static module graphs only (AOT static linking). |
 | **`eval()` & `new Function()`** | ❌ Unavailable in Native | Native machine binaries cannot interpret arbitrary JS strings at runtime (requires `--dynamic`). |
-| **`Proxy` & `Reflect`** | ❌ Unsupported | Dynamic field interception (get/set traps) cannot be optimized into native struct offsets. |
+| **`Reflect` Namespace** | ✅ Full | All 19 standard ECMAScript & metadata APIs (`get`, `set`, `has`, `deleteProperty`, `ownKeys`, `defineProperty`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, `apply`, `construct`, `getMetadata`, `getOwnMetadata`, `hasMetadata`, `hasOwnMetadata`, `defineMetadata`, `metadata`) supported in Static Tier. |
+| **`Proxy` Objects** | ⏳ Roadmap (Dynamic) | Dynamic field interception traps (get/set traps on arbitrary dynamic objects) slated for `--dynamic` tier. |
 | **Prototype Chain Manipulation** | ❌ Rejected | `Object.setPrototypeOf`, `__proto__`, `Object.defineProperty` (runtime dynamic getters/setters) are disabled to preserve static struct layouts. |
 
 ---

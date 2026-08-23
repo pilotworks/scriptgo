@@ -26,6 +26,7 @@ Provide a concise technical summary:
 | `BigInt.toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `toLocaleString(locales?: Intl.LocalesArgument, options?: BigIntToLocaleStringOptions): string` | `__bigint.toLocaleString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 | `BigInt.toString(radix?: number): string` | `toString(radix?: number): string` | `__bigint.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 | `BigInt.valueOf(): bigint` | `valueOf(): bigint` | `__bigint.valueOf` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
+| `new BigInt(value?: any): BigInt` | `new(value?: any): BigInt` | `__bigint.new` | ✅ Done | `internal/compiler/testdata/corpus/api/bigint.ts` |
 
 ---
 

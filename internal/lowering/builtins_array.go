@@ -113,4 +113,43 @@ func registerArrayBuiltins(m map[string]BuiltinIntrinsic) {
 			return result, retType, nil
 		},
 	}
+
+	m["Array.fromAsync"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "Array.fromAsync",
+		MinArgs:  1,
+		MaxArgs:  3,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			var args []string
+			var elemType ir.Type = ir.TypeNumber
+			for i, argExpr := range call.Expression.Arguments {
+				argVal, aType, err := call.LowerExpression(call.Path, argExpr, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, argVal)
+				if i == 0 {
+					if strings.HasSuffix(string(aType), "[]") {
+						elemType = toIRType(strings.TrimSuffix(string(aType), "[]"))
+					} else if aType == ir.TypeString {
+						elemType = ir.TypeString
+					}
+				}
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			retType := ir.Type("object:Promise<" + string(elemType) + "[]>")
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   retType,
+				Result: result,
+				Callee: "__async.array_from_async",
+				Args:   args,
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, retType, nil
+		},
+	}
 }

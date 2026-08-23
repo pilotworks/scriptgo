@@ -632,6 +632,10 @@ interface Buffer extends Uint8Array {
     readUInt16BE(offset: number): number;
     writeUInt16LE(value: number, offset: number): number;
     writeUInt16BE(value: number, offset: number): number;
+    readInt16LE(offset: number): number;
+    readInt16BE(offset: number): number;
+    writeInt16LE(value: number, offset: number): number;
+    writeInt16BE(value: number, offset: number): number;
     readUInt32LE(offset: number): number;
     readUInt32BE(offset: number): number;
     writeUInt32LE(value: number, offset: number): number;
@@ -781,3 +785,61 @@ interface ResponseConstructor {
 declare var Response: ResponseConstructor;
 
 declare function fetch(input: string | Request, init?: RequestInit): Promise<Response>;
+
+declare namespace Reflect {
+    function apply(target: any, thisArgument: any, argumentsList: any[]): any;
+    function construct(target: any, argumentsList: any[], newTarget?: any): any;
+    function defineProperty(target: any, propertyKey: string | symbol, attributes: any): boolean;
+    function deleteProperty(target: any, propertyKey: string | symbol): boolean;
+    function get(target: any, propertyKey: string | symbol, receiver?: any): any;
+    function getOwnPropertyDescriptor(target: any, propertyKey: string | symbol): PropertyDescriptor | undefined;
+    function getPrototypeOf(target: any): any;
+    function has(target: any, propertyKey: string | symbol): boolean;
+    function isExtensible(target: any): boolean;
+    function ownKeys(target: any): string[];
+    function preventExtensions(target: any): boolean;
+    function set(target: any, propertyKey: string | symbol, value: any, receiver?: any): boolean;
+    function setPrototypeOf(target: any, proto: any): boolean;
+    function getMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): any;
+    function getOwnMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): any;
+    function hasMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): boolean;
+    function hasOwnMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): boolean;
+    function defineMetadata(metadataKey: any, metadataValue: any, target: any, propertyKey?: string | symbol): void;
+    function metadata(metadataKey: any, metadataValue: any): (target: any, propertyKey?: any) => void;
+}
+
+interface ArrayConstructor {
+    fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapfn?: (value: any, index: number) => any): Promise<any[]>;
+}
+
+interface IteratorResult<T, TReturn = any> {
+    done: boolean;
+    value: T;
+}
+
+interface IteratorObject<T, TReturn = undefined, TNext = unknown> {
+    [Symbol.iterator](): IteratorObject<T, TReturn, TNext>;
+    next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
+    return?(value?: TReturn): IteratorResult<T, TReturn>;
+    throw?(e?: any): IteratorResult<T, TReturn>;
+    map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>;
+    filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>;
+    filter(predicate: (value: T, index: number) => unknown): IteratorObject<T, undefined, unknown>;
+    take(limit: number): IteratorObject<T, undefined, unknown>;
+    drop(limit: number): IteratorObject<T, undefined, unknown>;
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>;
+    reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T;
+    reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue: U): U;
+    toArray(): T[];
+    forEach(callbackfn: (value: T, index: number) => void): void;
+    some(predicate: (value: T, index: number) => unknown): boolean;
+    every(predicate: (value: T, index: number) => unknown): boolean;
+    find<S extends T>(predicate: (value: T, index: number) => value is S): S | undefined;
+    find(predicate: (value: T, index: number) => unknown): T | undefined;
+}
+
+interface IteratorConstructor {
+    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>;
+}
+
+declare var Iterator: IteratorConstructor;

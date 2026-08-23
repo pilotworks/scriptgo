@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `new RangeError(message?: string, options?: ErrorOptions): RangeError` | `new (message?: string, options?: ErrorOptions): RangeError` | `__rangeerror.new` | 📋 Planned | - |
+| `new RangeError(message?: string, options?: ErrorOptions): RangeError` | `new (message?: string, options?: ErrorOptions): RangeError` | `__rangeerror.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 
 ---
 

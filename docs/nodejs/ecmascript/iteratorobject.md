@@ -21,17 +21,20 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `IteratorObject.drop(count: number): IteratorObject<T, undefined, unknown>` | `drop(count: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.drop` | 📋 Planned | - |
-| `IteratorObject.every(predicate: (value: T, index: number) => unknown): boolean` | `every(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.every` | 📋 Planned | - |
-| `IteratorObject.filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>` | `filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>` | `__iteratorobject.filter` | 📋 Planned | - |
-| `IteratorObject.find<S extends T>(predicate: (value: T, index: number) => value is S): S \| undefined` | `find<S extends T>(predicate: (value: T, index: number) => value is S): S \| undefined` | `__iteratorobject.find` | 📋 Planned | - |
-| `IteratorObject.flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `__iteratorobject.flatMap` | 📋 Planned | - |
-| `IteratorObject.forEach(callbackfn: (value: T, index: number) => void): void` | `forEach(callbackfn: (value: T, index: number) => void): void` | `__iteratorobject.forEach` | 📋 Planned | - |
-| `IteratorObject.map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `__iteratorobject.map` | 📋 Planned | - |
-| `IteratorObject.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `__iteratorobject.reduce` | 📋 Planned | - |
-| `IteratorObject.some(predicate: (value: T, index: number) => unknown): boolean` | `some(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.some` | 📋 Planned | - |
-| `IteratorObject.take(limit: number): IteratorObject<T, undefined, unknown>` | `take(limit: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.take` | 📋 Planned | - |
-| `IteratorObject.toArray(): T[]` | `toArray(): T[]` | `__iteratorobject.toArray` | 📋 Planned | - |
+| `IteratorObject.drop(count: number): IteratorObject<T, undefined, unknown>` | `drop(count: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.drop` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.every(predicate: (value: T, index: number) => unknown): boolean` | `every(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.every` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>` | `filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>` | `__iteratorobject.filter` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.find<S extends T>(predicate: (value: T, index: number) => value is S): S \| undefined` | `find<S extends T>(predicate: (value: T, index: number) => value is S): S \| undefined` | `__iteratorobject.find` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> \| Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>` | `__iteratorobject.flatMap` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.forEach(callbackfn: (value: T, index: number) => void): void` | `forEach(callbackfn: (value: T, index: number) => void): void` | `__iteratorobject.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>` | `__iteratorobject.map` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.next(...args: [] \| [TNext]): IteratorResult<T, TReturn>` | `next(...args: [] \| [TNext]): IteratorResult<T, TReturn>` | `__iteratorobject.next` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T` | `__iteratorobject.reduce` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.return?(value?: TReturn): IteratorResult<T, TReturn>` | `return?(value?: TReturn): IteratorResult<T, TReturn>` | `__iteratorobject.return` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.some(predicate: (value: T, index: number) => unknown): boolean` | `some(predicate: (value: T, index: number) => unknown): boolean` | `__iteratorobject.some` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.take(limit: number): IteratorObject<T, undefined, unknown>` | `take(limit: number): IteratorObject<T, undefined, unknown>` | `__iteratorobject.take` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.throw?(e?: any): IteratorResult<T, TReturn>` | `throw?(e?: any): IteratorResult<T, TReturn>` | `__iteratorobject.throw` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
+| `IteratorObject.toArray(): T[]` | `toArray(): T[]` | `__iteratorobject.toArray` | ✅ Done | `internal/compiler/testdata/corpus/api/iteratorobject.ts` |
 
 ---
 

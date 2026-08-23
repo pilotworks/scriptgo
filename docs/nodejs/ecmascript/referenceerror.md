@@ -21,7 +21,7 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `new ReferenceError(message?: string, options?: ErrorOptions): ReferenceError` | `new (message?: string, options?: ErrorOptions): ReferenceError` | `__referenceerror.new` | 📋 Planned | - |
+| `new ReferenceError(message?: string, options?: ErrorOptions): ReferenceError` | `new (message?: string, options?: ErrorOptions): ReferenceError` | `__referenceerror.new` | ✅ Done | `internal/compiler/testdata/corpus/api/error.ts` |
 
 ---
 

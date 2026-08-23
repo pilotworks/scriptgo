@@ -40,13 +40,17 @@ func executeConsoleIntrinsic(name string, arguments []string, env map[string]Val
 	case "__console.clear":
 		fmt.Fprint(output, "\x1b[2J\x1b[0f")
 		return Value{Type: ir.TypeVoid}, nil
-	case "__console.group":
+	case "__console.group", "__console.groupCollapsed":
 		consoleIndentLevel++
 		return Value{Type: ir.TypeVoid}, nil
 	case "__console.groupEnd":
 		if consoleIndentLevel > 0 {
 			consoleIndentLevel--
 		}
+		return Value{Type: ir.TypeVoid}, nil
+	case "__console.new":
+		return Value{Type: ir.Type("object:Console"), Object: map[string]Value{}}, nil
+	case "__console.profile", "__console.profileEnd", "__console.timeStamp":
 		return Value{Type: ir.TypeVoid}, nil
 	case "__console.count":
 		label := "default"

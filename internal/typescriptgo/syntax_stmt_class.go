@@ -12,6 +12,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		Name:           node.Name().Text(),
 		TypeParameters: syntaxTypeParameters(node.TypeParameters()),
 		IsAbstract:     ast.HasSyntacticModifier(node, ast.ModifierFlagsAbstract),
+		Decorators:     syntaxDecorators(node, chk, node.Name().Text(), nil, ""),
 	}
 	if classDecl.HeritageClauses != nil {
 		for _, clause := range classDecl.HeritageClauses.Nodes {
@@ -55,8 +56,12 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			if inferredFType == "" {
 				inferredFType = resolveInferredType(chk, member)
 			}
+			if fType == "" && inferredFType != "" {
+				fType = inferredFType
+			}
 			isStatic := ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic)
 			isAccessor := ast.HasSyntacticModifier(member, ast.ModifierFlagsAccessor)
+			fDecs := syntaxDecorators(member, chk, fType, nil, "")
 			if isAccessor {
 				storageName := "__accessor_storage_" + name
 				class.Fields = append(class.Fields, SyntaxField{
@@ -65,6 +70,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Type:         fType,
 					InferredType: inferredFType,
 					Initializer:  syntaxExpression(property.Initializer, chk),
+					Decorators:   fDecs,
 					IsStatic:     isStatic,
 					IsPrivate:    true,
 				})
@@ -85,6 +91,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Name:         name,
 					Type:         fType,
 					InferredType: inferredFType,
+					Decorators:   fDecs,
 					Body:         getterBody,
 					IsStatic:     isStatic,
 					Kind:         "get",
@@ -119,9 +126,10 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 							InferredType: inferredFType,
 						},
 					},
-					Body:     setterBody,
-					IsStatic: isStatic,
-					Kind:     "set",
+					Decorators: fDecs,
+					Body:       setterBody,
+					IsStatic:   isStatic,
+					Kind:       "set",
 				})
 			} else {
 				class.Fields = append(class.Fields, SyntaxField{
@@ -130,6 +138,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Type:         fType,
 					InferredType: inferredFType,
 					Initializer:  syntaxExpression(property.Initializer, chk),
+					Decorators:   fDecs,
 					IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 					IsPrivate:    ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
 					IsReadonly:   ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
@@ -144,15 +153,21 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				if inferredPType == "" {
 					inferredPType = resolveInferredType(chk, p)
 				}
+				if pType == "" && inferredPType != "" {
+					pType = inferredPType
+				}
 				pName := ""
 				if p.Name() != nil {
 					pName = p.Name().Text()
 				}
+				pNode := p.AsNode()
+				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
 					Name:         pName,
 					Type:         pType,
 					InferredType: inferredPType,
+					Decorators:   pDecs,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
 					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
@@ -164,6 +179,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 						Name:         pName,
 						Type:         pType,
 						InferredType: inferredPType,
+						Decorators:   pDecs,
 						IsPrivate:    ast.HasSyntacticModifier(p, ast.ModifierFlagsPrivate),
 						IsReadonly:   ast.HasSyntacticModifier(p, ast.ModifierFlagsReadonly),
 					})
@@ -210,17 +226,25 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			}
 		case ast.KindMethodDeclaration:
 			var params []SyntaxParameter
+			var pTypes []string
 			for _, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
 					inferredPType = resolveInferredType(chk, p)
 				}
+				if pType == "" && inferredPType != "" {
+					pType = inferredPType
+				}
+				pTypes = append(pTypes, pType)
+				pNode := p.AsNode()
+				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
 					Name:         p.Name().Text(),
 					Type:         pType,
 					InferredType: inferredPType,
+					Decorators:   pDecs,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
 					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
@@ -241,6 +265,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			}
 			isGen := member.BodyData() != nil && member.BodyData().AsteriskToken != nil
 			isAsync := ast.HasSyntacticModifier(member, ast.ModifierFlagsAsync)
+			mDecs := syntaxDecorators(member, chk, "", pTypes, mType)
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:           sourceSpan(member),
 				Name:           member.Name().Text(),
@@ -248,6 +273,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				InferredType:   inferredMType,
 				TypeParameters: syntaxTypeParameters(member.TypeParameters()),
 				Parameters:     params,
+				Decorators:     mDecs,
 				Body:           body,
 				IsStatic:       ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 				IsAbstract:     ast.HasSyntacticModifier(member, ast.ModifierFlagsAbstract),
@@ -269,28 +295,38 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			if mType == "" && inferredMType != "" {
 				mType = inferredMType
 			}
+			mDecs := syntaxDecorators(member, chk, mType, nil, "")
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:         sourceSpan(member),
 				Name:         member.Name().Text(),
 				Type:         mType,
 				InferredType: inferredMType,
+				Decorators:   mDecs,
 				Body:         body,
 				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 				Kind:         "get",
 			})
 		case ast.KindSetAccessor:
 			var params []SyntaxParameter
+			var pTypes []string
 			for _, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
 					inferredPType = resolveInferredType(chk, p)
 				}
+				if pType == "" && inferredPType != "" {
+					pType = inferredPType
+				}
+				pTypes = append(pTypes, pType)
+				pNode := p.AsNode()
+				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
 					Name:         p.Name().Text(),
 					Type:         pType,
 					InferredType: inferredPType,
+					Decorators:   pDecs,
 					Rest:         p.AsParameterDeclaration().DotDotDotToken != nil,
 					Optional:     p.AsParameterDeclaration().QuestionToken != nil,
 					Initializer:  syntaxExpression(p.Initializer(), chk),
@@ -304,12 +340,14 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					}
 				}
 			}
+			mDecs := syntaxDecorators(member, chk, "", pTypes, "void")
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:         sourceSpan(member),
 				Name:         member.Name().Text(),
 				Type:         "void",
 				InferredType: "void",
 				Parameters:   params,
+				Decorators:   mDecs,
 				Body:         body,
 				IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 				Kind:         "set",
@@ -331,6 +369,58 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		}
 	}
 	return SyntaxStatement{Span: span, Kind: "class", Name: class.Name, Class: class}, true
+}
+
+func syntaxDecorators(node *ast.Node, chk *checker.Checker, designType string, paramTypes []string, returnType string) []SyntaxDecorator {
+	if node == nil {
+		return nil
+	}
+	var decNodes []*ast.Node
+	if mods := node.Modifiers(); mods != nil {
+		for _, mod := range mods.Nodes {
+			if mod.Kind == ast.KindDecorator {
+				decNodes = append(decNodes, mod)
+			}
+		}
+	}
+	if len(decNodes) == 0 && node.Decorators() != nil {
+		decNodes = append(decNodes, node.Decorators()...)
+	}
+	if len(decNodes) == 0 {
+		return nil
+	}
+	var result []SyntaxDecorator
+	for _, d := range decNodes {
+		dec := d.AsDecorator()
+		if dec == nil {
+			continue
+		}
+		expr := syntaxExpression(dec.Expression, chk)
+		name := ""
+		var args []*SyntaxExpression
+		if expr != nil {
+			if expr.Kind == "identifier" {
+				name = expr.Text
+			} else if expr.Kind == "call" {
+				if expr.Left != nil {
+					name = expr.Left.Text
+				}
+				args = expr.Arguments
+			} else if expr.Kind == "property" {
+				name = expr.Text
+			}
+		}
+		result = append(result, SyntaxDecorator{
+			Span:       sourceSpan(d),
+			Name:       name,
+			Expression: expr,
+			Arguments:  args,
+			DesignType: designType,
+			ParamTypes: paramTypes,
+			ReturnType: returnType,
+		})
+	}
+	return result
 }
 
 func replaceThisWithClassStmt(stmt SyntaxStatement, className string) SyntaxStatement {

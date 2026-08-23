@@ -18,9 +18,17 @@ import {
 import * as url from "node:url";
 
 // @api: URL
+// @api: url.constructor
+// @api: url.toJSON
+// @api: url.toString
+// @expect: https://example.com/a/b?x=1#frag
+// @expect: https://example.com/a/b?x=1#frag
 // @expect: https://example.com/a/b?x=1#frag
 const u1 = new URL("https://example.com/a/b?x=1#frag");
 console.log(u1.href);
+console.log(u1.toJSON());
+console.log(u1.toString());
+
 
 // @api: URL.canParse
 // @expect: true
