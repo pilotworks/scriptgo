@@ -45,6 +45,25 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
 		for _, statement := range file.Syntax.Statements {
+			if statement.Kind == "declare_function" {
+				retType := statement.Type
+				if retType == "" && statement.InferredType != "" {
+					retType = statement.InferredType
+				}
+				function := ir.Function{Name: statement.Name, ReturnType: toIRType(retType)}
+				if function.ReturnType == "" {
+					function.ReturnType = ir.TypeVoid
+				}
+				for _, parameter := range statement.Parameters {
+					pType := parameter.Type
+					if pType == "" && parameter.InferredType != "" {
+						pType = parameter.InferredType
+					}
+					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRType(pType)})
+				}
+				index[function.Name] = function
+				continue
+			}
 			if statement.Kind == "function" || statement.Kind == "generator_function" || statement.Kind == "async_function" || statement.Kind == "async_generator_function" || statement.IsGenerator || statement.IsAsync {
 				retType := statement.Type
 				if retType == "" && statement.InferredType != "" {

@@ -8,6 +8,14 @@ type Module struct {
 	StatementCount int
 	Shapes         []ObjectShape
 	Functions      []Function
+	Externs        []ExternFunction
+}
+
+type ExternFunction struct {
+	Name       string
+	Span       SourceSpan
+	Parameters []Parameter
+	ReturnType Type
 }
 
 type ObjectShape struct {
@@ -78,6 +86,7 @@ const (
 	TypeTextEncoder       Type = "TextEncoder"
 	TypeTextDecoder       Type = "TextDecoder"
 	TypeBuffer            Type = "Buffer"
+	TypePointer           Type = "ptr"
 )
 
 type Instruction struct {
@@ -108,6 +117,7 @@ const (
 	OpCompare     = "compare"
 	OpSelect      = "select"
 	OpCall        = "call"
+	OpExternCall  = "extern.call"
 	OpPrint       = "print"
 	OpParam       = "param"
 	OpReturn      = "return"

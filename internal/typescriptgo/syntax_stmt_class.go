@@ -21,12 +21,13 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			}
 			if hc.Token == ast.KindExtendsKeyword && hc.Types != nil {
 				for _, t := range hc.Types.Nodes {
-					if t.Kind == ast.KindExpressionWithTypeArguments {
+					switch t.Kind {
+					case ast.KindExpressionWithTypeArguments:
 						exprNode := t.AsExpressionWithTypeArguments()
 						if exprNode != nil && exprNode.Expression != nil {
 							class.Extends = exprNode.Expression.Text()
 						}
-					} else if t.Kind == ast.KindTypeReference {
+					case ast.KindTypeReference:
 						class.Extends = t.AsTypeReferenceNode().TypeName.Text()
 					}
 				}

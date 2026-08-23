@@ -44,7 +44,7 @@ func llvmType(typ ir.Type) string {
 		ir.TypeBuffer, ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
-		ir.TypeDataView, ir.TypeArrayBuffer:
+		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypePointer:
 		return "ptr"
 	case ir.TypeClosure:
 		return "ptr"

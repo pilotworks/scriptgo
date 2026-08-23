@@ -68,7 +68,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -117,6 +117,8 @@ func handleRun(args []string) {
 	native := fs.Bool("native", false, "compile to native executable and execute directly")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
+	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -127,6 +129,7 @@ func handleRun(args []string) {
 	var entryPath string
 	var cleanup func()
 	var extraArgs []string
+	var extraSources []string
 
 	if *eval != "" {
 		var err error
@@ -145,10 +148,22 @@ func handleRun(args []string) {
 			os.Exit(1)
 		}
 		defer cleanup()
-		extraArgs = fs.Args()[1:]
+		for _, arg := range fs.Args()[1:] {
+			ext := filepath.Ext(arg)
+			if ext == ".c" || ext == ".o" || ext == ".a" {
+				extraSources = append(extraSources, arg)
+			} else {
+				extraArgs = append(extraArgs, arg)
+			}
+		}
 	} else {
 		printRunUsage()
 		os.Exit(2)
+	}
+
+	var manifests []string
+	if *ffiManifest != "" {
+		manifests = append(manifests, *ffiManifest)
 	}
 
 	options := compiler.BuildOptions{
@@ -158,6 +173,8 @@ func handleRun(args []string) {
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
+		FFIManifests:     manifests,
+		ExtraSources:     extraSources,
 	}
 
 	if *native {
@@ -214,6 +231,8 @@ func handleBuild(args []string) {
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
+	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -224,6 +243,7 @@ func handleBuild(args []string) {
 	var entryPath string
 	var cleanup func()
 	var input string
+	var extraSources []string
 
 	if *eval != "" {
 		var err error
@@ -233,7 +253,13 @@ func handleBuild(args []string) {
 			os.Exit(1)
 		}
 		defer cleanup()
-	} else if fs.NArg() == 1 {
+		for _, arg := range fs.Args() {
+			ext := filepath.Ext(arg)
+			if ext == ".c" || ext == ".o" || ext == ".a" {
+				extraSources = append(extraSources, arg)
+			}
+		}
+	} else if fs.NArg() >= 1 {
 		input = fs.Arg(0)
 		var err error
 		entryPath, cleanup, err = resolveInput(input)
@@ -242,6 +268,12 @@ func handleBuild(args []string) {
 			os.Exit(1)
 		}
 		defer cleanup()
+		for _, arg := range fs.Args()[1:] {
+			ext := filepath.Ext(arg)
+			if ext == ".c" || ext == ".o" || ext == ".a" {
+				extraSources = append(extraSources, arg)
+			}
+		}
 	} else {
 		printBuildUsage()
 		os.Exit(2)
@@ -259,6 +291,11 @@ func handleBuild(args []string) {
 		}
 	}
 
+	var manifests []string
+	if *ffiManifest != "" {
+		manifests = append(manifests, *ffiManifest)
+	}
+
 	options := compiler.BuildOptions{
 		CC:               *cc,
 		Target:           *target,
@@ -266,6 +303,8 @@ func handleBuild(args []string) {
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
+		FFIManifests:     manifests,
+		ExtraSources:     extraSources,
 	}
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: build %s -> %s\n", entryPath, outputPath)
@@ -456,6 +495,7 @@ Description:
 Flags:
   -e <string>            Evaluate inline script string
   --native               Compile to native executable and execute directly on host
+  -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
@@ -469,13 +509,15 @@ Examples:
   scriptgo run app.ts
   scriptgo run -e "console.log('hello ' + 42)"
   scriptgo run --native -e "console.log(100 * 20)"
+  scriptgo run --native app.ts --ffi-manifest mylib.ffi.json
+  scriptgo run --native app.ts helper.c
   scriptgo run --native --cc "zig cc" app.ts
   scriptgo run app.ts -- arg1 arg2`)
 }
 
 func printBuildUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo build [flags] <entry.ts> [-o <output>]
+  scriptgo build [flags] <entry.ts> [sources.c...] [-o <output>]
   scriptgo build [flags] -e "<code string>" [-o <output>]
 
 Description:
@@ -485,6 +527,7 @@ Description:
 Flags:
   -e <string>            Evaluate inline script string
   -o <path>              Output binary path (default: ./<entry_name>)
+  -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
@@ -496,8 +539,9 @@ Flags:
 
 Examples:
   scriptgo build server.ts
-  scriptgo build -e "console.log('built natively')" -o hello
   scriptgo build server.ts -o /usr/local/bin/server
+  scriptgo build app.ts --ffi-manifest sqlite3.ffi.json -o myapp
+  scriptgo build app.ts helper.c -o myapp
   scriptgo build cli.ts --cc "zig cc" --target x86_64-linux-gnu -o cli_linux
   scriptgo build cli.ts --debug --sanitize address -o cli_debug`)
 }

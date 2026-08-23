@@ -52,12 +52,12 @@ func (f Function) Verify() error {
 			return fmt.Errorf("instruction follows return")
 		}
 		for _, arg := range instruction.Args {
-			if _, ok := known[arg]; !ok && instruction.Op != OpCall && instruction.Op != OpPrint && instruction.Op != OpWhile && instruction.Op != OpDoWhile {
+			if _, ok := known[arg]; !ok && instruction.Op != OpCall && instruction.Op != OpExternCall && instruction.Op != OpPrint && instruction.Op != OpWhile && instruction.Op != OpDoWhile {
 				return fmt.Errorf("unknown value %q", arg)
 			}
 		}
 		switch instruction.Op {
-		case OpCall, OpClosureCall:
+		case OpCall, OpClosureCall, OpExternCall:
 			if instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define type", instruction.Op)
 			}

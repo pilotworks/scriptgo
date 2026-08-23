@@ -665,7 +665,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			}
 			callee, ok := functions[instruction.Callee]
 			if !ok {
-				return Value{}, false, flowNormal, fmt.Errorf("unknown function %q", instruction.Callee)
+				return Value{}, false, flowNormal, fmt.Errorf("native FFI call %q requires native compilation (--native)", instruction.Callee)
 			}
 			arguments := make([]Value, 0, len(instruction.Args))
 			for _, name := range instruction.Args {

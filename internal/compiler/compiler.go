@@ -150,7 +150,47 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
 		return fmt.Errorf("write temporary runtime file: %w", err)
 	}
-	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath, "-x", "none"}
+	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
+
+	// Process FFI manifests and extra native sources
+	var extraLibs []string
+	var extraLibDirs []string
+	var extraIncludeDirs []string
+	var extraCFlags []string
+	var extraFrameworks []string
+
+	manifestsToLoad := append([]string(nil), options.FFIManifests...)
+	if len(manifestsToLoad) == 0 && entryPath != "" {
+		dir := filepath.Dir(entryPath)
+		if entries, err := os.ReadDir(dir); err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".ffi.json") {
+					manifestsToLoad = append(manifestsToLoad, filepath.Join(dir, entry.Name()))
+				}
+			}
+		}
+	}
+
+	for _, manifestPath := range manifestsToLoad {
+		manifest, err := LoadFFIManifest(manifestPath)
+		if err != nil {
+			return err
+		}
+		for _, src := range manifest.Link.Sources {
+			args = append(args, "-x", "c", src)
+		}
+		extraLibs = append(extraLibs, manifest.Link.Libraries...)
+		extraLibDirs = append(extraLibDirs, manifest.Link.LibDirs...)
+		extraIncludeDirs = append(extraIncludeDirs, manifest.Link.IncludeDirs...)
+		extraCFlags = append(extraCFlags, manifest.Link.CFlags...)
+		extraFrameworks = append(extraFrameworks, manifest.Link.Frameworks...)
+	}
+
+	for _, src := range options.ExtraSources {
+		args = append(args, "-x", "c", src)
+	}
+
+	args = append(args, "-x", "none")
 	if options.Debug {
 		args = append(args, "-O0")
 	} else {
@@ -165,7 +205,25 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if len(options.Sanitizers) > 0 {
 		args = append(args, "-fsanitize="+strings.Join(options.Sanitizers, ","))
 	}
+	for _, inc := range extraIncludeDirs {
+		args = append(args, "-I"+inc)
+	}
+	for _, dir := range extraLibDirs {
+		args = append(args, "-L"+dir)
+	}
+	args = append(args, extraCFlags...)
 	args = append(args, "-o", filepath.Clean(outputPath), "-lm")
+	for _, lib := range extraLibs {
+		if strings.HasPrefix(lib, "-l") {
+			args = append(args, lib)
+		} else {
+			args = append(args, "-l"+lib)
+		}
+	}
+	for _, fw := range extraFrameworks {
+		args = append(args, "-framework", fw)
+	}
+	args = append(args, options.LinkFlags...)
 	cmdArgs := append(ccParts[1:], args...)
 	command := exec.Command(ccParts[0], cmdArgs...)
 	if diagnostic, err := command.CombinedOutput(); err != nil {

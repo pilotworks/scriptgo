@@ -169,6 +169,30 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				module.Shapes = append(module.Shapes, newShapes...)
 				continue
 			}
+			if statement.Kind == "declare_function" {
+				retType := toIRType(statement.Type)
+				if retType == "" && statement.InferredType != "" {
+					retType = toIRType(statement.InferredType)
+				}
+				if retType == "" {
+					retType = ir.TypeVoid
+				}
+				var params []ir.Parameter
+				for _, p := range statement.Parameters {
+					pType := p.Type
+					if pType == "" && p.InferredType != "" {
+						pType = p.InferredType
+					}
+					params = append(params, ir.Parameter{Name: p.Name, Type: toIRType(pType)})
+				}
+				module.Externs = append(module.Externs, ir.ExternFunction{
+					Name:       statement.Name,
+					Span:       toIRSpan(file.FileName, statement.Span),
+					Parameters: params,
+					ReturnType: retType,
+				})
+				continue
+			}
 			if statement.Kind == "function" || statement.Kind == "async_function" {
 				function, err := lowerFunction(file.FileName, statement, shapes, signatures)
 				if err != nil {

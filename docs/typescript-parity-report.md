@@ -319,6 +319,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Module / API | Support Level | Missing API Details |
 | :--- | :---: | :--- |
+| **Foreign Function Interface (FFI)** | ✅ Full | Static FFI via `declare function`, C library JSON metadata (`*.ffi.json` with `ffi_format: 1`), multi-file C linking (`.c`), direct C ABI zero-overhead calls. Dynamic FFI (`dlopen`/`dlsym`) planned for Phase 2. |
 | **Networking & HTTP** | ❌ Missing | `fetch()`, `node:http`, `node:https`, `node:net`, `WebSocket`. |
 | **Streams API** | ❌ Missing | `node:stream`, `ReadableStream`, `WritableStream`, `TransformStream`, `pipeline`. |
 | **Child Process & Worker Threads**| ❌ Missing | `child_process.spawn()`, `child_process.exec()`, `worker_threads.Worker`. |

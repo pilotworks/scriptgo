@@ -23,8 +23,11 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		isGen := node.BodyData() != nil && node.BodyData().AsteriskToken != nil
 		isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)
+		isAmbient := node.Body() == nil || ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient)
 		kind := "function"
-		if isGen {
+		if isAmbient {
+			kind = "declare_function"
+		} else if isGen {
 			if isAsync {
 				kind = "async_generator_function"
 			} else {

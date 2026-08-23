@@ -1,0 +1,17 @@
+{
+  "ffi_format": 1,
+  "name": "custom_helper",
+  "link": {
+    "sources": ["./helper.c"]
+  },
+  "symbols": {
+    "custom_add": {
+      "args": ["i32", "i32"],
+      "returns": "i32"
+    },
+    "custom_scale": {
+      "args": ["f64", "f64"],
+      "returns": "f64"
+    }
+  }
+}

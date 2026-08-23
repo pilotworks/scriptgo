@@ -188,6 +188,13 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			return nil
 		}
 		return validateExpression(fileName, statement.Expression)
+	case "declare_function":
+		for _, parameter := range statement.Parameters {
+			if err := validateStaticType(fileName, parameter.Span, parameter.Type); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "function", "generator_function", "async_function", "async_generator_function":
 		if len(statement.TypeParameters) > 0 {
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic function %q", statement.Name))

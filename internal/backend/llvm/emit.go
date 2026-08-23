@@ -455,6 +455,31 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_text_decoder_ignore_bom(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_text_decoder_decode(ptr, ptr, ptr)\n\n")
 	out.WriteString("declare ptr @malloc(i64)\n\n")
+
+	alreadyDeclared := map[string]bool{
+		"malloc": true, "setjmp": true, "tan": true, "atan": true, "atan2": true, "hypot": true, "drand48": true,
+	}
+	for _, ext := range module.Externs {
+		if alreadyDeclared[ext.Name] || strings.HasPrefix(ext.Name, "llvm.") {
+			continue
+		}
+		alreadyDeclared[ext.Name] = true
+		retType := llvmType(ext.ReturnType)
+		if ext.ReturnType == ir.TypeBool {
+			retType = "zeroext i1"
+		}
+		var paramTypes []string
+		for _, p := range ext.Parameters {
+			pType := llvmType(p.Type)
+			if p.Type == ir.TypeBool {
+				pType = "zeroext i1"
+			}
+			paramTypes = append(paramTypes, pType)
+		}
+		out.WriteString(fmt.Sprintf("declare %s @%s(%s)\n", retType, ext.Name, strings.Join(paramTypes, ", ")))
+	}
+	out.WriteString("\n")
+
 	for value, name := range stringsByValue {
 		encoded := escapeString(value)
 		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))

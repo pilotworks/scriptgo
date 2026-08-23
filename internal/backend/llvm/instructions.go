@@ -1028,12 +1028,28 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	}
 	callee, ok := e.functions[instruction.Callee]
 	if !ok {
+		for _, ext := range e.module.Externs {
+			if ext.Name == instruction.Callee {
+				callee = ir.Function{
+					Name:       ext.Name,
+					Parameters: ext.Parameters,
+					ReturnType: ext.ReturnType,
+				}
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok {
 		return fmt.Errorf("unknown function %q", instruction.Callee)
 	}
 	if len(callee.Parameters) != len(instruction.Args) {
 		return fmt.Errorf("call to %q has wrong arity", instruction.Callee)
 	}
 	returnType := llvmType(callee.ReturnType)
+	if callee.ReturnType == ir.TypeBool {
+		returnType = "zeroext i1"
+	}
 	if returnType == "void" {
 		out.WriteString(fmt.Sprintf("  call void @%s(", instruction.Callee))
 	} else {
@@ -1044,7 +1060,11 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		if index > 0 {
 			out.WriteString(", ")
 		}
-		out.WriteString(fmt.Sprintf("%s %%%s", llvmType(callee.Parameters[index].Type), argument))
+		paramType := llvmType(callee.Parameters[index].Type)
+		if callee.Parameters[index].Type == ir.TypeBool {
+			paramType = "zeroext i1"
+		}
+		out.WriteString(fmt.Sprintf("%s %%%s", paramType, argument))
 	}
 	out.WriteString(")\n")
 	return nil

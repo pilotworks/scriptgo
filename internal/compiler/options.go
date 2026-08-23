@@ -16,6 +16,9 @@ type BuildOptions struct {
 	Sanitizers       []string
 	WarnRuntimeCasts bool
 	StrictCasts      bool
+	FFIManifests     []string
+	LinkFlags        []string
+	ExtraSources     []string
 }
 
 func (options BuildOptions) normalized() BuildOptions {
