@@ -22,134 +22,134 @@ Provide a concise technical summary:
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
 | `METHODS` | `any` | `__http.METHODS` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
-| `STATUS_CODES` | `any` | `__http.STATUS_CODES` | 📋 Planned | - |
-| `WebSocket` | `(...) => any` | `__http.WebSocket` | 📋 Planned | - |
-| `aborted` | `any` | `__http.aborted` | 📋 Planned | - |
-| `agent.createConnection(options[, callback])` | `(...) => any` | `__http.agent.createConnection` | 📋 Planned | - |
-| `agent.destroy()` | `(...) => any` | `__http.agent.destroy` | 📋 Planned | - |
-| `agent.getName([options])` | `(...) => any` | `__http.agent.getName` | 📋 Planned | - |
-| `agent.keepSocketAlive(socket)` | `(...) => any` | `__http.agent.keepSocketAlive` | 📋 Planned | - |
-| `agent.reuseSocket(socket, request)` | `(...) => any` | `__http.agent.reuseSocket` | 📋 Planned | - |
-| `complete` | `any` | `__http.complete` | 📋 Planned | - |
-| `connection` | `any` | `__http.connection` | 📋 Planned | - |
-| `finished` | `any` | `__http.finished` | 📋 Planned | - |
-| `freeSockets` | `any` | `__http.freeSockets` | 📋 Planned | - |
-| `globalAgent` | `any` | `__http.globalAgent` | 📋 Planned | - |
-| `headers` | `any` | `__http.headers` | 📋 Planned | - |
-| `headersDistinct` | `any` | `__http.headersDistinct` | 📋 Planned | - |
-| `headersSent` | `any` | `__http.headersSent` | 📋 Planned | - |
-| `headersTimeout` | `any` | `__http.headersTimeout` | 📋 Planned | - |
-| `host` | `any` | `__http.host` | 📋 Planned | - |
-| `http.Agent` | `(...) => any` | `__http.http.Agent` | 📋 Planned | - |
-| `http.ClientRequest` | `(...) => any` | `__http.http.ClientRequest` | 📋 Planned | - |
-| `http.IncomingMessage` | `(...) => any` | `__http.http.IncomingMessage` | 📋 Planned | - |
-| `http.OutgoingMessage` | `(...) => any` | `__http.http.OutgoingMessage` | 📋 Planned | - |
-| `http.Server` | `(...) => any` | `__http.http.Server` | 📋 Planned | - |
-| `http.ServerResponse` | `(...) => any` | `__http.http.ServerResponse` | 📋 Planned | - |
-| `http.createServer([options][, requestListener])` | `(...) => any` | `__http.http.createServer` | 📋 Planned | - |
-| `http.get(options[, callback])` | `(...) => any` | `__http.http.get` | 📋 Planned | - |
-| `http.get(url[, options][, callback])` | `(...) => any` | `__http.http.get` | 📋 Planned | - |
-| `http.request(options[, callback])` | `(...) => any` | `__http.http.request` | 📋 Planned | - |
-| `http.request(url[, options][, callback])` | `(...) => any` | `__http.http.request` | 📋 Planned | - |
-| `http.setMaxIdleHTTPParsers(max)` | `(...) => any` | `__http.http.setMaxIdleHTTPParsers` | 📋 Planned | - |
-| `http.validateHeaderName(name[, label])` | `(...) => any` | `__http.http.validateHeaderName` | 📋 Planned | - |
-| `http.validateHeaderValue(name, value)` | `(...) => any` | `__http.http.validateHeaderValue` | 📋 Planned | - |
-| `httpVersion` | `any` | `__http.httpVersion` | 📋 Planned | - |
-| `keepAliveTimeout` | `any` | `__http.keepAliveTimeout` | 📋 Planned | - |
-| `keepAliveTimeoutBuffer` | `any` | `__http.keepAliveTimeoutBuffer` | 📋 Planned | - |
-| `listening` | `any` | `__http.listening` | 📋 Planned | - |
-| `maxFreeSockets` | `any` | `__http.maxFreeSockets` | 📋 Planned | - |
-| `maxHeaderSize` | `any` | `__http.maxHeaderSize` | 📋 Planned | - |
-| `maxHeadersCount` | `any` | `__http.maxHeadersCount` | 📋 Planned | - |
-| `maxRequestsPerSocket` | `any` | `__http.maxRequestsPerSocket` | 📋 Planned | - |
-| `maxSockets` | `any` | `__http.maxSockets` | 📋 Planned | - |
-| `maxTotalSockets` | `any` | `__http.maxTotalSockets` | 📋 Planned | - |
-| `message.connection` | `any` | `__http.message.connection` | 📋 Planned | - |
-| `message.destroy([error])` | `(...) => any` | `__http.message.destroy` | 📋 Planned | - |
-| `message.setTimeout(msecs[, callback])` | `(...) => any` | `__http.message.setTimeout` | 📋 Planned | - |
-| `method` | `any` | `__http.method` | 📋 Planned | - |
-| `outgoingMessage.addTrailers(headers)` | `(...) => any` | `__http.outgoingMessage.addTrailers` | 📋 Planned | - |
-| `outgoingMessage.appendHeader(name, value)` | `(...) => any` | `__http.outgoingMessage.appendHeader` | 📋 Planned | - |
-| `outgoingMessage.connection` | `any` | `__http.outgoingMessage.connection` | 📋 Planned | - |
-| `outgoingMessage.cork()` | `(...) => any` | `__http.outgoingMessage.cork` | 📋 Planned | - |
-| `outgoingMessage.destroy([error])` | `(...) => any` | `__http.outgoingMessage.destroy` | 📋 Planned | - |
-| `outgoingMessage.end(chunk[, encoding][, callback])` | `(...) => any` | `__http.outgoingMessage.end` | 📋 Planned | - |
-| `outgoingMessage.flushHeaders()` | `(...) => any` | `__http.outgoingMessage.flushHeaders` | 📋 Planned | - |
-| `outgoingMessage.getHeader(name)` | `(...) => any` | `__http.outgoingMessage.getHeader` | 📋 Planned | - |
-| `outgoingMessage.getHeaderNames()` | `(...) => any` | `__http.outgoingMessage.getHeaderNames` | 📋 Planned | - |
-| `outgoingMessage.getHeaders()` | `(...) => any` | `__http.outgoingMessage.getHeaders` | 📋 Planned | - |
-| `outgoingMessage.hasHeader(name)` | `(...) => any` | `__http.outgoingMessage.hasHeader` | 📋 Planned | - |
-| `outgoingMessage.pipe()` | `(...) => any` | `__http.outgoingMessage.pipe` | 📋 Planned | - |
-| `outgoingMessage.removeHeader(name)` | `(...) => any` | `__http.outgoingMessage.removeHeader` | 📋 Planned | - |
-| `outgoingMessage.setHeader(name, value)` | `(...) => any` | `__http.outgoingMessage.setHeader` | 📋 Planned | - |
-| `outgoingMessage.setHeaders(headers)` | `(...) => any` | `__http.outgoingMessage.setHeaders` | 📋 Planned | - |
-| `outgoingMessage.setTimeout(msecs[, callback])` | `(...) => any` | `__http.outgoingMessage.setTimeout` | 📋 Planned | - |
-| `outgoingMessage.uncork()` | `(...) => any` | `__http.outgoingMessage.uncork` | 📋 Planned | - |
-| `outgoingMessage.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.outgoingMessage.write` | 📋 Planned | - |
-| `path` | `any` | `__http.path` | 📋 Planned | - |
-| `protocol` | `any` | `__http.protocol` | 📋 Planned | - |
-| `rawHeaders` | `any` | `__http.rawHeaders` | 📋 Planned | - |
-| `rawTrailers` | `any` | `__http.rawTrailers` | 📋 Planned | - |
-| `req` | `any` | `__http.req` | 📋 Planned | - |
-| `request.abort()` | `(...) => any` | `__http.request.abort` | 📋 Planned | - |
-| `request.cork()` | `(...) => any` | `__http.request.cork` | 📋 Planned | - |
-| `request.destroy([error])` | `(...) => any` | `__http.request.destroy` | 📋 Planned | - |
-| `request.end([data[, encoding]][, callback])` | `(...) => any` | `__http.request.end` | 📋 Planned | - |
-| `request.flushHeaders()` | `(...) => any` | `__http.request.flushHeaders` | 📋 Planned | - |
-| `request.getHeader(name)` | `(...) => any` | `__http.request.getHeader` | 📋 Planned | - |
-| `request.getHeaderNames()` | `(...) => any` | `__http.request.getHeaderNames` | 📋 Planned | - |
-| `request.getHeaders()` | `(...) => any` | `__http.request.getHeaders` | 📋 Planned | - |
-| `request.getRawHeaderNames()` | `(...) => any` | `__http.request.getRawHeaderNames` | 📋 Planned | - |
-| `request.hasHeader(name)` | `(...) => any` | `__http.request.hasHeader` | 📋 Planned | - |
-| `request.removeHeader(name)` | `(...) => any` | `__http.request.removeHeader` | 📋 Planned | - |
-| `request.setHeader(name, value)` | `(...) => any` | `__http.request.setHeader` | 📋 Planned | - |
-| `request.setNoDelay([noDelay])` | `(...) => any` | `__http.request.setNoDelay` | 📋 Planned | - |
-| `request.setSocketKeepAlive([enable][, initialDelay])` | `(...) => any` | `__http.request.setSocketKeepAlive` | 📋 Planned | - |
-| `request.setTimeout(timeout[, callback])` | `(...) => any` | `__http.request.setTimeout` | 📋 Planned | - |
-| `request.uncork()` | `(...) => any` | `__http.request.uncork` | 📋 Planned | - |
-| `request.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.request.write` | 📋 Planned | - |
-| `requestTimeout` | `any` | `__http.requestTimeout` | 📋 Planned | - |
-| `requests` | `any` | `__http.requests` | 📋 Planned | - |
-| `response.addTrailers(headers)` | `(...) => any` | `__http.response.addTrailers` | 📋 Planned | - |
-| `response.cork()` | `(...) => any` | `__http.response.cork` | 📋 Planned | - |
-| `response.end([data[, encoding]][, callback])` | `(...) => any` | `__http.response.end` | 📋 Planned | - |
-| `response.flushHeaders()` | `(...) => any` | `__http.response.flushHeaders` | 📋 Planned | - |
-| `response.getHeader(name)` | `(...) => any` | `__http.response.getHeader` | 📋 Planned | - |
-| `response.getHeaderNames()` | `(...) => any` | `__http.response.getHeaderNames` | 📋 Planned | - |
-| `response.getHeaders()` | `(...) => any` | `__http.response.getHeaders` | 📋 Planned | - |
-| `response.hasHeader(name)` | `(...) => any` | `__http.response.hasHeader` | 📋 Planned | - |
-| `response.removeHeader(name)` | `(...) => any` | `__http.response.removeHeader` | 📋 Planned | - |
-| `response.setHeader(name, value)` | `(...) => any` | `__http.response.setHeader` | 📋 Planned | - |
-| `response.setTimeout(msecs[, callback])` | `(...) => any` | `__http.response.setTimeout` | 📋 Planned | - |
-| `response.uncork()` | `(...) => any` | `__http.response.uncork` | 📋 Planned | - |
-| `response.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.response.write` | 📋 Planned | - |
-| `response.writeContinue()` | `(...) => any` | `__http.response.writeContinue` | 📋 Planned | - |
-| `response.writeEarlyHints(hints[, callback])` | `(...) => any` | `__http.response.writeEarlyHints` | 📋 Planned | - |
-| `response.writeHead(statusCode[, statusMessage][, headers])` | `(...) => any` | `__http.response.writeHead` | 📋 Planned | - |
-| `response.writeProcessing()` | `(...) => any` | `__http.response.writeProcessing` | 📋 Planned | - |
-| `reusedSocket` | `any` | `__http.reusedSocket` | 📋 Planned | - |
-| `sendDate` | `any` | `__http.sendDate` | 📋 Planned | - |
-| `server.close([callback])` | `(...) => any` | `__http.server.close` | 📋 Planned | - |
-| `server.closeAllConnections()` | `(...) => any` | `__http.server.closeAllConnections` | 📋 Planned | - |
-| `server.closeIdleConnections()` | `(...) => any` | `__http.server.closeIdleConnections` | 📋 Planned | - |
-| `server.listen()` | `(...) => any` | `__http.server.listen` | 📋 Planned | - |
-| `server.setTimeout([msecs][, callback])` | `(...) => any` | `__http.server.setTimeout` | 📋 Planned | - |
-| `server[Symbol.asyncDispose]()` | `(...) => any` | `__http.server[Symbol.asyncDispose]` | 📋 Planned | - |
-| `socket` | `any` | `__http.socket` | 📋 Planned | - |
-| `sockets` | `any` | `__http.sockets` | 📋 Planned | - |
-| `statusCode` | `any` | `__http.statusCode` | 📋 Planned | - |
-| `statusMessage` | `any` | `__http.statusMessage` | 📋 Planned | - |
-| `strictContentLength` | `any` | `__http.strictContentLength` | 📋 Planned | - |
-| `timeout` | `any` | `__http.timeout` | 📋 Planned | - |
-| `trailers` | `any` | `__http.trailers` | 📋 Planned | - |
-| `trailersDistinct` | `any` | `__http.trailersDistinct` | 📋 Planned | - |
-| `url` | `any` | `__http.url` | 📋 Planned | - |
-| `writableCorked` | `any` | `__http.writableCorked` | 📋 Planned | - |
-| `writableEnded` | `any` | `__http.writableEnded` | 📋 Planned | - |
-| `writableFinished` | `any` | `__http.writableFinished` | 📋 Planned | - |
-| `writableHighWaterMark` | `any` | `__http.writableHighWaterMark` | 📋 Planned | - |
-| `writableLength` | `any` | `__http.writableLength` | 📋 Planned | - |
-| `writableObjectMode` | `any` | `__http.writableObjectMode` | 📋 Planned | - |
+| `STATUS_CODES` | `any` | `__http.STATUS_CODES` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `WebSocket` | `(...) => any` | `__http.WebSocket` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `aborted` | `any` | `__http.aborted` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `agent.createConnection(options[, callback])` | `(...) => any` | `__http.agent.createConnection` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `agent.destroy()` | `(...) => any` | `__http.agent.destroy` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `agent.getName([options])` | `(...) => any` | `__http.agent.getName` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `agent.keepSocketAlive(socket)` | `(...) => any` | `__http.agent.keepSocketAlive` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `agent.reuseSocket(socket, request)` | `(...) => any` | `__http.agent.reuseSocket` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `complete` | `any` | `__http.complete` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `connection` | `any` | `__http.connection` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `finished` | `any` | `__http.finished` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `freeSockets` | `any` | `__http.freeSockets` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `globalAgent` | `any` | `__http.globalAgent` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `headers` | `any` | `__http.headers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `headersDistinct` | `any` | `__http.headersDistinct` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `headersSent` | `any` | `__http.headersSent` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `headersTimeout` | `any` | `__http.headersTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `host` | `any` | `__http.host` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.Agent` | `(...) => any` | `__http.http.Agent` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.ClientRequest` | `(...) => any` | `__http.http.ClientRequest` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.IncomingMessage` | `(...) => any` | `__http.http.IncomingMessage` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.OutgoingMessage` | `(...) => any` | `__http.http.OutgoingMessage` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.Server` | `(...) => any` | `__http.http.Server` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.ServerResponse` | `(...) => any` | `__http.http.ServerResponse` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.createServer([options][, requestListener])` | `(...) => any` | `__http.http.createServer` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.get(options[, callback])` | `(...) => any` | `__http.http.get` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.get(url[, options][, callback])` | `(...) => any` | `__http.http.get` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.request(options[, callback])` | `(...) => any` | `__http.http.request` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.request(url[, options][, callback])` | `(...) => any` | `__http.http.request` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.setMaxIdleHTTPParsers(max)` | `(...) => any` | `__http.http.setMaxIdleHTTPParsers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.validateHeaderName(name[, label])` | `(...) => any` | `__http.http.validateHeaderName` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `http.validateHeaderValue(name, value)` | `(...) => any` | `__http.http.validateHeaderValue` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `httpVersion` | `any` | `__http.httpVersion` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `keepAliveTimeout` | `any` | `__http.keepAliveTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `keepAliveTimeoutBuffer` | `any` | `__http.keepAliveTimeoutBuffer` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `listening` | `any` | `__http.listening` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxFreeSockets` | `any` | `__http.maxFreeSockets` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxHeaderSize` | `any` | `__http.maxHeaderSize` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxHeadersCount` | `any` | `__http.maxHeadersCount` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxRequestsPerSocket` | `any` | `__http.maxRequestsPerSocket` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxSockets` | `any` | `__http.maxSockets` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `maxTotalSockets` | `any` | `__http.maxTotalSockets` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `message.connection` | `any` | `__http.message.connection` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `message.destroy([error])` | `(...) => any` | `__http.message.destroy` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `message.setTimeout(msecs[, callback])` | `(...) => any` | `__http.message.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `method` | `any` | `__http.method` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.addTrailers(headers)` | `(...) => any` | `__http.outgoingMessage.addTrailers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.appendHeader(name, value)` | `(...) => any` | `__http.outgoingMessage.appendHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.connection` | `any` | `__http.outgoingMessage.connection` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.cork()` | `(...) => any` | `__http.outgoingMessage.cork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.destroy([error])` | `(...) => any` | `__http.outgoingMessage.destroy` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.end(chunk[, encoding][, callback])` | `(...) => any` | `__http.outgoingMessage.end` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.flushHeaders()` | `(...) => any` | `__http.outgoingMessage.flushHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.getHeader(name)` | `(...) => any` | `__http.outgoingMessage.getHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.getHeaderNames()` | `(...) => any` | `__http.outgoingMessage.getHeaderNames` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.getHeaders()` | `(...) => any` | `__http.outgoingMessage.getHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.hasHeader(name)` | `(...) => any` | `__http.outgoingMessage.hasHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.pipe()` | `(...) => any` | `__http.outgoingMessage.pipe` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.removeHeader(name)` | `(...) => any` | `__http.outgoingMessage.removeHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.setHeader(name, value)` | `(...) => any` | `__http.outgoingMessage.setHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.setHeaders(headers)` | `(...) => any` | `__http.outgoingMessage.setHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.setTimeout(msecs[, callback])` | `(...) => any` | `__http.outgoingMessage.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.uncork()` | `(...) => any` | `__http.outgoingMessage.uncork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `outgoingMessage.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.outgoingMessage.write` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `path` | `any` | `__http.path` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `protocol` | `any` | `__http.protocol` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `rawHeaders` | `any` | `__http.rawHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `rawTrailers` | `any` | `__http.rawTrailers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `req` | `any` | `__http.req` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.abort()` | `(...) => any` | `__http.request.abort` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.cork()` | `(...) => any` | `__http.request.cork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.destroy([error])` | `(...) => any` | `__http.request.destroy` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.end([data[, encoding]][, callback])` | `(...) => any` | `__http.request.end` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.flushHeaders()` | `(...) => any` | `__http.request.flushHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.getHeader(name)` | `(...) => any` | `__http.request.getHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.getHeaderNames()` | `(...) => any` | `__http.request.getHeaderNames` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.getHeaders()` | `(...) => any` | `__http.request.getHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.getRawHeaderNames()` | `(...) => any` | `__http.request.getRawHeaderNames` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.hasHeader(name)` | `(...) => any` | `__http.request.hasHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.removeHeader(name)` | `(...) => any` | `__http.request.removeHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.setHeader(name, value)` | `(...) => any` | `__http.request.setHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.setNoDelay([noDelay])` | `(...) => any` | `__http.request.setNoDelay` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.setSocketKeepAlive([enable][, initialDelay])` | `(...) => any` | `__http.request.setSocketKeepAlive` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.setTimeout(timeout[, callback])` | `(...) => any` | `__http.request.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.uncork()` | `(...) => any` | `__http.request.uncork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `request.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.request.write` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `requestTimeout` | `any` | `__http.requestTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `requests` | `any` | `__http.requests` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.addTrailers(headers)` | `(...) => any` | `__http.response.addTrailers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.cork()` | `(...) => any` | `__http.response.cork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.end([data[, encoding]][, callback])` | `(...) => any` | `__http.response.end` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.flushHeaders()` | `(...) => any` | `__http.response.flushHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.getHeader(name)` | `(...) => any` | `__http.response.getHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.getHeaderNames()` | `(...) => any` | `__http.response.getHeaderNames` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.getHeaders()` | `(...) => any` | `__http.response.getHeaders` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.hasHeader(name)` | `(...) => any` | `__http.response.hasHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.removeHeader(name)` | `(...) => any` | `__http.response.removeHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.setHeader(name, value)` | `(...) => any` | `__http.response.setHeader` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.setTimeout(msecs[, callback])` | `(...) => any` | `__http.response.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.uncork()` | `(...) => any` | `__http.response.uncork` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.write(chunk[, encoding][, callback])` | `(...) => any` | `__http.response.write` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.writeContinue()` | `(...) => any` | `__http.response.writeContinue` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.writeEarlyHints(hints[, callback])` | `(...) => any` | `__http.response.writeEarlyHints` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.writeHead(statusCode[, statusMessage][, headers])` | `(...) => any` | `__http.response.writeHead` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `response.writeProcessing()` | `(...) => any` | `__http.response.writeProcessing` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `reusedSocket` | `any` | `__http.reusedSocket` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `sendDate` | `any` | `__http.sendDate` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server.close([callback])` | `(...) => any` | `__http.server.close` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server.closeAllConnections()` | `(...) => any` | `__http.server.closeAllConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server.closeIdleConnections()` | `(...) => any` | `__http.server.closeIdleConnections` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server.listen()` | `(...) => any` | `__http.server.listen` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server.setTimeout([msecs][, callback])` | `(...) => any` | `__http.server.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `server[Symbol.asyncDispose]()` | `(...) => any` | `__http.server[Symbol.asyncDispose]` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `socket` | `any` | `__http.socket` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `sockets` | `any` | `__http.sockets` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `statusCode` | `any` | `__http.statusCode` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `statusMessage` | `any` | `__http.statusMessage` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `strictContentLength` | `any` | `__http.strictContentLength` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `timeout` | `any` | `__http.timeout` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `trailers` | `any` | `__http.trailers` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `trailersDistinct` | `any` | `__http.trailersDistinct` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `url` | `any` | `__http.url` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableCorked` | `any` | `__http.writableCorked` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableEnded` | `any` | `__http.writableEnded` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableFinished` | `any` | `__http.writableFinished` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableHighWaterMark` | `any` | `__http.writableHighWaterMark` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableLength` | `any` | `__http.writableLength` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
+| `writableObjectMode` | `any` | `__http.writableObjectMode` | ✅ Done | `internal/compiler/testdata/corpus/api/http.ts` |
 
 ---
 

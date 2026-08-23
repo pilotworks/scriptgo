@@ -1,3 +1,23 @@
+class HttpListenerEntry {
+    fn: Function;
+    once: boolean;
+
+    constructor(fn: Function, once: boolean) {
+        this.fn = fn;
+        this.once = once;
+    }
+}
+
+class HttpEventBucket {
+    name: string;
+    listeners: HttpListenerEntry[];
+
+    constructor(name: string, listeners: HttpListenerEntry[]) {
+        this.name = name;
+        this.listeners = listeners;
+    }
+}
+
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];
@@ -6,8 +26,9 @@ export class Headers {
         this._keys = [];
         this._values = [];
         if (init !== null) {
-            for (let i = 0; i < init._keys.length; i++) {
-                this.append(init._keys[i], init._values[i]);
+            const entries = init.entries();
+            for (let i = 0; i < entries.length; i++) {
+                this.append(entries[i][0], entries[i][1]);
             }
         }
     }
@@ -305,7 +326,7 @@ export const METHODS: string[] = [
     "UNSUBSCRIBE"
 ];
 
-export const STATUS_CODES = {
+export const STATUS_CODES: Record<string, string> = {
     "100": "Continue",
     "101": "Switching Protocols",
     "102": "Processing",
@@ -344,22 +365,757 @@ export const STATUS_CODES = {
 
 export function getStatusText(code: number): string {
     if (code === 100) return "Continue";
+    if (code === 101) return "Switching Protocols";
+    if (code === 102) return "Processing";
+    if (code === 103) return "Early Hints";
     if (code === 200) return "OK";
     if (code === 201) return "Created";
+    if (code === 202) return "Accepted";
+    if (code === 203) return "Non-Authoritative Information";
     if (code === 204) return "No Content";
+    if (code === 205) return "Reset Content";
+    if (code === 206) return "Partial Content";
+    if (code === 300) return "Multiple Choices";
     if (code === 301) return "Moved Permanently";
     if (code === 302) return "Found";
+    if (code === 303) return "See Other";
     if (code === 304) return "Not Modified";
+    if (code === 307) return "Temporary Redirect";
+    if (code === 308) return "Permanent Redirect";
     if (code === 400) return "Bad Request";
     if (code === 401) return "Unauthorized";
+    if (code === 402) return "Payment Required";
     if (code === 403) return "Forbidden";
     if (code === 404) return "Not Found";
     if (code === 405) return "Method Not Allowed";
     if (code === 408) return "Request Timeout";
+    if (code === 409) return "Conflict";
+    if (code === 410) return "Gone";
+    if (code === 418) return "I'm a Teapot";
     if (code === 429) return "Too Many Requests";
     if (code === 500) return "Internal Server Error";
+    if (code === 501) return "Not Implemented";
     if (code === 502) return "Bad Gateway";
     if (code === 503) return "Service Unavailable";
     if (code === 504) return "Gateway Timeout";
     return "";
+}
+
+export const maxHeaderSize: number = 16384;
+
+export function validateHeaderName(name: string, label: string = ""): void {
+    if (typeof name !== "string" || name.length === 0) {
+        throw new TypeError((label.length > 0 ? label : "Header name") + " must be a non-empty string");
+    }
+    for (let i = 0; i < name.length; i++) {
+        const code = name.charCodeAt(i);
+        if (code <= 32 || code >= 127) {
+            throw new TypeError("Invalid character in header name [" + name + "]");
+        }
+    }
+}
+
+export function validateHeaderValue(name: string, value: unknown): void {
+    if (value === undefined) {
+        throw new TypeError("Invalid value \"undefined\" for header \"" + name + "\"");
+    }
+}
+
+export function setMaxIdleHTTPParsers(max: number): void {
+    // runtime configuration hook
+}
+
+export interface AgentOptions {
+    maxFreeSockets?: number;
+    maxSockets?: number;
+    maxTotalSockets?: number;
+    maxRequestsPerSocket?: number;
+}
+
+const defaultAgentOptions: AgentOptions = {
+    maxFreeSockets: 256,
+    maxSockets: 999999,
+    maxTotalSockets: 999999,
+    maxRequestsPerSocket: 0
+};
+
+export interface AgentNameOptions {
+    host?: string;
+    port?: number | string;
+    localAddress?: string;
+}
+
+const defaultAgentNameOptions: AgentNameOptions = { host: "localhost", port: 80, localAddress: "" };
+
+export class HttpConnection {
+    connected: boolean = true;
+    options: string = "";
+    constructor(connected: boolean = true, options: string = "") {
+        this.connected = connected;
+        this.options = options;
+    }
+}
+
+export class Agent {
+    options: AgentOptions | null = null;
+    freeSockets: string[] = [];
+    sockets: string[] = [];
+    requests: string[] = [];
+    maxFreeSockets: number = 256;
+    maxSockets: number = 999999;
+    maxTotalSockets: number = 999999;
+    maxRequestsPerSocket: number = 0;
+
+    constructor(options: AgentOptions = defaultAgentOptions) {
+        this.options = options;
+        if (options.maxFreeSockets !== undefined) {
+            this.maxFreeSockets = options.maxFreeSockets;
+        }
+        if (options.maxSockets !== undefined) {
+            this.maxSockets = options.maxSockets;
+        }
+        if (options.maxTotalSockets !== undefined) {
+            this.maxTotalSockets = options.maxTotalSockets;
+        }
+    }
+
+    createConnection(options: unknown = null, callback: unknown = null): HttpConnection {
+        const conn = new HttpConnection(true, String(options));
+        if (typeof callback === "function") {
+            const fn = callback as Function;
+            fn(null, conn);
+        }
+        return conn;
+    }
+
+    destroy(): void {
+        this.freeSockets = [];
+        this.sockets = [];
+        this.requests = [];
+    }
+
+    getName(options: AgentNameOptions = defaultAgentNameOptions): string {
+        let host = "localhost";
+        let port = "80";
+        let localAddress = "";
+        if (options.host !== undefined && options.host.length > 0) {
+            host = options.host;
+        }
+        if (options.port !== undefined) {
+            port = String(options.port);
+        }
+        if (options.localAddress !== undefined && options.localAddress.length > 0) {
+            localAddress = options.localAddress;
+        }
+        return host + ":" + port + ":" + localAddress;
+    }
+
+    keepSocketAlive(socket: unknown): boolean {
+        return true;
+    }
+
+    reuseSocket(socket: unknown, request: unknown): void {
+        const dummy = socket;
+    }
+}
+
+export const globalAgent: Agent = new Agent();
+
+export class OutgoingMessage {
+    connection: string | null = null;
+    socket: string | null = null;
+    headersSent: boolean = false;
+    writableCorked: number = 0;
+    writableEnded: boolean = false;
+    writableFinished: boolean = false;
+    writableHighWaterMark: number = 16384;
+    writableLength: number = 0;
+    writableObjectMode: boolean = false;
+    strictContentLength: boolean = false;
+    sendDate: boolean = true;
+    req: IncomingMessage | null = null;
+
+    private _events: HttpEventBucket[] = [];
+    private _headerKeys: string[] = [];
+    private _headerValues: string[] = [];
+    private _rawHeaderNames: string[] = [];
+    private _bodyChunks: string[] = [];
+
+    private _findBucketIndex(event: string): number {
+        for (let i = 0; i < this._events.length; i++) {
+            if (this._events[i].name === event) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private _getOrCreateBucketIndex(event: string): number {
+        let idx = this._findBucketIndex(event);
+        if (idx < 0) {
+            this._events.push(new HttpEventBucket(event, []));
+            idx = this._events.length - 1;
+        }
+        return idx;
+    }
+
+    on(event: string, listener: Function): OutgoingMessage {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, false));
+        return this;
+    }
+
+    once(event: string, listener: Function): OutgoingMessage {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, true));
+        return this;
+    }
+
+    emit(event: string, arg1: unknown = undefined, arg2: unknown = undefined): boolean {
+        const idx = this._findBucketIndex(event);
+        if (idx < 0) return false;
+        const bucket = this._events[idx];
+        const snapshot: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            snapshot.push(bucket.listeners[i]);
+        }
+        const next: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            if (!bucket.listeners[i].once) {
+                next.push(bucket.listeners[i]);
+            }
+        }
+        bucket.listeners = next;
+        for (let i = 0; i < snapshot.length; i++) {
+            const fn = snapshot[i].fn;
+            if (arg1 === undefined) {
+                fn();
+            } else if (arg2 === undefined) {
+                fn(arg1);
+            } else {
+                fn(arg1, arg2);
+            }
+        }
+        return true;
+    }
+
+    setHeader(name: string, value: unknown): OutgoingMessage {
+        validateHeaderName(name);
+        validateHeaderValue(name, value);
+        const lower = name.toLowerCase();
+        const valStr = String(value);
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            if (this._headerKeys[i] === lower) {
+                this._headerValues[i] = valStr;
+                this._rawHeaderNames[i] = name;
+                return this;
+            }
+        }
+        this._headerKeys.push(lower);
+        this._headerValues.push(valStr);
+        this._rawHeaderNames.push(name);
+        return this;
+    }
+
+    getHeader(name: string): string | null {
+        const lower = name.toLowerCase();
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            if (this._headerKeys[i] === lower) {
+                return this._headerValues[i];
+            }
+        }
+        return null;
+    }
+
+    getHeaders(): Headers {
+        const res = new Headers();
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            res.set(this._headerKeys[i], this._headerValues[i]);
+        }
+        return res;
+    }
+
+    getHeaderNames(): string[] {
+        const res: string[] = [];
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            res.push(this._headerKeys[i]);
+        }
+        return res;
+    }
+
+    getRawHeaderNames(): string[] {
+        const res: string[] = [];
+        for (let i = 0; i < this._rawHeaderNames.length; i++) {
+            res.push(this._rawHeaderNames[i]);
+        }
+        return res;
+    }
+
+    hasHeader(name: string): boolean {
+        const lower = name.toLowerCase();
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            if (this._headerKeys[i] === lower) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    removeHeader(name: string): void {
+        const lower = name.toLowerCase();
+        const nextKeys: string[] = [];
+        const nextVals: string[] = [];
+        const nextRaw: string[] = [];
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            if (this._headerKeys[i] !== lower) {
+                nextKeys.push(this._headerKeys[i]);
+                nextVals.push(this._headerValues[i]);
+                nextRaw.push(this._rawHeaderNames[i]);
+            }
+        }
+        this._headerKeys = nextKeys;
+        this._headerValues = nextVals;
+        this._rawHeaderNames = nextRaw;
+    }
+
+    appendHeader(name: string, value: unknown): OutgoingMessage {
+        validateHeaderName(name);
+        const lower = name.toLowerCase();
+        const valStr = String(value);
+        for (let i = 0; i < this._headerKeys.length; i++) {
+            if (this._headerKeys[i] === lower) {
+                this._headerValues[i] = this._headerValues[i] + ", " + valStr;
+                return this;
+            }
+        }
+        this._headerKeys.push(lower);
+        this._headerValues.push(valStr);
+        this._rawHeaderNames.push(name);
+        return this;
+    }
+
+    setHeaders(headers: Headers): OutgoingMessage {
+        const entries = headers.entries();
+        for (let i = 0; i < entries.length; i++) {
+            this.setHeader(entries[i][0], entries[i][1]);
+        }
+        return this;
+    }
+
+    flushHeaders(): void {
+        this.headersSent = true;
+    }
+
+    write(chunk: unknown, encoding: string = "", callback: unknown = null): boolean {
+        const str = String(chunk);
+        this._bodyChunks.push(str);
+        this.writableLength += str.length;
+        if (typeof callback === "function") {
+            const fn = callback as Function;
+            fn(null);
+        }
+        return true;
+    }
+
+    end(chunk: unknown = null, encoding: string = "", callback: unknown = null): OutgoingMessage {
+        if (chunk !== null && chunk !== undefined) {
+            this.write(chunk, encoding);
+        }
+        this.writableEnded = true;
+        this.writableFinished = true;
+        this.headersSent = true;
+        if (typeof callback === "function") {
+            const fn = callback as Function;
+            fn();
+        }
+        this.emit("finish");
+        return this;
+    }
+
+    destroy(error: unknown = null): OutgoingMessage {
+        this.writableEnded = true;
+        this.emit("close");
+        return this;
+    }
+
+    cork(): void {
+        this.writableCorked++;
+    }
+
+    uncork(): void {
+        if (this.writableCorked > 0) {
+            this.writableCorked--;
+        }
+    }
+
+    setTimeout(msecs: number = 0, callback: unknown = null): OutgoingMessage {
+        if (typeof callback === "function") {
+            this.once("timeout", callback as Function);
+        }
+        return this;
+    }
+
+    addTrailers(headers: unknown = null): void {
+        const dummy = headers;
+    }
+
+    pipe(dest: unknown): unknown {
+        return dest;
+    }
+}
+
+export interface ClientRequestOptions {
+    path?: string;
+    pathname?: string;
+    method?: string;
+    host?: string;
+    hostname?: string;
+    protocol?: string;
+    headers?: Headers;
+}
+
+export class ClientRequest extends OutgoingMessage {
+    path: string = "/";
+    method: string = "GET";
+    host: string = "localhost";
+    protocol: string = "http:";
+    reusedSocket: boolean = false;
+    maxHeadersCount: number = 2000;
+
+    constructor(urlOrOptions: unknown, cb: unknown = null) {
+        super();
+        if (typeof urlOrOptions === "string") {
+            this.path = urlOrOptions as string;
+        } else if (urlOrOptions !== null && typeof urlOrOptions === "object") {
+            const opts = urlOrOptions as ClientRequestOptions;
+            if (opts.path !== undefined) this.path = opts.path;
+            if (opts.pathname !== undefined) this.path = opts.pathname;
+            if (opts.method !== undefined) this.method = opts.method.toUpperCase();
+            if (opts.host !== undefined) this.host = opts.host;
+            if (opts.hostname !== undefined) this.host = opts.hostname;
+            if (opts.protocol !== undefined) this.protocol = opts.protocol;
+            if (opts.headers !== undefined) {
+                this.setHeaders(opts.headers);
+            }
+        }
+        if (typeof cb === "function") {
+            const fn = cb as Function;
+            this.once("response", fn);
+        }
+    }
+
+    abort(): void {
+        this.destroy();
+        this.emit("abort");
+    }
+
+    setNoDelay(noDelay: boolean = true): void {
+        const dummy = noDelay;
+    }
+
+    setSocketKeepAlive(enable: boolean = false, initialDelay: number = 0): void {
+        const dummy = enable;
+    }
+}
+
+export class IncomingMessage {
+    aborted: boolean = false;
+    complete: boolean = true;
+    connection: string | null = null;
+    socket: string | null = null;
+    headers: string[] = [];
+    headersDistinct: string[] = [];
+    httpVersion: string = "1.1";
+    method: string = "GET";
+    rawHeaders: string[] = [];
+    rawTrailers: string[] = [];
+    statusCode: number = 200;
+    statusMessage: string = "OK";
+    trailers: string[] = [];
+    trailersDistinct: string[] = [];
+    url: string = "/";
+
+    private _events: HttpEventBucket[] = [];
+
+    constructor(socket: string | null = null) {
+        this.socket = socket;
+        this.connection = socket;
+    }
+
+    private _findBucketIndex(event: string): number {
+        for (let i = 0; i < this._events.length; i++) {
+            if (this._events[i].name === event) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private _getOrCreateBucketIndex(event: string): number {
+        let idx = this._findBucketIndex(event);
+        if (idx < 0) {
+            this._events.push(new HttpEventBucket(event, []));
+            idx = this._events.length - 1;
+        }
+        return idx;
+    }
+
+    on(event: string, listener: Function): IncomingMessage {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, false));
+        return this;
+    }
+
+    once(event: string, listener: Function): IncomingMessage {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, true));
+        return this;
+    }
+
+    emit(event: string, arg1: unknown = undefined, arg2: unknown = undefined): boolean {
+        const idx = this._findBucketIndex(event);
+        if (idx < 0) return false;
+        const bucket = this._events[idx];
+        const snapshot: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            snapshot.push(bucket.listeners[i]);
+        }
+        const next: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            if (!bucket.listeners[i].once) {
+                next.push(bucket.listeners[i]);
+            }
+        }
+        bucket.listeners = next;
+        for (let i = 0; i < snapshot.length; i++) {
+            const fn = snapshot[i].fn;
+            if (arg1 === undefined) {
+                fn();
+            } else if (arg2 === undefined) {
+                fn(arg1);
+            } else {
+                fn(arg1, arg2);
+            }
+        }
+        return true;
+    }
+
+    destroy(error: unknown = null): IncomingMessage {
+        this.aborted = true;
+        this.emit("close");
+        return this;
+    }
+
+    setTimeout(msecs: number = 0, callback: unknown = null): IncomingMessage {
+        if (typeof callback === "function") {
+            this.once("timeout", callback as Function);
+        }
+        return this;
+    }
+}
+
+export class ServerResponse extends OutgoingMessage {
+    statusCode: number = 200;
+    statusMessage: string = "OK";
+
+    constructor(req: IncomingMessage | null = null) {
+        super();
+        this.req = req;
+    }
+
+    writeHead(statusCode: number, statusMessageOrHeaders: unknown = null, headers: Headers | null = null): ServerResponse {
+        this.statusCode = statusCode;
+        if (typeof statusMessageOrHeaders === "string") {
+            this.statusMessage = statusMessageOrHeaders;
+            if (headers !== null) {
+                this.setHeaders(headers);
+            }
+        } else if (statusMessageOrHeaders instanceof Headers) {
+            this.setHeaders(statusMessageOrHeaders as Headers);
+        }
+        this.headersSent = true;
+        return this;
+    }
+
+    writeContinue(): void {
+        const dummy = true;
+    }
+
+    writeEarlyHints(hints: unknown = null, callback: unknown = null): void {
+        if (typeof callback === "function") {
+            const fn = callback as Function;
+            fn();
+        }
+    }
+
+    writeProcessing(): void {
+        const dummy = true;
+    }
+}
+
+export class Server {
+    listening: boolean = false;
+    maxHeadersCount: number = 2000;
+    maxRequestsPerSocket: number = 0;
+    timeout: number = 0;
+    headersTimeout: number = 60000;
+    keepAliveTimeout: number = 5000;
+    keepAliveTimeoutBuffer: number = 1000;
+    requestTimeout: number = 300000;
+
+    private _events: HttpEventBucket[] = [];
+
+    constructor(optionsOrListener: unknown = null, listener: unknown = null) {
+        if (typeof optionsOrListener === "function") {
+            const fn = optionsOrListener as Function;
+            this.on("request", fn);
+        } else if (optionsOrListener !== null && typeof listener === "function") {
+            const fn = listener as Function;
+            this.on("request", fn);
+        }
+    }
+
+    private _findBucketIndex(event: string): number {
+        for (let i = 0; i < this._events.length; i++) {
+            if (this._events[i].name === event) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private _getOrCreateBucketIndex(event: string): number {
+        let idx = this._findBucketIndex(event);
+        if (idx < 0) {
+            this._events.push(new HttpEventBucket(event, []));
+            idx = this._events.length - 1;
+        }
+        return idx;
+    }
+
+    on(event: string, listener: Function): Server {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, false));
+        return this;
+    }
+
+    once(event: string, listener: Function): Server {
+        const idx = this._getOrCreateBucketIndex(event);
+        this._events[idx].listeners.push(new HttpListenerEntry(listener, true));
+        return this;
+    }
+
+    emit(event: string, arg1: unknown = undefined, arg2: unknown = undefined): boolean {
+        const idx = this._findBucketIndex(event);
+        if (idx < 0) return false;
+        const bucket = this._events[idx];
+        const snapshot: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            snapshot.push(bucket.listeners[i]);
+        }
+        const next: HttpListenerEntry[] = [];
+        for (let i = 0; i < bucket.listeners.length; i++) {
+            if (!bucket.listeners[i].once) {
+                next.push(bucket.listeners[i]);
+            }
+        }
+        bucket.listeners = next;
+        for (let i = 0; i < snapshot.length; i++) {
+            const fn = snapshot[i].fn;
+            if (arg1 === undefined) {
+                fn();
+            } else if (arg2 === undefined) {
+                fn(arg1);
+            } else {
+                fn(arg1, arg2);
+            }
+        }
+        return true;
+    }
+
+    listen(port: unknown = 0, hostOrCb: unknown = null, cb: unknown = null): Server {
+        this.listening = true;
+        if (typeof hostOrCb === "function") {
+            const fn = hostOrCb as Function;
+            fn();
+        } else if (typeof cb === "function") {
+            const fn = cb as Function;
+            fn();
+        }
+        this.emit("listening");
+        return this;
+    }
+
+    close(callback: unknown = null): Server {
+        this.listening = false;
+        if (typeof callback === "function") {
+            const fn = callback as Function;
+            fn();
+        }
+        this.emit("close");
+        return this;
+    }
+
+    closeAllConnections(): void {
+        const dummy = true;
+    }
+
+    closeIdleConnections(): void {
+        const dummy = true;
+    }
+
+    setTimeout(msecs: number = 0, callback: unknown = null): Server {
+        this.timeout = msecs;
+        if (typeof callback === "function") {
+            this.on("timeout", callback as Function);
+        }
+        return this;
+    }
+
+    async asyncDispose(): Promise<void> {
+        this.close();
+    }
+}
+
+export function createServer(optionsOrListener: unknown = null, listener: unknown = null): Server {
+    if (typeof optionsOrListener === "function") {
+        return new Server(optionsOrListener, null);
+    }
+    if (typeof listener === "function") {
+        return new Server(optionsOrListener, listener);
+    }
+    return new Server(optionsOrListener, null);
+}
+
+export function request(urlOrOptions: unknown, optionsOrCb: unknown = null, cb: unknown = null): ClientRequest {
+    if (typeof optionsOrCb === "function") {
+        return new ClientRequest(urlOrOptions, optionsOrCb);
+    }
+    if (typeof cb === "function") {
+        return new ClientRequest(urlOrOptions, cb);
+    }
+    return new ClientRequest(urlOrOptions, null);
+}
+
+export function get(urlOrOptions: unknown, optionsOrCb: unknown = null, cb: unknown = null): ClientRequest {
+    const req = request(urlOrOptions, optionsOrCb, cb);
+    req.end();
+    return req;
+}
+
+export class WebSocket {
+    url: string;
+    readyState: number = 0;
+
+    constructor(url: string) {
+        this.url = url;
+    }
+
+    close(): void {
+        this.readyState = 3;
+    }
+
+    send(data: unknown): void {
+        const dummy = data;
+    }
 }

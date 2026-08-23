@@ -1,8 +1,8 @@
-# URL (node:url) Implementation Checklist
+# URL Implementation Checklist
 
 > **Category**: `CategoryNodeModule`  
 > **Import Path**: `node:url`  
-> **Specification Reference**: [Node.js 22 LTS URL (node:url) API Documentation](https://nodejs.org/docs/latest-v22.x/api/url.html)  
+> **Specification Reference**: [Node.js 22 LTS URL Documentation](https://nodejs.org/docs/latest-v22.x/api/url.html)  
 > **Type Definition Source**: [@types/node/url.d.ts](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node)  
 > **Gate Oracle**: Node.js 22 LTS test suite (test/parallel/test-url-*.js)
 
@@ -21,62 +21,50 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `URL` | `(...) => any` | `__url.URL` | ✅ Done | `internal/compiler/testdata/corpus/url/url/` |
-| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | 📋 Planned | - |
-| `URL.createObjectURL(blob)` | `(...) => any` | `__url.URL.createObjectURL` | 📋 Planned | - |
-| `URL.parse(input[, base])` | `(...) => any` | `__url.URL.parse` | 📋 Planned | - |
-| `URL.revokeObjectURL(id)` | `(...) => any` | `__url.URL.revokeObjectURL` | 📋 Planned | - |
-| `URLSearchParams` | `(...) => any` | `__url.URLSearchParams` | 📋 Planned | - |
-| `hash` | `any` | `__url.hash` | 📋 Planned | - |
-| `host` | `any` | `__url.host` | 📋 Planned | - |
-| `hostname` | `any` | `__url.hostname` | 📋 Planned | - |
-| `href` | `any` | `__url.href` | 📋 Planned | - |
-| `origin` | `any` | `__url.origin` | 📋 Planned | - |
-| `password` | `any` | `__url.password` | 📋 Planned | - |
-| `pathname` | `any` | `__url.pathname` | 📋 Planned | - |
-| `port` | `any` | `__url.port` | 📋 Planned | - |
-| `protocol` | `any` | `__url.protocol` | 📋 Planned | - |
-| `search` | `any` | `__url.search` | 📋 Planned | - |
-| `searchParams` | `any` | `__url.searchParams` | 📋 Planned | - |
-| `url.domainToASCII(domain)` | `(...) => any` | `__url.url.domainToASCII` | 📋 Planned | - |
-| `url.domainToUnicode(domain)` | `(...) => any` | `__url.url.domainToUnicode` | 📋 Planned | - |
-| `url.fileURLToPath(url[, options])` | `(...) => any` | `__url.url.fileURLToPath` | 📋 Planned | - |
-| `url.fileURLToPathBuffer(url[, options])` | `(...) => any` | `__url.url.fileURLToPathBuffer` | 📋 Planned | - |
-| `url.format(URL[, options])` | `(...) => any` | `__url.url.format` | 📋 Planned | - |
-| `url.format(urlObject)` | `(...) => any` | `__url.url.format` | 📋 Planned | - |
-| `url.parse(urlString[, parseQueryString[, slashesDenoteHost]])` | `(...) => any` | `__url.url.parse` | 📋 Planned | - |
-| `url.pathToFileURL(path[, options])` | `(...) => any` | `__url.url.pathToFileURL` | 📋 Planned | - |
-| `url.resolve(from, to)` | `(...) => any` | `__url.url.resolve` | 📋 Planned | - |
-| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | 📋 Planned | - |
-| `url.toString()` | `(...) => any` | `__url.url.toString` | 📋 Planned | - |
-| `url.urlToHttpOptions(url)` | `(...) => any` | `__url.url.urlToHttpOptions` | 📋 Planned | - |
-| `urlObject.auth` | `any` | `__url.urlObject.auth` | 📋 Planned | - |
-| `urlObject.hash` | `any` | `__url.urlObject.hash` | 📋 Planned | - |
-| `urlObject.host` | `any` | `__url.urlObject.host` | 📋 Planned | - |
-| `urlObject.hostname` | `any` | `__url.urlObject.hostname` | 📋 Planned | - |
-| `urlObject.href` | `any` | `__url.urlObject.href` | 📋 Planned | - |
-| `urlObject.path` | `any` | `__url.urlObject.path` | 📋 Planned | - |
-| `urlObject.pathname` | `any` | `__url.urlObject.pathname` | 📋 Planned | - |
-| `urlObject.port` | `any` | `__url.urlObject.port` | 📋 Planned | - |
-| `urlObject.protocol` | `any` | `__url.urlObject.protocol` | 📋 Planned | - |
-| `urlObject.query` | `any` | `__url.urlObject.query` | 📋 Planned | - |
-| `urlObject.search` | `any` | `__url.urlObject.search` | 📋 Planned | - |
-| `urlObject.slashes` | `any` | `__url.urlObject.slashes` | 📋 Planned | - |
-| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | 📋 Planned | - |
-| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | 📋 Planned | - |
-| `urlSearchParams.entries()` | `(...) => any` | `__url.urlSearchParams.entries` | 📋 Planned | - |
-| `urlSearchParams.forEach(fn[, thisArg])` | `(...) => any` | `__url.urlSearchParams.forEach` | 📋 Planned | - |
-| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | 📋 Planned | - |
-| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | 📋 Planned | - |
-| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | 📋 Planned | - |
-| `urlSearchParams.keys()` | `(...) => any` | `__url.urlSearchParams.keys` | 📋 Planned | - |
-| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | 📋 Planned | - |
-| `urlSearchParams.size` | `any` | `__url.urlSearchParams.size` | 📋 Planned | - |
-| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | 📋 Planned | - |
-| `urlSearchParams.toString()` | `(...) => any` | `__url.urlSearchParams.toString` | 📋 Planned | - |
-| `urlSearchParams.values()` | `(...) => any` | `__url.urlSearchParams.values` | 📋 Planned | - |
-| `urlSearchParams[Symbol.iterator]()` | `(...) => any` | `__url.urlSearchParams[Symbol.iterator]` | 📋 Planned | - |
-| `username` | `any` | `__url.username` | 📋 Planned | - |
+| `URL` | `(...) => any` | `__url.URL` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URL.canParse(input[, base])` | `(...) => any` | `__url.URL.canParse` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URL.createObjectURL(blob)` | `(...) => any` | `__url.URL.createObjectURL` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URL.parse(input[, base])` | `(...) => any` | `__url.URL.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URL.revokeObjectURL(id)` | `(...) => any` | `__url.URL.revokeObjectURL` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `URLSearchParams` | `(...) => any` | `__url.URLSearchParams` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `hash` | `any` | `__url.hash` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `host` | `any` | `__url.host` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `hostname` | `any` | `__url.hostname` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `href` | `any` | `__url.href` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `origin` | `any` | `__url.origin` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `password` | `any` | `__url.password` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `pathname` | `any` | `__url.pathname` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `port` | `any` | `__url.port` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `protocol` | `any` | `__url.protocol` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `search` | `any` | `__url.search` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `searchParams` | `any` | `__url.searchParams` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.domainToASCII(domain)` | `(...) => any` | `__url.url.domainToASCII` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.domainToUnicode(domain)` | `(...) => any` | `__url.url.domainToUnicode` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.fileURLToPath(url[, options])` | `(...) => any` | `__url.url.fileURLToPath` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.fileURLToPathBuffer(url[, options])` | `(...) => any` | `__url.url.fileURLToPathBuffer` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.format(URL[, options])` | `(...) => any` | `__url.url.format` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.format(urlObject)` | `(...) => any` | `__url.url.format` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.parse(urlString[, parseQueryString[, slashesDenoteHost]])` | `(...) => any` | `__url.url.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.pathToFileURL(path[, options])` | `(...) => any` | `__url.url.pathToFileURL` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.resolve(from, to)` | `(...) => any` | `__url.url.resolve` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.toJSON()` | `(...) => any` | `__url.url.toJSON` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.toString()` | `(...) => any` | `__url.url.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `url.urlToHttpOptions(url)` | `(...) => any` | `__url.url.urlToHttpOptions` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.append(name, value)` | `(...) => any` | `__url.urlSearchParams.append` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.delete(name[, value])` | `(...) => any` | `__url.urlSearchParams.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.entries()` | `(...) => any` | `__url.urlSearchParams.entries` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.forEach(fn[, thisArg])` | `(...) => any` | `__url.urlSearchParams.forEach` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.get(name)` | `(...) => any` | `__url.urlSearchParams.get` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.getAll(name)` | `(...) => any` | `__url.urlSearchParams.getAll` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.has(name[, value])` | `(...) => any` | `__url.urlSearchParams.has` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.keys()` | `(...) => any` | `__url.urlSearchParams.keys` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.set(name, value)` | `(...) => any` | `__url.urlSearchParams.set` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.size` | `any` | `__url.urlSearchParams.size` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.sort()` | `(...) => any` | `__url.urlSearchParams.sort` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.toString()` | `(...) => any` | `__url.urlSearchParams.toString` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams.values()` | `(...) => any` | `__url.urlSearchParams.values` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `urlSearchParams[Symbol.iterator]()` | `(...) => any` | `__url.urlSearchParams[Symbol.iterator]` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
+| `username` | `any` | `__url.username` | ✅ Done | `internal/compiler/testdata/corpus/api/url.ts` |
 
 ---
 

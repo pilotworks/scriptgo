@@ -197,6 +197,8 @@ func getCorpusFeatureAPIs(featureName string) (string, map[string]bool) {
 					clean := cleanHTML(strings.Split(rawAPI, "(")[0])
 					clean = strings.TrimPrefix(clean, "new ")
 					clean = strings.TrimPrefix(clean, "readonly ")
+					apis[clean] = true
+					apis[strings.ToLower(clean)] = true
 					parts := strings.Split(clean, ".")
 					exactName := strings.Trim(parts[len(parts)-1], "` :;")
 					if exactName != "" {
@@ -223,9 +225,12 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 
 	candidates := []string{
 		clean,
+		strings.ToLower(clean),
 		exactName,
 		strings.ToLower(exactName),
 		normalizeAPIName(apiName),
+		apiName,
+		strings.ToLower(apiName),
 	}
 	if exactName == "constructor" || strings.HasPrefix(apiName, "new ") || exactName == "" {
 		candidates = append(candidates, "constructor", "new", "create", "basic")
@@ -556,7 +561,7 @@ func discoverAndParseNodeOfficial() ([]ModuleDocConfig, error) {
 		folder := "nodemodule"
 		importPath := fmt.Sprintf("node:%s", rawName)
 
-		if strings.Contains(rawName, "web_crypto") || strings.Contains(rawName, "web_streams") || rawName == "url" || rawName == "fetch" {
+		if strings.Contains(rawName, "web_crypto") || strings.Contains(rawName, "web_streams") || rawName == "fetch" {
 			category = CatWebCompat
 			folder = "webcompat"
 			importPath = "N/A (Global Scope)"

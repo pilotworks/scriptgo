@@ -40,11 +40,17 @@ export class URLSearchParams {
         this._entries.push(new URLSearchParamEntry(name, value));
     }
 
-    delete(name: string): void {
+    delete(name: string, value?: string): void {
         const next: URLSearchParamEntry[] = [];
         for (let i = 0; i < this._entries.length; i++) {
-            if (this._entries[i].name !== name) {
-                next.push(this._entries[i]);
+            if (value !== undefined) {
+                if (this._entries[i].name !== name || this._entries[i].value !== value) {
+                    next.push(this._entries[i]);
+                }
+            } else {
+                if (this._entries[i].name !== name) {
+                    next.push(this._entries[i]);
+                }
             }
         }
         this._entries = next;
@@ -69,10 +75,16 @@ export class URLSearchParams {
         return res;
     }
 
-    has(name: string): boolean {
+    has(name: string, value?: string): boolean {
         for (let i = 0; i < this._entries.length; i++) {
             if (this._entries[i].name === name) {
-                return true;
+                if (value !== undefined) {
+                    if (this._entries[i].value === value) {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
             }
         }
         return false;
@@ -107,6 +119,36 @@ export class URLSearchParams {
                     this._entries[j + 1] = temp;
                 }
             }
+        }
+    }
+
+    entries(): string[][] {
+        const res: string[][] = [];
+        for (let i = 0; i < this._entries.length; i++) {
+            res.push([this._entries[i].name, this._entries[i].value]);
+        }
+        return res;
+    }
+
+    keys(): string[] {
+        const res: string[] = [];
+        for (let i = 0; i < this._entries.length; i++) {
+            res.push(this._entries[i].name);
+        }
+        return res;
+    }
+
+    values(): string[] {
+        const res: string[] = [];
+        for (let i = 0; i < this._entries.length; i++) {
+            res.push(this._entries[i].value);
+        }
+        return res;
+    }
+
+    forEach(fn: (value: string, name: string, parent: URLSearchParams) => void, thisArg: unknown = null): void {
+        for (let i = 0; i < this._entries.length; i++) {
+            fn(this._entries[i].value, this._entries[i].name, this);
         }
     }
 
@@ -414,4 +456,129 @@ export class URL {
         }
         return false;
     }
+
+    static parse(input: string, base: string = ""): URL | null {
+        if (URL.canParse(input, base)) {
+            return new URL(input, base);
+        }
+        return null;
+    }
+
+    static createObjectURL(blob: string = ""): string {
+        return "blob:nodedata-" + blob;
+    }
+
+    static revokeObjectURL(id: string): void {
+        const dummy = id;
+    }
+}
+
+export class Url {
+    auth: string = "";
+    hash: string = "";
+    host: string = "";
+    hostname: string = "";
+    href: string = "";
+    path: string = "";
+    pathname: string = "";
+    port: string = "";
+    protocol: string = "";
+    query: string = "";
+    search: string = "";
+    slashes: boolean = false;
+}
+
+export function parse(urlString: string, parseQueryString: boolean = false, slashesDenoteHost: boolean = false): Url {
+    const u = new Url();
+    u.href = urlString;
+    const urlObj = new URL(urlString, "http://localhost");
+    u.protocol = urlObj.protocol;
+    u.hostname = urlObj.hostname;
+    u.port = urlObj.port;
+    u.host = urlObj.host;
+    u.pathname = urlObj.pathname;
+    u.search = urlObj.search;
+    u.hash = urlObj.hash;
+    u.path = urlObj.search.length > 0 ? urlObj.pathname + urlObj.search : urlObj.pathname;
+    u.auth = urlObj.username.length > 0 ? (urlObj.password.length > 0 ? urlObj.username + ":" + urlObj.password : urlObj.username) : "";
+    u.slashes = urlString.indexOf("//") >= 0;
+    u.query = u.search.indexOf("?") === 0 ? u.search.slice(1, u.search.length) : u.search;
+    return u;
+}
+
+export interface UrlObjectInput {
+    href?: string;
+    protocol?: string;
+    slashes?: boolean;
+    auth?: string;
+    host?: string;
+    hostname?: string;
+    port?: string | number;
+    pathname?: string;
+    path?: string;
+    search?: string;
+    hash?: string;
+}
+
+export function format(urlObject: URL): string {
+    return urlObject.toString();
+}
+
+export function resolve(from: string, to: string): string {
+    const u = new URL(to, from);
+    return u.href;
+}
+
+export function domainToASCII(domain: string): string {
+    return domain.toLowerCase();
+}
+
+export function domainToUnicode(domain: string): string {
+    return domain;
+}
+
+export function fileURLToPath(url: string): string {
+    let str = url;
+    if (str.indexOf("file://") === 0) {
+        str = str.slice(7, str.length);
+    }
+    return str;
+}
+
+export function fileURLToPathBuffer(url: string): string {
+    return fileURLToPath(url);
+}
+
+export function pathToFileURL(path: string): URL {
+    let p = path;
+    if (p.indexOf("/") !== 0) {
+        p = "/" + p;
+    }
+    return new URL("file://" + p);
+}
+
+export interface HttpOptionsResult {
+    protocol: string;
+    hostname: string;
+    hash: string;
+    search: string;
+    pathname: string;
+    path: string;
+    href: string;
+    port: number | null;
+    auth: string | null;
+}
+
+export function urlToHttpOptions(url: URL): HttpOptionsResult {
+    return {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        hash: url.hash,
+        search: url.search,
+        pathname: url.pathname,
+        path: url.pathname + url.search,
+        href: url.href,
+        port: url.port.length > 0 ? Number(url.port) : null,
+        auth: url.username.length > 0 ? (url.password.length > 0 ? url.username + ":" + url.password : url.username) : null
+    };
 }
