@@ -424,7 +424,7 @@ func executeHttpIntrinsic(instruction ir.Instruction, env map[string]Value) (Val
 			Timeout: 30 * time.Second,
 		}
 		resp, err := client.Do(req)
-		var statusCode float64 = 0
+		var statusCode float64
 		statusText := ""
 		var respHeaders []Value
 		respBodyStr := ""

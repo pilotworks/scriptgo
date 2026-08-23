@@ -276,18 +276,6 @@ func resolveCCWithLookup(cc string, lookPath func(string) (string, error)) ([]st
 	return parts, nil
 }
 
-func resolveClang() (string, error) {
-	return resolveClangWithLookup(exec.LookPath)
-}
-
-func resolveClangWithLookup(lookPath func(string) (string, error)) (string, error) {
-	clang, err := lookPath("clang")
-	if err != nil {
-		return "", fmt.Errorf("native backend llvm requires \"clang\" in PATH: %w", err)
-	}
-	return clang, nil
-}
-
 // Run executes the verified IR with the reference interpreter.
 func Run(entryPath string) (string, error) {
 	interpreter.ResetConsoleState()

@@ -140,21 +140,6 @@ func ensureDateShape(shapes map[string]ir.ObjectShape) {
 	}
 }
 
-func ensureErrorShape(shapes map[string]ir.ObjectShape, name string) {
-	if name == "" {
-		name = "Error"
-	}
-	if _, ok := shapes[name]; !ok {
-		shapes[name] = ir.ObjectShape{
-			Name: name,
-			Fields: []ir.Field{
-				{Name: "message", Type: ir.TypeString},
-				{Name: "name", Type: ir.TypeString},
-			},
-		}
-	}
-}
-
 func ensureTextEncoderEncodeIntoResultShape(shapes map[string]ir.ObjectShape) string {
 	shapeName := "TextEncoderEncodeIntoResult"
 	if _, ok := shapes[shapeName]; !ok {

@@ -461,12 +461,12 @@ func TestCompileRejectsTypeScriptSyntaxErrors(t *testing.T) {
 	}
 }
 
-func TestResolveClangReportsMissingToolchain(t *testing.T) {
+func TestResolveCCReportsMissingToolchain(t *testing.T) {
 	mockEmptyLookup := func(file string) (string, error) {
 		return "", fmt.Errorf("executable file not found in $PATH")
 	}
-	if _, err := resolveClangWithLookup(mockEmptyLookup); err == nil || !strings.Contains(err.Error(), "requires \"clang\" in PATH") {
-		t.Fatalf("resolveClang error = %v, want missing-toolchain diagnostic", err)
+	if _, err := resolveCCWithLookup("", mockEmptyLookup); err == nil || !strings.Contains(err.Error(), "requires \"clang\" or \"zig\" in PATH") {
+		t.Fatalf("resolveCC error = %v, want missing-toolchain diagnostic", err)
 	}
 }
 

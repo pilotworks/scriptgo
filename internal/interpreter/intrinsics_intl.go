@@ -220,7 +220,7 @@ func execIntlIntrinsic(callee string, args []Value) (Value, error) {
 				res += "s"
 			}
 		} else {
-			res = fmt.Sprintf("now")
+			res = "now"
 		}
 		return Value{Type: ir.TypeString, String: res}, nil
 
@@ -255,7 +255,8 @@ func canonicalizeLocale(loc string) string {
 		} else if len(p) == 2 {
 			parts[i] = strings.ToUpper(p)
 		} else if len(p) == 4 {
-			parts[i] = strings.Title(strings.ToLower(p))
+			lower := strings.ToLower(p)
+			parts[i] = strings.ToUpper(lower[:1]) + lower[1:]
 		}
 	}
 	return strings.Join(parts, "-")
@@ -264,7 +265,7 @@ func canonicalizeLocale(loc string) string {
 func formatNumberLocale(n float64, style, currency string) string {
 	intPart := int64(n)
 	frac := n - float64(intPart)
-	
+
 	s := strconv.FormatInt(intPart, 10)
 	var formatted strings.Builder
 	l := len(s)

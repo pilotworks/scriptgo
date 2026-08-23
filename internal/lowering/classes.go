@@ -2,7 +2,6 @@ package lowering
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -278,80 +277,4 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 		curr = meta.Extends
 	}
 	return ":" + strings.Join(chain, ":") + ":"
-}
-
-func isSubclassOf(derived, base string, hierarchy map[string]ClassMeta) bool {
-	if derived == base {
-		return true
-	}
-	curr := derived
-	for {
-		meta, ok := hierarchy[curr]
-		if !ok || meta.Extends == "" {
-			break
-		}
-		if meta.Extends == base {
-			return true
-		}
-		curr = meta.Extends
-	}
-	return false
-}
-
-func classDepth(className string, hierarchy map[string]ClassMeta) int {
-	depth := 0
-	curr := className
-	for {
-		meta, ok := hierarchy[curr]
-		if !ok || meta.Extends == "" {
-			break
-		}
-		depth++
-		curr = meta.Extends
-	}
-	return depth
-}
-
-func isAbstractMethodInHierarchy(className, methodName string) bool {
-	curr := className
-	for curr != "" {
-		cleanCurr := curr
-		if idx := strings.Index(curr, "<"); idx != -1 {
-			cleanCurr = curr[:idx]
-		}
-		if stmtClass, ok := classSyntax[cleanCurr]; ok {
-			for _, m := range stmtClass.Methods {
-				if m.Name == methodName && !m.IsStatic {
-					return m.IsAbstract
-				}
-			}
-		}
-		if meta, ok := classHierarchy[cleanCurr]; ok {
-			curr = meta.Extends
-		} else {
-			break
-		}
-	}
-	return false
-}
-
-func findOverridingSubclasses(baseClass, methodName string, hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []string {
-	var result []string
-	for name := range hierarchy {
-		if name != baseClass && isSubclassOf(name, baseClass, hierarchy) {
-			mangled := name + "_" + methodName
-			if _, ok := signatures[mangled]; ok && !isAbstractMethodInHierarchy(name, methodName) {
-				result = append(result, name)
-			}
-		}
-	}
-	sort.Slice(result, func(i, j int) bool {
-		dI := classDepth(result[i], hierarchy)
-		dJ := classDepth(result[j], hierarchy)
-		if dI != dJ {
-			return dI < dJ
-		}
-		return result[i] < result[j]
-	})
-	return result
 }

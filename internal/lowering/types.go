@@ -346,9 +346,7 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 			trimmed = strings.TrimSpace(trimmed[idx+1:])
 		}
 		trimmed = strings.TrimPrefix(trimmed, "...")
-		if strings.HasSuffix(trimmed, "[]") {
-			trimmed = strings.TrimSuffix(trimmed, "[]")
-		}
+		trimmed = strings.TrimSuffix(trimmed, "[]")
 		trimmed = strings.TrimSuffix(trimmed, "?")
 		elemType := toIRType(trimmed)
 		fields = append(fields, ir.Field{
@@ -421,15 +419,6 @@ type DiagnosticError struct {
 
 func (e *DiagnosticError) Error() string {
 	return e.Err.Error()
-}
-
-func isBigIntTypedArray(t ir.Type) bool {
-	switch t {
-	case ir.TypeBigInt64Array, ir.TypeBigUint64Array:
-		return true
-	default:
-		return false
-	}
 }
 
 func isNumberTypedArray(t ir.Type) bool {

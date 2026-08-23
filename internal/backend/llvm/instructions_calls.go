@@ -89,7 +89,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if instruction.Callee == "__array.isArray" {
-		argType, _ := e.types[instruction.Args[0]]
+		argType := e.types[instruction.Args[0]]
 		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray
 		resSlot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", resSlot))
@@ -107,7 +107,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if instruction.Callee == "__array.from" {
-		argType, _ := e.types[instruction.Args[0]]
+		argType := e.types[instruction.Args[0]]
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

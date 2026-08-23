@@ -400,7 +400,7 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			typeStr := "object"
+			var typeStr string
 			actualType := val.Type
 			if val.Type == ir.TypeUnknown && val.Boxed != nil {
 				actualType = val.Boxed.Type

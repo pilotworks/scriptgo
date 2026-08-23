@@ -708,7 +708,6 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				boolTemp := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, nullConst}, Span: toIRSpan(path, expression.Span)})
 				condition = boolTemp
-				conditionType = ir.TypeBool
 			} else {
 				return "", "", fmt.Errorf("conditional expression requires a bool condition")
 			}
@@ -723,7 +722,6 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		if trueType != falseType {
 			if expression.WhenFalse != nil && (expression.WhenFalse.Kind == "null" || expression.WhenFalse.Kind == "undefined") {
-				falseType = trueType
 				whenFalse = nextTemp(counter)
 				zeroVal := "0"
 				if trueType == ir.TypeString {

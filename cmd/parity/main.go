@@ -615,14 +615,6 @@ func progressBar(passed, total int) string {
 	return "[" + strings.Repeat("=", filled) + strings.Repeat(" ", empty) + "]"
 }
 
-func truncateString(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
-
 func cleanTraceOutput(s string) string {
 	lines := strings.Split(s, "\n")
 	var out []string

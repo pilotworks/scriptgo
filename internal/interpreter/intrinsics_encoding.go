@@ -65,8 +65,7 @@ func executeTextEncodingIntrinsic(instruction ir.Instruction, env map[string]Val
 		readCodeUnits := 0
 		writtenBytes := 0
 
-		r := []rune(sourceStr)
-		for _, ru := range r {
+		for _, ru := range sourceStr {
 			var buf [4]byte
 			n := utf8.EncodeRune(buf[:], ru)
 

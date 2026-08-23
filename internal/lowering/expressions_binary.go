@@ -41,7 +41,6 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 					Span:   toIRSpan(path, expression.Span),
 				})
 				rightVal = castTemp
-				rightTyp = leftTyp
 			} else {
 				return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
 			}

@@ -545,9 +545,7 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 		if err != nil {
 			return err
 		}
-		for _, stmt := range defStmts {
-			switchBranch.Body = append(switchBranch.Body, stmt)
-		}
+		switchBranch.Body = append(switchBranch.Body, defStmts...)
 	}
 
 	switchBranch.Body = append(switchBranch.Body, ir.Instruction{

@@ -477,7 +477,7 @@ func binaryOperator(kind string) string {
 		"QuestionQuestionToken":                        "??",
 		"InstanceOfKeyword":                            "instanceof",
 		"InKeyword":                                    "in",
-		"CommaToken":                                    ",",
+		"CommaToken":                                   ",",
 	}
 	if operator, ok := operators[kind]; ok {
 		return operator

@@ -41,7 +41,7 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if len(instruction.Args) != 2 {
 		return fmt.Errorf("index instruction requires array and index operands")
 	}
-	arrayType, _ := e.types[instruction.Args[0]]
+	arrayType := e.types[instruction.Args[0]]
 	if arrayType == ir.TypeBigInt64Array || arrayType == ir.TypeBigUint64Array {
 		e.types[instruction.Result] = ir.TypeBigInt
 		slot := instruction.Result + ".slot"
