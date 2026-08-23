@@ -287,35 +287,39 @@ func main() {
 			nodeOut, nodeErr := runWithNode(entry, *runnerType)
 			res.NodeOutput = nodeOut
 
-			// Run ScriptGo Interpreter
-			sgOut, sgErr := compiler.Run(entry)
-			res.ScriptGoOutput = sgOut
-			if sgErr != nil {
-				res.ErrorMessage = sgErr.Error()
-			}
-
-			// Check Interpreter Parity
 			cleanNodeOut := cleanTraceOutput(nodeOut)
-			cleanSgOut := cleanTraceOutput(sgOut)
 			cleanExpected := cleanTraceOutput(expectedTarget)
-
-			interpMatchesTarget := (sgErr == nil && (sgOut == runExpected || strings.TrimSpace(sgOut) == strings.TrimSpace(runExpected) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanExpected)))
 			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
-			interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
 
-			if interpMatchesTarget {
-				res.InterpreterParity = StatusPass
-				interpPassedCount++
-				if !nodeMatchesTarget && !interpMatchesNode {
-					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches run.expected, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
+			if hasRunExpected {
+				// Run ScriptGo Interpreter
+				sgOut, sgErr := compiler.Run(entry)
+				res.ScriptGoOutput = sgOut
+				if sgErr != nil {
+					res.ErrorMessage = sgErr.Error()
+				}
+
+				// Check Interpreter Parity
+				cleanSgOut := cleanTraceOutput(sgOut)
+				interpMatchesTarget := (sgErr == nil && (sgOut == runExpected || strings.TrimSpace(sgOut) == strings.TrimSpace(runExpected) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanExpected)))
+				interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
+
+				if interpMatchesTarget {
+					res.InterpreterParity = StatusPass
+					interpPassedCount++
+					if !nodeMatchesTarget && !interpMatchesNode {
+						res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches run.expected, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
+					}
+				} else {
+					res.InterpreterParity = StatusFail
+					if sgErr != nil {
+						res.DiscrepancyDetails = fmt.Sprintf("ScriptGo interpreter error: %v", sgErr)
+					} else {
+						res.DiscrepancyDetails = fmt.Sprintf("Output mismatch: want %q, got ScriptGo %q, Node %q", expectedTarget, sgOut, nodeOut)
+					}
 				}
 			} else {
-				res.InterpreterParity = StatusFail
-				if sgErr != nil {
-					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo interpreter error: %v", sgErr)
-				} else {
-					res.DiscrepancyDetails = fmt.Sprintf("Output mismatch: want %q, got ScriptGo %q, Node %q", expectedTarget, sgOut, nodeOut)
-				}
+				res.InterpreterParity = StatusSkip
 			}
 
 			// Check Native Parity
@@ -323,7 +327,16 @@ func main() {
 				tmpDir, err := os.MkdirTemp("", "scriptgo-parity-")
 				if err == nil {
 					binPath := filepath.Join(tmpDir, "main")
-					if err := compiler.Build(entry, binPath); err == nil {
+					var buildOpts compiler.BuildOptions
+					if !isStandalone {
+						entries, _ := os.ReadDir(caseDir)
+						for _, e := range entries {
+							if strings.HasSuffix(e.Name(), ".ffi.json") || strings.HasSuffix(e.Name(), ".manifest") || strings.HasSuffix(e.Name(), "manifest.json") || e.Name() == "ffi.json" {
+								buildOpts.FFIManifests = append(buildOpts.FFIManifests, filepath.Join(caseDir, e.Name()))
+							}
+						}
+					}
+					if err := compiler.BuildWithOptions(entry, binPath, buildOpts); err == nil {
 						cmd := exec.Command(binPath)
 						var stdout bytes.Buffer
 						cmd.Stdout = &stdout
@@ -357,8 +370,9 @@ func main() {
 			}
 
 			// Overall Match
-			nativeOK := (res.NativeParity == StatusPass || res.NativeParity == StatusSkip || (!hasNativeExpected && !*strictNative))
-			if res.InterpreterParity == StatusPass && nativeOK {
+			interpOK := (res.InterpreterParity == StatusPass || (!hasRunExpected && hasNativeExpected))
+			nativeOK := (res.NativeParity == StatusPass || (res.NativeParity == StatusSkip && !hasNativeExpected && !*strictNative))
+			if interpOK && nativeOK && (res.InterpreterParity == StatusPass || res.NativeParity == StatusPass) {
 				res.OverallMatch = true
 				fullParityCount++
 			}

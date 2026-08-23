@@ -290,6 +290,7 @@ func resolveClangWithLookup(lookPath func(string) (string, error)) (string, erro
 
 // Run executes the verified IR with the reference interpreter.
 func Run(entryPath string) (string, error) {
+	interpreter.ResetConsoleState()
 	module, err := CompileModule(entryPath)
 	if err != nil {
 		return "", err
