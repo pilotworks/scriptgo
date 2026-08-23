@@ -76,8 +76,12 @@ int scriptgo_object_number_set(void *handle, int64_t index, double value) {
 }
 
 int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
-    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+    if (out_value == NULL) {
         return object_fail("scriptgo object field access failed");
+    }
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        *out_value = 0.0;
+        return 0;
     }
     memcpy(out_value, &((scriptgo_object *)handle)->fields[index], sizeof(*out_value));
     return 0;
@@ -92,8 +96,12 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
 }
 
 int scriptgo_object_string_get(void *handle, int64_t index, const char **out_value) {
-    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+    if (out_value == NULL) {
         return object_fail("scriptgo object field access failed");
+    }
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        *out_value = "";
+        return 0;
     }
     *out_value = (const char *)((scriptgo_object *)handle)->fields[index];
     return 0;
@@ -108,8 +116,12 @@ int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
 }
 
 int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
-    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+    if (out_value == NULL) {
         return object_fail("scriptgo object field access failed");
+    }
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        *out_value = 0;
+        return 0;
     }
     *out_value = (int32_t)((scriptgo_object *)handle)->fields[index];
     return 0;
@@ -124,8 +136,12 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
 }
 
 int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
-    if (handle == NULL || out_value == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+    if (out_value == NULL) {
         return object_fail("scriptgo object field access failed");
+    }
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        *out_value = NULL;
+        return 0;
     }
     *out_value = (void *)((scriptgo_object *)handle)->fields[index];
     return 0;

@@ -228,7 +228,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_search(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_split(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
-	out.WriteString("declare i32 @strcmp(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_string_compare(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_regex_test(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_regex_exec(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_number(double, ptr)\n")

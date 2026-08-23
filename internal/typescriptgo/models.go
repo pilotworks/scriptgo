@@ -90,6 +90,7 @@ type SyntaxSwitchCase struct {
 type SyntaxEnum struct {
 	Span    SourceSpan
 	Name    string
+	IsConst bool
 	Members []SyntaxEnumMember
 }
 

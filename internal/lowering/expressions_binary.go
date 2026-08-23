@@ -31,7 +31,20 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: rightVal, Value: nullVal, Span: toIRSpan(path, expression.Right.Span)})
 		}
 		if leftTyp != rightTyp {
-			return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
+			if strings.HasPrefix(string(leftTyp), "object:") && strings.HasPrefix(string(rightTyp), "object:") {
+				castTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   leftTyp,
+					Result: castTemp,
+					Args:   []string{rightVal},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				rightVal = castTemp
+				rightTyp = leftTyp
+			} else {
+				return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
+			}
 		}
 		nullConst := nextTemp(counter)
 		nullVal := "null"
@@ -89,6 +102,47 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 	}
 	if expression.Operator == "in" {
 		return lowerInExpression(path, expression, result, function, env, counter, shapes, signatures)
+	}
+	if expression.Operator == "," {
+		_, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
+	}
+	if expression.Operator == "=" {
+		if expression.Left != nil && expression.Left.Kind == "identifier" {
+			varName := expression.Left.Text
+			varType, ok := env[varName]
+			if !ok {
+				return "", "", fmt.Errorf("assignment to unknown variable %q", varName)
+			}
+			val, valType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if valType != varType && varType != ir.TypeUnknown {
+				return "", "", fmt.Errorf("assignment type mismatch for %q: %s := %s", varName, varType, valType)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   varType,
+				Result: varName,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			if result != "" {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpAssign,
+					Type:   varType,
+					Result: result,
+					Args:   []string{val},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, varType, nil
+			}
+			return val, varType, nil
+		}
 	}
 	left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 	if err != nil {

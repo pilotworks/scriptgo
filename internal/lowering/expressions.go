@@ -359,6 +359,26 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 							Span:       toIRSpan(path, expression.Span),
 						})
 						return result, field.Type, nil
+					} else if fieldIdx >= len(shape.Fields) && len(shape.Fields) > 0 {
+						lastField := shape.Fields[len(shape.Fields)-1]
+						elemType := lastField.Type
+						if strings.HasSuffix(string(elemType), "[]") {
+							elemType = toIRType(strings.TrimSuffix(string(elemType), "[]"))
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:         ir.OpFieldGet,
+							Type:       elemType,
+							Result:     result,
+							Callee:     shapeName,
+							Field:      strconv.Itoa(fieldIdx),
+							FieldIndex: fieldIdx,
+							Args:       []string{array},
+							Span:       toIRSpan(path, expression.Span),
+						})
+						return result, elemType, nil
 					}
 				}
 				if expression.Right != nil && expression.Right.Kind == "string" {

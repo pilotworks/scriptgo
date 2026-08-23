@@ -382,6 +382,22 @@ func binary(operator string, left, right Value) (Value, error) {
 }
 
 func compare(operator string, left, right Value) (Value, error) {
+	if left.String == "undefined" && right.String == "undefined" {
+		switch operator {
+		case "==", "===":
+			return Value{Type: ir.TypeBool, Bool: true}, nil
+		case "!=", "!==":
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+	}
+	if left.String == "null" && right.String == "null" {
+		switch operator {
+		case "==", "===":
+			return Value{Type: ir.TypeBool, Bool: true}, nil
+		case "!=", "!==":
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+	}
 	if left.Type != right.Type {
 		if (strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr") && (strings.HasPrefix(string(right.Type), "object:") || right.Type == "ptr") {
 			leftNull := len(left.Object) == 0 && left.Boxed == nil && len(left.GetArray()) == 0
@@ -392,6 +408,18 @@ func compare(operator string, left, right Value) (Value, error) {
 			case "!=", "!==":
 				return Value{Type: ir.TypeBool, Bool: leftNull != rightNull}, nil
 			}
+		}
+		if operator == "===" {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		if operator == "!==" {
+			return Value{Type: ir.TypeBool, Bool: true}, nil
+		}
+		if operator == "==" {
+			return Value{Type: ir.TypeBool, Bool: false}, nil
+		}
+		if operator == "!=" {
+			return Value{Type: ir.TypeBool, Bool: true}, nil
 		}
 		return Value{}, fmt.Errorf("compare operands have types %s and %s", left.Type, right.Type)
 	}

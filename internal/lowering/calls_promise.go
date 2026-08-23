@@ -19,6 +19,39 @@ func lowerPromiseStaticCall(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
+	if callee == "Promise.resolve" || callee == "Promise.reject" {
+		var argVal string
+		var argType ir.Type = ir.TypeVoid
+		if len(expression.Arguments) > 0 {
+			v, t, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			argVal = v
+			argType = t
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		promType := ir.Type("object:Promise<" + string(argType) + ">")
+		calleeName := "__async.promise_resolve"
+		if callee == "Promise.reject" {
+			calleeName = "__async.promise_reject"
+		}
+		args := []string{}
+		if argVal != "" {
+			args = append(args, argVal)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   promType,
+			Result: result,
+			Callee: calleeName,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, promType, true, nil
+	}
 	if callee == "Promise.all" && len(expression.Arguments) > 0 {
 		arrExpr := expression.Arguments[0]
 		if arrExpr.Kind == "array" {

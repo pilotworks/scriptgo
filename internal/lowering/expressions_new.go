@@ -10,6 +10,9 @@ import (
 
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	className := callName(expression.Left)
+	if res, typ, handled, err := lowerIntlNew(path, expression, className, result, function, env, counter, shapes, signatures); handled {
+		return res, typ, err
+	}
 	if className == "RegExp" {
 		ensureRegExpShape(shapes)
 	}

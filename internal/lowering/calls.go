@@ -31,6 +31,9 @@ func lowerCallExpression(
 			if res, typ, handled, err := lowerDateReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
+			if res, typ, handled, err := lowerIntlReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+				return res, typ, err
+			}
 			if receiverType == ir.TypeBigInt && methodName == "toString" {
 				if result == "" {
 					result = nextTemp(counter)
@@ -515,6 +518,29 @@ func lowerCallExpression(
 
 	if res, typ, handled, err := lowerPromiseStaticCall(path, callee, expression, result, function, env, counter, shapes, signatures); handled {
 		return res, typ, err
+	}
+
+	if callee == "Intl.getCanonicalLocales" {
+		args := make([]string, 0, len(expression.Arguments))
+		for _, argument := range expression.Arguments {
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, value)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeStringArray,
+			Result: result,
+			Callee: "__intl.get_canonical_locales",
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeStringArray, nil
 	}
 
 	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || strings.HasPrefix(string(calleeType), "object:") || strings.Contains(string(calleeType), "=>")) {

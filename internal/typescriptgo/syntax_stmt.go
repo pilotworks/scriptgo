@@ -200,65 +200,17 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 					if varType == "" {
 						varType = varInferredType
 					}
-				} else if nameNode.Kind == ast.KindObjectBindingPattern {
-					tempItemVar := fmt.Sprintf("__forof_obj_%d", nameNode.Pos())
+				} else if nameNode.Kind == ast.KindObjectBindingPattern || nameNode.Kind == ast.KindArrayBindingPattern {
+					tempItemVar := fmt.Sprintf("__forof_destruct_%d", nameNode.Pos())
 					varName = tempItemVar
 					varInferredType = resolveInferredType(chk, nameNode)
 					varType = varInferredType
-					pattern := nameNode.AsBindingPattern()
-					for _, elem := range pattern.Elements.Nodes {
-						binding := elem.AsBindingElement()
-						propName := binding.Name().Text()
-						vName := binding.Name().Text()
-						if binding.PropertyName != nil {
-							propName = binding.PropertyName.Text()
-						}
-						propExpr := &SyntaxExpression{
-							Span:         sourceSpan(elem),
-							Kind:         "property",
-							Text:         propName,
-							InferredType: resolveInferredType(chk, elem),
-							Left: &SyntaxExpression{
-								Span: sourceSpan(elem),
-								Kind: "identifier",
-								Text: tempItemVar,
-							},
-						}
-						bindingStmts = append(bindingStmts, SyntaxStatement{
-							Span:         sourceSpan(elem),
-							Kind:         "variable",
-							Name:         vName,
-							InferredType: resolveInferredType(chk, elem),
-							Expression:   propExpr,
-						})
-					}
-				} else if nameNode.Kind == ast.KindArrayBindingPattern {
-					tempItemVar := fmt.Sprintf("__forof_arr_%d", nameNode.Pos())
-					varName = tempItemVar
-					varInferredType = resolveInferredType(chk, nameNode)
-					varType = varInferredType
-					pattern := nameNode.AsBindingPattern()
-					for idx, elem := range pattern.Elements.Nodes {
-						if elem.Kind == ast.KindOmittedExpression {
-							continue
-						}
-						binding := elem.AsBindingElement()
-						vName := binding.Name().Text()
-						indexExpr := &SyntaxExpression{
-							Span:         sourceSpan(elem),
-							Kind:         "index",
-							InferredType: resolveInferredType(chk, elem),
-							Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: tempItemVar},
-							Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-						}
-						bindingStmts = append(bindingStmts, SyntaxStatement{
-							Span:         sourceSpan(elem),
-							Kind:         "variable",
-							Name:         vName,
-							InferredType: resolveInferredType(chk, elem),
-							Expression:   indexExpr,
-						})
-					}
+					c := 0
+					bindingStmts = flattenDestructuring(nameNode, &SyntaxExpression{
+						Span: sourceSpan(nameNode),
+						Kind: "identifier",
+						Text: tempItemVar,
+					}, chk, &c)
 				}
 			}
 		}
@@ -414,8 +366,9 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	case ast.KindEnumDeclaration:
 		enumDecl := node.AsEnumDeclaration()
 		enumObj := &SyntaxEnum{
-			Span: span,
-			Name: node.Name().Text(),
+			Span:    span,
+			Name:    node.Name().Text(),
+			IsConst: ast.HasSyntacticModifier(node, ast.ModifierFlagsConst),
 		}
 		var currentNumericVal float64 = 0
 		if enumDecl.Members != nil {

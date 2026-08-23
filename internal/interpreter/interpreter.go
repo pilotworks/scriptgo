@@ -706,6 +706,21 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__intl.") {
+				args := make([]Value, 0, len(instruction.Args))
+				for _, name := range instruction.Args {
+					v, ok := env[name]
+					if ok {
+						args = append(args, v)
+					}
+				}
+				value, err := execIntlIntrinsic(instruction.Callee, args)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			callee, ok := functions[instruction.Callee]
 			if !ok {
 				return Value{}, false, flowNormal, fmt.Errorf("native FFI call %q requires native compilation (--native)", instruction.Callee)

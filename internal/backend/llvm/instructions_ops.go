@@ -187,7 +187,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 	}
 	if leftType == ir.TypeString {
 		cmpResult := instruction.Result + ".cmp"
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @strcmp(ptr %%%s, ptr %%%s)\n", cmpResult, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_compare(ptr %%%s, ptr %%%s)\n", cmpResult, instruction.Args[0], instruction.Args[1]))
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",

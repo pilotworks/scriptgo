@@ -142,6 +142,17 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
 				}
 			}
+			if fields, ok := anonymousObjectFields(statement.Type); ok {
+				shapeName := anonymousShapeName(fields)
+				if _, exists := shapes[shapeName]; !exists {
+					shape := ir.ObjectShape{Name: shapeName, Fields: fields}
+					shapes[shapeName] = shape
+					module.Shapes = append(module.Shapes, shape)
+				}
+				if statement.Name != "" {
+					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
+				}
+			}
 		}
 	}
 
@@ -333,6 +344,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			if err := lowerStatement(file.FileName, statement, &main, env, &counter, shapes, signatures); err != nil {
 				return ir.Module{}, fmt.Errorf("lower %s: %w", statement.Kind, sourceError(file.FileName, statement.Span, err))
 			}
+		}
+	}
+	for name, s := range anonymousShapes {
+		if _, exists := shapes[name]; !exists {
+			shapes[name] = s
 		}
 	}
 	module.Shapes = nil

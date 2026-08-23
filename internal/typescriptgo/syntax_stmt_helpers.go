@@ -1,7 +1,6 @@
 package typescriptgo
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,107 +10,13 @@ import (
 
 func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker, isUsing, isAwaitUsing bool) (SyntaxStatement, bool) {
 	var stmts []SyntaxStatement
+	destructCounter := 0
 	for _, declaration := range decls {
 		nameNode := declaration.Name()
 		initExpr := syntaxExpression(declaration.Initializer(), chk)
-		if nameNode.AsNode().Kind == ast.KindObjectBindingPattern {
-			pattern := nameNode.AsNode().AsBindingPattern()
-			objVar := fmt.Sprintf("__destruct_obj_%d", nameNode.AsNode().Pos())
-			if initExpr != nil && initExpr.Kind == "identifier" {
-				objVar = initExpr.Text
-			} else {
-				stmts = append(stmts, SyntaxStatement{
-					Span:       sourceSpan(nameNode.AsNode()),
-					Kind:       "variable",
-					Name:       objVar,
-					Expression: initExpr,
-				})
-			}
-			for _, elem := range pattern.Elements.Nodes {
-				binding := elem.AsBindingElement()
-				propName := binding.Name().Text()
-				varName := binding.Name().Text()
-				if binding.PropertyName != nil {
-					propName = binding.PropertyName.Text()
-				}
-				propExpr := &SyntaxExpression{
-					Span:         sourceSpan(elem),
-					Kind:         "property",
-					Text:         propName,
-					InferredType: resolveInferredType(chk, elem),
-					Left: &SyntaxExpression{
-						Span: sourceSpan(elem),
-						Kind: "identifier",
-						Text: objVar,
-					},
-				}
-				stmts = append(stmts, SyntaxStatement{
-					Span:         sourceSpan(elem),
-					Kind:         "variable",
-					Name:         varName,
-					InferredType: resolveInferredType(chk, elem),
-					Expression:   propExpr,
-				})
-			}
-		} else if nameNode.AsNode().Kind == ast.KindArrayBindingPattern {
-			pattern := nameNode.AsNode().AsBindingPattern()
-			arrVar := fmt.Sprintf("__destruct_arr_%d", nameNode.AsNode().Pos())
-			if initExpr != nil && initExpr.Kind == "identifier" {
-				arrVar = initExpr.Text
-			} else {
-				stmts = append(stmts, SyntaxStatement{
-					Span:       sourceSpan(nameNode.AsNode()),
-					Kind:       "variable",
-					Name:       arrVar,
-					Expression: initExpr,
-				})
-			}
-			for idx, elem := range pattern.Elements.Nodes {
-				if elem.Kind == ast.KindOmittedExpression {
-					continue
-				}
-				binding := elem.AsBindingElement()
-				varName := binding.Name().Text()
-				if binding.DotDotDotToken != nil {
-					sliceExpr := &SyntaxExpression{
-						Span:         sourceSpan(elem),
-						Kind:         "call",
-						InferredType: resolveInferredType(chk, elem),
-						Left: &SyntaxExpression{
-							Span: sourceSpan(elem),
-							Kind: "property",
-							Text: "slice",
-							Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
-						},
-						Arguments: []*SyntaxExpression{
-							{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-							{Span: sourceSpan(elem), Kind: "property", Text: "length", Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar}, InferredType: "number"},
-						},
-					}
-					stmts = append(stmts, SyntaxStatement{
-						Span:         sourceSpan(elem),
-						Kind:         "variable",
-						Name:         varName,
-						InferredType: resolveInferredType(chk, elem),
-						Expression:   sliceExpr,
-					})
-				} else {
-					idxExpr := &SyntaxExpression{
-						Span:         sourceSpan(elem),
-						Kind:         "index",
-						InferredType: resolveInferredType(chk, elem),
-						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
-						Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-					}
-					stmts = append(stmts, SyntaxStatement{
-						Span:         sourceSpan(elem),
-						Kind:         "variable",
-						Name:         varName,
-						InferredType: resolveInferredType(chk, elem),
-						Expression:   idxExpr,
-					})
-				}
-			}
+		if nameNode.AsNode().Kind == ast.KindObjectBindingPattern || nameNode.AsNode().Kind == ast.KindArrayBindingPattern {
+			nested := flattenDestructuring(nameNode.AsNode(), initExpr, chk, &destructCounter)
+			stmts = append(stmts, nested...)
 		} else {
 			inferredVarType := resolveInferredType(chk, nameNode)
 			if inferredVarType == "" {

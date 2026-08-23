@@ -247,7 +247,16 @@ func toIRType(value string) ir.Type {
 		}
 		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
 			if fields, ok := tupleFields(value); ok {
-				return ir.Type("object:" + anonymousShapeName(fields))
+				name := anonymousShapeName(fields)
+				registerAnonymousShape(name, fields)
+				return ir.Type("object:" + name)
+			}
+		}
+		if strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}") {
+			if fields, ok := anonymousObjectFields(value); ok {
+				name := anonymousShapeName(fields)
+				registerAnonymousShape(name, fields)
+				return ir.Type("object:" + name)
 			}
 		}
 		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
@@ -255,6 +264,70 @@ func toIRType(value string) ir.Type {
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+var anonymousShapes = make(map[string]ir.ObjectShape)
+
+func registerAnonymousShape(name string, fields []ir.Field) {
+	if _, exists := anonymousShapes[name]; !exists {
+		anonymousShapes[name] = ir.ObjectShape{Name: name, Fields: fields}
+	}
+}
+
+func splitTopLevel(s string) []string {
+	var parts []string
+	var cur strings.Builder
+	depthBrace := 0
+	depthBracket := 0
+	depthAngle := 0
+	depthParen := 0
+
+	for _, r := range s {
+		switch r {
+		case '{':
+			depthBrace++
+			cur.WriteRune(r)
+		case '}':
+			depthBrace--
+			cur.WriteRune(r)
+		case '[':
+			depthBracket++
+			cur.WriteRune(r)
+		case ']':
+			depthBracket--
+			cur.WriteRune(r)
+		case '<':
+			depthAngle++
+			cur.WriteRune(r)
+		case '>':
+			depthAngle--
+			cur.WriteRune(r)
+		case '(':
+			depthParen++
+			cur.WriteRune(r)
+		case ')':
+			depthParen--
+			cur.WriteRune(r)
+		case ';', ',':
+			if depthBrace == 0 && depthBracket == 0 && depthAngle == 0 && depthParen == 0 {
+				if cur.Len() > 0 {
+					parts = append(parts, strings.TrimSpace(cur.String()))
+					cur.Reset()
+				}
+			} else {
+				cur.WriteRune(r)
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		trimmed := strings.TrimSpace(cur.String())
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
 }
 
 func tupleFields(typeStr string) ([]ir.Field, bool) {
@@ -265,18 +338,56 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 	if inner == "" {
 		return nil, false
 	}
-	parts := strings.Split(inner, ",")
+	parts := splitTopLevel(inner)
 	var fields []ir.Field
 	for i, part := range parts {
 		trimmed := strings.TrimSpace(part)
 		if idx := strings.Index(trimmed, ":"); idx != -1 {
 			trimmed = strings.TrimSpace(trimmed[idx+1:])
 		}
+		trimmed = strings.TrimPrefix(trimmed, "...")
+		if strings.HasSuffix(trimmed, "[]") {
+			trimmed = strings.TrimSuffix(trimmed, "[]")
+		}
+		trimmed = strings.TrimSuffix(trimmed, "?")
 		elemType := toIRType(trimmed)
 		fields = append(fields, ir.Field{
 			Name: strconv.Itoa(i),
 			Type: elemType,
 		})
+	}
+	return fields, true
+}
+
+func anonymousObjectFields(typeStr string) ([]ir.Field, bool) {
+	if !strings.HasPrefix(typeStr, "{") || !strings.HasSuffix(typeStr, "}") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(typeStr[1 : len(typeStr)-1])
+	if inner == "" {
+		return nil, false
+	}
+	parts := splitTopLevel(inner)
+	var fields []ir.Field
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		colonIdx := strings.Index(trimmed, ":")
+		if colonIdx == -1 {
+			continue
+		}
+		fName := strings.TrimSpace(trimmed[:colonIdx])
+		fName = strings.TrimSuffix(fName, "?")
+		fTypeStr := strings.TrimSpace(trimmed[colonIdx+1:])
+		fields = append(fields, ir.Field{
+			Name: fName,
+			Type: toIRType(fTypeStr),
+		})
+	}
+	if len(fields) == 0 {
+		return nil, false
 	}
 	return fields, true
 }

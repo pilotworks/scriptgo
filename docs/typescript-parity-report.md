@@ -40,14 +40,15 @@ All 225 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
 | `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism, supports checked casts (`as number`, `as string`) and `typeof` narrowing. |
 | `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
-| `Tuple` (e.g., `[string, number]`) | ✅ Full | Maps to fixed layout struct with type enforcement at each index. |
-| `Enum` (Numeric & String Enums) | ✅ Full | Supports numeric enums, string enums, and reverse mapping (`Enum[Enum.Value]`). |
+| `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`). |
+| `Enum & Const Enum` | ✅ Full | Supports numeric enums, string enums, reverse mapping, and `const enum` member inlining directly into machine constants. |
 | `Union types` (`T \| U`) | ✅ Full | Supports literal unions, homogeneous unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
-| `Generics` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, and type aliases. |
+| `Generics & Const Type Parameters` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, type aliases, and `<const T>` type parameters. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`), `DataView` with full binary access methods (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
 | `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
 | `Map<K, V> & Set<T>` | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and Node.js-compatible string formatting. |
+| `Intl (Internationalization)` | ✅ Full | Complete support for `Intl.NumberFormat`, `DateTimeFormat`, `Collator`, `Segmenter`, `DisplayNames`, `ListFormat`, `RelativeTimeFormat`, `PluralRules`, and `Intl.getCanonicalLocales`. |
 
 ---
 
@@ -65,7 +66,8 @@ All 225 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
 | `try` / `catch` / `finally` & `throw` | ✅ Full | Safe stack unwinding mechanism in interpreter and exception handling infrastructure (`Error`, `TypeError`, `RangeError`, `SyntaxError`). |
-| Destructuring (Array & Object) | ✅ Full | Array destructuring `[a, b] = arr`, object destructuring `{ x, y } = obj`, and `for..of` destructuring. |
+| Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks. |
+| Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |
 | Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
 | Tagged Template Expressions (`` tag`Hello ${name}` ``) | ✅ Full | Calls function/closure with `TemplateStringsArray` and interpolated argument list. |
@@ -108,8 +110,8 @@ All 225 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
-| `Promise` (Resolve, Reject, Chaining) | ✅ Full | Promise creation, `.then()`, `.catch()`. |
-| `async` / `await` | ✅ Full | State-machine infrastructure orchestrating asynchronous execution flow. |
+| `Promise` (Resolve, Reject, Chaining) | ✅ Full | Promise creation, `.then()`, `.catch()`, `Promise.all`, `Promise.resolve`, `Promise.reject`. |
+| `async` / `await` & Top-Level `await` | ✅ Full | Async functions, state-machine lowering, and top-level `await` directly in ES module entry points. |
 | Microtask Queue Execution | ✅ Full | Executes microtask jobs adhering to standard JS Event Loop priority. |
 | Async Generators (`async function*`, `yield*`) | ✅ Full | Async data-producing generator functions, `yield*` delegation for arrays / sub-generators, consumed via `for await (const x of gen())`. |
 

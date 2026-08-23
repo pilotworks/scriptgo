@@ -50,6 +50,11 @@ func resolveFunctionReturnType(chk *checker.Checker, node *ast.Node) string {
 
 func normalizeInferredType(typeStr string) string {
 	typeStr = strings.TrimSpace(typeStr)
+	typeStr = strings.ReplaceAll(typeStr, "\n", " ")
+	for strings.Contains(typeStr, "  ") {
+		typeStr = strings.ReplaceAll(typeStr, "  ", " ")
+	}
+	typeStr = strings.TrimSpace(typeStr)
 	switch typeStr {
 	case "boolean", "true", "false":
 		return "bool"
@@ -182,6 +187,20 @@ func syntaxType(node *ast.Node) string {
 			return name
 		}
 		return node.Kind.String()
+	case ast.KindTypeLiteral:
+		typeLit := node.AsTypeLiteralNode()
+		if typeLit != nil && typeLit.Members != nil {
+			var members []string
+			for _, m := range typeLit.Members.Nodes {
+				if m.Kind == ast.KindPropertySignature && m.Name() != nil {
+					name := m.Name().Text()
+					t := syntaxType(m.Type())
+					members = append(members, name+": "+t)
+				}
+			}
+			return "{" + strings.Join(members, "; ") + "}"
+		}
+		return "object"
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"
@@ -201,6 +220,18 @@ func syntaxType(node *ast.Node) string {
 			return syntaxType(named.Type)
 		}
 		return "any"
+	case ast.KindRestType:
+		restNode := node.AsRestTypeNode()
+		if restNode != nil && restNode.Type != nil {
+			return "..." + syntaxType(restNode.Type)
+		}
+		return "..."
+	case ast.KindOptionalType:
+		optNode := node.AsOptionalTypeNode()
+		if optNode != nil && optNode.Type != nil {
+			return syntaxType(optNode.Type) + "?"
+		}
+		return "any?"
 	case ast.KindTypeOperator:
 		op := node.AsTypeOperatorNode()
 		if op != nil && op.Type != nil {

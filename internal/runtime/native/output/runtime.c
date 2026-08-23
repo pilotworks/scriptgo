@@ -47,7 +47,8 @@ static int scriptgo_console_number(FILE *stream, double value) {
 
 static int scriptgo_console_string(FILE *stream, const char *value) {
     scriptgo_console_print_indent(stream);
-    if (value == NULL || fputs(value, stream) == EOF || fputc('\n', stream) == EOF) return scriptgo_runtime_set_error("scriptgo string output failed");
+    if (value == NULL) value = "undefined";
+    if (fputs(value, stream) == EOF || fputc('\n', stream) == EOF) return scriptgo_runtime_set_error("scriptgo string output failed");
     fflush(stream);
     return 0;
 }

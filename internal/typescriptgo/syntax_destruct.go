@@ -1,0 +1,216 @@
+package typescriptgo
+
+import (
+	"fmt"
+
+	"github.com/microsoft/TypeScript/tsc/internal/ast"
+	"github.com/microsoft/TypeScript/tsc/internal/checker"
+)
+
+// flattenDestructuring recursively flattens ObjectBindingPattern and ArrayBindingPattern
+// into a sequential list of SSA-ready variable declarations.
+func flattenDestructuring(nameNode *ast.Node, initExpr *SyntaxExpression, chk *checker.Checker, counter *int) []SyntaxStatement {
+	if nameNode == nil {
+		return nil
+	}
+
+	switch nameNode.Kind {
+	case ast.KindObjectBindingPattern:
+		return flattenObjectBinding(nameNode, initExpr, chk, counter)
+	case ast.KindArrayBindingPattern:
+		return flattenArrayBinding(nameNode, initExpr, chk, counter)
+	default:
+		inferredVarType := resolveInferredType(chk, nameNode)
+		varType := inferredVarType
+		return []SyntaxStatement{{
+			Span:         sourceSpan(nameNode),
+			Kind:         "variable",
+			Name:         nameNode.Text(),
+			Type:         varType,
+			InferredType: inferredVarType,
+			Expression:   initExpr,
+		}}
+	}
+}
+
+func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *checker.Checker, counter *int) []SyntaxStatement {
+	var stmts []SyntaxStatement
+	pattern := nameNode.AsBindingPattern()
+	if pattern == nil || pattern.Elements == nil {
+		return nil
+	}
+
+	*counter++
+	objVar := fmt.Sprintf("__destruct_obj_%d_%d", nameNode.Pos(), *counter)
+	if initExpr != nil && initExpr.Kind == "identifier" {
+		objVar = initExpr.Text
+	} else {
+		stmts = append(stmts, SyntaxStatement{
+			Span:       sourceSpan(nameNode),
+			Kind:       "variable",
+			Name:       objVar,
+			Expression: initExpr,
+		})
+	}
+
+	for _, elem := range pattern.Elements.Nodes {
+		if elem == nil || elem.Kind == ast.KindOmittedExpression {
+			continue
+		}
+		binding := elem.AsBindingElement()
+		if binding == nil {
+			continue
+		}
+
+		propName := ""
+		if binding.PropertyName != nil {
+			propName = binding.PropertyName.Text()
+		} else if binding.Name() != nil {
+			propName = binding.Name().Text()
+		}
+
+		var propExpr *SyntaxExpression
+		if binding.DotDotDotToken != nil {
+			// Rest in object: unsupported or copy remaining fields
+			propExpr = &SyntaxExpression{
+				Span: sourceSpan(elem),
+				Kind: "identifier",
+				Text: objVar,
+			}
+		} else {
+			propExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "property",
+				Text:         propName,
+				InferredType: resolveInferredType(chk, elem),
+				Left: &SyntaxExpression{
+					Span: sourceSpan(elem),
+					Kind: "identifier",
+					Text: objVar,
+				},
+			}
+		}
+
+		if binding.Initializer != nil {
+			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			propExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "binary",
+				Operator:     "??",
+				Left:         propExpr,
+				Right:        defaultExpr,
+				InferredType: propExpr.InferredType,
+			}
+		}
+
+		targetNode := binding.Name()
+		if targetNode != nil && (targetNode.Kind == ast.KindObjectBindingPattern || targetNode.Kind == ast.KindArrayBindingPattern) {
+			nestedStmts := flattenDestructuring(targetNode, propExpr, chk, counter)
+			stmts = append(stmts, nestedStmts...)
+		} else if targetNode != nil {
+			varName := targetNode.Text()
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" {
+				inferredType = resolveInferredType(chk, elem)
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         varName,
+				InferredType: inferredType,
+				Expression:   propExpr,
+			})
+		}
+	}
+	return stmts
+}
+
+func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *checker.Checker, counter *int) []SyntaxStatement {
+	var stmts []SyntaxStatement
+	pattern := nameNode.AsBindingPattern()
+	if pattern == nil || pattern.Elements == nil {
+		return nil
+	}
+
+	*counter++
+	arrVar := fmt.Sprintf("__destruct_arr_%d_%d", nameNode.Pos(), *counter)
+	if initExpr != nil && initExpr.Kind == "identifier" {
+		arrVar = initExpr.Text
+	} else {
+		stmts = append(stmts, SyntaxStatement{
+			Span:       sourceSpan(nameNode),
+			Kind:       "variable",
+			Name:       arrVar,
+			Expression: initExpr,
+		})
+	}
+
+	for idx, elem := range pattern.Elements.Nodes {
+		if elem == nil || elem.Kind == ast.KindOmittedExpression {
+			continue
+		}
+		binding := elem.AsBindingElement()
+		if binding == nil {
+			continue
+		}
+
+		var itemExpr *SyntaxExpression
+		if binding.DotDotDotToken != nil {
+			itemExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "call",
+				InferredType: resolveInferredType(chk, elem),
+				Left: &SyntaxExpression{
+					Span: sourceSpan(elem),
+					Kind: "property",
+					Text: "slice",
+					Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+				},
+				Arguments: []*SyntaxExpression{
+					{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+					{Span: sourceSpan(elem), Kind: "property", Text: "length", Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar}, InferredType: "number"},
+				},
+			}
+		} else {
+			itemExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "index",
+				InferredType: resolveInferredType(chk, elem),
+				Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+				Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+			}
+		}
+
+		if binding.Initializer != nil {
+			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			itemExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "binary",
+				Operator:     "??",
+				Left:         itemExpr,
+				Right:        defaultExpr,
+				InferredType: itemExpr.InferredType,
+			}
+		}
+
+		targetNode := binding.Name()
+		if targetNode != nil && (targetNode.Kind == ast.KindObjectBindingPattern || targetNode.Kind == ast.KindArrayBindingPattern) {
+			nestedStmts := flattenDestructuring(targetNode, itemExpr, chk, counter)
+			stmts = append(stmts, nestedStmts...)
+		} else if targetNode != nil {
+			varName := targetNode.Text()
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" {
+				inferredType = resolveInferredType(chk, elem)
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         varName,
+				InferredType: inferredType,
+				Expression:   itemExpr,
+			})
+		}
+	}
+	return stmts
+}

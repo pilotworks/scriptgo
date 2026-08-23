@@ -390,6 +390,17 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 
 	shape, ok := shapes[className]
 	if !ok {
+		if s, exists := anonymousShapes[className]; exists {
+			shape = s
+			shapes[className] = s
+			ok = true
+		} else if fields, ok2 := anonymousObjectFields(className); ok2 {
+			shape = ir.ObjectShape{Name: className, Fields: fields}
+			shapes[className] = shape
+			ok = true
+		}
+	}
+	if !ok {
 		if className == "Record" || objectType == ir.TypeObject {
 			propNameConst := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
