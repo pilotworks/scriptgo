@@ -80,3 +80,7 @@ console.log(fs.existsSync("tmp/test_unlink.txt"));
 // @expect: true
 fs.writeFileSync("tmp/test_write.txt", "hello writeFileSync");
 console.log(fs.existsSync("tmp/test_write.txt"));
+
+// Cleanup test directory
+fs.rmSync("tmp", { recursive: true, force: true });
+
