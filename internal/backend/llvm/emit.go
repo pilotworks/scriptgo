@@ -561,20 +561,21 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 	if len(function.Captured) > 0 {
 		fieldTypes := make([]string, len(function.Captured))
-		for i, c := range function.Captured {
-			fieldTypes[i] = llvmType(c.Type)
+		for i := range function.Captured {
+			fieldTypes[i] = "ptr"
 		}
 		structType := fmt.Sprintf("{ %s }", strings.Join(fieldTypes, ", "))
 		for i, c := range function.Captured {
-			slotName := c.Name + ".slot"
-			emitter.varSlots[c.Name] = slotName
-			emitter.types[c.Name] = c.Type
-			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(c.Type)))
 			fieldPtr := fmt.Sprintf("%s.field.%d", c.Name, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%__env_ctx, i32 0, i32 %d\n", fieldPtr, structType, i))
-			loadedVal := fmt.Sprintf("%s.val.%d", c.Name, i)
-			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadedVal, llvmType(c.Type), fieldPtr))
-			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(c.Type), loadedVal, slotName))
+			cellPtr := fmt.Sprintf("%s.cell.%d", c.Name, i)
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", cellPtr, fieldPtr))
+			emitter.varSlots[c.Name] = cellPtr
+			emitter.types[c.Name] = c.Type
+			if emitter.sharedEnvCells == nil {
+				emitter.sharedEnvCells = make(map[string]string)
+			}
+			emitter.sharedEnvCells[c.Name] = cellPtr
 		}
 	}
 

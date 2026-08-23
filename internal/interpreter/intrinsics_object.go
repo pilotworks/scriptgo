@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -69,7 +70,12 @@ func executeObjectIntrinsic(functions map[string]ir.Function, name string, argum
 		}
 		var keys []Value
 		if obj.Object != nil {
+			var sortedKeys []string
 			for k := range obj.Object {
+				sortedKeys = append(sortedKeys, k)
+			}
+			sort.Strings(sortedKeys)
+			for _, k := range sortedKeys {
 				keys = append(keys, Value{Type: ir.TypeString, String: k})
 			}
 		} else if obj.ArrayRef != nil || len(obj.Array) > 0 {
@@ -89,8 +95,13 @@ func executeObjectIntrinsic(functions map[string]ir.Function, name string, argum
 		}
 		var vals []Value
 		if obj.Object != nil {
-			for _, v := range obj.Object {
-				vals = append(vals, v)
+			var sortedKeys []string
+			for k := range obj.Object {
+				sortedKeys = append(sortedKeys, k)
+			}
+			sort.Strings(sortedKeys)
+			for _, k := range sortedKeys {
+				vals = append(vals, obj.Object[k])
 			}
 		} else if obj.ArrayRef != nil || len(obj.Array) > 0 {
 			vals = append(vals, obj.GetArray()...)
@@ -106,8 +117,13 @@ func executeObjectIntrinsic(functions map[string]ir.Function, name string, argum
 		}
 		var entries []Value
 		if obj.Object != nil {
-			for k, v := range obj.Object {
-				entries = append(entries, Value{Type: ir.TypeObject, Array: []Value{{Type: ir.TypeString, String: k}, v}})
+			var sortedKeys []string
+			for k := range obj.Object {
+				sortedKeys = append(sortedKeys, k)
+			}
+			sort.Strings(sortedKeys)
+			for _, k := range sortedKeys {
+				entries = append(entries, Value{Type: ir.TypeObject, Array: []Value{{Type: ir.TypeString, String: k}, obj.Object[k]}})
 			}
 		} else if obj.ArrayRef != nil || len(obj.Array) > 0 {
 			arr := obj.GetArray()

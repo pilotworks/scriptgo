@@ -338,3 +338,38 @@ function combine_functions_two_arguments_16(left: number, right: number): number
   return left + right;
 }
 console.log(combine_functions_two_arguments_16(19, 23));
+
+// --- Context Case: language_closures_mutating_shared_state ---
+// @expect: 10
+// @expect: 11
+// @expect: 16
+// @expect: 16
+// @expect: 100
+// @expect: 101
+// @expect: 16
+function createMutatingCounter(initial: number) {
+    let count = initial;
+    return {
+        inc: (): number => {
+            count = count + 1;
+            return count;
+        },
+        add: (amount: number): number => {
+            count = count + amount;
+            return count;
+        },
+        get: (): number => count
+    };
+}
+
+const counter1 = createMutatingCounter(10);
+console.log(counter1.get());
+console.log(counter1.inc());
+console.log(counter1.add(5));
+console.log(counter1.get());
+
+const counter2 = createMutatingCounter(100);
+console.log(counter2.get());
+console.log(counter2.inc());
+console.log(counter1.get());
+

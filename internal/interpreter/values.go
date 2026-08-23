@@ -12,6 +12,7 @@ import (
 type Closure struct {
 	Function ir.Function
 	Env      map[string]Value
+	RefEnv   map[string]*Value
 }
 
 type ArrayBuffer struct {

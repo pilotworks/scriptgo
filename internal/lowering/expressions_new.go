@@ -1,0 +1,563 @@
+package lowering
+
+import (
+	"fmt"
+	"strings"
+
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/ir"
+)
+
+func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+	className := callName(expression.Left)
+	if className == "RegExp" {
+		ensureRegExpShape(shapes)
+	}
+	if className == "Date" {
+		ensureDateShape(shapes)
+	}
+	if className == "WeakRef" {
+		var targetArg string
+		var targetType ir.Type = ir.TypeObject
+		if len(expression.Arguments) > 0 {
+			v, t, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			targetArg = v
+			if t != "" {
+				targetType = t
+			}
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		resType := ir.Type("object:WeakRef<" + string(targetType) + ">")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   resType,
+			Result: result,
+			Callee: "__weakref.new",
+			Args:   []string{targetArg},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, resType, nil
+	}
+	if className == "WeakMap" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:WeakMap"),
+			Result: result,
+			Callee: "__weakmap.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:WeakMap"), nil
+	}
+	if className == "WeakSet" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:WeakSet"),
+			Result: result,
+			Callee: "__weakset.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:WeakSet"), nil
+	}
+	if className == "Array" {
+		var args []string
+		elemType := ir.TypeNumber
+		for _, argExpr := range expression.Arguments {
+			argVal, aType, err := lowerExpression(path, argExpr, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, argVal)
+			if aType != "" {
+				elemType = aType
+			}
+		}
+		retType := ir.Type(string(elemType) + "[]")
+		if elemType == ir.TypeNumber {
+			retType = ir.TypeNumberArray
+		} else if elemType == ir.TypeString {
+			retType = ir.TypeStringArray
+		} else if elemType == ir.TypeBool {
+			retType = ir.TypeBoolArray
+		} else if elemType == ir.TypeBigInt {
+			retType = ir.TypeBigIntArray
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpArray,
+			Type:   retType,
+			Result: result,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
+
+	if className == "ArrayBuffer" {
+		byteLenVal := ""
+		if len(expression.Arguments) > 0 {
+			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteLenVal = v
+		} else {
+			zeroConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			byteLenVal = zeroConst
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeArrayBuffer,
+			Result: result,
+			Callee: "__arraybuffer.new",
+			Args:   []string{byteLenVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeArrayBuffer, nil
+	}
+
+	if isTypedArrayClassName(className) {
+		targetType := ir.Type(className)
+		if len(expression.Arguments) == 0 {
+			zeroConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_length",
+				Value:  className,
+				Args:   []string{zeroConst},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		arg0Val, arg0Type, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if arg0Type == ir.TypeNumber {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_length",
+				Value:  className,
+				Args:   []string{arg0Val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		if arg0Type == ir.TypeArrayBuffer {
+			byteOffsetVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: byteOffsetVal, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			lengthVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: lengthVal, Value: "0", Span: toIRSpan(path, expression.Span),
+			})
+			if len(expression.Arguments) > 1 {
+				bo, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				byteOffsetVal = bo
+			}
+			if len(expression.Arguments) > 2 {
+				l, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				lengthVal = l
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_buffer",
+				Value:  className,
+				Args:   []string{arg0Val, byteOffsetVal, lengthVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   targetType,
+			Result: result,
+			Callee: "__typedarray.new_array",
+			Value:  className,
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, targetType, nil
+	}
+
+	if className == "DataView" {
+		if len(expression.Arguments) == 0 {
+			return "", "", fmt.Errorf("DataView constructor requires at least 1 argument")
+		}
+		bufVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		byteOffsetVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeNumber, Result: byteOffsetVal, Value: "0", Span: toIRSpan(path, expression.Span),
+		})
+		byteLenVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeNumber, Result: byteLenVal, Value: "0", Span: toIRSpan(path, expression.Span),
+		})
+		if len(expression.Arguments) > 1 {
+			bo, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteOffsetVal = bo
+		}
+		if len(expression.Arguments) > 2 {
+			bl, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			byteLenVal = bl
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeDataView,
+			Result: result,
+			Callee: "__dataview.new",
+			Args:   []string{bufVal, byteOffsetVal, byteLenVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeDataView, nil
+	}
+
+	if className == "Map" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeMap,
+				Result: result,
+				Callee: "__map.new",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeMap, nil
+		}
+		arg0Val, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeMap,
+			Result: result,
+			Callee: "__map.new_entries",
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeMap, nil
+	}
+
+	if className == "Set" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeSet,
+				Result: result,
+				Callee: "__set.new",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeSet, nil
+		}
+		arg0Val, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeSet,
+			Result: result,
+			Callee: "__set.new_values",
+			Args:   []string{arg0Val},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeSet, nil
+	}
+
+	if className == "TextEncoder" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeTextEncoder,
+			Result: result,
+			Callee: "__text_encoder.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeTextEncoder, nil
+	}
+
+	if className == "TextDecoder" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		var args []string
+		if len(expression.Arguments) > 0 {
+			labelVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, labelVal)
+			if len(expression.Arguments) > 1 {
+				optsVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, optsVal)
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeTextDecoder,
+			Result: result,
+			Callee: "__text_decoder.new",
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeTextDecoder, nil
+	}
+
+	shape, ok := shapes[className]
+	if !ok {
+		return "", "", fmt.Errorf("unknown class %q", className)
+	}
+	if result == "" {
+		result = nextTemp(counter)
+	}
+	objType := ir.Type("object:" + className)
+	tag := getHierarchyTag(className, classHierarchy)
+	function.Body = append(function.Body, ir.Instruction{
+		Op:         ir.OpObjectNew,
+		Type:       objType,
+		Result:     result,
+		Callee:     className,
+		Value:      tag,
+		FieldCount: len(shape.Fields),
+		Span:       toIRSpan(path, expression.Span),
+	})
+	if className == "Date" {
+		timeVal := nextTemp(counter)
+		if len(expression.Arguments) == 0 {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeNumber, Result: timeVal, Callee: "__date.now", Span: toIRSpan(path, expression.Span),
+			})
+		} else {
+			argVal, argType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if argType == ir.TypeNumber {
+				timeVal = argVal
+			} else if argType == ir.TypeString {
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeNumber, Result: timeVal, Callee: "__date.parse", Args: []string{argVal}, Span: toIRSpan(path, expression.Span),
+				})
+			} else {
+				timeVal = argVal
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{result, timeVal}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
+	}
+	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
+		msgVal := nextTemp(counter)
+		if len(expression.Arguments) > 0 {
+			mv, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			msgVal = mv
+		} else {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: msgVal, Value: "", Span: toIRSpan(path, expression.Span),
+			})
+		}
+		nameVal := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: className, Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{result, msgVal}, Span: toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{result, nameVal}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
+	}
+	for _, field := range shape.Fields {
+		if strings.HasSuffix(string(field.Type), "[]") || field.Type == ir.TypeNumberArray || field.Type == ir.TypeStringArray || field.Type == ir.TypeBoolArray || field.Type == ir.TypeBigIntArray {
+			arrTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: field.Type, Result: arrTemp, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, arrTemp}, Span: field.Span})
+		} else if field.Type == ir.TypeMap {
+			mapTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeMap, Result: mapTemp, Callee: "__map.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, mapTemp}, Span: field.Span})
+		} else if field.Type == ir.TypeSet {
+			setTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeSet, Result: setTemp, Callee: "__set.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, setTemp}, Span: field.Span})
+		} else {
+			defVal := field.Value
+			if defVal == "" {
+				switch field.Type {
+				case ir.TypeNumber:
+					defVal = "0"
+				case ir.TypeBool:
+					defVal = "false"
+				case ir.TypeBigInt:
+					defVal = "0"
+				}
+			}
+			initializer := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: field.Type, Result: initializer, Value: defVal, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, initializer}, Span: field.Span})
+		}
+	}
+
+	// Call constructor if present
+	if ctor, ctorName, found := findConstructorInHierarchy(className, signatures, classHierarchy); found {
+		args := []string{result}
+		for i, arg := range expression.Arguments {
+			argVal, argType, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			paramIdx := i + 1
+			if paramIdx < len(ctor.Parameters) && ctor.Parameters[paramIdx].Type == ir.TypeUnknown && argType != ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: boxed,
+					Args:   []string{argVal},
+					Span:   toIRSpan(path, arg.Span),
+				})
+				argVal = boxed
+			}
+			args = append(args, argVal)
+		}
+		if defaults := defaultParamsIndex[ctorName]; defaults != nil {
+			for i := len(args); i < len(ctor.Parameters); i++ {
+				if defExpr, ok := defaults[i]; ok {
+					defVal, defType, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					if i < len(ctor.Parameters) && ctor.Parameters[i].Type == ir.TypeUnknown && defType != ir.TypeUnknown {
+						boxed := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpBoxUnknown,
+							Type:   ir.TypeUnknown,
+							Result: boxed,
+							Args:   []string{defVal},
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						defVal = boxed
+					} else if i < len(ctor.Parameters) && strings.HasPrefix(string(ctor.Parameters[i].Type), "object:") && (defExpr.Kind == "null" || defExpr.Kind == "undefined") {
+						nullConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ctor.Parameters[i].Type,
+							Result: nullConst,
+							Value:  "null",
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						defVal = nullConst
+					}
+					args = append(args, defVal)
+				}
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ctor.ReturnType,
+			Callee: ctorName,
+			Args:   args,
+			Span:   toIRSpan(path, expression.Span),
+		})
+	} else {
+		// Fallback for classes without constructors: positional field assignment if arguments are passed
+		for i, argument := range expression.Arguments {
+			if i < len(shape.Fields) {
+				argVal, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				field := shape.Fields[i]
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     className,
+					Field:      field.Name,
+					FieldIndex: i,
+					Args:       []string{result, argVal},
+					Span:       toIRSpan(path, argument.Span),
+				})
+			}
+		}
+	}
+	return result, objType, nil
+}
+
+func isTypedArrayClassName(name string) bool {
+	switch name {
+	case "Uint8Array", "Int8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array":
+		return true
+	default:
+		return false
+	}
+}

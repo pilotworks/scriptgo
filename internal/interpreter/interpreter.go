@@ -96,6 +96,15 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 	if closure == nil {
 		return Value{}, flowNormal, fmt.Errorf("cannot execute nil closure")
 	}
+	closureEnv := make(map[string]Value, len(closure.Env)+len(arguments))
+	for k, v := range closure.Env {
+		closureEnv[k] = v
+	}
+	for k, ref := range closure.RefEnv {
+		if ref != nil {
+			closureEnv[k] = *ref
+		}
+	}
 	userParams := closure.Function.Parameters
 	if len(userParams) > 0 && userParams[0].Name == "__env_ctx" {
 		userParams = userParams[1:]
@@ -106,14 +115,23 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 			if arg.Type == ir.TypeUnknown && arg.Boxed != nil && parameter.Type != ir.TypeUnknown {
 				arg = *arg.Boxed
 			}
-			closure.Env[parameter.Name] = arg
+			closureEnv[parameter.Name] = arg
 		}
 	}
-	val, _, flow, err := executeBlock(functions, closure.Function.Body, closure.Env, output)
+	val, _, flow, err := executeBlock(functions, closure.Function.Body, closureEnv, output)
+	for k, v := range closureEnv {
+		if ref, ok := closure.RefEnv[k]; ok && ref != nil {
+			*ref = v
+		}
+		if _, ok := closure.Env[k]; ok {
+			closure.Env[k] = v
+		}
+	}
 	return val, flow, err
 }
 
 func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env map[string]Value, output *bytes.Buffer) (Value, bool, controlFlow, error) {
+	cellMap := make(map[string]*Value)
 	for _, instruction := range body {
 		switch instruction.Op {
 		case ir.OpClosure:
@@ -122,18 +140,28 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, fmt.Errorf("unknown function for closure %q", instruction.Callee)
 			}
 			captured := make(map[string]Value, len(instruction.Args))
+			capturedRefs := make(map[string]*Value, len(instruction.Args))
 			for _, argName := range instruction.Args {
 				val, err := lookup(env, []string{argName}, 0)
 				if err != nil {
 					return Value{}, false, flowNormal, err
 				}
 				captured[argName] = val
+				if cell, ok := cellMap[argName]; ok && cell != nil {
+					capturedRefs[argName] = cell
+				} else {
+					cell := new(Value)
+					*cell = val
+					cellMap[argName] = cell
+					capturedRefs[argName] = cell
+				}
 			}
 			env[instruction.Result] = Value{
 				Type: ir.TypeClosure,
 				Closure: &Closure{
 					Function: targetFn,
 					Env:      captured,
+					RefEnv:   capturedRefs,
 				},
 			}
 		case ir.OpClosureCall:
@@ -174,6 +202,9 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				return Value{}, false, flowNormal, err
 			}
 			env[instruction.Result] = val
+			if cell, ok := cellMap[instruction.Result]; ok && cell != nil {
+				*cell = val
+			}
 		case ir.OpBinary:
 			left, err := lookup(env, instruction.Args, 0)
 			if err != nil {

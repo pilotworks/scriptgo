@@ -145,12 +145,18 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err := os.WriteFile(temporaryPath, []byte(output), 0o644); err != nil {
 		return fmt.Errorf("write temporary LLVM file: %w", err)
 	}
-	runtimePath := filepath.Join(temporaryDir, "runtime.c")
-	runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
-	if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
-		return fmt.Errorf("write temporary runtime file: %w", err)
+	var args []string
+	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options)
+	if err != nil {
+		runtimePath := filepath.Join(temporaryDir, "runtime.c")
+		runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
+		if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
+			return fmt.Errorf("write temporary runtime file: %w", err)
+		}
+		args = []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
+	} else {
+		args = []string{"-x", "ir", temporaryPath, "-x", "none", runtimeObj}
 	}
-	args := []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
 
 	// Process FFI manifests and extra native sources
 	var extraLibs []string
@@ -306,4 +312,55 @@ func Check(entryPath string) error {
 		return err
 	}
 	return lowering.ValidateSubset(program)
+}
+
+func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		cacheDir = os.TempDir()
+	}
+	sgCache := filepath.Join(cacheDir, "scriptgo")
+	if err := os.MkdirAll(sgCache, 0o755); err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+	h.Write(runtime.Source)
+	h.Write([]byte(options.Target))
+	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
+	if options.Debug {
+		h.Write([]byte("debug"))
+	}
+	hash := hex.EncodeToString(h.Sum(nil))
+	objPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s.o", hash[:16]))
+
+	if _, err := os.Stat(objPath); err == nil {
+		return objPath, nil
+	}
+
+	srcPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s.c", hash[:16]))
+	runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
+	if err := os.WriteFile(srcPath, runtimeSource, 0o644); err != nil {
+		return "", err
+	}
+	defer os.Remove(srcPath)
+
+	buildArgs := append([]string(nil), ccParts[1:]...)
+	buildArgs = append(buildArgs, "-c", srcPath, "-o", objPath)
+	if options.Debug {
+		buildArgs = append(buildArgs, "-O0", "-g")
+	} else {
+		buildArgs = append(buildArgs, "-O2")
+	}
+	if options.Target != "native" {
+		buildArgs = append(buildArgs, "--target="+options.Target)
+	}
+	if len(options.Sanitizers) > 0 {
+		buildArgs = append(buildArgs, "-fsanitize="+strings.Join(options.Sanitizers, ","))
+	}
+	cmd := exec.Command(ccParts[0], buildArgs...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("compile runtime: %w: %s", err, string(out))
+	}
+	return objPath, nil
 }

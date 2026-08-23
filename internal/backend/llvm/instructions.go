@@ -31,6 +31,7 @@ type functionEmitter struct {
 	loopContinueLabels []string
 	labeledBreak       map[string][]string
 	labeledContinue    map[string][]string
+	sharedEnvCells     map[string]string
 	runtimeStatus      int
 	terminated         bool
 }
@@ -161,7 +162,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			return err
 		}
 	case ir.OpClosure:
-		if err := e.emitClosure(out, inst); err != nil {
+		if err := e.emitClosure(out, instruction); err != nil {
 			return err
 		}
 	case ir.OpClosureCall:
@@ -1268,13 +1269,12 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 	if len(instruction.Args) == 0 {
 		envPtr = "null"
 	} else {
+		if e.sharedEnvCells == nil {
+			e.sharedEnvCells = make(map[string]string)
+		}
 		typesList := make([]string, len(instruction.Args))
-		for i, arg := range instruction.Args {
-			typ, ok := e.types[arg]
-			if !ok {
-				typ = ir.TypeNumber
-			}
-			typesList[i] = llvmType(typ)
+		for i := range instruction.Args {
+			typesList[i] = "ptr"
 		}
 		structType := fmt.Sprintf("{ %s }", strings.Join(typesList, ", "))
 		envAlloc := fmt.Sprintf("%s.env.%d", instruction.Result, e.loadCounter)
@@ -1289,16 +1289,25 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			if !ok {
 				typ = ir.TypeNumber
 			}
+			cellSlot, ok := e.sharedEnvCells[arg]
+			if !ok {
+				cellSlot = fmt.Sprintf("cell.%s.%d", arg, e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
+				argVal := arg
+				if slot, ok := e.varSlots[arg]; ok {
+					loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+					e.loadCounter++
+					out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+					argVal = loaded
+				}
+				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
+				e.varSlots[arg] = cellSlot
+				e.sharedEnvCells[arg] = cellSlot
+			}
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
-			argVal := arg
-			if slot, ok := e.varSlots[arg]; ok {
-				loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
-				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
-				argVal = loaded
-			}
-			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, fieldPtr))
+			out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellSlot, fieldPtr))
 		}
 		envPtr = "%" + envAlloc
 	}
