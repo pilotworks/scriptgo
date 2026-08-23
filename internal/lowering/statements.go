@@ -653,4 +653,3 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 	}
 	return branch.Body, nil
 }
-

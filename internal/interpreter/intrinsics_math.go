@@ -218,7 +218,7 @@ func float16round(v float64) float64 {
 	f32 := float32(v)
 	bits := math.Float32bits(f32)
 	sign := uint16((bits >> 16) & 0x8000)
-	exp := int((bits >> 23) & 0xff) - 127 + 15
+	exp := int((bits>>23)&0xff) - 127 + 15
 	mant := bits & 0x7fffff
 
 	var h uint16

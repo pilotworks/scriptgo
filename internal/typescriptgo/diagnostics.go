@@ -47,7 +47,8 @@ func FormatDiagnostic(diag Diagnostic, source string) string {
 // <file>:<line>:<col> - <category> <codeStr>: <message>
 //
 // <line> <lineText>
-//        <squiggles>
+//
+//	<squiggles>
 func Format(fileName string, start, length int, category, codeStr, message, source string) string {
 	if fileName == "" {
 		fileName = "input.ts"

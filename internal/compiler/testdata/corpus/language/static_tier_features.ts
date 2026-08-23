@@ -2,8 +2,8 @@
 // Consolidated test suite with inline assertions.
 
 // --- Context Case: math_and_number_apis ---
-// @expect: 3
-console.log(Math.cbrt(27));
+// @expect: 4
+console.log(Math.cbrt(64));
 // @expect: 27
 console.log(Math.clz32(16));
 // @expect: 12

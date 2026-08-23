@@ -126,9 +126,9 @@ console.log(Math.asinh(0));
 console.log(Math.atanh(0));
 
 // @api: math.cbrt
-// @expect: 3
+// @expect: 4
 // @expect: -2
-console.log(Math.cbrt(27)); console.log(Math.cbrt(-8));
+console.log(Math.cbrt(64)); console.log(Math.cbrt(-8));
 
 // @api: math.clz32
 // @expect: 27
