@@ -667,6 +667,14 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				env[instruction.Result] = value
 				continue
 			}
+			if strings.HasPrefix(instruction.Callee, "__weak") || strings.HasPrefix(instruction.Callee, "__gc.") {
+				value, err := executeWeakIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				env[instruction.Result] = value
+				continue
+			}
 			callee, ok := functions[instruction.Callee]
 			if !ok {
 				return Value{}, false, flowNormal, fmt.Errorf("native FFI call %q requires native compilation (--native)", instruction.Callee)

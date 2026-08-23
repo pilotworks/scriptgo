@@ -159,6 +159,8 @@ All 225 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 | **`node:child_process` / `child_process`** | `execSync`, `spawnSync`, `SpawnSyncReturns` (`stdout`, `stderr`, `status`), `ExecSyncOptions`, `SpawnSyncOptions` | ✅ 100% matches Node.js child_process specification |
 | **`node:http` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `METHODS`, `STATUS_CODES`, `getStatusText`, `Response.json`, `Response.error`, `Response.redirect` | ✅ 100% matches WHATWG Fetch and Node.js HTTP specifications |
+| **`Weak Collections & GC`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections & automatic cycle reclamation |
+
 
 ---
 

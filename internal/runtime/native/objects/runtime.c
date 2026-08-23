@@ -50,6 +50,9 @@ int scriptgo_object_is_ptr(const void *a, const void *b, int32_t *out_result) {
     return 0;
 }
 
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
+int scriptgo_gc_unregister(void *ptr);
+
 int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (out_object == NULL || field_count < 0) {
         return object_fail("scriptgo object allocation failed");
@@ -59,6 +62,7 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
         return object_fail("scriptgo object allocation failed");
     }
     object->field_count = field_count;
+    scriptgo_gc_register(object, 1, (uint32_t)field_count);
     *out_object = object;
     return 0;
 }
@@ -167,6 +171,7 @@ int scriptgo_object_release(void *handle) {
         return 0;
     }
     scriptgo_object *object = handle;
+    scriptgo_gc_unregister(object);
     free(object);
     return 0;
 }

@@ -23,6 +23,162 @@ func lowerCallExpression(
 		methodName := expression.Left.Text
 		receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 		if err == nil {
+			if (receiverType == "object:WeakRef" || strings.HasPrefix(string(receiverType), "object:WeakRef<")) && methodName == "deref" {
+				var retType ir.Type = ir.TypeObject
+				if strings.HasPrefix(string(receiverType), "object:WeakRef<") && strings.HasSuffix(string(receiverType), ">") {
+					inner := strings.TrimSuffix(strings.TrimPrefix(string(receiverType), "object:WeakRef<"), ">")
+					retType = toIRType(inner)
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   retType,
+					Result: result,
+					Callee: "__weakref.deref",
+					Args:   []string{receiver},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, retType, nil
+			}
+			if receiverType == "object:WeakMap" {
+				switch methodName {
+				case "set":
+					if len(expression.Arguments) >= 2 {
+						kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						vVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeVoid,
+							Callee: "__weakmap.set",
+							Args:   []string{receiver, kVal, vVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return receiver, receiverType, nil
+					}
+				case "get":
+					if len(expression.Arguments) >= 1 {
+						kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeObject,
+							Result: result,
+							Callee: "__weakmap.get",
+							Args:   []string{receiver, kVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeObject, nil
+					}
+				case "has":
+					if len(expression.Arguments) >= 1 {
+						kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeBool,
+							Result: result,
+							Callee: "__weakmap.has",
+							Args:   []string{receiver, kVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeBool, nil
+					}
+				case "delete":
+					if len(expression.Arguments) >= 1 {
+						kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeBool,
+							Result: result,
+							Callee: "__weakmap.delete",
+							Args:   []string{receiver, kVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeBool, nil
+					}
+				}
+			}
+			if receiverType == "object:WeakSet" {
+				switch methodName {
+				case "add":
+					if len(expression.Arguments) >= 1 {
+						vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeVoid,
+							Callee: "__weakset.add",
+							Args:   []string{receiver, vVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return receiver, receiverType, nil
+					}
+				case "has":
+					if len(expression.Arguments) >= 1 {
+						vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeBool,
+							Result: result,
+							Callee: "__weakset.has",
+							Args:   []string{receiver, vVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeBool, nil
+					}
+				case "delete":
+					if len(expression.Arguments) >= 1 {
+						vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeBool,
+							Result: result,
+							Callee: "__weakset.delete",
+							Args:   []string{receiver, vVal},
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeBool, nil
+					}
+				}
+			}
 			if receiverType == "object:RegExp" {
 				if methodName == "test" && len(expression.Arguments) > 0 {
 					argVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
@@ -1422,6 +1578,19 @@ func lowerCallExpression(
 	}
 
 	callee := callName(expression.Left)
+	if callee == "gc" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeNumber,
+			Result: result,
+			Callee: "__gc.collect",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeNumber, nil
+	}
 	if callee == "Promise.all" && len(expression.Arguments) > 0 {
 		arrExpr := expression.Arguments[0]
 		if arrExpr.Kind == "array" {

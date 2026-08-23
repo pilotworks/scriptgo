@@ -966,6 +966,20 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__gc.") {
+		if err := emitGcIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__weak") {
+		if err := emitWeakIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__symbol.") {
 		if err := emitSymbolIntrinsic(out, instruction); err != nil {
 			return err

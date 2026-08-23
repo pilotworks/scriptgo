@@ -751,6 +751,15 @@ func toIRType(value string) ir.Type {
 		if base == "Set" {
 			return ir.TypeSet
 		}
+		if base == "WeakMap" {
+			return ir.Type("object:WeakMap")
+		}
+		if base == "WeakSet" {
+			return ir.Type("object:WeakSet")
+		}
+		if base == "WeakRef" {
+			return ir.Type("object:WeakRef")
+		}
 		typeArgs := splitTypeArguments(inner)
 		return ir.Type("object:" + mangleGenericName(base, typeArgs))
 	}
@@ -855,6 +864,12 @@ func toIRType(value string) ir.Type {
 		return ir.TypeMap
 	case "Set":
 		return ir.TypeSet
+	case "WeakMap":
+		return ir.Type("object:WeakMap")
+	case "WeakSet":
+		return ir.Type("object:WeakSet")
+	case "WeakRef":
+		return ir.Type("object:WeakRef")
 	case "TextEncoder":
 		return ir.TypeTextEncoder
 	case "TextDecoder":

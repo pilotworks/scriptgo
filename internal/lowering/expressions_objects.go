@@ -627,8 +627,58 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Date" {
 		ensureDateShape(shapes)
 	}
-	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
-		ensureErrorShape(shapes, className)
+	if className == "WeakRef" {
+		var targetArg string
+		var targetType ir.Type = ir.TypeObject
+		if len(expression.Arguments) > 0 {
+			v, t, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			targetArg = v
+			if t != "" {
+				targetType = t
+			}
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		resType := ir.Type("object:WeakRef<" + string(targetType) + ">")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   resType,
+			Result: result,
+			Callee: "__weakref.new",
+			Args:   []string{targetArg},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, resType, nil
+	}
+	if className == "WeakMap" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:WeakMap"),
+			Result: result,
+			Callee: "__weakmap.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:WeakMap"), nil
+	}
+	if className == "WeakSet" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.Type("object:WeakSet"),
+			Result: result,
+			Callee: "__weakset.new",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.Type("object:WeakSet"), nil
 	}
 	if className == "Array" {
 		var args []string
