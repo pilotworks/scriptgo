@@ -3,7 +3,7 @@ package lowering
 import (
 	"strings"
 
-	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 func isBuiltinGeneric(name string) bool {

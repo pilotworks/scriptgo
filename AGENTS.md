@@ -6,7 +6,7 @@ general TypeScript-Go and LLVM behavior.
 
 ## Source Of Truth
 
-- Use [TypeScript-Go](https://github.com/microsoft/typescript-go) for parsing,
+- Use [TypeScript](https://github.com/microsoft/TypeScript) (TypeScript in Go) for parsing,
   binding, module resolution, type checking, diagnostics, and TypeScript
   semantics. Do not implement a parallel parser or type system here.
 - Use the [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
@@ -116,7 +116,7 @@ Before changing LLVM emission, check the relevant LLVM reference documentation
 and keep target-specific assumptions in `internal/backend/llvm` and the runtime
 ABI documentation.
 
-The upstream TypeScript-Go contribution and automation policies are documented
-in its [CONTRIBUTING.md](https://github.com/microsoft/typescript-go/blob/main/CONTRIBUTING.md).
+The upstream TypeScript contribution and automation policies are documented
+in its [CONTRIBUTING.md](https://github.com/microsoft/TypeScript/blob/main/CONTRIBUTING.md).
 This repository adopts those policies by reference where applicable; it does
 not copy them here.

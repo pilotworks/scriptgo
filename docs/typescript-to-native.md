@@ -3,7 +3,7 @@
 ## Proposal
 
 This document proposes a native compiler pipeline for TypeScript that reuses the
-front end of [TypeScript-Go](https://github.com/microsoft/typescript-go) and adds
+front end of [TypeScript (Go implementation)](https://github.com/microsoft/TypeScript) and adds
 a typed intermediate representation (IR) plus native code-generation backends.
 
 The goal is to compile a well-defined, ahead-of-time (AOT) subset of TypeScript

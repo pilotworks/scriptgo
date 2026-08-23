@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 

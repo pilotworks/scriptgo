@@ -3,7 +3,7 @@ package lowering
 import (
 	"path/filepath"
 
-	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )

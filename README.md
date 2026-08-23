@@ -14,7 +14,7 @@
 
 ---
 
-`scriptgo` is a native compiler that runs TypeScript and JavaScript with Node.js-compatible semantics while compiling eligible code directly to standalone native binaries. It combines the official [TypeScript-Go](https://github.com/microsoft/typescript-go) compiler frontend for parsing, type-checking, and diagnostics with an independent **Typed IR** system and an **LLVM IR / Native Machine Code** backend.
+`scriptgo` is a native compiler that runs TypeScript and JavaScript with Node.js-compatible semantics while compiling eligible code directly to standalone native binaries. It combines the official [TypeScript (Go implementation)](https://github.com/microsoft/TypeScript) compiler frontend for parsing, type-checking, and diagnostics with an independent **Typed IR** system and an **LLVM IR / Native Machine Code** backend.
 
 ---
 

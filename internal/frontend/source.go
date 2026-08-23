@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/microsoft/typescript-go/scriptgo"
+	"github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 // Program is the normalized input passed from the TypeScript frontend to lowering.

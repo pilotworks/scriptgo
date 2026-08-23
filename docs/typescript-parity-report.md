@@ -10,7 +10,7 @@
 
 ## 1. Overview & Executive Summary
 
-**ScriptGo** is a high-performance Ahead-Of-Time (AOT) compiler for TypeScript. It combines the official frontend from [TypeScript-Go](https://github.com/microsoft/typescript-go) with an independent **Typed IR** system and an **LLVM IR / Native Machine Code** code generation backend.
+**ScriptGo** is a high-performance Ahead-Of-Time (AOT) compiler for TypeScript. It combines the official frontend from [TypeScript (Go implementation)](https://github.com/microsoft/TypeScript) with an independent **Typed IR** system and an **LLVM IR / Native Machine Code** code generation backend.
 
 #### Parity Benchmark Overview
 

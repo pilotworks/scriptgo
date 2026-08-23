@@ -267,7 +267,7 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 
 // getBundledLibsDir returns the directory of bundled TypeScript .d.ts files from typescript-go
 func getBundledLibsDir() string {
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/microsoft/typescript-go").Output()
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/microsoft/TypeScript/tsc").Output()
 	if err != nil {
 		return ""
 	}

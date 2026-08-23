@@ -2,14 +2,15 @@ module github.com/pilotworks/scriptgo
 
 go 1.26
 
-require github.com/microsoft/typescript-go/scriptgo v0.0.0
+require github.com/microsoft/TypeScript/tsc/scriptgo v0.0.0
 
-replace github.com/microsoft/typescript-go/scriptgo => ./internal/typescriptgo
+replace github.com/microsoft/TypeScript/tsc/scriptgo => ./internal/typescriptgo
 
 require (
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/microsoft/typescript-go v0.0.0-20260818012726-ad56f89f97e0 // indirect
+	github.com/microsoft/TypeScript/tsc v0.0.0-20260821201632-d6c4afddb2c5 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect

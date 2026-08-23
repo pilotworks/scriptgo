@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	typescriptgo "github.com/microsoft/typescript-go/scriptgo"
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
