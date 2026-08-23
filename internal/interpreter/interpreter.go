@@ -34,6 +34,7 @@ func Execute(module ir.Module) (Result, error) {
 	}
 	resetMicrotasks()
 	resetTimers()
+	resetStreamDefaults()
 	var output bytes.Buffer
 	value, flow, err := executeFunction(functions, main, nil, &output)
 	if err != nil {
@@ -73,7 +74,20 @@ var (
 
 func executeFunction(functions map[string]ir.Function, function ir.Function, arguments []Value, output *bytes.Buffer) (Value, controlFlow, error) {
 	env := make(map[string]Value, len(function.Parameters))
-	if len(arguments) != len(function.Parameters) {
+	if len(arguments) < len(function.Parameters) {
+		for i := len(arguments); i < len(function.Parameters); i++ {
+			switch function.Parameters[i].Type {
+			case ir.TypeUnknown:
+				arguments = append(arguments, Value{Type: ir.TypeUnknown, Boxed: &Value{Type: ir.TypeString, String: "undefined"}})
+			case ir.TypeNumber:
+				arguments = append(arguments, Value{Type: ir.TypeNumber, Number: 0})
+			case ir.TypeBool:
+				arguments = append(arguments, Value{Type: ir.TypeBool, Bool: false})
+			default:
+				arguments = append(arguments, Value{Type: ir.TypeString, String: "undefined"})
+			}
+		}
+	} else if len(arguments) > len(function.Parameters) {
 		return Value{}, flowNormal, fmt.Errorf("function %q received %d arguments, want %d", function.Name, len(arguments), len(function.Parameters))
 	}
 	for index, parameter := range function.Parameters {
@@ -81,7 +95,8 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		paramType := parameter.Type
 		if argType != paramType {
 			if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) &&
-				!(argType == ir.TypeBuffer && paramType == ir.TypeUint8Array) {
+				!(argType == ir.TypeBuffer && paramType == ir.TypeUint8Array) &&
+				!(isValNullish(arguments[index]) && (strings.HasPrefix(string(paramType), "object:") || paramType == "ptr" || paramType == ir.TypeClosure)) {
 				return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, argType, paramType)
 			}
 		}
@@ -116,6 +131,8 @@ func executeClosure(functions map[string]ir.Function, closure *Closure, argument
 				arg = *arg.Boxed
 			}
 			closureEnv[parameter.Name] = arg
+		} else {
+			closureEnv[parameter.Name] = Value{Type: ir.TypeString, String: "undefined"}
 		}
 	}
 	val, _, flow, err := executeBlock(functions, closure.Function.Body, closureEnv, output)
@@ -169,8 +186,11 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
+			if closureVal.Type == ir.TypeUnknown && closureVal.Boxed != nil {
+				closureVal = *closureVal.Boxed
+			}
 			if closureVal.Closure == nil {
-				return Value{}, false, flowNormal, fmt.Errorf("%q is not a callable closure", instruction.Callee)
+				return Value{}, false, flowNormal, fmt.Errorf("%q is not a callable closure at span %+v (type=%s, val=%+v)", instruction.Callee, instruction.Span, closureVal.Type, closureVal)
 			}
 			args := make([]Value, 0, len(instruction.Args))
 			for _, argName := range instruction.Args {
@@ -264,6 +284,9 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
+			if array.Type == ir.TypeUnknown && array.Boxed != nil {
+				array = *array.Boxed
+			}
 			index, err := lookup(env, instruction.Args, 1)
 			if err != nil {
 				return Value{}, false, flowNormal, err
@@ -281,6 +304,13 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 				continue
 			}
 			arr := array.GetArray()
+			if len(arr) == 0 && array.Object != nil {
+				posKey := strconv.Itoa(position)
+				if val, ok := array.Object[posKey]; ok {
+					env[instruction.Result] = val
+					continue
+				}
+			}
 			if position >= len(arr) {
 				return Value{}, false, flowNormal, fmt.Errorf("array index %d out of bounds for length %d", position, len(arr))
 			}
@@ -289,6 +319,9 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			array, err := lookup(env, instruction.Args, 0)
 			if err != nil {
 				return Value{}, false, flowNormal, err
+			}
+			if array.Type == ir.TypeUnknown && array.Boxed != nil {
+				array = *array.Boxed
 			}
 			index, err := lookup(env, instruction.Args, 1)
 			if err != nil {
@@ -323,6 +356,9 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			object, err := lookup(env, instruction.Args, 0)
 			if err != nil {
 				return Value{}, false, flowNormal, err
+			}
+			if object.Type == ir.TypeUnknown && object.Boxed != nil {
+				object = *object.Boxed
 			}
 			isInstance := false
 			if object.Type != "" {
@@ -360,6 +396,10 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
+			if instruction.Field == "length" && (object.ArrayRef != nil || len(object.Array) > 0 || strings.HasSuffix(string(object.Type), "[]")) {
+				env[instruction.Result] = Value{Type: ir.TypeNumber, Number: float64(len(object.GetArray()))}
+				continue
+			}
 			if len(object.Array) > 0 {
 				idx, err := strconv.Atoi(instruction.Field)
 				if err == nil && idx >= 0 && idx < len(object.Array) {
@@ -370,6 +410,8 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			value, ok := object.Object[instruction.Field]
 			if !ok {
 				value = Value{Type: ir.TypeString, String: "undefined"}
+			} else if value.ArrayRef != nil {
+				value.Array = *value.ArrayRef
 			}
 			env[instruction.Result] = value
 		case ir.OpBoxUnknown:
@@ -400,28 +442,35 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 			if err != nil {
 				return Value{}, false, flowNormal, err
 			}
-			var typeStr string
-			actualType := val.Type
 			if val.Type == ir.TypeUnknown && val.Boxed != nil {
-				actualType = val.Boxed.Type
+				val = *val.Boxed
 			}
-			switch actualType {
-			case ir.TypeNumber:
-				typeStr = "number"
-			case ir.TypeBigInt:
-				typeStr = "bigint"
-			case ir.TypeSymbol:
-				typeStr = "symbol"
-			case ir.TypeString:
-				typeStr = "string"
-			case ir.TypeBool:
-				typeStr = "boolean"
-			case ir.TypeVoid:
-				typeStr = "undefined"
-			case ir.TypeClosure:
-				typeStr = "function"
-			default:
-				typeStr = "object"
+			var typeStr string
+			if isValNullish(val) {
+				if val.String == "undefined" || val.Type == ir.TypeVoid {
+					typeStr = "undefined"
+				} else {
+					typeStr = "object"
+				}
+			} else {
+				switch val.Type {
+				case ir.TypeNumber:
+					typeStr = "number"
+				case ir.TypeBigInt:
+					typeStr = "bigint"
+				case ir.TypeSymbol:
+					typeStr = "symbol"
+				case ir.TypeString:
+					typeStr = "string"
+				case ir.TypeBool:
+					typeStr = "boolean"
+				case ir.TypeVoid:
+					typeStr = "undefined"
+				case ir.TypeClosure:
+					typeStr = "function"
+				default:
+					typeStr = "object"
+				}
 			}
 			env[instruction.Result] = Value{Type: ir.TypeString, String: typeStr}
 		case ir.OpPrint:
@@ -464,6 +513,16 @@ func executeBlock(functions map[string]ir.Function, body []ir.Instruction, env m
 					return Value{}, false, flowNormal, err
 				}
 				env[instruction.Result] = value
+				continue
+			}
+			if strings.HasPrefix(instruction.Callee, "__stream.") {
+				value, err := executeStreamIntrinsic(instruction.Callee, instruction.Args, env)
+				if err != nil {
+					return Value{}, false, flowNormal, err
+				}
+				if instruction.Result != "" {
+					env[instruction.Result] = value
+				}
 				continue
 			}
 			if strings.HasPrefix(instruction.Callee, "__object.") {
@@ -939,7 +998,12 @@ func castValue(val Value, targetType ir.Type) (Value, error) {
 	if val.Type == targetType {
 		return val, nil
 	}
-	if strings.HasPrefix(string(val.Type), "object:") && strings.HasPrefix(string(targetType), "object:") {
+	if (strings.Contains(string(val.Type), "[]") || strings.Contains(string(val.Type), "__shape_0_") || val.ArrayRef != nil || len(val.Array) > 0) && (strings.Contains(string(targetType), "[]") || targetType == ir.TypeObject) {
+		res := val
+		res.Type = targetType
+		return res, nil
+	}
+	if (strings.HasPrefix(string(val.Type), "object:") || val.Object != nil) && (strings.HasPrefix(string(targetType), "object:") || targetType == ir.TypeObject) {
 		res := val
 		res.Type = targetType
 		return res, nil

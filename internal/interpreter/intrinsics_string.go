@@ -63,15 +63,23 @@ func executeStringIntrinsic(name string, arguments []string, env map[string]Valu
 		}
 		return Value{Type: ir.TypeBool, Bool: strings.HasSuffix(values[0].String, values[1].String)}, nil
 	case "__string.fromNumber":
-		if len(values) != 1 || values[0].Type != ir.TypeNumber {
+		if len(values) != 1 {
 			return Value{}, fmt.Errorf("string.fromNumber requires one number")
 		}
-		return Value{Type: ir.TypeString, String: format(values[0])}, nil
+		val := values[0]
+		if val.Type == ir.TypeUnknown && val.Boxed != nil {
+			val = *val.Boxed
+		}
+		return Value{Type: ir.TypeString, String: format(val)}, nil
 	case "__string.fromBool":
-		if len(values) != 1 || values[0].Type != ir.TypeBool {
+		if len(values) != 1 {
 			return Value{}, fmt.Errorf("string.fromBool requires one bool")
 		}
-		return Value{Type: ir.TypeString, String: format(values[0])}, nil
+		val := values[0]
+		if val.Type == ir.TypeUnknown && val.Boxed != nil {
+			val = *val.Boxed
+		}
+		return Value{Type: ir.TypeString, String: format(val)}, nil
 	case "__string.slice", "__string.substring":
 		if (len(values) != 2 && len(values) != 3) || values[0].Type != ir.TypeString || values[1].Type != ir.TypeNumber {
 			return Value{}, fmt.Errorf("string.slice requires string and number arguments")

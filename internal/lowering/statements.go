@@ -570,7 +570,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		var val string
 		var valType ir.Type
-		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && strings.HasPrefix(string(shape.Fields[fIndex].Type), "object:") {
+		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && (strings.HasPrefix(string(shape.Fields[fIndex].Type), "object:") || shape.Fields[fIndex].Type == ir.TypeClosure) {
 			val = nextTemp(counter)
 			valType = shape.Fields[fIndex].Type
 			function.Body = append(function.Body, ir.Instruction{

@@ -213,13 +213,31 @@ type Value struct {
 }
 
 func (v Value) GetArray() []Value {
+	if v.Type == ir.TypeUnknown && v.Boxed != nil {
+		return v.Boxed.GetArray()
+	}
 	if v.ArrayRef != nil {
 		return *v.ArrayRef
+	}
+	if len(v.Array) == 0 && len(v.Object) > 0 {
+		var arr []Value
+		for i := 0; i < len(v.Object); i++ {
+			if val, ok := v.Object[strconv.Itoa(i)]; ok {
+				arr = append(arr, val)
+			}
+		}
+		if len(arr) == len(v.Object) {
+			return arr
+		}
 	}
 	return v.Array
 }
 
 func (v *Value) SetArray(arr []Value) {
+	if v.Type == ir.TypeUnknown && v.Boxed != nil {
+		v.Boxed.SetArray(arr)
+		return
+	}
 	if v.ArrayRef != nil {
 		*v.ArrayRef = arr
 	} else {
@@ -261,8 +279,9 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 		ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
 		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
-		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypeMap, ir.TypeSet, ir.TypeTextEncoder, ir.TypeTextDecoder:
-		return Value{Type: typ}, nil
+		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypeMap, ir.TypeSet, ir.TypeTextEncoder, ir.TypeTextDecoder,
+		ir.TypeUnknown:
+		return Value{Type: typ, String: value}, nil
 	default:
 		if strings.HasPrefix(string(typ), "object:") || typ == "ptr" || typ == ir.TypeVoid {
 			return Value{Type: typ}, nil
@@ -381,7 +400,29 @@ func binary(operator string, left, right Value) (Value, error) {
 	}
 }
 
+func isValNullish(v Value) bool {
+	if v.Type == ir.TypeString && (v.String == "null" || v.String == "undefined") {
+		return true
+	}
+	if v.Type == "ptr" || v.Type == "" {
+		return true
+	}
+	if v.Type == ir.TypeClosure && v.Closure == nil {
+		return true
+	}
+	if strings.HasPrefix(string(v.Type), "object:") && len(v.Object) == 0 && v.Boxed == nil && len(v.GetArray()) == 0 {
+		return true
+	}
+	return false
+}
+
 func compare(operator string, left, right Value) (Value, error) {
+	if left.Type == ir.TypeUnknown && left.Boxed != nil {
+		left = *left.Boxed
+	}
+	if right.Type == ir.TypeUnknown && right.Boxed != nil {
+		right = *right.Boxed
+	}
 	if left.String == "undefined" && right.String == "undefined" {
 		switch operator {
 		case "==", "===":
@@ -399,9 +440,10 @@ func compare(operator string, left, right Value) (Value, error) {
 		}
 	}
 	if left.Type != right.Type {
-		if (strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr") && (strings.HasPrefix(string(right.Type), "object:") || right.Type == "ptr") {
-			leftNull := len(left.Object) == 0 && left.Boxed == nil && len(left.GetArray()) == 0
-			rightNull := len(right.Object) == 0 && right.Boxed == nil && len(right.GetArray()) == 0
+		leftNull := isValNullish(left)
+		rightNull := isValNullish(right)
+		if (leftNull || strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" || left.Type == ir.TypeClosure) &&
+			(rightNull || strings.HasPrefix(string(right.Type), "object:") || right.Type == "ptr" || right.Type == ir.TypeClosure) {
 			switch operator {
 			case "==", "===":
 				return Value{Type: ir.TypeBool, Bool: leftNull == rightNull}, nil
@@ -519,12 +561,8 @@ func compare(operator string, left, right Value) (Value, error) {
 		if leftVal.Type == rightVal.Type && leftVal.Type != "" && leftVal.Type != ir.TypeUnknown {
 			return compare(operator, leftVal, rightVal)
 		}
-		leftIsNullish := (leftVal.Type == ir.TypeString && (leftVal.String == "null" || leftVal.String == "undefined")) ||
-			(strings.HasPrefix(string(leftVal.Type), "object:") && len(leftVal.Object) == 0 && leftVal.Boxed == nil && len(leftVal.GetArray()) == 0) ||
-			leftVal.Type == ""
-		rightIsNullish := (rightVal.Type == ir.TypeString && (rightVal.String == "null" || rightVal.String == "undefined")) ||
-			(strings.HasPrefix(string(rightVal.Type), "object:") && len(rightVal.Object) == 0 && rightVal.Boxed == nil && len(rightVal.GetArray()) == 0) ||
-			rightVal.Type == ""
+		leftIsNullish := isValNullish(leftVal)
+		rightIsNullish := isValNullish(rightVal)
 
 		eq := false
 		if leftIsNullish && rightIsNullish {

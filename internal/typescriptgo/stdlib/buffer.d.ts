@@ -40,11 +40,12 @@ export interface Buffer extends Uint8Array {
     writeDoubleBE(value: number, offset: number): number;
 }
 export class Buffer {
-    static alloc(size: number, fill?: string | number): Buffer;
+    static alloc(size: number, fill?: string): Buffer;
     static allocUnsafe(size: number): Buffer;
     static from(str: string, encoding?: string): Buffer;
     static from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
-    static concat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
+    static from(value: unknown, encoding?: string): Buffer;
+    static concat(list: Buffer[], totalLength?: number): Buffer;
     static isBuffer(obj: unknown): boolean;
     static byteLength(string: string, encoding?: string): number;
 }

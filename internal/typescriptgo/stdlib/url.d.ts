@@ -1,5 +1,5 @@
 export class URLSearchParams {
-    constructor(init?: unknown);
+    constructor(init?: string);
     append(name: string, value: string): void;
     delete(name: string, value?: string): void;
     get(name: string): string | null;
@@ -10,33 +10,18 @@ export class URLSearchParams {
     entries(): string[][];
     keys(): string[];
     values(): string[];
-    forEach(fn: (value: string, name: string, parent: URLSearchParams) => void, thisArg?: unknown): void;
+    forEach(fn?: (value: string, name: string, parent: URLSearchParams)): void;
     toString(): string;
-    readonly size: number;
 }
-
 export class URL {
     constructor(input: string, base?: string);
-    href: string;
-    origin: string;
-    protocol: string;
-    host: string;
-    hostname: string;
-    port: string;
-    pathname: string;
-    search: string;
-    hash: string;
-    username: string;
-    password: string;
-    readonly searchParams: URLSearchParams;
     toString(): string;
     toJSON(): string;
     static canParse(url: string, base?: string): boolean;
     static parse(input: string, base?: string): URL | null;
-    static createObjectURL(blob: unknown): string;
+    static createObjectURL(blob?: string): string;
     static revokeObjectURL(id: string): void;
 }
-
 export class Url {
     auth: string;
     hash: string;
@@ -51,7 +36,7 @@ export class Url {
     search: string;
     slashes: boolean;
 }
-
+export function parse(urlString: string, parseQueryString?: boolean, slashesDenoteHost?: boolean): Url;
 export interface UrlObjectInput {
     href?: string;
     protocol?: string;
@@ -65,7 +50,13 @@ export interface UrlObjectInput {
     search?: string;
     hash?: string;
 }
-
+export function format(urlObject: URL): string;
+export function resolve(from: string, to: string): string;
+export function domainToASCII(domain: string): string;
+export function domainToUnicode(domain: string): string;
+export function fileURLToPath(url: string): string;
+export function fileURLToPathBuffer(url: string): string;
+export function pathToFileURL(path: string): URL;
 export interface HttpOptionsResult {
     protocol: string;
     hostname: string;
@@ -77,13 +68,4 @@ export interface HttpOptionsResult {
     port: number | null;
     auth: string | null;
 }
-
-export function parse(urlString: string, parseQueryString?: boolean, slashesDenoteHost?: boolean): Url;
-export function format(urlObject: URL, options?: unknown): string;
-export function resolve(from: string, to: string): string;
-export function domainToASCII(domain: string): string;
-export function domainToUnicode(domain: string): string;
-export function fileURLToPath(url: string, options?: unknown): string;
-export function fileURLToPathBuffer(url: string, options?: unknown): string;
-export function pathToFileURL(path: string, options?: unknown): URL;
 export function urlToHttpOptions(url: URL): HttpOptionsResult;

@@ -10,6 +10,7 @@ import (
 )
 
 func executeArrayTransformIntrinsic(name string, arguments []string, array Value, env map[string]Value, functions map[string]ir.Function, output *bytes.Buffer) (Value, bool, error) {
+	array.Array = array.GetArray()
 	switch name {
 	case "__array.splice":
 		if len(arguments) < 2 {

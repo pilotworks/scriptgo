@@ -664,10 +664,22 @@ func lowerCallExpression(
 		args = append(args, value)
 	}
 
+	if restParamsIndex[callee] && len(target.Parameters) > 0 && (target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+		restType := target.Parameters[len(target.Parameters)-1].Type
+		fixed := len(target.Parameters) - 1
+		if len(args) >= fixed {
+			restArgs := append([]string(nil), args[fixed:]...)
+			args = args[:fixed]
+			array := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: restType, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
+			args = append(args, array)
+		}
+	}
+
 	if len(args) < len(target.Parameters) {
 		defaults := defaultParamsIndex[callee]
-		if defaults != nil {
-			for i := len(args); i < len(target.Parameters); i++ {
+		for i := len(args); i < len(target.Parameters); i++ {
+			if defaults != nil {
 				if initExpr, ok := defaults[i]; ok {
 					if target.Parameters[i].Type == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
 						numConst := nextTemp(counter)
@@ -720,20 +732,58 @@ func lowerCallExpression(
 						val = closureSlot
 					}
 					args = append(args, val)
+					continue
 				}
 			}
-		}
-	}
-
-	if restParamsIndex[callee] && len(target.Parameters) > 0 && (target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
-		restType := target.Parameters[len(target.Parameters)-1].Type
-		fixed := len(target.Parameters) - 1
-		if len(args) >= fixed {
-			restArgs := append([]string(nil), args[fixed:]...)
-			args = args[:fixed]
-			array := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: restType, Result: array, Args: restArgs, Span: toIRSpan(path, expression.Span)})
-			args = append(args, array)
+			if target.Parameters[i].Type == ir.TypeUnknown {
+				undefConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: undefConst,
+					Value:  "undefined",
+					Span:   toIRSpan(path, expression.Span),
+				})
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: boxed,
+					Args:   []string{undefConst},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				args = append(args, boxed)
+			} else if target.Parameters[i].Type == ir.TypeNumber {
+				numConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeNumber,
+					Result: numConst,
+					Value:  "0",
+					Span:   toIRSpan(path, expression.Span),
+				})
+				args = append(args, numConst)
+			} else if target.Parameters[i].Type == ir.TypeBool {
+				boolConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeBool,
+					Result: boolConst,
+					Value:  "false",
+					Span:   toIRSpan(path, expression.Span),
+				})
+				args = append(args, boolConst)
+			} else {
+				undefConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: undefConst,
+					Value:  "undefined",
+					Span:   toIRSpan(path, expression.Span),
+				})
+				args = append(args, undefConst)
+			}
 		}
 	}
 

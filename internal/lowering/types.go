@@ -186,7 +186,7 @@ func toIRType(value string) ir.Type {
 		return ir.TypeNumberArray
 	case "string[]", "TemplateStringsArray":
 		return ir.TypeStringArray
-	case "closure", "function":
+	case "closure", "function", "Function":
 		return ir.TypeClosure
 	case "unknown":
 		return ir.TypeUnknown

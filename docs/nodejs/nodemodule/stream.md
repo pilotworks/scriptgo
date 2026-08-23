@@ -21,30 +21,30 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `readable.push('')` | `(...) => any` | `__stream.readable.push` | 📋 Planned | - |
-| `readable.read(0)` | `(...) => any` | `__stream.readable.read` | 📋 Planned | - |
-| `stream.Duplex.from(src)` | `(...) => any` | `__stream.stream.Duplex.from` | 📋 Planned | - |
-| `stream.Duplex.fromWeb(pair[, options])` | `(...) => any` | `__stream.stream.Duplex.fromWeb` | 📋 Planned | - |
-| `stream.Duplex.toWeb(streamDuplex)` | `(...) => any` | `__stream.stream.Duplex.toWeb` | 📋 Planned | - |
-| `stream.Readable.from(iterable[, options])` | `(...) => any` | `__stream.stream.Readable.from` | 📋 Planned | - |
-| `stream.Readable.fromWeb(readableStream[, options])` | `(...) => any` | `__stream.stream.Readable.fromWeb` | 📋 Planned | - |
-| `stream.Readable.isDisturbed(stream)` | `(...) => any` | `__stream.stream.Readable.isDisturbed` | 📋 Planned | - |
-| `stream.Readable.toWeb(streamReadable[, options])` | `(...) => any` | `__stream.stream.Readable.toWeb` | 📋 Planned | - |
-| `stream.Writable.fromWeb(writableStream[, options])` | `(...) => any` | `__stream.stream.Writable.fromWeb` | 📋 Planned | - |
-| `stream.Writable.toWeb(streamWritable)` | `(...) => any` | `__stream.stream.Writable.toWeb` | 📋 Planned | - |
-| `stream.addAbortSignal(signal, stream)` | `(...) => any` | `__stream.stream.addAbortSignal` | 📋 Planned | - |
-| `stream.compose(...streams)` | `(...) => any` | `__stream.stream.compose` | 📋 Planned | - |
-| `stream.finished(stream[, options])` | `(...) => any` | `__stream.stream.finished` | 📋 Planned | - |
-| `stream.finished(stream[, options], callback)` | `(...) => any` | `__stream.stream.finished` | 📋 Planned | - |
-| `stream.getDefaultHighWaterMark(objectMode)` | `(...) => any` | `__stream.stream.getDefaultHighWaterMark` | 📋 Planned | - |
-| `stream.isErrored(stream)` | `(...) => any` | `__stream.stream.isErrored` | 📋 Planned | - |
-| `stream.isReadable(stream)` | `(...) => any` | `__stream.stream.isReadable` | 📋 Planned | - |
-| `stream.isWritable(stream)` | `(...) => any` | `__stream.stream.isWritable` | 📋 Planned | - |
-| `stream.pipeline(source[, ...transforms], destination, callback)` | `(...) => any` | `__stream.stream.pipeline` | 📋 Planned | - |
-| `stream.pipeline(source[, ...transforms], destination[, options])` | `(...) => any` | `__stream.stream.pipeline` | 📋 Planned | - |
-| `stream.pipeline(streams, callback)` | `(...) => any` | `__stream.stream.pipeline` | 📋 Planned | - |
-| `stream.pipeline(streams[, options])` | `(...) => any` | `__stream.stream.pipeline` | 📋 Planned | - |
-| `stream.setDefaultHighWaterMark(objectMode, value)` | `(...) => any` | `__stream.stream.setDefaultHighWaterMark` | 📋 Planned | - |
+| `readable.push('')` | `(...) => any` | `__stream.readable.push` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `readable.read(0)` | `(...) => any` | `__stream.readable.read` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Duplex.from(src)` | `(...) => any` | `__stream.stream.Duplex.from` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Duplex.fromWeb(pair[, options])` | `(...) => any` | `__stream.stream.Duplex.fromWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Duplex.toWeb(streamDuplex)` | `(...) => any` | `__stream.stream.Duplex.toWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Readable.from(iterable[, options])` | `(...) => any` | `__stream.stream.Readable.from` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Readable.fromWeb(readableStream[, options])` | `(...) => any` | `__stream.stream.Readable.fromWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Readable.isDisturbed(stream)` | `(...) => any` | `__stream.stream.Readable.isDisturbed` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Readable.toWeb(streamReadable[, options])` | `(...) => any` | `__stream.stream.Readable.toWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Writable.fromWeb(writableStream[, options])` | `(...) => any` | `__stream.stream.Writable.fromWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.Writable.toWeb(streamWritable)` | `(...) => any` | `__stream.stream.Writable.toWeb` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.addAbortSignal(signal, stream)` | `(...) => any` | `__stream.stream.addAbortSignal` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.compose(...streams)` | `(...) => any` | `__stream.stream.compose` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.finished(stream[, options])` | `(...) => any` | `__stream.stream.finished` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.finished(stream[, options], callback)` | `(...) => any` | `__stream.stream.finished` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.getDefaultHighWaterMark(objectMode)` | `(...) => any` | `__stream.stream.getDefaultHighWaterMark` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.isErrored(stream)` | `(...) => any` | `__stream.stream.isErrored` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.isReadable(stream)` | `(...) => any` | `__stream.stream.isReadable` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.isWritable(stream)` | `(...) => any` | `__stream.stream.isWritable` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.pipeline(source[, ...transforms], destination, callback)` | `(...) => any` | `__stream.stream.pipeline` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.pipeline(source[, ...transforms], destination[, options])` | `(...) => any` | `__stream.stream.pipeline` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.pipeline(streams, callback)` | `(...) => any` | `__stream.stream.pipeline` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.pipeline(streams[, options])` | `(...) => any` | `__stream.stream.pipeline` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
+| `stream.setDefaultHighWaterMark(objectMode, value)` | `(...) => any` | `__stream.stream.setDefaultHighWaterMark` | ✅ Done | `internal/compiler/testdata/corpus/api/stream.ts` |
 
 ---
 

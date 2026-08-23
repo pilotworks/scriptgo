@@ -260,6 +260,12 @@ func syntaxType(node *ast.Node) string {
 			return "(" + strings.Join(params, ", ") + ") => " + retType
 		}
 		return "closure"
+	case ast.KindParenthesizedType:
+		paren := node.AsParenthesizedTypeNode()
+		if paren != nil && paren.Type != nil {
+			return "(" + syntaxType(paren.Type) + ")"
+		}
+		return "any"
 	default:
 		return node.Kind.String()
 	}

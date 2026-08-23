@@ -117,20 +117,35 @@ func main() {
 					classDecl := stmt.AsClassDeclaration()
 					className := classDecl.Name().Text()
 					var memberLines []string
+					heritage := ""
+					if classDecl.HeritageClauses != nil {
+						for _, clause := range classDecl.HeritageClauses.Nodes {
+							if clause != nil {
+								hText := strings.TrimSpace(source[clause.Pos():clause.End()])
+								if hText != "" {
+									heritage += " " + hText
+								}
+							}
+						}
+					}
 					for _, member := range classDecl.Members.Nodes {
-						if member.Kind == ast.KindConstructor {
+						switch member.Kind {
+						case ast.KindConstructor:
 							sig := formatConstructorSignature(member, source)
 							if sig != "" {
 								memberLines = append(memberLines, "    "+sig)
 							}
-						} else if member.Kind == ast.KindMethodDeclaration {
+						case ast.KindMethodDeclaration:
 							if !hasPrivateModifier(member.Modifiers()) {
 								sig := formatFunctionSignature(member, source)
 								if sig != "" {
+									if hasStaticModifier(member.Modifiers()) && !strings.HasPrefix(sig, "static ") {
+										sig = "static " + sig
+									}
 									memberLines = append(memberLines, "    "+sig)
 								}
 							}
-						} else if member.Kind == ast.KindPropertyDeclaration {
+						case ast.KindPropertyDeclaration:
 							if !hasPrivateModifier(member.Modifiers()) {
 								prop := member.AsPropertyDeclaration()
 								name := prop.Name().Text()
@@ -138,11 +153,15 @@ func main() {
 								if prop.Type != nil {
 									fType = strings.TrimSpace(source[prop.Type.Pos():prop.Type.End()])
 								}
-								memberLines = append(memberLines, fmt.Sprintf("    %s: %s;", name, fType))
+								staticPrefix := ""
+								if hasStaticModifier(member.Modifiers()) {
+									staticPrefix = "static "
+								}
+								memberLines = append(memberLines, fmt.Sprintf("    %s%s: %s;", staticPrefix, name, fType))
 							}
 						}
 					}
-					lines = append(lines, fmt.Sprintf("export class %s {\n%s\n}", className, strings.Join(memberLines, "\n")))
+					lines = append(lines, fmt.Sprintf("export class %s%s {\n%s\n}", className, heritage, strings.Join(memberLines, "\n")))
 				}
 				continue
 			}
@@ -172,6 +191,18 @@ func main() {
 		}
 		fmt.Printf("Generated %s -> %s\n", dtsName, stdlibDtsPath)
 	}
+}
+
+func hasStaticModifier(modifiers *ast.ModifierList) bool {
+	if modifiers == nil {
+		return false
+	}
+	for _, m := range modifiers.Nodes {
+		if m.Kind == ast.KindStaticKeyword {
+			return true
+		}
+	}
+	return false
 }
 
 func hasExportModifier(modifiers *ast.ModifierList) bool {
@@ -227,6 +258,9 @@ func formatFunctionSignature(stmt *ast.Node, src string) string {
 }
 
 func cleanSignature(sig string) string {
+	if !strings.Contains(sig, "=") {
+		return sig
+	}
 	openParen := strings.Index(sig, "(")
 	closeParen := strings.LastIndex(sig, ")")
 	if openParen == -1 || closeParen == -1 || closeParen <= openParen {

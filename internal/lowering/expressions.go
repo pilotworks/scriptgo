@@ -610,7 +610,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		if valType == ir.TypeUnknown {
+		if valType == ir.TypeUnknown || valType == ir.TypeClosure || strings.HasPrefix(string(valType), "object:") || valType == "ptr" {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpTypeOf,
 				Type:   ir.TypeString,

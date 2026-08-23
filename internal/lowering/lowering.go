@@ -110,7 +110,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
 				}
-				if len(shape.Fields) > 0 {
+				if len(shape.Fields) > 0 || statement.Kind == "class" {
 					shapes[shape.Name] = shape
 					module.Shapes = append(module.Shapes, shape)
 				}

@@ -18,29 +18,26 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok {
 			return Value{Type: ir.TypeBool, Bool: false}, nil
 		}
-		isArr := strings.HasSuffix(string(arg.Type), "[]") || arg.Type == ir.TypeNumberArray || arg.Type == ir.TypeStringArray || arg.Type == ir.TypeBoolArray || arg.Type == ir.TypeBigIntArray
+		for arg.Type == ir.TypeUnknown && arg.Boxed != nil {
+			arg = *arg.Boxed
+		}
+		isArr := strings.HasSuffix(string(arg.Type), "[]") || strings.Contains(string(arg.Type), "[]") || strings.Contains(string(arg.Type), "__shape_0_") || arg.Type == ir.TypeNumberArray || arg.Type == ir.TypeStringArray || arg.Type == ir.TypeBoolArray || arg.Type == ir.TypeBigIntArray || arg.Type == ir.TypeSymbolArray || arg.ArrayRef != nil || len(arg.Array) > 0 || len(arg.GetArray()) > 0 || arg.TypedArray != nil || strings.Contains(string(arg.Type), "Array")
 		return Value{Type: ir.TypeBool, Bool: isArr}, nil
 	}
 	if name == "__array.of" {
 		var arr []Value
 		elemType := ir.TypeNumber
 		for _, argName := range arguments {
-			arg, ok := env[argName]
+			elem, ok := env[argName]
 			if !ok {
-				return Value{}, fmt.Errorf("unknown array.of argument %q", argName)
+				return Value{}, fmt.Errorf("unknown array element %q", argName)
 			}
-			arr = append(arr, arg)
-			if arg.Type != "" {
-				elemType = arg.Type
-			}
+			arr = append(arr, elem)
+			elemType = elem.Type
 		}
-		retType := ir.Type(string(elemType) + "[]")
-		if elemType == ir.TypeNumber {
-			retType = ir.TypeNumberArray
-		} else if elemType == ir.TypeString {
-			retType = ir.TypeStringArray
-		}
-		return Value{Type: retType, Array: arr}, nil
+		ref := new([]Value)
+		*ref = arr
+		return Value{Type: ir.Type(string(elemType) + "[]"), Array: arr, ArrayRef: ref}, nil
 	}
 	if name == "__array.from" {
 		if len(arguments) == 0 {
@@ -50,22 +47,35 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok {
 			return Value{}, fmt.Errorf("unknown array.from argument %q", arguments[0])
 		}
+		for arg.Type == ir.TypeUnknown && arg.Boxed != nil {
+			arg = *arg.Boxed
+		}
 		if arg.Type == ir.TypeString {
+			var arr []Value
 			runes := []rune(arg.String)
-			arr := make([]Value, len(runes))
-			for i, r := range runes {
-				arr[i] = Value{Type: ir.TypeString, String: string(r)}
+			for _, r := range runes {
+				arr = append(arr, Value{Type: ir.TypeString, String: string(r)})
 			}
-			return Value{Type: ir.TypeStringArray, Array: arr}, nil
+			ref := new([]Value)
+			*ref = arr
+			return Value{Type: ir.TypeStringArray, Array: arr, ArrayRef: ref}, nil
 		}
 		newArr := append([]Value(nil), arg.GetArray()...)
-		return Value{Type: arg.Type, Array: newArr}, nil
+		ref := new([]Value)
+		*ref = newArr
+		return Value{Type: arg.Type, Array: newArr, ArrayRef: ref}, nil
 	}
 	if len(arguments) == 0 {
 		return Value{}, fmt.Errorf("array intrinsic requires at least one argument")
 	}
 	array, ok := env[arguments[0]]
-	if !ok || (!strings.HasSuffix(string(array.Type), "[]") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray && array.Type != ir.TypeBoolArray && array.Type != ir.TypeBigIntArray) {
+	if !ok {
+		return Value{}, fmt.Errorf("array intrinsic requires an array")
+	}
+	for array.Type == ir.TypeUnknown && array.Boxed != nil {
+		array = *array.Boxed
+	}
+	if !strings.HasSuffix(string(array.Type), "[]") && !strings.Contains(string(array.Type), "__shape_0_") && array.Type != ir.TypeNumberArray && array.Type != ir.TypeStringArray && array.Type != ir.TypeBoolArray && array.Type != ir.TypeBigIntArray && array.ArrayRef == nil && len(array.Array) == 0 {
 		return Value{}, fmt.Errorf("array intrinsic requires an array")
 	}
 	array.Array = array.GetArray()
@@ -74,7 +84,10 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 	}
 	switch name {
 	case "__array.length":
-		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
+		if array.TypedArray != nil {
+			return Value{Type: ir.TypeNumber, Number: float64(array.TypedArray.Length)}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: float64(len(array.GetArray()))}, nil
 	case "__array.push":
 		if len(arguments) != 2 {
 			return Value{}, fmt.Errorf("array.push requires array and element")
@@ -83,23 +96,24 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok {
 			return Value{}, fmt.Errorf("unknown push argument %q", arguments[1])
 		}
-		array.Array = append(array.Array, elem)
-		array.SetArray(array.Array)
+		arr := append(array.GetArray(), elem)
+		array.SetArray(arr)
 		env[arguments[0]] = array
-		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
+		return Value{Type: ir.TypeNumber, Number: float64(len(arr))}, nil
 	case "__array.pop":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("array.pop requires 1 argument")
 		}
-		if len(array.Array) == 0 {
+		arr := array.GetArray()
+		if len(arr) == 0 {
 			if array.Type == ir.TypeNumberArray {
 				return Value{Type: ir.TypeNumber, Number: 0}, nil
 			}
 			return Value{Type: ir.TypeString, String: ""}, nil
 		}
-		last := array.Array[len(array.Array)-1]
-		array.Array = array.Array[:len(array.Array)-1]
-		array.SetArray(array.Array)
+		last := arr[len(arr)-1]
+		arr = arr[:len(arr)-1]
+		array.SetArray(arr)
 		env[arguments[0]] = array
 		return last, nil
 	case "__array.slice":
@@ -110,13 +124,14 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok || startVal.Type != ir.TypeNumber {
 			return Value{}, fmt.Errorf("array.slice start must be a number")
 		}
+		arr := array.GetArray()
 		start := int(startVal.Number)
 		if start < 0 {
-			start = max(len(array.Array)+start, 0)
-		} else if start > len(array.Array) {
-			start = len(array.Array)
+			start = max(len(arr)+start, 0)
+		} else if start > len(arr) {
+			start = len(arr)
 		}
-		end := len(array.Array)
+		end := len(arr)
 		if len(arguments) == 3 {
 			endVal, ok := env[arguments[2]]
 			if !ok || endVal.Type != ir.TypeNumber {
@@ -124,15 +139,15 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 			end = int(endVal.Number)
 			if end < 0 {
-				end = max(len(array.Array)+end, 0)
-			} else if end > len(array.Array) {
-				end = len(array.Array)
+				end = max(len(arr)+end, 0)
+			} else if end > len(arr) {
+				end = len(arr)
 			}
 		}
 		if end < start {
 			end = start
 		}
-		sub := append([]Value(nil), array.Array[start:end]...)
+		sub := append([]Value(nil), arr[start:end]...)
 		return Value{Type: array.Type, Array: sub}, nil
 	case "__array.indexOf":
 		if len(arguments) < 2 || len(arguments) > 3 {
@@ -150,11 +165,12 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			}
 		}
 		idx := -1
-		for i := start; i < len(array.Array); i++ {
-			if array.Type == ir.TypeNumberArray && array.Array[i].Number == target.Number {
+		arr := array.GetArray()
+		for i := start; i < len(arr); i++ {
+			if array.Type == ir.TypeNumberArray && arr[i].Number == target.Number {
 				idx = i
 				break
-			} else if array.Type == ir.TypeStringArray && array.Array[i].String == target.String {
+			} else if array.Type == ir.TypeStringArray && arr[i].String == target.String {
 				idx = i
 				break
 			}
@@ -169,11 +185,12 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 			return Value{}, fmt.Errorf("unknown includes target")
 		}
 		found := false
-		for i := 0; i < len(array.Array); i++ {
-			if array.Type == ir.TypeNumberArray && array.Array[i].Number == target.Number {
+		arr := array.GetArray()
+		for i := 0; i < len(arr); i++ {
+			if array.Type == ir.TypeNumberArray && arr[i].Number == target.Number {
 				found = true
 				break
-			} else if array.Type == ir.TypeStringArray && array.Array[i].String == target.String {
+			} else if array.Type == ir.TypeStringArray && arr[i].String == target.String {
 				found = true
 				break
 			}
@@ -187,30 +204,32 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok || idxVal.Type != ir.TypeNumber {
 			return Value{}, fmt.Errorf("array.at index must be a number")
 		}
+		arr := array.GetArray()
 		idx := int(idxVal.Number)
 		if idx < 0 {
-			idx = len(array.Array) + idx
+			idx = len(arr) + idx
 		}
-		if idx < 0 || idx >= len(array.Array) {
+		if idx < 0 || idx >= len(arr) {
 			if array.Type == ir.TypeNumberArray {
 				return Value{Type: ir.TypeNumber, Number: 0}, nil
 			}
 			return Value{Type: ir.TypeString, String: ""}, nil
 		}
-		return array.Array[idx], nil
+		return arr[idx], nil
 	case "__array.shift":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("array.shift requires 1 argument")
 		}
-		if len(array.Array) == 0 {
+		arr := array.GetArray()
+		if len(arr) == 0 {
 			if array.Type == ir.TypeNumberArray {
 				return Value{Type: ir.TypeNumber, Number: 0}, nil
 			}
 			return Value{Type: ir.TypeString, String: ""}, nil
 		}
-		first := array.Array[0]
-		array.Array = array.Array[1:]
-		array.SetArray(array.Array)
+		first := arr[0]
+		arr = arr[1:]
+		array.SetArray(arr)
 		env[arguments[0]] = array
 		return first, nil
 	case "__array.unshift":
@@ -221,18 +240,19 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		if !ok {
 			return Value{}, fmt.Errorf("unknown unshift argument %q", arguments[1])
 		}
-		array.Array = append([]Value{elem}, array.Array...)
-		array.SetArray(array.Array)
+		arr := append([]Value{elem}, array.GetArray()...)
+		array.SetArray(arr)
 		env[arguments[0]] = array
-		return Value{Type: ir.TypeNumber, Number: float64(len(array.Array))}, nil
+		return Value{Type: ir.TypeNumber, Number: float64(len(arr))}, nil
 	case "__array.reverse":
 		if len(arguments) != 1 {
 			return Value{}, fmt.Errorf("array.reverse requires 1 argument")
 		}
-		for i, j := 0, len(array.Array)-1; i < j; i, j = i+1, j-1 {
-			array.Array[i], array.Array[j] = array.Array[j], array.Array[i]
+		arr := array.GetArray()
+		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
+			arr[i], arr[j] = arr[j], arr[i]
 		}
-		array.SetArray(array.Array)
+		array.SetArray(arr)
 		env[arguments[0]] = array
 		return array, nil
 	case "__array.concat":

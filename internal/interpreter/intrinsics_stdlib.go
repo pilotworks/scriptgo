@@ -366,3 +366,49 @@ func executeJsonIntrinsic(name string, arguments []string, env map[string]Value)
 		return Value{}, fmt.Errorf("unknown JSON intrinsic %q", name)
 	}
 }
+
+var (
+	defaultStreamHWM       float64 = 16384
+	defaultStreamObjectHWM float64 = 16
+)
+
+func resetStreamDefaults() {
+	defaultStreamHWM = 16384
+	defaultStreamObjectHWM = 16
+}
+
+func executeStreamIntrinsic(name string, arguments []string, env map[string]Value) (Value, error) {
+	switch name {
+	case "__stream.getDefaultHighWaterMark":
+		isObj := false
+		if len(arguments) > 0 {
+			if arg, ok := env[arguments[0]]; ok && arg.Type == ir.TypeBool {
+				isObj = arg.Bool
+			}
+		}
+		if isObj {
+			return Value{Type: ir.TypeNumber, Number: defaultStreamObjectHWM}, nil
+		}
+		return Value{Type: ir.TypeNumber, Number: defaultStreamHWM}, nil
+	case "__stream.setDefaultHighWaterMark":
+		if len(arguments) < 2 {
+			return Value{}, fmt.Errorf("setDefaultHighWaterMark requires 2 arguments")
+		}
+		isObj := false
+		if arg, ok := env[arguments[0]]; ok && arg.Type == ir.TypeBool {
+			isObj = arg.Bool
+		}
+		val, ok := env[arguments[1]]
+		if !ok || val.Type != ir.TypeNumber || val.Number < 0 {
+			return Value{}, fmt.Errorf("highWaterMark must be a non-negative number")
+		}
+		if isObj {
+			defaultStreamObjectHWM = math.Floor(val.Number)
+		} else {
+			defaultStreamHWM = math.Floor(val.Number)
+		}
+		return Value{Type: ir.TypeVoid}, nil
+	default:
+		return Value{}, fmt.Errorf("unsupported stream intrinsic %q", name)
+	}
+}
