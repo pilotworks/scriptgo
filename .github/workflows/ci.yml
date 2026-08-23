@@ -3,10 +3,27 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.vscode/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.vscode/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # ============================================================================
+  # Test Matrix: Unit, Integration, Frontend & Parity Benchmarks
+  # ============================================================================
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -31,32 +48,26 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Clang / LLVM
+      - name: Setup Clang Runtime
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm libclang-rt-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
 
       - name: Build scriptgo CLI
         run: go build -v ./cmd/scriptgo
 
-      - name: Run Full Test Suite
-        run: go test -v -count=1 ./...
-
-      - name: Run TypeScript-Go Frontend Tests
-        run: go test -v -count=1 ./internal/typescriptgo/...
+      - name: Run Test Suite
+        run: go test -v -count=1 ./... ./internal/typescriptgo/...
 
       - name: Run Node.js Parity Benchmark
         run: go run ./cmd/parity
 
-      # Native Memory & Address Sanitizer Verification
-      - name: Native Memory & Address Sanitizer Check
-        env:
-          ASAN_OPTIONS: 'detect_leaks=0'
-        run: make test-sanitizers
-
-  lint:
-    name: Lint (Go)
+  # ============================================================================
+  # Sanitizers: AddressSanitizer & UndefinedBehaviorSanitizer (Parallel Job)
+  # ============================================================================
+  sanitizer:
+    name: Memory & Address Sanitizer
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -68,5 +79,58 @@ jobs:
           go-version: '1.26.x'
           cache: true
 
-      - name: Run Go Lint
+      - name: Setup Clang Runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
+
+      - name: Run Native Sanitizers Check
+        env:
+          ASAN_OPTIONS: 'detect_leaks=0'
+        run: make test-sanitizers
+
+  # ============================================================================
+  # Lint: Code style and static analysis with golangci-lint
+  # ============================================================================
+  lint:
+    name: Lint (golangci-lint & go vet)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Run Go Vet
         run: make lint
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          args: --timeout=5m
+
+  # ============================================================================
+  # Security: Vulnerability scan for Go dependencies
+  # ============================================================================
+  vulncheck:
+    name: Security (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... ./internal/typescriptgo/...

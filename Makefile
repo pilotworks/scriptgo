@@ -33,8 +33,7 @@ test-sanitizers:
 ## lint: Run Go vet checks
 lint:
 	@echo "==> Running go vet..."
-	go vet ./...
-	go vet ./internal/typescriptgo/...
+	go vet ./... ./internal/typescriptgo/...
 
 ## release: Prepare a new release locally (usage: make release VERSION=0.1.0)
 release:
