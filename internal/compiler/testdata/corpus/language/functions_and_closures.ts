@@ -347,7 +347,13 @@ console.log(combine_functions_two_arguments_16(19, 23));
 // @expect: 100
 // @expect: 101
 // @expect: 16
-function createMutatingCounter(initial: number) {
+interface MutatingCounter {
+    inc: () => number;
+    add: (amount: number) => number;
+    get: () => number;
+}
+
+function createMutatingCounter(initial: number): MutatingCounter {
     let count = initial;
     return {
         inc: (): number => {

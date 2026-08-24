@@ -94,7 +94,16 @@ func executeFunction(functions map[string]ir.Function, function ir.Function, arg
 		argType := arguments[index].Type
 		paramType := parameter.Type
 		if argType != paramType {
-			if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) &&
+			if isValNullish(arguments[index]) {
+				switch paramType {
+				case ir.TypeBool:
+					arguments[index] = Value{Type: ir.TypeBool, Bool: false}
+				case ir.TypeNumber:
+					arguments[index] = Value{Type: ir.TypeNumber, Number: 0}
+				case ir.TypeString:
+					arguments[index] = Value{Type: ir.TypeString, String: "null"}
+				}
+			} else if !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(paramType), "object:")) &&
 				!(argType == ir.TypeBuffer && paramType == ir.TypeUint8Array) &&
 				!(isValNullish(arguments[index]) && (strings.HasPrefix(string(paramType), "object:") || paramType == "ptr" || paramType == ir.TypeClosure)) {
 				return Value{}, flowNormal, fmt.Errorf("argument %d to %q has type %s, want %s", index, function.Name, argType, paramType)
@@ -1007,6 +1016,12 @@ func castValue(val Value, targetType ir.Type) (Value, error) {
 	}
 	if val.Type == targetType {
 		return val, nil
+	}
+	if targetType == ir.TypeUnknown {
+		return Value{Type: ir.TypeUnknown, Boxed: &val}, nil
+	}
+	if val.Type == "ptr" && (strings.HasPrefix(string(targetType), "object:") || targetType == ir.TypeObject || targetType == "ptr" || strings.HasSuffix(string(targetType), "[]")) {
+		return Value{Type: targetType}, nil
 	}
 	if (strings.Contains(string(val.Type), "[]") || strings.Contains(string(val.Type), "__shape_0_") || val.ArrayRef != nil || len(val.Array) > 0) && (strings.Contains(string(targetType), "[]") || targetType == ir.TypeObject) {
 		res := val

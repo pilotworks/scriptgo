@@ -423,6 +423,37 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
+	if expression.Text == "length" {
+		if objectType == ir.TypeString {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__string.length",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+		if strings.HasSuffix(string(objectType), "[]") || objectType == ir.TypeStringArray || objectType == ir.TypeNumberArray || objectType == ir.TypeBoolArray || objectType == ir.Type("symbol[]") || objectType == ir.Type("any[]") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__array.length",
+				Args:   []string{object},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
+	}
+
 	className := strings.TrimPrefix(string(objectType), "object:")
 
 	// Check instance getters
@@ -454,7 +485,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 	if !ok {
-		if className == "Record" || objectType == ir.TypeObject {
+		if className == "" || className == "Record" || objectType == ir.TypeObject || objectType == ir.TypeUnknown {
 			propNameConst := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,

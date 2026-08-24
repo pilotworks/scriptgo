@@ -454,6 +454,9 @@ export class HttpConnection {
         this.connected = connected;
         this.options = options;
     }
+    on(event: string, listener: unknown = null): this {
+        return this;
+    }
 }
 
 export class Agent {
@@ -694,10 +697,13 @@ export class OutgoingMessage {
         return this;
     }
 
-    setHeaders(headers: Headers): OutgoingMessage {
-        const entries = headers.entries();
-        for (let i = 0; i < entries.length; i++) {
-            this.setHeader(entries[i][0], entries[i][1]);
+    setHeaders(headers: unknown): OutgoingMessage {
+        if (headers instanceof Headers) {
+            const h = headers as Headers;
+            const entries = h.entries();
+            for (let i = 0; i < entries.length; i++) {
+                this.setHeader(entries[i][0], entries[i][1]);
+            }
         }
         return this;
     }
@@ -785,7 +791,9 @@ export class ClientRequest extends OutgoingMessage {
     constructor(urlOrOptions: unknown, cb: unknown = null) {
         super();
         if (typeof urlOrOptions === "string") {
-            this.path = urlOrOptions as string;
+            const s = urlOrOptions as string;
+            const slash = s.indexOf("/", 8);
+            this.path = slash >= 0 ? s.substring(slash) : s;
         } else if (urlOrOptions !== null && typeof urlOrOptions === "object") {
             const opts = urlOrOptions as ClientRequestOptions;
             if (opts.path !== undefined) this.path = opts.path;
@@ -821,8 +829,8 @@ export class ClientRequest extends OutgoingMessage {
 export class IncomingMessage {
     aborted: boolean = false;
     complete: boolean = true;
-    connection: string | null = null;
-    socket: string | null = null;
+    connection: string = "";
+    socket: string = "";
     headers: string[] = [];
     headersDistinct: string[] = [];
     httpVersion: string = "1.1";
@@ -837,9 +845,11 @@ export class IncomingMessage {
 
     private _events: HttpEventBucket[] = [];
 
-    constructor(socket: string | null = null) {
-        this.socket = socket;
-        this.connection = socket;
+    constructor(socket: unknown = null) {
+        if (socket !== null && socket !== undefined) {
+            this.socket = String(socket);
+            this.connection = String(socket);
+        }
     }
 
     private _findBucketIndex(event: string): number {
@@ -911,6 +921,10 @@ export class IncomingMessage {
             this.once("timeout", callback as Function);
         }
         return this;
+    }
+
+    pipe(dest: unknown): unknown {
+        return dest;
     }
 }
 

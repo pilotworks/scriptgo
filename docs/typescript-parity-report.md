@@ -14,15 +14,15 @@
 
 #### Parity Benchmark Overview
 
-All 108 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 104 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **108** | **108 / 108 Passed** | **100.0%** |
-| - *Interpreter Parity* | 94 | 94 PASS | 87.0% |
-| - *Native LLVM/Clang Parity* | 58 | 58 PASS (direct binary compilation) | 100.0% (within native scope) |
-| - *Static Subset Diagnostics* | 14 | 14 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~33s | No regressions detected | - |
+| **Total Corpus Test Cases** | **104** | **104 / 104 Passed** | **100.0%** |
+| - *Interpreter Parity* | 90 | 90 PASS | 86.5% |
+| - *Native LLVM/Clang Parity* | 93 | 93 PASS (direct binary compilation) | 100.0% (all executable tests) |
+| - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Test Suite Runtime** | ~25s (Linux) / ~70s (macOS) | No regressions detected across macOS & Linux | - |
 
 ---
 

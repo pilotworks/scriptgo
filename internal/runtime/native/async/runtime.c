@@ -84,16 +84,18 @@ int scriptgo_event_loop_run(void) {
             microtask_tail = NULL;
         }
         if (task->closure != NULL && task->closure->fn_ptr != NULL) {
+            uint64_t payload = 0;
+            uint32_t tag = 0;
             if (task->is_number) {
-                void (*fn)(void *, double) = (void (*)(void *, double))task->closure->fn_ptr;
-                fn(task->closure->env, task->num_arg);
+                tag = 3; // number
+                memcpy(&payload, &task->num_arg, sizeof(double));
             } else if (task->ptr_arg != NULL) {
-                void (*fn)(void *, void *) = (void (*)(void *, void *))task->closure->fn_ptr;
-                fn(task->closure->env, task->ptr_arg);
-            } else {
-                void (*fn)(void *) = (void (*)(void *))task->closure->fn_ptr;
-                fn(task->closure->env);
+                tag = 4; // string/object
+                payload = (uint64_t)(uintptr_t)task->ptr_arg;
             }
+            void (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
+                (void (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))task->closure->fn_ptr;
+            fn(task->closure->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         free(task);
     }

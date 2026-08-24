@@ -44,21 +44,25 @@ class AbortSignalLike {
     addEventListener: Function | null = null;
 }
 
-class WebReadableStream {
+export class WebReadableStream {
     _stream: Readable | null = null;
     constructor(stream?: Readable | null) {
         this._stream = stream !== undefined ? stream : null;
     }
 }
 
-class WebWritableStream {
+export class ReadableStream extends WebReadableStream {}
+
+export class WebWritableStream {
     _stream: Writable | null = null;
     constructor(stream?: Writable | null) {
         this._stream = stream !== undefined ? stream : null;
     }
 }
 
-class WebDuplexStream {
+export class WritableStream extends WebWritableStream {}
+
+export class WebDuplexStream {
     readable: WebReadableStream;
     writable: WebWritableStream;
     constructor(readable: WebReadableStream, writable: WebWritableStream) {
@@ -68,7 +72,7 @@ class WebDuplexStream {
 }
 
 export class Stream {
-    static _defaultHighWaterMark: number = 16384;
+    static _defaultHighWaterMark: number = 65536;
     static _defaultObjectModeHighWaterMark: number = 16;
 
     readable: boolean = true;
@@ -375,7 +379,7 @@ export class Readable extends Stream {
             if (options.objectMode !== undefined) {
                 this.readableObjectMode = options.objectMode;
             }
-            if (options.highWaterMark !== undefined) {
+            if (options.highWaterMark !== undefined && options.highWaterMark > 0) {
                 this.readableHighWaterMark = options.highWaterMark;
             } else {
                 this.readableHighWaterMark = getDefaultHighWaterMark(this.readableObjectMode);
@@ -641,14 +645,26 @@ export class Readable extends Stream {
         if (iterable !== null && iterable !== undefined) {
             if (Array.isArray(iterable)) {
                 const arr = iterable as string[];
-                for (let i = 0; i < arr.length; i++) {
-                    stream.push(String(arr[i]));
-                }
-                stream.push(null);
+                let idx = 0;
+                stream._customRead = (size: number) => {
+                    while (idx < arr.length && !stream.isPaused()) {
+                        stream.push(String(arr[idx]));
+                        idx++;
+                    }
+                    if (idx >= arr.length) {
+                        stream.push(null);
+                    }
+                };
             } else if (typeof iterable === "string") {
                 const str = iterable as string;
-                stream.push(str);
-                stream.push(null);
+                let sent = false;
+                stream._customRead = (size: number) => {
+                    if (!sent) {
+                        sent = true;
+                        stream.push(str);
+                        stream.push(null);
+                    }
+                };
             }
         }
         return stream;
@@ -712,7 +728,7 @@ export class Writable extends Stream {
             if (options.objectMode !== undefined) {
                 this.writableObjectMode = options.objectMode;
             }
-            if (options.highWaterMark !== undefined) {
+            if (options.highWaterMark !== undefined && options.highWaterMark > 0) {
                 this.writableHighWaterMark = options.highWaterMark;
             } else {
                 this.writableHighWaterMark = getDefaultHighWaterMark(this.writableObjectMode);
@@ -1215,7 +1231,7 @@ export class Transform extends Duplex {
                 callback(err);
                 return;
             }
-            if (data !== undefined && data !== null) {
+            if (data) {
                 self.push(data);
             }
             callback(null);
@@ -1229,7 +1245,7 @@ export class Transform extends Duplex {
                 callback(err);
                 return;
             }
-            if (data !== undefined && data !== null) {
+            if (data) {
                 self.push(data);
             }
             self.push(null);

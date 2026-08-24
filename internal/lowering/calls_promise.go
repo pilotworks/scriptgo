@@ -28,6 +28,12 @@ func lowerPromiseStaticCall(
 			result = nextTemp(counter)
 		}
 		promType := ir.Type("object:Promise<unknown>")
+		if expression.InferredType != "" && strings.HasPrefix(expression.InferredType, "Promise<") && strings.HasSuffix(expression.InferredType, ">") {
+			inner := strings.TrimSuffix(strings.TrimPrefix(expression.InferredType, "Promise<"), ">")
+			promType = ir.Type("object:Promise<" + string(toIRType(inner)) + ">")
+		} else if strings.Contains(expression.InferredType, "number") {
+			promType = ir.Type("object:Promise<number>")
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   promType,

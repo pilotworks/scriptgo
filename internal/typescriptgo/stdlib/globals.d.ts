@@ -784,6 +784,33 @@ interface ResponseConstructor {
 
 declare var Response: ResponseConstructor;
 
+interface ReadableStream {
+    readonly locked: boolean;
+    cancel(reason?: any): Promise<void>;
+    getReader(): any;
+}
+
+interface ReadableStreamConstructor {
+    new(underlyingSource?: any, strategy?: any): ReadableStream;
+    readonly prototype: ReadableStream;
+}
+
+declare var ReadableStream: ReadableStreamConstructor;
+
+interface WritableStream {
+    readonly locked: boolean;
+    abort(reason?: any): Promise<void>;
+    close(): Promise<void>;
+    getWriter(): any;
+}
+
+interface WritableStreamConstructor {
+    new(underlyingSink?: any, strategy?: any): WritableStream;
+    readonly prototype: WritableStream;
+}
+
+declare var WritableStream: WritableStreamConstructor;
+
 declare function fetch(input: string | Request, init?: RequestInit): Promise<Response>;
 
 declare namespace Reflect {
@@ -843,3 +870,21 @@ interface IteratorConstructor {
 }
 
 declare var Iterator: IteratorConstructor;
+
+interface WebSocket {
+    readonly url: string;
+    readonly readyState: number;
+    close(code?: number, reason?: string): void;
+    send(data: string): void;
+}
+
+interface WebSocketConstructor {
+    new(url: string, protocols?: string | string[]): WebSocket;
+    readonly prototype: WebSocket;
+    readonly CONNECTING: 0;
+    readonly OPEN: 1;
+    readonly CLOSING: 2;
+    readonly CLOSED: 3;
+}
+
+declare var WebSocket: WebSocketConstructor;

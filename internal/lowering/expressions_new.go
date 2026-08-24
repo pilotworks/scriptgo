@@ -556,16 +556,65 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 				return "", "", err
 			}
 			paramIdx := i + 1
-			if paramIdx < len(ctor.Parameters) && ctor.Parameters[paramIdx].Type == ir.TypeUnknown && argType != ir.TypeUnknown {
-				boxed := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpBoxUnknown,
-					Type:   ir.TypeUnknown,
-					Result: boxed,
-					Args:   []string{argVal},
-					Span:   toIRSpan(path, arg.Span),
-				})
-				argVal = boxed
+			if paramIdx < len(ctor.Parameters) {
+				paramType := ctor.Parameters[paramIdx].Type
+				if strings.HasPrefix(string(paramType), "object:") && strings.HasPrefix(string(argType), "object:") && paramType != argType {
+					dstShapeName := strings.TrimPrefix(string(paramType), "object:")
+					srcShapeName := strings.TrimPrefix(string(argType), "object:")
+					if dstShape, ok := shapes[dstShapeName]; ok && strings.HasPrefix(srcShapeName, "__shape_") {
+						adapted := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:         ir.OpObjectNew,
+							Type:       paramType,
+							Result:     adapted,
+							Callee:     dstShapeName,
+							FieldCount: len(dstShape.Fields),
+							Span:       toIRSpan(path, arg.Span),
+						})
+						if srcShape, ok := shapes[srcShapeName]; ok {
+							for dstIdx, dstField := range dstShape.Fields {
+								for srcIdx, srcField := range srcShape.Fields {
+									if srcField.Name == dstField.Name {
+										fieldVal := nextTemp(counter)
+										function.Body = append(function.Body, ir.Instruction{
+											Op:         ir.OpFieldGet,
+											Type:       dstField.Type,
+											Result:     fieldVal,
+											Callee:     srcShapeName,
+											Field:      srcField.Name,
+											FieldIndex: srcIdx,
+											Args:       []string{argVal},
+											Span:       toIRSpan(path, arg.Span),
+										})
+										function.Body = append(function.Body, ir.Instruction{
+											Op:         ir.OpFieldSet,
+											Type:       ir.TypeVoid,
+											Callee:     dstShapeName,
+											Field:      dstField.Name,
+											FieldIndex: dstIdx,
+											Args:       []string{adapted, fieldVal},
+											Span:       toIRSpan(path, arg.Span),
+										})
+										break
+									}
+								}
+							}
+						}
+						argVal = adapted
+						argType = paramType
+					}
+				}
+				if paramType == ir.TypeUnknown && argType != ir.TypeUnknown {
+					boxed := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpBoxUnknown,
+						Type:   ir.TypeUnknown,
+						Result: boxed,
+						Args:   []string{argVal},
+						Span:   toIRSpan(path, arg.Span),
+					})
+					argVal = boxed
+				}
 			}
 			args = append(args, argVal)
 		}

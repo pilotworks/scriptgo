@@ -34,9 +34,9 @@ console.log(sp.has("a"));
 // @expect: b
 // @expect: 2
 // @expect: 1
-console.log(sp.keys().join(","));
-console.log(sp.values().join(","));
-console.log(sp.entries().length);
+console.log(Array.from(sp.keys()).join(","));
+console.log(Array.from(sp.values()).join(","));
+console.log(Array.from(sp.entries()).length);
 
 // @api: urlsearchparams.forEach
 // @expect: 2 b

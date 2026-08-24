@@ -212,15 +212,18 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		return nil
 
 	case "__typedarray.new_array":
-		if len(instruction.Args) != 2 {
-			return fmt.Errorf("typedarray.new_array requires 2 arguments")
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("typedarray.new_array requires at least 1 argument")
 		}
 		kind := typedArrayKind(instruction.Type)
+		if instruction.Value != "" {
+			kind = typedArrayKind(ir.Type(instruction.Value))
+		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[1], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[0], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil

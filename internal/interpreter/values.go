@@ -292,6 +292,33 @@ func parseConstant(typ ir.Type, value string) (Value, error) {
 
 func binary(operator string, left, right Value) (Value, error) {
 	if left.Type != right.Type {
+		if operator == "+" && (left.Type == ir.TypeString || right.Type == ir.TypeString) {
+			leftStr := left.String
+			if left.Type != ir.TypeString {
+				if isValNullish(left) {
+					leftStr = "null"
+				} else {
+					leftStr = format(left)
+				}
+			}
+			rightStr := right.String
+			if right.Type != ir.TypeString {
+				if isValNullish(right) {
+					rightStr = "null"
+				} else {
+					rightStr = format(right)
+				}
+			}
+			return Value{Type: ir.TypeString, String: leftStr + rightStr}, nil
+		}
+		if operator == "&&" || operator == "||" {
+			leftTruthy := isTruthy(left)
+			rightTruthy := isTruthy(right)
+			if operator == "&&" {
+				return Value{Type: ir.TypeBool, Bool: leftTruthy && rightTruthy}, nil
+			}
+			return Value{Type: ir.TypeBool, Bool: leftTruthy || rightTruthy}, nil
+		}
 		return Value{}, fmt.Errorf("binary operands have types %s and %s", left.Type, right.Type)
 	}
 	if left.Type == ir.TypeString {
@@ -400,8 +427,26 @@ func binary(operator string, left, right Value) (Value, error) {
 	}
 }
 
+func isTruthy(v Value) bool {
+	if isValNullish(v) {
+		return false
+	}
+	switch v.Type {
+	case ir.TypeBool:
+		return v.Bool
+	case ir.TypeNumber:
+		return v.Number != 0
+	case ir.TypeString:
+		return v.String != "" && v.String != "false" && v.String != "0" && v.String != "null" && v.String != "undefined"
+	case ir.TypeBigInt:
+		return v.BigInt != 0
+	default:
+		return true
+	}
+}
+
 func isValNullish(v Value) bool {
-	if v.Type == ir.TypeString && (v.String == "null" || v.String == "undefined") {
+	if v.Type == ir.TypeVoid || v.String == "null" || v.String == "undefined" {
 		return true
 	}
 	if v.Type == "ptr" || v.Type == "" {
@@ -410,7 +455,7 @@ func isValNullish(v Value) bool {
 	if v.Type == ir.TypeClosure && v.Closure == nil {
 		return true
 	}
-	if strings.HasPrefix(string(v.Type), "object:") && len(v.Object) == 0 && v.Boxed == nil && len(v.GetArray()) == 0 {
+	if (strings.HasPrefix(string(v.Type), "object:") || v.Type == ir.TypeArrayBuffer || v.Type == ir.TypeBuffer || v.Type == ir.TypeDataView || v.Type == ir.TypeTextEncoder || v.Type == ir.TypeTextDecoder || v.Type == ir.TypeMap || v.Type == ir.TypeSet || strings.HasSuffix(string(v.Type), "[]")) && len(v.Object) == 0 && v.Boxed == nil && len(v.GetArray()) == 0 && v.Buffer == nil && v.MapValue == nil && v.SetValue == nil {
 		return true
 	}
 	return false
@@ -423,44 +468,43 @@ func compare(operator string, left, right Value) (Value, error) {
 	if right.Type == ir.TypeUnknown && right.Boxed != nil {
 		right = *right.Boxed
 	}
-	if left.String == "undefined" && right.String == "undefined" {
+	if isValNullish(left) || isValNullish(right) {
 		switch operator {
 		case "==", "===":
-			return Value{Type: ir.TypeBool, Bool: true}, nil
+			return Value{Type: ir.TypeBool, Bool: isValNullish(left) == isValNullish(right)}, nil
 		case "!=", "!==":
-			return Value{Type: ir.TypeBool, Bool: false}, nil
-		}
-	}
-	if left.String == "null" && right.String == "null" {
-		switch operator {
-		case "==", "===":
-			return Value{Type: ir.TypeBool, Bool: true}, nil
-		case "!=", "!==":
-			return Value{Type: ir.TypeBool, Bool: false}, nil
+			return Value{Type: ir.TypeBool, Bool: isValNullish(left) != isValNullish(right)}, nil
 		}
 	}
 	if left.Type != right.Type {
-		leftNull := isValNullish(left)
-		rightNull := isValNullish(right)
-		if (leftNull || strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" || left.Type == ir.TypeClosure) &&
-			(rightNull || strings.HasPrefix(string(right.Type), "object:") || right.Type == "ptr" || right.Type == ir.TypeClosure) {
+		if (left.Type == ir.TypeString && right.Type == ir.TypeNumber) || (left.Type == ir.TypeNumber && right.Type == ir.TypeString) {
+			var lNum, rNum float64
+			if left.Type == ir.TypeString {
+				lNum, _ = strconv.ParseFloat(left.String, 64)
+				rNum = right.Number
+			} else {
+				lNum = left.Number
+				rNum, _ = strconv.ParseFloat(right.String, 64)
+			}
 			switch operator {
-			case "==", "===":
-				return Value{Type: ir.TypeBool, Bool: leftNull == rightNull}, nil
-			case "!=", "!==":
-				return Value{Type: ir.TypeBool, Bool: leftNull != rightNull}, nil
+			case "==":
+				return Value{Type: ir.TypeBool, Bool: lNum == rNum}, nil
+			case "!=":
+				return Value{Type: ir.TypeBool, Bool: lNum != rNum}, nil
+			case "<":
+				return Value{Type: ir.TypeBool, Bool: lNum < rNum}, nil
+			case "<=":
+				return Value{Type: ir.TypeBool, Bool: lNum <= rNum}, nil
+			case ">":
+				return Value{Type: ir.TypeBool, Bool: lNum > rNum}, nil
+			case ">=":
+				return Value{Type: ir.TypeBool, Bool: lNum >= rNum}, nil
 			}
 		}
-		if operator == "===" {
+		switch operator {
+		case "==", "===":
 			return Value{Type: ir.TypeBool, Bool: false}, nil
-		}
-		if operator == "!==" {
-			return Value{Type: ir.TypeBool, Bool: true}, nil
-		}
-		if operator == "==" {
-			return Value{Type: ir.TypeBool, Bool: false}, nil
-		}
-		if operator == "!=" {
+		case "!=", "!==":
 			return Value{Type: ir.TypeBool, Bool: true}, nil
 		}
 		return Value{}, fmt.Errorf("compare operands have types %s and %s", left.Type, right.Type)
@@ -579,9 +623,9 @@ func compare(operator string, left, right Value) (Value, error) {
 			return Value{}, fmt.Errorf("operator %q is unsupported for unknown comparison", operator)
 		}
 	default:
-		if strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" {
-			leftNull := len(left.Object) == 0 && left.Boxed == nil && len(left.GetArray()) == 0
-			rightNull := len(right.Object) == 0 && right.Boxed == nil && len(right.GetArray()) == 0
+		if left.Type == ir.TypeVoid || strings.HasPrefix(string(left.Type), "object:") || left.Type == "ptr" || left.Type == ir.TypeArrayBuffer || left.Type == ir.TypeBuffer || left.Type == ir.TypeDataView || left.Type == ir.TypeTextEncoder || left.Type == ir.TypeTextDecoder || left.Type == ir.TypeMap || left.Type == ir.TypeSet || strings.HasSuffix(string(left.Type), "[]") {
+			leftNull := isValNullish(left)
+			rightNull := isValNullish(right)
 			switch operator {
 			case "==", "===":
 				result = leftNull == rightNull

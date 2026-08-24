@@ -233,7 +233,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
-		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeString && function.ReturnType != ir.TypeUnknown {
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeUnknown {
 			res := nextTemp(counter)
 			if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
 				prom := nextTemp(counter)
@@ -259,7 +259,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			defaultVal := "0"
 			if function.ReturnType == ir.TypeBool {
 				defaultVal = "false"
-			} else if strings.HasPrefix(string(function.ReturnType), "object:") {
+			} else if function.ReturnType == ir.TypeNumber {
+				defaultVal = "0"
+			} else if statement.Expression.Kind == "undefined" {
+				defaultVal = "undefined"
+			} else if statement.Expression.Kind == "null" || strings.HasPrefix(string(function.ReturnType), "object:") || isPointerLikeType(function.ReturnType) || function.ReturnType == ir.TypeString {
 				defaultVal = "null"
 			}
 			function.Body = append(function.Body, ir.Instruction{
@@ -303,8 +307,20 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if strings.HasPrefix(string(function.ReturnType), "object:") && !strings.Contains(string(function.ReturnType), "{") && strings.HasPrefix(string(typ), "object:") {
 			typ = function.ReturnType
-		} else {
+		} else if function.ReturnType == "ptr" && (typ == ir.TypeString || isPointerLikeType(typ)) {
+			typ = "ptr"
+		} else if function.ReturnType == ir.TypeString && typ == "ptr" {
+			typ = ir.TypeString
+		} else if function.ReturnType != "" && function.ReturnType != ir.TypeVoid && isPointerLikeType(function.ReturnType) && (typ == "ptr" || isPointerLikeType(typ)) {
+			typ = function.ReturnType
+		} else if function.ReturnType == "" || function.ReturnType == ir.TypeVoid {
 			function.ReturnType = typ
+			if signatures != nil {
+				if sig, ok := signatures[function.Name]; ok {
+					sig.ReturnType = typ
+					signatures[function.Name] = sig
+				}
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "block":

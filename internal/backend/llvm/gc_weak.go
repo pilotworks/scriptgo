@@ -25,9 +25,11 @@ func emitGcIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	return nil
 }
 
-func emitWeakIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
-	status := instruction.Result + ".status"
-	slot := instruction.Result + ".slot"
+func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	slot := fmt.Sprintf("weak.slot.%d", e.loadCounter)
+	e.loadCounter++
 
 	switch instruction.Callee {
 	case "__weakref.new":
@@ -53,14 +55,56 @@ func emitWeakIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 
 	case "__weakmap.set":
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
+		valArg := instruction.Args[2]
+		valType := e.types[valArg]
+		var ptrVal string
+		if valType == ir.TypeNumber {
+			i64Val := fmt.Sprintf("%s.i64.%d", valArg, e.loadCounter)
+			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", i64Val, valArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, i64Val)
+		} else if valType == ir.TypeBool {
+			i64Val := fmt.Sprintf("%s.i64.%d", valArg, e.loadCounter)
+			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i64\n", i64Val, valArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, i64Val)
+		} else if valType == ir.TypeBigInt {
+			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, valArg)
+		} else if valType == ir.TypeUnknown {
+			rawVal := fmt.Sprintf("%s.raw.%d", valArg, e.loadCounter)
+			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", rawVal, valArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, rawVal)
+		} else {
+			ptrVal = valArg
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], ptrVal)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 
 	case "__weakmap.get":
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		resPtr := fmt.Sprintf("%s.rawptr", instruction.Result)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", resPtr, slot)
+		if instruction.Type == ir.TypeNumber {
+			i64Val := fmt.Sprintf("%s.i64", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", i64Val, resPtr)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", instruction.Result, i64Val)
+		} else if instruction.Type == ir.TypeBool {
+			i64Val := fmt.Sprintf("%s.i64", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", i64Val, resPtr)
+			fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", instruction.Result, i64Val)
+		} else if instruction.Type == ir.TypeBigInt {
+			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", instruction.Result, resPtr)
+		} else {
+			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, resPtr)
+		}
 
 	case "__weakmap.has":
 		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)

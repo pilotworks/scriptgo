@@ -3,6 +3,7 @@ package llvm
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -76,6 +77,11 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	for _, function := range module.Functions {
 		functions[function.Name] = function
 		collectStrings(function.Body)
+	}
+	for _, typeStr := range []string{"number", "string", "boolean", "bigint", "symbol", "function", "undefined", "object"} {
+		if _, ok := stringsByValue[typeStr]; !ok {
+			stringsByValue[typeStr] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+		}
 	}
 	if _, ok := functions["main"]; !ok {
 		return "", fmt.Errorf("module has no main function")
@@ -173,6 +179,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_join_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_join_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_join_bigint(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_keys(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_entries(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_number_set(ptr, i64, double)\n")
@@ -227,10 +235,27 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_match(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_search(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_split(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_substr(ptr, double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_from_char_codes(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_at(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_anchor(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_big(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_blink(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_bold(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_fixed(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_fontcolor(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_fontsize(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_italics(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_link(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_small(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_strike(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_sub(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_sup(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_compare(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_regex_test(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_regex_exec(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_regex_escape(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_string(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_as_int_n(i64, i64, ptr)\n")
@@ -301,7 +326,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_date_set_utc_seconds(double, double, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_web_btoa(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_web_atob(ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_performance_now(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_performance_now(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_fetch_sync(ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_stream_get_default_high_water_mark(i32, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_stream_set_default_high_water_mark(i32, double)\n\n")
 	out.WriteString("declare void @scriptgo_exception_push(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_pop(ptr)\n")
 	out.WriteString("declare ptr @scriptgo_exception_buf(ptr)\n")
@@ -476,6 +504,49 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_text_decoder_fatal(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_text_decoder_ignore_bom(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_text_decoder_decode(ptr, ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_console_log_object(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_info_object(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_debug_object(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_warn_object(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_console_error_object(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_weakref_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakref_deref(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_new(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_set(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_get(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_has(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_delete(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakset_new(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakset_add(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakset_has(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakset_delete(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_gc_collect(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_intl_number_format_new(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_number_format_format(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_collator_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_collator_compare(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_segmenter_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_segmenter_segment(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_get_canonical_locales(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_display_names_new(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_display_names_of(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_list_format_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_list_format_format(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_relative_time_format_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_relative_time_format_format(ptr, double, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_plural_rules_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_plural_rules_select(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_date_time_format_new(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_intl_date_time_format_format(ptr, double, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_os_platform(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_arch(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_homedir(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_type(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_release(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_tmpdir(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_uptime(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_totalmem(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_freemem(ptr)\n\n")
 	out.WriteString("declare ptr @malloc(i64)\n\n")
 
 	alreadyDeclared := map[string]bool{
@@ -502,9 +573,20 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	out.WriteString("\n")
 
+	type strEntry struct {
+		value string
+		name  string
+	}
+	var strEntries []strEntry
 	for value, name := range stringsByValue {
-		encoded := escapeString(value)
-		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", name, len([]byte(value))+1, encoded))
+		strEntries = append(strEntries, strEntry{value: value, name: name})
+	}
+	sort.Slice(strEntries, func(i, j int) bool {
+		return strEntries[i].name < strEntries[j].name
+	})
+	for _, entry := range strEntries {
+		encoded := escapeString(entry.value)
+		out.WriteString(fmt.Sprintf("%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"\n", entry.name, len([]byte(entry.value))+1, encoded))
 	}
 	out.WriteString("\n")
 
@@ -581,6 +663,26 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 	}
 
+	capturedByClosures := findCapturedInFunction(function.Body)
+	for _, arg := range capturedByClosures {
+		if _, ok := emitter.sharedEnvCells[arg]; !ok {
+			cellSlot := fmt.Sprintf("cell.%s.%d", arg, emitter.loadCounter)
+			emitter.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
+			if emitter.sharedEnvCells == nil {
+				emitter.sharedEnvCells = make(map[string]string)
+			}
+			emitter.sharedEnvCells[arg] = cellSlot
+			emitter.varSlots[arg] = cellSlot
+			if typ, ok := emitter.types[arg]; ok && typ != "" {
+				lt := llvmType(typ)
+				if lt != "" {
+					out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", lt, arg, cellSlot))
+				}
+			}
+		}
+	}
+
 	slotted := findSlottedVariables(function.Body)
 	for varName, typ := range slotted {
 		if _, ok := emitter.varSlots[varName]; !ok {
@@ -607,7 +709,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		} else if function.ReturnType == ir.TypeVoid {
 			out.WriteString("  ret void\n")
 		} else {
-			return "", fmt.Errorf("function %q has no return", function.Name)
+			switch function.ReturnType {
+			case ir.TypeNumber:
+				out.WriteString("  ret double 0.0\n")
+			case ir.TypeBool:
+				out.WriteString("  ret i1 false\n")
+			default:
+				out.WriteString("  ret ptr null\n")
+			}
 		}
 	}
 	out.WriteString("}\n\n")
@@ -616,11 +725,19 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 	slotted := make(map[string]ir.Type)
+	counts := make(map[string]int)
+	types := make(map[string]ir.Type)
 	var scan func(list []ir.Instruction)
 	scan = func(list []ir.Instruction) {
 		for _, inst := range list {
 			if inst.Op == ir.OpAssign {
 				slotted[inst.Result] = inst.Type
+			}
+			if inst.Result != "" {
+				counts[inst.Result]++
+				if inst.Type != "" {
+					types[inst.Result] = inst.Type
+				}
 			}
 			scan(inst.Then)
 			scan(inst.Else)
@@ -632,5 +749,40 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 		}
 	}
 	scan(instructions)
+	for name, count := range counts {
+		if count > 1 {
+			if typ, ok := types[name]; ok {
+				slotted[name] = typ
+			}
+		}
+	}
 	return slotted
 }
+
+func findCapturedInFunction(instructions []ir.Instruction) []string {
+	var captured []string
+	seen := make(map[string]bool)
+	var scan func(list []ir.Instruction)
+	scan = func(list []ir.Instruction) {
+		for _, inst := range list {
+			if inst.Op == ir.OpClosure {
+				for _, arg := range inst.Args {
+					if !seen[arg] {
+						seen[arg] = true
+						captured = append(captured, arg)
+					}
+				}
+			}
+			scan(inst.Then)
+			scan(inst.Else)
+			scan(inst.Cond)
+			scan(inst.Body)
+			scan(inst.Step)
+			scan(inst.Catch)
+			scan(inst.Finally)
+		}
+	}
+	scan(instructions)
+	return captured
+}
+

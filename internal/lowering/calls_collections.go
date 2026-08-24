@@ -40,7 +40,7 @@ func lowerWeakReceiverMethod(
 		})
 		return result, retType, true, nil
 	}
-	if receiverType == "object:WeakMap" {
+	if receiverType == "object:WeakMap" || strings.HasPrefix(string(receiverType), "object:WeakMap<") {
 		switch methodName {
 		case "set":
 			if len(expression.Arguments) >= 2 {
@@ -70,15 +70,25 @@ func lowerWeakReceiverMethod(
 				if result == "" {
 					result = nextTemp(counter)
 				}
+				retType := ir.TypeObject
+				if strings.HasPrefix(string(receiverType), "object:WeakMap<") && strings.HasSuffix(string(receiverType), ">") {
+					inner := strings.TrimSuffix(strings.TrimPrefix(string(receiverType), "object:WeakMap<"), ">")
+					parts := strings.Split(inner, ",")
+					if len(parts) >= 2 {
+						retType = toIRType(strings.TrimSpace(parts[1]))
+					}
+				} else if expression.InferredType != "" {
+					retType = toIRType(expression.InferredType)
+				}
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpCall,
-					Type:   ir.TypeObject,
+					Type:   retType,
 					Result: result,
 					Callee: "__weakmap.get",
 					Args:   []string{receiver, kVal},
 					Span:   toIRSpan(path, expression.Span),
 				})
-				return result, ir.TypeObject, true, nil
+				return result, retType, true, nil
 			}
 		case "has":
 			if len(expression.Arguments) >= 1 {

@@ -347,16 +347,24 @@ func main() {
 							if hasNativeExpected {
 								target = nativeExpected
 							}
-							if res.NativeOutput == target || strings.TrimSpace(res.NativeOutput) == strings.TrimSpace(target) {
+							cleanNativeOut := cleanTraceOutput(res.NativeOutput)
+							cleanTarget := cleanTraceOutput(target)
+							if res.NativeOutput == target || strings.TrimSpace(res.NativeOutput) == strings.TrimSpace(target) || strings.TrimSpace(cleanNativeOut) == strings.TrimSpace(cleanTarget) {
 								res.NativeParity = StatusPass
 								nativePassedCount++
 							} else {
 								res.NativeParity = StatusDiff
 							}
 						} else {
+							if *filter != "" {
+								fmt.Printf("Native run error for %s: %v, output: %s\n", relPath, err, stdout.String())
+							}
 							res.NativeParity = StatusFail
 						}
 					} else {
+						if *filter != "" {
+							fmt.Printf("Native build error for %s: %v\n", relPath, err)
+						}
 						if hasNativeExpected || *strictNative {
 							res.NativeParity = StatusFail
 						} else {
@@ -518,7 +526,7 @@ func runWithNode(entry, runner string) (string, error) {
 		cmd = exec.Command("tsc", "--noEmit", entry)
 	default:
 		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
-		cmd = exec.Command("node", "--no-warnings", "--loader", loader, "--experimental-transform-types", entry)
+		cmd = exec.Command("node", "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", entry)
 	}
 
 	var stdout bytes.Buffer

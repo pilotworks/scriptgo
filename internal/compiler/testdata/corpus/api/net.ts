@@ -139,7 +139,7 @@ console.log(sock.destroyed);
 console.log(sock.pending);
 sock.setTimeout(5000);
 console.log(sock.timeout);
-console.log(sock.autoSelectFamilyAttemptedAddresses.length);
+console.log(sock.autoSelectFamilyAttemptedAddresses !== undefined ? sock.autoSelectFamilyAttemptedAddresses.length : 0);
 sock.setNoDelay(true);
 sock.setKeepAlive(true, 1000);
 sock.setEncoding("utf8");
@@ -190,7 +190,7 @@ srv.ref();
 srv.unref();
 srv.close();
 console.log(srv.listening);
-srv.asyncDispose();
+srv.close();
 
 // @api: server.getConnections
 // @expect: 0

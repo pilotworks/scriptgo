@@ -179,19 +179,29 @@ func lowerClosureExpression(
 		"__env_ctx": ir.Type("ptr"),
 	}
 
-	for _, p := range fnStmt.Parameters {
-		typ := toIRType(p.Type)
-		if (typ == "" || typ == ir.TypeVoid) && p.InferredType != "" {
-			typ = toIRType(p.InferredType)
-		}
-		if typ == "" || typ == ir.TypeVoid {
-			typ = ir.TypeNumber // default to number for untyped parameters
+	for pIdx := 0; pIdx < 4; pIdx++ {
+		var pName string
+		var pType ir.Type
+		if pIdx < len(fnStmt.Parameters) {
+			p := fnStmt.Parameters[pIdx]
+			pName = p.Name
+			pType = toIRType(p.Type)
+			if (pType == "" || pType == ir.TypeVoid) && p.InferredType != "" {
+				pType = toIRType(p.InferredType)
+			}
+			if pType == "" || pType == ir.TypeVoid {
+				pType = ir.TypeUnknown
+			}
+		} else {
+			pName = fmt.Sprintf("__unused_arg_%d", pIdx)
+			pType = ir.TypeUnknown
 		}
 		targetFn.Parameters = append(targetFn.Parameters, ir.Parameter{
-			Name: p.Name,
-			Type: typ,
+			Name: pName + "$raw",
+			Type: ir.TypeUnknown,
 		})
-		closureEnv[p.Name] = typ
+		closureEnv[pName+"$raw"] = ir.TypeUnknown
+		closureEnv[pName] = pType
 	}
 
 	for _, capVar := range capturedVars {
@@ -216,8 +226,10 @@ func lowerClosureExpression(
 				} else {
 					targetFn.ReturnType = ir.TypeNumber
 				}
-			default:
+			case "number":
 				targetFn.ReturnType = ir.TypeNumber
+			default:
+				targetFn.ReturnType = ir.TypeVoid
 			}
 		}
 	}
@@ -311,6 +323,16 @@ func lowerClosureExpression(
 			Span: targetFn.Span,
 		})
 	} else {
+		for _, p := range fnStmt.Parameters {
+			typ := closureEnv[p.Name]
+			targetFn.Body = append(targetFn.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   typ,
+				Result: p.Name,
+				Args:   []string{p.Name + "$raw"},
+				Span:   targetFn.Span,
+			})
+		}
 		returned := false
 		for _, bodyStatement := range fnStmt.Body {
 			if err := lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {

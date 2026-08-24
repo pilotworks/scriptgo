@@ -393,3 +393,23 @@ int scriptgo_fetch_sync(const char *url, const char *method, void *headers_handl
     *out_body = buf;
     return 0;
 }
+
+static double g_stream_default_hwm = 65536.0;
+static double g_stream_default_object_hwm = 16.0;
+
+int scriptgo_stream_get_default_high_water_mark(int32_t is_object, double *out_hwm) {
+    if (out_hwm == NULL) return scriptgo_runtime_set_error("scriptgo stream null output");
+    *out_hwm = is_object ? g_stream_default_object_hwm : g_stream_default_hwm;
+    return 0;
+}
+
+int scriptgo_stream_set_default_high_water_mark(int32_t is_object, double hwm) {
+    if (hwm < 0.0) return scriptgo_runtime_set_error("highWaterMark must be a non-negative number");
+    if (is_object) {
+        g_stream_default_object_hwm = floor(hwm);
+    } else {
+        g_stream_default_hwm = floor(hwm);
+    }
+    return 0;
+}
+

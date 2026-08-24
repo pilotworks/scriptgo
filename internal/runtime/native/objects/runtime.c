@@ -4,7 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+
 typedef struct {
+    uint64_t magic;
     int64_t field_count;
     const char *type_name;
     uintptr_t fields[];
@@ -42,7 +45,7 @@ int scriptgo_object_is_string(const char *a, const char *b, int32_t *out_result)
     return 0;
 }
 
-int scriptgo_object_is_ptr(const void *a, const void *b, int32_t *out_result) {
+int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
     if (out_result == NULL) {
         return object_fail("scriptgo Object.is null output");
     }
@@ -61,6 +64,7 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (object == NULL) {
         return object_fail("scriptgo object allocation failed");
     }
+    object->magic = SCRIPTGO_OBJECT_MAGIC;
     object->field_count = field_count;
     scriptgo_gc_register(object, 1, (uint32_t)field_count);
     *out_object = object;
@@ -172,7 +176,7 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
         return 0;
     }
     scriptgo_object *obj = (scriptgo_object *)handle;
-    if (obj->type_name == NULL) {
+    if (obj->magic != SCRIPTGO_OBJECT_MAGIC || obj->type_name == NULL) {
         *out_result = 0;
         return 0;
     }

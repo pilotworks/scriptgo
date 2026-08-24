@@ -41,12 +41,12 @@ int scriptgo_string_compare(const char *left, const char *right) {
 }
 
 int scriptgo_string_concat(const char *left, const char *right, char **out_value) {
-    size_t left_length, right_length;
-    char *result;
-    if (left == NULL || right == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    left_length = strlen(left);
-    right_length = strlen(right);
-    result = malloc(left_length + right_length + 1);
+    if (out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (left == NULL) left = "null";
+    if (right == NULL) right = "null";
+    size_t left_length = strlen(left);
+    size_t right_length = strlen(right);
+    char *result = malloc(left_length + right_length + 1);
     if (result == NULL) return string_fail("scriptgo string allocation failed");
     memcpy(result, left, left_length);
     memcpy(result + left_length, right, right_length + 1);
@@ -55,7 +55,11 @@ int scriptgo_string_concat(const char *left, const char *right, char **out_value
 }
 
 int scriptgo_string_length(const char *value, double *out_length) {
-    if (value == NULL || out_length == NULL) return string_fail("scriptgo string argument is invalid");
+    if (out_length == NULL) return string_fail("scriptgo string argument is invalid");
+    if (value == NULL) {
+        *out_length = 0.0;
+        return 0;
+    }
     *out_length = (double)strlen(value);
     return 0;
 }
@@ -176,11 +180,20 @@ int scriptgo_string_slice(const char *value, double start_value, double end_valu
     size_t length, start, end;
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     length = strlen(value);
-    start = normalize_position(start_value, length);
-    if (end_value < 0.0) {
+    int64_t s = (int64_t)start_value;
+    if (s < 0) s = (int64_t)length + s;
+    if (s < 0) s = 0;
+    if ((size_t)s > length) s = (int64_t)length;
+    start = (size_t)s;
+
+    if (end_value >= 1e8) {
         end = length;
     } else {
-        end = normalize_position(end_value, length);
+        int64_t e = (int64_t)end_value;
+        if (e < 0) e = (int64_t)length + e;
+        if (e < 0) e = 0;
+        if ((size_t)e > length) e = (int64_t)length;
+        end = (size_t)e;
     }
     if (end < start) end = start;
     return string_copy_range(value, start, end - start, out_value);
@@ -227,11 +240,13 @@ int scriptgo_array_set_owned_data(void *handle, void *owned_data);
 int scriptgo_array_release(void *handle);
 
 int scriptgo_string_split(const char *value, const char *separator, void **out_array) {
-    size_t val_len, sep_len, count = 1, buffer_size;
+    size_t val_len, sep_len = 0, count = 1, buffer_size;
     char *buffer;
-    if (value == NULL || separator == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
+    if (value == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
     val_len = strlen(value);
-    sep_len = strlen(separator);
+    if (separator != NULL) {
+        sep_len = strlen(separator);
+    }
 
     if (sep_len == 0) {
         count = val_len;
@@ -586,3 +601,180 @@ int scriptgo_string_release(char *value) {
     free(value);
     return 0;
 }
+
+int scriptgo_string_substr(const char *value, double start_val, double length_val, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t length = strlen(value);
+    int64_t start = (int64_t)start_val;
+    if (start < 0) start = (int64_t)length + start;
+    if (start < 0) start = 0;
+    if ((size_t)start >= length) return string_copy_range(value, 0, 0, out_value);
+
+    int64_t len = (int64_t)length_val;
+    if (length_val >= 1e8) len = (int64_t)length - start;
+    if (len <= 0) return string_copy_range(value, 0, 0, out_value);
+    if (start + len > (int64_t)length) len = (int64_t)length - start;
+
+    return string_copy_range(value, (size_t)start, (size_t)len, out_value);
+}
+
+int scriptgo_string_from_char_codes(const double *codes, int64_t count, char **out_value) {
+    if (out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (count <= 0 || codes == NULL) {
+        return string_copy_range("", 0, 0, out_value);
+    }
+    char *res = malloc((size_t)count + 1);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    for (int64_t i = 0; i < count; i++) {
+        res[i] = (char)(int)codes[i];
+    }
+    res[count] = '\0';
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_at(const char *value, double pos, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    int64_t idx = (int64_t)pos;
+    if (idx < 0) idx = (int64_t)len + idx;
+    if (idx < 0 || (size_t)idx >= len) {
+        return string_copy_range(value, 0, 0, out_value);
+    }
+    return string_copy_range(value, (size_t)idx, 1, out_value);
+}
+
+int scriptgo_string_anchor(const char *value, const char *name, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (name == NULL) name = "";
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<a name=\"%s\">%s</a>", name, value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_big(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<big>%s</big>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_blink(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<blink>%s</blink>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_bold(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<b>%s</b>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_fixed(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<tt>%s</tt>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_fontcolor(const char *value, const char *color, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (color == NULL) color = "";
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<font color=\"%s\">%s</font>", color, value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_fontsize(const char *value, const char *size, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (size == NULL) size = "";
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<font size=\"%s\">%s</font>", size, value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_italics(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<i>%s</i>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_link(const char *value, const char *url, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (url == NULL) url = "";
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<a href=\"%s\">%s</a>", url, value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_small(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<small>%s</small>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_strike(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<strike>%s</strike>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_sub(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<sub>%s</sub>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_sup(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    char buf[512];
+    snprintf(buf, sizeof(buf), "<sup>%s</sup>", value);
+    char *res = strdup(buf);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    *out_value = res;
+    return 0;
+}
+

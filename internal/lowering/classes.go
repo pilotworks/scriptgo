@@ -196,6 +196,18 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 			break
 		}
 	}
+	cleanCls := className
+	if idx := strings.Index(className, "<"); idx != -1 {
+		cleanCls = className[:idx]
+	}
+	for subName, meta := range hierarchy {
+		if meta.Extends == className || meta.Extends == cleanCls {
+			subMangled := subName + "_" + methodName
+			if fn, ok := signatures[subMangled]; ok {
+				return fn, subMangled, true
+			}
+		}
+	}
 	return ir.Function{}, "", false
 }
 

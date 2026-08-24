@@ -58,7 +58,7 @@ export declare class ClientRequest {
     constructor(urlOrOptions: unknown, cb?: (...args: any[]) => void);
 
     setHeader(name: string, value: string): void;
-    getHeader(name: string): string | undefined;
+    getHeader(name: string): string | null;
     write(chunk: any, cb?: () => void): boolean;
     write(chunk: any, encoding?: string, cb?: () => void): boolean;
     end(cb?: () => void): this;

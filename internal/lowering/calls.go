@@ -161,6 +161,16 @@ func lowerCallExpression(
 								Span:   toIRSpan(path, argument.Span),
 							})
 							argVal = boxed
+						} else if pIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[pIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
+							nullConst := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpConst,
+								Type:   target.Parameters[pIdx].Type,
+								Result: nullConst,
+								Value:  "null",
+								Span:   toIRSpan(path, argument.Span),
+							})
+							argVal = nullConst
 						}
 						args = append(args, argVal)
 					}
@@ -190,6 +200,17 @@ func lowerCallExpression(
 											Span:   toIRSpan(path, initExpr.Span),
 										})
 										args = append(args, boolConst)
+										continue
+									} else if isPointerLikeType(target.Parameters[i].Type) && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+										nullConst := nextTemp(counter)
+										function.Body = append(function.Body, ir.Instruction{
+											Op:     ir.OpConst,
+											Type:   target.Parameters[i].Type,
+											Result: nullConst,
+											Value:  "null",
+											Span:   toIRSpan(path, initExpr.Span),
+										})
+										args = append(args, nullConst)
 										continue
 									}
 									val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
@@ -289,6 +310,39 @@ func lowerCallExpression(
 				if methodName == "valueOf" {
 					return receiver, receiverType, nil
 				}
+				propVal, _, err := lowerPropertyExpression(path, &typescriptgo.SyntaxExpression{
+					Span:         expression.Left.Span,
+					Kind:         "property",
+					Left:         expression.Left.Left,
+					Text:         methodName,
+					InferredType: expression.InferredType,
+				}, "", function, env, counter, shapes, signatures)
+				if err == nil {
+					args := make([]string, 0, len(expression.Arguments))
+					for _, argument := range expression.Arguments {
+						val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						args = append(args, val)
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					retType := ir.TypeNumber
+					if expression.InferredType != "" {
+						retType = toIRType(expression.InferredType)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpClosureCall,
+						Type:   retType,
+						Result: result,
+						Callee: propVal,
+						Args:   args,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
+				}
 			}
 		}
 	}
@@ -387,6 +441,16 @@ func lowerCallExpression(
 						Span:   toIRSpan(path, argument.Span),
 					})
 					val = boxed
+				} else if aIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[aIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
+					nullConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   target.Parameters[aIdx].Type,
+						Result: nullConst,
+						Value:  "null",
+						Span:   toIRSpan(path, argument.Span),
+					})
+					val = nullConst
 				}
 				args = append(args, val)
 			}
@@ -409,6 +473,16 @@ func lowerCallExpression(
 									Span:   toIRSpan(path, initExpr.Span),
 								})
 								val = boxed
+							} else if i < len(target.Parameters) && isPointerLikeType(target.Parameters[i].Type) && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
+								nullConst := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpConst,
+									Type:   target.Parameters[i].Type,
+									Result: nullConst,
+									Value:  "null",
+									Span:   toIRSpan(path, initExpr.Span),
+								})
+								val = nullConst
 							}
 							args = append(args, val)
 						}
@@ -666,6 +740,17 @@ func lowerCallExpression(
 				Span:   toIRSpan(path, argument.Span),
 			})
 			value = closureSlot
+		}
+		if aIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[aIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
+			nullConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   target.Parameters[aIdx].Type,
+				Result: nullConst,
+				Value:  "null",
+				Span:   toIRSpan(path, argument.Span),
+			})
+			value = nullConst
 		}
 		args = append(args, value)
 	}

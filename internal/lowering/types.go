@@ -258,6 +258,7 @@ func toIRType(value string) ir.Type {
 				registerAnonymousShape(name, fields)
 				return ir.Type("object:" + name)
 			}
+			return ir.TypeObject
 		}
 		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
 			return ir.TypeClosure
@@ -377,11 +378,20 @@ func anonymousObjectFields(typeStr string) ([]ir.Field, bool) {
 			continue
 		}
 		fName := strings.TrimSpace(trimmed[:colonIdx])
+		isMethod := false
+		if parenIdx := strings.Index(fName, "("); parenIdx != -1 {
+			fName = strings.TrimSpace(fName[:parenIdx])
+			isMethod = true
+		}
 		fName = strings.TrimSuffix(fName, "?")
 		fTypeStr := strings.TrimSpace(trimmed[colonIdx+1:])
+		fieldType := toIRType(fTypeStr)
+		if isMethod {
+			fieldType = ir.TypeClosure
+		}
 		fields = append(fields, ir.Field{
 			Name: fName,
-			Type: toIRType(fTypeStr),
+			Type: fieldType,
 		})
 	}
 	if len(fields) == 0 {

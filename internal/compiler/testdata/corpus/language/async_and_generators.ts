@@ -8,10 +8,6 @@
 // @expect: 20
 // @expect: 1
 // @expect: 2
-// @expect: 1
-// @expect: 2
-// @expect: 10
-// @expect: 20
 // @expect: 10
 // @expect: 20
 // @expect: 30
@@ -26,6 +22,10 @@
 // @expect: true
 // @expect: 100
 // @expect: 200
+// @expect: 1
+// @expect: 2
+// @expect: 10
+// @expect: 20
 // @expect: 3
 // @expect: 42
 
@@ -61,21 +61,6 @@ for await (const x of asyncNumbers()) {
 }
 
 export {};
-
-// --- Context Case: language_async_microtask ---
-console.log(1);
-queueMicrotask(() => {
-    console.log(3);
-});
-console.log(2);
-
-// --- Context Case: language_async_promise ---
-console.log(10);
-const p_async_promise_3 = Promise.resolve(42);
-p_async_promise_3.then((val) => {
-    console.log(val);
-});
-console.log(20);
 
 // --- Context Case: language_for_await_of ---
 let sum_for_await_of_4 = 0;
@@ -125,3 +110,19 @@ function* countTo(a: number, b: number) {
 for (const n of countTo(100, 200)) {
     console.log(n);
 }
+
+// --- Context Case: language_async_microtask ---
+console.log(1);
+queueMicrotask(() => {
+    console.log(3);
+});
+console.log(2);
+
+// --- Context Case: language_async_promise ---
+console.log(10);
+const p_async_promise_3 = Promise.resolve(42);
+p_async_promise_3.then((val) => {
+    console.log(val);
+});
+console.log(20);
+

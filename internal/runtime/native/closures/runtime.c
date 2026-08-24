@@ -20,12 +20,6 @@ typedef struct {
     void *env;
 } scriptgo_closure;
 
-typedef struct {
-    int32_t tag;
-    int32_t pad;
-    int64_t payload;
-} scriptgo_boxed_value;
-
 int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     scriptgo_closure *c;
     if (out_closure == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
@@ -40,48 +34,14 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
 int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4) {
     scriptgo_closure *c = closure_handle;
     if (c == NULL || c->fn_ptr == NULL) return 0;
-    if (arg_count == 0) {
-        void (*fn)(void *) = (void (*)(void *))c->fn_ptr;
-        fn(c->env);
-    } else if (arg_count == 1) {
-        if (a1 == NULL) return 0;
-        if (a1->tag == 3) {
-            double num;
-            memcpy(&num, &a1->payload, sizeof(double));
-            void (*fn)(void *, double) = (void (*)(void *, double))c->fn_ptr;
-            fn(c->env, num);
-        } else {
-            void *ptr = (void *)(uintptr_t)a1->payload;
-            void (*fn)(void *, void *) = (void (*)(void *, void *))c->fn_ptr;
-            fn(c->env, ptr);
-        }
-    } else if (arg_count == 2) {
-        if (a1 == NULL || a2 == NULL) return 0;
-        if (a1->tag == 3 && a2->tag == 3) {
-            double n1, n2;
-            memcpy(&n1, &a1->payload, sizeof(double));
-            memcpy(&n2, &a2->payload, sizeof(double));
-            void (*fn)(void *, double, double) = (void (*)(void *, double, double))c->fn_ptr;
-            fn(c->env, n1, n2);
-        } else if (a1->tag == 3 && a2->tag != 3) {
-            double n1;
-            void *p2 = (void *)(uintptr_t)a2->payload;
-            memcpy(&n1, &a1->payload, sizeof(double));
-            void (*fn)(void *, double, void *) = (void (*)(void *, double, void *))c->fn_ptr;
-            fn(c->env, n1, p2);
-        } else if (a1->tag != 3 && a2->tag == 3) {
-            void *p1 = (void *)(uintptr_t)a1->payload;
-            double n2;
-            memcpy(&n2, &a2->payload, sizeof(double));
-            void (*fn)(void *, void *, double) = (void (*)(void *, void *, double))c->fn_ptr;
-            fn(c->env, p1, n2);
-        } else {
-            void *p1 = (void *)(uintptr_t)a1->payload;
-            void *p2 = (void *)(uintptr_t)a2->payload;
-            void (*fn)(void *, void *, void *) = (void (*)(void *, void *, void *))c->fn_ptr;
-            fn(c->env, p1, p2);
-        }
-    }
+    scriptgo_boxed_value dummy = {0};
+    const scriptgo_boxed_value *v1 = (a1 != NULL && arg_count >= 1) ? a1 : &dummy;
+    const scriptgo_boxed_value *v2 = (a2 != NULL && arg_count >= 2) ? a2 : &dummy;
+    const scriptgo_boxed_value *v3 = (a3 != NULL && arg_count >= 3) ? a3 : &dummy;
+    const scriptgo_boxed_value *v4 = (a4 != NULL && arg_count >= 4) ? a4 : &dummy;
+    void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+        (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+    fn(c->env, v1->tag, v1->pad, v1->payload, v2->tag, v2->pad, v2->payload, v3->tag, v3->pad, v3->payload, v4->tag, v4->pad, v4->payload);
     return 0;
 }
 
@@ -98,8 +58,12 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
     res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        double (*fn)(void *, double, double) = (double (*)(void *, double, double))c->fn_ptr;
-        double mapped = fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        double mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
     }
     return 0;
@@ -118,8 +82,11 @@ int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_arr
     res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
-        char *(*fn)(void *, char *, double) = (char *(*)(void *, char *, double))c->fn_ptr;
-        char *mapped = fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        char *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
     }
     return 0;
@@ -136,8 +103,12 @@ int scriptgo_array_filter_number(void *handle, void *closure_handle, void **out_
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        uint8_t keep = fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        uint8_t keep = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         if (keep) {
             double dummy;
             if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -157,8 +128,11 @@ int scriptgo_array_filter_string(void *handle, void *closure_handle, void **out_
     }
     for (int64_t i = 0; i < array->length; i++) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
-        uint8_t (*fn)(void *, char *, double) = (uint8_t (*)(void *, char *, double))c->fn_ptr;
-        uint8_t keep = fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        uint8_t keep = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         if (keep) {
             double dummy;
             if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -175,8 +149,12 @@ int scriptgo_array_for_each_number(void *handle, void *closure_handle) {
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        void (*fn)(void *, double, double) = (void (*)(void *, double, double))c->fn_ptr;
-        fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
     }
     return 0;
 }
@@ -189,8 +167,11 @@ int scriptgo_array_for_each_string(void *handle, void *closure_handle) {
     }
     for (int64_t i = 0; i < array->length; i++) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
-        void (*fn)(void *, char *, double) = (void (*)(void *, char *, double))c->fn_ptr;
-        fn(c->env, item, (double)i);
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
     }
     return 0;
 }
@@ -204,8 +185,13 @@ int scriptgo_array_reduce_number(void *handle, void *closure_handle, double init
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        double (*fn)(void *, double, double, double) = (double (*)(void *, double, double, double))c->fn_ptr;
-        acc = fn(c->env, acc, item, (double)i);
+        union { double d; int64_t i; } u_acc, u_item, u_idx;
+        u_acc.d = acc;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        acc = fn(c->env, 3, 0, u_acc.i, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0);
     }
     *out_res = acc;
     return 0;
@@ -219,8 +205,12 @@ int scriptgo_array_find_number(void *handle, void *closure_handle, double *out_v
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_val = item;
             return 0;
         }
@@ -237,8 +227,12 @@ int scriptgo_array_some_number(void *handle, void *closure_handle, int32_t *out_
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_bool = 1;
             return 0;
         }
@@ -255,8 +249,12 @@ int scriptgo_array_every_number(void *handle, void *closure_handle, int32_t *out
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (!fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (!fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_bool = 0;
             return 0;
         }
@@ -273,8 +271,12 @@ int scriptgo_array_find_index_number(void *handle, void *closure_handle, double 
     }
     for (int64_t i = 0; i < array->length; i++) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -291,8 +293,11 @@ int scriptgo_array_find_index_string(void *handle, void *closure_handle, double 
     }
     for (int64_t i = 0; i < array->length; i++) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
-        uint8_t (*fn)(void *, char *, double) = (uint8_t (*)(void *, char *, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -309,8 +314,12 @@ int scriptgo_array_find_last_number(void *handle, void *closure_handle, double *
     }
     for (int64_t i = array->length - 1; i >= 0; i--) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_val = item;
             return 0;
         }
@@ -327,8 +336,12 @@ int scriptgo_array_find_last_index_number(void *handle, void *closure_handle, do
     }
     for (int64_t i = array->length - 1; i >= 0; i--) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        uint8_t (*fn)(void *, double, double) = (uint8_t (*)(void *, double, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -345,8 +358,11 @@ int scriptgo_array_find_last_index_string(void *handle, void *closure_handle, do
     }
     for (int64_t i = array->length - 1; i >= 0; i--) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
-        uint8_t (*fn)(void *, char *, double) = (uint8_t (*)(void *, char *, double))c->fn_ptr;
-        if (fn(c->env, item, (double)i)) {
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -364,8 +380,13 @@ int scriptgo_array_reduce_right_number(void *handle, void *closure_handle, doubl
     }
     for (int64_t i = array->length - 1; i >= 0; i--) {
         double item = *(double *)(array->data + (size_t)i * sizeof(double));
-        double (*fn)(void *, double, double, double) = (double (*)(void *, double, double, double))c->fn_ptr;
-        acc = fn(c->env, acc, item, (double)i);
+        union { double d; int64_t i; } u_acc, u_item, u_idx;
+        u_acc.d = acc;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        acc = fn(c->env, 3, 0, u_acc.i, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0);
     }
     *out_res = acc;
     return 0;

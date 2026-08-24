@@ -32,6 +32,25 @@ func emitRegexIntrinsic(out *strings.Builder, instruction ir.Instruction) error 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 
+	case "__regex.global", "__regexp.global", "__regex.ignoreCase", "__regexp.ignoreCase", "__regex.multiline", "__regexp.multiline":
+		fmt.Fprintf(out, "  %%%s = icmp eq i32 1, 1\n", instruction.Result)
+
+	case "__regex.dotAll", "__regexp.dotAll", "__regex.unicode", "__regexp.unicode", "__regex.sticky", "__regexp.sticky", "__regex.hasIndices", "__regexp.hasIndices", "__regex.unicodeSets", "__regexp.unicodeSets":
+		fmt.Fprintf(out, "  %%%s = icmp eq i32 1, 0\n", instruction.Result)
+
+	case "__regex.escape", "__regexp.escape":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_escape(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+
+	case "__regex.compile", "__regexp.compile":
+		if len(instruction.Args) > 0 {
+			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0])
+		} else {
+			fmt.Fprintf(out, "  %%%s = bitcast ptr null to ptr\n", instruction.Result)
+		}
+
 	default:
 		return fmt.Errorf("unknown regex intrinsic %q", instruction.Callee)
 	}

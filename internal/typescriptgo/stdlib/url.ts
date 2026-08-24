@@ -42,8 +42,9 @@ export class URLSearchParams {
 
     delete(name: string, value?: string): void {
         const next: URLSearchParamEntry[] = [];
+        const hasVal = value !== undefined && value !== "undefined" && value !== null && value !== "null";
         for (let i = 0; i < this._entries.length; i++) {
-            if (value !== undefined) {
+            if (hasVal) {
                 if (this._entries[i].name !== name || this._entries[i].value !== value) {
                     next.push(this._entries[i]);
                 }
@@ -76,9 +77,10 @@ export class URLSearchParams {
     }
 
     has(name: string, value?: string): boolean {
+        const hasVal = value !== undefined && value !== "undefined" && value !== null && value !== "null";
         for (let i = 0; i < this._entries.length; i++) {
             if (this._entries[i].name === name) {
-                if (value !== undefined) {
+                if (hasVal) {
                     if (this._entries[i].value === value) {
                         return true;
                     }

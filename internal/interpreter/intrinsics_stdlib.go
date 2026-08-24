@@ -368,12 +368,12 @@ func executeJsonIntrinsic(name string, arguments []string, env map[string]Value)
 }
 
 var (
-	defaultStreamHWM       float64 = 16384
+	defaultStreamHWM       float64 = 65536
 	defaultStreamObjectHWM float64 = 16
 )
 
 func resetStreamDefaults() {
-	defaultStreamHWM = 16384
+	defaultStreamHWM = 65536
 	defaultStreamObjectHWM = 16
 }
 

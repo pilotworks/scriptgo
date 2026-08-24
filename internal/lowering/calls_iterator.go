@@ -23,7 +23,15 @@ func registerIteratorBuiltins(m map[string]BuiltinIntrinsic) {
 				result = nextTemp(call.Counter)
 			}
 			elemType := "unknown"
-			if strings.HasSuffix(string(aType), "[]") {
+			if aType == ir.TypeNumberArray || aType == "number[]" {
+				elemType = "number"
+			} else if aType == ir.TypeStringArray || aType == "string[]" {
+				elemType = "string"
+			} else if aType == ir.TypeBoolArray || aType == "boolean[]" || aType == "bool[]" {
+				elemType = "bool"
+			} else if aType == ir.TypeBigIntArray || aType == "bigint[]" {
+				elemType = "bigint"
+			} else if strings.HasSuffix(string(aType), "[]") {
 				elemType = strings.TrimSuffix(string(aType), "[]")
 			} else if strings.HasPrefix(string(aType), "object:Generator_") {
 				elemType = "number"

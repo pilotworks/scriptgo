@@ -32,6 +32,7 @@ type functionEmitter struct {
 	labeledContinue    map[string][]string
 	sharedEnvCells     map[string]string
 	runtimeStatus      int
+	tempCounter        int
 	terminated         bool
 }
 
@@ -80,7 +81,31 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		}
 	case ir.OpAssign:
 		typ := e.types[targetResult]
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), inst.Args[0], e.varSlots[targetResult]))
+		arg := inst.Args[0]
+		argType := e.types[arg]
+		argVal := "%" + arg
+		if typ != ir.TypeUnknown && argType == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
+			if typ == ir.TypeNumber {
+				numVar := fmt.Sprintf("num.%d", e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar))
+				argVal = "%" + numVar
+			} else if typ == ir.TypeBool {
+				boolVar := fmt.Sprintf("bool.%d", e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", boolVar, payloadVar))
+				argVal = "%" + boolVar
+			} else {
+				ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+				argVal = "%" + ptrVar
+			}
+		}
+		out.WriteString(fmt.Sprintf("  store %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
 		return nil
 	case ir.OpBinary:
 		if err := e.emitBinary(out, inst); err != nil {
@@ -212,7 +237,18 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 
 	if slot, ok := e.varSlots[targetResult]; ok {
 		typ := e.types[targetResult]
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), inst.Result, slot))
+		if typ == "" {
+			typ = inst.Type
+			if typ == "" {
+				typ = e.types[inst.Result]
+			}
+			e.types[targetResult] = typ
+		}
+		lt := llvmType(typ)
+		if lt == "" {
+			lt = "ptr"
+		}
+		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
 	}
 	return nil
 }

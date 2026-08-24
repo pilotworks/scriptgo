@@ -20,7 +20,7 @@ const id1_timers_clearTimeout_1 = setTimeout(() => {
 
 const id2_timers_clearTimeout_1 = setTimeout(() => {
     console.log("should fire");
-}, 20);
+}, 30);
 
 clearTimeout(id1_timers_clearTimeout_1);
 
@@ -51,13 +51,13 @@ timerId_timers_setInterval_3 = setInterval(() => {
 // @expect: timeout 0ms
 // @expect: interval fired
 // @expect: cleared interval
-// @expect: timeout 10ms
+// @expect: timeout 20ms
 // @expect: should fire
 console.log("start");
 
 setTimeout(() => {
-    console.log("timeout 10ms");
-}, 10);
+    console.log("timeout 20ms");
+}, 20);
 
 setTimeout(() => {
     console.log("timeout 0ms");

@@ -789,4 +789,43 @@ int scriptgo_array_is_array(void *handle, double *out_bool) {
     return 0;
 }
 
+int scriptgo_array_keys(void *handle, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_array == NULL) return fail("scriptgo array keys failed");
+    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) return -1;
+    scriptgo_array *res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        double d = (double)i;
+        memcpy(res->data + (size_t)i * sizeof(double), &d, sizeof(double));
+    }
+    return 0;
+}
+
+int scriptgo_array_entries(void *handle, void **out_array) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_array == NULL) return fail("scriptgo array entries failed");
+    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) return -1;
+    scriptgo_array *res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        char buf[256];
+        if (array->element_size == sizeof(char *)) {
+            const char *val = *(const char **)(array->data + (size_t)i * sizeof(char *));
+            snprintf(buf, sizeof(buf), "[%lld, %s]", (long long)i, val ? val : "undefined");
+        } else if (array->element_size == sizeof(double)) {
+            double val = *(double *)(array->data + (size_t)i * sizeof(double));
+            if (val == (double)(int64_t)val) {
+                snprintf(buf, sizeof(buf), "[%lld, %lld]", (long long)i, (long long)val);
+            } else {
+                snprintf(buf, sizeof(buf), "[%lld, %g]", (long long)i, val);
+            }
+        } else {
+            snprintf(buf, sizeof(buf), "[%lld, <item>]", (long long)i);
+        }
+        char *entry_str = strdup(buf);
+        memcpy(res->data + (size_t)i * sizeof(char *), &entry_str, sizeof(char *));
+    }
+    return 0;
+}
+
+
 

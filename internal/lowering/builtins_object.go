@@ -416,8 +416,31 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 	registerSimpleObj([]string{"Object.isFrozen"}, "__object.isFrozen", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isSealed"}, "__object.isSealed", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isExtensible"}, "__object.isExtensible", ir.TypeBool, 1, 1)
-	registerSimpleObj([]string{"Object.getOwnPropertyNames"}, "__object.getOwnPropertyNames", ir.TypeStringArray, 1, 1)
-	registerSimpleObj([]string{"Object.getOwnPropertySymbols"}, "__object.getOwnPropertySymbols", ir.Type("symbol[]"), 1, 1)
+	m["Object.getOwnPropertyNames"] = m["Object.keys"]
+	m["Object.getOwnPropertySymbols"] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     "Object.getOwnPropertySymbols",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			_, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:         ir.OpArray,
+				Type:       ir.Type("symbol[]"),
+				Result:     result,
+				FieldCount: 0,
+				Span:       toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.Type("symbol[]"), nil
+		},
+	}
 	registerSimpleObj([]string{"Object.getOwnPropertyDescriptor"}, "__object.getOwnPropertyDescriptor", ir.TypeObject, 2, 2)
 	registerSimpleObj([]string{"Object.getOwnPropertyDescriptors"}, "__object.getOwnPropertyDescriptors", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.getPrototypeOf"}, "__object.getPrototypeOf", ir.TypeObject, 1, 1)

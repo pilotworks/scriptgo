@@ -7,7 +7,7 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func emitNumberIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	status := instruction.Result + ".status"
 	slot := instruction.Result + ".slot"
 	switch instruction.Callee {
@@ -123,7 +123,19 @@ func emitNumberIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		if len(instruction.Args) == 0 {
 			fmt.Fprintf(out, "  %%%s = fadd double 0.0, 0.0\n", instruction.Result)
 		} else {
-			fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, instruction.Args[0])
+			argType := e.types[instruction.Args[0]]
+			if argType == ir.TypeString {
+				fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_float(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+				fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+			} else if argType == ir.TypeBool {
+				boolF64 := instruction.Result + ".f64"
+				fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", boolF64, instruction.Args[0])
+				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, boolF64)
+			} else {
+				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, instruction.Args[0])
+			}
 		}
 	default:
 		return fmt.Errorf("unknown number intrinsic %q", instruction.Callee)

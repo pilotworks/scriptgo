@@ -106,7 +106,8 @@ static int scriptgo_console_symbol(FILE *stream, void *value) {
     int scriptgo_console_##name##_symbol(void *value) { return scriptgo_console_symbol(stream, value); } \
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
-    int scriptgo_console_##name##_unknown(unsigned int tag, unsigned int flags, unsigned long long payload) { return scriptgo_console_unknown(stream, tag, flags, payload); }
+    int scriptgo_console_##name##_unknown(unsigned int tag, unsigned int flags, unsigned long long payload) { return scriptgo_console_unknown(stream, tag, flags, payload); } \
+    int scriptgo_console_##name##_object(void *value) { return scriptgo_console_string(stream, "[object Object]"); }
 
 SCRIPTGO_CONSOLE_METHOD(log, stdout)
 SCRIPTGO_CONSOLE_METHOD(info, stdout)

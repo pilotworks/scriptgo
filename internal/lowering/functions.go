@@ -222,8 +222,8 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
 					}
-					index[mangled] = function
 					if !method.IsAbstract {
+						index[mangled] = function
 						functionsByFile[fileName] = append(functionsByFile[fileName], function)
 					}
 				}

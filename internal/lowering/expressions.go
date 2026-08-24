@@ -41,12 +41,19 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
-	case "null", "undefined":
-		typ := ir.TypeString
+	case "null":
+		typ := ir.Type("ptr")
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Kind, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: "null", Span: toIRSpan(path, expression.Span)})
+		return result, typ, nil
+	case "undefined":
+		typ := ir.TypeVoid
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: "undefined", Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "array":
 		if len(expression.Arguments) == 0 {
@@ -436,6 +443,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: result, Args: []string{array, index}, Span: toIRSpan(path, expression.Span)})
 		return result, elemType, nil
 	case "identifier":
+		if expression.Text == "undefined" {
+			if _, inEnv := env["undefined"]; !inEnv {
+				typ := ir.TypeVoid
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+				return result, typ, nil
+			}
+		}
 		typ, ok := env[expression.Text]
 		if ok {
 			switch expression.InferredType {

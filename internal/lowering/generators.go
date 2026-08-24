@@ -28,27 +28,97 @@ func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string)
 	var rewritten []typescriptgo.SyntaxStatement
 	for _, s := range stmts {
 		cloned := s
-		if s.Kind == "expression" && s.Expression != nil && (s.Expression.Kind == "yield" || s.Expression.Kind == "yield_star") {
-			cloned = typescriptgo.SyntaxStatement{
-				Span: s.Span,
-				Kind: "expression",
-				Expression: &typescriptgo.SyntaxExpression{
+		if s.Kind == "expression" && s.Expression != nil {
+			if s.Expression.Kind == "yield" {
+				cloned = typescriptgo.SyntaxStatement{
 					Span: s.Span,
-					Kind: "call",
-					Left: &typescriptgo.SyntaxExpression{
+					Kind: "expression",
+					Expression: &typescriptgo.SyntaxExpression{
 						Span: s.Span,
-						Kind: "property",
+						Kind: "call",
 						Left: &typescriptgo.SyntaxExpression{
 							Span: s.Span,
-							Kind: "identifier",
-							Text: itemsName,
+							Kind: "property",
+							Left: &typescriptgo.SyntaxExpression{
+								Span: s.Span,
+								Kind: "identifier",
+								Text: itemsName,
+							},
+							Text: "push",
 						},
-						Text: "push",
+						Arguments: []*typescriptgo.SyntaxExpression{
+							s.Expression.Left,
+						},
 					},
-					Arguments: []*typescriptgo.SyntaxExpression{
-						s.Expression.Left,
+				}
+			} else if s.Expression.Kind == "yield_star" {
+				if s.Expression.Left != nil && s.Expression.Left.Kind == "call" && s.Expression.Left.Left != nil && s.Expression.Left.Left.Kind == "identifier" {
+					calleeName := s.Expression.Left.Left.Text
+					if subGen, ok := generatorASTIndex[calleeName]; ok {
+						subRewritten := rewriteYieldsToPush(subGen.Body, itemsName)
+						rewritten = append(rewritten, subRewritten...)
+						continue
+					}
+				}
+				if s.Expression.Left != nil && s.Expression.Left.Kind == "array" {
+					for _, elem := range s.Expression.Left.Arguments {
+						rewritten = append(rewritten, typescriptgo.SyntaxStatement{
+							Span: s.Span,
+							Kind: "expression",
+							Expression: &typescriptgo.SyntaxExpression{
+								Span: s.Span,
+								Kind: "call",
+								Left: &typescriptgo.SyntaxExpression{
+									Span: s.Span,
+									Kind: "property",
+									Left: &typescriptgo.SyntaxExpression{
+										Span: s.Span,
+										Kind: "identifier",
+										Text: itemsName,
+									},
+									Text: "push",
+								},
+								Arguments: []*typescriptgo.SyntaxExpression{
+									elem,
+								},
+							},
+						})
+					}
+					continue
+				}
+				cloned = typescriptgo.SyntaxStatement{
+					Span:       s.Span,
+					Kind:       "forof",
+					Name:       "___yield_star_item",
+					Expression: s.Expression.Left,
+					Body: []typescriptgo.SyntaxStatement{
+						{
+							Span: s.Span,
+							Kind: "expression",
+							Expression: &typescriptgo.SyntaxExpression{
+								Span: s.Span,
+								Kind: "call",
+								Left: &typescriptgo.SyntaxExpression{
+									Span: s.Span,
+									Kind: "property",
+									Left: &typescriptgo.SyntaxExpression{
+										Span: s.Span,
+										Kind: "identifier",
+										Text: itemsName,
+									},
+									Text: "push",
+								},
+								Arguments: []*typescriptgo.SyntaxExpression{
+									{
+										Span: s.Span,
+										Kind: "identifier",
+										Text: "___yield_star_item",
+									},
+								},
+							},
+						},
 					},
-				},
+				}
 			}
 		}
 		if len(cloned.Body) > 0 {
@@ -75,9 +145,10 @@ func collectYieldPoints(body []typescriptgo.SyntaxStatement) []yieldPoint {
 	var yields []yieldPoint
 	for _, s := range body {
 		if s.Kind == "expression" && s.Expression != nil {
-			if s.Expression.Kind == "yield" {
+			switch s.Expression.Kind {
+			case "yield":
 				yields = append(yields, yieldPoint{stateIdx: len(yields), expr: s.Expression.Left, isStar: false})
-			} else if s.Expression.Kind == "yield_star" {
+			case "yield_star":
 				if s.Expression.Left != nil && s.Expression.Left.Kind == "array" {
 					for _, arg := range s.Expression.Left.Arguments {
 						yields = append(yields, yieldPoint{stateIdx: len(yields), expr: arg, isStar: false})

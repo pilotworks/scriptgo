@@ -111,6 +111,25 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 
 func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction ir.Instruction, arrayType ir.Type) error {
 	switch instruction.Callee {
+	case "__array.isArray":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBool {
+			return fmt.Errorf("array.isArray has invalid signature")
+		}
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if argType == ir.TypeUnknown {
+			e.tempCounter++
+			tagVar := fmt.Sprintf("isarray.tag.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = icmp eq i32 %%%s, 6\n", instruction.Result, tagVar)
+			return nil
+		}
+		if strings.HasSuffix(string(argType), "[]") {
+			fmt.Fprintf(out, "  %%%s = or i1 false, true\n", instruction.Result)
+			return nil
+		}
+		fmt.Fprintf(out, "  %%%s = or i1 false, false\n", instruction.Result)
+		return nil
 	case "__array.length":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("array.length has invalid signature")
@@ -129,9 +148,36 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 			return fmt.Errorf("array.push has invalid signature")
 		}
 		elemType := arrayElementType(arrayType)
+		arg1 := instruction.Args[1]
+		arg1Type := e.types[arg1]
+		if (arg1Type == ir.TypeUnknown || arg1Type == "any") && elemType != ir.TypeUnknown && elemType != "any" {
+			e.tempCounter++
+			payloadName := fmt.Sprintf("push.unbox.payload.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arg1)
+			paramType := llvmType(elemType)
+			switch paramType {
+			case "double":
+				e.tempCounter++
+				valName := fmt.Sprintf("push.unbox.dbl.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", valName, payloadName)
+				arg1 = valName
+			case "i1":
+				e.tempCounter++
+				valName := fmt.Sprintf("push.unbox.bool.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", valName, payloadName)
+				arg1 = valName
+			case "i64":
+				arg1 = payloadName
+			default:
+				e.tempCounter++
+				valName := fmt.Sprintf("push.unbox.ptr.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to %s\n", valName, payloadName, paramType)
+				arg1 = valName
+			}
+		}
 		valSlot := fmt.Sprintf("%s.push.val.%d", instruction.Args[0], e.runtimeStatus)
 		fmt.Fprintf(out, "  %%%s = alloca %s\n", valSlot, llvmType(elemType))
-		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", llvmType(elemType), instruction.Args[1], valSlot)
+		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", llvmType(elemType), arg1, valSlot)
 		resSlot := instruction.Result + ".slot"
 		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -575,6 +621,24 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.keys":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_keys(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.entries":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_entries(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil

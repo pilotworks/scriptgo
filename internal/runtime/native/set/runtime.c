@@ -354,29 +354,38 @@ int scriptgo_set_to_string(void *handle, char **out_str) {
     return 0;
 }
 
-typedef struct {
-    void *fn_ptr;
-    void *env;
-} scriptgo_set_closure_env;
+int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
 
 int scriptgo_set_for_each(void *handle, void *closure_handle) {
     scriptgo_set_native *s = handle;
-    scriptgo_set_closure_env *c = closure_handle;
-    if (s == NULL || s->magic != SCRIPTGO_MAGIC_SET || c == NULL) {
+    if (s == NULL || s->magic != SCRIPTGO_MAGIC_SET || closure_handle == NULL) {
         return set_fail("scriptgo set forEach: invalid arguments");
     }
     for (int64_t i = 0; i < s->size; i++) {
         scriptgo_set_native_entry *entry = &s->entries[i];
+        scriptgo_boxed_value a1 = {0};
         if (entry->val_type == SCRIPTGO_SET_VAL_NUMBER) {
-            void (*fn)(void *, double, double, void *) = (void (*)(void *, double, double, void *))c->fn_ptr;
-            fn(c->env, entry->num_val, entry->num_val, s);
+            union { double d; int64_t i; } u;
+            u.d = entry->num_val;
+            a1.tag = 3;
+            a1.payload = u.i;
         } else if (entry->val_type == SCRIPTGO_SET_VAL_STRING) {
-            void (*fn)(void *, const char *, const char *, void *) = (void (*)(void *, const char *, const char *, void *))c->fn_ptr;
-            fn(c->env, entry->str_val ? entry->str_val : "", entry->str_val ? entry->str_val : "", s);
+            a1.tag = 4;
+            a1.payload = (int64_t)(uintptr_t)(entry->str_val ? entry->str_val : "");
         } else {
-            void (*fn)(void *, void *, void *, void *) = (void (*)(void *, void *, void *, void *))c->fn_ptr;
-            fn(c->env, entry->ptr_val, entry->ptr_val, s);
+            a1.tag = 5;
+            a1.payload = (int64_t)(uintptr_t)entry->ptr_val;
         }
+
+        scriptgo_boxed_value a2 = a1;
+
+        scriptgo_boxed_value a3 = {0};
+        a3.tag = 5;
+        a3.payload = (int64_t)(uintptr_t)s;
+
+        scriptgo_boxed_value a4 = {0};
+
+        scriptgo_closure_invoke(closure_handle, 3, &a1, &a2, &a3, &a4);
     }
     return 0;
 }

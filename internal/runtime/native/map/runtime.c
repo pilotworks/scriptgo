@@ -73,6 +73,7 @@ typedef struct {
 } scriptgo_array_inner_map;
 
 typedef struct {
+    uint64_t magic;
     int64_t field_count;
     const char *type_name;
     uintptr_t fields[];
@@ -83,14 +84,25 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
     if (entries_array == NULL) return 0;
     scriptgo_map_native *m = *out_map;
     scriptgo_array_inner_map *arr = entries_array;
+    if (arr->data == NULL) return 0;
     if (arr->element_size == sizeof(void *)) {
         for (int64_t i = 0; i < arr->length; i++) {
-            scriptgo_object_inner_map *obj = *(scriptgo_object_inner_map **)(arr->data + (size_t)i * sizeof(void *));
-            if (obj != NULL && obj->field_count >= 2) {
+            void *item = *(void **)(arr->data + (size_t)i * sizeof(void *));
+            if (item == NULL) continue;
+            scriptgo_object_inner_map *obj = (scriptgo_object_inner_map *)item;
+            if (obj->magic == 0x53474F424A454354ULL && obj->field_count >= 2) {
                 const char *k = (const char *)obj->fields[0];
                 const char *v = (const char *)obj->fields[1];
                 void *dummy;
                 scriptgo_map_set_string_string(m, k, v, &dummy);
+            } else {
+                scriptgo_array_inner_map *sub_arr = (scriptgo_array_inner_map *)item;
+                if (sub_arr->length >= 2 && sub_arr->data != NULL) {
+                    const char *k = *(const char **)(sub_arr->data);
+                    const char *v = *(const char **)(sub_arr->data + sizeof(void *));
+                    void *dummy;
+                    scriptgo_map_set_string_string(m, k, v, &dummy);
+                }
             }
         }
     }
@@ -373,29 +385,40 @@ int scriptgo_map_to_string(void *handle, char **out_str) {
     return 0;
 }
 
-typedef struct {
-    void *fn_ptr;
-    void *env;
-} scriptgo_map_closure_env;
+int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
 
 int scriptgo_map_for_each(void *handle, void *closure_handle) {
     scriptgo_map_native *m = handle;
-    scriptgo_map_closure_env *c = closure_handle;
-    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || c == NULL) {
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || closure_handle == NULL) {
         return map_fail("scriptgo map forEach: invalid arguments");
     }
     for (int64_t i = 0; i < m->size; i++) {
         scriptgo_map_native_entry *entry = &m->entries[i];
+        scriptgo_boxed_value a1 = {0};
         if (entry->val_type == SCRIPTGO_MAP_VAL_NUMBER) {
-            void (*fn)(void *, double, const char *, void *) = (void (*)(void *, double, const char *, void *))c->fn_ptr;
-            fn(c->env, entry->num_val, entry->key_str ? entry->key_str : "", m);
+            union { double d; int64_t i; } u;
+            u.d = entry->num_val;
+            a1.tag = 3;
+            a1.payload = u.i;
         } else if (entry->val_type == SCRIPTGO_MAP_VAL_STRING) {
-            void (*fn)(void *, const char *, const char *, void *) = (void (*)(void *, const char *, const char *, void *))c->fn_ptr;
-            fn(c->env, entry->str_val ? entry->str_val : "", entry->key_str ? entry->key_str : "", m);
+            a1.tag = 4;
+            a1.payload = (int64_t)(uintptr_t)(entry->str_val ? entry->str_val : "");
         } else {
-            void (*fn)(void *, void *, const char *, void *) = (void (*)(void *, void *, const char *, void *))c->fn_ptr;
-            fn(c->env, entry->ptr_val, entry->key_str ? entry->key_str : "", m);
+            a1.tag = 5;
+            a1.payload = (int64_t)(uintptr_t)entry->ptr_val;
         }
+
+        scriptgo_boxed_value a2 = {0};
+        a2.tag = 4;
+        a2.payload = (int64_t)(uintptr_t)(entry->key_str ? entry->key_str : "");
+
+        scriptgo_boxed_value a3 = {0};
+        a3.tag = 5;
+        a3.payload = (int64_t)(uintptr_t)m;
+
+        scriptgo_boxed_value a4 = {0};
+
+        scriptgo_closure_invoke(closure_handle, 3, &a1, &a2, &a3, &a4);
     }
     return 0;
 }

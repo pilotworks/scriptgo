@@ -7,7 +7,7 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	status := instruction.Result + ".status"
 	slot := instruction.Result + ".slot"
 	switch instruction.Callee {
@@ -83,7 +83,7 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.slice has invalid signature")
 		}
-		endArg := "-1.0"
+		endArg := "1000000000.0"
 		if len(instruction.Args) == 3 {
 			endArg = "%" + instruction.Args[2]
 		}
@@ -217,13 +217,23 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__string.concat":
-		if len(instruction.Args) != 2 || instruction.Type != ir.TypeString {
+		if len(instruction.Args) < 2 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.concat has invalid signature")
 		}
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		current := instruction.Args[0]
+		for i := 1; i < len(instruction.Args); i++ {
+			stepSlot := slot
+			stepResult := instruction.Result
+			if i < len(instruction.Args)-1 {
+				stepSlot = fmt.Sprintf("%s.step.%d.slot", instruction.Result, i)
+				stepResult = fmt.Sprintf("%s.step.%d", instruction.Result, i)
+			}
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", stepSlot)
+			fmt.Fprintf(out, "  %%%s.status = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", stepResult, current, instruction.Args[i], stepSlot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s.status)\n", stepResult)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", stepResult, stepSlot)
+			current = stepResult
+		}
 	case "__string.split":
 		if len(instruction.Args) != 2 || instruction.Type != ir.TypeStringArray {
 			return fmt.Errorf("string.split has invalid signature")
@@ -333,19 +343,156 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("string.fromCharCode requires 1 arg")
 		}
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_code_point(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-	case "__string.at", "__string.substr":
+		if len(instruction.Args) == 1 {
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_code_point(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		} else {
+			codesArr := fmt.Sprintf("%s.codes", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = alloca [%d x double]\n", codesArr, len(instruction.Args))
+			for i, arg := range instruction.Args {
+				elemPtr := fmt.Sprintf("%s.elem.%d", instruction.Result, i)
+				fmt.Fprintf(out, "  %%%s = getelementptr inbounds [%d x double], ptr %%%s, i64 0, i64 %d\n", elemPtr, len(instruction.Args), codesArr, i)
+				fmt.Fprintf(out, "  store double %%%s, ptr %%%s\n", arg, elemPtr)
+			}
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_char_codes(ptr %%%s, i64 %d, ptr %%%s)\n", status, codesArr, len(instruction.Args), slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		}
+	case "__string.at":
 		pos := "0.0"
 		if len(instruction.Args) >= 2 {
 			pos = "%" + instruction.Args[1]
 		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_char_at(ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], pos, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_at(ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], pos, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.substr":
+		startArg := "0.0"
+		if len(instruction.Args) >= 2 {
+			startArg = "%" + instruction.Args[1]
+		}
+		lenArg := "1000000000.0"
+		if len(instruction.Args) >= 3 {
+			lenArg = "%" + instruction.Args[2]
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_substr(ptr %%%s, double %s, double %s, ptr %%%s)\n", status, instruction.Args[0], startArg, lenArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.anchor":
+		nameArg := "null"
+		if len(instruction.Args) >= 2 {
+			nameArg = "%" + instruction.Args[1]
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_anchor(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], nameArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.big":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_big(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.blink":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_blink(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.bold":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_bold(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.fixed":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_fixed(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.fontcolor":
+		cArg := "null"
+		if len(instruction.Args) >= 2 {
+			cArg = "%" + instruction.Args[1]
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_fontcolor(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], cArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.fontsize":
+		sArg := "null"
+		if len(instruction.Args) >= 2 {
+			argTyp := e.types[instruction.Args[1]]
+			if argTyp == ir.TypeNumber {
+				numStrSlot := fmt.Sprintf("%s.numstr.slot", instruction.Result)
+				numStrVal := fmt.Sprintf("%s.numstr", instruction.Result)
+				fmt.Fprintf(out, "  %%%s = alloca ptr\n", numStrSlot)
+				fmt.Fprintf(out, "  %%%s.status = call i32 @scriptgo_string_from_number(double %%%s, ptr %%%s)\n", numStrVal, instruction.Args[1], numStrSlot)
+				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s.status)\n", numStrVal)
+				fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", numStrVal, numStrSlot)
+				sArg = "%" + numStrVal
+			} else {
+				sArg = "%" + instruction.Args[1]
+			}
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_fontsize(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.italics":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_italics(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.link":
+		uArg := "null"
+		if len(instruction.Args) >= 2 {
+			uArg = "%" + instruction.Args[1]
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_link(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], uArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.small":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_small(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.strike":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_strike(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.sub":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_sub(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.sup":
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_sup(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+	case "__string.raw":
+		if len(instruction.Args) < 1 {
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			fmt.Fprintf(out, "  store ptr null, ptr %%%s\n", slot)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+			return nil
+		}
+		argTyp := e.types[instruction.Args[0]]
+		if argTyp == ir.TypeStringArray || strings.HasSuffix(string(argTyp), "[]") {
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			statusRaw := fmt.Sprintf("%s.raw.status", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double 0.0, ptr %%%s)\n", statusRaw, instruction.Args[0], slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusRaw)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0])
+		}
+		return nil
 	case "__string.localeCompare":
 		other := "\"\""
 		if len(instruction.Args) >= 2 {
@@ -355,6 +502,35 @@ func emitStringIntrinsic(out *strings.Builder, instruction ir.Instruction) error
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_index_of(ptr %%%s, ptr %s, double 0.0, ptr %%%s)\n", status, instruction.Args[0], other, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+	case "__string.new":
+		if len(instruction.Args) == 0 {
+			if strGlobal, ok := e.stringsByValue[""]; ok {
+				fmt.Fprintf(out, "  %%%s = getelementptr inbounds [1 x i8], ptr %s, i64 0, i64 0\n", instruction.Result, strGlobal)
+				return nil
+			}
+		}
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if argType == ir.TypeString {
+			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg)
+			return nil
+		}
+		if argType == ir.TypeNumber {
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_string(double %%%s, double 10.0, ptr %%%s)\n", status, arg, slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+			return nil
+		}
+		if argType == ir.TypeUnknown || argType == "any" {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, payloadVar)
+			return nil
+		}
+		fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg)
+		return nil
 	default:
 		if strings.HasPrefix(instruction.Callee, "__string.") {
 			if instruction.Type == ir.TypeString {

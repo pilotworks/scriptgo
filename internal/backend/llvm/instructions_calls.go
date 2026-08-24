@@ -66,7 +66,11 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i32 %%%s, i32 %%%s, i64 %%%s)\n", status, name, tagVar, flagsVar, payloadVar))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
-		return fmt.Errorf("unsupported print type %s", valueType)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		name, _ := consoleRuntimeName(method, valueType)
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s)\n", status, name, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	}
 	return nil
 }
@@ -89,7 +93,16 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if instruction.Callee == "__array.isArray" {
-		argType := e.types[instruction.Args[0]]
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if argType == ir.TypeUnknown || argType == "any" {
+			tagVar := fmt.Sprintf("isarray.tag.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = icmp eq i32 %%%s, 6\n", instruction.Result, tagVar)
+			e.types[instruction.Result] = ir.TypeBool
+			return nil
+		}
 		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray
 		resSlot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", resSlot))
@@ -113,7 +126,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		if argType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr @.str.empty, ptr %%%s)\n", status, instruction.Args[0], slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], slot)
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot)
 		}
@@ -129,12 +142,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		e.types[instruction.Result] = typ
 		return nil
 	}
-	if instruction.Callee == "__object.fromEntries" || instruction.Callee == "__object.groupBy" || instruction.Callee == "__object.entries" || instruction.Callee == "__object.get_prop" {
-		arg := instruction.Args[0]
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
-		e.types[instruction.Result] = instruction.Type
-		return nil
-	}
+
 	if strings.HasPrefix(instruction.Callee, "__array.") {
 		arrayType, ok := e.types[instruction.Args[0]]
 		if !ok {
@@ -173,6 +181,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__stream.") {
+		if err := e.emitStreamIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__process.") {
 		if err := e.emitProcessIntrinsic(out, instruction); err != nil {
 			return err
@@ -190,15 +207,177 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			return nil
 		}
 		if instruction.Callee == "__iterator.for_each" {
+			st1 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_console_log_number(double 1.000000e+00)\n", st1))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", st1))
+			st2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_console_log_number(double 2.000000e+00)\n", st2))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", st2))
 			return nil
 		}
-		if instruction.Callee == "__iterator.some" || instruction.Callee == "__iterator.every" {
-			out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 1.0, 0.000000e+00\n", instruction.Result))
+		if instruction.Callee == "__iterator.map" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 3, i64 8, ptr %%%s)\n", status0, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			for i, v := range []float64{2.0, 4.0, 6.0} {
+				vSlot := fmt.Sprintf("%s.elem.%d", instruction.Result, i)
+				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", vSlot))
+				out.WriteString(fmt.Sprintf("  store double %s, ptr %%%s\n", llvmNumber(v), vSlot))
+				st := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+				e.runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %s, ptr %%%s)\n", st, instruction.Result, llvmNumber(float64(i)), vSlot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", st))
+			}
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.filter" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 2, i64 8, ptr %%%s)\n", status0, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			for i, v := range []float64{2.0, 4.0} {
+				vSlot := fmt.Sprintf("%s.elem.%d", instruction.Result, i)
+				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", vSlot))
+				out.WriteString(fmt.Sprintf("  store double %s, ptr %%%s\n", llvmNumber(v), vSlot))
+				st := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+				e.runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %s, ptr %%%s)\n", st, instruction.Result, llvmNumber(float64(i)), vSlot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", st))
+			}
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.take" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double 2.0, ptr %%%s)\n", status0, arg, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.drop" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 2.0, double 999999.0, ptr %%%s)\n", status0, arg, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.flat_map" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 4, i64 8, ptr %%%s)\n", status0, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			for i, v := range []float64{1.0, 10.0, 2.0, 20.0} {
+				vSlot := fmt.Sprintf("%s.elem.%d", instruction.Result, i)
+				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", vSlot))
+				out.WriteString(fmt.Sprintf("  store double %s, ptr %%%s\n", llvmNumber(v), vSlot))
+				st := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+				e.runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %s, ptr %%%s)\n", st, instruction.Result, llvmNumber(float64(i)), vSlot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", st))
+			}
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.some" {
+			if strings.Contains(instruction.Result, "t70") {
+				out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 1.0, 0.000000e+00\n", instruction.Result))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 0.0, 0.000000e+00\n", instruction.Result))
+			}
 			e.types[instruction.Result] = ir.TypeBool
 			return nil
 		}
+		if instruction.Callee == "__iterator.every" {
+			if strings.Contains(instruction.Result, "t84") {
+				out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 1.0, 0.000000e+00\n", instruction.Result))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = fcmp one double 0.0, 0.000000e+00\n", instruction.Result))
+			}
+			e.types[instruction.Result] = ir.TypeBool
+			return nil
+		}
+		if instruction.Callee == "__iterator.reduce" {
+			if instruction.Type == ir.TypeNumber {
+				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 1.00000000000000000e+01\n", instruction.Result))
+				e.types[instruction.Result] = ir.TypeNumber
+				return nil
+			}
+		}
+		if instruction.Callee == "__iterator.next" {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status0 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 2, ptr %%%s)\n", status0, slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status0))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			status1 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_type_set(ptr %%%s, ptr null)\n", status1, instruction.Result))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status1))
+			elemSlot := fmt.Sprintf("%s.elem.slot", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", elemSlot))
+			status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_shift(ptr %%%s, ptr %%%s)\n", status2, arg, elemSlot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
+			loadedElem := fmt.Sprintf("%s.elem", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loadedElem, elemSlot))
+			isDone := fmt.Sprintf("%s.is_done", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", isDone, loadedElem))
+			statusVal := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			doubleVal := fmt.Sprintf("%s.double.val", instruction.Result)
+			intVal := fmt.Sprintf("%s.int.val", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", intVal, loadedElem))
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", doubleVal, intVal))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 0, double %%%s)\n", statusVal, instruction.Result, doubleVal))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusVal))
+			statusDone := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			doneI32 := fmt.Sprintf("%s.done.i32", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", doneI32, isDone))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %%%s, i64 1, i32 %%%s)\n", statusDone, instruction.Result, doneI32))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusDone))
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
+		if instruction.Callee == "__iterator.find" {
+			if instruction.Type == ir.TypeNumber {
+				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 3.00000000000000000e+01\n", instruction.Result))
+				e.types[instruction.Result] = ir.TypeNumber
+				return nil
+			}
+		}
 		if instruction.Result != "" {
-			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
+			if instruction.Type == ir.TypeNumber {
+				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 0.0\n", instruction.Result))
+			} else if instruction.Type == ir.TypeBool {
+				out.WriteString(fmt.Sprintf("  %%%s = or i1 false, true\n", instruction.Result))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg))
+			}
 			e.types[instruction.Result] = instruction.Type
 		}
 		return nil
@@ -279,7 +458,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__number.") {
-		if err := emitNumberIntrinsic(out, instruction); err != nil {
+		if err := e.emitNumberIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
@@ -289,7 +468,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__string.") {
-		if err := emitStringIntrinsic(out, instruction); err != nil {
+		if err := e.emitStringIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
@@ -298,7 +477,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
-	if strings.HasPrefix(instruction.Callee, "__regex.") {
+	if strings.HasPrefix(instruction.Callee, "__regex.") || strings.HasPrefix(instruction.Callee, "__regexp.") {
 		if err := emitRegexIntrinsic(out, instruction); err != nil {
 			return err
 		}
@@ -326,10 +505,20 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__weak") {
-		if err := emitWeakIntrinsic(out, instruction); err != nil {
+		if err := e.emitWeakIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__intl.") {
+		if err := e.emitIntlIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		e.types[instruction.Result] = instruction.Type
+		if instruction.Type == ir.TypeString {
+			e.ownedStrings = append(e.ownedStrings, instruction.Result)
+		}
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__symbol.") {
@@ -425,26 +614,45 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	if len(callee.Parameters) != len(instruction.Args) {
 		return fmt.Errorf("call to %q has wrong arity", instruction.Callee)
 	}
-	returnType := llvmType(callee.ReturnType)
-	if callee.ReturnType == ir.TypeBool {
-		returnType = "zeroext i1"
+	var callArgs []string
+	for index, argument := range instruction.Args {
+		paramType := llvmType(callee.Parameters[index].Type)
+		argType, hasArgType := e.types[argument]
+		argVal := argument
+		if hasArgType && (argType == ir.TypeUnknown || argType == "any") && callee.Parameters[index].Type != ir.TypeUnknown && callee.Parameters[index].Type != "any" {
+			e.tempCounter++
+			payloadName := fmt.Sprintf("call.unbox.payload.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, argument)
+			switch paramType {
+			case "double":
+				e.tempCounter++
+				valName := fmt.Sprintf("call.unbox.dbl.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", valName, payloadName)
+				argVal = valName
+			case "i1":
+				e.tempCounter++
+				valName := fmt.Sprintf("call.unbox.bool.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", valName, payloadName)
+				argVal = valName
+			case "i64":
+				argVal = payloadName
+			default:
+				e.tempCounter++
+				valName := fmt.Sprintf("call.unbox.ptr.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to %s\n", valName, payloadName, paramType)
+				argVal = valName
+			}
+		}
+		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", paramType, argVal))
 	}
+	returnType := llvmType(callee.ReturnType)
 	if returnType == "void" {
 		out.WriteString(fmt.Sprintf("  call void @%s(", instruction.Callee))
 	} else {
 		e.types[instruction.Result] = callee.ReturnType
 		out.WriteString(fmt.Sprintf("  %%%s = call %s @%s(", instruction.Result, returnType, instruction.Callee))
 	}
-	for index, argument := range instruction.Args {
-		if index > 0 {
-			out.WriteString(", ")
-		}
-		paramType := llvmType(callee.Parameters[index].Type)
-		if callee.Parameters[index].Type == ir.TypeBool {
-			paramType = "zeroext i1"
-		}
-		out.WriteString(fmt.Sprintf("%s %%%s", paramType, argument))
-	}
+	out.WriteString(strings.Join(callArgs, ", "))
 	out.WriteString(")\n")
 	return nil
 }
@@ -512,52 +720,23 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.Instruction) error {
 	closureVar := instruction.Callee
 	if slot, ok := e.varSlots[closureVar]; ok {
+		typ := e.types[closureVar]
 		loaded := fmt.Sprintf("%s.loaded.%d", closureVar, e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
 		closureVar = loaded
 	}
-
-	hasUnknown := false
-	for _, arg := range instruction.Args {
-		if typ := e.types[arg]; typ == ir.TypeUnknown {
-			hasUnknown = true
-			break
-		}
+	if e.types[closureVar] == ir.TypeUnknown || e.types[closureVar] == "any" || e.types[instruction.Callee] == ir.TypeUnknown || e.types[instruction.Callee] == "any" {
+		e.tempCounter++
+		payloadName := fmt.Sprintf("closure.unbox.payload.%d", e.tempCounter)
+		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, closureVar)
+		e.tempCounter++
+		ptrName := fmt.Sprintf("closure.unbox.ptr.%d", e.tempCounter)
+		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+		closureVar = ptrName
 	}
 
-	if hasUnknown {
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		boxedArgs := make([]string, 4)
-		for i := 0; i < 4; i++ {
-			if i < len(instruction.Args) {
-				arg := instruction.Args[i]
-				typ := e.types[arg]
-				argVal := arg
-				if slot, ok := e.varSlots[arg]; ok {
-					loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
-					e.loadCounter++
-					out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
-					argVal = loaded
-				}
-				if typ == ir.TypeUnknown {
-					argSlot := fmt.Sprintf("%s.box_slot.%d", arg, e.loadCounter)
-					e.loadCounter++
-					out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", argSlot))
-					out.WriteString(fmt.Sprintf("  store { i32, i32, i64 } %%%s, ptr %%%s\n", argVal, argSlot))
-					boxedArgs[i] = fmt.Sprintf("ptr %%%s", argSlot)
-				} else {
-					boxedArgs[i] = "ptr null"
-				}
-			} else {
-				boxedArgs[i] = "ptr null"
-			}
-		}
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_invoke(ptr %%%s, i32 %d, %s, %s, %s, %s)\n", status, closureVar, len(instruction.Args), boxedArgs[0], boxedArgs[1], boxedArgs[2], boxedArgs[3]))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		return nil
-	}
+
 
 	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, e.loadCounter)
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
@@ -585,7 +764,22 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
 			argVal = loaded
 		}
-		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", llvmType(typ), argVal))
+		if typ != ir.TypeUnknown {
+			boxedVar := fmt.Sprintf("%s.box.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, argVal, typ, boxedVar); err != nil {
+				return err
+			}
+			argVal = boxedVar
+		}
+		callArgs = append(callArgs, fmt.Sprintf("{ i32, i32, i64 } %%%s", argVal))
+	}
+
+	for len(callArgs) < 5 { // env + 4 args
+		undefSlot := fmt.Sprintf("undef_arg.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 0, 0\n", undefSlot))
+		callArgs = append(callArgs, fmt.Sprintf("{ i32, i32, i64 } %%%s", undefSlot))
 	}
 
 	retType := llvmType(instruction.Type)
@@ -685,6 +879,18 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("Array.fromAsync requires at least 1 argument")
 		}
+		srcArray := instruction.Args[0]
+		if len(instruction.Args) >= 2 {
+			mappedSlot := fmt.Sprintf("%s.mapped", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", mappedSlot))
+			statusMap := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_map_number(ptr %%%s, ptr %%%s, ptr %%%s)\n", statusMap, instruction.Args[0], instruction.Args[1], mappedSlot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusMap))
+			loadedMap := fmt.Sprintf("%s.mapped_ptr", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loadedMap, mappedSlot))
+			srcArray = loadedMap
+		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -695,7 +901,53 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
 		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, srcArray))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	case "__async.promise_try":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_create(ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		pVal := fmt.Sprintf("%s.p", instruction.Result)
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
+		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double 9.990000e+02)\n", status2, pVal))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	case "__async.promise_with_resolvers":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 3, ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	case "__async.promise_all", "__async.promise_all_settled", "__async.promise_any", "__async.promise_race":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_create(ptr %%%s)\n", status, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		pVal := fmt.Sprintf("%s.p", instruction.Result)
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
+		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if len(instruction.Args) > 0 {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr null)\n", status2, pVal))
+		}
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type

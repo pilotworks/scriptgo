@@ -74,6 +74,7 @@ export class HttpConnection {
     connected: boolean;
     options: string;
     constructor(connected?: boolean, options?: string);
+    on(event: string, listener?: unknown): this;
 }
 export class Agent {
     options: AgentOptions | null;
@@ -116,7 +117,7 @@ export class OutgoingMessage {
     hasHeader(name: string): boolean;
     removeHeader(name: string): void;
     appendHeader(name: string, value: unknown): OutgoingMessage;
-    setHeaders(headers: Headers): OutgoingMessage;
+    setHeaders(headers: any): OutgoingMessage;
     flushHeaders(): void;
     write(chunk: unknown, encoding?: string, callback?: unknown): boolean;
     end(chunk?: unknown, encoding?: string, callback?: unknown): OutgoingMessage;
@@ -164,12 +165,13 @@ export class IncomingMessage {
     trailers: string[];
     trailersDistinct: string[];
     url: string;
-    constructor(socket?: string | null);
+    constructor(socket?: any);
     on(event: string, listener: Function): IncomingMessage;
     once(event: string, listener: Function): IncomingMessage;
     emit(event: string, arg1?: unknown, arg2?: unknown): boolean;
     destroy(error?: unknown): IncomingMessage;
     setTimeout(msecs?: number, callback?: unknown): IncomingMessage;
+    pipe<T = any>(destination: T): T;
 }
 export class ServerResponse extends OutgoingMessage {
     statusCode: number;

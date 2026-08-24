@@ -212,6 +212,15 @@ func (e *functionEmitter) emitProcessIntrinsic(out *strings.Builder, instruction
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__process.env_obj":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 0, ptr %%%s)\n", status, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	default:
 		return fmt.Errorf("unknown process intrinsic %q", instruction.Callee)
 	}
@@ -439,7 +448,7 @@ func (e *functionEmitter) emitWebIntrinsic(out *strings.Builder, instruction ir.
 
 func (e *functionEmitter) emitOsIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
-	case "__os.platform", "__os.arch", "__os.homedir", "__os.type", "__os.release":
+	case "__os.platform", "__os.arch", "__os.homedir", "__os.type", "__os.release", "__os.tmpdir":
 		if len(instruction.Args) != 0 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("%s has invalid signature", instruction.Callee)
 		}
@@ -572,6 +581,15 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 
 func (e *functionEmitter) emitConsoleIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__console.new":
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 0, ptr %%%s)\n", status, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	case "__console.clear":
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -843,5 +861,38 @@ func (e *functionEmitter) emitHttpIntrinsic(out *strings.Builder, instruction ir
 		return nil
 	default:
 		return fmt.Errorf("unknown http intrinsic %q", instruction.Callee)
+	}
+}
+
+func (e *functionEmitter) emitStreamIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Callee {
+	case "__stream.getDefaultHighWaterMark":
+		arg := "0"
+		if len(instruction.Args) > 0 {
+			boolVal := fmt.Sprintf("%s.i32", instruction.Args[0])
+			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolVal, instruction.Args[0])
+			arg = "%" + boolVal
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		slot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_stream_get_default_high_water_mark(i32 %s, ptr %%%s)\n", status, arg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__stream.setDefaultHighWaterMark":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("setDefaultHighWaterMark requires 2 arguments")
+		}
+		boolVal := fmt.Sprintf("%s.i32", instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolVal, instruction.Args[0])
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_stream_set_default_high_water_mark(i32 %%%s, double %%%s)\n", status, boolVal, instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+	default:
+		return fmt.Errorf("unknown stream intrinsic %q", instruction.Callee)
 	}
 }

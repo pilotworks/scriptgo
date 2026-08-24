@@ -53,6 +53,12 @@ typedef struct {
     unsigned long long payload;
 } ScriptGoUnknown;
 
+typedef struct {
+    int32_t tag;
+    int32_t pad;
+    int64_t payload;
+} scriptgo_boxed_value;
+
 static const char *scriptgo_tag_name(unsigned int tag) {
     switch (tag) {
     case SCRIPTGO_TAG_UNDEFINED: return "undefined";

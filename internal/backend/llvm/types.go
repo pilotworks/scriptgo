@@ -10,7 +10,7 @@ import (
 )
 
 func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
-	if method == "dir" || method == "dirxml" {
+	if method == "dir" || method == "dirxml" || method == "table" || method == "trace" {
 		method = "log"
 	}
 	if method != "log" && method != "info" && method != "debug" && method != "warn" && method != "error" {
@@ -25,6 +25,9 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 		ir.TypeUnknown: "unknown",
 	}[typ]
 	if suffix == "" {
+		if strings.HasPrefix(string(typ), "object:") || typ == ir.TypeObject || typ == ir.TypeClosure || strings.HasSuffix(string(typ), "[]") {
+			return "scriptgo_console_" + method + "_object", true
+		}
 		return "", false
 	}
 	return "scriptgo_console_" + method + "_" + suffix, true
@@ -54,7 +57,7 @@ func llvmType(typ ir.Type) string {
 		return "void"
 	case ir.TypeObject:
 		return "ptr"
-	case ir.TypeUnknown:
+	case ir.TypeUnknown, "any":
 		return "{ i32, i32, i64 }"
 	default:
 		if strings.HasPrefix(string(typ), string(ir.TypeObject)+":") {
@@ -94,6 +97,8 @@ func arrayElementSize(arrayType ir.Type) (int64, error) {
 		return 8, nil
 	case ir.TypeString, ir.TypeObject:
 		return 8, nil
+	case ir.TypeUnknown, "any":
+		return 16, nil
 	default:
 		if strings.HasPrefix(string(elem), "object:") || strings.HasSuffix(string(elem), "[]") {
 			return 8, nil

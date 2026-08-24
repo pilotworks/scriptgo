@@ -43,6 +43,20 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		return result, valType, nil
 	}
 	if expression.Operator == "+" {
+		if valType == ir.TypeString {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: result,
+				Callee: "__number.parseFloat",
+				Args:   []string{value},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, nil
+		}
 		if valType != ir.TypeNumber {
 			return "", "", fmt.Errorf("unary + requires a number operand")
 		}

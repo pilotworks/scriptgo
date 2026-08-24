@@ -146,14 +146,14 @@ export class ClientRequest {
         this.headersValues.push(value);
     }
 
-    getHeader(name: string): string | undefined {
+    getHeader(name: string): string | null {
         const lower = name.toLowerCase();
         for (let i = 0; i < this.headersKeys.length; i++) {
             if (this.headersKeys[i] === lower) {
                 return this.headersValues[i];
             }
         }
-        return undefined;
+        return null;
     }
 
     write(chunk: unknown, encodingOrCb: unknown = null, callback: unknown = null): boolean {

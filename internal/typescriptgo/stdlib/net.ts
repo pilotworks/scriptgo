@@ -115,8 +115,10 @@ export class SocketAddress {
         if (options.port !== undefined) {
             this.port = options.port;
         }
-        if (options.flowlabel !== undefined) {
+        if (options.flowlabel !== undefined && options.flowlabel !== null) {
             this.flowlabel = options.flowlabel;
+        } else {
+            this.flowlabel = 0;
         }
     }
 

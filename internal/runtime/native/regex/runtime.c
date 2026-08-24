@@ -269,3 +269,25 @@ int scriptgo_bigint_as_uint_n(long long bits, long long value, long long *out_va
     return 0;
 }
 
+int scriptgo_regex_escape(const char *str, char **out_str) {
+    if (out_str == NULL) return scriptgo_runtime_set_error("invalid regex escape argument");
+    if (str == NULL) {
+        *out_str = strdup("");
+        return 0;
+    }
+    size_t len = strlen(str);
+    char *buf = malloc(len * 2 + 1);
+    if (buf == NULL) return scriptgo_runtime_set_error("out of memory");
+    size_t j = 0;
+    const char *syntax = "^$\\.*+?()[]{}|/";
+    for (size_t i = 0; i < len; i++) {
+        if (strchr(syntax, str[i]) != NULL) {
+            buf[j++] = '\\';
+        }
+        buf[j++] = str[i];
+    }
+    buf[j] = '\0';
+    *out_str = buf;
+    return 0;
+}
+
