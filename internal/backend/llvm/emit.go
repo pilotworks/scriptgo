@@ -345,10 +345,13 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_closure_invoke(ptr, i32, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_string(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_ptr(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_string(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_filter_ptr(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_for_each_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_for_each_string(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_for_each_ptr(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_reduce_number(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_find_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_find_index_number(ptr, ptr, ptr)\n")
@@ -690,6 +693,12 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			emitter.varSlots[varName] = slotName
 			emitter.types[varName] = typ
 			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
+			for _, param := range function.Parameters {
+				if param.Name == varName {
+					out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), varName, slotName))
+					break
+				}
+			}
 		}
 	}
 

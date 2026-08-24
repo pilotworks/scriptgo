@@ -60,13 +60,18 @@ func llvmType(typ ir.Type) string {
 	case ir.TypeUnknown, "any":
 		return "{ i32, i32, i64 }"
 	default:
-		if strings.HasPrefix(string(typ), string(ir.TypeObject)+":") {
+		s := string(typ)
+		if strings.HasPrefix(s, string(ir.TypeObject)+":") || strings.HasPrefix(s, "object:") ||
+			strings.HasSuffix(s, "[]") || strings.HasPrefix(s, "tuple:") ||
+			s == "Map" || s == "Set" || s == "Promise" || s == "Date" || s == "RegExp" ||
+			s == "Error" || s == "TypeError" || s == "RangeError" || s == "SyntaxError" ||
+			strings.HasPrefix(s, "Map<") || strings.HasPrefix(s, "Set<") ||
+			strings.HasPrefix(s, "Promise<") || strings.HasPrefix(s, "Promise_") ||
+			strings.HasPrefix(s, "Iterator") || strings.HasPrefix(s, "AsyncIterator") ||
+			strings.HasPrefix(s, "Generator") || strings.HasPrefix(s, "AsyncGenerator") {
 			return "ptr"
 		}
-		if strings.HasSuffix(string(typ), "[]") {
-			return "ptr"
-		}
-		return string(typ)
+		return s
 	}
 }
 

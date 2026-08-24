@@ -43,7 +43,7 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
 	case ir.TypeVoid:
-		out.WriteString(fmt.Sprintf("  %%%s = alloca i8\n", instruction.Result))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
 	case ir.TypeUnknown:
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 0, 0\n", instruction.Result))
 	default:

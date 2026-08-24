@@ -92,6 +92,29 @@ int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_arr
     return 0;
 }
 
+int scriptgo_array_map_ptr(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(void *)) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(void *), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        void *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
+    }
+    return 0;
+}
+
 int scriptgo_array_filter_number(void *handle, void *closure_handle, void **out_array) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
@@ -141,6 +164,30 @@ int scriptgo_array_filter_string(void *handle, void *closure_handle, void **out_
     return 0;
 }
 
+int scriptgo_array_filter_ptr(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(void *)) {
+        return scriptgo_runtime_set_error("scriptgo array filter failed");
+    }
+    if (scriptgo_array_new(0, sizeof(void *), out_array) != 0) {
+        return -1;
+    }
+    for (int64_t i = 0; i < array->length; i++) {
+        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        uint8_t keep = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        if (keep) {
+            double dummy;
+            if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
+        }
+    }
+    return 0;
+}
+
 int scriptgo_array_for_each_number(void *handle, void *closure_handle) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
@@ -175,6 +222,24 @@ int scriptgo_array_for_each_string(void *handle, void *closure_handle) {
     }
     return 0;
 }
+
+int scriptgo_array_for_each_ptr(void *handle, void *closure_handle) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || array->element_size != sizeof(void *)) {
+        return scriptgo_runtime_set_error("scriptgo array forEach failed");
+    }
+    for (int64_t i = 0; i < array->length; i++) {
+        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+    }
+    return 0;
+}
+
 
 int scriptgo_array_reduce_number(void *handle, void *closure_handle, double init_val, double *out_res) {
     scriptgo_array_inner *array = handle;

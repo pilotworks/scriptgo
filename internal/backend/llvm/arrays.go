@@ -348,11 +348,12 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		if arrayType == ir.TypeStringArray {
+		switch arrayType {
+		case ir.TypeStringArray:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_string(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
-		} else if arrayType == ir.TypeBigIntArray || arrayType == "bigint[]" {
+		case ir.TypeBigIntArray:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_bigint(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
-		} else {
+		default:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_number(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
@@ -364,6 +365,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fnName := "scriptgo_array_map_number"
 		if arrayType == ir.TypeStringArray {
 			fnName = "scriptgo_array_map_string"
+		} else if arrayType != ir.TypeNumberArray && arrayType != "number[]" {
+			fnName = "scriptgo_array_map_ptr"
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -377,6 +380,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fnName := "scriptgo_array_filter_number"
 		if arrayType == ir.TypeStringArray {
 			fnName = "scriptgo_array_filter_string"
+		} else if arrayType != ir.TypeNumberArray && arrayType != "number[]" {
+			fnName = "scriptgo_array_filter_ptr"
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -388,6 +393,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fnName := "scriptgo_array_for_each_number"
 		if arrayType == ir.TypeStringArray {
 			fnName = "scriptgo_array_for_each_string"
+		} else if arrayType != ir.TypeNumberArray && arrayType != "number[]" {
+			fnName = "scriptgo_array_for_each_ptr"
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

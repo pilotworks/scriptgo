@@ -22,8 +22,8 @@ test-frontend:
 
 ## test-parity: Run Node.js parity comparison benchmark across the corpus test suite
 test-parity:
-	@echo "==> Running Node.js parity checker..."
-	go run ./cmd/parity
+	@echo "==> Running Node.js parity checker (strict-native)..."
+	go run ./cmd/parity -strict-native
 
 ## test-sanitizers: Run native builds with AddressSanitizer & memory checks across the corpus in parallel
 test-sanitizers:

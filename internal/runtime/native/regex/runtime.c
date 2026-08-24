@@ -10,6 +10,65 @@ int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set(void *array, double index, const void *element);
 
+static char *normalize_pattern(const char *pattern) {
+    if (pattern == NULL) return NULL;
+    size_t len = strlen(pattern);
+    char *buf = malloc(len * 16 + 1);
+    if (buf == NULL) return NULL;
+    size_t out = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (pattern[i] == '\\' && i + 1 < len) {
+            char next = pattern[i + 1];
+            if (next == 'd') {
+                const char *rep = "[0-9]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            } else if (next == 'D') {
+                const char *rep = "[^0-9]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            } else if (next == 'w') {
+                const char *rep = "[a-zA-Z0-9_]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            } else if (next == 'W') {
+                const char *rep = "[^a-zA-Z0-9_]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            } else if (next == 's') {
+                const char *rep = "[ \t\r\n\f\v]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            } else if (next == 'S') {
+                const char *rep = "[^ \t\r\n\f\v]";
+                size_t rlen = strlen(rep);
+                memcpy(buf + out, rep, rlen);
+                out += rlen;
+                i++;
+                continue;
+            }
+        }
+        buf[out++] = pattern[i];
+    }
+    buf[out] = '\0';
+    return buf;
+}
+
 int scriptgo_regex_test(const char *pattern, const char *flags, const char *str, double *out_bool) {
     if (pattern == NULL || str == NULL || out_bool == NULL) {
         return scriptgo_runtime_set_error("invalid argument to regex test");
@@ -20,9 +79,12 @@ int scriptgo_regex_test(const char *pattern, const char *flags, const char *str,
         if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
     }
     regex_t re;
-    if (regcomp(&re, pattern, cflags) != 0) {
+    char *norm = normalize_pattern(pattern);
+    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
+        if (norm) free(norm);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
+    if (norm) free(norm);
     regmatch_t pmatch[1];
     int status = regexec(&re, str, 1, pmatch, 0);
     regfree(&re);
@@ -40,14 +102,18 @@ int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str,
         if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
     }
     regex_t re;
-    if (regcomp(&re, pattern, cflags) != 0) {
+    char *norm = normalize_pattern(pattern);
+    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
+        if (norm) free(norm);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
+    if (norm) free(norm);
     regmatch_t pmatch[16];
     int status = regexec(&re, str, 16, pmatch, 0);
     if (status != 0) {
         regfree(&re);
-        return scriptgo_array_new(0, sizeof(const char*), out_array);
+        *out_array = NULL;
+        return 0;
     }
     int count = 0;
     for (int i = 0; i < 16; i++) {
@@ -80,9 +146,12 @@ int scriptgo_string_match(const char *str, const char *pattern, const char *flag
     if (strchr(flags, 'i') != NULL) cflags |= REG_ICASE;
     if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
     regex_t re;
-    if (regcomp(&re, pattern, cflags) != 0) {
+    char *norm = normalize_pattern(pattern);
+    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
+        if (norm) free(norm);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
+    if (norm) free(norm);
     const char *cursor = str;
     regmatch_t pmatch[1];
     int count = 0;
@@ -93,11 +162,16 @@ int scriptgo_string_match(const char *str, const char *pattern, const char *flag
         cursor += advance;
     }
     regfree(&re);
+    if (count == 0) {
+        *out_array = NULL;
+        return 0;
+    }
     int err = scriptgo_array_new(count, sizeof(const char*), out_array);
     if (err != 0) return err;
-    if (count == 0) return 0;
 
-    regcomp(&re, pattern, cflags);
+    char *norm2 = normalize_pattern(pattern);
+    regcomp(&re, norm2 ? norm2 : pattern, cflags);
+    if (norm2) free(norm2);
     cursor = str;
     int idx = 0;
     while (*cursor && regexec(&re, cursor, 1, pmatch, 0) == 0 && idx < count) {
@@ -127,9 +201,12 @@ int scriptgo_string_search(const char *str, const char *pattern, const char *fla
         if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
     }
     regex_t re;
-    if (regcomp(&re, pattern, cflags) != 0) {
+    char *norm = normalize_pattern(pattern);
+    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
+        if (norm) free(norm);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
+    if (norm) free(norm);
     regmatch_t pmatch[1];
     int status = regexec(&re, str, 1, pmatch, 0);
     regfree(&re);
@@ -153,9 +230,13 @@ int scriptgo_string_replace_regex(const char *str, const char *pattern, const ch
         if (strchr(flags, 'g') != NULL) is_global = 1;
     }
     regex_t re;
-    if (regcomp(&re, pattern, cflags) != 0) {
+    char *norm = normalize_pattern(pattern);
+    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
+        if (norm) free(norm);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
+    if (norm) free(norm);
+
     regmatch_t pmatch[1];
     if (regexec(&re, str, 1, pmatch, 0) != 0) {
         regfree(&re);

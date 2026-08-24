@@ -72,7 +72,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
 					retType = "object:Generator_" + statement.Name
 				}
-				function := ir.Function{Name: statement.Name, ReturnType: toIRType(retType)}
+				fnName := statement.Name
+				if fnName == "main" {
+					fnName = "main$user"
+				}
+				function := ir.Function{Name: fnName, ReturnType: toIRType(retType)}
 				if function.ReturnType == "" {
 					function.ReturnType = ir.TypeVoid
 				}
@@ -103,7 +107,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					}
 					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 				}
+				index[statement.Name] = function
 				index[function.Name] = function
+				if defaultParamsIndex[function.Name] != nil {
+					defaultParamsIndex[statement.Name] = defaultParamsIndex[function.Name]
+				}
+				if restParamsIndex[function.Name] {
+					restParamsIndex[statement.Name] = true
+				}
 				if file.BuiltinName != "" {
 					index[file.BuiltinName+"."+function.Name] = function
 					if defaultParamsIndex[function.Name] != nil {

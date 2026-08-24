@@ -210,12 +210,17 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				continue
 			}
 			if statement.Kind == "function" || statement.Kind == "async_function" {
-				function, err := lowerFunction(file.FileName, statement, shapes, signatures)
+				fnCopy := statement
+				if fnCopy.Name == "main" {
+					fnCopy.Name = "main$user"
+				}
+				function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
 				if err != nil {
 					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))
 				}
 				module.Functions = append(module.Functions, function)
 				signatures[statement.Name] = function
+				signatures[function.Name] = function
 				continue
 			}
 			if statement.Kind == "namespace" {
