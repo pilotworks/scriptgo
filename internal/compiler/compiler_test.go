@@ -195,12 +195,12 @@ func TestBuiltinPathMatchesNodeReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("node reference failed: %v\n%s", err, reference)
 	}
-	interpreted, err := Run(entry)
+	runOut, err := Run(entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if interpreted != string(reference) {
-		t.Fatalf("interpreter path output = %q, Node reference = %q", interpreted, reference)
+	if runOut != string(reference) {
+		t.Fatalf("run output = %q, Node reference = %q", runOut, reference)
 	}
 
 	output := filepath.Join(dir, "main")
@@ -251,7 +251,7 @@ func TestRunSupportsNumberArrayIndexing(t *testing.T) {
 	}
 }
 
-func TestMathBuiltinsMatchInterpreterAndNative(t *testing.T) {
+func TestMathBuiltinsNative(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang is not installed")
 	}
@@ -265,12 +265,12 @@ func TestMathBuiltinsMatchInterpreterAndNative(t *testing.T) {
 	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	interpreted, err := Run(entry)
+	runOut, err := Run(entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if interpreted != "3.5\n3\n2\n2\n" {
-		t.Fatalf("interpreter output = %q", interpreted)
+	if runOut != "3.5\n3\n2\n2\n" {
+		t.Fatalf("run output = %q", runOut)
 	}
 	if err := Build(entry, outputPath); err != nil {
 		t.Fatal(err)
@@ -279,8 +279,8 @@ func TestMathBuiltinsMatchInterpreterAndNative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("native builtin executable failed: %v\n%s", err, native)
 	}
-	if string(native) != interpreted {
-		t.Fatalf("native output = %q, interpreter output = %q", native, interpreted)
+	if string(native) != runOut {
+		t.Fatalf("native output = %q, run output = %q", native, runOut)
 	}
 }
 

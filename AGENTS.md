@@ -63,14 +63,13 @@ module that owns the behavior.
 | Module | May own | Must not own |
 | --- | --- | --- |
 | `cmd/scriptgo` | Flag parsing, input/output paths, process exit codes, user-facing errors | TypeScript semantics, AST traversal, lowering, IR construction, LLVM text, runtime behavior |
-| `internal/compiler` | Stage orchestration, artifact selection, temporary toolchain files, invoking Clang | Parsing, type checking, feature semantics, instruction emission, interpreter logic |
+| `internal/compiler` | Stage orchestration, artifact selection, temporary toolchain files, invoking Clang | Parsing, type checking, feature semantics, instruction emission |
 | `internal/typescriptgo` | The pinned TypeScript-Go adapter and conversion of upstream results into stable adapter data | Native subset policy, IR, LLVM, runtime ABI, a replacement parser/type system |
 | `internal/frontend` | Checked program creation, reachable module graph, normalized source data, frontend diagnostics | Backend selection, native layout, runtime calls, LLVM emission, execution |
-| `internal/lowering` | Native subset validation and conversion of checked source data into backend-independent IR | Direct LLVM/C emission, native process startup, interpreter execution, TypeScript-Go compiler policy |
+| `internal/lowering` | Native subset validation and conversion of checked source data into backend-independent IR | Direct LLVM/C emission, native process startup, TypeScript-Go compiler policy |
 | `internal/ir` | Types, instructions, modules, source metadata, verification invariants | TypeScript AST/API usage, backend-specific syntax, runtime implementation, CLI policy |
-| `internal/interpreter` | Reference execution of verified IR and semantic-oracle tests | Native ABI calls, executable startup, LLVM code generation, frontend parsing |
-| `internal/runtime` | The native ABI contract and, later, linked runtime services for values, ownership, startup, and errors | Reference interpretation, TypeScript parsing/type checking, lowering policy, backend orchestration |
-| `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions, interpreter behavior |
+| `internal/runtime` | The native ABI contract and linked runtime services for values, ownership, startup, and errors | TypeScript parsing/type checking, lowering policy, backend orchestration |
+| `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions |
 
 Dependency direction must remain acyclic:
 
@@ -78,14 +77,10 @@ Dependency direction must remain acyclic:
 cmd/scriptgo -> compiler
 compiler -> frontend -> typescriptgo -> TypeScript-Go
 compiler -> lowering -> ir
-compiler -> interpreter -> ir
 compiler -> backend/llvm -> ir
 ```
 
-`internal/runtime` is currently an ABI document because the MVP calls the host
-C ABI directly. Do not add interpreter code there. When a linked runtime is
-introduced, its ABI must be documented and tested before lowering or LLVM code
-starts depending on it.
+`internal/runtime` provides the native ABI contract and linked C runtime source.
 
 ## File Boundaries And Splitting Rules
 
@@ -97,8 +92,6 @@ starts depending on it.
   operations, and subset diagnostics as control flow is added.
 - Split `internal/backend/llvm` by module/function emission, constants/values,
   runtime ABI declarations, and debug/target metadata as those concerns grow.
-- Split `internal/interpreter` by values, instruction execution, calls, and
-  formatting when execution semantics expand beyond the MVP.
 - Keep tests next to the file or package that owns the behavior. A test that
   crosses multiple boundaries belongs in the owning integration package and
   must not become a reason to merge unrelated implementations into one file.

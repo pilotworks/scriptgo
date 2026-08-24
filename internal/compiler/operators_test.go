@@ -143,7 +143,7 @@ console.log(flagState);
 				t.Fatal(err)
 			}
 
-			// 1. Test via Interpreter (--emit run)
+			// 1. Test via Run (native execution)
 			runOutput, err := Run(entry)
 			if err != nil {
 				t.Fatalf("Run failed: %v", err)
@@ -152,7 +152,7 @@ console.log(flagState);
 				t.Fatalf("Run output = %q, want %q", runOutput, tt.expected)
 			}
 
-			// 2. Test via Native Clang Build (--emit exe)
+			// 2. Test via Build
 			if _, err := exec.LookPath("clang"); err == nil {
 				bin := filepath.Join(dir, "main_bin")
 				if err := Build(entry, bin); err != nil {

@@ -114,7 +114,6 @@ func handleRun(args []string) {
 	cc := fs.String("cc", "", "C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)")
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
-	native := fs.Bool("native", false, "compile to native executable and execute directly")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
@@ -177,46 +176,33 @@ func handleRun(args []string) {
 		ExtraSources:     extraSources,
 	}
 
-	if *native {
-		if *verbose {
-			fmt.Fprintf(os.Stderr, "scriptgo: compiling %s to native binary for execution\n", entryPath)
-		}
-		tempDir, err := os.MkdirTemp("", "scriptgo-run-")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
-			os.Exit(1)
-		}
-		defer os.RemoveAll(tempDir)
-		binPath := filepath.Join(tempDir, "app")
-		if err := compiler.BuildWithOptions(entryPath, binPath, options); err != nil {
-			printError(err)
-			os.Exit(1)
-		}
-		printCompilerWarnings()
-		cmd := exec.Command(binPath, extraArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				os.Exit(exitErr.ExitCode())
-			}
-			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-
 	if *verbose {
-		fmt.Fprintf(os.Stderr, "scriptgo: interpreting %s\n", entryPath)
+		fmt.Fprintf(os.Stderr, "scriptgo: compiling %s to native binary for execution\n", entryPath)
 	}
-	result, err := compiler.Run(entryPath)
-	printCompilerWarnings()
+	tempDir, err := os.MkdirTemp("", "scriptgo-run-")
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
+		os.Exit(1)
+	}
+	defer os.RemoveAll(tempDir)
+	binPath := filepath.Join(tempDir, "app")
+	if err := compiler.BuildWithOptions(entryPath, binPath, options); err != nil {
+		printCompilerWarnings()
 		printError(err)
 		os.Exit(1)
 	}
-	fmt.Print(result)
+	printCompilerWarnings()
+	cmd := exec.Command(binPath, extraArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func handleBuild(args []string) {
@@ -463,7 +449,7 @@ Usage:
   scriptgo <command> [flags] <arguments>
 
 Commands:
-  run       Execute a TypeScript program or code string via interpreter or native binary
+  run       Compile and execute a TypeScript program or code string as a native binary
   build     Compile TypeScript into a standalone native executable
   check     Verify TypeScript syntax, types, and native subset rules
   emit      Emit intermediate representation (LLVM IR or Typed IR)
@@ -489,12 +475,11 @@ func printRunUsage() {
   scriptgo run [flags] -e "<code string>" [-- <args...>]
 
 Description:
-  Executes a TypeScript file or inline code string using either the reference semantic
-  interpreter (default) or by compiling directly to a temporary native binary.
+  Compiles a TypeScript file or inline code string to a temporary native binary
+  and executes it directly on host.
 
 Flags:
   -e <string>            Evaluate inline script string
-  --native               Compile to native executable and execute directly on host
   -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
@@ -508,10 +493,10 @@ Flags:
 Examples:
   scriptgo run app.ts
   scriptgo run -e "console.log('hello ' + 42)"
-  scriptgo run --native -e "console.log(100 * 20)"
-  scriptgo run --native app.ts --ffi-manifest mylib.ffi.json
-  scriptgo run --native app.ts helper.c
-  scriptgo run --native --cc "zig cc" app.ts
+  scriptgo run -e "console.log(100 * 20)"
+  scriptgo run app.ts --ffi-manifest mylib.ffi.json
+  scriptgo run app.ts helper.c
+  scriptgo run --cc "zig cc" app.ts
   scriptgo run app.ts -- arg1 arg2`)
 }
 

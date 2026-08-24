@@ -46,9 +46,6 @@ This is the structure currently present in the repository:
 │   │   └── lowering_test.go     # Lowering and subset tests
 │   ├── ir/
 │   │   └── ir.go                # Initial typed IR data contract
-│   ├── interpreter/
-│   │   ├── interpreter.go        # Reference execution engine for typed IR
-│   │   └── interpreter_test.go   # Interpreter semantic tests
 │   ├── backend/
 │   │   └── llvm/
 │   │       ├── emit.go           # Typed IR -> LLVM IR
@@ -78,21 +75,20 @@ This is the structure currently present in the repository:
 
 ```text
 cmd/scriptgo/main.go
-    -> internal/compiler.Compile
+    -> internal/compiler.Compile / internal/compiler.Build
         -> internal/frontend.NewProgram
         -> internal/typescriptgo.Check
             -> github.com/microsoft/typescript-go
         -> internal/ir.Module
         -> internal/lowering.Lower
-        -> internal/backend/llvm.Emit or internal/interpreter.Execute
-    -> stdout or -o output file
+        -> internal/backend/llvm.Emit -> Clang / zig cc
+    -> stdout or native binary output
 ```
 
 The current implementation checks the reachable local module graph, lowers the
-supported synchronous subset, and emits LLVM IR or runs the reference
-interpreter. Primitive output uses host `printf`/`puts`; dense `number[]`,
+supported synchronous subset, and emits LLVM IR compiled with Clang. Primitive output uses host `printf`/`puts`; dense `number[]`,
 string, and static-object operations use linked runtime families under
-`internal/runtime/native/{arrays,strings,objects}`. Exceptions remain planned.
+`internal/runtime/native/{arrays,strings,objects}`.
 
 ## Target Repository Layout
 
@@ -102,24 +98,21 @@ The following layout is the intended destination described by the roadmap:
 internal/
 ├── compiler/
 │   ├── compiler.go              # Stage orchestration
-│   ├── options.go               # Planned: normalized compiler options
-│   └── diagnostics.go           # Planned: cross-stage diagnostics
+│   ├── options.go               # Normalized compiler options
+│   └── diagnostics.go           # Cross-stage diagnostics
 ├── typescriptgo/                # Existing adapter module
 ├── frontend/
 │   ├── source.go                # Existing program model
-│   ├── project.go               # Planned: module graph and program creation
-│   └── diagnostics.go           # Planned: source-anchored errors
-├── interpreter/                 # Existing: reference execution; never linked natively
-│   ├── interpreter.go            # Typed IR execution engine
-│   └── interpreter_test.go       # Semantic oracle tests
+│   ├── project.go               # Module graph and program creation
+│   └── diagnostics.go           # Source-anchored errors
 ├── lowering/                    # Existing: checked TypeScript -> typed IR
-│   ├── lowering.go              # Existing MVP lowering
-│   ├── expressions.go           # Planned split: literals, operators, calls
-│   ├── statements.go            # Planned split: declarations, branches, returns
-│   └── subset.go                # Planned: supported-feature gate
+│   ├── lowering.go              # MVP lowering
+│   ├── expressions.go           # Expressions: literals, operators, calls
+│   ├── statements.go            # Statements: declarations, branches, returns
+│   └── subset.go                # Supported-feature gate
 ├── ir/
-│   ├── ir.go                    # Existing module/type/instruction model
-│   ├── verify.go                # Planned: IR validity checks
+│   ├── ir.go                    # Module/type/instruction model
+│   ├── verify.go                # IR validity checks
 │   └── dump.go                  # Stable human-readable IR output
 ├── runtime/                     # ABI plus native runtime implementations by value family
 │   ├── README.md                # Runtime ownership and package boundaries
@@ -128,10 +121,10 @@ internal/
 │   │   └── arrays/runtime.c     # Generic element-layout array operations
 │   └── values/                  # Managed-value policies and shared contracts
 └── backend/
-    └── llvm/                    # Existing MVP: typed IR -> LLVM IR
-        ├── emit.go              # Existing module/function emission
-        ├── target.go            # Planned: target triple and data layout
-        └── debug.go             # Planned: source/debug metadata
+    └── llvm/                    # Typed IR -> LLVM IR
+        ├── emit.go              # Module/function emission
+        ├── target.go            # Target triple and data layout
+        └── debug.go             # Source/debug metadata
 ```
 
 Cross-stage fixtures will be added only when needed:
@@ -156,8 +149,7 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `internal/frontend` | Program creation, module graph, checked input, source spans | Native ABI, runtime calls, LLVM selection |
 | `internal/lowering` | Native subset checks and explicit conversion/runtime operations | Backend-specific emission or CLI behavior |
 | `internal/ir` | Backend-independent types, values, instructions, blocks, spans, verifier | TypeScript-Go internals or LLVM APIs |
-| `internal/interpreter` | Reference execution and semantic oracle tests | Native executable startup or ABI implementation |
-| `internal/runtime` | ABI contract and native value-family services | Reference interpretation, TypeScript syntax, frontend analysis |
+| `internal/runtime` | ABI contract and native value-family services | TypeScript syntax, frontend analysis |
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
 
 ## Dependency Direction
@@ -167,7 +159,6 @@ cmd/scriptgo
     -> internal/compiler
         -> internal/frontend -> internal/typescriptgo -> TypeScript-Go
         -> internal/lowering -> internal/ir
-        -> internal/interpreter (reference execution only)
         -> internal/backend/llvm -> internal/ir
 ```
 
@@ -181,8 +172,7 @@ runtime families from
 `internal/runtime/native/{arrays,strings,objects}`. `internal/runtime` owns the
 ABI and native runtime implementations by value family. Startup services must
 not be added to lowering before their representation and ownership contract is
-tested. The package must not absorb
-the reference interpreter or become a general utility package.
+tested.
 
 Rules for imports:
 
@@ -221,12 +211,11 @@ Tests are colocated with the package that owns the behavior:
 
 ```text
 internal/compiler/compiler_test.go       # Current pipeline behavior
-internal/frontend/source_test.go         # Planned: normalization/diagnostics
-internal/lowering/*_test.go              # Current MVP lowering tests
-internal/ir/*_test.go                    # Planned: dedicated verifier tests
-internal/backend/llvm/*_test.go          # Current LLVM emission tests
-internal/interpreter/*_test.go           # Current semantic oracle tests
-testdata/                                # Planned: shared cross-stage inputs
+internal/frontend/source_test.go         # Normalization/diagnostics
+internal/lowering/*_test.go              # MVP lowering tests
+internal/ir/*_test.go                    # Dedicated verifier tests
+internal/backend/llvm/*_test.go          # LLVM emission tests
+testdata/                                # Shared cross-stage inputs
 ```
 
 Use `examples/` for short, readable programs intended for humans and smoke
@@ -241,7 +230,6 @@ The current CLI supports dedicated subcommands:
 
 ```sh
 scriptgo run examples/hello.ts
-scriptgo run --native examples/hello.ts
 scriptgo build examples/hello.ts -o hello
 scriptgo check examples/hello.ts
 scriptgo emit examples/hello.ts --mode typed-ir
@@ -252,8 +240,7 @@ Implemented commands map to pipeline boundaries:
 
 | Command | Boundary | Purpose |
 | --- | --- | --- |
-| `scriptgo run` | frontend -> IR -> interpreter | Execute reference semantics |
-| `scriptgo run --native` | frontend -> IR -> LLVM -> Clang / `zig cc` | Compile and run standalone native binary |
+| `scriptgo run` | frontend -> IR -> LLVM -> Clang / `zig cc` | Compile and run standalone native binary |
 | `scriptgo build` | frontend -> IR -> LLVM -> Clang / `zig cc` | Produce a native executable |
 | `scriptgo check` | frontend -> subset validator | Validate syntax, types, and subset |
 | `scriptgo emit --mode=typed-ir` | frontend -> IR | Inspect typed IR |

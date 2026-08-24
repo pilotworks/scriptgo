@@ -14,15 +14,14 @@
 
 #### Parity Benchmark Overview
 
-All 104 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Interpreter & Native Binary)** and **Node.js**:
+All 104 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
 | **Total Corpus Test Cases** | **104** | **104 / 104 Passed** | **100.0%** |
-| - *Interpreter Parity* | 90 | 90 PASS | 86.5% |
 | - *Native LLVM/Clang Parity* | 93 | 93 PASS (direct binary compilation) | 100.0% (all executable tests) |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~25s (Linux) / ~70s (macOS) | No regressions detected across macOS & Linux | - |
+| **Total Test Suite Runtime** | ~25s (Linux) / ~45s (macOS) | No regressions detected across macOS & Linux | - |
 
 ---
 
@@ -66,7 +65,7 @@ All 104 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `switch` / `case` / `default` | ✅ Full | Supports fallthrough, break, strict value equality (`===`). |
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
-| `try` / `catch` / `finally` & `throw` | ✅ Full | Safe stack unwinding mechanism in interpreter and exception handling infrastructure (`Error`, `TypeError`, `RangeError`, `SyntaxError`). |
+| `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling infrastructure with safe unwinding (`Error`, `TypeError`, `RangeError`, `SyntaxError`). |
 | Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks. |
 | Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |

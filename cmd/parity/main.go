@@ -28,14 +28,12 @@ type CaseResult struct {
 	Path               string        `json:"path"`
 	Category           string        `json:"category"`
 	ExpectationType    string        `json:"expectation_type"`
-	InterpreterParity  ParityStatus  `json:"interpreter_parity"`
 	NativeParity       ParityStatus  `json:"native_parity"`
 	DiagnosticsParity  ParityStatus  `json:"diagnostics_parity"`
 	OverallMatch       bool          `json:"overall_match"`
 	Duration           time.Duration `json:"duration_ms"`
 	ExpectedOutput     string        `json:"expected_output,omitempty"`
 	ScriptGoOutput     string        `json:"scriptgo_output,omitempty"`
-	NativeOutput       string        `json:"native_output,omitempty"`
 	NodeOutput         string        `json:"node_output,omitempty"`
 	ErrorMessage       string        `json:"error_message,omitempty"`
 	DiscrepancyDetails string        `json:"discrepancy_details,omitempty"`
@@ -43,7 +41,6 @@ type CaseResult struct {
 
 type SummaryReport struct {
 	TotalCases        int                   `json:"total_cases"`
-	InterpreterPassed int                   `json:"interpreter_passed"`
 	NativePassed      int                   `json:"native_passed"`
 	DiagnosticsPassed int                   `json:"diagnostics_passed"`
 	OverallFullParity int                   `json:"overall_full_parity"`
@@ -148,8 +145,6 @@ func main() {
 	corpusDir := flag.String("corpus", filepath.Join("internal", "compiler", "testdata", "corpus"), "path to corpus test directory")
 	filter := flag.String("filter", "", "filter test cases by substring in path")
 	runnerType := flag.String("runner", "node", "typescript runner: node, tsx, tsc")
-	checkNative := flag.Bool("native", true, "verify ScriptGo native binary compilation and execution")
-	strictNative := flag.Bool("strict-native", false, "require native to succeed even if case only specifies run.expected")
 	verbose := flag.Bool("v", false, "verbose output including output diffs")
 	jsonOutput := flag.Bool("json", false, "output report as JSON")
 	flag.Parse()
@@ -164,11 +159,9 @@ func main() {
 	}
 
 	clangPath, _ := exec.LookPath("clang")
-	hasClang := clangPath != ""
-	if *checkNative && !hasClang {
-		if !*jsonOutput {
-			fmt.Println("[WARN] Clang is not installed; skipping native binary execution.")
-		}
+	if clangPath == "" {
+		fmt.Fprintf(os.Stderr, "Error: Clang is not installed or not in PATH\n")
+		os.Exit(1)
 	}
 
 	cases, err := findCorpusCases(*corpusDir, *filter)
@@ -183,17 +176,16 @@ func main() {
 
 	if !*jsonOutput {
 		fmt.Printf("================================================================================\n")
-		fmt.Printf("  ScriptGo vs Node.js/TypeScript Parity Checker\n")
+		fmt.Printf("  ScriptGo Native vs Node.js/TypeScript Parity Checker\n")
 		fmt.Printf("================================================================================\n")
 		fmt.Printf("Corpus directory : %s\n", *corpusDir)
 		fmt.Printf("TS Engine/Runner : %s (%s)\n", *runnerType, nodePath)
-		fmt.Printf("Native Backend   : %v (Clang: %t)\n", *checkNative, hasClang)
+		fmt.Printf("Native Backend   : Clang (%s)\n", clangPath)
 		fmt.Printf("Total Test Cases : %d\n", len(cases))
 		fmt.Printf("================================================================================\n\n")
 	}
 
 	var results []CaseResult
-	interpPassedCount := 0
 	nativePassedCount := 0
 	diagPassedCount := 0
 	fullParityCount := 0
@@ -227,7 +219,6 @@ func main() {
 		res := CaseResult{
 			Path:              relPath,
 			Category:          category,
-			InterpreterParity: StatusSkip,
 			NativeParity:      StatusSkip,
 			DiagnosticsParity: StatusSkip,
 		}
@@ -291,98 +282,39 @@ func main() {
 			cleanExpected := cleanTraceOutput(expectedTarget)
 			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
 
-			if hasRunExpected {
-				// Run ScriptGo Interpreter
-				sgOut, sgErr := compiler.Run(entry)
-				res.ScriptGoOutput = sgOut
-				if sgErr != nil {
-					res.ErrorMessage = sgErr.Error()
-				}
-
-				// Check Interpreter Parity
-				cleanSgOut := cleanTraceOutput(sgOut)
-				interpMatchesTarget := (sgErr == nil && (sgOut == runExpected || strings.TrimSpace(sgOut) == strings.TrimSpace(runExpected) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanExpected)))
-				interpMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
-
-				if interpMatchesTarget {
-					res.InterpreterParity = StatusPass
-					interpPassedCount++
-					if !nodeMatchesTarget && !interpMatchesNode {
-						res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches run.expected, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
-					}
-				} else {
-					res.InterpreterParity = StatusFail
-					if sgErr != nil {
-						res.DiscrepancyDetails = fmt.Sprintf("ScriptGo interpreter error: %v", sgErr)
-					} else {
-						res.DiscrepancyDetails = fmt.Sprintf("Output mismatch: want %q, got ScriptGo %q, Node %q", expectedTarget, sgOut, nodeOut)
-					}
-				}
-			} else {
-				res.InterpreterParity = StatusSkip
+			// Run ScriptGo Native
+			sgOut, sgErr := compiler.RunWithOptions(entry, compiler.BuildOptions{})
+			res.ScriptGoOutput = sgOut
+			if sgErr != nil {
+				res.ErrorMessage = sgErr.Error()
 			}
 
-			// Check Native Parity
-			if *checkNative && hasClang {
-				tmpDir, err := os.MkdirTemp("", "scriptgo-parity-")
-				if err == nil {
-					binPath := filepath.Join(tmpDir, "main")
-					var buildOpts compiler.BuildOptions
-					if !isStandalone {
-						entries, _ := os.ReadDir(caseDir)
-						for _, e := range entries {
-							if strings.HasSuffix(e.Name(), ".ffi.json") || strings.HasSuffix(e.Name(), ".manifest") || strings.HasSuffix(e.Name(), "manifest.json") || e.Name() == "ffi.json" {
-								buildOpts.FFIManifests = append(buildOpts.FFIManifests, filepath.Join(caseDir, e.Name()))
-							}
-						}
-					}
-					if err := compiler.BuildWithOptions(entry, binPath, buildOpts); err == nil {
-						cmd := exec.Command(binPath)
-						var stdout bytes.Buffer
-						cmd.Stdout = &stdout
-						cmd.Stderr = &stdout
-						if err := cmd.Run(); err == nil {
-							res.NativeOutput = stdout.String()
-							target := runExpected
-							if hasNativeExpected {
-								target = nativeExpected
-							}
-							cleanNativeOut := cleanTraceOutput(res.NativeOutput)
-							cleanTarget := cleanTraceOutput(target)
-							if res.NativeOutput == target || strings.TrimSpace(res.NativeOutput) == strings.TrimSpace(target) || strings.TrimSpace(cleanNativeOut) == strings.TrimSpace(cleanTarget) {
-								res.NativeParity = StatusPass
-								nativePassedCount++
-							} else {
-								res.NativeParity = StatusDiff
-							}
-						} else {
-							if *filter != "" {
-								fmt.Printf("Native run error for %s: %v, output: %s\n", relPath, err, stdout.String())
-							}
-							res.NativeParity = StatusFail
-						}
-					} else {
-						if *filter != "" {
-							fmt.Printf("Native build error for %s: %v\n", relPath, err)
-						}
-						if hasNativeExpected || *strictNative {
-							res.NativeParity = StatusFail
-						} else {
-							res.NativeParity = StatusSkip
-						}
-					}
-					os.RemoveAll(tmpDir)
-				}
-			} else {
-				res.NativeParity = StatusSkip
+			target := runExpected
+			if hasNativeExpected {
+				target = nativeExpected
 			}
+			cleanSgOut := cleanTraceOutput(sgOut)
+			cleanTarget := cleanTraceOutput(target)
 
-			// Overall Match
-			interpOK := (res.InterpreterParity == StatusPass || (!hasRunExpected && hasNativeExpected))
-			nativeOK := (res.NativeParity == StatusPass || (res.NativeParity == StatusSkip && !hasNativeExpected && !*strictNative))
-			if interpOK && nativeOK && (res.InterpreterParity == StatusPass || res.NativeParity == StatusPass) {
+			nativeMatchesTarget := (sgErr == nil && (sgOut == target || strings.TrimSpace(sgOut) == strings.TrimSpace(target) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanTarget)))
+			nativeMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
+
+			if nativeMatchesTarget {
+				res.NativeParity = StatusPass
+				nativePassedCount++
 				res.OverallMatch = true
 				fullParityCount++
+				if !nodeMatchesTarget && !nativeMatchesNode {
+					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches expected output, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
+				}
+			} else {
+				if sgErr != nil {
+					res.NativeParity = StatusFail
+					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo native execution error: %v", sgErr)
+				} else {
+					res.NativeParity = StatusDiff
+					res.DiscrepancyDetails = fmt.Sprintf("Output mismatch: want %q, got ScriptGo %q, Node %q", target, sgOut, nodeOut)
+				}
 			}
 		} else if hasCheckErr || hasBuildErr || hasRunErr {
 			// 2. Diagnostic & Error Cases
@@ -432,9 +364,8 @@ func main() {
 			if !res.OverallMatch {
 				statusSymbol = "\033[31m✖ FAIL\033[0m"
 			}
-			fmt.Printf("[%3d/%3d] %s %-52s [Interp: %s | Native: %s | Diag: %s] (%dms)\n",
+			fmt.Printf("[%3d/%3d] %s %-54s [Native: %s | Diag: %s] (%dms)\n",
 				idx+1, len(cases), statusSymbol, relPath,
-				formatStatus(res.InterpreterParity),
 				formatStatus(res.NativeParity),
 				formatStatus(res.DiagnosticsParity),
 				res.Duration.Milliseconds())
@@ -458,7 +389,6 @@ func main() {
 
 	report := SummaryReport{
 		TotalCases:        len(cases),
-		InterpreterPassed: interpPassedCount,
 		NativePassed:      nativePassedCount,
 		DiagnosticsPassed: diagPassedCount,
 		OverallFullParity: fullParityCount,
@@ -481,10 +411,7 @@ func main() {
 		fmt.Printf("  PARITY BENCHMARK SUMMARY REPORT\n")
 		fmt.Printf("================================================================================\n")
 		fmt.Printf("Total Test Cases       : %d\n", report.TotalCases)
-		fmt.Printf("Interpreter Parity     : %d/%d (%.1f%%)\n", report.InterpreterPassed, report.TotalCases, float64(report.InterpreterPassed)/float64(report.TotalCases)*100.0)
-		if *checkNative && hasClang {
-			fmt.Printf("Native Backend Parity  : %d/%d\n", report.NativePassed, report.TotalCases)
-		}
+		fmt.Printf("Native Backend Parity  : %d/%d (%.1f%%)\n", report.NativePassed, report.TotalCases, float64(report.NativePassed)/float64(report.TotalCases)*100.0)
 		if report.DiagnosticsPassed > 0 {
 			fmt.Printf("Diagnostic Parity      : %d/%d\n", report.DiagnosticsPassed, report.TotalCases)
 		}

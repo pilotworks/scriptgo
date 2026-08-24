@@ -693,7 +693,7 @@ func renderChecklistMarkdown(cfg ModuleDocConfig) string {
 		sb.WriteString(fmt.Sprintf("- **Scope & Exposure**: Module-scoped symbols imported explicitly via `%s`.\n", cfg.ImportPath))
 	}
 	sb.WriteString("- **Data & Memory Model**: Representation in IR (e.g., primitives, struct pointers, object shapes, buffer backing).\n")
-	sb.WriteString("- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → Interpreter → LLVM runtime binding.\n\n")
+	sb.WriteString("- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → LLVM runtime binding.\n\n")
 	sb.WriteString("---\n\n")
 
 	// Section 2: Parity Status Matrix
@@ -737,10 +737,9 @@ func renderChecklistMarkdown(cfg ModuleDocConfig) string {
 	sb.WriteString("- [ ] **Step 1: Frontend Type Contract**: Verify or register the ambient declaration in `internal/typescriptgo/stdlib/`.\n")
 	sb.WriteString("- [ ] **Step 2: Lowering Registration**: Register the global value in `builtinGlobals` or intrinsic function in `builtinIntrinsics` within `internal/lowering/builtins.go`.\n")
 	sb.WriteString("- [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).\n")
-	sb.WriteString("- [ ] **Step 4: Interpreter Handler**: Implement or bind reference execution in `internal/interpreter/`.\n")
-	sb.WriteString("- [ ] **Step 5: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.\n")
-	sb.WriteString(fmt.Sprintf("- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/%s/<api_name>/<test_case>/` with `main.ts` and `run.expected`.\n", cfg.FeatureName))
-	sb.WriteString("- [ ] **Step 7: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.\n\n")
+	sb.WriteString("- [ ] **Step 4: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.\n")
+	sb.WriteString(fmt.Sprintf("- [ ] **Step 5: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/%s/<api_name>/<test_case>/` with `main.ts` and `run.expected`.\n", cfg.FeatureName))
+	sb.WriteString("- [ ] **Step 6: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.\n\n")
 	sb.WriteString("---\n\n")
 
 	// Section 5: Known Gaps & Future Roadmap

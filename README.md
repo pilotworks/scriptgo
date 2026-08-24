@@ -23,7 +23,7 @@
 - **High-Performance AOT Compilation**: Compiles TypeScript directly to native machine code via LLVM without requiring a JavaScript virtual machine for static code.
 - **Node.js Semantic Parity**: 100% pass rate across the 136-case regression test corpus checked against Node.js v22+.
 - **Zero-Dependency Native Builds**: Automatically uses system `clang` or auto-detects `zig cc` for hassle-free out-of-the-box compilation and seamless cross-compilation (macOS, Linux, Windows).
-- **Dual Execution Modes**: Fast reference interpreter for instant execution and native compilation for optimized binary builds.
+- **Fast Execution**: Instantly compiles and runs scripts directly or produces optimized standalone binary builds.
 - **Comprehensive TypeScript Support**:
   - **Types & Primitives**: `number` (IEEE-754), `bigint`, `string` (UTF-8), `boolean`, `symbol` (with Symbol Registry), `null`, `undefined`, `unknown` (with type narrowing), Tuples, Enums (numeric, string, reverse mappings), Union types (`T | null | undefined`), Monomorphized Generics.
   - **Control Flow**: `if`/`else`, `switch`/`case` (with fallthrough), `while`, `do..while`, `for`, `for..of`, `for..in`, `for await..of`, Labeled statements (`break label`, `continue label`), `try`/`catch`/`finally`, `throw`, Array & Object destructuring, Spread/Rest (`...`), Tagged template literals, Optional chaining & calls (`?.`, `fn?.()`).
@@ -51,11 +51,11 @@
 ### Running Code
 
 ```sh
-# Run using the built-in reference interpreter
+# Compile and run immediately on host
 scriptgo run examples/hello.ts
 
-# Compile to native binary and run immediately
-scriptgo run --native examples/hello.ts
+# Run with inline TypeScript code
+scriptgo run -e "console.log('Hello from ScriptGo!')"
 ```
 
 ### Building Standalone Executables

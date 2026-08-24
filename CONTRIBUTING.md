@@ -69,7 +69,6 @@ ScriptGo enforces strict architectural module boundaries (documented in [`docs/a
 cmd/scriptgo -> internal/compiler
 internal/compiler -> internal/frontend -> internal/typescriptgo -> TypeScript-Go
 internal/compiler -> internal/lowering -> internal/ir
-internal/compiler -> internal/interpreter -> internal/ir
 internal/compiler -> internal/backend/llvm -> internal/ir
 ```
 
@@ -78,7 +77,6 @@ internal/compiler -> internal/backend/llvm -> internal/ir
 - **`internal/frontend`**: Program creation, reachable module graph, source diagnostics via TypeScript-Go.
 - **`internal/lowering`**: Native subset validation and conversion of AST to typed backend-independent IR.
 - **`internal/ir`**: Types, instructions, module structures, and verification invariants.
-- **`internal/interpreter`**: Reference tree/instruction execution of verified IR.
 - **`internal/backend/llvm`**: Translation of verified IR into LLVM IR and target-specific emission.
 - **`internal/runtime`**: Native C runtime library and ABI contract.
 

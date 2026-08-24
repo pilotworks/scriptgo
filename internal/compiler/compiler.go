@@ -1,7 +1,7 @@
-// Package compiler owns the native compilation pipeline.
 package compiler
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
 	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/interpreter"
 	"github.com/pilotworks/scriptgo/internal/ir"
 	"github.com/pilotworks/scriptgo/internal/lowering"
 	"github.com/pilotworks/scriptgo/internal/runtime"
@@ -276,18 +275,33 @@ func resolveCCWithLookup(cc string, lookPath func(string) (string, error)) ([]st
 	return parts, nil
 }
 
-// Run executes the verified IR with the reference interpreter.
+// Run executes the entry point by compiling it to a temporary native binary and running it.
 func Run(entryPath string) (string, error) {
-	interpreter.ResetConsoleState()
-	module, err := CompileModule(entryPath)
+	return RunWithOptions(entryPath, BuildOptions{})
+}
+
+// RunWithOptions compiles the entry point to a temporary native binary with custom build options and runs it.
+func RunWithOptions(entryPath string, options BuildOptions) (string, error) {
+	tempDir, err := os.MkdirTemp("", "scriptgo-run-")
 	if err != nil {
+		return "", fmt.Errorf("create temporary run directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+	binPath := filepath.Join(tempDir, "app")
+	if err := BuildWithOptions(entryPath, binPath, options); err != nil {
 		return "", err
 	}
-	result, err := interpreter.Execute(module)
-	if err != nil {
-		return "", fmt.Errorf("interpreter: %w", err)
+	cmd := exec.Command(binPath)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Run(); err != nil {
+		if output.Len() > 0 {
+			return output.String(), fmt.Errorf("%w: %s", err, strings.TrimSpace(output.String()))
+		}
+		return output.String(), err
 	}
-	return result.Output, nil
+	return output.String(), nil
 }
 
 // Check parses, type checks, and validates the native subset for an entry point.
