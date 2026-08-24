@@ -286,7 +286,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 		return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
 	}
-	if ((isPointerLikeType(leftType) && leftType != ir.TypeString) || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown) {
+	if (isPointerLikeType(leftType) && leftType != ir.TypeString) || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown {
 		if isComparison(expression.Operator) {
 			if result == "" {
 				result = nextTemp(counter)

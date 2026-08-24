@@ -736,8 +736,6 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		closureVar = ptrName
 	}
 
-
-
 	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, e.loadCounter)
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
 	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)

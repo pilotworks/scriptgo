@@ -230,5 +230,3 @@ func lowerDecoratorInvocation(path, className, memberName, kind string, dec type
 
 	return nil
 }
-
-

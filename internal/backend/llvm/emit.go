@@ -785,4 +785,3 @@ func findCapturedInFunction(instructions []ir.Instruction) []string {
 	scan(instructions)
 	return captured
 }
-

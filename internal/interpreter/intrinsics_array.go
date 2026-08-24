@@ -52,8 +52,7 @@ func executeArrayIntrinsic(name string, arguments []string, env map[string]Value
 		}
 		if arg.Type == ir.TypeString {
 			var arr []Value
-			runes := []rune(arg.String)
-			for _, r := range runes {
+			for _, r := range arg.String {
 				arr = append(arr, Value{Type: ir.TypeString, String: string(r)})
 			}
 			ref := new([]Value)
