@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -169,6 +170,13 @@ func findStaticMethodInHierarchy(className, methodName string, signatures map[st
 }
 
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	if className == "this" || className == "" {
+		for cls := range hierarchy {
+			if fn, ok := signatures[cls+"_"+methodName]; ok {
+				return fn, cls + "_" + methodName, true
+			}
+		}
+	}
 	curr := className
 	for curr != "" {
 		mangledDirect := curr + "_" + methodName
@@ -185,10 +193,16 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		cleanCurr := curr
 		if idx := strings.Index(curr, "<"); idx != -1 {
 			cleanCurr = curr[:idx]
+		} else if idx := strings.Index(curr, "__"); idx != -1 {
+			cleanCurr = curr[:idx]
 		}
 		mangled := cleanCurr + "_" + methodName
 		if fn, ok := signatures[mangled]; ok {
 			return fn, mangled, true
+		}
+		genMangled := "Generator_" + cleanCurr + "_" + methodName
+		if fn, ok := signatures[genMangled]; ok {
+			return fn, genMangled, true
 		}
 		if meta, ok := hierarchy[cleanCurr]; ok {
 			curr = meta.Extends
@@ -199,12 +213,27 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 	cleanCls := className
 	if idx := strings.Index(className, "<"); idx != -1 {
 		cleanCls = className[:idx]
+	} else if idx := strings.Index(className, "__"); idx != -1 {
+		cleanCls = className[:idx]
 	}
 	for subName, meta := range hierarchy {
 		if meta.Extends == className || meta.Extends == cleanCls {
 			subMangled := subName + "_" + methodName
 			if fn, ok := signatures[subMangled]; ok {
 				return fn, subMangled, true
+			}
+		}
+	}
+	if className != "" && className != "this" {
+		for sigName, fn := range signatures {
+			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_")) && strings.HasSuffix(sigName, "_"+methodName) {
+				return fn, sigName, true
+			}
+		}
+	} else {
+		for sigName, fn := range signatures {
+			if strings.HasSuffix(sigName, "_"+methodName) {
+				return fn, sigName, true
 			}
 		}
 	}
@@ -289,4 +318,202 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 		curr = meta.Extends
 	}
 	return ":" + strings.Join(chain, ":") + ":"
+}
+
+func getInheritanceDepth(className string, hierarchy map[string]ClassMeta) int {
+	depth := 0
+	curr := className
+	for {
+		meta, ok := hierarchy[curr]
+		if !ok || meta.Extends == "" {
+			break
+		}
+		depth++
+		curr = meta.Extends
+	}
+	return depth
+}
+
+func isSubclassOf(subClass, baseClass string, hierarchy map[string]ClassMeta) bool {
+	curr := subClass
+	for curr != "" {
+		if curr == baseClass {
+			return true
+		}
+		meta, ok := hierarchy[curr]
+		if !ok {
+			break
+		}
+		curr = meta.Extends
+	}
+	return false
+}
+
+func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []ir.Function {
+	var dispatchers []ir.Function
+	type methodKey struct {
+		baseClass  string
+		methodName string
+	}
+	seen := map[methodKey]bool{}
+
+	for baseClass := range hierarchy {
+		stmtClass, ok := classSyntax[baseClass]
+		if !ok {
+			continue
+		}
+		for _, m := range stmtClass.Methods {
+			if m.IsStatic || m.Kind != "method" {
+				continue
+			}
+			key := methodKey{baseClass: baseClass, methodName: m.Name}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+
+			hasOwnConcrete := false
+			for _, baseM := range stmtClass.Methods {
+				if baseM.Name == m.Name && !baseM.IsStatic && baseM.Kind == "method" && !baseM.IsAbstract && len(baseM.Body) > 0 {
+					hasOwnConcrete = true
+					break
+				}
+			}
+			if hasOwnConcrete {
+				continue
+			}
+
+			var implementors []string
+			for candClass := range hierarchy {
+				if isSubclassOf(candClass, baseClass, hierarchy) {
+					candMangled := candClass + "_" + m.Name
+					if _, exists := signatures[candMangled]; exists {
+						if stmtCand, ok := classSyntax[candClass]; ok {
+							for _, candM := range stmtCand.Methods {
+								if candM.Name == m.Name && !candM.IsStatic && candM.Kind == "method" {
+									implementors = append(implementors, candClass)
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if len(implementors) > 1 {
+				sort.Slice(implementors, func(i, j int) bool {
+					return getInheritanceDepth(implementors[i], hierarchy) > getInheritanceDepth(implementors[j], hierarchy)
+				})
+
+				firstMangled := implementors[0] + "_" + m.Name
+				templateSig := signatures[firstMangled]
+
+				dispatchName := baseClass + "_" + m.Name
+
+				params := make([]ir.Parameter, len(templateSig.Parameters))
+				copy(params, templateSig.Parameters)
+				if len(params) > 0 {
+					params[0].Type = ir.Type("object:" + baseClass)
+				}
+
+				var body []ir.Instruction
+				counter := 0
+				callArgs := make([]string, len(params))
+				for pIdx, p := range params {
+					callArgs[pIdx] = p.Name
+				}
+
+				for i := 0; i < len(implementors)-1; i++ {
+					implClass := implementors[i]
+					implMangled := implClass + "_" + m.Name
+					isInstVar := fmt.Sprintf("is.%s.%d", implClass, counter)
+					counter++
+					body = append(body, ir.Instruction{
+						Op:     ir.OpInstanceOf,
+						Type:   ir.TypeBool,
+						Result: isInstVar,
+						Value:  implClass,
+						Args:   []string{params[0].Name},
+					})
+
+					var thenBlock []ir.Instruction
+					if templateSig.ReturnType == ir.TypeVoid {
+						thenBlock = append(thenBlock, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   ir.TypeVoid,
+							Callee: implMangled,
+							Args:   callArgs,
+						})
+						thenBlock = append(thenBlock, ir.Instruction{
+							Op:   ir.OpReturn,
+							Type: ir.TypeVoid,
+						})
+					} else {
+						resVar := fmt.Sprintf("ret.%s.%d", implClass, counter)
+						counter++
+						thenBlock = append(thenBlock, ir.Instruction{
+							Op:     ir.OpCall,
+							Type:   templateSig.ReturnType,
+							Result: resVar,
+							Callee: implMangled,
+							Args:   callArgs,
+						})
+						thenBlock = append(thenBlock, ir.Instruction{
+							Op:    ir.OpReturn,
+							Type:  templateSig.ReturnType,
+							Value: resVar,
+							Args:  []string{resVar},
+						})
+					}
+
+					body = append(body, ir.Instruction{
+						Op:   ir.OpIf,
+						Type: ir.TypeVoid,
+						Args: []string{isInstVar},
+						Then: thenBlock,
+					})
+				}
+
+				lastImpl := implementors[len(implementors)-1]
+				lastMangled := lastImpl + "_" + m.Name
+				if templateSig.ReturnType == ir.TypeVoid {
+					body = append(body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: lastMangled,
+						Args:   callArgs,
+					})
+					body = append(body, ir.Instruction{
+						Op:   ir.OpReturn,
+						Type: ir.TypeVoid,
+					})
+				} else {
+					resVar := fmt.Sprintf("ret.fallback.%d", counter)
+					body = append(body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   templateSig.ReturnType,
+						Result: resVar,
+						Callee: lastMangled,
+						Args:   callArgs,
+					})
+					body = append(body, ir.Instruction{
+						Op:    ir.OpReturn,
+						Type:  templateSig.ReturnType,
+						Value: resVar,
+						Args:  []string{resVar},
+					})
+				}
+
+				dispatchFn := ir.Function{
+					Name:       dispatchName,
+					Parameters: params,
+					ReturnType: templateSig.ReturnType,
+					Body:       body,
+				}
+				dispatchers = append(dispatchers, dispatchFn)
+				signatures[dispatchName] = dispatchFn
+			}
+		}
+	}
+	return dispatchers
 }

@@ -13,7 +13,7 @@
 Provide a concise technical summary:
 - **Scope & Exposure**: Auto-global ambient identifiers available in root execution scope without explicit imports.
 - **Data & Memory Model**: Representation in IR (e.g., primitives, struct pointers, object shapes, buffer backing).
-- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → Interpreter → LLVM runtime binding.
+- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → LLVM runtime binding.
 
 ---
 
@@ -48,10 +48,9 @@ When implementing or extending any symbol in this file, execute the following te
 - [ ] **Step 1: Frontend Type Contract**: Verify or register the ambient declaration in `internal/typescriptgo/stdlib/`.
 - [ ] **Step 2: Lowering Registration**: Register the global value in `builtinGlobals` or intrinsic function in `builtinIntrinsics` within `internal/lowering/builtins.go`.
 - [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).
-- [ ] **Step 4: Interpreter Handler**: Implement or bind reference execution in `internal/interpreter/`.
-- [ ] **Step 5: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
-- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/regexpexecarray/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
-- [ ] **Step 7: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
+- [ ] **Step 4: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
+- [ ] **Step 5: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/regexpexecarray/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
+- [ ] **Step 6: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
 
 ---
 

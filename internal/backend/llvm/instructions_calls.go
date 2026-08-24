@@ -346,20 +346,20 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loadedElem, elemSlot))
 			isDone := fmt.Sprintf("%s.is_done", instruction.Result)
 			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", isDone, loadedElem))
+			statusDone := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			doneI32 := fmt.Sprintf("%s.done.i32", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", doneI32, isDone))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %%%s, i64 0, i32 %%%s)\n", statusDone, instruction.Result, doneI32))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusDone))
 			statusVal := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 			e.runtimeStatus++
 			doubleVal := fmt.Sprintf("%s.double.val", instruction.Result)
 			intVal := fmt.Sprintf("%s.int.val", instruction.Result)
 			out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", intVal, loadedElem))
 			out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", doubleVal, intVal))
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 0, double %%%s)\n", statusVal, instruction.Result, doubleVal))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 1, double %%%s)\n", statusVal, instruction.Result, doubleVal))
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusVal))
-			statusDone := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-			e.runtimeStatus++
-			doneI32 := fmt.Sprintf("%s.done.i32", instruction.Result)
-			out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", doneI32, isDone))
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %%%s, i64 1, i32 %%%s)\n", statusDone, instruction.Result, doneI32))
-			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusDone))
 			e.types[instruction.Result] = instruction.Type
 			return nil
 		}
@@ -660,7 +660,12 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instruction) error {
 	e.types[instruction.Result] = ir.TypeClosure
 	slot := instruction.Result + ".slot"
-	out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+	if cellSlot, isCell := e.sharedEnvCells[instruction.Result]; isCell {
+		slot = cellSlot
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		e.varSlots[instruction.Result] = slot
+	}
 
 	var envPtr string
 	if len(instruction.Args) == 0 {
@@ -682,8 +687,8 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", sizeVal, sizePtr))
 		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %%%s)\n", envAlloc, sizeVal))
 		for i, arg := range instruction.Args {
-			typ, ok := e.types[arg]
-			if !ok {
+			typ, okTyp := e.types[arg]
+			if !okTyp {
 				typ = ir.TypeNumber
 			}
 			cellSlot, ok := e.sharedEnvCells[arg]
@@ -691,17 +696,19 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 				cellSlot = fmt.Sprintf("cell.%s.%d", arg, e.loadCounter)
 				e.loadCounter++
 				out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
-				argVal := arg
-				if slot, ok := e.varSlots[arg]; ok {
-					loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
-					e.loadCounter++
-					out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
-					argVal = loaded
+				if e.sharedEnvCells == nil {
+					e.sharedEnvCells = make(map[string]string)
 				}
-				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
-				e.varSlots[arg] = cellSlot
 				e.sharedEnvCells[arg] = cellSlot
 			}
+			argVal := arg
+			if slot, ok := e.varSlots[arg]; ok {
+				loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+				argVal = loaded
+			}
+			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
 			out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellSlot, fieldPtr))
@@ -742,14 +749,21 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	envCtx := fmt.Sprintf("%s.env_ctx.%d", instruction.Result, e.loadCounter)
 	e.loadCounter++
 
+	var callArgs []string
+	if instruction.Callee == e.function.Name || strings.HasSuffix(e.function.Name, "_"+instruction.Callee) {
+		// Direct recursive call to current closure
+		fnPtr = "@" + e.function.Name
+		callArgs = append(callArgs, "ptr %__env_ctx")
+		goto prepareArgs
+	}
+
 	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 0\n", fnPtrSlot, closureVar))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", fnPtr, fnPtrSlot))
 	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 1\n", envSlot, closureVar))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", envCtx, envSlot))
-
-	var callArgs []string
 	callArgs = append(callArgs, fmt.Sprintf("ptr %%%s", envCtx))
 
+prepareArgs:
 	for _, arg := range instruction.Args {
 		typ, ok := e.types[arg]
 		if !ok {
@@ -781,11 +795,18 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	}
 
 	retType := llvmType(instruction.Type)
+	fnSig := ""
+	fnTarget := "%" + fnPtr
+	if strings.HasPrefix(fnPtr, "@") {
+		fnTarget = fnPtr
+	} else {
+		fnSig = "(ptr, { i32, i32, i64 }, { i32, i32, i64 }, { i32, i32, i64 }, { i32, i32, i64 }) "
+	}
 	if instruction.Type != ir.TypeVoid && instruction.Result != "" {
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = call %s %%%s(%s)\n", instruction.Result, retType, fnPtr, strings.Join(callArgs, ", ")))
+		out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", instruction.Result, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
 	} else {
-		out.WriteString(fmt.Sprintf("  call void %%%s(%s)\n", fnPtr, strings.Join(callArgs, ", ")))
+		out.WriteString(fmt.Sprintf("  call void %s%s(%s)\n", fnSig, fnTarget, strings.Join(callArgs, ", ")))
 	}
 	return nil
 }

@@ -96,6 +96,162 @@ var builtinGlobals = map[string]BuiltinGlobal{
 	"Symbol.unscopables":        {Category: CategoryECMAScript, Name: "Symbol.unscopables", Type: ir.TypeSymbol, Value: "Symbol.unscopables"},
 }
 
+func lowerMathMinMax(callee string) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
+	return func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+		args := call.Expression.Arguments
+		if len(args) == 0 {
+			val := "Infinity"
+			if callee == "__Math.max" {
+				val = "-Infinity"
+			}
+			res := call.Result
+			if res == "" {
+				res = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: res, Value: val, Span: toIRSpan(call.Path, call.Expression.Span)})
+			return res, ir.TypeNumber, nil
+		}
+		if len(args) == 1 && args[0].Kind == "spread" {
+			arrVal, _, err := call.LowerExpression(call.Path, args[0].Left, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			res := call.Result
+			if res == "" {
+				res = nextTemp(call.Counter)
+			}
+			call.Env[res] = ir.TypeNumber
+			initVal := "Infinity"
+			if callee == "__Math.max" {
+				initVal = "-Infinity"
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: res,
+				Value:  initVal,
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			lenRes := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: lenRes,
+				Callee: "__array.length",
+				Args:   []string{arrVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			idxVar := nextTemp(call.Counter)
+			call.Env[idxVar] = ir.TypeNumber
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: idxVar,
+				Value:  "0",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			condRes := nextTemp(call.Counter)
+			condBlock := []ir.Instruction{
+				{
+					Op:       ir.OpCompare,
+					Type:     ir.TypeBool,
+					Result:   condRes,
+					Operator: "<",
+					Args:     []string{idxVar, lenRes},
+					Span:     toIRSpan(call.Path, call.Expression.Span),
+				},
+			}
+
+			bodyBlock := []ir.Instruction{}
+			elemVal := nextTemp(call.Counter)
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:     ir.OpIndex,
+				Type:   ir.TypeNumber,
+				Result: elemVal,
+				Args:   []string{arrVal, idxVar},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			minMaxRes := nextTemp(call.Counter)
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: minMaxRes,
+				Callee: callee,
+				Args:   []string{res, elemVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeNumber,
+				Result: res,
+				Args:   []string{minMaxRes},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			oneConst := nextTemp(call.Counter)
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: oneConst,
+				Value:  "1",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			nextIdx := nextTemp(call.Counter)
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:       ir.OpBinary,
+				Type:     ir.TypeNumber,
+				Result:   nextIdx,
+				Operator: "+",
+				Args:     []string{idxVar, oneConst},
+				Span:     toIRSpan(call.Path, call.Expression.Span),
+			})
+			bodyBlock = append(bodyBlock, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeNumber,
+				Result: idxVar,
+				Args:   []string{nextIdx},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:   ir.OpWhile,
+				Type: ir.TypeVoid,
+				Args: []string{condRes},
+				Cond: condBlock,
+				Body: bodyBlock,
+				Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			return res, ir.TypeNumber, nil
+		}
+		if len(args) == 1 {
+			return call.LowerExpression(call.Path, args[0], call.Result, call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		}
+		currentVal, _, err := call.LowerExpression(call.Path, args[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		if err != nil {
+			return "", "", err
+		}
+		for i := 1; i < len(args); i++ {
+			nextVal, _, err := call.LowerExpression(call.Path, args[i], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			res := nextTemp(call.Counter)
+			if i == len(args)-1 && call.Result != "" {
+				res = call.Result
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: res,
+				Callee: callee,
+				Args:   []string{currentVal, nextVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			currentVal = res
+		}
+		return currentVal, ir.TypeNumber, nil
+	}
+}
+
 func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
 	return func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 		args, _, err := call.arguments(intrinsic)
@@ -354,11 +510,13 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 		name := "Math." + fn
 		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerCall("__"+name, ir.TypeNumber)}
 	}
-	math2 := []string{"min", "max", "pow", "atan2", "hypot", "imul"}
+	math2 := []string{"pow", "atan2", "hypot", "imul"}
 	for _, fn := range math2 {
 		name := "Math." + fn
 		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 2, MaxArgs: 2, Lower: lowerCall("__"+name, ir.TypeNumber)}
 	}
+	m["Math.min"] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: "Math.min", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 0, MaxArgs: -1, Lower: lowerMathMinMax("__Math.min")}
+	m["Math.max"] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: "Math.max", ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 0, MaxArgs: -1, Lower: lowerMathMinMax("__Math.max")}
 	m["Math.random"] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: "Math.random", ArgumentTypes: nil, MinArgs: 0, MaxArgs: 0, Lower: lowerCall("__Math.random", ir.TypeNumber)}
 
 	// Number & Global functions (Category 1: ECMAScript)

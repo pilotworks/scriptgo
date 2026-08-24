@@ -9,11 +9,12 @@ import (
 )
 
 var (
-	currGenericFuncs   map[string]typescriptgo.SyntaxStatement
-	currGenericClasses map[string]typescriptgo.SyntaxClass
-	currGenericMethods map[string]typescriptgo.SyntaxMethod
-	currFuncTypes      map[string]string
-	currUsedMethods    map[string]bool
+	currGenericFuncs       map[string]typescriptgo.SyntaxStatement
+	currGenericClasses     map[string]typescriptgo.SyntaxClass
+	currGenericMethods     map[string]typescriptgo.SyntaxMethod
+	currGenericTypeAliases map[string]typescriptgo.SyntaxStatement
+	currFuncTypes          map[string]string
+	currUsedMethods        map[string]bool
 )
 
 // SpecializeGenerics monomorphizes generic functions and classes based on
@@ -23,18 +24,21 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	genericClasses := map[string]typescriptgo.SyntaxClass{}
 	genericClassKinds := map[string]string{}
 	genericMethods := map[string]typescriptgo.SyntaxMethod{}
+	genericTypeAliases := map[string]typescriptgo.SyntaxStatement{}
 	funcTypes := map[string]string{}
 	usedMethods := map[string]bool{}
 
 	currGenericFuncs = genericFuncs
 	currGenericClasses = genericClasses
 	currGenericMethods = genericMethods
+	currGenericTypeAliases = genericTypeAliases
 	currFuncTypes = funcTypes
 	currUsedMethods = usedMethods
 	defer func() {
 		currGenericFuncs = nil
 		currGenericClasses = nil
 		currGenericMethods = nil
+		currGenericTypeAliases = nil
 		currFuncTypes = nil
 		currUsedMethods = nil
 	}()
@@ -44,6 +48,16 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			continue
 		}
 		for _, statement := range file.Syntax.Statements {
+			tParams := statement.TypeParameters
+			if len(tParams) == 0 && statement.Class != nil {
+				tParams = statement.Class.TypeParameters
+			}
+			if statement.Kind == "type_alias" && len(tParams) > 0 {
+				if statement.Class == nil || len(statement.Class.Fields) == 0 {
+					genericTypeAliases[statement.Name] = statement
+					continue
+				}
+			}
 			if statement.Kind == "function" && len(statement.TypeParameters) > 0 {
 				genericFuncs[statement.Name] = statement
 			} else if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
@@ -104,6 +118,11 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		fnTemplate, ok := genericFuncs[name]
 		if !ok || len(typeArgs) != len(fnTemplate.TypeParameters) {
 			return name
+		}
+		for _, arg := range typeArgs {
+			if len(arg) == 1 && arg >= "A" && arg <= "Z" {
+				return name
+			}
 		}
 		mangled := mangleGenericName(name, typeArgs)
 		if specializedFuncs[mangled] {
@@ -166,6 +185,11 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		if !ok || len(typeArgs) != len(mTemplate.TypeParameters) {
 			return methodName
 		}
+		for _, arg := range typeArgs {
+			if len(arg) == 1 && arg >= "A" && arg <= "Z" {
+				return methodName
+			}
+		}
 		mangled := mangleGenericName(methodName, typeArgs)
 		fullMangled := className + "." + mangled
 		if specializedMethods[fullMangled] {
@@ -214,6 +238,11 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		clsTemplate, ok := genericClasses[name]
 		if !ok || len(typeArgs) != len(clsTemplate.TypeParameters) {
 			return name
+		}
+		for _, arg := range typeArgs {
+			if len(arg) == 1 && arg >= "A" && arg <= "Z" {
+				return name
+			}
 		}
 		mangled := mangleGenericName(name, typeArgs)
 		if specializedClasses[mangled] {
@@ -341,6 +370,15 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	for _, file := range program.Files {
 		var localEnv = map[string]string{}
 		for _, stmt := range file.Syntax.Statements {
+			if stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
+				continue
+			}
+			if (stmt.Kind == "function" || stmt.Kind == "generator_function" || stmt.Kind == "async_function") && len(stmt.TypeParameters) > 0 {
+				continue
+			}
+			if stmt.Kind == "variable" && stmt.Expression != nil && stmt.Expression.Kind == "arrow_function" && stmt.Expression.Function != nil && len(stmt.Expression.Function.TypeParameters) > 0 {
+				continue
+			}
 			scanAndSpecializeStmt(stmt, file.FileName, localEnv, funcTypes, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec)
 		}
 	}
@@ -370,11 +408,14 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				for _, m := range rewritten.Class.Methods {
 					seen[m.Name] = true
 				}
+				classEnv := make(map[string]string, len(fileEnv)+1)
+				maps.Copy(classEnv, fileEnv)
+				classEnv["this"] = rewritten.Class.Name
 				for _, ms := range [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]} {
 					for _, m := range ms {
 						if !seen[m.Name] {
 							seen[m.Name] = true
-							rewritten.Class.Methods = append(rewritten.Class.Methods, rewriteMethod(m, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName))
+							rewritten.Class.Methods = append(rewritten.Class.Methods, rewriteMethod(m, classEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName))
 						}
 					}
 				}
@@ -394,11 +435,14 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				for _, m := range clsStmt.Class.Methods {
 					seen[m.Name] = true
 				}
+				classEnv := make(map[string]string, len(fileEnv)+1)
+				maps.Copy(classEnv, fileEnv)
+				classEnv["this"] = clsStmt.Class.Name
 				for _, ms := range [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]} {
 					for _, m := range ms {
 						if !seen[m.Name] {
 							seen[m.Name] = true
-							clsStmt.Class.Methods = append(clsStmt.Class.Methods, rewriteMethod(m, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName))
+							clsStmt.Class.Methods = append(clsStmt.Class.Methods, rewriteMethod(m, classEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName))
 						}
 					}
 				}

@@ -36,7 +36,7 @@ func dumpParameters(parameters []Parameter) string {
 	return strings.Join(values, ", ")
 }
 
-func dumpInstruction(instruction Instruction) string {
+func dumpInstructionWithIndent(instruction Instruction, indent string) string {
 	result := ""
 	if instruction.Result != "" {
 		result = "%" + instruction.Result + ": " + string(instruction.Type) + " = "
@@ -61,7 +61,48 @@ func dumpInstruction(instruction Instruction) string {
 		}
 		parts = append(parts, "["+strings.Join(args, ", ")+"]")
 	}
-	return result + strings.Join(parts, " ")
+	res := result + strings.Join(parts, " ")
+	if len(instruction.Cond) > 0 {
+		res += "\n" + indent + "  cond:"
+		for _, inst := range instruction.Cond {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	if len(instruction.Then) > 0 {
+		res += "\n" + indent + "  then:"
+		for _, inst := range instruction.Then {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	if len(instruction.Else) > 0 {
+		res += "\n" + indent + "  else:"
+		for _, inst := range instruction.Else {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	if len(instruction.Body) > 0 {
+		res += "\n" + indent + "  body:"
+		for _, inst := range instruction.Body {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	if len(instruction.Catch) > 0 {
+		res += "\n" + indent + "  catch:"
+		for _, inst := range instruction.Catch {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	if len(instruction.Finally) > 0 {
+		res += "\n" + indent + "  finally:"
+		for _, inst := range instruction.Finally {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
+	return res
+}
+
+func dumpInstruction(instruction Instruction) string {
+	return dumpInstructionWithIndent(instruction, "")
 }
 
 func dumpSpan(span SourceSpan) string {

@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -139,7 +140,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(string(arrType), "object:Generator") || strings.HasPrefix(string(arrType), "object:AsyncGenerator") || strings.HasPrefix(string(arrType), "object:Iterator") {
+	if (strings.Contains(string(arrType), "Generator") || strings.Contains(string(arrType), "Iterator")) && !strings.Contains(string(arrType), "MapIterator") && !strings.Contains(string(arrType), "SetIterator") {
 		shapeName := strings.TrimPrefix(string(arrType), "object:")
 		nextFn := shapeName + "_next"
 		targetNext, hasNext := signatures[nextFn]
@@ -147,11 +148,19 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 		resShapeName := ""
 		if hasNext {
 			resShapeName = strings.TrimPrefix(string(targetNext.ReturnType), "object:")
-			if resShape, ok := shapes[resShapeName]; ok && len(resShape.Fields) > 0 {
-				valType = resShape.Fields[0].Type
+			if resShape, ok := shapes[resShapeName]; ok && len(resShape.Fields) > 1 {
+				valType = resShape.Fields[1].Type
 			}
 		} else {
-			if strings.Contains(string(arrType), "<") && strings.HasSuffix(string(arrType), ">") {
+			if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") && strings.HasSuffix(strings.TrimSpace(statement.Expression.InferredType), ">") {
+				inferred := strings.TrimSpace(statement.Expression.InferredType)
+				idx := strings.Index(inferred, "<")
+				inner := inferred[idx+1 : len(inferred)-1]
+				parts := splitTypeArguments(inner)
+				if len(parts) > 0 {
+					valType = toIRType(parts[0])
+				}
+			} else if strings.Contains(string(arrType), "<") && strings.HasSuffix(string(arrType), ">") {
 				idx := strings.Index(string(arrType), "<")
 				inner := string(arrType)[idx+1 : len(string(arrType))-1]
 				parts := splitTypeArguments(inner)
@@ -166,8 +175,8 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 					Name: resShapeName,
 					Span: toIRSpan(path, statement.Span),
 					Fields: []ir.Field{
-						{Name: "value", Type: valType, Span: toIRSpan(path, statement.Span)},
 						{Name: "done", Type: ir.TypeBool, Span: toIRSpan(path, statement.Span)},
+						{Name: "value", Type: valType, Span: toIRSpan(path, statement.Span)},
 					},
 				}
 			}
@@ -202,7 +211,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			Result:     doneVal,
 			Callee:     resShapeName,
 			Field:      "done",
-			FieldIndex: 1,
+			FieldIndex: 0,
 			Args:       []string{resVal},
 			Span:       toIRSpan(path, statement.Span),
 		})
@@ -224,7 +233,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			Result:     valVal,
 			Callee:     resShapeName,
 			Field:      "value",
-			FieldIndex: 0,
+			FieldIndex: 1,
 			Args:       []string{resVal},
 			Span:       toIRSpan(path, statement.Span),
 		})
@@ -258,6 +267,38 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	var elemType ir.Type
 	if isString {
 		elemType = ir.TypeString
+	} else if strings.Contains(string(arrType), "MapIterator") || strings.Contains(string(arrType), "SetIterator") {
+		if after, ok := strings.CutPrefix(string(arrType), "object:MapIterator__"); ok {
+			clean := after
+			if strings.HasPrefix(clean, "[") && strings.HasSuffix(clean, "]") {
+				inner := clean[1 : len(clean)-1]
+				parts := strings.Split(inner, "_")
+				var fields []ir.Field
+				for i, p := range parts {
+					fields = append(fields, ir.Field{
+						Name: strconv.Itoa(i),
+						Type: toIRType(p),
+					})
+				}
+				name := anonymousShapeName(fields)
+				registerAnonymousShape(name, fields)
+				elemType = ir.Type("object:" + name)
+			} else {
+				elemType = toIRType(clean)
+			}
+		} else if after, ok := strings.CutPrefix(string(arrType), "object:SetIterator__"); ok {
+			elemType = toIRType(after)
+		} else if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") && strings.HasSuffix(strings.TrimSpace(statement.Expression.InferredType), ">") {
+			inferred := strings.TrimSpace(statement.Expression.InferredType)
+			idx := strings.Index(inferred, "<")
+			inner := inferred[idx+1 : len(inferred)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) > 0 {
+				elemType = toIRType(parts[0])
+			}
+		} else {
+			elemType = ir.TypeUnknown
+		}
 	} else if before, ok := strings.CutSuffix(string(arrType), "[]"); ok {
 		elemType = ir.Type(before)
 	} else if arrType == ir.TypeStringArray {
@@ -573,13 +614,29 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 	return nil
 }
 
+var activeReturnFinallyStack [][]typescriptgo.SyntaxStatement
+var activeThrowFinallyStack [][]typescriptgo.SyntaxStatement
+
 func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	if len(statement.Finally) > 0 {
+		activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
+		defer func() {
+			activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
+		}()
+	}
+
 	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
 	var catchInstructions []ir.Instruction
 	if len(statement.Catch) > 0 {
+		if len(statement.Finally) > 0 {
+			activeThrowFinallyStack = append(activeThrowFinallyStack, statement.Finally)
+			defer func() {
+				activeThrowFinallyStack = activeThrowFinallyStack[:len(activeThrowFinallyStack)-1]
+			}()
+		}
 		catchEnv := make(map[string]ir.Type, len(env)+1)
 		maps.Copy(catchEnv, env)
 		if statement.CatchVar != "" {

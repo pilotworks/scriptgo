@@ -68,23 +68,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if meta, ok := classHierarchy[expression.Left.Text]; ok {
 			if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
 				staticVar := expression.Left.Text + "_" + expression.Text
-				if varType, exists := env[staticVar]; exists {
-					return staticVar, varType, nil
+				typ := toIRType(staticField.Type)
+				if typ == "" {
+					typ = ir.TypeNumber
 				}
-				if staticField.Initializer != nil && (staticField.Initializer.Kind == "number" || staticField.Initializer.Kind == "string" || staticField.Initializer.Kind == "bool") {
-					typ := toIRType(staticField.Type)
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpConst,
-						Type:   typ,
-						Result: result,
-						Value:  staticField.Initializer.Text,
-						Span:   toIRSpan(path, expression.Span),
-					})
-					return result, typ, nil
-				}
+				return staticVar, typ, nil
 			}
 		}
 
@@ -472,57 +460,157 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		return result, getter.ReturnType, nil
 	}
 
+	if className == "string" || objectType == ir.TypeString {
+		if expression.Text == "message" {
+			if result != "" && result != object {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   ir.TypeString,
+					Result: result,
+					Args:   []string{object},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeString, nil
+			}
+			return object, ir.TypeString, nil
+		}
+	}
+
+	if className == "this" || className == "" {
+		if expression.Left != nil && expression.Left.Text != "" {
+			if t, inEnv := env[expression.Left.Text]; inEnv && string(t) != "" && string(t) != "this" {
+				className = strings.TrimPrefix(string(t), "object:")
+			}
+		}
+		if className == "this" || className == "" {
+			if t, inEnv := env["this"]; inEnv && string(t) != "this" && string(t) != "object:this" {
+				className = strings.TrimPrefix(string(t), "object:")
+			} else if function != nil && strings.Contains(function.Name, "_") && !strings.HasPrefix(function.Name, "__closure_") {
+				className = strings.Split(function.Name, "_")[0]
+			}
+		}
+		if className == "this" || className == "" {
+			for sName, s := range shapes {
+				if fieldIndex(s, expression.Text) >= 0 {
+					className = sName
+					break
+				}
+			}
+		}
+	}
+	if className == "" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown {
+		propNameConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
+			Result: propNameConst,
+			Value:  expression.Text,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeNumber
+		if expression.InferredType != "" {
+			retType = toIRType(expression.InferredType)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   retType,
+			Result: result,
+			Callee: "__object.get_prop",
+			Args:   []string{object, propNameConst},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
 	shape, ok := shapes[className]
 	if !ok {
 		if s, exists := anonymousShapes[className]; exists {
 			shape = s
 			shapes[className] = s
 			ok = true
-		} else if fields, ok2 := anonymousObjectFields(className); ok2 {
+		} else if fields, ok2 := anonymousObjectFields(className, nil); ok2 {
 			shape = ir.ObjectShape{Name: className, Fields: fields}
 			shapes[className] = shape
 			ok = true
+		} else if strings.Contains(className, "__") || strings.Contains(className, "_") {
+			baseName := strings.Split(className, "__")[0]
+			if !strings.Contains(className, "__") {
+				baseName = strings.Split(className, "_")[0]
+			}
+			if s, exists := shapes[baseName]; exists {
+				shape = s
+				ok = true
+			} else if s, exists := registeredShapes[baseName]; exists {
+				shape = s
+				ok = true
+			} else if baseName == "Partial" || baseName == "Required" || baseName == "Readonly" {
+				inner := strings.TrimPrefix(className, baseName+"__")
+				if s, exists := shapes[inner]; exists {
+					shape = s
+					ok = true
+				} else if s, exists := registeredShapes[inner]; exists {
+					shape = s
+					ok = true
+				}
+			}
+		}
+		if !ok {
+			for name, s := range shapes {
+				if (strings.HasPrefix(name, className+"__") || strings.HasPrefix(name, className+"_")) && fieldIndex(s, expression.Text) >= 0 {
+					shape = s
+					ok = true
+					break
+				}
+			}
 		}
 	}
 	if !ok {
-		if className == "" || className == "Record" || objectType == ir.TypeObject || objectType == ir.TypeUnknown {
-			propNameConst := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeString,
-				Result: propNameConst,
-				Value:  expression.Text,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			retType := ir.TypeNumber
-			if expression.InferredType != "" {
-				retType = toIRType(expression.InferredType)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   retType,
-				Result: result,
-				Callee: "__object.get_prop",
-				Args:   []string{object, propNameConst},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, retType, nil
-		}
 		return "", "", fmt.Errorf("unknown object shape %q for property %q", className, expression.Text)
+	}
+	if fieldIndex(shape, expression.Text) < 0 {
+		var matchedShape *ir.ObjectShape
+		unionStr := className
+		if typeAliasesIndex != nil && typeAliasesIndex[className] != "" {
+			unionStr = typeAliasesIndex[className]
+		}
+		if strings.Contains(unionStr, "|") {
+			for _, m := range strings.Split(unionStr, "|") {
+				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
+				var s ir.ObjectShape
+				var okS bool
+				if s, okS = shapes[cleanM]; !okS {
+					s, okS = registeredShapes[cleanM]
+				}
+				if okS && fieldIndex(s, expression.Text) >= 0 {
+					matchedShape = &s
+					break
+				}
+			}
+		}
+		if matchedShape != nil {
+			shape = *matchedShape
+			className = shape.Name
+		}
 	}
 	for _, field := range shape.Fields {
 		if field.Name != expression.Text {
 			continue
+		}
+		fType := field.Type
+		if (fType == ir.TypeUnknown || fType == ir.TypeVoid || fType == "") && expression.InferredType != "" {
+			inferred := toIRType(expression.InferredType)
+			if inferred != "" && inferred != ir.TypeUnknown && inferred != ir.TypeVoid {
+				fType = inferred
+			}
 		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpFieldGet,
-			Type:       field.Type,
+			Type:       fType,
 			Result:     result,
 			Callee:     className,
 			Field:      field.Name,
@@ -530,20 +618,61 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			Args:       []string{object},
 			Span:       toIRSpan(path, expression.Span),
 		})
-		return result, field.Type, nil
+		return result, fType, nil
 	}
-	if expression.Kind == "optional_property" || strings.HasPrefix(className, "__shape_") {
-		if result == "" {
-			result = nextTemp(counter)
-		}
+	if strings.HasPrefix(className, "__shape_") {
+		propNameConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
 			Type:   ir.TypeString,
-			Result: result,
-			Value:  "undefined",
+			Result: propNameConst,
+			Value:  expression.Text,
 			Span:   toIRSpan(path, expression.Span),
 		})
-		return result, ir.TypeString, nil
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeNumber
+		if expression.InferredType != "" {
+			retType = toIRType(expression.InferredType)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   retType,
+			Result: result,
+			Callee: "__object.get_prop",
+			Args:   []string{object, propNameConst},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
+	if expression.Kind == "optional_property" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := ir.TypeString
+		valStr := "undefined"
+		if expression.InferredType != "" {
+			inferred := toIRType(expression.InferredType)
+			if inferred == ir.TypeNumber {
+				retType = ir.TypeNumber
+				valStr = "NaN"
+			} else if inferred == ir.TypeBool {
+				retType = ir.TypeBool
+				valStr = "false"
+			} else if inferred != "" && inferred != ir.TypeString {
+				retType = inferred
+				valStr = "null"
+			}
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   retType,
+			Result: result,
+			Value:  valStr,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
 	}
 	fieldNames := make([]string, 0, len(shape.Fields))
 	for _, f := range shape.Fields {

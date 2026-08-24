@@ -56,24 +56,32 @@ int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 int scriptgo_gc_unregister(void *ptr);
 
+#define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
+
 int scriptgo_object_new(int64_t field_count, void **out_object) {
     if (out_object == NULL || field_count < 0) {
         return object_fail("scriptgo object allocation failed");
     }
-    scriptgo_object *object = calloc(1, sizeof(*object) + (size_t)field_count * sizeof(object->fields[0]));
+    int64_t capacity = field_count < 16 ? 16 : field_count;
+    scriptgo_object *object = malloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
     if (object == NULL) {
         return object_fail("scriptgo object allocation failed");
     }
     object->magic = SCRIPTGO_OBJECT_MAGIC;
-    object->field_count = field_count;
-    scriptgo_gc_register(object, 1, (uint32_t)field_count);
+    object->field_count = capacity;
+    object->type_name = NULL;
+    for (int64_t i = 0; i < capacity; i++) {
+        uint64_t nan_bits = SCRIPTGO_OBJECT_NAN_BITS;
+        memcpy(&object->fields[i], &nan_bits, sizeof(uint64_t));
+    }
+    scriptgo_gc_register(object, 1, (uint32_t)capacity);
     *out_object = object;
     return 0;
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     memcpy(&((scriptgo_object *)handle)->fields[index], &value, sizeof(value));
     return 0;
@@ -81,10 +89,10 @@ int scriptgo_object_number_set(void *handle, int64_t index, double value) {
 
 int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
     if (out_value == NULL) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        *out_value = 0.0;
+        *out_value = NAN;
         return 0;
     }
     memcpy(out_value, &((scriptgo_object *)handle)->fields[index], sizeof(*out_value));
@@ -93,7 +101,7 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
 
 int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     ((scriptgo_object *)handle)->fields[index] = (uintptr_t)value;
     return 0;
@@ -101,19 +109,24 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
 
 int scriptgo_object_string_get(void *handle, int64_t index, const char **out_value) {
     if (out_value == NULL) {
-        return object_fail("scriptgo object field access failed");
-    }
-    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        *out_value = "";
         return 0;
     }
-    *out_value = (const char *)((scriptgo_object *)handle)->fields[index];
+    if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
+        *out_value = NULL;
+        return 0;
+    }
+    uintptr_t val = ((scriptgo_object *)handle)->fields[index];
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+        *out_value = NULL;
+    } else {
+        *out_value = (const char *)val;
+    }
     return 0;
 }
 
 int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     ((scriptgo_object *)handle)->fields[index] = (uintptr_t)(value != 0 ? 1 : 0);
     return 0;
@@ -121,19 +134,24 @@ int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
 
 int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
     if (out_value == NULL) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
         *out_value = 0;
         return 0;
     }
-    *out_value = (int32_t)((scriptgo_object *)handle)->fields[index];
+    uintptr_t val = ((scriptgo_object *)handle)->fields[index];
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+        *out_value = 0;
+    } else {
+        *out_value = (int32_t)val;
+    }
     return 0;
 }
 
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     ((scriptgo_object *)handle)->fields[index] = (uintptr_t)value;
     return 0;
@@ -141,13 +159,18 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
 
 int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     if (out_value == NULL) {
-        return object_fail("scriptgo object field access failed");
+        return 0;
     }
     if (handle == NULL || index < 0 || index >= ((scriptgo_object *)handle)->field_count) {
         *out_value = NULL;
         return 0;
     }
-    *out_value = (void *)((scriptgo_object *)handle)->fields[index];
+    uintptr_t val = ((scriptgo_object *)handle)->fields[index];
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+        *out_value = NULL;
+    } else {
+        *out_value = (void *)val;
+    }
     return 0;
 }
 

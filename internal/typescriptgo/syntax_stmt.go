@@ -25,7 +25,16 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		if fnType == "" && inferredRetType != "" {
 			fnType = inferredRetType
 		}
-		isGen := node.BodyData() != nil && node.BodyData().AsteriskToken != nil
+		fnDecl := node.AsFunctionDeclaration()
+		isGen := (node.BodyData() != nil && node.BodyData().AsteriskToken != nil) || (fnDecl != nil && fnDecl.AsteriskToken != nil) || strings.HasPrefix(inferredRetType, "Generator") || strings.HasPrefix(inferredRetType, "AsyncGenerator") || strings.HasPrefix(fnType, "Generator") || strings.HasPrefix(fnType, "AsyncGenerator")
+		if !isGen && node.Body() != nil {
+			for _, s := range node.Body().Statements() {
+				if s.Kind == ast.KindExpressionStatement && s.Expression() != nil && s.Expression().Kind == ast.KindYieldExpression {
+					isGen = true
+					break
+				}
+			}
+		}
 		isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)
 		isAmbient := node.Body() == nil || ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient)
 		kind := "function"
@@ -240,9 +249,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			var stmts []SyntaxStatement
 			if caseClause.Statements != nil {
 				for _, s := range caseClause.Statements.Nodes {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						stmts = append(stmts, converted)
-					}
+					stmts = append(stmts, syntaxBlockStatements(s, chk)...)
 				}
 			}
 			cases = append(cases, SyntaxSwitchCase{
@@ -549,6 +556,12 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			tStr = syntaxType(alias.Type)
 		}
 		return SyntaxStatement{Span: span, Kind: "type_alias", Name: name, Type: tStr, Class: cls}, true
+	case ast.KindBlock:
+		return SyntaxStatement{
+			Span: span,
+			Kind: "block",
+			Body: syntaxBlockStatements(node, chk),
+		}, true
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}

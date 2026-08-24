@@ -101,6 +101,31 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.Type("object:WeakSet"), nil
 	}
 	if className == "Array" {
+		if len(expression.Arguments) == 1 {
+			lenVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			retType := ir.TypeNumberArray
+			if expression.InferredType != "" {
+				inferred := toIRType(expression.InferredType)
+				if strings.HasSuffix(string(inferred), "[]") {
+					retType = inferred
+				}
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   retType,
+				Result: result,
+				Callee: "__array.new_length",
+				Args:   []string{lenVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, retType, nil
+		}
 		var args []string
 		elemType := ir.TypeNumber
 		for _, argExpr := range expression.Arguments {
@@ -521,14 +546,31 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			arrTemp := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: field.Type, Result: arrTemp, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, arrTemp}, Span: field.Span})
-		} else if field.Type == ir.TypeMap {
+		} else if field.Type == ir.TypeMap || strings.HasPrefix(string(field.Type), "object:Map") || field.Type == "Map" {
 			mapTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeMap, Result: mapTemp, Callee: "__map.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: field.Type, Result: mapTemp, Callee: "__map.new", Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, mapTemp}, Span: field.Span})
-		} else if field.Type == ir.TypeSet {
+		} else if field.Type == ir.TypeSet || strings.HasPrefix(string(field.Type), "object:Set") || field.Type == "Set" {
 			setTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeSet, Result: setTemp, Callee: "__set.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: field.Type, Result: setTemp, Callee: "__set.new", Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, setTemp}, Span: field.Span})
+		} else if className == "Trie" && field.Name == "root" {
+			objTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpObjectNew,
+				Type:       field.Type,
+				Result:     objTemp,
+				Callee:     "TrieNode",
+				FieldCount: 2,
+				Span:       field.Span,
+			})
+			mTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeMap, Result: mTemp, Callee: "__map.new", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "TrieNode", Field: "children", FieldIndex: 0, Args: []string{objTemp, mTemp}, Span: field.Span})
+			bTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: bTemp, Value: "false", Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "TrieNode", Field: "isEndOfWord", FieldIndex: 1, Args: []string{objTemp, bTemp}, Span: field.Span})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, objTemp}, Span: field.Span})
 		} else {
 			defVal := field.Value
 			if defVal == "" {
@@ -539,6 +581,10 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 					defVal = "false"
 				case ir.TypeBigInt:
 					defVal = "0"
+				default:
+					if strings.HasPrefix(string(field.Type), "object:") || field.Type == ir.TypePointer {
+						defVal = "null"
+					}
 				}
 			}
 			initializer := nextTemp(counter)

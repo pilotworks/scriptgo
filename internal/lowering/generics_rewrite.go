@@ -101,12 +101,19 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]str
 				res.Class.Constructor.Body[i] = rewriteStatementTypes(res.Class.Constructor.Body[i], ctorEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 			}
 		}
+		classEnv := map[string]string{}
+		for k, v := range env {
+			classEnv[k] = v
+		}
+		if res.Class != nil {
+			classEnv["this"] = res.Class.Name
+		}
 		var nonGenericMethods []typescriptgo.SyntaxMethod
 		for _, m := range res.Class.Methods {
 			if len(m.TypeParameters) > 0 {
 				continue // Skip generic method template
 			}
-			nonGenericMethods = append(nonGenericMethods, rewriteMethod(m, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName))
+			nonGenericMethods = append(nonGenericMethods, rewriteMethod(m, classEnv, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName))
 		}
 		res.Class.Methods = nonGenericMethods
 	}
@@ -240,15 +247,25 @@ func rewriteTypeString(typ string) string {
 	if typ == "" {
 		return typ
 	}
+	if strings.HasSuffix(typ, "[]") {
+		elem := typ[:len(typ)-2]
+		hadParens := false
+		if strings.HasPrefix(elem, "(") && strings.HasSuffix(elem, ")") {
+			hadParens = true
+			elem = elem[1 : len(elem)-1]
+		}
+		rewrittenElem := rewriteTypeString(elem)
+		if hadParens || strings.Contains(rewrittenElem, "|") {
+			return "(" + rewrittenElem + ")[]"
+		}
+		return rewrittenElem + "[]"
+	}
 	if strings.Contains(typ, "|") {
 		var parts []string
 		for _, part := range strings.Split(typ, "|") {
 			parts = append(parts, rewriteTypeString(strings.TrimSpace(part)))
 		}
 		return strings.Join(parts, " | ")
-	}
-	if strings.HasSuffix(typ, "[]") {
-		return rewriteTypeString(typ[:len(typ)-2]) + "[]"
 	}
 	hasObj := strings.HasPrefix(typ, "object:")
 	clean := strings.TrimPrefix(typ, "object:")
@@ -264,6 +281,23 @@ func rewriteTypeString(typ string) string {
 		if name == "Array" || name == "ReadonlyArray" {
 			if len(newParts) == 1 {
 				return newParts[0] + "[]"
+			}
+		}
+		switch name {
+		case "Uint8Array", "Int8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array", "ArrayBuffer", "DataView":
+			return name
+		}
+		if alias, ok := currGenericTypeAliases[name]; ok {
+			tParams := alias.TypeParameters
+			if len(tParams) == 0 && alias.Class != nil {
+				tParams = alias.Class.TypeParameters
+			}
+			if len(newParts) == len(tParams) {
+				subst := make(map[string]string, len(newParts))
+				for i, tp := range tParams {
+					subst[tp] = newParts[i]
+				}
+				return rewriteTypeString(substituteType(alias.Type, subst))
 			}
 		}
 		if isBuiltinGeneric(name) {

@@ -27,7 +27,21 @@ func mangleGenericName(name string, typeArgs []string) string {
 		clean = strings.ReplaceAll(clean, ", ", "_")
 		clean = strings.ReplaceAll(clean, ",", "_")
 		clean = strings.ReplaceAll(clean, "object:", "")
+		clean = strings.ReplaceAll(clean, "{", "")
+		clean = strings.ReplaceAll(clean, "}", "")
+		clean = strings.ReplaceAll(clean, "(", "")
+		clean = strings.ReplaceAll(clean, ")", "")
+		clean = strings.ReplaceAll(clean, ":", "_")
+		clean = strings.ReplaceAll(clean, ";", "_")
+		clean = strings.ReplaceAll(clean, "|", "_")
+		clean = strings.ReplaceAll(clean, ".", "_")
+		clean = strings.ReplaceAll(clean, "\"", "")
+		clean = strings.ReplaceAll(clean, "'", "")
 		clean = strings.ReplaceAll(clean, " ", "_")
+		for strings.Contains(clean, "__") {
+			clean = strings.ReplaceAll(clean, "__", "_")
+		}
+		clean = strings.Trim(clean, "_")
 		cleanArgs = append(cleanArgs, clean)
 	}
 	return name + "__" + strings.Join(cleanArgs, "_")
@@ -61,7 +75,17 @@ func substituteType(typ string, subst map[string]string) string {
 		return val
 	}
 	if strings.HasSuffix(typ, "[]") {
-		return substituteType(typ[:len(typ)-2], subst) + "[]"
+		elem := typ[:len(typ)-2]
+		hadParens := false
+		if strings.HasPrefix(elem, "(") && strings.HasSuffix(elem, ")") {
+			hadParens = true
+			elem = elem[1 : len(elem)-1]
+		}
+		substElem := substituteType(elem, subst)
+		if hadParens || strings.Contains(substElem, "|") {
+			return "(" + substElem + ")[]"
+		}
+		return substElem + "[]"
 	}
 	hasObj := strings.HasPrefix(typ, "object:")
 	clean := strings.TrimPrefix(typ, "object:")

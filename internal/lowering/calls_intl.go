@@ -81,11 +81,14 @@ func lowerIntlReceiverMethod(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	if !strings.HasPrefix(string(receiverType), "object:Intl.") {
+	trimmedType := strings.TrimPrefix(string(receiverType), "object:")
+	subType := strings.TrimPrefix(trimmedType, "Intl.")
+	switch subType {
+	case "NumberFormat", "DateTimeFormat", "Collator", "Segmenter", "DisplayNames", "ListFormat", "RelativeTimeFormat", "PluralRules":
+		// valid Intl subType
+	default:
 		return "", "", false, nil
 	}
-
-	subType := strings.TrimPrefix(string(receiverType), "object:Intl.")
 	args := []string{receiver}
 	for _, arg := range expression.Arguments {
 		val, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)

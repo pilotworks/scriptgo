@@ -228,7 +228,7 @@ int scriptgo_map_get_number(void *handle, const char *key_str, double key_num, i
     if (idx >= 0 && m->entries[idx].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
         *out_val = m->entries[idx].num_val;
     } else {
-        *out_val = 0.0;
+        *out_val = nan("");
     }
     return 0;
 }
@@ -419,6 +419,84 @@ int scriptgo_map_for_each(void *handle, void *closure_handle) {
         scriptgo_boxed_value a4 = {0};
 
         scriptgo_closure_invoke(closure_handle, 3, &a1, &a2, &a3, &a4);
+    }
+    return 0;
+}
+
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+} scriptgo_array_header;
+
+typedef struct {
+    void *key;
+    void *val;
+} scriptgo_map_entry_tuple;
+
+int scriptgo_map_keys(void *handle, void **out_array) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || out_array == NULL) return map_fail("invalid map handle");
+    if (scriptgo_array_new(m->size, sizeof(char *), out_array) != 0) return -1;
+    scriptgo_array_header *arr = *out_array;
+    for (int64_t i = 0; i < m->size; i++) {
+        char *k = strdup(m->entries[i].key_str ? m->entries[i].key_str : "");
+        memcpy(arr->data + (size_t)i * sizeof(char *), &k, sizeof(char *));
+    }
+    return 0;
+}
+
+int scriptgo_map_values(void *handle, void **out_array) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || out_array == NULL) return map_fail("invalid map handle");
+    int has_num = 0;
+    for (int64_t i = 0; i < m->size; i++) {
+        if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_NUMBER) { has_num = 1; break; }
+    }
+    if (has_num) {
+        if (scriptgo_array_new(m->size, sizeof(double), out_array) != 0) return -1;
+        scriptgo_array_header *arr = *out_array;
+        for (int64_t i = 0; i < m->size; i++) {
+            double d = m->entries[i].num_val;
+            memcpy(arr->data + (size_t)i * sizeof(double), &d, sizeof(double));
+        }
+        return 0;
+    }
+    if (scriptgo_array_new(m->size, sizeof(void *), out_array) != 0) return -1;
+    scriptgo_array_header *arr = *out_array;
+    for (int64_t i = 0; i < m->size; i++) {
+        void *val = (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING) ? (void *)m->entries[i].str_val : m->entries[i].ptr_val;
+        memcpy(arr->data + (size_t)i * sizeof(void *), &val, sizeof(void *));
+    }
+    return 0;
+}
+
+int scriptgo_object_new(int64_t field_count, void **out_object);
+int scriptgo_object_number_set(void *handle, int64_t index, double value);
+int scriptgo_object_string_set(void *handle, int64_t index, const char *value);
+int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
+
+int scriptgo_map_entries(void *handle, void **out_array) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || out_array == NULL) return map_fail("invalid map handle");
+    if (scriptgo_array_new(m->size, sizeof(void *), out_array) != 0) return -1;
+    scriptgo_array_header *arr = *out_array;
+    for (int64_t i = 0; i < m->size; i++) {
+        void *tup = NULL;
+        if (scriptgo_object_new(2, &tup) != 0) return -1;
+        scriptgo_object_string_set(tup, 0, m->entries[i].key_str ? m->entries[i].key_str : "");
+        if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
+            scriptgo_object_number_set(tup, 1, m->entries[i].num_val);
+        } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING) {
+            scriptgo_object_string_set(tup, 1, m->entries[i].str_val ? m->entries[i].str_val : "");
+        } else {
+            scriptgo_object_ptr_set(tup, 1, m->entries[i].ptr_val);
+        }
+        memcpy(arr->data + (size_t)i * sizeof(void *), &tup, sizeof(void *));
     }
     return 0;
 }

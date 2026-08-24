@@ -21,7 +21,7 @@ func lowerWeakReceiverMethod(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	if (receiverType == "object:WeakRef" || strings.HasPrefix(string(receiverType), "object:WeakRef<")) && methodName == "deref" {
+	if (receiverType == "object:WeakRef" || strings.HasPrefix(string(receiverType), "object:WeakRef<") || strings.HasPrefix(string(receiverType), "object:WeakRef__") || receiverType == "WeakRef") && methodName == "deref" {
 		var retType ir.Type = ir.TypeObject
 		if strings.HasPrefix(string(receiverType), "object:WeakRef<") && strings.HasSuffix(string(receiverType), ">") {
 			inner := strings.TrimSuffix(strings.TrimPrefix(string(receiverType), "object:WeakRef<"), ">")
@@ -40,7 +40,7 @@ func lowerWeakReceiverMethod(
 		})
 		return result, retType, true, nil
 	}
-	if receiverType == "object:WeakMap" || strings.HasPrefix(string(receiverType), "object:WeakMap<") {
+	if receiverType == "object:WeakMap" || strings.HasPrefix(string(receiverType), "object:WeakMap<") || strings.HasPrefix(string(receiverType), "object:WeakMap__") || receiverType == "WeakMap" {
 		switch methodName {
 		case "set":
 			if len(expression.Arguments) >= 2 {
@@ -130,7 +130,7 @@ func lowerWeakReceiverMethod(
 			}
 		}
 	}
-	if receiverType == "object:WeakSet" {
+	if receiverType == "object:WeakSet" || strings.HasPrefix(string(receiverType), "object:WeakSet<") || strings.HasPrefix(string(receiverType), "object:WeakSet__") || receiverType == "WeakSet" {
 		switch methodName {
 		case "add":
 			if len(expression.Arguments) >= 1 {

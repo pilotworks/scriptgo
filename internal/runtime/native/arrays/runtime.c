@@ -83,6 +83,29 @@ int scriptgo_array_length(void *handle, int64_t *out_length) {
     return 0;
 }
 
+int scriptgo_array_set_length(void *handle, double length) {
+    scriptgo_array *array = handle;
+    if (array == NULL || array->element_size <= 0) {
+        return fail("scriptgo array access failed");
+    }
+    int64_t new_len = (int64_t)length;
+    if (new_len < 0) new_len = 0;
+    if (new_len <= array->length) {
+        array->length = new_len;
+        return 0;
+    }
+    if (new_len > array->capacity) {
+        int64_t new_cap = new_len;
+        unsigned char *new_data = realloc(array->data, (size_t)new_cap * (size_t)array->element_size);
+        if (new_data == NULL) return fail("scriptgo array reallocation failed");
+        array->data = new_data;
+        array->capacity = new_cap;
+    }
+    memset(array->data + (size_t)array->length * (size_t)array->element_size, 0, (size_t)(new_len - array->length) * (size_t)array->element_size);
+    array->length = new_len;
+    return 0;
+}
+
 int scriptgo_array_push(void *handle, const void *value, double *out_length) {
     scriptgo_array *array = handle;
     if (array == NULL || value == NULL || array->element_size <= 0) {

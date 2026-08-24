@@ -185,6 +185,9 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		if statement.Expression == nil {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "variable declaration without an initializer")
 		}
+		if statement.Expression.Kind == "object_literal" && len(statement.Expression.Arguments) == 0 && (statement.Type == "" || statement.Type == "{}") && (statement.InferredType == "" || statement.InferredType == "{}") && !strings.HasPrefix(statement.Name, "__destruct_") {
+			return subsetError(fileName, statement.Span, CodeLanguageLowering, "unannotated empty object literal is not supported in native subset")
+		}
 		return validateExpression(fileName, statement.Expression)
 	case "namespace":
 		for _, s := range statement.Body {
@@ -291,6 +294,12 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 
 func isHeterogeneousUnion(typ string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
+	if strings.HasSuffix(normalized, "[]") {
+		elem := strings.TrimSuffix(normalized, "[]")
+		elem = strings.TrimPrefix(elem, "(")
+		elem = strings.TrimSuffix(elem, ")")
+		return isHeterogeneousUnion(elem)
+	}
 	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") || strings.Contains(normalized, "string | symbol") || strings.Contains(normalized, "symbol | string") {
 		return false
 	}
@@ -301,6 +310,8 @@ func isHeterogeneousUnion(typ string) bool {
 	var nonNullish []string
 	for _, p := range parts {
 		trimmed := strings.TrimSpace(p)
+		trimmed = strings.TrimPrefix(trimmed, "(")
+		trimmed = strings.TrimSuffix(trimmed, ")")
 		if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
 			nonNullish = append(nonNullish, trimmed)
 		}
@@ -443,9 +454,6 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return nil
 	case "object_literal":
-		if len(expression.Arguments) == 0 {
-			return subsetError(fileName, expression.Span, CodeLanguageLowering, "empty object literal")
-		}
 		for _, prop := range expression.Arguments {
 			if prop.Left != nil {
 				if err := validateExpression(fileName, prop.Left); err != nil {
@@ -525,7 +533,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		if expression.Left != nil && expression.Left.Kind == "arrow_function" {
 			return validateExpression(fileName, expression.Left)
 		}
-		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" && expression.Left.Kind != "optional_property" {
+		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && expression.Left.Kind != "property" && expression.Left.Kind != "optional_property" && expression.Left.Kind != "index" && expression.Left.Kind != "optional_index" {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
 		return nil

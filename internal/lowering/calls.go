@@ -110,6 +110,12 @@ func lowerCallExpression(
 			if res, typ, handled, err := lowerTextEncodingReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
+			if res, typ, handled, err := lowerWeakReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+				return res, typ, err
+			}
+			if res, typ, handled, err := lowerIntlReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+				return res, typ, err
+			}
 			if receiverType == ir.TypeString {
 				if res, typ, handled, err := lowerStringReceiverMethod(path, expression, receiver, methodName, result, function, env, counter, shapes, signatures); handled {
 					return res, typ, err
@@ -141,8 +147,8 @@ func lowerCallExpression(
 			if res, typ, handled, err := lowerIteratorReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
-			if after, ok := strings.CutPrefix(string(receiverType), "object:"); ok || receiverType == ir.TypeObject {
-				className := after
+			className := strings.TrimPrefix(string(receiverType), "object:")
+			if className != "" && className != "number" && className != "string" && className != "bool" && className != "void" {
 				if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 					args := []string{receiver}
 					for aIdx, argument := range expression.Arguments {
@@ -176,61 +182,49 @@ func lowerCallExpression(
 					}
 					if len(args) < len(target.Parameters) {
 						defaults := defaultParamsIndex[mangled]
-						if defaults != nil {
-							for i := len(args); i < len(target.Parameters); i++ {
-								if initExpr, ok := defaults[i]; ok {
-									if target.Parameters[i].Type == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
-										numConst := nextTemp(counter)
-										function.Body = append(function.Body, ir.Instruction{
-											Op:     ir.OpConst,
-											Type:   ir.TypeNumber,
-											Result: numConst,
-											Value:  "0",
-											Span:   toIRSpan(path, initExpr.Span),
-										})
-										args = append(args, numConst)
-										continue
-									} else if target.Parameters[i].Type == ir.TypeBool && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
-										boolConst := nextTemp(counter)
-										function.Body = append(function.Body, ir.Instruction{
-											Op:     ir.OpConst,
-											Type:   ir.TypeBool,
-											Result: boolConst,
-											Value:  "false",
-											Span:   toIRSpan(path, initExpr.Span),
-										})
-										args = append(args, boolConst)
-										continue
-									} else if isPointerLikeType(target.Parameters[i].Type) && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
-										nullConst := nextTemp(counter)
-										function.Body = append(function.Body, ir.Instruction{
-											Op:     ir.OpConst,
-											Type:   target.Parameters[i].Type,
-											Result: nullConst,
-											Value:  "null",
-											Span:   toIRSpan(path, initExpr.Span),
-										})
-										args = append(args, nullConst)
-										continue
-									}
-									val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
-									if err != nil {
-										return "", "", err
-									}
-									if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
-										boxed := nextTemp(counter)
-										function.Body = append(function.Body, ir.Instruction{
-											Op:     ir.OpBoxUnknown,
-											Type:   ir.TypeUnknown,
-											Result: boxed,
-											Args:   []string{val},
-											Span:   toIRSpan(path, initExpr.Span),
-										})
-										val = boxed
-									}
-									args = append(args, val)
+						for i := len(args); i < len(target.Parameters); i++ {
+							var val string
+							var valType ir.Type
+							paramType := target.Parameters[i].Type
+							if defaults != nil && defaults[i] != nil {
+								initExpr := defaults[i]
+								v, vt, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+								if err == nil {
+									val = v
+									valType = vt
 								}
 							}
+							if val == "" {
+								val = nextTemp(counter)
+								valType = paramType
+								defStr := "0"
+								if paramType == ir.TypeBool {
+									defStr = "false"
+								} else if paramType == ir.TypeString {
+									defStr = ""
+								} else if isPointerLikeType(paramType) {
+									defStr = "null"
+								}
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpConst,
+									Type:   paramType,
+									Result: val,
+									Value:  defStr,
+									Span:   toIRSpan(path, expression.Span),
+								})
+							}
+							if paramType == ir.TypeUnknown && valType != ir.TypeUnknown {
+								boxed := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpBoxUnknown,
+									Type:   ir.TypeUnknown,
+									Result: boxed,
+									Args:   []string{val},
+									Span:   toIRSpan(path, expression.Span),
+								})
+								val = boxed
+							}
+							args = append(args, val)
 						}
 					}
 					if restParamsIndex[mangled] && len(target.Parameters) > 0 && strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") {
@@ -420,11 +414,17 @@ func lowerCallExpression(
 		return result, target.ReturnType, nil
 	}
 
-	// Static method call ClassName.method(...)
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" {
-		className := expression.Left.Left.Text
-		methodName := expression.Left.Text
-		if target, mangled, found := findStaticMethodInHierarchy(className, methodName, signatures, classHierarchy); found {
+	// Static method call ClassName.method(...) or this.method(...) inside static methods
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil {
+		className := ""
+		if expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text != "this" {
+			className = expression.Left.Left.Text
+		} else if (expression.Left.Left.Kind == "this" || (expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "this")) && strings.Contains(function.Name, "_static_") {
+			className = strings.Split(function.Name, "_static_")[0]
+		}
+		if className != "" {
+			methodName := expression.Left.Text
+			if target, mangled, found := findStaticMethodInHierarchy(className, methodName, signatures, classHierarchy); found {
 			args := make([]string, 0, len(expression.Arguments))
 			for aIdx, argument := range expression.Arguments {
 				val, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -514,6 +514,7 @@ func lowerCallExpression(
 			return result, target.ReturnType, nil
 		}
 	}
+}
 
 	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && (expression.Left.Text == "then" || expression.Left.Text == "catch") {
 		receiverVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
@@ -623,7 +624,7 @@ func lowerCallExpression(
 		return result, ir.TypeStringArray, nil
 	}
 
-	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || strings.HasPrefix(string(calleeType), "object:") || strings.Contains(string(calleeType), "=>")) {
+	if calleeType, ok := env[callee]; ok && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || calleeType == ir.TypeObject || calleeType == "Function" || calleeType == "function" || strings.Contains(string(calleeType), "=>")) {
 		args := make([]string, 0, len(expression.Arguments))
 		for _, argument := range expression.Arguments {
 			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -643,11 +644,15 @@ func lowerCallExpression(
 		} else if expression.InferredType != "" {
 			retType = toIRType(expression.InferredType)
 		}
+		calleeName := callee
+		if targetName, ok := env[callee+".closureTarget"]; ok && targetName != "" {
+			calleeName = string(targetName)
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpClosureCall,
 			Type:   retType,
 			Result: result,
-			Callee: callee,
+			Callee: calleeName,
 			Args:   args,
 			Span:   toIRSpan(path, expression.Span),
 		})
@@ -657,6 +662,41 @@ func lowerCallExpression(
 	if intrinsic, ok := builtinIntrinsic(callee); ok {
 		return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
 	}
+
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "optional_property") {
+		closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err == nil && (closureType == ir.TypeClosure || closureType == ir.TypeUnknown || strings.HasPrefix(string(closureType), "object:") || strings.Contains(string(closureType), "=>")) {
+			args := make([]string, 0, len(expression.Arguments))
+			for _, argument := range expression.Arguments {
+				value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, value)
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			retType := ir.TypeNumber
+			if rt, ok := env[closureVal+".retType"]; ok && rt != "" {
+				retType = rt
+			} else if expression.InferredType != "" {
+				retType = toIRType(expression.InferredType)
+			} else if strings.HasPrefix(string(closureType), "object:Generator_") {
+				retType = closureType
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpClosureCall,
+				Type:   retType,
+				Result: result,
+				Callee: closureVal,
+				Args:   args,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, retType, nil
+		}
+	}
+
 	if callee == "" {
 		leftKind := ""
 		leftText := ""
@@ -675,39 +715,6 @@ func lowerCallExpression(
 
 	target, ok := signatures[callee]
 	if !ok {
-		if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index") {
-			closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
-			if err == nil && (closureType == ir.TypeClosure || closureType == ir.TypeUnknown || strings.HasPrefix(string(closureType), "object:")) {
-				args := make([]string, 0, len(expression.Arguments))
-				for _, argument := range expression.Arguments {
-					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-					if err != nil {
-						return "", "", err
-					}
-					args = append(args, value)
-				}
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				retType := ir.TypeNumber
-				if rt, ok := env[closureVal+".retType"]; ok && rt != "" {
-					retType = rt
-				} else if expression.InferredType != "" {
-					retType = toIRType(expression.InferredType)
-				} else if strings.HasPrefix(string(closureType), "object:Generator_") {
-					retType = closureType
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpClosureCall,
-					Type:   retType,
-					Result: result,
-					Callee: closureVal,
-					Args:   args,
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, retType, nil
-			}
-		}
 		return "", "", fmt.Errorf("unknown function %q", callee)
 	}
 

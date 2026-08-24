@@ -36,12 +36,36 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		return fmt.Errorf("object field %q has invalid index", instruction.Field)
 	}
 	valueType, ok := e.types[instruction.Args[1]]
-	if !ok || valueType == "" {
+	if !ok || valueType == "" || valueType == ir.TypeVoid {
 		if instruction.Type != "" && instruction.Type != ir.TypeVoid {
 			valueType = instruction.Type
-		} else {
-			valueType = ir.TypePointer
+		} else if instruction.Callee != "" && len(e.module.Shapes) > 0 {
+			for _, s := range e.module.Shapes {
+				if s.Name == instruction.Callee {
+					if instruction.FieldIndex >= 0 && instruction.FieldIndex < len(s.Fields) {
+						valueType = s.Fields[instruction.FieldIndex].Type
+					} else {
+						for _, f := range s.Fields {
+							if f.Name == instruction.Field {
+								valueType = f.Type
+								break
+							}
+						}
+					}
+					break
+				}
+			}
 		}
+	}
+	if valueType == "" || valueType == ir.TypeVoid {
+		valueType = ir.TypePointer
+	}
+	valArg := instruction.Args[1]
+	if slot, ok := e.varSlots[valArg]; ok {
+		loaded := fmt.Sprintf("%s.fset.loaded.%d", valArg, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(valueType), slot))
+		valArg = loaded
 	}
 	objArg := instruction.Args[0]
 	objType := e.types[objArg]
@@ -58,13 +82,13 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 	case valueType == ir.TypeNumber:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", status, ptrObj, instruction.FieldIndex, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", status, ptrObj, instruction.FieldIndex, valArg))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	case valueType == ir.TypeBool:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		boolI32 := fmt.Sprintf("obj.bool.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolI32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolI32, valArg))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %s, i64 %d, i32 %%%s)\n", status, ptrObj, instruction.FieldIndex, boolI32))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	case valueType == ir.TypeUnknown:
@@ -73,14 +97,14 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 		ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, valArg))
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, ptrVar))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	default:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, valArg))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	}
 	return nil
@@ -91,7 +115,6 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 		return fmt.Errorf("object field %q has invalid index", instruction.Field)
 	}
 	e.types[instruction.Result] = instruction.Type
-	slot := instruction.Result + ".slot"
 	objArg := instruction.Args[0]
 	objType := e.types[objArg]
 	ptrObj := "%" + objArg
@@ -105,46 +128,40 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 	}
 	switch {
 	case instruction.Type == ir.TypeNumber:
-		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_get(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_get(ptr %s, i64 %d, ptr %%__slot_double)\n", status, ptrObj, instruction.FieldIndex))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%__slot_double\n", instruction.Result))
 	case instruction.Type == ir.TypeBool:
-		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_get(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_get(ptr %s, i64 %d, ptr %%__slot_i32)\n", status, ptrObj, instruction.FieldIndex))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		boolI32 := instruction.Result + ".i32"
-		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", boolI32, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%__slot_i32\n", boolI32))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, boolI32))
 	case instruction.Type == ir.TypeUnknown:
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_get(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_get(ptr %s, i64 %d, ptr %%__slot_ptr)\n", status, ptrObj, instruction.FieldIndex))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		ptrLoaded := fmt.Sprintf("ptr.loaded.%d", e.loadCounter)
 		payloadVal := fmt.Sprintf("payload.%d", e.loadCounter)
 		b0 := fmt.Sprintf("box.b0.%d", e.loadCounter)
 		b1 := fmt.Sprintf("box.b1.%d", e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", ptrLoaded, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%__slot_ptr\n", ptrLoaded))
 		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, ptrLoaded))
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 5, 0\n", b0))
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", b1, b0))
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, b1, payloadVal))
-	case instruction.Type == ir.TypeString || instruction.Type == ir.TypeClosure || instruction.Type == "ptr" || strings.HasSuffix(string(instruction.Type), "[]") || strings.HasPrefix(string(instruction.Type), "object:"):
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+	default:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_get(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_get(ptr %s, i64 %d, ptr %%__slot_ptr)\n", status, ptrObj, instruction.FieldIndex))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
-	default:
-		return fmt.Errorf("unsupported object field type %s", instruction.Type)
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result))
 	}
 	return nil
 }

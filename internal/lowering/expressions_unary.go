@@ -213,6 +213,108 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 		return newVal, varType, nil
 
 	case "property":
+		if lvalue.Left != nil && lvalue.Left.Kind == "identifier" {
+			if meta, isClass := classHierarchy[lvalue.Left.Text]; isClass {
+				if _, isStatic := meta.Statics[lvalue.Text]; isStatic {
+					staticVar := lvalue.Left.Text + "_" + lvalue.Text
+					varType, ok := env[staticVar]
+					if !ok {
+						varType = ir.TypeNumber
+						env[staticVar] = varType
+					}
+					oneConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   varType,
+						Result: oneConst,
+						Value:  "1",
+						Span:   toIRSpan(path, span),
+					})
+
+					zeroConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   varType,
+						Result: zeroConst,
+						Value:  "0",
+						Span:   toIRSpan(path, span),
+					})
+
+					if isPostfix {
+						oldVal := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:       ir.OpBinary,
+							Type:     varType,
+							Result:   oldVal,
+							Operator: "+",
+							Args:     []string{staticVar, zeroConst},
+							Span:     toIRSpan(path, span),
+						})
+
+						newVal := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:       ir.OpBinary,
+							Type:     varType,
+							Result:   newVal,
+							Operator: binOp,
+							Args:     []string{staticVar, oneConst},
+							Span:     toIRSpan(path, span),
+						})
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpAssign,
+							Type:   varType,
+							Result: staticVar,
+							Args:   []string{newVal},
+							Span:   toIRSpan(path, span),
+						})
+
+						if result != "" && result != oldVal {
+							function.Body = append(function.Body, ir.Instruction{
+								Op:       ir.OpBinary,
+								Type:     varType,
+								Result:   result,
+								Operator: "+",
+								Args:     []string{oldVal, zeroConst},
+								Span:     toIRSpan(path, span),
+							})
+							return result, varType, nil
+						}
+						return oldVal, varType, nil
+					}
+
+					// Prefix
+					newVal := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:       ir.OpBinary,
+						Type:     varType,
+						Result:   newVal,
+						Operator: binOp,
+						Args:     []string{staticVar, oneConst},
+						Span:     toIRSpan(path, span),
+					})
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpAssign,
+						Type:   varType,
+						Result: staticVar,
+						Args:   []string{newVal},
+						Span:   toIRSpan(path, span),
+					})
+
+					if result != "" && result != newVal {
+						function.Body = append(function.Body, ir.Instruction{
+							Op:       ir.OpBinary,
+							Type:     varType,
+							Result:   result,
+							Operator: "+",
+							Args:     []string{newVal, zeroConst},
+							Span:     toIRSpan(path, span),
+						})
+						return result, varType, nil
+					}
+					return newVal, varType, nil
+				}
+			}
+		}
 		objVal, objType, err := lowerExpression(path, lvalue.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err

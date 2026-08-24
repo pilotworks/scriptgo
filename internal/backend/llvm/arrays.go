@@ -111,6 +111,21 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 
 func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction ir.Instruction, arrayType ir.Type) error {
 	switch instruction.Callee {
+	case "__array.new_length":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		elementSize, err := arrayElementSize(instruction.Type)
+		if err != nil {
+			return err
+		}
+		lenI64 := fmt.Sprintf("%s.i64", instruction.Args[0])
+		out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i64\n", lenI64, instruction.Args[0]))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 %%%s, i64 %d, ptr %%%s)\n", status, lenI64, elementSize, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
 	case "__array.isArray":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBool {
 			return fmt.Errorf("array.isArray has invalid signature")
@@ -142,6 +157,15 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s.i64 = load i64, ptr %%%s\n", instruction.Result, resultSlot)
 		fmt.Fprintf(out, "  %%%s = uitofp i64 %%%s.i64 to double\n", instruction.Result, instruction.Result)
+		return nil
+	case "__array.set_length":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("array.set_length has invalid signature")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_set_length(ptr %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 	case "__array.push":
 		if len(instruction.Args) != 2 || instruction.Type != ir.TypeNumber {
@@ -363,10 +387,32 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		fnName := "scriptgo_array_map_number"
-		if arrayType == ir.TypeStringArray {
-			fnName = "scriptgo_array_map_string"
-		} else if arrayType != ir.TypeNumberArray && arrayType != "number[]" {
-			fnName = "scriptgo_array_map_ptr"
+		retElemType := arrayElementType(instruction.Type)
+		inElemType := arrayElementType(arrayType)
+		if retElemType == ir.TypeNumber {
+			if inElemType == ir.TypeString {
+				fnName = "scriptgo_array_map_number_from_string"
+			} else if inElemType != ir.TypeNumber {
+				fnName = "scriptgo_array_map_number_from_ptr"
+			} else {
+				fnName = "scriptgo_array_map_number"
+			}
+		} else if retElemType == ir.TypeString {
+			if inElemType == ir.TypeNumber {
+				fnName = "scriptgo_array_map_string_from_number"
+			} else if inElemType != ir.TypeString {
+				fnName = "scriptgo_array_map_string_from_ptr"
+			} else {
+				fnName = "scriptgo_array_map_string"
+			}
+		} else {
+			if inElemType == ir.TypeNumber {
+				fnName = "scriptgo_array_map_ptr_from_number"
+			} else if inElemType == ir.TypeString {
+				fnName = "scriptgo_array_map_ptr_from_string"
+			} else {
+				fnName = "scriptgo_array_map_ptr"
+			}
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

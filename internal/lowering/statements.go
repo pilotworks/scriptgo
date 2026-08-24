@@ -125,15 +125,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Type == "" && statement.InferredType != "" {
 			declaredType = toIRType(statement.InferredType)
 		}
-		if statement.Expression.Kind == "identifier" {
-			srcType, ok := env[statement.Expression.Text]
+		if statement.Expression.Kind == "identifier" || statement.Expression.Kind == "this" {
+			identText := statement.Expression.Text
+			if statement.Expression.Kind == "this" {
+				identText = "this"
+			}
+			srcType, ok := env[identText]
 			if ok && (declaredType == "" || declaredType == srcType || declaredType == ir.TypeUnknown) {
 				if declaredType == ir.TypeUnknown {
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpBoxUnknown,
 						Type:   ir.TypeUnknown,
 						Result: statement.Name,
-						Args:   []string{statement.Expression.Text},
+						Args:   []string{identText},
 						Span:   toIRSpan(path, statement.Span),
 					})
 					env[statement.Name] = ir.TypeUnknown
@@ -144,17 +148,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				case ir.TypeNumber:
 					zeroConst := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, zeroConst}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{identText, zeroConst}, Span: toIRSpan(path, statement.Span)})
 				case ir.TypeString:
 					emptyStr := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{statement.Expression.Text, emptyStr}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{identText, emptyStr}, Span: toIRSpan(path, statement.Span)})
 				case ir.TypeBool:
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{identText, identText}, Span: toIRSpan(path, statement.Span)})
 				default:
 					trueConst := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, statement.Expression.Text, statement.Expression.Text}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, identText, identText}, Span: toIRSpan(path, statement.Span)})
 				}
 				return nil
 			} else if !ok {
@@ -182,11 +186,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			env[statement.Name] = ir.TypeUnknown
 			return nil
 		}
-		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && declaredType != "" && declaredType != ir.TypeVoid && declaredType != ir.TypeString && declaredType != ir.TypeUnknown {
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && declaredType != "" && declaredType != ir.TypeVoid && declaredType != ir.TypeUnknown {
 			defaultVal := "0"
-			if declaredType == ir.TypeBool {
+			if declaredType == ir.TypeNumber {
+				defaultVal = "NaN"
+			} else if declaredType == ir.TypeBool {
 				defaultVal = "false"
-			} else if strings.HasPrefix(string(declaredType), "object:") {
+			} else if declaredType == ir.TypeString {
+				if statement.Expression.Kind == "undefined" {
+					defaultVal = "undefined"
+				} else {
+					defaultVal = "null"
+				}
+			} else if strings.HasPrefix(string(declaredType), "object:") || declaredType == ir.TypePointer {
 				defaultVal = "null"
 			}
 			function.Body = append(function.Body, ir.Instruction{
@@ -202,12 +214,26 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Expression != nil && statement.Expression.Kind == "array" && statement.Type != "" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
 			statement.Expression.InferredType = statement.Type
 		}
+		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && statement.Type != "" && !strings.Contains(statement.Type, "|") {
+			if aliased, isUnion := typeAliasesIndex[statement.Type]; !isUnion || !strings.Contains(aliased, "|") {
+				statement.Expression.InferredType = statement.Type
+			}
+		}
 		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
 		if value != statement.Name {
 			return fmt.Errorf("variable %q produced unnamed value %q", statement.Name, value)
+		}
+		if statement.Type != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
+			if declared := toIRType(statement.Type); declared != "" {
+				typ = declared
+			}
+		} else if statement.InferredType != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
+			if inferred := toIRType(statement.InferredType); inferred != "" {
+				typ = inferred
+			}
 		}
 		env[statement.Name] = typ
 		if typ == ir.TypeClosure {
@@ -276,6 +302,12 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{res}, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
+		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && function.ReturnType != "" && (statement.Expression.InferredType == "" || strings.HasPrefix(string(function.ReturnType), "object:")) && !strings.Contains(string(function.ReturnType), "|") {
+			cleanRet := strings.TrimPrefix(string(function.ReturnType), "object:")
+			if aliased, ok := typeAliasesIndex[cleanRet]; !ok || !strings.Contains(aliased, "|") {
+				statement.Expression.InferredType = string(function.ReturnType)
+			}
+		}
 		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -322,6 +354,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				}
 			}
 		}
+		if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
+			return err
+		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "block":
 		for _, s := range statement.Body {
@@ -350,7 +385,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && varType != ir.TypeString && varType != ir.TypeUnknown {
 			defaultVal := "0"
-			if varType == ir.TypeBool {
+			if varType == ir.TypeNumber {
+				defaultVal = "NaN"
+			} else if varType == ir.TypeBool {
 				defaultVal = "false"
 			} else if strings.HasPrefix(string(varType), "object:") {
 				defaultVal = "null"
@@ -390,7 +427,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return nil
 		}
 		if valType != varType {
-			return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
+			if strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(varType), "object:") {
+				// Polymorphic object assignment
+			} else {
+				return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: varType, Result: statement.Name, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "while":
@@ -411,6 +452,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		return lowerLabel(path, statement, function, env, counter, shapes, signatures)
 	case "switch":
 		return lowerSwitch(path, statement, function, env, counter, shapes, signatures)
+	case "function":
+		_, typ, err := lowerClosureExpression(path, &statement, statement.Name, function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		env[statement.Name] = typ
+		return nil
 	case "index_set":
 		arrVal, arrType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -495,6 +543,21 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		} else {
 			return fmt.Errorf("array index_set requires an array, got %s", arrType)
 		}
+		if valType == ir.TypeVoid || (statement.Expression != nil && (statement.Expression.Kind == "undefined" || statement.Expression.Kind == "null" || (statement.Expression.Kind == "identifier" && statement.Expression.Text == "undefined"))) {
+			zeroVal := nextTemp(counter)
+			switch expectedElemType {
+			case ir.TypeNumber:
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroVal, Value: "0", Span: toIRSpan(path, statement.Span)})
+			case ir.TypeBool:
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: zeroVal, Value: "false", Span: toIRSpan(path, statement.Span)})
+			case ir.TypeString:
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: zeroVal, Value: "", Span: toIRSpan(path, statement.Span)})
+			default:
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: expectedElemType, Result: zeroVal, Value: "null", Span: toIRSpan(path, statement.Span)})
+			}
+			val = zeroVal
+			valType = expectedElemType
+		}
 		if expectedElemType != "" && valType != expectedElemType && valType != ir.TypeUnknown && expectedElemType != ir.TypeUnknown {
 			return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
 		}
@@ -526,19 +589,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				// Static field assignment
 				if _, isStatic := meta.Statics[statement.Name]; isStatic {
 					staticVar := className + "_" + statement.Name
-					if _, exists := env[staticVar]; !exists {
-						_, valType, err := lowerExpression(path, statement.Expression, staticVar, function, env, counter, shapes, signatures)
-						if err != nil {
-							return err
-						}
-						env[staticVar] = valType
-						return nil
-					}
 					val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 					if err != nil {
 						return err
 					}
-					env[staticVar] = valType
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpAssign,
 						Type:   valType,
@@ -555,7 +609,43 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
+		if (strings.HasSuffix(string(objType), "[]") || objType == ir.TypeNumberArray || objType == ir.TypeStringArray || objType == ir.TypeBoolArray || objType == ir.TypeBigIntArray) && statement.Name == "length" {
+			val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeVoid,
+				Callee: "__array.set_length",
+				Args:   []string{objVal, val},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
+		}
 		className := strings.TrimPrefix(string(objType), string(ir.TypeObject)+":")
+		if className == "this" || className == "" {
+			if statement.Left != nil && statement.Left.Text != "" {
+				if t, inEnv := env[statement.Left.Text]; inEnv && string(t) != "" && string(t) != "this" {
+					className = strings.TrimPrefix(string(t), string(ir.TypeObject)+":")
+				}
+			}
+			if className == "this" || className == "" {
+				if t, inEnv := env["this"]; inEnv && string(t) != "this" && string(t) != "object:this" {
+					className = strings.TrimPrefix(string(t), string(ir.TypeObject)+":")
+				} else if function != nil && strings.Contains(function.Name, "_") && !strings.HasPrefix(function.Name, "__closure_") {
+					className = strings.Split(function.Name, "_")[0]
+				}
+			}
+			if className == "this" || className == "" {
+				for sName, s := range shapes {
+					if fieldIndex(s, statement.Name) >= 0 {
+						className = sName
+						break
+					}
+				}
+			}
+		}
 
 		// Check instance setter in hierarchy
 		if _, setterName, ok := findSetterInHierarchy(className, statement.Name, signatures, classHierarchy); ok {
@@ -581,7 +671,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if fIndex < 0 {
 			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, className)
 		}
-		if statement.Expression != nil && statement.Expression.Kind == "array" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
+		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]" || statement.Expression.InferredType == "void[]") {
 			statement.Expression.InferredType = string(shape.Fields[fIndex].Type)
 		}
 		var val string
@@ -604,7 +694,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 		if valType != shape.Fields[fIndex].Type {
-			return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)
+			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "any[]" || valType == "unknown[]") {
+				valType = shape.Fields[fIndex].Type
+			} else {
+				return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpFieldSet,
@@ -636,6 +730,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			})
 			val = msgVal
 		}
+		if err := lowerActiveThrowFinally(path, function, env, counter, shapes, signatures); err != nil {
+			return err
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:   ir.OpThrow,
 			Type: ir.TypeVoid,
@@ -654,6 +751,28 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		return nil
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)
+	}
+	return nil
+}
+
+func lowerActiveReturnFinally(path string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	for i := len(activeReturnFinallyStack) - 1; i >= 0; i-- {
+		for _, finStmt := range activeReturnFinallyStack[i] {
+			if err := lowerStatement(path, finStmt, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func lowerActiveThrowFinally(path string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	for i := len(activeThrowFinallyStack) - 1; i >= 0; i-- {
+		for _, finStmt := range activeThrowFinallyStack[i] {
+			if err := lowerStatement(path, finStmt, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

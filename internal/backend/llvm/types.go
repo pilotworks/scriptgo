@@ -35,43 +35,18 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 
 func llvmType(typ ir.Type) string {
 	switch typ {
-	case ir.TypeNumber:
+	case ir.TypeNumber, "double":
 		return "double"
-	case ir.TypeBigInt:
+	case ir.TypeBigInt, "i64":
 		return "i64"
-	case ir.TypeSymbol:
-		return "ptr"
-	case ir.TypeString:
-		return "ptr"
-	case ir.TypeNumberArray, ir.TypeStringArray, ir.TypeBigIntArray, ir.TypeSymbolArray, ir.TypeBoolArray,
-		ir.TypeBuffer, ir.TypeUint8Array, ir.TypeInt8Array, ir.TypeUint8ClampedArray,
-		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
-		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
-		ir.TypeDataView, ir.TypeArrayBuffer, ir.TypePointer:
-		return "ptr"
-	case ir.TypeClosure:
-		return "ptr"
-	case ir.TypeBool:
+	case ir.TypeBool, "i1", "boolean":
 		return "i1"
 	case ir.TypeVoid:
 		return "void"
-	case ir.TypeObject:
-		return "ptr"
-	case ir.TypeUnknown, "any":
+	case ir.TypeUnknown, "any", "{ i32, i32, i64 }":
 		return "{ i32, i32, i64 }"
 	default:
-		s := string(typ)
-		if strings.HasPrefix(s, string(ir.TypeObject)+":") || strings.HasPrefix(s, "object:") ||
-			strings.HasSuffix(s, "[]") || strings.HasPrefix(s, "tuple:") ||
-			s == "Map" || s == "Set" || s == "Promise" || s == "Date" || s == "RegExp" ||
-			s == "Error" || s == "TypeError" || s == "RangeError" || s == "SyntaxError" ||
-			strings.HasPrefix(s, "Map<") || strings.HasPrefix(s, "Set<") ||
-			strings.HasPrefix(s, "Promise<") || strings.HasPrefix(s, "Promise_") ||
-			strings.HasPrefix(s, "Iterator") || strings.HasPrefix(s, "AsyncIterator") ||
-			strings.HasPrefix(s, "Generator") || strings.HasPrefix(s, "AsyncGenerator") {
-			return "ptr"
-		}
-		return s
+		return "ptr"
 	}
 }
 

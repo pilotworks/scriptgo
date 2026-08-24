@@ -254,5 +254,9 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 			}
 		}
 	}
+	dispatchers := synthesizePolymorphicDispatchers(hierarchy, index)
+	for _, df := range dispatchers {
+		index[df.Name] = df
+	}
 	return index
 }

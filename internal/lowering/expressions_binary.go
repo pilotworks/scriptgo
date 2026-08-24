@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -9,6 +10,104 @@ import (
 )
 
 func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+	if expression.Operator == "&&" {
+		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if leftTyp == ir.TypeBool {
+			res := result
+			if res == "" {
+				res = nextTemp(counter)
+			}
+			env[res] = ir.TypeBool
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: res,
+				Value:  "false",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: res,
+				Args:   []string{leftVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			thenBlock := ir.Function{Name: "then", ReturnType: function.ReturnType}
+			thenEnv := make(map[string]ir.Type, len(env))
+			maps.Copy(thenEnv, env)
+			rightVal, _, err := lowerExpression(path, expression.Right, "", &thenBlock, thenEnv, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			thenBlock.Body = append(thenBlock.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: res,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpIf,
+				Type: ir.TypeVoid,
+				Args: []string{leftVal},
+				Then: thenBlock.Body,
+				Span: toIRSpan(path, expression.Span),
+			})
+			return res, ir.TypeBool, nil
+		}
+	}
+	if expression.Operator == "||" {
+		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if leftTyp == ir.TypeBool {
+			res := result
+			if res == "" {
+				res = nextTemp(counter)
+			}
+			env[res] = ir.TypeBool
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: res,
+				Value:  "false",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: res,
+				Args:   []string{leftVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			elseBlock := ir.Function{Name: "else", ReturnType: function.ReturnType}
+			elseEnv := make(map[string]ir.Type, len(env))
+			maps.Copy(elseEnv, env)
+			rightVal, _, err := lowerExpression(path, expression.Right, "", &elseBlock, elseEnv, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			elseBlock.Body = append(elseBlock.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: res,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpIf,
+				Type: ir.TypeVoid,
+				Args: []string{leftVal},
+				Else: elseBlock.Body,
+				Span: toIRSpan(path, expression.Span),
+			})
+			return res, ir.TypeBool, nil
+		}
+	}
 	if expression.Operator == "??" {
 		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -71,28 +170,32 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
 			}
 		}
-		nullConst := nextTemp(counter)
-		nullVal := "null"
-		switch leftTyp {
-		case ir.TypeNumber:
-			nullVal = "0"
-		case ir.TypeBool:
-			nullVal = "false"
-		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
-		cmpNull := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
+		var cond string
+		if leftTyp == ir.TypeNumber {
+			cmpNaN := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNaN, Operator: "==", Args: []string{leftVal, leftVal}, Span: toIRSpan(path, expression.Span)})
+			cond = cmpNaN
+		} else {
+			nullConst := nextTemp(counter)
+			nullVal := "null"
+			if leftTyp == ir.TypeBool {
+				nullVal = "false"
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
+			cmpNull := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
 
-		cond := cmpNull
-		if leftTyp == ir.TypeString {
-			undefConst := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
-			cmpUndef := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
+			cond = cmpNull
+			if leftTyp == ir.TypeString {
+				undefConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+				cmpUndef := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
 
-			condTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
-			cond = condTemp
+				condTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+				cond = condTemp
+			}
 		}
 
 		if result == "" {
@@ -135,19 +238,35 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 		return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
 	}
-	if expression.Operator == "=" {
+	if expression.Operator == "=" || (strings.HasSuffix(expression.Operator, "=") && expression.Operator != "==" && expression.Operator != "===" && expression.Operator != "!=" && expression.Operator != "!==" && expression.Operator != "<=" && expression.Operator != ">=") {
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
 			varName := expression.Left.Text
 			varType, ok := env[varName]
 			if !ok {
 				return "", "", fmt.Errorf("assignment to unknown variable %q", varName)
 			}
-			val, valType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
+			rhsExpr := expression.Right
+			if expression.Operator != "=" {
+				baseOp := strings.TrimSuffix(expression.Operator, "=")
+				rhsExpr = &typescriptgo.SyntaxExpression{
+					Span:         expression.Span,
+					Kind:         "binary",
+					Operator:     baseOp,
+					Left:         expression.Left,
+					Right:        expression.Right,
+					InferredType: expression.InferredType,
+				}
+			}
+			val, valType, err := lowerExpression(path, rhsExpr, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", err
 			}
 			if valType != varType && varType != ir.TypeUnknown {
-				return "", "", fmt.Errorf("assignment type mismatch for %q: %s := %s", varName, varType, valType)
+				if strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(varType), "object:") {
+					// Polymorphic object assignment
+				} else {
+					return "", "", fmt.Errorf("assignment type mismatch for %q: %s := %s", varName, varType, valType)
+				}
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpAssign,
@@ -195,6 +314,62 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		return result, ir.TypeBool, nil
 	}
 	if leftType != rightType {
+		if (expression.Operator == "!==" || expression.Operator == "!=") && leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   result,
+				Operator: "==",
+				Args:     []string{left, left},
+				Span:     toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+		if (expression.Operator == "===" || expression.Operator == "==") && leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   result,
+				Operator: "!=",
+				Args:     []string{left, left},
+				Span:     toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+		if (expression.Operator == "!==" || expression.Operator == "!=") && rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   result,
+				Operator: "==",
+				Args:     []string{right, right},
+				Span:     toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+		if (expression.Operator == "===" || expression.Operator == "==") && rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   result,
+				Operator: "!=",
+				Args:     []string{right, right},
+				Span:     toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
 		if isComparison(expression.Operator) && (expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined")) && isPointerLikeType(leftType) {
 			right = nextTemp(counter)
 			rightType = leftType
@@ -265,6 +440,12 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				right = strTemp
 				rightType = ir.TypeString
 			}
+		} else if (expression.Operator == "||" || expression.Operator == "&&") && isPointerLikeType(leftType) {
+			if rightType == "never[]" || rightType == "any[]" || isPointerLikeType(rightType) {
+				rightType = leftType
+			} else {
+				return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
+			}
 		} else {
 			return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 		}
@@ -286,7 +467,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 		return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
 	}
-	if (isPointerLikeType(leftType) && leftType != ir.TypeString) || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown {
+	if isPointerLikeType(leftType) || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown {
 		if isComparison(expression.Operator) {
 			if result == "" {
 				result = nextTemp(counter)
@@ -294,7 +475,40 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 			return result, ir.TypeBool, nil
 		}
-		return "", "", fmt.Errorf("operator %q does not support %s operands", expression.Operator, leftType)
+		if expression.Operator == "||" || expression.Operator == "&&" {
+			nullConst := nextTemp(counter)
+			nullVal := "null"
+			if leftType == ir.TypeString {
+				nullVal = ""
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftType, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
+			cmpNull := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{left, nullConst}, Span: toIRSpan(path, expression.Span)})
+			cond := cmpNull
+			if leftType == ir.TypeString {
+				undefConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+				cmpUndef := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{left, undefConst}, Span: toIRSpan(path, expression.Span)})
+				condTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+				cond = condTemp
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			if expression.Operator == "||" {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftType, Result: result, Args: []string{cond, left, right}, Span: toIRSpan(path, expression.Span)})
+			} else {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftType, Result: result, Args: []string{cond, right, left}, Span: toIRSpan(path, expression.Span)})
+			}
+			return result, leftType, nil
+		}
+		if leftType == ir.TypeString && expression.Operator == "+" {
+			// continue to binary +
+		} else {
+			return "", "", fmt.Errorf("operator %q does not support %s operands", expression.Operator, leftType)
+		}
 	}
 	if leftType != ir.TypeNumber && leftType != ir.TypeString && leftType != ir.TypeBigInt {
 		return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)

@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,10 +28,31 @@ func mangleGenericTypeString(t string) string {
 	return t
 }
 
+var registeredShapes map[string]ir.ObjectShape
+
+func SetRegisteredShapes(s map[string]ir.ObjectShape) {
+	registeredShapes = s
+}
+
 func toIRType(value string) ir.Type {
+	return toIRTypeInternal(value, nil)
+}
+
+func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	value = strings.TrimSpace(value)
+	for strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")") && !strings.Contains(value, "=>") {
+		value = strings.TrimSpace(value[1 : len(value)-1])
+	}
+	if visited != nil && visited[value] {
+		return ir.TypeObject
+	}
 	if aliased, ok := typeAliasesIndex[value]; ok && aliased != value {
-		return toIRType(aliased)
+		newVisited := make(map[string]bool, len(visited)+1)
+		for k, v := range visited {
+			newVisited[k] = v
+		}
+		newVisited[value] = true
+		return toIRTypeInternal(aliased, newVisited)
 	}
 	base := value
 	if idx := strings.Index(base, "__"); idx != -1 {
@@ -44,16 +66,15 @@ func toIRType(value string) ir.Type {
 			return ir.TypeClosure
 		}
 	}
-	if strings.Contains(value, "=>") {
-		return ir.TypeClosure
-	}
 	if strings.HasSuffix(value, "_arr") {
 		elem := strings.TrimSuffix(value, "_arr")
-		return toIRType(elem + "[]")
+		return toIRTypeInternal(elem+"[]", visited)
 	}
 	if strings.HasSuffix(value, "[]") {
 		elem := strings.TrimSuffix(value, "[]")
-		elemType := toIRType(elem)
+		elem = strings.TrimPrefix(elem, "(")
+		elem = strings.TrimSuffix(elem, ")")
+		elemType := toIRTypeInternal(elem, visited)
 		switch elemType {
 		case ir.TypeNumber:
 			return ir.TypeNumberArray
@@ -67,6 +88,9 @@ func toIRType(value string) ir.Type {
 			return ir.Type(string(elemType) + "[]")
 		}
 	}
+	if strings.Contains(value, "=>") && !(strings.Contains(value, "<") && strings.HasSuffix(value, ">")) {
+		return ir.TypeClosure
+	}
 	if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
 		return ir.TypeString
 	}
@@ -77,18 +101,81 @@ func toIRType(value string) ir.Type {
 		return ir.TypeBool
 	}
 	if strings.Contains(value, "|") {
-		parts := strings.Split(value, "|")
-		var nonNullish []string
-		for _, p := range parts {
-			trimmed := strings.TrimSpace(p)
-			if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
-				nonNullish = append(nonNullish, trimmed)
+		parts := splitTopLevelUnion(value)
+		if len(parts) > 1 {
+			var nonNullish []string
+			for _, p := range parts {
+				trimmed := strings.TrimSpace(p)
+				if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
+					nonNullish = append(nonNullish, trimmed)
+				}
 			}
+			if len(nonNullish) == 0 {
+				return ir.TypeVoid
+			}
+			if len(nonNullish) > 1 {
+				allObjects := true
+				var unionFields []ir.Field
+				seenFields := map[string]int{}
+				for _, branch := range nonNullish {
+					var fields []ir.Field
+					cleanBranch := strings.TrimPrefix(branch, "object:")
+					if f, ok := anonymousObjectFields(branch, visited); ok {
+						fields = f
+					} else if shape, ok := registeredShapes[cleanBranch]; ok && len(shape.Fields) > 0 {
+						fields = shape.Fields
+					} else if shape, ok := anonymousShapes[cleanBranch]; ok && len(shape.Fields) > 0 {
+						fields = shape.Fields
+					} else if aliased, ok := typeAliasesIndex[cleanBranch]; ok && aliased != cleanBranch {
+						if f, ok := anonymousObjectFields(aliased, visited); ok {
+							fields = f
+						} else if shape, ok := registeredShapes[aliased]; ok && len(shape.Fields) > 0 {
+							fields = shape.Fields
+						} else if shape, ok := anonymousShapes[aliased]; ok && len(shape.Fields) > 0 {
+							fields = shape.Fields
+						}
+					}
+					if len(fields) == 0 {
+						allObjects = false
+						break
+					}
+					for _, f := range fields {
+						if existingIdx, exists := seenFields[f.Name]; exists {
+							if unionFields[existingIdx].Type == ir.TypeUnknown {
+								unionFields[existingIdx].Type = f.Type
+							}
+						} else {
+							seenFields[f.Name] = len(unionFields)
+							unionFields = append(unionFields, f)
+						}
+					}
+				}
+				if allObjects && len(unionFields) > 0 {
+					name := anonymousShapeName(unionFields)
+					registerAnonymousShape(name, unionFields)
+					return ir.Type("object:" + name)
+				}
+			}
+			return toIRTypeInternal(nonNullish[0], visited)
 		}
-		if len(nonNullish) == 0 {
-			return ir.TypeVoid
+	}
+	if strings.HasPrefix(value, "{") {
+		if !strings.HasSuffix(value, "}") {
+			value = value + "}"
 		}
-		return toIRType(nonNullish[0])
+		if fields, ok := anonymousObjectFields(value, visited); ok {
+			name := anonymousShapeName(fields)
+			registerAnonymousShape(name, fields)
+			return ir.Type("object:" + name)
+		}
+		return ir.TypeObject
+	}
+	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+		if fields, ok := tupleFields(value); ok {
+			name := anonymousShapeName(fields)
+			registerAnonymousShape(name, fields)
+			return ir.Type("object:" + name)
+		}
 	}
 	if strings.Contains(value, "<") && strings.HasSuffix(value, ">") {
 		clean := strings.TrimPrefix(value, "object:")
@@ -116,11 +203,50 @@ func toIRType(value string) ir.Type {
 		if base == "WeakRef" {
 			return ir.Type("object:WeakRef")
 		}
+		if base == "IteratorResult" {
+			typeArgs := splitTypeArguments(inner)
+			elemType := "number"
+			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" && typeArgs[0] != "unknown" {
+				elemType = typeArgs[0]
+			}
+			return toIRType(fmt.Sprintf("{ done: boolean; value: %s; }", elemType))
+		}
+		switch base {
+		case "Uint8Array":
+			return ir.TypeUint8Array
+		case "Int8Array":
+			return ir.TypeInt8Array
+		case "Uint8ClampedArray":
+			return ir.TypeUint8ClampedArray
+		case "Int16Array":
+			return ir.TypeInt16Array
+		case "Uint16Array":
+			return ir.TypeUint16Array
+		case "Int32Array":
+			return ir.TypeInt32Array
+		case "Uint32Array":
+			return ir.TypeUint32Array
+		case "Float32Array":
+			return ir.TypeFloat32Array
+		case "Float64Array":
+			return ir.TypeFloat64Array
+		case "BigInt64Array":
+			return ir.TypeBigInt64Array
+		case "BigUint64Array":
+			return ir.TypeBigUint64Array
+		case "ArrayBuffer":
+			return ir.TypeArrayBuffer
+		case "DataView":
+			return ir.TypeDataView
+		}
 		typeArgs := splitTypeArguments(inner)
 		return ir.Type("object:" + mangleGenericName(base, typeArgs))
 	}
 	if strings.HasPrefix(value, "object:") {
 		trimmed := strings.TrimPrefix(value, "object:")
+		if aliased, ok := typeAliasesIndex[trimmed]; ok && aliased != "" && aliased != trimmed {
+			return toIRType(aliased)
+		}
 		switch trimmed {
 		case "Buffer":
 			return ir.TypeBuffer
@@ -158,6 +284,8 @@ func toIRType(value string) ir.Type {
 			return ir.TypeTextEncoder
 		case "TextDecoder":
 			return ir.TypeTextDecoder
+		case "RegExpMatchArray", "RegExpExecArray":
+			return ir.TypeStringArray
 		case "RegExp":
 			return ir.Type("object:RegExp")
 		}
@@ -174,6 +302,8 @@ func toIRType(value string) ir.Type {
 		return ir.TypeSymbol
 	case "symbol[]":
 		return ir.TypeSymbolArray
+	case "RegExpMatchArray", "RegExpExecArray":
+		return ir.TypeStringArray
 	case "RegExp":
 		return ir.Type("object:RegExp")
 	case "string", "null", "undefined":
@@ -235,6 +365,26 @@ func toIRType(value string) ir.Type {
 	case "void", "any", "":
 		return ir.TypeVoid
 	default:
+		if strings.HasPrefix(value, "Intl.") {
+			return ir.Type("object:" + value)
+		}
+		if strings.HasSuffix(value, "n") && len(value) > 1 {
+			if _, err := strconv.ParseInt(value[:len(value)-1], 10, 64); err == nil {
+				return ir.TypeBigInt
+			}
+		}
+		if _, err := strconv.ParseFloat(value, 64); err == nil {
+			return ir.TypeNumber
+		}
+		if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+			return ir.TypeString
+		}
+		if value == "true" || value == "false" {
+			return ir.TypeBool
+		}
+		if value == "unique symbol" {
+			return ir.TypeSymbol
+		}
 		if strings.HasPrefix(value, "Map<") && strings.HasSuffix(value, ">") {
 			return ir.TypeMap
 		}
@@ -253,7 +403,7 @@ func toIRType(value string) ir.Type {
 			}
 		}
 		if strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}") {
-			if fields, ok := anonymousObjectFields(value); ok {
+			if fields, ok := anonymousObjectFields(value, nil); ok {
 				name := anonymousShapeName(fields)
 				registerAnonymousShape(name, fields)
 				return ir.Type("object:" + name)
@@ -262,6 +412,9 @@ func toIRType(value string) ir.Type {
 		}
 		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
 			return ir.TypeClosure
+		}
+		if strings.HasPrefix(value, "object:") {
+			return ir.Type(value)
 		}
 		return ir.Type("object:" + value)
 	}
@@ -331,6 +484,65 @@ func splitTopLevel(s string) []string {
 	return parts
 }
 
+func splitTopLevelUnion(s string) []string {
+	var parts []string
+	var cur strings.Builder
+	depthBrace := 0
+	depthBracket := 0
+	depthAngle := 0
+	depthParen := 0
+
+	for _, r := range s {
+		switch r {
+		case '{':
+			depthBrace++
+			cur.WriteRune(r)
+		case '}':
+			depthBrace--
+			cur.WriteRune(r)
+		case '[':
+			depthBracket++
+			cur.WriteRune(r)
+		case ']':
+			depthBracket--
+			cur.WriteRune(r)
+		case '<':
+			depthAngle++
+			cur.WriteRune(r)
+		case '>':
+			depthAngle--
+			cur.WriteRune(r)
+		case '(':
+			depthParen++
+			cur.WriteRune(r)
+		case ')':
+			depthParen--
+			cur.WriteRune(r)
+		case '|':
+			if depthBrace == 0 && depthBracket == 0 && depthAngle == 0 && depthParen == 0 {
+				if cur.Len() > 0 {
+					trimmed := strings.TrimSpace(cur.String())
+					if trimmed != "" {
+						parts = append(parts, trimmed)
+					}
+					cur.Reset()
+				}
+			} else {
+				cur.WriteRune(r)
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		trimmed := strings.TrimSpace(cur.String())
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
 func tupleFields(typeStr string) ([]ir.Field, bool) {
 	if !strings.HasPrefix(typeStr, "[") || !strings.HasSuffix(typeStr, "]") {
 		return nil, false
@@ -358,7 +570,10 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 	return fields, true
 }
 
-func anonymousObjectFields(typeStr string) ([]ir.Field, bool) {
+func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
+	if strings.HasPrefix(typeStr, "{") && !strings.HasSuffix(typeStr, "}") {
+		typeStr = typeStr + "}"
+	}
 	if !strings.HasPrefix(typeStr, "{") || !strings.HasSuffix(typeStr, "}") {
 		return nil, false
 	}
@@ -385,7 +600,8 @@ func anonymousObjectFields(typeStr string) ([]ir.Field, bool) {
 		}
 		fName = strings.TrimSuffix(fName, "?")
 		fTypeStr := strings.TrimSpace(trimmed[colonIdx+1:])
-		fieldType := toIRType(fTypeStr)
+		fTypeStr = strings.TrimSpace(strings.TrimRight(fTypeStr, ";,}"))
+		fieldType := toIRTypeInternal(fTypeStr, visited)
 		if isMethod {
 			fieldType = ir.TypeClosure
 		}
@@ -454,11 +670,11 @@ func isTypedArrayType(t ir.Type) bool {
 }
 
 func isMapType(t ir.Type) bool {
-	return t == ir.TypeMap
+	return t == ir.TypeMap || t == "object:Map" || strings.HasPrefix(string(t), "object:Map<") || strings.HasPrefix(string(t), "object:Map__")
 }
 
 func isSetType(t ir.Type) bool {
-	return t == ir.TypeSet
+	return t == ir.TypeSet || t == "object:Set" || strings.HasPrefix(string(t), "object:Set<") || strings.HasPrefix(string(t), "object:Set__")
 }
 
 func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {

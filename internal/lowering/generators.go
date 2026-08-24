@@ -233,8 +233,8 @@ func lowerGeneratorFunction(
 			Name: resultShapeName,
 			Span: toIRSpan(path, statement.Span),
 			Fields: []ir.Field{
-				{Name: "value", Type: yieldType, Span: toIRSpan(path, statement.Span)},
 				{Name: "done", Type: ir.TypeBool, Span: toIRSpan(path, statement.Span)},
+				{Name: "value", Type: yieldType, Span: toIRSpan(path, statement.Span)},
 			},
 		}
 		shapes[resultShapeName] = resultShape
@@ -284,6 +284,7 @@ func lowerGeneratorFunction(
 	}
 	classHierarchy[genClassName] = ClassMeta{
 		Name:    genClassName,
+		Extends: "Generator",
 		Statics: map[string]typescriptgo.SyntaxField{},
 	}
 	if classSyntax == nil {
@@ -461,18 +462,18 @@ func lowerGeneratorFunction(
 				Op:         ir.OpFieldSet,
 				Type:       ir.TypeVoid,
 				Callee:     resultShapeName,
-				Field:      "value",
+				Field:      "done",
 				FieldIndex: 0,
-				Args:       []string{resObj, valTemp},
+				Args:       []string{resObj, falseVal},
 				Span:       toIRSpan(path, statement.Span),
 			})
 			thenBranch = append(thenBranch, ir.Instruction{
 				Op:         ir.OpFieldSet,
 				Type:       ir.TypeVoid,
 				Callee:     resultShapeName,
-				Field:      "done",
+				Field:      "value",
 				FieldIndex: 1,
-				Args:       []string{resObj, falseVal},
+				Args:       []string{resObj, valTemp},
 				Span:       toIRSpan(path, statement.Span),
 			})
 			thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpReturn, Type: ir.Type("object:" + resultShapeName), Args: []string{resObj}, Span: toIRSpan(path, statement.Span)})
@@ -487,7 +488,7 @@ func lowerGeneratorFunction(
 			})
 		}
 
-		// State >= len(yields): finished, returns { value: this.__value, done: true }
+		// State >= len(yields): finished, returns { done: true, value: this.__value }
 		doneVal := nextTemp(&counter)
 		nextFn.Body = append(nextFn.Body, ir.Instruction{
 			Op:         ir.OpFieldGet,
@@ -515,18 +516,18 @@ func lowerGeneratorFunction(
 			Op:         ir.OpFieldSet,
 			Type:       ir.TypeVoid,
 			Callee:     resultShapeName,
-			Field:      "value",
+			Field:      "done",
 			FieldIndex: 0,
-			Args:       []string{doneResObj, doneVal},
+			Args:       []string{doneResObj, trueVal},
 			Span:       toIRSpan(path, statement.Span),
 		})
 		nextFn.Body = append(nextFn.Body, ir.Instruction{
 			Op:         ir.OpFieldSet,
 			Type:       ir.TypeVoid,
 			Callee:     resultShapeName,
-			Field:      "done",
+			Field:      "value",
 			FieldIndex: 1,
-			Args:       []string{doneResObj, trueVal},
+			Args:       []string{doneResObj, doneVal},
 			Span:       toIRSpan(path, statement.Span),
 		})
 		nextFn.Body = append(nextFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.Type("object:" + resultShapeName), Args: []string{doneResObj}, Span: toIRSpan(path, statement.Span)})

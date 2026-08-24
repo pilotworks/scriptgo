@@ -99,7 +99,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			isTuple := false
 			if expression.InferredType != "" {
 				trimmed := strings.TrimSpace(expression.InferredType)
-				if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") && !strings.HasSuffix(trimmed, "[]") {
+				if strings.HasSuffix(trimmed, "[]") {
+					arrType := toIRType(trimmed)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+					return result, arrType, nil
+				}
+				if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 					isTuple = true
 				}
 			}
@@ -184,8 +189,21 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: nil, Span: toIRSpan(path, expression.Span)})
+		elemTypeStr := ""
+		if strings.HasSuffix(string(arrType), "[]") {
+			elemTypeStr = strings.TrimSuffix(string(arrType), "[]")
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpArray,
+			Type:   arrType,
+			Result: result,
+			Args:   nil,
+			Span:   toIRSpan(path, expression.Span),
+		})
 		for _, elem := range expression.Arguments {
+			if elem.Kind == "object_literal" && elemTypeStr != "" && elem.InferredType == "" {
+				elem.InferredType = elemTypeStr
+			}
 			if elem.Kind == "spread" {
 				spreadVal, _, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
 				if err != nil {
@@ -345,9 +363,28 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			})
 			return result, ir.TypeString, nil
 		}
-		if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok {
+		if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok && !strings.HasSuffix(string(arrayType), "[]") {
 			shapeName := after
-			if shape, ok := shapes[shapeName]; ok {
+			shape, ok := shapes[shapeName]
+			if !ok {
+				if s, exists := anonymousShapes[shapeName]; exists {
+					shape = s
+					ok = true
+				} else if s, exists := registeredShapes[shapeName]; exists {
+					shape = s
+					ok = true
+				} else if expression.Left != nil && expression.Left.Kind == "identifier" {
+					if topVar, exists := topLevelVars[expression.Left.Text]; exists && topVar.Expression != nil && topVar.Expression.Kind == "object_literal" {
+						var objFields []ir.Field
+						for _, p := range topVar.Expression.Arguments {
+							objFields = append(objFields, ir.Field{Name: p.Text, Type: toIRType(p.InferredType)})
+						}
+						shape = ir.ObjectShape{Name: shapeName, Fields: objFields}
+						ok = true
+					}
+				}
+			}
+			if ok {
 				if expression.Right != nil && expression.Right.Kind == "number" {
 					fieldIdx, _ := strconv.Atoi(expression.Right.Text)
 					if fieldIdx >= 0 && fieldIdx < len(shape.Fields) {
@@ -416,6 +453,24 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if indexType != ir.TypeNumber {
+			if indexType == ir.TypeString || strings.HasPrefix(string(arrayType), "object:") || arrayType == ir.TypeObject || arrayType == ir.TypeUnknown {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				retType := ir.TypeString
+				if expression.InferredType != "" {
+					retType = toIRType(expression.InferredType)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   retType,
+					Result: result,
+					Callee: "__object.get",
+					Args:   []string{array, index},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, retType, nil
+			}
 			return "", "", fmt.Errorf("array indexing requires number index, got %s", indexType)
 		}
 		var elemType ir.Type
@@ -434,6 +489,45 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			} else {
 				elemType = ir.Type(elemName)
 			}
+		} else if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok && strings.HasPrefix(after, "__shape_") {
+			shapeName := after
+			idx := 0
+			if expression.Right != nil {
+				if n, err := strconv.Atoi(expression.Right.Text); err == nil {
+					idx = n
+				}
+			}
+			fType := ir.TypeNumber
+			if shape, exists := shapes[shapeName]; exists && idx < len(shape.Fields) {
+				fType = shape.Fields[idx].Type
+			} else if shape, exists := anonymousShapes[shapeName]; exists && idx < len(shape.Fields) {
+				fType = shape.Fields[idx].Type
+			} else {
+				prefix := fmt.Sprintf("_%d_", idx)
+				if pos := strings.Index(shapeName, prefix); pos != -1 {
+					rest := shapeName[pos+len(prefix):]
+					if nextIdx := strings.Index(rest, fmt.Sprintf("_%d_", idx+1)); nextIdx != -1 {
+						rest = rest[:nextIdx]
+					}
+					rest = strings.ReplaceAll(rest, "object_", "object:")
+					rest = strings.ReplaceAll(rest, "_arr", "[]")
+					fType = toIRType(rest)
+				}
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldGet,
+				Type:       fType,
+				Result:     result,
+				Callee:     shapeName,
+				Field:      strconv.Itoa(idx),
+				FieldIndex: idx,
+				Args:       []string{array},
+				Span:       toIRSpan(path, expression.Span),
+			})
+			return result, fType, nil
 		} else {
 			return "", "", fmt.Errorf("array indexing requires an array, got %s", arrayType)
 		}
@@ -442,6 +536,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: result, Args: []string{array, index}, Span: toIRSpan(path, expression.Span)})
 		return result, elemType, nil
+	case "this":
+		typ, ok := env["this"]
+		if !ok {
+			typ = ir.TypeObject
+		}
+		return "this", typ, nil
 	case "identifier":
 		if expression.Text == "undefined" {
 			if _, inEnv := env["undefined"]; !inEnv {
@@ -499,7 +599,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			case "Buffer":
 				typ = ir.TypeBuffer
 			default:
-				if expression.InferredType != "" {
+				if expression.InferredType != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
 					if _, isShape := shapes[expression.InferredType]; isShape {
 						typ = ir.Type("object:" + expression.InferredType)
 					} else if after, ok0 := strings.CutPrefix(expression.InferredType, "object:"); ok0 {
@@ -689,17 +789,38 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			strVal := val
 			if valType != ir.TypeString {
-				strTemp := nextTemp(counter)
-				callee := "__string.fromNumber"
-				if valType == ir.TypeBool {
-					callee = "__string.fromBool"
-				} else if valType == ir.TypeBigInt {
-					callee = "__string.fromBigInt"
-				} else if valType != ir.TypeNumber {
-					return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+				if arg != nil && arg.InferredType != "" && toIRType(arg.InferredType) == ir.TypeString {
+					strVal = val
+				} else if strings.HasPrefix(string(valType), "object:") {
+					className := strings.TrimPrefix(string(valType), "object:")
+					if method, mangled, found := findMethodInHierarchy(className, "toString", signatures, classHierarchy); found && (method.ReturnType == ir.TypeString || method.ReturnType == "") {
+						strTemp := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: mangled, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
+						strVal = strTemp
+					} else if len(className) <= 2 || className == "T" || className == "K" || className == "V" || className == "U" || className == "A" || className == "B" {
+						if arg != nil && (arg.InferredType == "number" || arg.InferredType == "bigint") {
+							strTemp := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: "__string.fromNumber", Args: []string{val}, Span: toIRSpan(path, arg.Span)})
+							strVal = strTemp
+						} else {
+							strVal = val
+						}
+					} else {
+						return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+					}
+				} else {
+					strTemp := nextTemp(counter)
+					callee := "__string.fromNumber"
+					if valType == ir.TypeBool {
+						callee = "__string.fromBool"
+					} else if valType == ir.TypeBigInt {
+						callee = "__string.fromBigInt"
+					} else if valType != ir.TypeNumber {
+						return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+					}
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
+					strVal = strTemp
 				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-				strVal = strTemp
 			}
 			if index == 0 {
 				currentResult = strVal

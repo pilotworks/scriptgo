@@ -48,19 +48,36 @@ func (e *functionEmitter) dbg(span ir.SourceSpan) string {
 }
 
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
-	slot, ok := e.varSlots[arg]
-	if !ok {
-		return arg
+	if slot, ok := e.varSlots[arg]; ok {
+		typ := e.types[arg]
+		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
+		e.loadCounter++
+		e.types[loadName] = typ
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadName, llvmType(typ), slot))
+		return loadName
 	}
-	typ := e.types[arg]
-	loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
-	e.loadCounter++
-	e.types[loadName] = typ
-	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadName, llvmType(typ), slot))
-	return loadName
+	for _, g := range e.module.Globals {
+		if g.Name == arg {
+			loadName := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
+			e.loadCounter++
+			e.types[loadName] = g.Type
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr @%s\n", loadName, llvmType(g.Type), g.Name))
+			return loadName
+		}
+	}
+	return arg
 }
 
 func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Op {
+	case ir.OpWhile:
+		return e.emitWhile(out, instruction)
+	case ir.OpDoWhile:
+		return e.emitDoWhile(out, instruction)
+	case ir.OpClosure:
+		return e.emitClosure(out, instruction)
+	}
+
 	resolvedArgs := make([]string, len(instruction.Args))
 	for i, arg := range instruction.Args {
 		resolvedArgs[i] = e.resolveArg(out, arg)
@@ -69,8 +86,20 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 	inst.Args = resolvedArgs
 
 	targetResult := inst.Result
+	isGlobalResult := false
+	var globalResultType ir.Type
+	for _, g := range e.module.Globals {
+		if g.Name == inst.Result {
+			isGlobalResult = true
+			globalResultType = g.Type
+			break
+		}
+	}
 	if _, ok := e.varSlots[inst.Result]; ok {
 		inst.Result = fmt.Sprintf("%s.val.%d", inst.Result, e.loadCounter)
+		e.loadCounter++
+	} else if isGlobalResult {
+		inst.Result = fmt.Sprintf("%s.gres.%d", inst.Result, e.loadCounter)
 		e.loadCounter++
 	}
 
@@ -81,6 +110,16 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		}
 	case ir.OpAssign:
 		typ := e.types[targetResult]
+		isGlobal := false
+		if typ == "" {
+			for _, g := range e.module.Globals {
+				if g.Name == targetResult {
+					typ = g.Type
+					isGlobal = true
+					break
+				}
+			}
+		}
 		arg := inst.Args[0]
 		argType := e.types[arg]
 		argVal := "%" + arg
@@ -105,7 +144,11 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				argVal = "%" + ptrVar
 			}
 		}
-		out.WriteString(fmt.Sprintf("  store %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
+		if isGlobal {
+			out.WriteString(fmt.Sprintf("  store %s %s, ptr @%s\n", llvmType(typ), argVal, targetResult))
+		} else {
+			out.WriteString(fmt.Sprintf("  store %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
+		}
 		return nil
 	case ir.OpBinary:
 		if err := e.emitBinary(out, inst); err != nil {
@@ -186,7 +229,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			return err
 		}
 	case ir.OpClosure:
-		if err := e.emitClosure(out, instruction); err != nil {
+		if err := e.emitClosure(out, inst); err != nil {
 			return err
 		}
 	case ir.OpClosureCall:
@@ -249,6 +292,13 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			lt = "ptr"
 		}
 		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
+	} else if isGlobalResult {
+		typ := globalResultType
+		lt := llvmType(typ)
+		if lt == "" {
+			lt = "ptr"
+		}
+		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr @%s\n", lt, inst.Result, targetResult))
 	}
 	return nil
 }

@@ -11,13 +11,17 @@ func (m Module) Verify() error {
 	if len(m.Functions) == 0 {
 		return fmt.Errorf("module has no functions")
 	}
+	globals := make(map[string]Type, len(m.Globals))
+	for _, g := range m.Globals {
+		globals[g.Name] = g.Type
+	}
 	for _, function := range m.Functions {
-		if err := function.Verify(); err != nil {
+		if err := function.verifyInternal(globals); err != nil {
 			return fmt.Errorf("function %q: %w", function.Name, err)
 		}
 	}
 	for _, shape := range m.Shapes {
-		if shape.Name == "" || len(shape.Fields) == 0 {
+		if shape.Name == "" {
 			return fmt.Errorf("invalid object shape %q", shape.Name)
 		}
 		for _, field := range shape.Fields {
@@ -30,10 +34,17 @@ func (m Module) Verify() error {
 }
 
 func (f Function) Verify() error {
+	return f.verifyInternal(nil)
+}
+
+func (f Function) verifyInternal(globals map[string]Type) error {
 	if f.Name == "" {
 		return fmt.Errorf("function has no name")
 	}
-	known := map[string]Type{}
+	known := make(map[string]Type, len(globals)+len(f.Parameters)+len(f.Captured))
+	if globals != nil {
+		maps.Copy(known, globals)
+	}
 	for _, parameter := range f.Parameters {
 		if parameter.Name == "" || parameter.Type == "" {
 			return fmt.Errorf("invalid parameter")
@@ -105,8 +116,10 @@ func (f Function) Verify() error {
 					return fmt.Errorf("array instruction has unsupported type %q", instruction.Type)
 				}
 				for _, argument := range instruction.Args {
-					if known[argument] != elementType(instruction.Type) {
-						return fmt.Errorf("array element %q has type %s, want %s", argument, known[argument], elementType(instruction.Type))
+					elemType := elementType(instruction.Type)
+					argType := known[argument]
+					if argType != elemType && !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(elemType), "object:")) {
+						return fmt.Errorf("array element %q has type %s, want %s", argument, argType, elemType)
 					}
 				}
 			}
@@ -135,12 +148,21 @@ func (f Function) Verify() error {
 				if instruction.Operator != "==" && instruction.Operator != "===" && instruction.Operator != "!=" && instruction.Operator != "!==" && instruction.Operator != "<" && instruction.Operator != "<=" && instruction.Operator != ">" && instruction.Operator != ">=" {
 					return fmt.Errorf("compare instruction has unsupported operator %q", instruction.Operator)
 				}
-				if known[instruction.Args[0]] != known[instruction.Args[1]] {
-					return fmt.Errorf("compare operands must have the same type")
+				leftType := known[instruction.Args[0]]
+				rightType := known[instruction.Args[1]]
+				if leftType != rightType && !(isPointerType(leftType) && isPointerType(rightType)) {
+					return fmt.Errorf("compare operands must have the same type (left=%s, right=%s)", leftType, rightType)
 				}
 			}
-			if instruction.Op == OpSelect && (len(instruction.Args) != 3 || known[instruction.Args[0]] != TypeBool || known[instruction.Args[1]] != instruction.Type || known[instruction.Args[2]] != instruction.Type) {
-				return fmt.Errorf("select requires bool condition and matching values (known[0]=%s, known[1]=%s, known[2]=%s, type=%s)", known[instruction.Args[0]], known[instruction.Args[1]], known[instruction.Args[2]], instruction.Type)
+			if instruction.Op == OpSelect {
+				if len(instruction.Args) != 3 || known[instruction.Args[0]] != TypeBool {
+					return fmt.Errorf("select requires bool condition")
+				}
+				val1Type := known[instruction.Args[1]]
+				val2Type := known[instruction.Args[2]]
+				if !isAssignableTo(val1Type, instruction.Type) || !isAssignableTo(val2Type, instruction.Type) {
+					return fmt.Errorf("select requires matching values (known[0]=%s, known[1]=%s, known[2]=%s, type=%s)", known[instruction.Args[0]], val1Type, val2Type, instruction.Type)
+				}
 			}
 			if instruction.Op == OpIndex {
 				if len(instruction.Args) != 2 {
@@ -221,7 +243,7 @@ func (f Function) Verify() error {
 				return fmt.Errorf("assign to unknown variable %q", instruction.Result)
 			}
 			valType, ok := known[instruction.Args[0]]
-			if !ok || varType != valType {
+			if !ok || (varType != valType && !(strings.HasPrefix(string(varType), "object:") && strings.HasPrefix(string(valType), "object:"))) {
 				return fmt.Errorf("assign type mismatch: %s := %s", varType, valType)
 			}
 		case OpIf:
@@ -410,6 +432,29 @@ func isTypedArrayType(t Type) bool {
 	}
 }
 
+func isPointerType(t Type) bool {
+	return t == TypePointer || t == "ptr" || t == TypeObject || strings.HasPrefix(string(t), "object:") || strings.HasSuffix(string(t), "[]") || t == TypeClosure || t == TypeArrayBuffer || t == TypeBuffer || t == TypeDataView || t == TypeTextEncoder || t == TypeTextDecoder || t == TypeMap || t == TypeSet || t == TypeSymbol || isTypedArrayType(t)
+}
+
 func isBigIntTypedArrayType(t Type) bool {
 	return t == TypeBigInt64Array || t == TypeBigUint64Array
+}
+
+func isAssignableTo(actual, expected Type) bool {
+	if actual == expected {
+		return true
+	}
+	if (actual == "never[]" || actual == "object:never[]" || actual == "any[]" || actual == "object:any[]") && strings.HasSuffix(string(expected), "[]") {
+		return true
+	}
+	if strings.HasPrefix(string(actual), "object:") && strings.HasPrefix(string(expected), "object:") {
+		return true
+	}
+	if actual == TypePointer && (strings.HasPrefix(string(expected), "object:") || expected == TypeClosure) {
+		return true
+	}
+	if expected == TypePointer && (strings.HasPrefix(string(actual), "object:") || actual == TypeClosure) {
+		return true
+	}
+	return false
 }

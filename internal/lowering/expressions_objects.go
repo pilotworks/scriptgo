@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -10,7 +11,34 @@ import (
 
 func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if len(expression.Arguments) == 0 {
-		return "", "", fmt.Errorf("empty object literal needs explicit type or shape")
+		shapeName := "__shape_empty"
+		if expression.InferredType != "" {
+			cleanInf := strings.TrimPrefix(expression.InferredType, "object:")
+			if _, ok := shapes[cleanInf]; ok {
+				shapeName = cleanInf
+			}
+		}
+		if _, ok := shapes[shapeName]; !ok {
+			shapes[shapeName] = ir.ObjectShape{
+				Name:   shapeName,
+				Span:   toIRSpan(path, expression.Span),
+				Fields: nil,
+			}
+		}
+		targetShape := shapes[shapeName]
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		objType := ir.Type("object:" + shapeName)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:         ir.OpObjectNew,
+			Type:       objType,
+			Result:     result,
+			Callee:     shapeName,
+			FieldCount: len(targetShape.Fields),
+			Span:       toIRSpan(path, expression.Span),
+		})
+		return result, objType, nil
 	}
 	var fields []ir.Field
 	var propValues []string
@@ -58,23 +86,154 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 	shapeName := anonymousShapeName(fields)
 	if expression.InferredType != "" {
 		cleanInf := strings.TrimPrefix(expression.InferredType, "object:")
-		if _, ok := shapes[cleanInf]; ok {
-			shapeName = cleanInf
+		for strings.HasPrefix(cleanInf, "(") && strings.HasSuffix(cleanInf, ")") && !strings.Contains(cleanInf, "=>") {
+			cleanInf = strings.TrimSpace(cleanInf[1 : len(cleanInf)-1])
+		}
+		var targetS *ir.ObjectShape
+		if strings.Contains(cleanInf, "|") || (typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|")) {
+			unionStr := cleanInf
+			if typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|") {
+				unionStr = typeAliasesIndex[cleanInf]
+			}
+			members := strings.Split(unionStr, "|")
+			for _, m := range members {
+				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
+				if s, ok := shapes[cleanM]; ok && !strings.HasPrefix(cleanM, "{") {
+					allFound := true
+					for _, f := range fields {
+						if fieldIndex(s, f.Name) < 0 {
+							allFound = false
+							break
+						}
+					}
+					if allFound && len(s.Fields) == len(fields) {
+						targetS = &s
+						break
+					}
+				}
+			}
+		}
+		if targetS == nil {
+			irT := toIRType(cleanInf)
+			cleanT := strings.TrimPrefix(string(irT), "object:")
+			if s, ok := shapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			} else if s, ok := anonymousShapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			} else if s, ok := shapes[cleanInf]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			}
+		}
+		if targetS == nil {
+			irT := toIRType(cleanInf)
+			cleanT := strings.TrimPrefix(string(irT), "object:")
+			if s, ok := shapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			} else if s, ok := anonymousShapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			} else if s, ok := shapes[cleanInf]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			}
+		}
+		if targetS != nil {
+			allFound := true
+			for _, f := range fields {
+				if fieldIndex(*targetS, f.Name) < 0 {
+					allFound = false
+					break
+				}
+			}
+			if allFound {
+				shapes[targetS.Name] = *targetS
+				shapeName = targetS.Name
+			}
 		}
 	}
 	if shapeName == anonymousShapeName(fields) {
-		for name, s := range shapes {
+		for name, s := range registeredShapes {
 			if !strings.HasPrefix(name, "__shape_") && len(s.Fields) == len(fields) {
 				match := true
-				for i, f := range fields {
-					if s.Fields[i].Name != f.Name {
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
 						match = false
 						break
 					}
 				}
 				if match {
+					shapes[name] = s
 					shapeName = name
 					break
+				}
+			}
+		}
+		if shapeName == anonymousShapeName(fields) {
+			for name, s := range shapes {
+				if !strings.HasPrefix(name, "__shape_") && len(s.Fields) == len(fields) {
+					match := true
+					for _, f := range fields {
+						if fieldIndex(s, f.Name) < 0 {
+							match = false
+							break
+						}
+					}
+					if match {
+						shapeName = name
+						break
+					}
 				}
 			}
 		}
@@ -121,10 +280,14 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 
 func anonymousShapeName(fields []ir.Field) string {
 	var parts []string
-	for _, f := range fields {
+	for i, f := range fields {
+		fieldName := f.Name
+		if fieldName == "" {
+			fieldName = strconv.Itoa(i)
+		}
 		cleanType := strings.ReplaceAll(string(f.Type), ":", "_")
 		cleanType = strings.ReplaceAll(cleanType, "[]", "_arr")
-		parts = append(parts, fmt.Sprintf("%s_%s", f.Name, cleanType))
+		parts = append(parts, fmt.Sprintf("%s_%s", fieldName, cleanType))
 	}
 	return "__shape_" + strings.Join(parts, "_")
 }

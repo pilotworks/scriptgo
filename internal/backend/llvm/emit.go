@@ -4,6 +4,7 @@ package llvm
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -163,6 +164,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_set(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_length(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_set_length(ptr, double)\n")
 	out.WriteString("declare i32 @scriptgo_array_push(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_pop(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_slice(ptr, double, double, ptr)\n")
@@ -333,6 +335,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare void @scriptgo_exception_push(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_pop(ptr)\n")
 	out.WriteString("declare ptr @scriptgo_exception_buf(ptr)\n")
+	out.WriteString("declare ptr @scriptgo_exception_frame_new()\n")
+	out.WriteString("declare void @scriptgo_exception_frame_free(ptr)\n")
 	out.WriteString("declare i32 @setjmp(ptr) returns_twice\n")
 	out.WriteString("declare void @scriptgo_throw_string(ptr)\n")
 	out.WriteString("declare void @scriptgo_throw_number(double)\n")
@@ -342,10 +346,15 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_exception_get_bool(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_rethrow(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_closure_create(ptr, ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_closure_invoke(ptr, i32, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_number_from_ptr(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_number_from_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_string(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_string_from_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_string_from_ptr(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_ptr(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_ptr_from_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_map_ptr_from_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_filter_ptr(ptr, ptr, ptr)\n")
@@ -480,7 +489,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_map_clear(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_size(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_to_string(ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_map_for_each(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_map_for_each(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_map_keys(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_map_values(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_map_entries(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_set_new(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_set_new_values_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_set_new_values_string(ptr, ptr)\n")
@@ -593,6 +605,33 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	out.WriteString("\n")
 
+	for _, g := range module.Globals {
+		gType := llvmType(g.Type)
+		initVal := "0.0"
+		if g.Type == ir.TypeBool {
+			initVal = "false"
+		} else if g.Type == ir.TypeString || strings.HasPrefix(string(g.Type), "object:") || g.Type == ir.TypeObject || g.Type == ir.TypeClosure || strings.HasSuffix(string(g.Type), "[]") {
+			initVal = "null"
+		} else if g.Type == ir.TypeBigInt {
+			initVal = "0"
+		}
+		if g.Value != "" {
+			if g.Type == ir.TypeNumber {
+				if num, err := strconv.ParseFloat(g.Value, 64); err == nil {
+					initVal = llvmNumber(num)
+				}
+			} else if g.Type == ir.TypeBool {
+				if g.Value == "true" {
+					initVal = "true"
+				} else {
+					initVal = "false"
+				}
+			}
+		}
+		out.WriteString(fmt.Sprintf("@%s = global %s %s\n", g.Name, gType, initVal))
+	}
+	out.WriteString("\n")
+
 	for _, function := range module.Functions {
 		text, err := emitFunction(function, functions, stringsByValue, debug, module)
 		if err != nil {
@@ -666,28 +705,28 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 	}
 
-	capturedByClosures := findCapturedInFunction(function.Body)
-	for _, arg := range capturedByClosures {
-		if _, ok := emitter.sharedEnvCells[arg]; !ok {
-			cellSlot := fmt.Sprintf("cell.%s.%d", arg, emitter.loadCounter)
-			emitter.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
-			if emitter.sharedEnvCells == nil {
-				emitter.sharedEnvCells = make(map[string]string)
-			}
-			emitter.sharedEnvCells[arg] = cellSlot
-			emitter.varSlots[arg] = cellSlot
-			if typ, ok := emitter.types[arg]; ok && typ != "" {
-				lt := llvmType(typ)
-				if lt != "" {
-					out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", lt, arg, cellSlot))
-				}
-			}
-		}
+
+	capturedInBody := findCapturedInFunction(function.Body)
+	if emitter.sharedEnvCells == nil {
+		emitter.sharedEnvCells = make(map[string]string)
+	}
+	for _, capName := range capturedInBody {
+		cellSlot := fmt.Sprintf("cell.%s.%d", capName, emitter.loadCounter)
+		emitter.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
+		emitter.sharedEnvCells[capName] = cellSlot
+	}
+
+	globalsMap := make(map[string]bool, len(module.Globals))
+	for _, g := range module.Globals {
+		globalsMap[g.Name] = true
 	}
 
 	slotted := findSlottedVariables(function.Body)
 	for varName, typ := range slotted {
+		if globalsMap[varName] {
+			continue
+		}
 		if _, ok := emitter.varSlots[varName]; !ok {
 			slotName := varName + ".slot"
 			emitter.varSlots[varName] = slotName
@@ -701,6 +740,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 		}
 	}
+	out.WriteString("  %__slot_ptr = alloca ptr\n")
+	out.WriteString("  %__slot_double = alloca double\n")
+	out.WriteString("  %__slot_i32 = alloca i32\n")
+	out.WriteString("  %__slot_i64 = alloca i64\n")
+	out.WriteString("  %__slot_i1 = alloca i1\n")
 
 	for _, instruction := range function.Body {
 		if emitter.terminated {

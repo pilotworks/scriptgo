@@ -4,6 +4,7 @@ package lowering
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -88,6 +89,14 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "SuppressedError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "error", Type: ir.TypeString}, {Name: "suppressed", Type: ir.TypeString}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
 		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}}},
+		{Name: "ResponseInit", Fields: []ir.Field{{Name: "status", Type: ir.TypeNumber}, {Name: "statusText", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}}},
+		{Name: "RequestInit", Fields: []ir.Field{{Name: "method", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}, {Name: "body", Type: ir.TypeUnknown}, {Name: "mode", Type: ir.TypeString}, {Name: "credentials", Type: ir.TypeString}, {Name: "cache", Type: ir.TypeString}, {Name: "redirect", Type: ir.TypeString}, {Name: "referrer", Type: ir.TypeString}}},
+		{Name: "TextDecoderOptions", Fields: []ir.Field{{Name: "fatal", Type: ir.TypeBool}, {Name: "ignoreBOM", Type: ir.TypeBool}}},
+		{Name: "TextDecodeOptions", Fields: []ir.Field{{Name: "stream", Type: ir.TypeBool}}},
+		{Name: "TextEncoderEncodeIntoResult", Fields: []ir.Field{{Name: "read", Type: ir.TypeNumber}, {Name: "written", Type: ir.TypeNumber}}},
+		{Name: "IteratorResult", Fields: []ir.Field{{Name: "done", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}}},
+		{Name: "TypedPropertyDescriptor", Fields: []ir.Field{{Name: "enumerable", Type: ir.TypeBool}, {Name: "configurable", Type: ir.TypeBool}, {Name: "writable", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}, {Name: "get", Type: ir.TypeClosure}, {Name: "set", Type: ir.TypeClosure}}},
+		{Name: "PropertyDescriptor", Fields: []ir.Field{{Name: "enumerable", Type: ir.TypeBool}, {Name: "configurable", Type: ir.TypeBool}, {Name: "writable", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}, {Name: "get", Type: ir.TypeClosure}, {Name: "set", Type: ir.TypeClosure}}},
 	}
 	for _, s := range builtinShapes {
 		shapes[s.Name] = s
@@ -96,6 +105,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
+				if statement.Kind == "type_alias" && len(statement.Class.Fields) == 0 {
+					continue
+				}
 				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
 				allFields := getInheritedFields(statement.Class.Name, hierarchy)
 				if len(allFields) == 0 {
@@ -110,15 +122,22 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					} else if field.Type == "bool" {
 						val = "false"
 					}
-					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(field.Type), Value: val, Span: toIRSpan(file.FileName, field.Span)})
+					fTypeStr := field.Type
+					if fTypeStr == "" {
+						fTypeStr = field.InferredType
+					}
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(fTypeStr), Value: val, Span: toIRSpan(file.FileName, field.Span)})
 				}
 				if len(shape.Fields) == 0 && statement.Kind == "class" {
 					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(file.FileName, statement.Class.Span)})
 				}
-				if len(shape.Fields) > 0 || statement.Kind == "class" {
-					shapes[shape.Name] = shape
-					module.Shapes = append(module.Shapes, shape)
+				shapes[shape.Name] = shape
+				baseName := statement.Class.Name
+				if idx := strings.Index(baseName, "<"); idx != -1 {
+					baseName = baseName[:idx]
+					shapes[baseName] = shape
 				}
+				module.Shapes = append(module.Shapes, shape)
 			} else if statement.Kind == "enum" && statement.Enum != nil {
 				shape := ir.ObjectShape{Name: statement.Enum.Name, Span: toIRSpan(file.FileName, statement.Enum.Span)}
 				for _, member := range statement.Enum.Members {
@@ -147,7 +166,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
 				}
 			}
-			if fields, ok := anonymousObjectFields(statement.Type); ok {
+			if fields, ok := anonymousObjectFields(statement.Type, nil); ok {
 				shapeName := anonymousShapeName(fields)
 				if _, exists := shapes[shapeName]; !exists {
 					shape := ir.ObjectShape{Name: shapeName, Fields: fields}
@@ -158,6 +177,33 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
 				}
 			}
+		}
+	}
+	SetRegisteredShapes(shapes)
+
+	for _, shape := range anonymousShapes {
+		if _, exists := shapes[shape.Name]; !exists {
+			shapes[shape.Name] = shape
+			module.Shapes = append(module.Shapes, shape)
+		}
+	}
+
+	for clsName, meta := range hierarchy {
+		for fName, field := range meta.Statics {
+			globalName := clsName + "_" + fName
+			globalType := toIRType(field.Type)
+			if globalType == "" {
+				globalType = ir.TypeNumber
+			}
+			globalVal := ""
+			if field.Initializer != nil {
+				globalVal = field.Initializer.Text
+			}
+			module.Globals = append(module.Globals, ir.Global{
+				Name:  globalName,
+				Type:  globalType,
+				Value: globalVal,
+			})
 		}
 	}
 
@@ -183,6 +229,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				module.Functions = append(module.Functions, factoryFn)
 				module.Functions = append(module.Functions, extraFns...)
 				module.Shapes = append(module.Shapes, newShapes...)
+				signatures[statement.Name] = factoryFn
+				signatures[factoryFn.Name] = factoryFn
+				for _, fn := range extraFns {
+					signatures[fn.Name] = fn
+				}
 				continue
 			}
 			if statement.Kind == "declare_function" {
@@ -210,6 +261,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				continue
 			}
 			if statement.Kind == "function" || statement.Kind == "async_function" {
+				if len(statement.TypeParameters) > 0 {
+					continue
+				}
 				fnCopy := statement
 				if fnCopy.Name == "main" {
 					fnCopy.Name = "main$user"
@@ -229,6 +283,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						continue
 					}
 					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
+						if len(subStmt.TypeParameters) > 0 {
+							continue
+						}
 						fnCopy := subStmt
 						fnCopy.Name = statement.Name + "." + subStmt.Name
 						function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
@@ -248,6 +305,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				continue
 			}
 			if statement.Kind == "class" && statement.Class != nil {
+				if len(statement.Class.TypeParameters) > 0 {
+					continue
+				}
 				var fieldInits []typescriptgo.SyntaxStatement
 				for _, f := range statement.Class.Fields {
 					if !f.IsStatic && f.Initializer != nil {
@@ -303,19 +363,25 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					var mangled string
 					var params []typescriptgo.SyntaxParameter
 					retType := method.Type
+					var cleanParams []typescriptgo.SyntaxParameter
+					for _, p := range method.Parameters {
+						if p.Name != "this" {
+							cleanParams = append(cleanParams, p)
+						}
+					}
 					if method.IsStatic {
 						mangled = statement.Class.Name + "_static_" + method.Name
-						params = method.Parameters
+						params = cleanParams
 					} else if method.Kind == "get" {
 						mangled = statement.Class.Name + "_get_" + method.Name
 						params = []typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}
 					} else if method.Kind == "set" {
 						mangled = statement.Class.Name + "_set_" + method.Name
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, method.Parameters...)
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, cleanParams...)
 						retType = "void"
 					} else {
 						mangled = statement.Class.Name + "_" + method.Name
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, method.Parameters...)
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, cleanParams...)
 					}
 					methodStmt := typescriptgo.SyntaxStatement{
 						Span:       method.Span,
@@ -374,6 +440,22 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
 	module.Functions = append([]ir.Function{main}, module.Functions...)
 	module.Functions = append(module.Functions, extraFunctions...)
+
+	dispatchers := synthesizePolymorphicDispatchers(hierarchy, signatures)
+	for _, df := range dispatchers {
+		replaced := false
+		for idx, f := range module.Functions {
+			if f.Name == df.Name {
+				module.Functions[idx] = df
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			module.Functions = append(module.Functions, df)
+		}
+	}
+
 	if err := module.Verify(); err != nil {
 		return ir.Module{}, err
 	}

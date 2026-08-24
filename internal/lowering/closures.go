@@ -61,11 +61,17 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 			if s.Expression != nil {
 				collectExpr(s.Expression)
 			}
-		} else if s.Kind == "assign" {
+		} else if s.Kind == "assign" || s.Kind == "field_set" || s.Kind == "index_set" {
 			if !params[s.Name] && !locals[s.Name] {
 				if _, ok := outerEnv[s.Name]; ok {
 					used = append(used, s.Name)
 				}
+			}
+			if s.Left != nil {
+				collectExpr(s.Left)
+			}
+			if s.Right != nil {
+				collectExpr(s.Right)
 			}
 			if s.Expression != nil {
 				collectExpr(s.Expression)
@@ -208,28 +214,47 @@ func lowerClosureExpression(
 		if capType, ok := env[capVar]; ok {
 			closureEnv[capVar] = capType
 		}
+		if retType, ok := env[capVar+".retType"]; ok {
+			closureEnv[capVar+".retType"] = retType
+		}
 	}
 
 	if targetFn.ReturnType == ir.TypeVoid || targetFn.ReturnType == "" {
 		if len(fnStmt.Body) == 1 && fnStmt.Body[0].Kind == "return" && fnStmt.Body[0].Expression != nil {
 			expr := fnStmt.Body[0].Expression
-			switch expr.Kind {
-			case "string", "template":
-				targetFn.ReturnType = ir.TypeString
-			case "bool", "compare":
-				targetFn.ReturnType = ir.TypeBool
-			case "binary":
-				if isComparison(expr.Operator) || expr.Operator == "&&" || expr.Operator == "||" {
-					targetFn.ReturnType = ir.TypeBool
-				} else if expr.Operator == "+" && ((expr.Left != nil && expr.Left.Kind == "string") || (expr.Right != nil && expr.Right.Kind == "string")) {
+			if expr.InferredType != "" {
+				targetFn.ReturnType = toIRType(expr.InferredType)
+			}
+			if targetFn.ReturnType == ir.TypeVoid || targetFn.ReturnType == "" {
+				switch expr.Kind {
+				case "string", "template":
 					targetFn.ReturnType = ir.TypeString
-				} else {
+				case "bool", "compare":
+					targetFn.ReturnType = ir.TypeBool
+				case "binary":
+					if isComparison(expr.Operator) || expr.Operator == "&&" || expr.Operator == "||" {
+						targetFn.ReturnType = ir.TypeBool
+					} else if expr.Operator == "+" && ((expr.Left != nil && expr.Left.Kind == "string") || (expr.Right != nil && expr.Right.Kind == "string")) {
+						targetFn.ReturnType = ir.TypeString
+					} else {
+						targetFn.ReturnType = ir.TypeNumber
+					}
+				case "number":
 					targetFn.ReturnType = ir.TypeNumber
+				case "call":
+					if expr.Left != nil {
+						calleeName := callName(expr.Left)
+						if sig, ok := signatures[calleeName]; ok {
+							targetFn.ReturnType = sig.ReturnType
+						} else if retT, ok := env[calleeName+".retType"]; ok {
+							targetFn.ReturnType = retT
+						} else if retT, ok := closureEnv[calleeName+".retType"]; ok {
+							targetFn.ReturnType = retT
+						}
+					}
+				default:
+					targetFn.ReturnType = ir.TypeVoid
 				}
-			case "number":
-				targetFn.ReturnType = ir.TypeNumber
-			default:
-				targetFn.ReturnType = ir.TypeVoid
 			}
 		}
 	}
@@ -241,6 +266,11 @@ func lowerClosureExpression(
 			Name: capVar,
 			Type: env[capVar],
 		})
+	}
+	if fnStmt.Name != "" {
+		closureEnv[fnStmt.Name] = ir.TypeClosure
+		closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
+		signatures[fnStmt.Name] = targetFn
 	}
 
 	closureBodyCounter := 0
@@ -323,6 +353,11 @@ func lowerClosureExpression(
 			Span: targetFn.Span,
 		})
 	} else {
+		if fnStmt.Name != "" {
+			closureEnv[fnStmt.Name] = ir.TypeClosure
+			closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
+			closureEnv[fnStmt.Name+".closureTarget"] = ir.Type(closureName)
+		}
 		for _, p := range fnStmt.Parameters {
 			typ := closureEnv[p.Name]
 			targetFn.Body = append(targetFn.Body, ir.Instruction{

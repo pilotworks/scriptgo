@@ -64,8 +64,7 @@ func lowerIteratorReceiverMethod(
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
 	isIteratorObject := strings.HasPrefix(string(receiverType), "object:IteratorObject") ||
-		receiverType == ir.Type("object:IteratorObject") ||
-		(strings.HasPrefix(string(receiverType), "object:Generator_") && (methodName == "map" || methodName == "filter" || methodName == "take" || methodName == "drop" || methodName == "toArray" || methodName == "flatMap" || methodName == "reduce" || methodName == "forEach" || methodName == "some" || methodName == "every" || methodName == "find"))
+		receiverType == ir.Type("object:IteratorObject")
 
 	if !isIteratorObject {
 		return "", "", false, nil
@@ -245,8 +244,8 @@ func lowerIteratorReceiverMethod(
 				Name: resShapeName,
 				Span: toIRSpan(path, expression.Span),
 				Fields: []ir.Field{
-					{Name: "value", Type: elemType, Span: toIRSpan(path, expression.Span)},
 					{Name: "done", Type: ir.TypeBool, Span: toIRSpan(path, expression.Span)},
+					{Name: "value", Type: elemType, Span: toIRSpan(path, expression.Span)},
 				},
 			}
 		}

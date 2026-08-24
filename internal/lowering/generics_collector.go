@@ -205,7 +205,10 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescriptgo.SyntaxClass, reqCls func(string, []string, string) string) {
 	clean := strings.TrimPrefix(typ, "object:")
 	if strings.HasSuffix(clean, "[]") {
-		scanTypeForGenerics(clean[:len(clean)-2], fileName, genericClasses, reqCls)
+		inner := clean[:len(clean)-2]
+		inner = strings.TrimPrefix(inner, "(")
+		inner = strings.TrimSuffix(inner, ")")
+		scanTypeForGenerics(inner, fileName, genericClasses, reqCls)
 		return
 	}
 	if strings.Contains(clean, "|") {

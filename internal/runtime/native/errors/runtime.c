@@ -136,9 +136,23 @@ void *scriptgo_exception_buf(scriptgo_exception_frame_t *frame) {
     return (void*)frame->buf;
 }
 
+scriptgo_exception_frame_t *scriptgo_exception_frame_new(void) {
+    scriptgo_exception_frame_t *frame = malloc(sizeof(scriptgo_exception_frame_t));
+    if (frame == NULL) return NULL;
+    scriptgo_exception_push(frame);
+    return frame;
+}
+
+void scriptgo_exception_frame_free(scriptgo_exception_frame_t *frame) {
+    if (frame == NULL) return;
+    scriptgo_exception_pop(frame);
+    free(frame);
+}
+
 void scriptgo_throw_string(const char *str) {
     if (scriptgo_top_frame != NULL) {
         scriptgo_exception_frame_t *frame = scriptgo_top_frame;
+        scriptgo_top_frame = frame->prev;
         frame->thrown_string = str;
         frame->thrown_type = 1;
         longjmp(frame->buf, 1);
@@ -150,6 +164,7 @@ void scriptgo_throw_string(const char *str) {
 void scriptgo_throw_number(double num) {
     if (scriptgo_top_frame != NULL) {
         scriptgo_exception_frame_t *frame = scriptgo_top_frame;
+        scriptgo_top_frame = frame->prev;
         frame->thrown_number = num;
         frame->thrown_type = 2;
         longjmp(frame->buf, 1);
@@ -161,6 +176,7 @@ void scriptgo_throw_number(double num) {
 void scriptgo_throw_bool(int val) {
     if (scriptgo_top_frame != NULL) {
         scriptgo_exception_frame_t *frame = scriptgo_top_frame;
+        scriptgo_top_frame = frame->prev;
         frame->thrown_bool = val;
         frame->thrown_type = 3;
         longjmp(frame->buf, 1);
@@ -182,12 +198,18 @@ int scriptgo_exception_get_bool(scriptgo_exception_frame_t *frame) {
 }
 
 void scriptgo_exception_rethrow(scriptgo_exception_frame_t *frame) {
-    if (frame->thrown_type == 1) {
-        scriptgo_throw_string(frame->thrown_string);
-    } else if (frame->thrown_type == 2) {
-        scriptgo_throw_number(frame->thrown_number);
-    } else if (frame->thrown_type == 3) {
-        scriptgo_throw_bool(frame->thrown_bool);
+    if (frame == NULL) return;
+    int type = frame->thrown_type;
+    const char *str = frame->thrown_string;
+    double num = frame->thrown_number;
+    int b = frame->thrown_bool;
+    scriptgo_exception_frame_free(frame);
+    if (type == 1) {
+        scriptgo_throw_string(str);
+    } else if (type == 2) {
+        scriptgo_throw_number(num);
+    } else if (type == 3) {
+        scriptgo_throw_bool(b);
     }
 }
 

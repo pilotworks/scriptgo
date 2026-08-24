@@ -225,11 +225,21 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return result
 	case ast.KindArrayLiteralExpression:
 		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "array"}
+		arrType := resolveInferredType(chk, node)
+		elemType := ""
+		if before, ok := strings.CutSuffix(arrType, "[]"); ok {
+			elemType = before
+		}
 		if elements := node.AsArrayLiteralExpression().Elements; elements != nil {
 			for _, element := range elements.Nodes {
-				result.Arguments = append(result.Arguments, syntaxExpression(element, chk))
+				elemExpr := syntaxExpression(element, chk)
+				if elemExpr != nil && elemType != "" && !strings.HasPrefix(elemType, "{") && (elemExpr.InferredType == "" || strings.HasPrefix(elemExpr.InferredType, "{")) {
+					elemExpr.InferredType = elemType
+				}
+				result.Arguments = append(result.Arguments, elemExpr)
 			}
 		}
+		result.InferredType = arrType
 		return result
 	case ast.KindSpreadElement:
 		spread := node.AsSpreadElement()
@@ -278,10 +288,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return result
 	case ast.KindObjectLiteralExpression:
 		objLit := node.AsObjectLiteralExpression()
-		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "object_literal"}
+		result := &SyntaxExpression{Span: sourceSpan(node), Kind: "object_literal", InferredType: resolveInferredType(chk, node)}
 		if properties := objLit.Properties; properties != nil {
 			for _, propNode := range properties.Nodes {
-				if propNode.Kind == ast.KindPropertyAssignment {
+				switch propNode.Kind {
+				case ast.KindPropertyAssignment:
 					prop := propNode.AsPropertyAssignment()
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),
@@ -290,7 +301,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 						Left:         syntaxExpression(prop.Initializer, chk),
 						InferredType: resolveInferredType(chk, propNode),
 					})
-				} else if propNode.Kind == ast.KindShorthandPropertyAssignment {
+				case ast.KindShorthandPropertyAssignment:
 					prop := propNode.AsShorthandPropertyAssignment()
 					name := prop.Name().Text()
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
@@ -300,7 +311,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 						Left:         &SyntaxExpression{Span: sourceSpan(propNode), Kind: "identifier", Text: name, InferredType: resolveInferredType(chk, propNode)},
 						InferredType: resolveInferredType(chk, propNode),
 					})
-				} else if propNode.Kind == ast.KindSpreadAssignment {
+				case ast.KindSpreadAssignment:
 					spread := propNode.AsSpreadAssignment()
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),

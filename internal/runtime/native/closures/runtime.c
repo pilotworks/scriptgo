@@ -49,7 +49,7 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
     scriptgo_array_inner *res;
-    if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(double)) {
+    if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
     if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
@@ -69,11 +69,57 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
     return 0;
 }
 
+int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        double mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
+    }
+    return 0;
+}
+
+int scriptgo_array_map_number_from_string(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        double mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
+    }
+    return 0;
+}
+
 int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_array) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
     scriptgo_array_inner *res;
-    if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(char *)) {
+    if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
     if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
@@ -92,11 +138,58 @@ int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_arr
     return 0;
 }
 
+int scriptgo_array_map_string_from_number(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        char *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
+    }
+    return 0;
+}
+
+int scriptgo_array_map_string_from_ptr(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        char *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
+    }
+    return 0;
+}
+
 int scriptgo_array_map_ptr(void *handle, void *closure_handle, void **out_array) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
     scriptgo_array_inner *res;
-    if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(void *)) {
+    if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
     if (scriptgo_array_new(array->length, sizeof(void *), out_array) != 0) {
@@ -110,6 +203,53 @@ int scriptgo_array_map_ptr(void *handle, void *closure_handle, void **out_array)
         void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
         void *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
+    }
+    return 0;
+}
+
+int scriptgo_array_map_ptr_from_number(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(void *), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        void *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
+    }
+    return 0;
+}
+
+int scriptgo_array_map_ptr_from_string(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    scriptgo_array_inner *res;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array map failed");
+    }
+    if (scriptgo_array_new(array->length, sizeof(void *), out_array) != 0) {
+        return -1;
+    }
+    res = *out_array;
+    for (int64_t i = 0; i < array->length; i++) {
+        char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        void *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
     }
     return 0;

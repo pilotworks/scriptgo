@@ -108,6 +108,7 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
+	e.sharedEnvCells = make(map[string]string)
 	e.terminated = false
 	for _, inst := range instruction.Body {
 		if err := e.emitInstruction(out, inst); err != nil {
@@ -170,7 +171,7 @@ func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instr
 
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
-
+	e.sharedEnvCells = make(map[string]string)
 	e.terminated = false
 	for _, inst := range instruction.Body {
 		if err := e.emitInstruction(out, inst); err != nil {
@@ -213,10 +214,29 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 	if e.function.Name == "main" {
 		out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 		out.WriteString("  ret i32 0\n")
-	} else if instruction.Type == ir.TypeVoid || e.function.ReturnType == ir.TypeVoid || len(instruction.Args) == 0 {
+	} else if e.function.ReturnType == ir.TypeVoid {
 		out.WriteString("  ret void\n")
+	} else if len(instruction.Args) == 0 || instruction.Type == ir.TypeVoid {
+		switch e.function.ReturnType {
+		case ir.TypeNumber:
+			out.WriteString("  ret double 0.0\n")
+		case ir.TypeBool:
+			out.WriteString("  ret i1 false\n")
+		case ir.TypeUnknown:
+			out.WriteString("  ret { i32, i32, i64 } zeroinitializer\n")
+		default:
+			out.WriteString("  ret ptr null\n")
+		}
 	} else {
-		out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(instruction.Type), instruction.Args[0]))
+		retVal := instruction.Args[0]
+		if slot, ok := e.varSlots[retVal]; ok {
+			typ := e.types[retVal]
+			loaded := fmt.Sprintf("%s.ret.loaded.%d", retVal, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+			retVal = loaded
+		}
+		out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(e.function.ReturnType), retVal))
 	}
 	e.terminated = true
 	return nil
@@ -281,8 +301,7 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 		out.WriteString(fmt.Sprintf("  store ptr null, ptr %%%s\n", pendingThrowSlot))
 	}
 
-	out.WriteString(fmt.Sprintf("  %%%s = alloca [1024 x i8], align 16\n", frameName))
-	out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_push(ptr %%%s)\n", frameName))
+	out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_frame_new()\n", frameName))
 	out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_buf(ptr %%%s)\n", bufName, frameName))
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @setjmp(ptr %%%s) returns_twice\n", statusName, bufName))
 	out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", isThrowName, statusName))
@@ -291,24 +310,26 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 	out.WriteString(fmt.Sprintf("%s:\n", tryBodyLabel))
 	e.terminated = false
 	for _, inst := range instruction.Body {
+		if inst.Op == ir.OpReturn {
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_frame_free(ptr %%%s)\n", frameName))
+		}
 		if err := e.emitInstruction(out, inst); err != nil {
 			return err
 		}
 	}
 	tryTerminated := e.terminated
 	if !tryTerminated {
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
-		if hasFinally {
-			out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
-		} else {
+		if !hasFinally {
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_frame_free(ptr %%%s)\n", frameName))
 			out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
+		} else {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
 		}
 	}
 
 	catchTerminated := false
 	if hasCatch {
 		out.WriteString(fmt.Sprintf("%s:\n", catchLabel))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
 		if instruction.CatchVar != "" {
 			catchValName := fmt.Sprintf("caught.%d", labelId)
 			out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_get_string(ptr %%%s)\n", catchValName, frameName))
@@ -323,22 +344,14 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 				e.varSlots[instruction.CatchVar] = slotName
 			}
 		}
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_frame_free(ptr %%%s)\n", frameName))
 		e.terminated = false
 		for _, inst := range instruction.Catch {
-			if inst.Op == ir.OpThrow && hasFinally {
-				throwArg := inst.Args[0]
-				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", throwArg, pendingThrowSlot))
-				out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
-				catchTerminated = true
-				break
-			}
 			if err := e.emitInstruction(out, inst); err != nil {
 				return err
 			}
 		}
-		if !catchTerminated {
-			catchTerminated = e.terminated
-		}
+		catchTerminated = e.terminated
 		if !catchTerminated {
 			if hasFinally {
 				out.WriteString(fmt.Sprintf("  br label %%%s\n", finallyLabel))
@@ -351,9 +364,6 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 	finallyTerminated := false
 	if hasFinally {
 		out.WriteString(fmt.Sprintf("%s:\n", finallyLabel))
-		if !hasCatch {
-			out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_pop(ptr %%%s)\n", frameName))
-		}
 		e.terminated = false
 		for _, inst := range instruction.Finally {
 			if err := e.emitInstruction(out, inst); err != nil {
@@ -363,17 +373,16 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 		finallyTerminated = e.terminated
 		if !finallyTerminated {
 			if hasCatch && hasFinally {
-				hasPending := fmt.Sprintf("has.pending.throw.%d", labelId)
-				pendingVal := fmt.Sprintf("pending.val.%d", labelId)
-				afterPending := fmt.Sprintf("after.pending.throw.%d", labelId)
-				doThrow := fmt.Sprintf("do.pending.throw.%d", labelId)
-				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pendingVal, pendingThrowSlot))
-				out.WriteString(fmt.Sprintf("  %%%s = icmp ne ptr %%%s, null\n", hasPending, pendingVal))
-				out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", hasPending, doThrow, afterPending))
-				out.WriteString(fmt.Sprintf("%s:\n", doThrow))
-				out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", pendingVal))
-				out.WriteString("  unreachable\n")
-				out.WriteString(fmt.Sprintf("%s:\n", afterPending))
+				freeCond := fmt.Sprintf("finally.free.cond.%d", labelId)
+				freeBlock := fmt.Sprintf("finally.free.block.%d", labelId)
+				afterFree := fmt.Sprintf("finally.after.free.%d", labelId)
+				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", freeCond, statusName))
+				out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", freeCond, freeBlock, afterFree))
+				out.WriteString(fmt.Sprintf("%s:\n", freeBlock))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_frame_free(ptr %%%s)\n", frameName))
+				out.WriteString(fmt.Sprintf("  br label %%%s\n", afterFree))
+				out.WriteString(fmt.Sprintf("%s:\n", afterFree))
+				out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
 			} else if !hasCatch {
 				afterRethrow := fmt.Sprintf("finally.after_rethrow.%d", labelId)
 				rethrowCond := fmt.Sprintf("rethrow.cond.%d", labelId)
@@ -384,6 +393,7 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 				out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_rethrow(ptr %%%s)\n", frameName))
 				out.WriteString("  unreachable\n")
 				out.WriteString(fmt.Sprintf("%s:\n", afterRethrow))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_frame_free(ptr %%%s)\n", frameName))
 			}
 			out.WriteString(fmt.Sprintf("  br label %%%s\n", endLabel))
 		}

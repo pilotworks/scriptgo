@@ -47,7 +47,7 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeUnknown:
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 0, 0\n", instruction.Result))
 	default:
-		if strings.HasPrefix(string(instruction.Type), "object:") || instruction.Type == "ptr" || instruction.Type == ir.TypeClosure || strings.HasSuffix(string(instruction.Type), "[]") || instruction.Type == ir.TypeUint8Array || instruction.Type == ir.TypeInt32Array || instruction.Type == ir.TypeFloat64Array || instruction.Type == ir.TypeArrayBuffer {
+		if llvmType(instruction.Type) == "ptr" {
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
 			return nil
 		}
@@ -61,15 +61,30 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	if !ok {
 		return fmt.Errorf("unknown binary value %q", instruction.Args[0])
 	}
-	if _, ok := e.types[instruction.Args[1]]; !ok {
+	rightType, ok := e.types[instruction.Args[1]]
+	if !ok {
 		return fmt.Errorf("unknown binary value %q", instruction.Args[1])
+	}
+	arg0 := instruction.Args[0]
+	if slot, ok := e.varSlots[arg0]; ok {
+		loaded := fmt.Sprintf("%s.bin.loaded.%d", arg0, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(leftType), slot))
+		arg0 = loaded
+	}
+	arg1 := instruction.Args[1]
+	if slot, ok := e.varSlots[arg1]; ok {
+		loaded := fmt.Sprintf("%s.bin.loaded.%d", arg1, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(rightType), slot))
+		arg1 = loaded
 	}
 	if leftType == ir.TypeString && instruction.Operator == "+" {
 		e.types[instruction.Result] = ir.TypeString
 		slot := instruction.Result + ".slot"
 		status := instruction.Result + ".status"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, arg0, arg1, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.ownedStrings = append(e.ownedStrings, instruction.Result)
@@ -81,13 +96,13 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 			return fmt.Errorf("unsupported LLVM binary bool operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
-		out.WriteString(fmt.Sprintf("  %%%s = %s i1 %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = %s i1 %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
 		return nil
 	}
 	if leftType == ir.TypeBigInt {
 		if op, ok := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem", "&": "and", "|": "or", "^": "xor", "<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
 			e.types[instruction.Result] = instruction.Type
-			out.WriteString(fmt.Sprintf("  %%%s = %s i64 %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+			out.WriteString(fmt.Sprintf("  %%%s = %s i64 %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
 			return nil
 		}
 		return fmt.Errorf("unsupported LLVM bigint binary operator %q", instruction.Operator)
@@ -97,12 +112,12 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if instruction.Operator == "**" {
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = call double @llvm.pow.f64(double %%%s, double %%%s)\n", instruction.Result, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call double @llvm.pow.f64(double %%%s, double %%%s)\n", instruction.Result, arg0, arg1))
 		return nil
 	}
 	if op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
 		return nil
 	}
 	if bitOp, ok := map[string]string{"&": "and", "|": "or", "^": "xor"}[instruction.Operator]; ok {
@@ -110,8 +125,8 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, bitOp, lI32, rI32))
 		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
 		return nil
@@ -120,40 +135,38 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		e.types[instruction.Result] = instruction.Type
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
-		shift := instruction.Result + ".shift"
 		resI32 := instruction.Result + ".res_i32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, instruction.Args[1]))
-		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rI32))
-		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, shiftOp, lI32, shift))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, shiftOp, lI32, rI32))
 		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
 		return nil
 	}
 	if instruction.Operator == ">>>" {
 		e.types[instruction.Result] = instruction.Type
-		lU32 := instruction.Result + ".l_u32"
-		rU32 := instruction.Result + ".r_u32"
-		shift := instruction.Result + ".shift"
+		lI32 := instruction.Result + ".l_i32"
+		rI32 := instruction.Result + ".r_i32"
 		resU32 := instruction.Result + ".res_u32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lU32, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rU32, instruction.Args[1]))
-		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rU32))
-		out.WriteString(fmt.Sprintf("  %%%s = lshr i32 %%%s, %%%s\n", resU32, lU32, shift))
+		shift := instruction.Result + ".shift"
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rI32))
+		out.WriteString(fmt.Sprintf("  %%%s = lshr i32 %%%s, %%%s\n", resU32, lI32, shift))
 		out.WriteString(fmt.Sprintf("  %%%s = uitofp i32 %%%s to double\n", instruction.Result, resU32))
 		return nil
 	}
 	if instruction.Operator == "||" {
 		e.types[instruction.Result] = instruction.Type
 		cmp := instruction.Result + ".cmp"
-		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, arg0, arg1))
 		return nil
 	}
 	if instruction.Operator == "&&" {
 		e.types[instruction.Result] = instruction.Type
 		cmp := instruction.Result + ".cmp"
-		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, instruction.Args[1], instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  %%%s = fcmp one double %%%s, 0.0\n", cmp, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double %%%s, double %%%s\n", instruction.Result, cmp, arg1, arg0))
 		return nil
 	}
 	return fmt.Errorf("unsupported LLVM binary operator %q", instruction.Operator)
@@ -161,8 +174,23 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 
 func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instruction) error {
 	leftType, ok := e.types[instruction.Args[0]]
-	if !ok || e.types[instruction.Args[1]] != leftType {
-		return fmt.Errorf("unknown or mismatched compare operands")
+	rightType := e.types[instruction.Args[1]]
+	if !ok || (rightType != leftType && !((strings.HasPrefix(string(leftType), "object:") || leftType == ir.TypeObject || llvmType(leftType) == "ptr") && (strings.HasPrefix(string(rightType), "object:") || rightType == ir.TypeObject || llvmType(rightType) == "ptr"))) {
+		return fmt.Errorf("unknown or mismatched compare operands (left=%s, right=%s)", leftType, rightType)
+	}
+	arg0 := instruction.Args[0]
+	if slot, ok := e.varSlots[arg0]; ok {
+		loaded := fmt.Sprintf("%s.cmp.loaded.%d", arg0, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(leftType), slot))
+		arg0 = loaded
+	}
+	arg1 := instruction.Args[1]
+	if slot, ok := e.varSlots[arg1]; ok {
+		loaded := fmt.Sprintf("%s.cmp.loaded.%d", arg1, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(rightType), slot))
+		arg1 = loaded
 	}
 	if leftType == ir.TypeUnknown {
 		tag0 := fmt.Sprintf("%s.tag0.%d", instruction.Result, e.loadCounter)
@@ -174,12 +202,12 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		bothEq := fmt.Sprintf("%s.both_eq.%d", instruction.Result, e.loadCounter)
 		e.loadCounter++
 
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag0, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag1, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag0, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag1, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %%%s\n", tagEq, tag0, tag1))
 
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val0, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val1, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val0, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val1, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %%%s\n", valEq, val0, val1))
 
 		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothEq, tagEq, valEq))
@@ -193,7 +221,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 	}
 	if leftType == ir.TypeString {
 		cmpResult := instruction.Result + ".cmp"
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_compare(ptr %%%s, ptr %%%s)\n", cmpResult, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_compare(ptr %%%s, ptr %%%s)\n", cmpResult, arg0, arg1))
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",
@@ -216,7 +244,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 			return fmt.Errorf("unsupported LLVM bool compare operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
-		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i1 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i1 %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
 	if leftType == ir.TypeBigInt {
@@ -230,10 +258,10 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 			return fmt.Errorf("unsupported LLVM bigint compare operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
-		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
-	if leftType == ir.TypeSymbol || leftType == ir.TypeClosure || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
+	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",
@@ -242,7 +270,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 			return fmt.Errorf("unsupported LLVM pointer/closure compare operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
-		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
 	if leftType != ir.TypeNumber {
@@ -258,12 +286,12 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		return fmt.Errorf("unsupported LLVM number compare operator %q", instruction.Operator)
 	}
 	e.types[instruction.Result] = ir.TypeBool
-	out.WriteString(fmt.Sprintf("  %%%s = fcmp %s double %%%s, %%%s\n", instruction.Result, predicate, instruction.Args[0], instruction.Args[1]))
+	out.WriteString(fmt.Sprintf("  %%%s = fcmp %s double %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 	return nil
 }
 
 func (e *functionEmitter) emitSelect(out *strings.Builder, instruction ir.Instruction) error {
-	if e.types[instruction.Args[0]] != ir.TypeBool || e.types[instruction.Args[1]] != e.types[instruction.Args[2]] {
+	if e.types[instruction.Args[0]] != ir.TypeBool || llvmType(e.types[instruction.Args[1]]) != llvmType(e.types[instruction.Args[2]]) {
 		return fmt.Errorf("select operands have incompatible types")
 	}
 	e.types[instruction.Result] = instruction.Type

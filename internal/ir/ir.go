@@ -7,8 +7,16 @@ type Module struct {
 	SourceFiles    map[string]string
 	StatementCount int
 	Shapes         []ObjectShape
+	Globals        []Global
 	Functions      []Function
 	Externs        []ExternFunction
+}
+
+type Global struct {
+	Name  string
+	Type  Type
+	Value string
+	Span  SourceSpan
 }
 
 type ExternFunction struct {
