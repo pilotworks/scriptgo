@@ -19,7 +19,17 @@ type Program struct {
 	Files []typescriptgo.SourceFile
 }
 
+// ProgramOptions controls frontend program construction.
+type ProgramOptions struct {
+	ConfigPath string
+}
+
 func NewProgram(entryPath, source string) (Program, error) {
+	return NewProgramWithOptions(entryPath, source, ProgramOptions{})
+}
+
+// NewProgramWithOptions creates a Program using custom options (e.g. tsconfig path).
+func NewProgramWithOptions(entryPath, source string, opts ProgramOptions) (Program, error) {
 	if filepath.Ext(entryPath) != ".ts" {
 		return Program{}, fmt.Errorf("entry point must have a .ts extension: %s", entryPath)
 	}
@@ -27,7 +37,9 @@ func NewProgram(entryPath, source string) (Program, error) {
 		return Program{}, fmt.Errorf("entry point %q is empty", entryPath)
 	}
 
-	parsed, err := typescriptgo.Check(entryPath)
+	parsed, err := typescriptgo.CheckWithOptions(entryPath, typescriptgo.CheckOptions{
+		ConfigPath: opts.ConfigPath,
+	})
 	if err != nil {
 		return Program{}, fmt.Errorf("check entry point %q: %w", entryPath, err)
 	}
@@ -57,4 +69,9 @@ func NewProgram(entryPath, source string) (Program, error) {
 		Diagnostics:    parsed.Diagnostics,
 		Files:          parsed.Files,
 	}, nil
+}
+
+// CheckProject typechecks a tsconfig.json project through frontend.
+func CheckProject(configPath string) (typescriptgo.ProgramResult, error) {
+	return typescriptgo.CheckProject(configPath)
 }

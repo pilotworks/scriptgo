@@ -168,7 +168,7 @@ Implement standard-library functionality following this hierarchy:
 Native C ABI Primitives -> Core TypeScript stdlib -> High-level TypeScript stdlib
 ```
 
-- **TypeScript First:** Implement stdlib features in pure TypeScript whenever the
-  logic can be expressed with existing language primitives.
-- **Minimal C Runtime:** Use C only for OS syscalls, memory allocation, POSIX
-  bindings, or platform-specific adapters.
+- **Pure TypeScript Single Source of Truth:** All standard library modules (`fs`, `net`, `http`, `stream`, `crypto`, `os`, `path`, `events`, `url`, `buffer`, `timers`, `process`, `child_process`) are authored directly as `.ts` files with full TypeScript type annotations, interfaces, classes, and exported functions.
+- **Zero `.d.ts` Dual Maintenance:** TypeScript-Go infers all types, signatures, and contracts directly from the `.ts` module sources loaded into the virtual module filesystem (`node_modules/<name>/index.ts`). Redundant module `.d.ts` files and code generation scripts are completely eliminated.
+- **Thin TS Wrappers + Minimal C Runtime:** High-level APIs (overload handling, option validation, stream piping, event dispatching, URL formatting) are written 100% in pure TypeScript, invoking low-level C runtime intrinsics (`internal/runtime/`) only for POSIX system calls (sockets, file descriptors, crypto RNG, thread pools).
+

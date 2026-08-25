@@ -3,7 +3,6 @@ package typescriptgo
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -36,7 +35,7 @@ func TestEmbeddedStdlibLoaded(t *testing.T) {
 	}
 }
 
-func TestSeedVersionDeclarationsOnlyContainsDts(t *testing.T) {
+func TestSeedVersionDeclarations(t *testing.T) {
 	tempDir := t.TempDir()
 	versionDir := filepath.Join(tempDir, "v0.1.0")
 
@@ -50,22 +49,12 @@ func TestSeedVersionDeclarationsOnlyContainsDts(t *testing.T) {
 	}
 
 	if len(entries) == 0 {
-		t.Fatal("expected declaration files in version directory, got 0")
+		t.Fatal("expected files in version directory, got 0")
 	}
 
-	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".d.ts") {
-			t.Fatalf("version directory must ONLY contain .d.ts files, found: %s", name)
-		}
-		if strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".d.ts") {
-			t.Fatalf("version directory contains implementation .ts file: %s", name)
-		}
-	}
-
-	// Verify required .d.ts files exist
-	expectedDts := []string{"globals.d.ts", "console.d.ts", "path.d.ts", "fs.d.ts", "os.d.ts", "crypto.d.ts", "process.d.ts"}
-	for _, expected := range expectedDts {
+	// Verify required stdlib files exist
+	expectedFiles := []string{"globals.d.ts", "console.ts", "path.ts", "fs.ts", "os.ts", "crypto.ts", "process.ts", "net.ts", "http.ts", "stream.ts"}
+	for _, expected := range expectedFiles {
 		filePath := filepath.Join(versionDir, expected)
 		if _, err := os.Stat(filePath); err != nil {
 			t.Fatalf("expected file %s to exist in version directory: %v", expected, err)

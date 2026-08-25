@@ -3,6 +3,7 @@ package typescriptgo
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -15,8 +16,6 @@ import (
 	"github.com/microsoft/TypeScript/tsc/internal/parser"
 	"github.com/microsoft/TypeScript/tsc/internal/tsoptions"
 	"github.com/microsoft/TypeScript/tsc/internal/tspath"
-	"github.com/microsoft/TypeScript/tsc/internal/vfs/osvfs"
-	"github.com/microsoft/TypeScript/tsc/internal/vfs/wrapvfs"
 )
 
 // Parse parses one TypeScript source file with TypeScript-Go.
@@ -50,96 +49,116 @@ func Parse(fileName, source string) (ParseResult, error) {
 // Check creates a TypeScript-Go program. Program creation performs local module
 // resolution and binds/checks the complete reachable source graph.
 func Check(entryPath string) (ProgramResult, error) {
+	return CheckWithOptions(entryPath, CheckOptions{})
+}
+
+// CheckWithOptions creates a TypeScript-Go program with custom check options.
+func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, error) {
 	if err := EnsureStdlib(""); err != nil {
 		return ProgramResult{}, fmt.Errorf("load stdlib: %w", err)
 	}
+
+	if entryPath == "" && checkOpts.ConfigPath != "" {
+		return CheckProject(checkOpts.ConfigPath)
+	}
+
 	absoluteEntry, err := filepath.Abs(entryPath)
 	if err != nil {
 		return ProgramResult{}, err
 	}
 	absoluteEntry = filepath.Clean(absoluteEntry)
+
+	// If entryPath is a json file or a directory, check as a project
+	if strings.HasSuffix(absoluteEntry, ".json") {
+		return CheckProject(absoluteEntry)
+	}
+	if info, err := os.Stat(absoluteEntry); err == nil && info.IsDir() {
+		return CheckProject(absoluteEntry)
+	}
+
 	cwd := filepath.Dir(absoluteEntry)
-	baseFS := bundled.WrapFS(osvfs.FS())
-	fs := baseFS
-	virtualFiles := map[string]string{}
-	builtinPaths := map[string]string{}
-	for name, module := range builtinModules {
-		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
-		virtualFiles[virtualPath] = module.Source
-		builtinPaths[virtualPath] = name
+	fs, virtualFiles, builtinPaths := buildVirtualEnvironment(cwd)
+	host := compiler.NewCompilerHost(cwd, fs, bundled.LibPath(), nil, nil, nil)
+
+	var config *tsoptions.ParsedCommandLine
+	var configDiagnostics []*ast.Diagnostic
+	var compilerOpts CompilerOptions
+
+	configPath := checkOpts.ConfigPath
+	if configPath == "" {
+		configPath = FindConfigFile(cwd)
 	}
 
-	var nodeTypesDts strings.Builder
-	for name := range builtinModules {
-		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
-	}
-	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
-	virtualFiles[nodeTypesPath] = nodeTypesDts.String()
-
-	fs = wrapvfs.Wrap(fs, wrapvfs.Replacements{
-		FileExists: func(path string) bool {
-			if _, ok := virtualFiles[filepath.Clean(path)]; ok {
-				return true
-			}
-			return baseFS.FileExists(path)
-		},
-		ReadFile: func(path string) (string, bool) {
-			if contents, ok := virtualFiles[filepath.Clean(path)]; ok {
-				return contents, true
-			}
-			contents, ok := baseFS.ReadFile(path)
-			if ok && strings.HasPrefix(filepath.Clean(path), filepath.Clean(bundled.LibPath())) && (strings.HasSuffix(path, "lib.es5.d.ts") || strings.HasSuffix(path, "lib.d.ts")) {
-				return contents + "\n" + globalsSource, true
-			}
-			return contents, ok
-		},
-		DirectoryExists: func(path string) bool {
-			clean := filepath.Clean(path)
-			if clean == cwd {
-				return true
-			}
-			for virtualPath := range virtualFiles {
-				for dir := filepath.Dir(virtualPath); dir != "." && dir != "/" && len(dir) >= len(cwd); dir = filepath.Dir(dir) {
-					if clean == dir {
-						return true
-					}
+	if configPath != "" {
+		cfgAbs, err := filepath.Abs(configPath)
+		if err == nil {
+			parsedCfg, parseErrs := tsoptions.GetParsedCommandLineOfConfigFile(cfgAbs, nil, nil, host, nil)
+			if parsedCfg != nil {
+				config = parsedCfg
+				configDiagnostics = append(configDiagnostics, parseErrs...)
+				configDiagnostics = append(configDiagnostics, parsedCfg.GetConfigFileParsingDiagnostics()...)
+				configDiagnostics = append(configDiagnostics, parsedCfg.Errors...)
+				opts := parsedCfg.CompilerOptions()
+				if opts == nil {
+					opts = &core.CompilerOptions{}
+				}
+				opts.NoEmit = core.TSTrue
+				opts.AllowImportingTsExtensions = core.TSTrue
+				parsedCfg.SetCompilerOptions(opts)
+				compilerOpts = CompilerOptions{
+					Target:           formatTarget(opts.Target),
+					Module:           formatModule(opts.Module),
+					ModuleResolution: formatResolution(opts.ModuleResolution),
+					Strict:           opts.Strict == core.TSTrue,
 				}
 			}
-			return baseFS.DirectoryExists(path)
-		},
-	})
-	options := &core.CompilerOptions{
-		Target:                     core.ScriptTargetESNext,
-		Module:                     core.ModuleKindESNext,
-		ModuleResolution:           core.ModuleResolutionKindBundler,
-		AllowImportingTsExtensions: core.TSTrue,
-		Lib:                        []string{"lib.esnext.d.ts"},
-		Strict:                     core.TSTrue,
-		NoEmit:                     core.TSTrue,
+		}
 	}
-	comparePaths := tspath.ComparePathsOptions{
-		CurrentDirectory:          cwd,
-		UseCaseSensitiveFileNames: fs.UseCaseSensitiveFileNames(),
+
+	if config == nil {
+		options := &core.CompilerOptions{
+			Target:                     core.ScriptTargetESNext,
+			Module:                     core.ModuleKindESNext,
+			ModuleResolution:           core.ModuleResolutionKindBundler,
+			AllowImportingTsExtensions: core.TSTrue,
+			Lib:                        []string{"lib.esnext.d.ts"},
+			Strict:                     core.TSTrue,
+			NoEmit:                     core.TSTrue,
+		}
+		comparePaths := tspath.ComparePathsOptions{
+			CurrentDirectory:          cwd,
+			UseCaseSensitiveFileNames: fs.UseCaseSensitiveFileNames(),
+		}
+		rootFileNames := []string{absoluteEntry}
+		for virtualPath := range virtualFiles {
+			rootFileNames = append(rootFileNames, virtualPath)
+		}
+		sort.Strings(rootFileNames[1:])
+		config = tsoptions.NewParsedCommandLine(options, rootFileNames, comparePaths)
+		compilerOpts = CompilerOptions{
+			Target:           "ES2023",
+			Module:           "ESNext",
+			ModuleResolution: "Bundler",
+			Strict:           true,
+		}
+	} else {
+		rootFileNames := append([]string{absoluteEntry}, config.FileNames()...)
+		for virtualPath := range virtualFiles {
+			rootFileNames = append(rootFileNames, virtualPath)
+		}
+		sort.Strings(rootFileNames)
+		config = config.WithFileNames(rootFileNames)
 	}
-	rootFileNames := []string{absoluteEntry}
-	for virtualPath := range virtualFiles {
-		rootFileNames = append(rootFileNames, virtualPath)
-	}
-	sort.Strings(rootFileNames[1:])
-	config := tsoptions.NewParsedCommandLine(options, rootFileNames, comparePaths)
-	host := compiler.NewCompilerHost(cwd, fs, bundled.LibPath(), nil, nil, nil)
+
 	program := compiler.NewProgram(compiler.ProgramOptions{
 		Config:         config,
 		Host:           host,
 		SingleThreaded: core.TSTrue,
 	})
 
-	result := ProgramResult{}
-	result.Options = CompilerOptions{
-		Target:           "ES2023",
-		Module:           "ESNext",
-		ModuleResolution: "Bundler",
-		Strict:           true,
+	result := ProgramResult{
+		Options:     compilerOpts,
+		Diagnostics: convertDiagnostics("config", configDiagnostics),
 	}
 	ctx := context.Background()
 	files := make(map[string]*ast.SourceFile)

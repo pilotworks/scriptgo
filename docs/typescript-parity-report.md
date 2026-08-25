@@ -117,13 +117,14 @@ All 104 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ---
 
-## 2.6. Module System
+## 2.6. Module System & Project Configuration
 
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
 | Local Module Imports / Exports | ✅ Full | Supports `import { a } from "./mod"`, `export default`, `export const`. |
 | Multi-level & Deep Imports | ✅ Full | Resolves multi-level closed module dependency graphs. |
 | Initialization Order | ✅ Full | Guarantees deterministic module initialization order matching ES Modules specification. |
+| `tsconfig.json` Project Checking | ✅ Full | Automatic discovery and explicit `-p` / `--project` loading of `tsconfig.json`, `compilerOptions` parsing (`target`, `module`, `strict`, `paths`, etc.), multi-file project diagnostics matching `tsc` formatting. |
 | npm / External package resolution | ⏳ In Development | Planned for Milestone 7 via Dynamic Island (QuickJS-ng). |
 
 ---

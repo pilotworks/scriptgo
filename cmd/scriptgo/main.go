@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/compiler"
 )
 
@@ -68,7 +69,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -307,6 +308,8 @@ func handleCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.Usage = printCheckUsage
 	eval := fs.String("e", "", "evaluate inline script string")
+	project := fs.String("project", "", "path to tsconfig.json or project directory containing tsconfig.json")
+	fs.StringVar(project, "p", "", "path to tsconfig.json or project directory (shorthand)")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
@@ -317,8 +320,14 @@ func handleCheck(args []string) {
 		os.Exit(2)
 	}
 
+	options := compiler.BuildOptions{
+		WarnRuntimeCasts: *warnRuntimeCasts,
+		StrictCasts:      *strictCasts,
+	}
+
 	var entryPath string
-	var cleanup func()
+	var cleanup func() = func() {}
+	defer func() { cleanup() }()
 
 	if *eval != "" {
 		var err error
@@ -327,15 +336,115 @@ func handleCheck(args []string) {
 			fmt.Fprintln(os.Stderr, "scriptgo:", err)
 			os.Exit(1)
 		}
-		defer cleanup()
+	} else if *project != "" {
+		target := *project
+		if info, err := os.Stat(target); err == nil && info.IsDir() {
+			target = filepath.Join(target, "tsconfig.json")
+		}
+		if *verbose {
+			fmt.Fprintf(os.Stderr, "scriptgo: checking project %s\n", target)
+		}
+		diags, err := compiler.CheckProject(target, options)
+		if err != nil {
+			printCompilerWarnings()
+			printError(err)
+			os.Exit(1)
+		}
+		if len(diags) > 0 {
+			printCompilerWarnings()
+			for _, diag := range diags {
+				fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+			}
+			os.Exit(1)
+		}
+		printCompilerWarnings()
+		if *verbose {
+			fmt.Fprintf(os.Stderr, "scriptgo: project %s checked successfully\n", target)
+		}
+		return
 	} else if fs.NArg() == 1 {
+		arg := fs.Arg(0)
+		if strings.HasSuffix(arg, ".json") {
+			target := arg
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: checking project %s\n", target)
+			}
+			diags, err := compiler.CheckProject(target, options)
+			if err != nil {
+				printCompilerWarnings()
+				printError(err)
+				os.Exit(1)
+			}
+			if len(diags) > 0 {
+				printCompilerWarnings()
+				for _, diag := range diags {
+					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+				}
+				os.Exit(1)
+			}
+			printCompilerWarnings()
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: project %s checked successfully\n", target)
+			}
+			return
+		}
+		if info, err := os.Stat(arg); err == nil && info.IsDir() {
+			target := filepath.Join(arg, "tsconfig.json")
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: checking project %s\n", target)
+			}
+			diags, err := compiler.CheckProject(target, options)
+			if err != nil {
+				printCompilerWarnings()
+				printError(err)
+				os.Exit(1)
+			}
+			if len(diags) > 0 {
+				printCompilerWarnings()
+				for _, diag := range diags {
+					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+				}
+				os.Exit(1)
+			}
+			printCompilerWarnings()
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: project %s checked successfully\n", target)
+			}
+			return
+		}
 		var err error
-		entryPath, cleanup, err = resolveInput(fs.Arg(0))
+		entryPath, cleanup, err = resolveInput(arg)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "scriptgo:", err)
 			os.Exit(1)
 		}
-		defer cleanup()
+	} else if fs.NArg() == 0 {
+		if _, err := os.Stat("tsconfig.json"); err == nil {
+			target := "tsconfig.json"
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: checking project %s\n", target)
+			}
+			diags, err := compiler.CheckProject(target, options)
+			if err != nil {
+				printCompilerWarnings()
+				printError(err)
+				os.Exit(1)
+			}
+			if len(diags) > 0 {
+				printCompilerWarnings()
+				for _, diag := range diags {
+					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+				}
+				os.Exit(1)
+			}
+			printCompilerWarnings()
+			if *verbose {
+				fmt.Fprintf(os.Stderr, "scriptgo: project %s checked successfully\n", target)
+			}
+			return
+		}
+		printCheckUsage()
+		os.Exit(2)
 	} else {
 		printCheckUsage()
 		os.Exit(2)
@@ -343,10 +452,6 @@ func handleCheck(args []string) {
 
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: checking %s\n", entryPath)
-	}
-	options := compiler.BuildOptions{
-		WarnRuntimeCasts: *warnRuntimeCasts,
-		StrictCasts:      *strictCasts,
 	}
 	if _, err := compiler.CompileWithOptions(entryPath, options); err != nil {
 		printCompilerWarnings()
@@ -533,22 +638,27 @@ Examples:
 
 func printCheckUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo check [flags] <entry.ts>
+  scriptgo check [flags] [<entry.ts> | <tsconfig.json> | <dir>]
+  scriptgo check [flags] -p <path>
   scriptgo check [flags] -e "<code string>"
 
 Description:
-  Type-checks and validates the reachable source graph and native subset
-  eligibility without invoking code generation or Clang.
+  Type-checks and validates the reachable source graph, tsconfig.json project,
+  and native subset eligibility without invoking code generation or Clang.
 
 Flags:
   -e <string>            Evaluate inline script string
+  -p, --project <path>   Path to tsconfig.json or project directory
   -v                     Verbose output (print check stages and confirmation)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
   -h, --help             Show this help message
 
 Examples:
+  scriptgo check
   scriptgo check app.ts
+  scriptgo check tsconfig.json
+  scriptgo check -p ./src
   scriptgo check -e "const x: number = 42; console.log(x);"
   scriptgo check -v src/main.ts`)
 }

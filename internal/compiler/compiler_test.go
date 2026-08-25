@@ -536,3 +536,23 @@ func TestResolveCC(t *testing.T) {
 		t.Fatalf("resolveCC(clang) with empty PATH error = %v, want missing-toolchain diagnostic", err)
 	}
 }
+
+func TestCheckProject(t *testing.T) {
+	dir := t.TempDir()
+	tsconfig := filepath.Join(dir, "tsconfig.json")
+	if err := os.WriteFile(tsconfig, []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srcFile := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(srcFile, []byte("const x: number = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diags, err := CheckProject(tsconfig, BuildOptions{})
+	if err != nil {
+		t.Fatalf("CheckProject failed: %v", err)
+	}
+	if len(diags) > 0 {
+		t.Fatalf("CheckProject returned unexpected diagnostics: %+v", diags)
+	}
+}

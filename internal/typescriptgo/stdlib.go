@@ -1,5 +1,3 @@
-//go:generate go run ./cmd/gendts
-
 package typescriptgo
 
 import (
@@ -149,9 +147,9 @@ func LoadStdlibFromDir(dir string, version string) error {
 	return nil
 }
 
-// SeedVersionDeclarations writes ONLY the .d.ts declaration files for a version
+// SeedVersionDeclarations writes the standard library definition files for a version
 // to the target directory (e.g. ~/.scriptgo/versions/<version>/ or custom target)
-// for IDE IntelliSense support. It never writes implementation .ts files.
+// for IDE IntelliSense support.
 func SeedVersionDeclarations(version string, targetDir string) error {
 	if version == "" {
 		version = DefaultVersion
@@ -175,17 +173,13 @@ func SeedVersionDeclarations(version string, targetDir string) error {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		// Strictly only export .d.ts declaration files
-		if !strings.HasSuffix(name, ".d.ts") {
-			continue
-		}
 		content, err := embeddedStdlibFS.ReadFile(filepath.Join("stdlib", name))
 		if err != nil {
-			return fmt.Errorf("read embedded declaration %s: %w", name, err)
+			return fmt.Errorf("read embedded file %s: %w", name, err)
 		}
 		dstPath := filepath.Join(targetDir, name)
 		if err := os.WriteFile(dstPath, content, 0o644); err != nil {
-			return fmt.Errorf("write declaration %s: %w", dstPath, err)
+			return fmt.Errorf("write file %s: %w", dstPath, err)
 		}
 	}
 

@@ -19,6 +19,7 @@ type BuildOptions struct {
 	FFIManifests     []string
 	LinkFlags        []string
 	ExtraSources     []string
+	TSConfig         string
 }
 
 func (options BuildOptions) normalized() BuildOptions {

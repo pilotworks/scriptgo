@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -96,7 +97,9 @@ func CompileModuleWithOptions(entryPath string, options BuildOptions) (ir.Module
 		return ir.Module{}, fmt.Errorf("read entry point %q: %w", entryPath, err)
 	}
 
-	program, err := frontend.NewProgram(entryPath, string(source))
+	program, err := frontend.NewProgramWithOptions(entryPath, string(source), frontend.ProgramOptions{
+		ConfigPath: options.TSConfig,
+	})
 	if err != nil {
 		return ir.Module{}, err
 	}
@@ -108,6 +111,41 @@ func CompileModuleWithOptions(entryPath string, options BuildOptions) (ir.Module
 		return ir.Module{}, err
 	}
 	return module, nil
+}
+
+// CheckProject typechecks an entire tsconfig.json project and validates native subset rules for project files.
+func CheckProject(configPath string, options BuildOptions) ([]typescriptgo.Diagnostic, error) {
+	result, err := frontend.CheckProject(configPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Diagnostics) > 0 {
+		return result.Diagnostics, nil
+	}
+	for _, file := range result.Files {
+		if file.Builtin {
+			continue
+		}
+		prog := frontend.Program{
+			EntryPath:      file.FileName,
+			Source:         file.Source,
+			StatementCount: file.StatementCount,
+			Options:        result.Options,
+			Files:          result.Files,
+		}
+		if _, err := lowering.LowerWithOptions(prog, lowering.Options{
+			WarnRuntimeCasts: options.WarnRuntimeCasts,
+		}); err != nil {
+			return nil, err
+		}
+		if options.StrictCasts {
+			warns := lowering.GetWarnings()
+			if len(warns) > 0 {
+				return nil, fmt.Errorf("strict casts: %s: %s at offset %d: %s", warns[0].Code, warns[0].FileName, warns[0].Span.Start, warns[0].Message)
+			}
+		}
+	}
+	return nil, nil
 }
 
 // DumpIR returns the stable backend-independent IR artifact for an entry point.
