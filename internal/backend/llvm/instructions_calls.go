@@ -20,6 +20,16 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		return fmt.Errorf("unsupported console intrinsic %q for %s", instruction.Callee, valueType)
 	}
 	switch valueType {
+	case ir.TypeVoid:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		undefGlobal := e.stringsByValue["undefined"]
+		ptrUndef := fmt.Sprintf("print.undef.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [10 x i8], ptr %s, i64 0, i64 0\n", ptrUndef, undefGlobal))
+		name, _ := consoleRuntimeName(method, valueType)
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s)\n", status, name, ptrUndef))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	case ir.TypeNumber:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -705,8 +715,18 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			if slot, ok := e.varSlots[arg]; ok {
 				loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
 				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(typ), slot))
 				argVal = loaded
+			} else {
+				for _, g := range e.module.Globals {
+					if g.Name == arg {
+						loaded := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
+						e.loadCounter++
+						out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loaded, llvmType(typ), g.Name))
+						argVal = loaded
+						break
+					}
+				}
 			}
 			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
@@ -721,6 +741,12 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr @%s, ptr %s, ptr %%%s)\n", status, instruction.Callee, envPtr, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+	for _, g := range e.module.Globals {
+		if g.Name == instruction.Result {
+			out.WriteString(fmt.Sprintf("  store volatile ptr %%%s, ptr @%s\n", instruction.Result, g.Name))
+			break
+		}
+	}
 	return nil
 }
 
@@ -732,6 +758,17 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		e.loadCounter++
 		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
 		closureVar = loaded
+	} else {
+		for _, g := range e.module.Globals {
+			if g.Name == closureVar {
+				loadName := fmt.Sprintf("%s.gload.%d", closureVar, e.loadCounter)
+				e.loadCounter++
+				e.types[loadName] = g.Type
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(g.Type), g.Name))
+				closureVar = loadName
+				break
+			}
+		}
 	}
 	if e.types[closureVar] == ir.TypeUnknown || e.types[closureVar] == "any" || e.types[instruction.Callee] == ir.TypeUnknown || e.types[instruction.Callee] == "any" {
 		e.tempCounter++
@@ -747,6 +784,11 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, e.loadCounter)
 	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)
 	envCtx := fmt.Sprintf("%s.env_ctx.%d", instruction.Result, e.loadCounter)
+	closureIsNull := fmt.Sprintf("closure.is_null.%d", e.loadCounter)
+	nullBlock := fmt.Sprintf("closure.null.%d", e.loadCounter)
+	callBlock := fmt.Sprintf("closure.call.%d", e.loadCounter)
+	contBlock := fmt.Sprintf("closure.cont.%d", e.loadCounter)
+	callRes := fmt.Sprintf("%s.call_res.%d", instruction.Result, e.loadCounter)
 	e.loadCounter++
 
 	var callArgs []string
@@ -757,6 +799,13 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		goto prepareArgs
 	}
 
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", closureIsNull, closureVar))
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", closureIsNull, nullBlock, callBlock))
+
+	out.WriteString(fmt.Sprintf("%s:\n", nullBlock))
+	out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
+
+	out.WriteString(fmt.Sprintf("%s:\n", callBlock))
 	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 0\n", fnPtrSlot, closureVar))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", fnPtr, fnPtrSlot))
 	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds { ptr, ptr }, ptr %%%s, i32 0, i32 1\n", envSlot, closureVar))
@@ -804,9 +853,20 @@ prepareArgs:
 	}
 	if instruction.Type != ir.TypeVoid && instruction.Result != "" {
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", instruction.Result, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", callRes, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
+		out.WriteString(fmt.Sprintf("%s:\n", contBlock))
+		defaultVal := "null"
+		if instruction.Type == ir.TypeNumber {
+			defaultVal = "0.0"
+		} else if instruction.Type == ir.TypeBool {
+			defaultVal = "false"
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = phi %s [ %s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, retType, defaultVal, nullBlock, callRes, callBlock))
 	} else {
 		out.WriteString(fmt.Sprintf("  call void %s%s(%s)\n", fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
+		out.WriteString(fmt.Sprintf("%s:\n", contBlock))
 	}
 	return nil
 }

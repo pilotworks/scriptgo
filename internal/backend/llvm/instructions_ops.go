@@ -45,7 +45,11 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeVoid:
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
 	case ir.TypeUnknown:
-		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 0, 0\n", instruction.Result))
+		tag := 0
+		if instruction.Value == "null" {
+			tag = 5
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", instruction.Result, tag))
 	default:
 		if llvmType(instruction.Type) == "ptr" {
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
@@ -59,30 +63,75 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instruction) error {
 	leftType, ok := e.types[instruction.Args[0]]
 	if !ok {
+		for _, g := range e.module.Globals {
+			if g.Name == instruction.Args[0] {
+				leftType = g.Type
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok {
 		return fmt.Errorf("unknown binary value %q", instruction.Args[0])
 	}
 	rightType, ok := e.types[instruction.Args[1]]
 	if !ok {
+		for _, g := range e.module.Globals {
+			if g.Name == instruction.Args[1] {
+				rightType = g.Type
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok {
 		return fmt.Errorf("unknown binary value %q", instruction.Args[1])
 	}
-	arg0 := instruction.Args[0]
-	if slot, ok := e.varSlots[arg0]; ok {
-		loaded := fmt.Sprintf("%s.bin.loaded.%d", arg0, e.loadCounter)
+	_ = rightType
+	arg0 := e.resolveArg(out, instruction.Args[0])
+	arg1 := e.resolveArg(out, instruction.Args[1])
+	if instruction.Type == ir.TypeNumber && leftType == ir.TypeUnknown {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		numVar := fmt.Sprintf("num.%d", e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(leftType), slot))
-		arg0 = loaded
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar))
+		arg0 = numVar
+		leftType = ir.TypeNumber
 	}
-	arg1 := instruction.Args[1]
-	if slot, ok := e.varSlots[arg1]; ok {
-		loaded := fmt.Sprintf("%s.bin.loaded.%d", arg1, e.loadCounter)
+	if instruction.Type == ir.TypeNumber && rightType == ir.TypeUnknown {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		numVar := fmt.Sprintf("num.%d", e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(rightType), slot))
-		arg1 = loaded
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar))
+		arg1 = numVar
+		rightType = ir.TypeNumber
+	}
+	if instruction.Type == ir.TypeString && leftType == ir.TypeUnknown {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		strVar := fmt.Sprintf("str.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", strVar, payloadVar))
+		arg0 = strVar
+		leftType = ir.TypeString
+	}
+	if instruction.Type == ir.TypeString && rightType == ir.TypeUnknown {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		strVar := fmt.Sprintf("str.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", strVar, payloadVar))
+		arg1 = strVar
+		rightType = ir.TypeString
 	}
 	if leftType == ir.TypeString && instruction.Operator == "+" {
 		e.types[instruction.Result] = ir.TypeString
-		slot := instruction.Result + ".slot"
-		status := instruction.Result + ".status"
+		id := e.loadCounter
+		e.loadCounter++
+		slot := fmt.Sprintf("concat.slot.%d", id)
+		status := fmt.Sprintf("concat.status.%d", id)
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, arg0, arg1, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
@@ -174,23 +223,87 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 
 func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instruction) error {
 	leftType, ok := e.types[instruction.Args[0]]
-	rightType := e.types[instruction.Args[1]]
+	if !ok {
+		for _, g := range e.module.Globals {
+			if g.Name == instruction.Args[0] {
+				leftType = g.Type
+				ok = true
+				break
+			}
+		}
+	}
+	rightType, okR := e.types[instruction.Args[1]]
+	if !okR {
+		for _, g := range e.module.Globals {
+			if g.Name == instruction.Args[1] {
+				rightType = g.Type
+				okR = true
+				break
+			}
+		}
+	}
+	arg0 := e.resolveArg(out, instruction.Args[0])
+	arg1 := e.resolveArg(out, instruction.Args[1])
+	if leftType == ir.TypeUnknown && rightType != ir.TypeUnknown {
+		if rightType == ir.TypeVoid {
+			b0 := fmt.Sprintf("box.b0.%d", e.loadCounter)
+			b1 := fmt.Sprintf("box.b1.%d", e.loadCounter)
+			b2 := fmt.Sprintf("box.b2.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 0, 0\n", b0))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", b1, b0))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 0, 2\n", b2, b1))
+			arg1 = b2
+			rightType = ir.TypeUnknown
+		} else if strings.HasPrefix(string(rightType), "object:") || rightType == ir.TypeObject || llvmType(rightType) == "ptr" || rightType == ir.TypePointer {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+			arg0 = ptrVar
+			leftType = "ptr"
+		}
+	}
+	if rightType == ir.TypeUnknown && leftType != ir.TypeUnknown {
+		if leftType == ir.TypeVoid {
+			b0 := fmt.Sprintf("box.b0.%d", e.loadCounter)
+			b1 := fmt.Sprintf("box.b1.%d", e.loadCounter)
+			b2 := fmt.Sprintf("box.b2.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 0, 0\n", b0))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", b1, b0))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 0, 2\n", b2, b1))
+			arg0 = b2
+			leftType = ir.TypeUnknown
+		} else if strings.HasPrefix(string(leftType), "object:") || leftType == ir.TypeObject || llvmType(leftType) == "ptr" || leftType == ir.TypePointer {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+			arg1 = ptrVar
+			rightType = "ptr"
+		}
+	}
+	if instruction.Operator == "==" || instruction.Operator == "===" || instruction.Operator == "!=" || instruction.Operator == "!==" {
+		if leftType == ir.TypeNumber && (strings.HasPrefix(string(rightType), "object:") || rightType == ir.TypeObject || llvmType(rightType) == "ptr") {
+			ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", ptrVar))
+			arg0 = ptrVar
+			leftType = "ptr"
+		}
+		if rightType == ir.TypeNumber && (strings.HasPrefix(string(leftType), "object:") || leftType == ir.TypeObject || llvmType(leftType) == "ptr") {
+			ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", ptrVar))
+			arg1 = ptrVar
+			rightType = "ptr"
+		}
+	}
 	if !ok || (rightType != leftType && !((strings.HasPrefix(string(leftType), "object:") || leftType == ir.TypeObject || llvmType(leftType) == "ptr") && (strings.HasPrefix(string(rightType), "object:") || rightType == ir.TypeObject || llvmType(rightType) == "ptr"))) {
 		return fmt.Errorf("unknown or mismatched compare operands (left=%s, right=%s)", leftType, rightType)
-	}
-	arg0 := instruction.Args[0]
-	if slot, ok := e.varSlots[arg0]; ok {
-		loaded := fmt.Sprintf("%s.cmp.loaded.%d", arg0, e.loadCounter)
-		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(leftType), slot))
-		arg0 = loaded
-	}
-	arg1 := instruction.Args[1]
-	if slot, ok := e.varSlots[arg1]; ok {
-		loaded := fmt.Sprintf("%s.cmp.loaded.%d", arg1, e.loadCounter)
-		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(rightType), slot))
-		arg1 = loaded
 	}
 	if leftType == ir.TypeUnknown {
 		tag0 := fmt.Sprintf("%s.tag0.%d", instruction.Result, e.loadCounter)
@@ -291,11 +404,30 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 }
 
 func (e *functionEmitter) emitSelect(out *strings.Builder, instruction ir.Instruction) error {
-	if e.types[instruction.Args[0]] != ir.TypeBool || llvmType(e.types[instruction.Args[1]]) != llvmType(e.types[instruction.Args[2]]) {
-		return fmt.Errorf("select operands have incompatible types")
-	}
 	e.types[instruction.Result] = instruction.Type
-	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n", instruction.Result, instruction.Args[0], llvmType(instruction.Type), instruction.Args[1], llvmType(instruction.Type), instruction.Args[2]))
+	lt := llvmType(instruction.Type)
+	if lt == "" {
+		lt = "ptr"
+	}
+	arg1 := instruction.Args[1]
+	if e.types[arg1] == ir.TypeUnknown && lt == "ptr" {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+		arg1 = ptrVar
+	}
+	arg2 := instruction.Args[2]
+	if e.types[arg2] == ir.TypeUnknown && lt == "ptr" {
+		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg2))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+		arg2 = ptrVar
+	}
+	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n", instruction.Result, instruction.Args[0], lt, arg1, lt, arg2))
 	return nil
 }
 
@@ -365,7 +497,7 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 	if slot, ok := e.varSlots[arg]; ok {
 		loaded := fmt.Sprintf("%s.box_load.%d", arg, e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
 		argVal = loaded
 	}
 
@@ -387,7 +519,7 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.cast_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load volatile ptr, ptr %%%s\n", loaded, slot))
 			argVal = loaded
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, argVal))

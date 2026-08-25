@@ -106,6 +106,94 @@ const char *__scriptgo_typeof_unknown(unsigned int tag) {
     }
 }
 
+int scriptgo_string_from_number(double value, char **out_value);
+int scriptgo_string_from_bigint(long long value, char **out_str);
+int scriptgo_string_from_object(void *obj, char **out_str);
+
+int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigned long long payload, char **out_str) {
+    (void)padding;
+    if (out_str == NULL) {
+        return -1;
+    }
+    switch (tag) {
+    case SCRIPTGO_TAG_UNDEFINED:
+        *out_str = strdup("undefined");
+        return 0;
+    case SCRIPTGO_TAG_NULL:
+        if (payload == 0) {
+            *out_str = strdup("null");
+        } else {
+            *out_str = (char *)(uintptr_t)payload;
+        }
+        return 0;
+    case SCRIPTGO_TAG_BOOLEAN: {
+        int b = (int)payload;
+        *out_str = strdup(b ? "true" : "false");
+        return 0;
+    }
+    case SCRIPTGO_TAG_NUMBER: {
+        union {
+            unsigned long long u64;
+            double d;
+        } u;
+        u.u64 = payload;
+        return scriptgo_string_from_number(u.d, out_str);
+    }
+    case SCRIPTGO_TAG_STRING:
+        *out_str = (char *)(uintptr_t)payload;
+        return 0;
+    case SCRIPTGO_TAG_BIGINT:
+        return scriptgo_string_from_bigint((long long)payload, out_str);
+    default:
+        if (payload == 0) {
+            *out_str = strdup("null");
+            return 0;
+        }
+        return scriptgo_string_from_object((void *)(uintptr_t)payload, out_str);
+    }
+}
+
+#define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+
+typedef struct {
+    uint64_t magic;
+    int64_t field_count;
+    const char *type_name;
+    uintptr_t fields[];
+} scriptgo_object_t;
+
+int scriptgo_string_from_object(void *obj, char **out_str) {
+    if (out_str == NULL) {
+        return -1;
+    }
+    if (obj == NULL) {
+        *out_str = strdup("null");
+        return 0;
+    }
+    if ((uintptr_t)obj > 0x00007FFFFFFFFFFFULL) {
+        union {
+            unsigned long long u64;
+            double d;
+        } u;
+        u.u64 = (uintptr_t)obj;
+        return scriptgo_string_from_number(u.d, out_str);
+    }
+    scriptgo_object_t *o = (scriptgo_object_t *)obj;
+    if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
+        if (o->field_count > 0) {
+            uintptr_t f0 = o->fields[0];
+            if (f0 != 0x7FF8000000000000ULL && f0 > 0x1000 && f0 <= 0x00007FFFFFFFFFFFULL) {
+                *out_str = strdup((char *)f0);
+                return 0;
+            }
+        }
+        *out_str = strdup("[object Object]");
+        return 0;
+    }
+    *out_str = (char *)obj;
+    return 0;
+}
+
 typedef struct scriptgo_exception_frame {
     jmp_buf buf;
     const char *thrown_string;
@@ -186,7 +274,7 @@ void scriptgo_throw_bool(int val) {
 }
 
 const char *scriptgo_exception_get_string(scriptgo_exception_frame_t *frame) {
-    return frame->thrown_string ? frame->thrown_string : "";
+    return (frame && frame->thrown_string) ? frame->thrown_string : "";
 }
 
 double scriptgo_exception_get_number(scriptgo_exception_frame_t *frame) {

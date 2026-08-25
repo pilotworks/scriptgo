@@ -27,17 +27,23 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		}
 		typ := toIRType(pType)
 		if parameter.Rest {
-			if pType == "number[]" {
-				typ = ir.TypeNumberArray
-			} else {
-				typ = ir.TypeStringArray
+			if typ == "" || typ == ir.TypeUnknown {
+				if pType == "number[]" {
+					typ = ir.TypeNumberArray
+				} else {
+					typ = ir.TypeStringArray
+				}
 			}
 		}
 		if typ == "" {
 			return ir.Function{}, fmt.Errorf("parameter %q has unsupported type %q", parameter.Name, parameter.Type)
 		}
 		function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-		env[parameter.Name] = typ
+		if typ == ir.TypeObject && pType != "" && pType != "object" {
+			env[parameter.Name] = ir.Type("object:" + pType)
+		} else {
+			env[parameter.Name] = typ
+		}
 		fnSig := parameter.Type
 		if fnSig == "" || fnSig == "closure" {
 			fnSig = parameter.InferredType
@@ -219,6 +225,18 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				statement.Expression.InferredType = statement.Type
 			}
 		}
+		if statement.Expression != nil && (statement.Expression.Kind == "function" || statement.Expression.Function != nil || strings.Contains(statement.Type, "=>") || strings.Contains(statement.InferredType, "=>")) {
+			env[statement.Name] = ir.TypeClosure
+			fnSig := statement.Type
+			if fnSig == "" || fnSig == "closure" {
+				fnSig = statement.InferredType
+			}
+			if strings.Contains(fnSig, "=>") {
+				parts := strings.Split(fnSig, "=>")
+				retStr := strings.TrimSpace(parts[len(parts)-1])
+				env[statement.Name+".retType"] = toIRType(retStr)
+			}
+		}
 		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -227,8 +245,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return fmt.Errorf("variable %q produced unnamed value %q", statement.Name, value)
 		}
 		if statement.Type != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
-			if declared := toIRType(statement.Type); declared != "" {
-				typ = declared
+			if !strings.Contains(statement.Type, "|") {
+				if declared := toIRType(statement.Type); declared != "" {
+					typ = declared
+				}
 			}
 		} else if statement.InferredType != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
 			if inferred := toIRType(statement.InferredType); inferred != "" {
@@ -337,7 +357,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			value = boxed
 			typ = ir.TypeUnknown
 		}
-		if strings.HasPrefix(string(function.ReturnType), "object:") && !strings.Contains(string(function.ReturnType), "{") && strings.HasPrefix(string(typ), "object:") {
+		if strings.HasPrefix(string(function.ReturnType), "object:Promise") && !strings.HasPrefix(string(typ), "object:Promise") {
+			prom := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   function.ReturnType,
+				Result: prom,
+				Callee: "__async.promise_resolve",
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			value = prom
+			typ = function.ReturnType
+		} else if strings.HasPrefix(string(function.ReturnType), "object:") && !strings.Contains(string(function.ReturnType), "{") && strings.HasPrefix(string(typ), "object:") {
 			typ = function.ReturnType
 		} else if function.ReturnType == "ptr" && (typ == ir.TypeString || isPointerLikeType(typ)) {
 			typ = "ptr"
@@ -357,7 +389,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
 			return err
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+		if typ == ir.TypeVoid || value == "" {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+		} else {
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+		}
 	case "block":
 		for _, s := range statement.Body {
 			if err := lowerStatement(path, s, function, env, counter, shapes, signatures); err != nil {
@@ -381,7 +417,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "assign":
 		varType, ok := env[statement.Name]
 		if !ok {
-			return fmt.Errorf("assignment to unknown variable %q", statement.Name)
+			if topVar, isTop := topLevelVars[statement.Name]; isTop {
+				vType := topVar.Type
+				if vType == "" && topVar.InferredType != "" {
+					vType = topVar.InferredType
+				}
+				varType = toIRType(vType)
+				if varType == "" {
+					varType = ir.TypeNumber
+				}
+				env[statement.Name] = varType
+			} else {
+				return fmt.Errorf("assignment to unknown variable %q", statement.Name)
+			}
 		}
 		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && varType != ir.TypeString && varType != ir.TypeUnknown {
 			defaultVal := "0"
@@ -711,24 +759,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "class":
 		return nil
 	case "throw":
-		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
-		}
-		if strings.HasPrefix(string(valType), "object:Error") || valType == "object:TypeError" || valType == "object:RangeError" || valType == "object:SyntaxError" {
-			msgVal := nextTemp(counter)
-			className := strings.TrimPrefix(string(valType), "object:")
-			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpFieldGet,
-				Type:       ir.TypeString,
-				Result:     msgVal,
-				Callee:     className,
-				Field:      "message",
-				FieldIndex: 0,
-				Args:       []string{val},
-				Span:       toIRSpan(path, statement.Span),
-			})
-			val = msgVal
 		}
 		if err := lowerActiveThrowFinally(path, function, env, counter, shapes, signatures); err != nil {
 			return err

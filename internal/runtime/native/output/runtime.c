@@ -100,6 +100,17 @@ static int scriptgo_console_symbol(FILE *stream, void *value) {
     return res;
 }
 
+int scriptgo_string_from_object(void *obj, char **out_str);
+
+static int scriptgo_console_object(FILE *stream, void *value) {
+    char *str = NULL;
+    int err = scriptgo_string_from_object(value, &str);
+    if (err != 0 || str == NULL) {
+        return scriptgo_console_string(stream, "[object Object]");
+    }
+    return scriptgo_console_string(stream, str);
+}
+
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \
     int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
     int scriptgo_console_##name##_bigint(long long value) { return scriptgo_console_bigint(stream, value); } \
@@ -107,7 +118,7 @@ static int scriptgo_console_symbol(FILE *stream, void *value) {
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
     int scriptgo_console_##name##_unknown(unsigned int tag, unsigned int flags, unsigned long long payload) { return scriptgo_console_unknown(stream, tag, flags, payload); } \
-    int scriptgo_console_##name##_object(void *value) { return scriptgo_console_string(stream, "[object Object]"); }
+    int scriptgo_console_##name##_object(void *value) { return scriptgo_console_object(stream, value); }
 
 SCRIPTGO_CONSOLE_METHOD(log, stdout)
 SCRIPTGO_CONSOLE_METHOD(info, stdout)

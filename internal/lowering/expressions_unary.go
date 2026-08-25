@@ -17,6 +17,19 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 	if err != nil {
 		return "", "", err
 	}
+	if expression.Operator == "void" {
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   ir.TypeVoid,
+			Result: result,
+			Value:  "undefined",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeVoid, nil
+	}
 	if expression.Operator == "!" {
 		boolVal, err := coerceToBool(path, value, valType, function, counter, expression.Span)
 		if err != nil {
@@ -522,36 +535,59 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 	}
 
 	// 2. Object shape / Class check: "prop" in obj
+	if rightType == ir.TypeObject || rightType == ir.TypeUnknown {
+		if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
+			fieldName := strings.Trim(expression.Left.Text, "\"'`")
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpInstanceOf,
+				Type:   ir.TypeBool,
+				Result: result,
+				Value:  fieldName,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+	}
 	if after, ok := strings.CutPrefix(string(rightType), "object:"); ok {
 		className := after
 		shape, ok := shapes[className]
 		if !ok {
+			if s, exists := anonymousShapes[className]; exists {
+				shape = s
+				ok = true
+			} else if s, exists := registeredShapes[className]; exists {
+				shape = s
+				ok = true
+			}
+		}
+		if !ok {
+			if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
+				fieldName := strings.Trim(expression.Left.Text, "\"'`")
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpInstanceOf,
+					Type:   ir.TypeBool,
+					Result: result,
+					Value:  fieldName,
+					Args:   []string{rightVal},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeBool, nil
+			}
 			return "", "", fmt.Errorf("unknown object shape %q for \"in\" operator", className)
 		}
 
 		// Static string literal check
-		if expression.Left != nil && expression.Left.Kind == "string" {
-			fieldName := expression.Left.Text
-			hasField := false
-			for _, f := range shape.Fields {
-				if f.Name == fieldName {
-					hasField = true
-					break
-				}
-			}
-			if !hasField {
-				if _, _, ok := findGetterInHierarchy(className, fieldName, signatures, classHierarchy); ok {
-					hasField = true
-				} else if _, _, ok := findMethodInHierarchy(className, fieldName, signatures, classHierarchy); ok {
-					hasField = true
-				}
-			}
-
-			valStr := "false"
-			if hasField {
-				valStr = "true"
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: result, Value: valStr, Span: toIRSpan(path, expression.Span)})
+		if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
+			fieldName := strings.Trim(expression.Left.Text, "\"'`")
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpInstanceOf,
+				Type:   ir.TypeBool,
+				Result: result,
+				Value:  fieldName,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
 			return result, ir.TypeBool, nil
 		}
 

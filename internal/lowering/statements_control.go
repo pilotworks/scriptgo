@@ -55,11 +55,78 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 	if err != nil {
 		return fmt.Errorf("if condition: %w", err)
 	}
-	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, env, counter, shapes, signatures)
+	thenEnv := make(map[string]ir.Type, len(env))
+	maps.Copy(thenEnv, env)
+	elseEnv := make(map[string]ir.Type, len(env))
+	maps.Copy(elseEnv, env)
+
+	if statement.Expression != nil && statement.Expression.Kind == "binary" && statement.Expression.Operator == "in" && statement.Expression.Left != nil && (statement.Expression.Left.Kind == "string" || statement.Expression.Left.Kind == "literal") && statement.Expression.Right != nil && statement.Expression.Right.Kind == "identifier" {
+		varName := statement.Expression.Right.Text
+		propName := strings.Trim(statement.Expression.Left.Text, "\"'`")
+		for typeName, typeDef := range typeAliasesIndex {
+			if fields, ok := anonymousObjectFields(typeDef, nil); ok {
+				hasProp := false
+				for _, f := range fields {
+					if f.Name == propName {
+						hasProp = true
+						break
+					}
+				}
+				if hasProp {
+					thenEnv[varName] = toIRType(typeName)
+				} else {
+					elseEnv[varName] = toIRType(typeName)
+				}
+			}
+		}
+	} else if statement.Expression != nil && statement.Expression.Kind == "binary" && statement.Expression.Operator == "instanceof" && statement.Expression.Left != nil && statement.Expression.Left.Kind == "identifier" && statement.Expression.Right != nil && (statement.Expression.Right.Kind == "identifier" || statement.Expression.Right.Kind == "type") {
+		varName := statement.Expression.Left.Text
+		className := statement.Expression.Right.Text
+		thenEnv[varName] = toIRType(className)
+		if currType, ok := env[varName]; ok {
+			cleanCurr := strings.TrimPrefix(string(currType), "object:")
+			if strings.Contains(cleanCurr, "|") {
+				var remaining []string
+				for _, part := range strings.Split(cleanCurr, "|") {
+					trimmed := strings.TrimSpace(part)
+					if trimmed != className && trimmed != "object:"+className {
+						remaining = append(remaining, trimmed)
+					}
+				}
+				if len(remaining) > 0 {
+					elseEnv[varName] = toIRType(strings.Join(remaining, " | "))
+				}
+			}
+		}
+	} else if statement.Expression != nil && statement.Expression.Kind == "binary" && (statement.Expression.Operator == "===" || statement.Expression.Operator == "==") {
+		left := statement.Expression.Left
+		right := statement.Expression.Right
+		var propAccess *typescriptgo.SyntaxExpression
+		var literalVal *typescriptgo.SyntaxExpression
+		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {
+			propAccess = left
+			literalVal = right
+		} else if right != nil && (right.Kind == "property" || right.Kind == "member") && left != nil && (left.Kind == "string" || left.Kind == "literal") {
+			propAccess = right
+			literalVal = left
+		}
+		if propAccess != nil && propAccess.Left != nil && propAccess.Left.Kind == "identifier" && literalVal != nil {
+			varName := propAccess.Left.Text
+			valStr := literalVal.Text
+			if currType, ok := env[varName]; ok {
+				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
+				if matched != "" {
+					thenEnv[varName] = ir.Type("object:" + matched)
+				}
+			}
+		}
+	}
+
+	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, thenEnv, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
-	elseBody, err := lowerBranch(path, statement.Else, function.ReturnType, env, counter, shapes, signatures)
+	elseBody, err := lowerBranch(path, statement.Else, function.ReturnType, elseEnv, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
@@ -263,6 +330,48 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 		return nil
 	}
 
+	if shapeName, ok := strings.CutPrefix(string(arrType), "object:"); ok {
+		var s ir.ObjectShape
+		var found bool
+		if s, found = shapes[shapeName]; !found {
+			s, found = anonymousShapes[shapeName]
+		}
+		if found && len(s.Fields) > 0 {
+			isTuple := true
+			for i, f := range s.Fields {
+				if f.Name != strconv.Itoa(i) {
+					isTuple = false
+					break
+				}
+			}
+			if isTuple {
+				for i, f := range s.Fields {
+					function.Body = append(function.Body, ir.Instruction{
+						Op:         ir.OpFieldGet,
+						Type:       f.Type,
+						Result:     statement.Name,
+						Callee:     shapeName,
+						Field:      f.Name,
+						FieldIndex: i,
+						Args:       []string{arrVal},
+						Span:       toIRSpan(path, statement.Span),
+					})
+					iterEnv := make(map[string]ir.Type, len(env)+1)
+					for k, v := range env {
+						iterEnv[k] = v
+					}
+					iterEnv[statement.Name] = f.Type
+					for _, bodyStmt := range statement.Body {
+						if err := lowerStatement(path, bodyStmt, function, iterEnv, counter, shapes, signatures); err != nil {
+							return err
+						}
+					}
+				}
+				return nil
+			}
+		}
+	}
+
 	isString := (arrType == ir.TypeString)
 	var elemType ir.Type
 	if isString {
@@ -458,6 +567,39 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 		shapeName := after
 		shape, ok := shapes[shapeName]
 		if !ok {
+			if s, exists := anonymousShapes[shapeName]; exists {
+				shape = s
+				ok = true
+			} else if s, exists := registeredShapes[shapeName]; exists {
+				shape = s
+				ok = true
+			} else if aliased, exists := typeAliasesIndex[shapeName]; exists && aliased != shapeName {
+				cleanAliased := strings.TrimPrefix(aliased, "object:")
+				if s, exists2 := shapes[cleanAliased]; exists2 {
+					shape = s
+					ok = true
+				} else if s, exists2 := anonymousShapes[cleanAliased]; exists2 {
+					shape = s
+					ok = true
+				} else if s, exists2 := registeredShapes[cleanAliased]; exists2 {
+					shape = s
+					ok = true
+				}
+			}
+		}
+		if !ok {
+			if statement.Expression != nil && statement.Expression.Kind == "identifier" {
+				if topVar, exists := topLevelVars[statement.Expression.Text]; exists && topVar.Expression != nil && topVar.Expression.Kind == "object_literal" {
+					var fields []ir.Field
+					for _, prop := range topVar.Expression.Arguments {
+						fields = append(fields, ir.Field{Name: prop.Text, Type: toIRType(prop.InferredType)})
+					}
+					shape = ir.ObjectShape{Name: shapeName, Fields: fields}
+					ok = true
+				}
+			}
+		}
+		if !ok {
 			return fmt.Errorf("unknown shape %q for for...in", shapeName)
 		}
 		for _, f := range shape.Fields {
@@ -472,7 +614,8 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 				Span:   toIRSpan(path, statement.Span),
 			})
 			for _, bodyStmt := range statement.Body {
-				if err := lowerStatement(path, bodyStmt, function, fieldEnv, counter, shapes, signatures); err != nil {
+				substStmt := substituteStringIndexInStmt(bodyStmt, statement.Name, f.Name)
+				if err := lowerStatement(path, substStmt, function, fieldEnv, counter, shapes, signatures); err != nil {
 					return err
 				}
 			}
@@ -480,6 +623,49 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 		return nil
 	}
 	return fmt.Errorf("for...in requires object or array, got %s", objType)
+}
+
+func substituteStringIndex(expr *typescriptgo.SyntaxExpression, varName string, stringVal string) *typescriptgo.SyntaxExpression {
+	if expr == nil {
+		return nil
+	}
+	copy := *expr
+	if (copy.Kind == "index" || copy.Kind == "optional_index") && copy.Right != nil && copy.Right.Kind == "identifier" && copy.Right.Text == varName {
+		copy.Right = &typescriptgo.SyntaxExpression{
+			Span: copy.Right.Span,
+			Kind: "string",
+			Text: stringVal,
+		}
+	}
+	if copy.Left != nil {
+		copy.Left = substituteStringIndex(copy.Left, varName, stringVal)
+	}
+	if copy.Right != nil {
+		copy.Right = substituteStringIndex(copy.Right, varName, stringVal)
+	}
+	if len(copy.Arguments) > 0 {
+		newArgs := make([]*typescriptgo.SyntaxExpression, len(copy.Arguments))
+		for i, a := range copy.Arguments {
+			newArgs[i] = substituteStringIndex(a, varName, stringVal)
+		}
+		copy.Arguments = newArgs
+	}
+	return &copy
+}
+
+func substituteStringIndexInStmt(stmt typescriptgo.SyntaxStatement, varName string, stringVal string) typescriptgo.SyntaxStatement {
+	copy := stmt
+	if copy.Expression != nil {
+		copy.Expression = substituteStringIndex(copy.Expression, varName, stringVal)
+	}
+	if len(copy.Body) > 0 {
+		newBody := make([]typescriptgo.SyntaxStatement, len(copy.Body))
+		for i, s := range copy.Body {
+			newBody[i] = substituteStringIndexInStmt(s, varName, stringVal)
+		}
+		copy.Body = newBody
+	}
+	return copy
 }
 
 func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
@@ -574,7 +760,20 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 			Span:   toIRSpan(path, c.Span),
 		})
 
-		caseStmts, err := lowerBranch(path, c.Statements, function.ReturnType, switchEnv, counter, shapes, signatures)
+		caseEnv := make(map[string]ir.Type, len(switchEnv))
+		maps.Copy(caseEnv, switchEnv)
+		if statement.Expression != nil && (statement.Expression.Kind == "property" || statement.Expression.Kind == "member") && statement.Expression.Left != nil && statement.Expression.Left.Kind == "identifier" && c.Expression != nil && (c.Expression.Kind == "string" || c.Expression.Kind == "literal") {
+			varName := statement.Expression.Left.Text
+			valStr := c.Expression.Text
+			if currType, ok := switchEnv[varName]; ok {
+				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
+				if matched != "" {
+					caseEnv[varName] = ir.Type("object:" + matched)
+				}
+			}
+		}
+
+		caseStmts, err := lowerBranch(path, c.Statements, function.ReturnType, caseEnv, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
@@ -640,7 +839,7 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 		catchEnv := make(map[string]ir.Type, len(env)+1)
 		maps.Copy(catchEnv, env)
 		if statement.CatchVar != "" {
-			catchEnv[statement.CatchVar] = ir.TypeString
+			catchEnv[statement.CatchVar] = ir.Type("object:Error")
 		}
 		catchBranch := ir.Function{Name: "catch", ReturnType: function.ReturnType}
 		for _, catchStmt := range statement.Catch {
@@ -669,3 +868,41 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 	})
 	return nil
 }
+
+func findMatchingDiscriminatedType(targetVal string, unionType string, shapes map[string]ir.ObjectShape) string {
+	cleanTarget := strings.ToLower(strings.Trim(targetVal, "\"'`"))
+	cleanUnion := strings.TrimPrefix(unionType, "object:")
+	if aliased, ok := typeAliasesIndex[cleanUnion]; ok {
+		cleanUnion = aliased
+	}
+	if strings.Contains(cleanUnion, "|") {
+		for _, typePart := range strings.Split(cleanUnion, "|") {
+			part := strings.TrimSpace(typePart)
+			part = strings.TrimPrefix(part, "object:")
+			if strings.Contains(strings.ToLower(part), cleanTarget) {
+				return part
+			}
+		}
+	}
+	for shapeName, s := range shapes {
+		for _, f := range s.Fields {
+			if strings.EqualFold(f.Name, "kind") || strings.EqualFold(f.Name, "type") || strings.EqualFold(f.Name, "tag") || strings.EqualFold(f.Name, "status") {
+				cleanVal := strings.ToLower(strings.Trim(f.Value, "\"'`"))
+				if cleanVal == cleanTarget {
+					if cleanUnion == "" || cleanUnion == "object" || strings.HasPrefix(cleanUnion, "__shape_") || strings.Contains(cleanUnion, shapeName) {
+						return shapeName
+					}
+				}
+			}
+		}
+	}
+	for shapeName := range shapes {
+		if strings.Contains(strings.ToLower(shapeName), cleanTarget) {
+			if (cleanUnion != "" && cleanUnion != "object" && strings.Contains(cleanUnion, shapeName)) {
+				return shapeName
+			}
+		}
+	}
+	return ""
+}
+

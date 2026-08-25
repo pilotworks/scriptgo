@@ -47,6 +47,7 @@ func lowerRegexLiteral(path string, expression *typescriptgo.SyntaxExpression, r
 		Op:         ir.OpObjectNew,
 		Type:       ir.Type("object:RegExp"),
 		Result:     res,
+		Value:      ":RegExp:",
 		FieldCount: 2,
 		Span:       toIRSpan(path, expression.Span),
 	})

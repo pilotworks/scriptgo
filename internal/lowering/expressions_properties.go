@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -440,6 +441,22 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			})
 			return result, ir.TypeNumber, nil
 		}
+		if strings.HasPrefix(string(objectType), "object:") {
+			shapeName := strings.TrimPrefix(string(objectType), "object:")
+			if s, ok := anonymousShapes[shapeName]; ok && len(s.Fields) > 0 && s.Fields[0].Name == "0" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeNumber,
+					Result: result,
+					Value:  strconv.Itoa(len(s.Fields)),
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeNumber, nil
+			}
+		}
 	}
 
 	className := strings.TrimPrefix(string(objectType), "object:")
@@ -476,9 +493,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	if className == "this" || className == "" {
+	if className == "this" || className == "" || className == "object" {
 		if expression.Left != nil && expression.Left.Text != "" {
-			if t, inEnv := env[expression.Left.Text]; inEnv && string(t) != "" && string(t) != "this" {
+			if varStmt, inTop := topLevelVars[expression.Left.Text]; inTop && varStmt.Type != "" {
+				className = varStmt.Type
+			} else if t, inEnv := env[expression.Left.Text]; inEnv && string(t) != "" && string(t) != "this" && string(t) != "object" {
 				className = strings.TrimPrefix(string(t), "object:")
 			}
 		}
@@ -498,7 +517,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			}
 		}
 	}
-	if className == "" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown {
+	isUnionAlias := false
+	if typeAliasesIndex != nil && typeAliasesIndex[className] != "" && strings.Contains(typeAliasesIndex[className], "|") {
+		isUnionAlias = true
+	}
+	if !isUnionAlias && (className == "" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
 		propNameConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
@@ -530,6 +553,12 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			shape = s
 			shapes[className] = s
 			ok = true
+		} else if aliased, hasAlias := typeAliasesIndex[className]; hasAlias {
+			if fields, ok2 := anonymousObjectFields(aliased, nil); ok2 {
+				shape = ir.ObjectShape{Name: className, Fields: fields}
+				shapes[className] = shape
+				ok = true
+			}
 		} else if fields, ok2 := anonymousObjectFields(className, nil); ok2 {
 			shape = ir.ObjectShape{Name: className, Fields: fields}
 			shapes[className] = shape
@@ -559,6 +588,27 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if !ok {
 			for name, s := range shapes {
 				if (strings.HasPrefix(name, className+"__") || strings.HasPrefix(name, className+"_")) && fieldIndex(s, expression.Text) >= 0 {
+					shape = s
+					ok = true
+					break
+				}
+			}
+		}
+	}
+	if !ok {
+		unionStr := className
+		if typeAliasesIndex != nil && typeAliasesIndex[className] != "" {
+			unionStr = typeAliasesIndex[className]
+		}
+		if strings.Contains(unionStr, "|") {
+			for _, m := range strings.Split(unionStr, "|") {
+				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
+				var s ir.ObjectShape
+				var okS bool
+				if s, okS = shapes[cleanM]; !okS {
+					s, okS = registeredShapes[cleanM]
+				}
+				if okS && fieldIndex(s, expression.Text) >= 0 {
 					shape = s
 					ok = true
 					break

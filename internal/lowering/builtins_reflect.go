@@ -584,6 +584,7 @@ func lowerReflectOwnKeys(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string
 	if result == "" {
 		result = nextTemp(call.Counter)
 	}
+	call.Env[result] = ir.TypeStringArray
 
 	if after, ok := strings.CutPrefix(string(targetType), "object:"); ok {
 		className := after

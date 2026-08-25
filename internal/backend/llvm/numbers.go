@@ -12,7 +12,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 	slot := instruction.Result + ".slot"
 	switch instruction.Callee {
 	case "__number.parseInt":
-		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
+		if len(instruction.Args) < 1 || len(instruction.Args) > 2 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("parseInt has invalid signature")
 		}
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
@@ -67,56 +67,101 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("toFixed has invalid signature")
 		}
+		numArg := instruction.Args[0]
+		if e.types[numArg] == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			numVar := fmt.Sprintf("num.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
+			numArg = numVar
+		}
 		digits := "0.0"
 		if len(instruction.Args) >= 2 {
 			digits = "%" + instruction.Args[1]
 		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_fixed(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], digits, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_fixed(double %%%s, double %s, ptr %%%s)\n", status, numArg, digits, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__number.toString":
 		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("toString has invalid signature")
 		}
+		numArg := instruction.Args[0]
+		if e.types[numArg] == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			numVar := fmt.Sprintf("num.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
+			numArg = numVar
+		}
 		radix := "10.0"
 		if len(instruction.Args) >= 2 {
 			radix = "%" + instruction.Args[1]
 		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_string(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], radix, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_string(double %%%s, double %s, ptr %%%s)\n", status, numArg, radix, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__number.toExponential":
 		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("toExponential has invalid signature")
 		}
+		numArg := instruction.Args[0]
+		if e.types[numArg] == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			numVar := fmt.Sprintf("num.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
+			numArg = numVar
+		}
 		fractionDigits := "0.0 / 0.0"
 		if len(instruction.Args) >= 2 {
 			fractionDigits = "%" + instruction.Args[1]
 		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_exponential(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], fractionDigits, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_exponential(double %%%s, double %s, ptr %%%s)\n", status, numArg, fractionDigits, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__number.toPrecision":
 		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("toPrecision has invalid signature")
 		}
+		numArg := instruction.Args[0]
+		if e.types[numArg] == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			numVar := fmt.Sprintf("num.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
+			numArg = numVar
+		}
 		precision := "0.0 / 0.0"
 		if len(instruction.Args) >= 2 {
 			precision = "%" + instruction.Args[1]
 		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_precision(double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], precision, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_precision(double %%%s, double %s, ptr %%%s)\n", status, numArg, precision, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__number.toLocaleString":
 		if len(instruction.Args) < 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("toLocaleString has invalid signature")
 		}
+		numArg := instruction.Args[0]
+		if e.types[numArg] == ir.TypeUnknown {
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			numVar := fmt.Sprintf("num.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
+			numArg = numVar
+		}
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_locale_string(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_to_locale_string(double %%%s, ptr %%%s)\n", status, numArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 	case "__number.new":

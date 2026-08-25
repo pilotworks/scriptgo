@@ -59,21 +59,29 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			IsGenerator:    isGen,
 			IsAsync:        isAsync,
 		}
-		for _, parameter := range node.Parameters() {
+		var bindingStmts []SyntaxStatement
+		for pIdx, parameter := range node.Parameters() {
 			pType := syntaxType(parameter.Type())
 			inferredPType := resolveInferredType(chk, parameter.Name())
 			if inferredPType == "" {
 				inferredPType = resolveInferredType(chk, parameter)
 			}
+			pName, binds := extractParameterBinding(parameter, pIdx, chk)
+			if len(binds) > 0 {
+				bindingStmts = append(bindingStmts, binds...)
+			}
 			result.Parameters = append(result.Parameters, SyntaxParameter{
 				Span:         parameterSpan(parameter),
-				Name:         parameter.Name().Text(),
+				Name:         pName,
 				Type:         pType,
 				InferredType: inferredPType,
 				Rest:         parameter.AsParameterDeclaration().DotDotDotToken != nil,
 				Optional:     parameter.AsParameterDeclaration().QuestionToken != nil,
 				Initializer:  syntaxExpression(parameter.Initializer(), chk),
 			})
+		}
+		if len(bindingStmts) > 0 {
+			result.Body = append(result.Body, bindingStmts...)
 		}
 		if body := node.Body(); body != nil {
 			for _, statement := range body.Statements() {
@@ -339,6 +347,25 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		return whileStmt, true
 	case ast.KindExpressionStatement:
+		innerNode := node.Expression()
+		if innerNode != nil && innerNode.Kind == ast.KindBinaryExpression {
+			bin := innerNode.AsBinaryExpression()
+			if bin != nil && bin.OperatorToken != nil && bin.OperatorToken.Kind == ast.KindEqualsToken {
+				leftNode := bin.Left
+				if leftNode != nil && (leftNode.Kind == ast.KindArrayLiteralExpression || leftNode.Kind == ast.KindObjectLiteralExpression) {
+					c := 0
+					stmts := flattenDestructuringAssignment(leftNode, syntaxExpression(bin.Right, chk), chk, &c)
+					if len(stmts) == 1 {
+						return stmts[0], true
+					}
+					return SyntaxStatement{
+						Span: span,
+						Kind: "block",
+						Body: stmts,
+					}, true
+				}
+			}
+		}
 		expr := syntaxExpression(node.Expression(), chk)
 		if expr != nil && expr.Kind == "binary" && isAssignmentOperator(expr.Operator) && expr.Left != nil {
 			valExpr, _ := desugarAssignment(expr)
@@ -378,6 +405,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			IsConst: ast.HasSyntacticModifier(node, ast.ModifierFlagsConst),
 		}
 		var currentNumericVal float64 = 0
+		enumVals := make(map[string]float64)
 		if enumDecl.Members != nil {
 			for _, memberNode := range enumDecl.Members.Nodes {
 				member := memberNode.AsEnumMember()
@@ -390,11 +418,13 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				}
 				if initExpr == nil {
 					m.Value = strconv.FormatFloat(currentNumericVal, 'f', -1, 64)
+					enumVals[memName] = currentNumericVal
 					currentNumericVal++
 				} else if initExpr.Kind == "string" {
 					m.Value = initExpr.Text
-				} else if v, ok := evalConstNumber(initExpr); ok {
+				} else if v, ok := evalConstNumberWithEnv(initExpr, enumVals); ok {
 					m.Value = strconv.FormatFloat(v, 'f', -1, 64)
+					enumVals[memName] = v
 					currentNumericVal = v + 1
 				}
 				enumObj.Members = append(enumObj.Members, m)
@@ -439,25 +469,28 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			for _, clause := range iface.HeritageClauses.Nodes {
 				hc := clause.AsHeritageClause()
 				if hc != nil && hc.Token == ast.KindExtendsKeyword && hc.Types != nil {
+					var extendsList []string
 					for _, t := range hc.Types.Nodes {
 						if t.Kind == ast.KindTypeReference {
-							extendsName = syntaxType(t)
+							extendsList = append(extendsList, syntaxType(t))
 						} else if t.Kind == ast.KindExpressionWithTypeArguments {
 							exprNode := t.AsExpressionWithTypeArguments()
 							if exprNode != nil && exprNode.Expression != nil {
-								extendsName = exprNode.Expression.Text()
+								extName := exprNode.Expression.Text()
 								if exprNode.TypeArguments != nil && len(exprNode.TypeArguments.Nodes) > 0 {
 									var typeArgs []string
 									for _, ta := range exprNode.TypeArguments.Nodes {
 										typeArgs = append(typeArgs, syntaxType(ta))
 									}
-									extendsName = exprNode.Expression.Text() + "<" + strings.Join(typeArgs, ", ") + ">"
+									extName = exprNode.Expression.Text() + "<" + strings.Join(typeArgs, ", ") + ">"
 								}
+								extendsList = append(extendsList, extName)
 							}
 						} else {
-							extendsName = syntaxType(t)
+							extendsList = append(extendsList, syntaxType(t))
 						}
 					}
+					extendsName = strings.Join(extendsList, ", ")
 				}
 			}
 		}

@@ -67,6 +67,16 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
 	case ast.KindParenthesizedExpression, ast.KindNonNullExpression:
 		return syntaxExpression(node.Expression(), chk)
+	case ast.KindVoidExpression:
+		voidExpr := node.AsVoidExpression()
+		inner := syntaxExpression(voidExpr.Expression, chk)
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "unary",
+			Operator:     "void",
+			Left:         inner,
+			InferredType: "undefined",
+		}
 	case ast.KindAsExpression:
 		asExpr := node.AsAsExpression()
 		targetType := syntaxType(asExpr.Type)

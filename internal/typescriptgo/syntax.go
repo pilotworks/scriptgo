@@ -141,6 +141,8 @@ func syntaxType(node *ast.Node) string {
 		return "unknown"
 	case ast.KindNeverKeyword:
 		return "never"
+	case ast.KindThisType, ast.KindThisKeyword:
+		return "this"
 	case ast.KindUnionType:
 		unionNode := node.AsUnionTypeNode()
 		if unionNode != nil && unionNode.Types != nil {
@@ -201,6 +203,25 @@ func syntaxType(node *ast.Node) string {
 			return "{" + strings.Join(members, "; ") + "}"
 		}
 		return "object"
+	case ast.KindIntersectionType:
+		interNode := node.AsIntersectionTypeNode()
+		if interNode != nil && interNode.Types != nil {
+			var types []string
+			for _, elem := range interNode.Types.Nodes {
+				types = append(types, syntaxType(elem))
+			}
+			return strings.Join(types, " & ")
+		}
+		return "object"
+	case ast.KindIndexedAccessType:
+		idxNode := node.AsIndexedAccessTypeNode()
+		if idxNode != nil && idxNode.ObjectType != nil && idxNode.IndexType != nil {
+			objT := syntaxType(idxNode.ObjectType)
+			idxT := syntaxType(idxNode.IndexType)
+			idxT = strings.Trim(idxT, "\"")
+			return objT + "[" + idxT + "]"
+		}
+		return "any"
 	case ast.KindArrayType:
 		array := node.AsArrayTypeNode()
 		return syntaxType(array.ElementType) + "[]"

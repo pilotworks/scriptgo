@@ -88,10 +88,12 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					typ := toIRType(pType)
 					if parameter.Rest {
 						restParamsIndex[function.Name] = true
-						if pType == "number[]" {
-							typ = ir.TypeNumberArray
-						} else {
-							typ = ir.TypeStringArray
+						if typ == "" || typ == ir.TypeUnknown {
+							if pType == "number[]" {
+								typ = ir.TypeNumberArray
+							} else {
+								typ = ir.TypeStringArray
+							}
 						}
 					}
 					if parameter.Initializer != nil {
@@ -199,6 +201,8 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							}
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
+						index[mangled] = function
+						index[statement.Class.Name+"."+method.Name] = function
 					} else if method.Kind == "get" {
 						mangled = statement.Class.Name + "_get_" + method.Name
 						function = ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
@@ -212,7 +216,11 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 						}
 					} else {
 						mangled = statement.Class.Name + "_" + method.Name
-						function = ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
+						retType := toIRType(method.Type)
+						if method.Type == "this" || retType == "this" || retType == "object:this" {
+							retType = ir.Type("object:" + statement.Class.Name)
+						}
+						function = ir.Function{Name: mangled, ReturnType: retType}
 						if function.ReturnType == "" {
 							function.ReturnType = ir.TypeVoid
 						}
@@ -229,6 +237,9 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
 								}
 								defaultParamsIndex[mangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+							}
+							if parameter.Rest {
+								restParamsIndex[mangled] = true
 							}
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}

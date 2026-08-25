@@ -29,8 +29,15 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	for _, file := range program.Files {
 		for _, stmt := range file.Syntax.Statements {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
-				if existing, exists := hierarchy[stmt.Class.Name]; exists && len(existing.Fields) > 0 && len(stmt.Class.Fields) == 0 {
-					continue
+				if existing, exists := hierarchy[stmt.Class.Name]; exists {
+					if stmt.Kind == "interface" {
+						existing.Fields = append(existing.Fields, stmt.Class.Fields...)
+						hierarchy[stmt.Class.Name] = existing
+						continue
+					}
+					if len(existing.Fields) > 0 && len(stmt.Class.Fields) == 0 {
+						continue
+					}
 				}
 				syntax[stmt.Class.Name] = *stmt.Class
 				meta := ClassMeta{
@@ -68,14 +75,18 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 	}
 	var inherited []typescriptgo.SyntaxMethod
 	if meta.Extends != "" {
-		inherited = getInheritedMethods(meta.Extends, hierarchy)
+		for _, rawBase := range strings.Split(meta.Extends, ",") {
+			base := strings.TrimSpace(rawBase)
+			if base == "" {
+				continue
+			}
+			inherited = append(inherited, getInheritedMethods(base, hierarchy)...)
+		}
 	}
 	methodMap := map[string]typescriptgo.SyntaxMethod{}
 	for _, m := range inherited {
-		if !m.IsStatic {
-			key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
-			methodMap[key] = m
-		}
+		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
+		methodMap[key] = m
 	}
 	for _, m := range stmtClass.Methods {
 		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
@@ -95,42 +106,67 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []type
 	}
 	var fields []typescriptgo.SyntaxField
 	if meta.Extends != "" {
-		if baseFields := getInheritedFields(meta.Extends, hierarchy); len(baseFields) > 0 {
-			fields = append(fields, baseFields...)
-		} else {
-			baseName := meta.Extends
-			var typeArgs []string
-			if strings.Contains(meta.Extends, "<") && strings.HasSuffix(meta.Extends, ">") {
-				idx := strings.Index(meta.Extends, "<")
-				baseName = meta.Extends[:idx]
-				inner := meta.Extends[idx+1 : len(meta.Extends)-1]
-				typeArgs = splitTypeArguments(inner)
-			} else if strings.Contains(meta.Extends, "__") {
-				idx := strings.Index(meta.Extends, "__")
-				baseName = meta.Extends[:idx]
-				typeArgs = strings.Split(meta.Extends[idx+2:], "_")
+		for _, rawBase := range strings.Split(meta.Extends, ",") {
+			base := strings.TrimSpace(rawBase)
+			if base == "" {
+				continue
 			}
-			baseFields = getInheritedFields(baseName, hierarchy)
-			if len(typeArgs) > 0 {
-				baseClass := classSyntax[baseName]
-				subst := map[string]string{}
-				for i, tp := range baseClass.TypeParameters {
-					if i < len(typeArgs) {
-						subst[tp] = typeArgs[i]
-					}
-				}
-				for _, bf := range baseFields {
-					f := bf
-					f.Type = substituteType(f.Type, subst)
-					f.InferredType = substituteType(f.InferredType, subst)
-					fields = append(fields, f)
-				}
-			} else {
+			if baseFields := getInheritedFields(base, hierarchy); len(baseFields) > 0 {
 				fields = append(fields, baseFields...)
+			} else {
+				baseName := base
+				var typeArgs []string
+				if strings.Contains(base, "<") && strings.HasSuffix(base, ">") {
+					idx := strings.Index(base, "<")
+					baseName = base[:idx]
+					inner := base[idx+1 : len(base)-1]
+					typeArgs = splitTypeArguments(inner)
+				} else if strings.Contains(base, "__") {
+					idx := strings.Index(base, "__")
+					baseName = base[:idx]
+					typeArgs = strings.Split(base[idx+2:], "_")
+				}
+				baseFields = getInheritedFields(baseName, hierarchy)
+				if len(typeArgs) > 0 {
+					baseClass := classSyntax[baseName]
+					subst := map[string]string{}
+					for i, tp := range baseClass.TypeParameters {
+						if i < len(typeArgs) {
+							subst[tp] = typeArgs[i]
+						}
+					}
+					for _, bf := range baseFields {
+						f := bf
+						f.Type = substituteType(f.Type, subst)
+						f.InferredType = substituteType(f.InferredType, subst)
+						fields = append(fields, f)
+					}
+				} else {
+					fields = append(fields, baseFields...)
+				}
 			}
 		}
 	}
-	fields = append(fields, meta.Fields...)
+	seenFields := map[string]int{}
+	for idx, f := range fields {
+		seenFields[f.Name] = idx
+	}
+	for _, f := range meta.Fields {
+		if existingIdx, exists := seenFields[f.Name]; exists {
+			if f.Initializer != nil {
+				fields[existingIdx].Initializer = f.Initializer
+			}
+			if f.Type != "" {
+				fields[existingIdx].Type = f.Type
+			}
+			if f.InferredType != "" {
+				fields[existingIdx].InferredType = f.InferredType
+			}
+		} else {
+			seenFields[f.Name] = len(fields)
+			fields = append(fields, f)
+		}
+	}
 	return fields
 }
 
@@ -311,6 +347,20 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 	curr := className
 	for {
 		meta, ok := hierarchy[curr]
+		if ok {
+			for _, f := range meta.Fields {
+				if f.Name != "" {
+					chain = append(chain, f.Name)
+				}
+			}
+			if cls, okCls := classSyntax[curr]; okCls {
+				for _, m := range cls.Methods {
+					if m.Name != "" {
+						chain = append(chain, m.Name)
+					}
+				}
+			}
+		}
 		if !ok || meta.Extends == "" {
 			break
 		}

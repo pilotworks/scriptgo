@@ -29,6 +29,7 @@ func lowerOptionalCallExpression(
 		Left:          expression.Left,
 		Arguments:     expression.Arguments,
 		TypeArguments: expression.TypeArguments,
+		InferredType:  expression.InferredType,
 	}
 
 	return lowerCallExpression(path, standardCall, result, function, env, counter, shapes, signatures)

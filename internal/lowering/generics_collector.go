@@ -308,6 +308,18 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 	if paramType == "" || argType == "" {
 		return
 	}
+	paramType = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(paramType, "| null"), "| undefined"))
+	paramType = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(paramType, "null |"), "undefined |"))
+	argType = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(argType, "| null"), "| undefined"))
+	argType = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(argType, "null |"), "undefined |"))
+
+	if strings.Contains(argType, "__") && !strings.Contains(argType, "<") {
+		idx := strings.Index(argType, "__")
+		base := argType[:idx]
+		inner := strings.ReplaceAll(argType[idx+2:], "__", ", ")
+		argType = base + "<" + inner + ">"
+	}
+
 	if strings.HasSuffix(paramType, "[]") && strings.HasSuffix(argType, "[]") {
 		matchTypeParam(paramType[:len(paramType)-2], argType[:len(argType)-2], inferred)
 		return

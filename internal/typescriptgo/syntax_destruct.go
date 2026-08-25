@@ -214,3 +214,89 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 	}
 	return stmts
 }
+
+func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpression, chk *checker.Checker, counter *int) []SyntaxStatement {
+	if leftNode == nil {
+		return nil
+	}
+	var stmts []SyntaxStatement
+	*counter++
+	tmpVar := fmt.Sprintf("__destruct_assign_%d_%d", leftNode.Pos(), *counter)
+	stmts = append(stmts, SyntaxStatement{
+		Span:       sourceSpan(leftNode),
+		Kind:       "variable",
+		Name:       tmpVar,
+		Expression: initExpr,
+	})
+
+	if leftNode.Kind == ast.KindArrayLiteralExpression {
+		arrLit := leftNode.AsArrayLiteralExpression()
+		if arrLit != nil && arrLit.Elements != nil {
+			for idx, elem := range arrLit.Elements.Nodes {
+				if elem == nil || elem.Kind == ast.KindOmittedExpression {
+					continue
+				}
+				if elem.Kind == ast.KindIdentifier {
+					stmts = append(stmts, SyntaxStatement{
+						Span: sourceSpan(elem),
+						Kind: "assign",
+						Name: elem.Text(),
+						Expression: &SyntaxExpression{
+							Span:  sourceSpan(elem),
+							Kind:  "index",
+							Left:  &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+							Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
+						},
+					})
+				} else if elem.Kind == ast.KindArrayLiteralExpression || elem.Kind == ast.KindObjectLiteralExpression {
+					itemExpr := &SyntaxExpression{
+						Span:  sourceSpan(elem),
+						Kind:  "index",
+						Left:  &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+						Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
+					}
+					nested := flattenDestructuringAssignment(elem, itemExpr, chk, counter)
+					stmts = append(stmts, nested...)
+				}
+			}
+		}
+	} else if leftNode.Kind == ast.KindObjectLiteralExpression {
+		objLit := leftNode.AsObjectLiteralExpression()
+		if objLit != nil && objLit.Properties != nil {
+			for _, prop := range objLit.Properties.Nodes {
+				if prop.Kind == ast.KindShorthandPropertyAssignment {
+					propName := prop.Name().Text()
+					stmts = append(stmts, SyntaxStatement{
+						Span: sourceSpan(prop),
+						Kind: "assign",
+						Name: propName,
+						Expression: &SyntaxExpression{
+							Span: sourceSpan(prop),
+							Kind: "property",
+							Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+							Text: propName,
+						},
+					})
+				} else if prop.Kind == ast.KindPropertyAssignment {
+					pAssign := prop.AsPropertyAssignment()
+					propName := pAssign.Name().Text()
+					if pAssign.Initializer != nil && pAssign.Initializer.Kind == ast.KindIdentifier {
+						stmts = append(stmts, SyntaxStatement{
+							Span: sourceSpan(prop),
+							Kind: "assign",
+							Name: pAssign.Initializer.Text(),
+							Expression: &SyntaxExpression{
+								Span: sourceSpan(prop),
+								Kind: "property",
+								Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+								Text: propName,
+							},
+						})
+					}
+				}
+			}
+		}
+	}
+	return stmts
+}
+

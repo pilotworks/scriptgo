@@ -34,6 +34,7 @@ type functionEmitter struct {
 	runtimeStatus      int
 	tempCounter        int
 	terminated         bool
+	localSSAs          map[string]bool
 }
 
 func (e *functionEmitter) dbg(span ir.SourceSpan) string {
@@ -53,22 +54,37 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
 		e.loadCounter++
 		e.types[loadName] = typ
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loadName, llvmType(typ), slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loadName, llvmType(typ), slot))
 		return loadName
 	}
-	for _, g := range e.module.Globals {
-		if g.Name == arg {
-			loadName := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
-			e.loadCounter++
-			e.types[loadName] = g.Type
-			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr @%s\n", loadName, llvmType(g.Type), g.Name))
-			return loadName
+	if e.localSSAs == nil || !e.localSSAs[arg] {
+		for _, g := range e.module.Globals {
+			if g.Name == arg {
+				loadName := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
+				e.loadCounter++
+				typ := e.types[arg]
+				if typ == "" || typ == ir.TypeVoid {
+					typ = g.Type
+					if typ == "" || typ == ir.TypeVoid {
+						typ = ir.TypePointer
+					}
+				}
+				e.types[loadName] = typ
+				if strings.HasSuffix(string(typ), "[]") || typ == ir.TypeStringArray || typ == ir.TypeNumberArray {
+					e.arrayTypes = append(e.arrayTypes, arrayReference{name: loadName, typ: typ})
+				}
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), g.Name))
+				return loadName
+			}
 		}
 	}
 	return arg
 }
 
 func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
+	if instruction.Result != "" && instruction.Type != "" {
+		e.types[instruction.Result] = instruction.Type
+	}
 	switch instruction.Op {
 	case ir.OpWhile:
 		return e.emitWhile(out, instruction)
@@ -109,15 +125,18 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			return err
 		}
 	case ir.OpAssign:
-		typ := e.types[targetResult]
-		isGlobal := false
+		typ := inst.Type
 		if typ == "" {
-			for _, g := range e.module.Globals {
-				if g.Name == targetResult {
+			typ = e.types[targetResult]
+		}
+		isGlobal := false
+		for _, g := range e.module.Globals {
+			if g.Name == targetResult {
+				if typ == "" {
 					typ = g.Type
-					isGlobal = true
-					break
 				}
+				isGlobal = true
+				break
 			}
 		}
 		arg := inst.Args[0]
@@ -127,17 +146,18 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			e.loadCounter++
 			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
-			if typ == ir.TypeNumber {
+			switch typ {
+			case ir.TypeNumber:
 				numVar := fmt.Sprintf("num.%d", e.loadCounter)
 				e.loadCounter++
 				out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar))
 				argVal = "%" + numVar
-			} else if typ == ir.TypeBool {
+			case ir.TypeBool:
 				boolVar := fmt.Sprintf("bool.%d", e.loadCounter)
 				e.loadCounter++
 				out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", boolVar, payloadVar))
 				argVal = "%" + boolVar
-			} else {
+			default:
 				ptrVar := fmt.Sprintf("ptr.%d", e.loadCounter)
 				e.loadCounter++
 				out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
@@ -147,7 +167,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if isGlobal {
 			out.WriteString(fmt.Sprintf("  store %s %s, ptr @%s\n", llvmType(typ), argVal, targetResult))
 		} else {
-			out.WriteString(fmt.Sprintf("  store %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
+			out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
 		}
 		return nil
 	case ir.OpBinary:
@@ -291,14 +311,29 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if lt == "" {
 			lt = "ptr"
 		}
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
-	} else if isGlobalResult {
-		typ := globalResultType
-		lt := llvmType(typ)
-		if lt == "" {
-			lt = "ptr"
+		out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
+	}
+	if isGlobalResult && inst.Type != ir.TypeVoid {
+		typ := e.types[inst.Result]
+		if typ == "" {
+			typ = inst.Type
+			if typ == "" {
+				typ = globalResultType
+			}
 		}
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr @%s\n", lt, inst.Result, targetResult))
+		if typ != ir.TypeVoid {
+			e.types[targetResult] = typ
+			if strings.HasSuffix(string(typ), "[]") || typ == ir.TypeStringArray || typ == ir.TypeNumberArray {
+				e.arrayTypes = append(e.arrayTypes, arrayReference{name: targetResult, typ: typ})
+			}
+			lt := llvmType(typ)
+			if lt == "" {
+				lt = "ptr"
+			}
+			if lt != "void" {
+				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr @%s\n", lt, inst.Result, targetResult))
+			}
+		}
 	}
 	return nil
 }

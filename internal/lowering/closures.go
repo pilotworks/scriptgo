@@ -12,7 +12,7 @@ import (
 var extraFunctions []ir.Function
 var closureCounter int
 
-func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.Type) []string {
+func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.Type, selfName string) []string {
 	params := map[string]bool{}
 	for _, p := range fn.Parameters {
 		params[p.Name] = true
@@ -29,7 +29,7 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 		}
 		if e.Kind == "identifier" {
 			name := e.Text
-			if !params[name] && !locals[name] {
+			if !params[name] && !locals[name] && name != fn.Name && name != selfName {
 				if _, ok := outerEnv[name]; ok {
 					used = append(used, name)
 				}
@@ -157,7 +157,7 @@ func lowerClosureExpression(
 	closureCounter++
 	closureName := fmt.Sprintf("__closure_%d", closureCounter)
 
-	capturedVars := findFreeVariables(fnStmt, env)
+	capturedVars := findFreeVariables(fnStmt, env, result)
 
 	// Create closure function
 	targetFn := ir.Function{
@@ -357,6 +357,11 @@ func lowerClosureExpression(
 			closureEnv[fnStmt.Name] = ir.TypeClosure
 			closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
 			closureEnv[fnStmt.Name+".closureTarget"] = ir.Type(closureName)
+		}
+		if result != "" {
+			closureEnv[result] = ir.TypeClosure
+			closureEnv[result+".retType"] = targetFn.ReturnType
+			closureEnv[result+".closureTarget"] = ir.Type(closureName)
 		}
 		for _, p := range fnStmt.Parameters {
 			typ := closureEnv[p.Name]

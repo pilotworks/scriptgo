@@ -84,12 +84,12 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		propValues = append(propValues, val)
 	}
 	shapeName := anonymousShapeName(fields)
+	var targetS *ir.ObjectShape
 	if expression.InferredType != "" {
 		cleanInf := strings.TrimPrefix(expression.InferredType, "object:")
 		for strings.HasPrefix(cleanInf, "(") && strings.HasSuffix(cleanInf, ")") && !strings.Contains(cleanInf, "=>") {
 			cleanInf = strings.TrimSpace(cleanInf[1 : len(cleanInf)-1])
 		}
-		var targetS *ir.ObjectShape
 		if strings.Contains(cleanInf, "|") || (typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|")) {
 			unionStr := cleanInf
 			if typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|") {
@@ -162,7 +162,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 						break
 					}
 				}
-				if allFound {
+				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
 					targetS = &s
 				}
 			} else if s, ok := anonymousShapes[cleanT]; ok {
@@ -173,8 +173,23 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 						break
 					}
 				}
-				if allFound {
+				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
 					targetS = &s
+				}
+			} else if aliased, hasAlias := typeAliasesIndex[cleanInf]; hasAlias {
+				if f, ok := anonymousObjectFields(aliased, nil); ok {
+					s := ir.ObjectShape{Name: cleanInf, Fields: f}
+					shapes[cleanInf] = s
+					allFound := true
+					for _, f := range fields {
+						if fieldIndex(s, f.Name) < 0 {
+							allFound = false
+							break
+						}
+					}
+					if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
+						targetS = &s
+					}
 				}
 			} else if s, ok := shapes[cleanInf]; ok {
 				allFound := true
@@ -184,7 +199,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 						break
 					}
 				}
-				if allFound {
+				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
 					targetS = &s
 				}
 			}
@@ -197,7 +212,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 					break
 				}
 			}
-			if allFound {
+			if allFound && (!strings.HasPrefix(targetS.Name, "__shape_") || len(targetS.Fields) == len(fields)) {
 				shapes[targetS.Name] = *targetS
 				shapeName = targetS.Name
 			}
@@ -238,23 +253,38 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			}
 		}
 	}
-	if _, ok := shapes[shapeName]; !ok {
-		shapes[shapeName] = ir.ObjectShape{
+	var targetShape ir.ObjectShape
+	if s, ok := shapes[shapeName]; ok {
+		targetShape = s
+	} else if s, ok := anonymousShapes[shapeName]; ok {
+		targetShape = s
+		shapes[shapeName] = s
+	} else if targetS != nil {
+		targetShape = *targetS
+		shapes[shapeName] = *targetS
+	} else {
+		targetShape = ir.ObjectShape{
 			Name:   shapeName,
 			Span:   toIRSpan(path, expression.Span),
 			Fields: fields,
 		}
+		shapes[shapeName] = targetShape
 	}
-	targetShape := shapes[shapeName]
 	if result == "" {
 		result = nextTemp(counter)
 	}
+	var tagNames []string
+	for _, f := range fields {
+		tagNames = append(tagNames, f.Name)
+	}
+	typeTag := ":" + strings.Join(tagNames, ":") + ":"
 	objType := ir.Type("object:" + shapeName)
 	function.Body = append(function.Body, ir.Instruction{
 		Op:         ir.OpObjectNew,
 		Type:       objType,
 		Result:     result,
 		Callee:     shapeName,
+		Value:      typeTag,
 		FieldCount: len(targetShape.Fields),
 		Span:       toIRSpan(path, expression.Span),
 	})
@@ -271,6 +301,31 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				Field:      field.Name,
 				FieldIndex: i,
 				Args:       []string{result, val},
+				Span:       toIRSpan(path, expression.Span),
+			})
+		} else {
+			defVal := "null"
+			defType := field.Type
+			if field.Type == ir.TypeNumber {
+				defVal = "NaN"
+			} else if field.Type == ir.TypeBool {
+				defVal = "false"
+			}
+			defConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   defType,
+				Result: defConst,
+				Value:  defVal,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      field.Name,
+				FieldIndex: i,
+				Args:       []string{result, defConst},
 				Span:       toIRSpan(path, expression.Span),
 			})
 		}

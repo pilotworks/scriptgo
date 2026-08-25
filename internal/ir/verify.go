@@ -118,7 +118,9 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				for _, argument := range instruction.Args {
 					elemType := elementType(instruction.Type)
 					argType := known[argument]
-					if argType != elemType && !(strings.HasPrefix(string(argType), "object:") && strings.HasPrefix(string(elemType), "object:")) {
+					isObjArg := argType == TypeObject || strings.HasPrefix(string(argType), "object:")
+					isObjElem := elemType == TypeObject || strings.HasPrefix(string(elemType), "object:")
+					if argType != elemType && !(isObjArg && isObjElem) {
 						return fmt.Errorf("array element %q has type %s, want %s", argument, argType, elemType)
 					}
 				}

@@ -79,7 +79,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		functions[function.Name] = function
 		collectStrings(function.Body)
 	}
-	for _, typeStr := range []string{"number", "string", "boolean", "bigint", "symbol", "function", "undefined", "object"} {
+	for _, typeStr := range []string{"number", "string", "boolean", "bigint", "symbol", "function", "undefined", "object", "true", "false", "null", ""} {
 		if _, ok := stringsByValue[typeStr]; !ok {
 			stringsByValue[typeStr] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 		}
@@ -116,7 +116,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_console_time_end(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_console_trace(ptr)\n\n")
 	out.WriteString("declare void @__scriptgo_fail_checked_cast(i32, i32, ptr)\n")
-	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n\n")
+	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n")
+	out.WriteString("declare i32 @scriptgo_string_from_unknown(i32, i32, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_from_object(ptr, ptr)\n\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")
 	out.WriteString("declare double @llvm.ceil.f64(double)\n")
 	out.WriteString("declare double @llvm.floor.f64(double)\n")
@@ -607,13 +609,15 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 
 	for _, g := range module.Globals {
 		gType := llvmType(g.Type)
-		initVal := "0.0"
-		if g.Type == ir.TypeBool {
+		initVal := "null"
+		if gType == "double" {
+			initVal = "0.0"
+		} else if gType == "i1" {
 			initVal = "false"
-		} else if g.Type == ir.TypeString || strings.HasPrefix(string(g.Type), "object:") || g.Type == ir.TypeObject || g.Type == ir.TypeClosure || strings.HasSuffix(string(g.Type), "[]") {
-			initVal = "null"
-		} else if g.Type == ir.TypeBigInt {
+		} else if gType == "i32" || gType == "i64" {
 			initVal = "0"
+		} else if gType == "{ i32, i32, i64 }" {
+			initVal = "zeroinitializer"
 		}
 		if g.Value != "" {
 			if g.Type == ir.TypeNumber {
@@ -680,10 +684,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		module:         module,
 		types:          make(map[string]ir.Type, len(function.Parameters)),
 		varSlots:       make(map[string]string),
+		localSSAs:      make(map[string]bool),
+	}
+	globalsMap := make(map[string]bool, len(module.Globals))
+	for _, g := range module.Globals {
+		globalsMap[g.Name] = true
 	}
 	for _, parameter := range function.Parameters {
 		emitter.types[parameter.Name] = parameter.Type
+		emitter.localSSAs[parameter.Name] = true
 	}
+	collectSSADefs(function.Body, emitter.localSSAs, function.Name == "main", globalsMap)
 
 	if len(function.Captured) > 0 {
 		fieldTypes := make([]string, len(function.Captured))
@@ -717,11 +728,6 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		emitter.sharedEnvCells[capName] = cellSlot
 	}
 
-	globalsMap := make(map[string]bool, len(module.Globals))
-	for _, g := range module.Globals {
-		globalsMap[g.Name] = true
-	}
-
 	slotted := findSlottedVariables(function.Body)
 	for varName, typ := range slotted {
 		if globalsMap[varName] {
@@ -734,7 +740,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
 			for _, param := range function.Parameters {
 				if param.Name == varName {
-					out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), varName, slotName))
+					out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(typ), varName, slotName))
 					break
 				}
 			}
@@ -785,6 +791,9 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 		for _, inst := range list {
 			if inst.Op == ir.OpAssign {
 				slotted[inst.Result] = inst.Type
+			}
+			if inst.CatchVar != "" {
+				slotted[inst.CatchVar] = ir.TypeString
 			}
 			if inst.Result != "" {
 				counts[inst.Result]++
@@ -837,4 +846,21 @@ func findCapturedInFunction(instructions []ir.Instruction) []string {
 	}
 	scan(instructions)
 	return captured
+}
+
+func collectSSADefs(instructions []ir.Instruction, defs map[string]bool, isMain bool, globals map[string]bool) {
+	for _, inst := range instructions {
+		if inst.Result != "" {
+			if !globals[inst.Result] {
+				defs[inst.Result] = true
+			}
+		}
+		collectSSADefs(inst.Then, defs, isMain, globals)
+		collectSSADefs(inst.Else, defs, isMain, globals)
+		collectSSADefs(inst.Cond, defs, isMain, globals)
+		collectSSADefs(inst.Body, defs, isMain, globals)
+		collectSSADefs(inst.Step, defs, isMain, globals)
+		collectSSADefs(inst.Catch, defs, isMain, globals)
+		collectSSADefs(inst.Finally, defs, isMain, globals)
+	}
 }

@@ -46,12 +46,14 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	if visited != nil && visited[value] {
 		return ir.TypeObject
 	}
-	if aliased, ok := typeAliasesIndex[value]; ok && aliased != value {
+	cleanVal := strings.TrimPrefix(value, "object:")
+	if aliased, ok := typeAliasesIndex[cleanVal]; ok && aliased != cleanVal {
 		newVisited := make(map[string]bool, len(visited)+1)
 		for k, v := range visited {
 			newVisited[k] = v
 		}
 		newVisited[value] = true
+		newVisited[cleanVal] = true
 		return toIRTypeInternal(aliased, newVisited)
 	}
 	base := value
@@ -62,8 +64,17 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		base = base[:idx]
 	}
 	if aliased, ok := typeAliasesIndex[base]; ok && aliased != base {
-		if strings.Contains(aliased, "=>") {
+		if strings.Contains(aliased, "=>") && !strings.HasPrefix(aliased, "{") {
 			return ir.TypeClosure
+		}
+		if aliased == "number" {
+			return ir.TypeNumber
+		}
+		if aliased == "string" {
+			return ir.TypeString
+		}
+		if aliased == "boolean" || aliased == "bool" {
+			return ir.TypeBool
 		}
 	}
 	if strings.HasSuffix(value, "_arr") {
@@ -88,7 +99,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			return ir.Type(string(elemType) + "[]")
 		}
 	}
-	if strings.Contains(value, "=>") && !(strings.Contains(value, "<") && strings.HasSuffix(value, ">")) {
+	if strings.Contains(value, "=>") && !strings.HasPrefix(value, "{") && !strings.Contains(value, "|") && !(strings.Contains(value, "<") && strings.HasSuffix(value, ">")) {
 		return ir.TypeClosure
 	}
 	if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
@@ -99,6 +110,59 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	}
 	if value == "true" || value == "false" {
 		return ir.TypeBool
+	}
+	if strings.Contains(value, "&") && !strings.Contains(value, "=>") {
+		parts := strings.Split(value, "&")
+		var mergedFields []ir.Field
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			pType := toIRTypeInternal(p, visited)
+			shapeName := strings.TrimPrefix(string(pType), "object:")
+			if s, ok := registeredShapes[shapeName]; ok {
+				mergedFields = append(mergedFields, s.Fields...)
+			} else if s, ok := anonymousShapes[shapeName]; ok {
+				mergedFields = append(mergedFields, s.Fields...)
+			}
+		}
+		if len(mergedFields) > 0 {
+			shapeName := anonymousShapeName(mergedFields)
+			if _, ok := anonymousShapes[shapeName]; !ok {
+				anonymousShapes[shapeName] = ir.ObjectShape{
+					Name:   shapeName,
+					Fields: mergedFields,
+				}
+			}
+			return ir.Type("object:" + shapeName)
+		}
+	}
+	if strings.HasSuffix(value, "]") && strings.Contains(value, "[") {
+		idx := strings.Index(value, "[")
+		objName := strings.TrimSpace(value[:idx])
+		propName := strings.Trim(strings.TrimSpace(value[idx+1:len(value)-1]), "\"'")
+		if aliased, ok := typeAliasesIndex[objName]; ok {
+			if fields, ok := anonymousObjectFields(aliased, visited); ok {
+				for _, f := range fields {
+					if f.Name == propName {
+						return f.Type
+					}
+				}
+			}
+		}
+		objType := toIRTypeInternal(objName, visited)
+		shapeName := strings.TrimPrefix(string(objType), "object:")
+		if s, ok := registeredShapes[shapeName]; ok {
+			for _, f := range s.Fields {
+				if f.Name == propName {
+					return f.Type
+				}
+			}
+		} else if s, ok := anonymousShapes[shapeName]; ok {
+			for _, f := range s.Fields {
+				if f.Name == propName {
+					return f.Type
+				}
+			}
+		}
 	}
 	if strings.Contains(value, "|") {
 		parts := splitTopLevelUnion(value)
@@ -112,6 +176,28 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			}
 			if len(nonNullish) == 0 {
 				return ir.TypeVoid
+			}
+			allStrings := true
+			for _, p := range nonNullish {
+				if p != "string" && !((strings.HasPrefix(p, "\"") && strings.HasSuffix(p, "\"")) || (strings.HasPrefix(p, "'") && strings.HasSuffix(p, "'"))) {
+					allStrings = false
+					break
+				}
+			}
+			if allStrings {
+				return ir.TypeString
+			}
+			allNumbers := true
+			for _, p := range nonNullish {
+				if p != "number" {
+					if _, err := strconv.ParseFloat(p, 64); err != nil {
+						allNumbers = false
+						break
+					}
+				}
+			}
+			if allNumbers {
+				return ir.TypeNumber
 			}
 			if len(nonNullish) > 1 {
 				allObjects := true
@@ -151,12 +237,34 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 					}
 				}
 				if allObjects && len(unionFields) > 0 {
-					name := anonymousShapeName(unionFields)
-					registerAnonymousShape(name, unionFields)
-					return ir.Type("object:" + name)
+					sameCount := true
+					for _, branch := range nonNullish {
+						var fields []ir.Field
+						cleanBranch := strings.TrimPrefix(branch, "object:")
+						if f, ok := anonymousObjectFields(branch, visited); ok {
+							fields = f
+						} else if shape, ok := registeredShapes[cleanBranch]; ok && len(shape.Fields) > 0 {
+							fields = shape.Fields
+						} else if shape, ok := anonymousShapes[cleanBranch]; ok && len(shape.Fields) > 0 {
+							fields = shape.Fields
+						}
+						if len(fields) != len(unionFields) {
+							sameCount = false
+							break
+						}
+					}
+					if sameCount {
+						name := anonymousShapeName(unionFields)
+						registerAnonymousShape(name, unionFields)
+						return ir.Type("object:" + name)
+					}
+					return ir.TypeObject
 				}
 			}
-			return toIRTypeInternal(nonNullish[0], visited)
+			if len(nonNullish) == 1 {
+				return toIRTypeInternal(nonNullish[0], visited)
+			}
+			return ir.TypeUnknown
 		}
 	}
 	if strings.HasPrefix(value, "{") {
@@ -442,25 +550,33 @@ func splitTopLevel(s string) []string {
 			depthBrace++
 			cur.WriteRune(r)
 		case '}':
-			depthBrace--
+			if depthBrace > 0 {
+				depthBrace--
+			}
 			cur.WriteRune(r)
 		case '[':
 			depthBracket++
 			cur.WriteRune(r)
 		case ']':
-			depthBracket--
+			if depthBracket > 0 {
+				depthBracket--
+			}
 			cur.WriteRune(r)
 		case '<':
 			depthAngle++
 			cur.WriteRune(r)
 		case '>':
-			depthAngle--
+			if depthAngle > 0 {
+				depthAngle--
+			}
 			cur.WriteRune(r)
 		case '(':
 			depthParen++
 			cur.WriteRune(r)
 		case ')':
-			depthParen--
+			if depthParen > 0 {
+				depthParen--
+			}
 			cur.WriteRune(r)
 		case ';', ',':
 			if depthBrace == 0 && depthBracket == 0 && depthAngle == 0 && depthParen == 0 {

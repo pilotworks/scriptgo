@@ -175,12 +175,13 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			cmpNaN := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNaN, Operator: "==", Args: []string{leftVal, leftVal}, Span: toIRSpan(path, expression.Span)})
 			cond = cmpNaN
+		} else if leftTyp == ir.TypeBool {
+			trueConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, expression.Span)})
+			cond = trueConst
 		} else {
 			nullConst := nextTemp(counter)
 			nullVal := "null"
-			if leftTyp == ir.TypeBool {
-				nullVal = "false"
-			}
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
 			cmpNull := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
@@ -242,6 +243,18 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if expression.Left != nil && expression.Left.Kind == "identifier" {
 			varName := expression.Left.Text
 			varType, ok := env[varName]
+			if !ok {
+				if topVar, isTop := topLevelVars[varName]; isTop {
+					varType = toIRType(topVar.Type)
+					if varType == "" {
+						varType = toIRType(topVar.InferredType)
+					}
+					if varType == "" {
+						varType = ir.TypeNumber
+					}
+					ok = true
+				}
+			}
 			if !ok {
 				return "", "", fmt.Errorf("assignment to unknown variable %q", varName)
 			}
@@ -370,11 +383,11 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			})
 			return result, ir.TypeBool, nil
 		}
-		if isComparison(expression.Operator) && (expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined")) && isPointerLikeType(leftType) {
+		if isComparison(expression.Operator) && (expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined")) && (isPointerLikeType(leftType) || leftType == ir.TypeUnknown) {
 			right = nextTemp(counter)
 			rightType = leftType
 			nullVal := "null"
-			if expression.Right.Kind == "undefined" && leftType == ir.TypeString {
+			if expression.Right.Kind == "undefined" {
 				nullVal = "undefined"
 			}
 			function.Body = append(function.Body, ir.Instruction{
@@ -384,11 +397,11 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				Value:  nullVal,
 				Span:   toIRSpan(path, expression.Right.Span),
 			})
-		} else if isComparison(expression.Operator) && (expression.Left != nil && (expression.Left.Kind == "null" || expression.Left.Kind == "undefined")) && isPointerLikeType(rightType) {
+		} else if isComparison(expression.Operator) && (expression.Left != nil && (expression.Left.Kind == "null" || expression.Left.Kind == "undefined")) && (isPointerLikeType(rightType) || rightType == ir.TypeUnknown) {
 			left = nextTemp(counter)
 			leftType = rightType
 			nullVal := "null"
-			if expression.Left.Kind == "undefined" && rightType == ir.TypeString {
+			if expression.Left.Kind == "undefined" {
 				nullVal = "undefined"
 			}
 			function.Body = append(function.Body, ir.Instruction{
@@ -419,6 +432,10 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 					callee = "__string.fromBool"
 				} else if leftType == ir.TypeBigInt {
 					callee = "__string.fromBigInt"
+				} else if leftType == ir.TypeUnknown {
+					callee = "__string.fromUnknown"
+				} else if leftType == ir.TypeObject || strings.HasPrefix(string(leftType), "object:") || leftType == ir.TypePointer {
+					callee = "__string.fromObject"
 				} else if leftType != ir.TypeNumber {
 					return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 				}
@@ -433,6 +450,10 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 					callee = "__string.fromBool"
 				} else if rightType == ir.TypeBigInt {
 					callee = "__string.fromBigInt"
+				} else if rightType == ir.TypeUnknown {
+					callee = "__string.fromUnknown"
+				} else if rightType == ir.TypeObject || strings.HasPrefix(string(rightType), "object:") || rightType == ir.TypePointer {
+					callee = "__string.fromObject"
 				} else if rightType != ir.TypeNumber {
 					return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 				}

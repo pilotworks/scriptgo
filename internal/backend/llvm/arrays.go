@@ -198,6 +198,37 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to %s\n", valName, payloadName, paramType)
 				arg1 = valName
 			}
+		} else if elemType == ir.TypeUnknown && arg1Type != ir.TypeUnknown {
+			e.tempCounter++
+			boxedName := fmt.Sprintf("push.box.%d", e.tempCounter)
+			tag := 5
+			switch arg1Type {
+			case ir.TypeNumber:
+				tag = 3
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			case ir.TypeString:
+				tag = 4
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			case ir.TypeBool:
+				tag = 2
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			default:
+				tag = 5
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			}
+			arg1 = boxedName
 		}
 		valSlot := fmt.Sprintf("%s.push.val.%d", instruction.Args[0], e.runtimeStatus)
 		fmt.Fprintf(out, "  %%%s = alloca %s\n", valSlot, llvmType(elemType))

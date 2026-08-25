@@ -157,6 +157,141 @@ func lowerPromiseStaticCall(
 				Span:   toIRSpan(path, expression.Span),
 			})
 			return result, promRetType, true, nil
+		} else {
+			arrVal, arrType, err := lowerExpression(path, arrExpr, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			elemType := ir.TypeNumber
+			if strings.HasSuffix(string(arrType), "[]") {
+				inner := strings.TrimSuffix(string(arrType), "[]")
+				if strings.HasPrefix(inner, "object:Promise_") {
+					elemType = toIRType(strings.TrimPrefix(inner, "object:Promise_"))
+				} else if strings.HasPrefix(inner, "object:Promise<") {
+					elemType = toIRType(strings.TrimSuffix(strings.TrimPrefix(inner, "object:Promise<"), ">"))
+				}
+			}
+			resArrType := ir.Type(string(elemType) + "[]")
+			switch elemType {
+			case ir.TypeNumber:
+				resArrType = ir.TypeNumberArray
+			case ir.TypeString:
+				resArrType = ir.TypeStringArray
+			}
+			lenTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: lenTemp,
+				Callee: "__array.length",
+				Args:   []string{arrVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			resArr := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpArray,
+				Type:   resArrType,
+				Result: resArr,
+				Args:   []string{},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			idxTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: idxTemp,
+				Value:  "0",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			env[idxTemp] = ir.TypeNumber
+
+			condFn := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
+			cmpRes := nextTemp(counter)
+			condFn.Body = append(condFn.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   cmpRes,
+				Operator: "<",
+				Args:     []string{idxTemp, lenTemp},
+				Span:     toIRSpan(path, expression.Span),
+			})
+
+			bodyFn := ir.Function{Name: "body", ReturnType: function.ReturnType}
+			elemProm := nextTemp(counter)
+			bodyFn.Body = append(bodyFn.Body, ir.Instruction{
+				Op:     ir.OpIndex,
+				Type:   ir.Type("object:Promise"),
+				Result: elemProm,
+				Args:   []string{arrVal, idxTemp},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			awaitedElem := nextTemp(counter)
+			bodyFn.Body = append(bodyFn.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   elemType,
+				Result: awaitedElem,
+				Callee: "__async.await",
+				Args:   []string{elemProm},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			bodyFn.Body = append(bodyFn.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeNumber,
+				Result: nextTemp(counter),
+				Callee: "__array.push",
+				Args:   []string{resArr, awaitedElem},
+				Span:   toIRSpan(path, expression.Span),
+			})
+
+			stepFn := ir.Function{Name: "step", ReturnType: function.ReturnType}
+			oneVal := nextTemp(counter)
+			stepFn.Body = append(stepFn.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: oneVal,
+				Value:  "1",
+				Span:   toIRSpan(path, expression.Span),
+			})
+			incVal := nextTemp(counter)
+			stepFn.Body = append(stepFn.Body, ir.Instruction{
+				Op:       ir.OpBinary,
+				Type:     ir.TypeNumber,
+				Result:   incVal,
+				Operator: "+",
+				Args:     []string{idxTemp, oneVal},
+				Span:     toIRSpan(path, expression.Span),
+			})
+			stepFn.Body = append(stepFn.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeNumber,
+				Result: idxTemp,
+				Args:   []string{incVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpWhile,
+				Type: ir.TypeVoid,
+				Args: []string{cmpRes},
+				Cond: condFn.Body,
+				Body: bodyFn.Body,
+				Step: stepFn.Body,
+				Span: toIRSpan(path, expression.Span),
+			})
+
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			promRetType := ir.Type("object:Promise<" + string(resArrType) + ">")
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   promRetType,
+				Result: result,
+				Callee: "__async.promise_resolve",
+				Args:   []string{resArr},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, promRetType, true, nil
 		}
 	}
 	if callee == "Promise.allSettled" && len(expression.Arguments) > 0 {

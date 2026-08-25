@@ -71,6 +71,28 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bool(i32 %%%s, ptr %%__slot_ptr)\n", status, boolI32)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.fromUnknown":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.fromUnknown has invalid signature")
+		}
+		arg := instruction.Args[0]
+		tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
+		padVar := fmt.Sprintf("pad.%d", e.loadCounter)
+		valVar := fmt.Sprintf("val.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", padVar, arg)
+		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", valVar, arg)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_unknown(i32 %%%s, i32 %%%s, i64 %%%s, ptr %%__slot_ptr)\n", status, tagVar, padVar, valVar)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.fromObject":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.fromObject has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.slice", "__string.substring":
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.slice has invalid signature")
@@ -459,11 +481,41 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil
 		}
-		if argType == ir.TypeUnknown || argType == "any" {
-			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+		if argType == ir.TypeBool {
+			trueGlobal := e.stringsByValue["true"]
+			falseGlobal := e.stringsByValue["false"]
+			truePtr := fmt.Sprintf("str.true.%d", e.loadCounter)
 			e.loadCounter++
+			falsePtr := fmt.Sprintf("str.false.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [5 x i8], ptr %s, i64 0, i64 0\n", truePtr, trueGlobal)
+			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [6 x i8], ptr %s, i64 0, i64 0\n", falsePtr, falseGlobal)
+			fmt.Fprintf(out, "  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", instruction.Result, arg, truePtr, falsePtr)
+			return nil
+		}
+		if argType == ir.TypeBigInt {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_bigint_to_string(i64 %%%s, double 10.0, ptr %%__slot_ptr)\n", status, arg)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+			return nil
+		}
+		if argType == ir.TypeVoid {
+			undefGlobal := e.stringsByValue["undefined"]
+			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [10 x i8], ptr %s, i64 0, i64 0\n", instruction.Result, undefGlobal)
+			return nil
+		}
+		if argType == ir.TypeUnknown || argType == "any" {
+			tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
+			padVar := fmt.Sprintf("pad.%d", e.loadCounter)
+			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
+			statusVar := fmt.Sprintf("status.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", padVar, arg)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, payloadVar)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_unknown(i32 %%%s, i32 %%%s, i64 %%%s, ptr %%__slot_ptr)\n", statusVar, tagVar, padVar, payloadVar)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusVar)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil
 		}
 		fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg)

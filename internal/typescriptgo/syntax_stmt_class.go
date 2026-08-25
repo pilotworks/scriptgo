@@ -6,16 +6,31 @@ import (
 )
 
 func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checker) (SyntaxStatement, bool) {
-	classDecl := node.AsClassDeclaration()
+	name := ""
+	if node.Name() != nil {
+		name = node.Name().Text()
+	}
+	var heritageClauses *ast.NodeList
+	if node.Kind == ast.KindClassDeclaration {
+		classDecl := node.AsClassDeclaration()
+		if classDecl != nil {
+			heritageClauses = classDecl.HeritageClauses
+		}
+	} else if node.Kind == ast.KindClassExpression {
+		clsExpr := node.AsClassExpression()
+		if clsExpr != nil {
+			heritageClauses = clsExpr.HeritageClauses
+		}
+	}
 	class := &SyntaxClass{
 		Span:           span,
-		Name:           node.Name().Text(),
+		Name:           name,
 		TypeParameters: syntaxTypeParameters(node.TypeParameters()),
 		IsAbstract:     ast.HasSyntacticModifier(node, ast.ModifierFlagsAbstract),
-		Decorators:     syntaxDecorators(node, chk, node.Name().Text(), nil, ""),
+		Decorators:     syntaxDecorators(node, chk, name, nil, ""),
 	}
-	if classDecl.HeritageClauses != nil {
-		for _, clause := range classDecl.HeritageClauses.Nodes {
+	if heritageClauses != nil {
+		for _, clause := range heritageClauses.Nodes {
 			hc := clause.AsHeritageClause()
 			if hc == nil {
 				continue
@@ -147,7 +162,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		case ast.KindConstructor:
 			var params []SyntaxParameter
 			var paramPropStmts []SyntaxStatement
-			for _, p := range member.Parameters() {
+			var bindingStmts []SyntaxStatement
+			for pIdx, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
@@ -156,9 +172,9 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				if pType == "" && inferredPType != "" {
 					pType = inferredPType
 				}
-				pName := ""
-				if p.Name() != nil {
-					pName = p.Name().Text()
+				pName, binds := extractParameterBinding(p, pIdx, chk)
+				if len(binds) > 0 {
+					bindingStmts = append(bindingStmts, binds...)
 				}
 				pNode := p.AsNode()
 				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
@@ -208,6 +224,17 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					}
 				}
 			}
+			if len(bindingStmts) > 0 {
+				insertIdx := 0
+				if len(body) > 0 && body[0].Kind == "expression" && body[0].Expression != nil && body[0].Expression.Kind == "call" && body[0].Expression.Left != nil && body[0].Expression.Left.Text == "super" {
+					insertIdx = 1
+				}
+				newBody := make([]SyntaxStatement, 0, len(body)+len(bindingStmts))
+				newBody = append(newBody, body[:insertIdx]...)
+				newBody = append(newBody, bindingStmts...)
+				newBody = append(newBody, body[insertIdx:]...)
+				body = newBody
+			}
 			if len(paramPropStmts) > 0 {
 				insertIdx := 0
 				if len(body) > 0 && body[0].Kind == "expression" && body[0].Expression != nil && body[0].Expression.Kind == "call" && body[0].Expression.Left != nil && body[0].Expression.Left.Text == "super" {
@@ -227,7 +254,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		case ast.KindMethodDeclaration:
 			var params []SyntaxParameter
 			var pTypes []string
-			for _, p := range member.Parameters() {
+			var bindingStmts []SyntaxStatement
+			for pIdx, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
@@ -237,11 +265,15 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					pType = inferredPType
 				}
 				pTypes = append(pTypes, pType)
+				pName, binds := extractParameterBinding(p, pIdx, chk)
+				if len(binds) > 0 {
+					bindingStmts = append(bindingStmts, binds...)
+				}
 				pNode := p.AsNode()
 				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
-					Name:         p.Name().Text(),
+					Name:         pName,
 					Type:         pType,
 					InferredType: inferredPType,
 					Decorators:   pDecs,
@@ -251,6 +283,9 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				})
 			}
 			var body []SyntaxStatement
+			if len(bindingStmts) > 0 {
+				body = append(body, bindingStmts...)
+			}
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
 					if converted, ok := syntaxStatement(s, chk); ok {
@@ -309,7 +344,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		case ast.KindSetAccessor:
 			var params []SyntaxParameter
 			var pTypes []string
-			for _, p := range member.Parameters() {
+			var bindingStmts []SyntaxStatement
+			for pIdx, p := range member.Parameters() {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
@@ -319,11 +355,15 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					pType = inferredPType
 				}
 				pTypes = append(pTypes, pType)
+				pName, binds := extractParameterBinding(p, pIdx, chk)
+				if len(binds) > 0 {
+					bindingStmts = append(bindingStmts, binds...)
+				}
 				pNode := p.AsNode()
 				pDecs := syntaxDecorators(pNode, chk, pType, nil, "")
 				params = append(params, SyntaxParameter{
 					Span:         parameterSpan(p),
-					Name:         p.Name().Text(),
+					Name:         pName,
 					Type:         pType,
 					InferredType: inferredPType,
 					Decorators:   pDecs,
@@ -333,6 +373,9 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				})
 			}
 			var body []SyntaxStatement
+			if len(bindingStmts) > 0 {
+				body = append(body, bindingStmts...)
+			}
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
 					if converted, ok := syntaxStatement(s, chk); ok {

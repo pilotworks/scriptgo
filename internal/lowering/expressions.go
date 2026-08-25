@@ -555,57 +555,57 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		typ, ok := env[expression.Text]
 		if ok {
-			switch expression.InferredType {
-			case "number":
-				typ = ir.TypeNumber
-			case "bigint":
-				typ = ir.TypeBigInt
-			case "symbol":
-				typ = ir.TypeSymbol
-			case "string":
-				typ = ir.TypeString
-			case "bool", "boolean":
-				typ = ir.TypeBool
-			case "number[]":
-				typ = ir.TypeNumberArray
-			case "string[]":
-				typ = ir.TypeStringArray
-			case "Uint8Array":
-				typ = ir.TypeUint8Array
-			case "Int8Array":
-				typ = ir.TypeInt8Array
-			case "Uint8ClampedArray":
-				typ = ir.TypeUint8ClampedArray
-			case "Int16Array":
-				typ = ir.TypeInt16Array
-			case "Uint16Array":
-				typ = ir.TypeUint16Array
-			case "Int32Array":
-				typ = ir.TypeInt32Array
-			case "Uint32Array":
-				typ = ir.TypeUint32Array
-			case "Float32Array":
-				typ = ir.TypeFloat32Array
-			case "Float64Array":
-				typ = ir.TypeFloat64Array
-			case "BigInt64Array":
-				typ = ir.TypeBigInt64Array
-			case "BigUint64Array":
-				typ = ir.TypeBigUint64Array
-			case "DataView":
-				typ = ir.TypeDataView
-			case "ArrayBuffer":
-				typ = ir.TypeArrayBuffer
-			case "Buffer":
-				typ = ir.TypeBuffer
-			default:
-				if expression.InferredType != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
-					if _, isShape := shapes[expression.InferredType]; isShape {
-						typ = ir.Type("object:" + expression.InferredType)
-					} else if after, ok0 := strings.CutPrefix(expression.InferredType, "object:"); ok0 {
-						shapeName := after
-						if _, isShape := shapes[shapeName]; isShape {
-							typ = ir.Type(expression.InferredType)
+			if typ == "" || typ == ir.TypeUnknown || typ == "any" || strings.Contains(string(typ), "|") {
+				switch expression.InferredType {
+				case "number":
+					typ = ir.TypeNumber
+				case "bigint":
+					typ = ir.TypeBigInt
+				case "symbol":
+					typ = ir.TypeSymbol
+				case "string":
+					typ = ir.TypeString
+				case "bool", "boolean":
+					typ = ir.TypeBool
+				case "number[]":
+					typ = ir.TypeNumberArray
+				case "string[]":
+					typ = ir.TypeStringArray
+				case "Uint8Array":
+					typ = ir.TypeUint8Array
+				case "Int8Array":
+					typ = ir.TypeInt8Array
+				case "Uint8ClampedArray":
+					typ = ir.TypeUint8ClampedArray
+				case "Int16Array":
+					typ = ir.TypeInt16Array
+				case "Uint16Array":
+					typ = ir.TypeUint16Array
+				case "Int32Array":
+					typ = ir.TypeInt32Array
+				case "Uint32Array":
+					typ = ir.TypeUint32Array
+				case "Float32Array":
+					typ = ir.TypeFloat32Array
+				case "Float64Array":
+					typ = ir.TypeFloat64Array
+				case "BigInt64Array":
+					typ = ir.TypeBigInt64Array
+				case "BigUint64Array":
+					typ = ir.TypeBigUint64Array
+				case "DataView":
+					typ = ir.TypeDataView
+				case "ArrayBuffer":
+					typ = ir.TypeArrayBuffer
+				case "Buffer":
+					typ = ir.TypeBuffer
+				default:
+					if expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && !strings.HasPrefix(string(typ), "object:Generator_") {
+						inferredIR := toIRType(expression.InferredType)
+						if inferredIR != "" && inferredIR != ir.TypeUnknown {
+							typ = inferredIR
+						} else if _, isShape := shapes[expression.InferredType]; isShape {
+							typ = ir.Type("object:" + expression.InferredType)
 						}
 					}
 				}
@@ -846,6 +846,22 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				boolTemp := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, nullConst}, Span: toIRSpan(path, expression.Span)})
 				condition = boolTemp
+			} else if conditionType == ir.TypeNumber {
+				zeroConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+				boolTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, zeroConst}, Span: toIRSpan(path, expression.Span)})
+				condition = boolTemp
+			} else if conditionType == ir.TypeString {
+				emptyConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyConst, Value: "", Span: toIRSpan(path, expression.Span)})
+				boolTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, emptyConst}, Span: toIRSpan(path, expression.Span)})
+				condition = boolTemp
+			} else if conditionType == ir.TypeUnknown {
+				boolTemp := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCheckedCast, Type: ir.TypeBool, Result: boolTemp, Args: []string{condition}, Span: toIRSpan(path, expression.Span)})
+				condition = boolTemp
 			} else {
 				return "", "", fmt.Errorf("conditional expression requires a bool condition")
 			}
@@ -942,9 +958,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 }
 
 func nextTemp(counter *int) string {
-	value := "t" + strconv.Itoa(*counter)
-	*counter++
-	return value
+	for {
+		value := "t" + strconv.Itoa(*counter)
+		*counter++
+		if _, exists := topLevelVars[value]; exists {
+			continue
+		}
+		return value
+	}
 }
 
 func isComparison(operator string) bool {

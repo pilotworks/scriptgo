@@ -4,6 +4,7 @@ package lowering
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -131,6 +132,18 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				if len(shape.Fields) == 0 && statement.Kind == "class" {
 					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(file.FileName, statement.Class.Span)})
 				}
+				if statement.Kind == "interface" {
+					if _, exists := shapes[shape.Name]; exists {
+						shapes[shape.Name] = shape
+						for idx, s := range module.Shapes {
+							if s.Name == shape.Name {
+								module.Shapes[idx] = shape
+								break
+							}
+						}
+						continue
+					}
+				}
 				shapes[shape.Name] = shape
 				baseName := statement.Class.Name
 				if idx := strings.Index(baseName, "<"); idx != -1 {
@@ -209,6 +222,39 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
+			if statement.Kind == "variable" && statement.Name != "" {
+				vType := statement.Type
+				if vType == "" && statement.InferredType != "" {
+					vType = statement.InferredType
+				}
+				typ := toIRType(vType)
+				if statement.Expression != nil && (typ == "" || (typ == ir.TypePointer && strings.Contains(vType, "|"))) {
+					switch statement.Expression.Kind {
+					case "number", "literal":
+						if _, err := strconv.ParseFloat(statement.Expression.Text, 64); err == nil {
+							typ = ir.TypeNumber
+						}
+					case "string":
+						typ = ir.TypeString
+					case "bool":
+						typ = ir.TypeBool
+					case "bigint":
+						typ = ir.TypeBigInt
+					}
+				}
+				if typ == "" {
+					typ = ir.TypeNumber
+				}
+				module.Globals = append(module.Globals, ir.Global{
+					Name: statement.Name,
+					Type: typ,
+				})
+			}
+		}
+	}
+
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
 			if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
 				RegisterGeneratorStatement(statement.Name, statement)
 			}
@@ -229,14 +275,29 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				module.Functions = append(module.Functions, factoryFn)
 				module.Functions = append(module.Functions, extraFns...)
 				module.Shapes = append(module.Shapes, newShapes...)
-				signatures[statement.Name] = factoryFn
-				signatures[factoryFn.Name] = factoryFn
 				for _, fn := range extraFns {
 					signatures[fn.Name] = fn
 				}
 				continue
 			}
+		}
+	}
+
+	implementedFunctions := map[string]bool{}
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
+			if (statement.Kind == "function" || statement.Kind == "async_function") && len(statement.Body) > 0 {
+				implementedFunctions[statement.Name] = true
+			}
+		}
+	}
+
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "declare_function" {
+				if implementedFunctions[statement.Name] {
+					continue
+				}
 				retType := toIRType(statement.Type)
 				if retType == "" && statement.InferredType != "" {
 					retType = toIRType(statement.InferredType)
@@ -262,6 +323,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			}
 			if statement.Kind == "function" || statement.Kind == "async_function" {
 				if len(statement.TypeParameters) > 0 {
+					continue
+				}
+				if len(statement.Body) == 0 && implementedFunctions[statement.Name] {
 					continue
 				}
 				fnCopy := statement
@@ -301,7 +365,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				continue
 			}
-			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" {
+			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" || statement.IsGenerator {
 				continue
 			}
 			if statement.Kind == "class" && statement.Class != nil {
@@ -396,6 +460,10 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						return ir.Module{}, fmt.Errorf("lower class method %q: %w", mangled, sourceError(file.FileName, method.Span, err))
 					}
 					module.Functions = append(module.Functions, function)
+					signatures[mangled] = function
+					if method.IsStatic {
+						signatures[statement.Class.Name+"."+method.Name] = function
+					}
 				}
 
 				// Lower static field initializers and static blocks in class definition order

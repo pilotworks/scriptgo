@@ -25,6 +25,9 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 		ir.TypeUnknown: "unknown",
 	}[typ]
 	if suffix == "" {
+		if typ == ir.TypeVoid {
+			return "scriptgo_console_" + method + "_string", true
+		}
 		if strings.HasPrefix(string(typ), "object:") || typ == ir.TypeObject || typ == ir.TypeClosure || strings.HasSuffix(string(typ), "[]") {
 			return "scriptgo_console_" + method + "_object", true
 		}
