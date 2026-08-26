@@ -167,6 +167,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_number_to_precision(double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_to_locale_string(double, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_array_new(i64, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_set_tag(ptr, i64)\n")
 	out.WriteString("declare i32 @scriptgo_array_get(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_set(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_length(ptr, ptr)\n")
@@ -729,7 +730,6 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			emitter.sharedEnvCells[c.Name] = cellPtr
 		}
 	}
-
 
 	capturedInBody := findCapturedInFunction(function.Body)
 	if emitter.sharedEnvCells == nil {

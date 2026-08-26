@@ -16,6 +16,26 @@ func arrayElementLLVMType(arrayType ir.Type) string {
 	return t
 }
 
+func arrayElementTag(arrayType ir.Type) int {
+	elemType := arrayElementType(arrayType)
+	switch elemType {
+	case ir.TypeNumber:
+		return 3
+	case ir.TypeString:
+		return 4
+	case ir.TypeBool:
+		return 2
+	case ir.TypeBigInt:
+		return 8
+	case ir.TypeSymbol:
+		return 9
+	}
+	if strings.HasPrefix(string(elemType), "object:") || elemType == ir.TypeObject {
+		return 5
+	}
+	return 0
+}
+
 func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruction) error {
 	if !strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray {
 		return fmt.Errorf("unsupported LLVM array type %s", instruction.Type)
@@ -33,6 +53,12 @@ func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruc
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 %d, i64 %d, ptr %%%s)\n", status, len(instruction.Args), elementSize, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+	if tag := arrayElementTag(instruction.Type); tag > 0 {
+		status = fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_tag(ptr %%%s, i64 %d)\n", status, instruction.Result, tag))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	}
 	for index, argument := range instruction.Args {
 		valueSlot := fmt.Sprintf("%s.element.%d", instruction.Result, index)
 		elementLLVMType := arrayElementLLVMType(instruction.Type)
@@ -87,6 +113,17 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
 	if instruction.Type == ir.TypeUnknown {
+		elemType := arrayElementType(arrayType)
+		if elemType != "" && elemType != ir.TypeUnknown {
+			rawSlot := fmt.Sprintf("%s.raw.slot", instruction.Result)
+			rawVal := fmt.Sprintf("%s.raw", instruction.Result)
+			llvmT := llvmType(elemType)
+			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", rawSlot, llvmT))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, rawSlot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", rawVal, llvmT, rawSlot))
+			return e.emitBoxValue(out, rawVal, elemType, instruction.Result)
+		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", slot))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get_unknown(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
@@ -166,6 +203,12 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 %%%s, i64 %d, ptr %%%s)\n", status, lenI64, elementSize, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		if tag := arrayElementTag(instruction.Type); tag > 0 {
+			status = fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_tag(ptr %%%s, i64 %d)\n", status, instruction.Result, tag))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		}
 		return nil
 	case "__array.isArray":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBool {
@@ -268,7 +311,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		} else if elemType == ir.TypeUnknown && arg1Type != ir.TypeUnknown {
 			e.tempCounter++
 			boxedName := fmt.Sprintf("push.box.%d", e.tempCounter)
-			tag := 5
+			var tag int
 			switch arg1Type {
 			case ir.TypeNumber:
 				tag = 3
@@ -486,7 +529,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 	case "__array.map", "__array.flatMap":
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		fnName := "scriptgo_array_map_number"
+		var fnName string
 		retElemType := arrayElementType(instruction.Type)
 		inElemType := arrayElementType(arrayType)
 		if retElemType == ir.TypeNumber {

@@ -124,7 +124,6 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", strVar, payloadVar))
 		arg1 = strVar
-		rightType = ir.TypeString
 	}
 	if leftType == ir.TypeString && instruction.Operator == "+" {
 		e.types[instruction.Result] = ir.TypeString
@@ -237,7 +236,6 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		for _, g := range e.module.Globals {
 			if g.Name == instruction.Args[1] {
 				rightType = g.Type
-				okR = true
 				break
 			}
 		}

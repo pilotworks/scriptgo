@@ -299,4 +299,3 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 	}
 	return stmts
 }
-

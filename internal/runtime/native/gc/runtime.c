@@ -85,6 +85,11 @@ static gc_node *find_node(void *ptr) {
     return NULL;
 }
 
+int scriptgo_gc_is_registered(void *ptr) {
+    if (ptr == NULL) return 0;
+    return find_node(ptr) != NULL ? 1 : 0;
+}
+
 int scriptgo_gc_unregister(void *ptr) {
     if (ptr == NULL) return 0;
     gc_node *node = find_node(ptr);

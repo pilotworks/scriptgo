@@ -30,7 +30,6 @@ func extractParameterBinding(p *ast.Node, pIdx int, chk *checker.Checker) (strin
 	return "", nil
 }
 
-
 func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker, isUsing, isAwaitUsing bool) (SyntaxStatement, bool) {
 	var stmts []SyntaxStatement
 	destructCounter := 0
@@ -207,4 +206,3 @@ func evalConstNumberWithEnv(expr *SyntaxExpression, env map[string]float64) (flo
 	}
 	return 0, false
 }
-

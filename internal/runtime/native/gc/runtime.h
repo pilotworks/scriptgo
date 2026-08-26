@@ -33,6 +33,7 @@ typedef struct scriptgo_gc_header {
 
 void scriptgo_gc_init(void);
 int scriptgo_gc_register(void *ptr, scriptgo_gc_type_tag tag, uint32_t field_count);
+int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 int scriptgo_gc_add_root(void *ptr);
 int scriptgo_gc_remove_root(void *ptr);

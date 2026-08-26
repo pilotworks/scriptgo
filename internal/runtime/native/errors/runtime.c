@@ -12,6 +12,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <setjmp.h>
 #include <math.h>
@@ -187,6 +189,8 @@ typedef struct {
     uintptr_t fields[];
 } scriptgo_object_t;
 
+int scriptgo_gc_is_registered(void *ptr);
+
 int scriptgo_string_from_object(void *obj, char **out_str) {
     if (out_str == NULL) {
         return -1;
@@ -195,25 +199,18 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
         *out_str = strdup("null");
         return 0;
     }
-    if ((uintptr_t)obj > 0x00007FFFFFFFFFFFULL) {
-        union {
-            unsigned long long u64;
-            double d;
-        } u;
-        u.u64 = (uintptr_t)obj;
-        return scriptgo_string_from_number(u.d, out_str);
-    }
-    scriptgo_object_t *o = (scriptgo_object_t *)obj;
-    if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
-        if (o->field_count > 0) {
-            uintptr_t f0 = o->fields[0];
-            if (f0 != 0x7FF8000000000000ULL && f0 > 0x1000 && f0 <= 0x00007FFFFFFFFFFFULL) {
-                *out_str = strdup((char *)f0);
-                return 0;
+    if (scriptgo_gc_is_registered(obj)) {
+        scriptgo_object_t *o = (scriptgo_object_t *)obj;
+        if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
+            if (o->type_name != NULL && (strcmp(o->type_name, "Error") == 0 || strstr(o->type_name, "Error") != NULL)) {
+                if (o->field_count > 0 && o->fields[0] != 0 && o->fields[0] != 0x7FF8000000000000ULL) {
+                    *out_str = strdup((const char *)o->fields[0]);
+                    return 0;
+                }
             }
+            *out_str = strdup("[object Object]");
+            return 0;
         }
-        *out_str = strdup("[object Object]");
-        return 0;
     }
     *out_str = (char *)obj;
     return 0;
@@ -270,7 +267,7 @@ void scriptgo_throw_string(const char *str) {
         frame->thrown_type = 1;
         longjmp(frame->buf, 1);
     }
-    if (str != NULL && ((uintptr_t)str <= 0x00007FFFFFFFFFFFULL) && (uintptr_t)str > 0x1000) {
+    if (str != NULL && scriptgo_gc_is_registered((void *)str)) {
         scriptgo_object_t *o = (scriptgo_object_t *)str;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
             char *msg = NULL;

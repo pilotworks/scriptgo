@@ -897,7 +897,6 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenFalse}, Span: toIRSpan(path, expression.WhenFalse.Span)})
 				whenFalse = boxed
-				falseType = ir.TypeUnknown
 			} else if falseType == ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenTrue}, Span: toIRSpan(path, expression.WhenTrue.Span)})

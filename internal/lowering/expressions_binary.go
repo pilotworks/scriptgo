@@ -546,7 +546,6 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{right}, Span: toIRSpan(path, expression.Span)})
 				right = boxed
-				rightType = ir.TypeUnknown
 			} else if rightType == ir.TypeUnknown && leftType != ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{left}, Span: toIRSpan(path, expression.Span)})

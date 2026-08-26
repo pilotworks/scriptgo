@@ -549,4 +549,3 @@ func syntaxMemberName(nameNode *ast.Node) string {
 	}
 	return nameNode.Text()
 }
-

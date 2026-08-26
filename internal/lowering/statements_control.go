@@ -937,11 +937,10 @@ func findMatchingDiscriminatedType(targetVal string, unionType string, shapes ma
 	}
 	for shapeName := range shapes {
 		if strings.Contains(strings.ToLower(shapeName), cleanTarget) {
-			if (cleanUnion != "" && cleanUnion != "object" && strings.Contains(cleanUnion, shapeName)) {
+			if cleanUnion != "" && cleanUnion != "object" && strings.Contains(cleanUnion, shapeName) {
 				return shapeName
 			}
 		}
 	}
 	return ""
 }
-

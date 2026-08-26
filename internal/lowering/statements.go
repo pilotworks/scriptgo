@@ -487,7 +487,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					Span:   toIRSpan(path, statement.Span),
 				})
 				value = unboxed
-				valType = varType
 			} else {
 				return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
 			}
@@ -754,7 +753,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if valType != shape.Fields[fIndex].Type {
 			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "any[]" || valType == "unknown[]") {
-				valType = shape.Fields[fIndex].Type
+				// allowed array assignment
 			} else if shape.Fields[fIndex].Type == ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{
@@ -765,7 +764,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					Span:   toIRSpan(path, statement.Span),
 				})
 				val = boxed
-				valType = ir.TypeUnknown
 			} else if valType == ir.TypeUnknown {
 				unboxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{
@@ -776,7 +774,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					Span:   toIRSpan(path, statement.Span),
 				})
 				val = unboxed
-				valType = shape.Fields[fIndex].Type
 			} else {
 				return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)
 			}

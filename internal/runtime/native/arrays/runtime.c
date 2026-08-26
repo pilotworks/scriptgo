@@ -12,6 +12,7 @@ typedef struct {
     int64_t element_size;
     unsigned char *data;
     void *owned_data;
+    int64_t element_tag;
 } scriptgo_array;
 
 static int fail(const char *message) { return scriptgo_runtime_set_error(message); }
@@ -22,6 +23,13 @@ static int check_index(scriptgo_array *array, double index, size_t *offset) {
         return fail("scriptgo array index out of bounds");
     }
     *offset = (size_t)index * (size_t)array->element_size;
+    return 0;
+}
+
+int scriptgo_array_set_tag(void *handle, int64_t tag) {
+    scriptgo_array *array = handle;
+    if (array == NULL) return fail("scriptgo array null");
+    array->element_tag = tag;
     return 0;
 }
 
@@ -47,6 +55,7 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
     array->length = length;
     array->capacity = length;
     array->element_size = element_size;
+    array->element_tag = 0;
     array->owned_data = NULL;
     *out_array = array;
     return 0;
@@ -83,10 +92,10 @@ int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
         uint64_t val;
         memcpy(&val, array->data + offset, 8);
         *payload_ptr = val;
-        if (val == 0) {
+        if (array->element_tag > 0) {
+            *tag_ptr = (uint32_t)array->element_tag;
+        } else if (val == 0) {
             *tag_ptr = 1; // NULL
-        } else if (val > 0x00007FFFFFFFFFFFULL && val != 0xFFFFFFFFFFFFFFFFULL) {
-            *tag_ptr = 3; // NUMBER
         } else {
             *tag_ptr = 5; // OBJECT / POINTER / STRING
         }
