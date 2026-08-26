@@ -233,6 +233,9 @@ export class Event {
     defaultPrevented: boolean = false;
     timeStamp: number;
 
+    propagationStopped: boolean = false;
+    immediatePropagationStopped: boolean = false;
+
     constructor(type: string, eventInitDict?: { bubbles?: boolean; cancelable?: boolean }) {
         this.type = type;
         this.bubbles = !!(eventInitDict && eventInitDict.bubbles);
@@ -246,8 +249,14 @@ export class Event {
         }
     }
 
-    stopPropagation(): void {}
-    stopImmediatePropagation(): void {}
+    stopPropagation(): void {
+        this.propagationStopped = true;
+    }
+
+    stopImmediatePropagation(): void {
+        this.immediatePropagationStopped = true;
+        this.propagationStopped = true;
+    }
 }
 
 export class CustomEvent extends Event {
@@ -360,6 +369,9 @@ export class EventTarget {
         bucket.entries = remaining;
 
         for (let i = 0; i < snapshot.length; i++) {
+            if (event.immediatePropagationStopped) {
+                break;
+            }
             snapshot[i].listener(event);
         }
         return !event.defaultPrevented;

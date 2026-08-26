@@ -196,7 +196,7 @@ export namespace querystring {
         eq?: string,
         options?: ParseOptions
     ): Record<string, unknown> {
-        return {};
+        return parse(str, sep, eq, options);
     }
     export function decode(
         str: string,
@@ -204,6 +204,6 @@ export namespace querystring {
         eq?: string,
         options?: ParseOptions
     ): Record<string, unknown> {
-        return {};
+        return parse(str, sep, eq, options);
     }
 }

@@ -652,7 +652,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeClosure, nil
 		}
 		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
-			if topVar.Kind == "let" || topVar.Kind == "var" {
+			if topVar.VarDeclKind == "let" || topVar.VarDeclKind == "var" {
 				varTyp := toIRType(topVar.Type)
 				if varTyp == "" {
 					varTyp = toIRType(topVar.InferredType)

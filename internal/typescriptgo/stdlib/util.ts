@@ -432,7 +432,11 @@ export function getCallSites(frameCount?: number, options?: unknown): unknown[] 
     return [];
 }
 
-export function setTraceSigInt(enable: boolean): void {}
+let _traceSigInt: boolean = false;
+
+export function setTraceSigInt(enable: boolean): void {
+    _traceSigInt = enable;
+}
 
 export function diff(actual: unknown, expected: unknown): string {
     return `+ ${inspect(expected)}\n- ${inspect(actual)}`;
@@ -445,7 +449,7 @@ export function aborted(signal: unknown, resource?: unknown): Promise<void> {
 }
 
 export function transferableAbortController(): unknown {
-    return {};
+    return { signal: { aborted: false } };
 }
 
 export function transferableAbortSignal(signal: unknown): unknown {

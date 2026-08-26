@@ -54,8 +54,7 @@ func isObjectBuiltinCall(expr *typescriptgo.SyntaxExpression) bool {
 }
 
 func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, isBuiltin bool) error {
-	isVarKind := statement.Kind == "variable" || statement.Kind == "const" || statement.Kind == "let" || statement.Kind == "var"
-	if statement.Kind != "type_alias" && (!isVarKind || (!isHeterogeneousUnion(statement.Type) && !isObjectBuiltinCall(statement.Expression))) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
+	if statement.Kind != "type_alias" && (statement.Kind != "variable" || (!isHeterogeneousUnion(statement.Type) && !isObjectBuiltinCall(statement.Expression))) && statement.Kind != "generator_function" && statement.Kind != "async_generator_function" && !statement.IsGenerator {
 		if err := validateStaticType(fileName, statement.Span, statement.Type, isBuiltin); err != nil {
 			return err
 		}
@@ -182,7 +181,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, 
 			}
 		}
 		return nil
-	case "variable", "const", "let", "var", "using", "await_using":
+	case "variable", "using", "await_using":
 		if statement.Expression == nil {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "variable declaration without an initializer")
 		}

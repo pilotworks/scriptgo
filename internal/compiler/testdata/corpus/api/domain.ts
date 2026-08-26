@@ -25,7 +25,7 @@ d.exit();
 console.log("exit passed");
 
 // @api: Domain.add
-// @api: Domain.Type
+// @api: Domain.members
 // @expect: add passed
 const emitter = new EventEmitter();
 d.add(emitter);

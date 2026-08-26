@@ -152,7 +152,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				}
 			} else if statement.Kind == "class" && statement.Class != nil {
 				// 1. Index constructor
-				if statement.Class.Constructor != nil || len(statement.Class.Fields) > 0 {
+				if statement.Class.Constructor != nil {
 					ctorMangled := statement.Class.Name + "_constructor"
 					ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid}
 					ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + statement.Class.Name)})

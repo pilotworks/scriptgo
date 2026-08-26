@@ -62,13 +62,17 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker
 			if initExpr != nil && varType != "" && !strings.HasPrefix(varType, "{") && (initExpr.InferredType == "" || strings.HasPrefix(initExpr.InferredType, "{")) {
 				initExpr.InferredType = varType
 			}
-			kind := varKind
-			if kind == "" {
-				kind = "variable"
+			kind := "variable"
+			switch varKind {
+			case "await_using":
+				kind = "await_using"
+			case "using":
+				kind = "using"
 			}
 			result := SyntaxStatement{
 				Span:         sourceSpan(declaration),
 				Kind:         kind,
+				VarDeclKind:  varKind,
 				Name:         nameNode.Text(),
 				Type:         varType,
 				InferredType: inferredVarType,

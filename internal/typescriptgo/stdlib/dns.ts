@@ -140,8 +140,10 @@ export function setDefaultResultOrder(order: string): void {
     }
 }
 
+let _dnsCancelled: boolean = false;
+
 export function cancel(): void {
-    // No-op for synchronous embedded resolver
+    _dnsCancelled = true;
 }
 
 export function lookup(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void {

@@ -134,7 +134,21 @@ func FormatConstructorSignature(className string, params []DocParam) string {
 // NormalizeAPIName normalizes various raw names into canonical "module.member" or "Class.member".
 func NormalizeAPIName(raw string) string {
 	s := strings.TrimSpace(raw)
+	if strings.Contains(s, "`") {
+		first := strings.Index(s, "`")
+		last := strings.Index(s[first+1:], "`")
+		if last != -1 {
+			inside := strings.TrimSpace(s[first+1 : first+1+last])
+			if inside != "" {
+				s = inside
+			}
+		}
+	}
 	s = strings.ReplaceAll(s, "`", "")
+	lower := strings.ToLower(s)
+	if strings.HasPrefix(lower, "type:") || strings.HasPrefix(lower, "type :") || strings.HasPrefix(lower, "return:") || strings.HasPrefix(lower, "returns:") || strings.HasPrefix(lower, "added in:") || strings.HasPrefix(lower, "deprecated in:") {
+		return ""
+	}
 	if idx := strings.Index(s, "("); idx != -1 {
 		s = s[:idx]
 	}
@@ -218,6 +232,32 @@ func getClassConstructorParams(c DocClass) ([]DocParam, *DocReturn) {
 	return nil, nil
 }
 
+func extractPropertyName(p DocProperty) string {
+	name := NormalizeAPIName(p.Name)
+	if name != "" && !strings.EqualFold(name, "Type") {
+		return name
+	}
+	raw := strings.TrimSpace(p.TextRaw)
+	if idx1 := strings.Index(raw, "`"); idx1 != -1 {
+		if idx2 := strings.Index(raw[idx1+1:], "`"); idx2 != -1 {
+			candidate := strings.TrimSpace(raw[idx1+1 : idx1+1+idx2])
+			candidate = NormalizeAPIName(candidate)
+			if candidate != "" && !strings.EqualFold(candidate, "Type") {
+				return candidate
+			}
+		}
+	}
+	if idx := strings.Index(strings.ToLower(raw), "type:"); idx != -1 {
+		candidate := strings.TrimSpace(raw[:idx])
+		candidate = strings.Trim(candidate, "` :")
+		candidate = NormalizeAPIName(candidate)
+		if candidate != "" && !strings.EqualFold(candidate, "Type") {
+			return candidate
+		}
+	}
+	return NormalizeAPIName(raw)
+}
+
 // ExtractCanonicalAPIs flattens a DocRoot into a slice of CanonicalAPI items.
 func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 	var apis []CanonicalAPI
@@ -242,6 +282,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 			if name == "" {
 				name = NormalizeAPIName(m.TextRaw)
 			}
+			if name == "" {
+				continue
+			}
 			params, ret := getMethodParamsAndReturn(m)
 			fullName := fmt.Sprintf("%s.%s", modName, name)
 			addAPI(CanonicalAPI{
@@ -260,9 +303,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 		}
 
 		for _, p := range mod.Properties {
-			name := NormalizeAPIName(p.Name)
+			name := extractPropertyName(p)
 			if name == "" {
-				name = NormalizeAPIName(p.TextRaw)
+				continue
 			}
 			fullName := fmt.Sprintf("%s.%s", modName, name)
 			addAPI(CanonicalAPI{
@@ -279,6 +322,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 
 		for _, c := range mod.Classes {
 			cName := NormalizeAPIName(c.Name)
+			if cName == "" {
+				continue
+			}
 			cParams, cRet := getClassConstructorParams(c)
 			addAPI(CanonicalAPI{
 				Module:        modName,
@@ -295,6 +341,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 
 			for _, m := range c.Methods {
 				name := NormalizeAPIName(m.Name)
+				if name == "" {
+					continue
+				}
 				fullName := fmt.Sprintf("%s.%s", cName, name)
 				params, ret := getMethodParamsAndReturn(m)
 				addAPI(CanonicalAPI{
@@ -313,7 +362,10 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 				})
 			}
 			for _, p := range c.Properties {
-				pName := NormalizeAPIName(p.Name)
+				pName := extractPropertyName(p)
+				if pName == "" {
+					continue
+				}
 				fullName := fmt.Sprintf("%s.%s", cName, pName)
 				addAPI(CanonicalAPI{
 					Module:        modName,
@@ -340,6 +392,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 
 	for _, c := range doc.Classes {
 		cName := NormalizeAPIName(c.Name)
+		if cName == "" {
+			continue
+		}
 		cParams, cRet := getClassConstructorParams(c)
 		addAPI(CanonicalAPI{
 			Module:        cleanModule,
@@ -356,6 +411,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 
 		for _, m := range c.Methods {
 			name := NormalizeAPIName(m.Name)
+			if name == "" {
+				continue
+			}
 			fullName := fmt.Sprintf("%s.%s", cName, name)
 			params, ret := getMethodParamsAndReturn(m)
 			addAPI(CanonicalAPI{
@@ -374,7 +432,10 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 			})
 		}
 		for _, p := range c.Properties {
-			pName := NormalizeAPIName(p.Name)
+			pName := extractPropertyName(p)
+			if pName == "" {
+				continue
+			}
 			fullName := fmt.Sprintf("%s.%s", cName, pName)
 			addAPI(CanonicalAPI{
 				Module:        cleanModule,
@@ -392,6 +453,9 @@ func ExtractCanonicalAPIs(moduleName string, doc *DocRoot) []CanonicalAPI {
 
 	for _, m := range doc.Methods {
 		name := NormalizeAPIName(m.Name)
+		if name == "" {
+			continue
+		}
 		fullName := fmt.Sprintf("%s.%s", cleanModule, name)
 		params, ret := getMethodParamsAndReturn(m)
 		addAPI(CanonicalAPI{
