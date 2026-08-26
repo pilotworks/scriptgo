@@ -1,0 +1,97 @@
+{
+  "type": "module",
+  "source": "doc/api/environment_variables.md",
+  "modules": [
+    {
+      "textRaw": "Environment Variables",
+      "name": "environment_variables",
+      "desc": "<p>Environment variables are variables associated to the environment the Node.js process runs in.</p>",
+      "modules": [
+        {
+          "textRaw": "CLI Environment Variables",
+          "name": "cli_environment_variables",
+          "desc": "<p>There is a set of environment variables that can be defined to customize the behavior of Node.js,\nfor more details refer to the <a href=\"cli.html#environment-variables_1\">CLI Environment Variables documentation</a>.</p>",
+          "type": "module",
+          "displayName": "CLI Environment Variables"
+        },
+        {
+          "textRaw": "DotEnv",
+          "name": "dotenv",
+          "introduced_in": "v20.12.0",
+          "desc": "<p>Set of utilities for dealing with additional environment variables defined in <code>.env</code> files.</p>\n<blockquote>\n<p>Stability: 2 - Stable</p>\n</blockquote>",
+          "modules": [
+            {
+              "textRaw": ".env files",
+              "name": ".env_files",
+              "desc": "<p><code>.env</code> files (also known as dotenv files) are files that define environment variables,\nwhich Node.js applications can then interact with (popularized by the <a href=\"https://github.com/motdotla/dotenv\">dotenv</a> package).</p>\n<p>The following is an example of the content of a basic <code>.env</code> file:</p>\n<pre><code class=\"language-text\">MY_VAR_A = \"my variable A\"\nMY_VAR_B = \"my variable B\"\n</code></pre>\n<p>This type of file is used in various different programming languages and platforms but there\nis no formal specification for it, therefore Node.js defines its own specification described below.</p>\n<p>A <code>.env</code> file is a file that contains key-value pairs, each pair is represented by a variable name\nfollowed by the equal sign (<code>=</code>) followed by a variable value.</p>\n<p>The name of such files is usually <code>.env</code> or it starts with <code>.env</code> (like for example <code>.env.dev</code> where\n<code>dev</code> indicates a specific target environment). This is the recommended naming scheme but it is not\nmandatory and dotenv files can have any arbitrary file name.</p>",
+              "modules": [
+                {
+                  "textRaw": "Variable Names",
+                  "name": "variable_names",
+                  "desc": "<p>A valid variable name must contain only letters (uppercase or lowercase), digits and underscores\n(<code>_</code>) and it can't begin with a digit.</p>\n<p>More specifically a valid variable name must match the following regular expression:</p>\n<pre><code class=\"language-text\">^[a-zA-Z_]+[a-zA-Z0-9_]*$\n</code></pre>\n<p>The recommended convention is to use capital letters with underscores and digits when necessary,\nbut any variable name respecting the above definition will work just fine.</p>\n<p>For example, the following are some valid variable names: <code>MY_VAR</code>, <code>MY_VAR_1</code>, <code>my_var</code>, <code>my_var_1</code>,\n<code>myVar</code>, <code>My_Var123</code>, while these are instead not valid: <code>1_VAR</code>, <code>'my-var'</code>, <code>\"my var\"</code>, <code>VAR_#1</code>.</p>",
+                  "type": "module",
+                  "displayName": "Variable Names"
+                },
+                {
+                  "textRaw": "Variable Values",
+                  "name": "variable_values",
+                  "desc": "<p>Variable values are comprised by any arbitrary text, which can optionally be wrapped inside\nsingle (<code>'</code>) or double (<code>\"</code>) quotes.</p>\n<p>Quoted variables can span across multiple lines, while non quoted ones are restricted to a single line.</p>\n<p>Noting that when parsed by Node.js all values are interpreted as text, meaning that any value will\nresult in a JavaScript string inside Node.js. For example the following values: <code>0</code>, <code>true</code> and\n<code>{ \"hello\": \"world\" }</code> will result in the literal strings <code>'0'</code>, <code>'true'</code> and <code>'{ \"hello\": \"world\" }'</code>\ninstead of the number zero, the boolean <code>true</code> and an object with the <code>hello</code> property respectively.</p>\n<p>Examples of valid variables:</p>\n<pre><code class=\"language-text\">MY_SIMPLE_VAR = a simple single line variable\nMY_EQUALS_VAR = \"this variable contains an = sign!\"\nMY_HASH_VAR = 'this variable contains a # symbol!'\nMY_MULTILINE_VAR = '\nthis is a multiline variable containing\ntwo separate lines\\nSorry, I meant three lines'\n</code></pre>",
+                  "type": "module",
+                  "displayName": "Variable Values"
+                },
+                {
+                  "textRaw": "Spacing",
+                  "name": "spacing",
+                  "desc": "<p>Leading and trailing whitespace characters around variable keys and values are ignored unless they\nare enclosed within quotes.</p>\n<p>For example:</p>\n<pre><code class=\"language-text\">   MY_VAR_A   =    my variable a\n    MY_VAR_B   =    '   my variable b   '\n</code></pre>\n<p>will be treated identically to:</p>\n<pre><code class=\"language-text\">MY_VAR_A = my variable a\nMY_VAR_B = '   my variable b   '\n</code></pre>",
+                  "type": "module",
+                  "displayName": "Spacing"
+                },
+                {
+                  "textRaw": "Comments",
+                  "name": "comments",
+                  "desc": "<p>Hash-tag (<code>#</code>) characters denote the beginning of a comment, meaning that the rest of the line\nwill be completely ignored.</p>\n<p>Hash-tags found within quotes are however treated as any other standard character.</p>\n<p>For example:</p>\n<pre><code class=\"language-text\"># This is a comment\nMY_VAR = my variable # This is also a comment\nMY_VAR_A = \"# this is NOT a comment\"\n</code></pre>",
+                  "type": "module",
+                  "displayName": "Comments"
+                },
+                {
+                  "textRaw": "`export` prefixes",
+                  "name": "`export`_prefixes",
+                  "desc": "<p>The <code>export</code> keyword can optionally be added in front of variable declarations, such keyword will be completely ignored\nby all processing done on the file.</p>\n<p>This is useful so that the file can be sourced, without modifications, in shell terminals.</p>\n<p>Example:</p>\n<pre><code class=\"language-text\">export MY_VAR = my variable\n</code></pre>",
+                  "type": "module",
+                  "displayName": "`export` prefixes"
+                }
+              ],
+              "type": "module",
+              "displayName": ".env files"
+            },
+            {
+              "textRaw": "CLI Options",
+              "name": "cli_options",
+              "desc": "<p><code>.env</code> files can be used to populate the <code>process.env</code> object via one the following CLI options:</p>\n<ul>\n<li>\n<p><a href=\"cli.html#--env-filefile\"><code>--env-file=file</code></a></p>\n</li>\n<li>\n<p><a href=\"cli.html#--env-file-if-existsfile\"><code>--env-file-if-exists=file</code></a></p>\n</li>\n</ul>",
+              "type": "module",
+              "displayName": "CLI Options"
+            },
+            {
+              "textRaw": "Programmatic APIs",
+              "name": "programmatic_apis",
+              "desc": "<p>There following two functions allow you to directly interact with <code>.env</code> files:</p>\n<ul>\n<li>\n<p><a href=\"process.html#processloadenvfilepath\"><code>process.loadEnvFile</code></a> loads an <code>.env</code> file and populates <code>process.env</code> with its variables</p>\n</li>\n<li>\n<p><a href=\"util.html#utilparseenvcontent\"><code>util.parseEnv</code></a> parses the raw content of an <code>.env</code> file and returns its value in an object</p>\n</li>\n</ul>",
+              "type": "module",
+              "displayName": "Programmatic APIs"
+            }
+          ],
+          "type": "module",
+          "displayName": "DotEnv"
+        }
+      ],
+      "properties": [
+        {
+          "textRaw": "`process.env`",
+          "name": "env",
+          "desc": "<p>The basic API for interacting with environment variables is <code>process.env</code>, it consists of an object\nwith pre-populated user environment variables that can be modified and expanded.</p>\n<p>For more details refer to the <a href=\"process.html#processenv\"><code>process.env</code> documentation</a>.</p>"
+        }
+      ],
+      "type": "module",
+      "displayName": "Environment Variables"
+    }
+  ]
+}

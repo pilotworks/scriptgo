@@ -99,6 +99,9 @@ console.warn("warn output");
 // @api: console.profileEnd
 // @api: console.timeStamp
 // @expect: profiled
+console.profile("test-profile");
+console.timeStamp("checkpoint");
+console.profileEnd("test-profile");
 console.log("profiled");
 
 // @api: Console

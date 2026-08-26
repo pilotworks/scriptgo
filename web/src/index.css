@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-doc-bg: #0d1117;
+  --color-doc-sidebar: #010409;
+  --color-doc-surface: #161b22;
+  --color-doc-border: #30363d;
+  --color-doc-border-subtle: #21262d;
+  --color-doc-text: #e6edf3;
+  --color-doc-muted: #8b949e;
+  --color-doc-dim: #6e7681;
+  --color-doc-link: #58a6ff;
+  --color-doc-green: #3fb950;
+  --color-doc-green-bg: rgba(46, 160, 67, 0.15);
+  --color-doc-red: #f85149;
+  --color-doc-red-bg: rgba(248, 81, 73, 0.15);
+  --color-doc-blue: #1f6feb;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* PrismJS Syntax Highlighting Tokens (GitHub Dark Theme) */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #c9d1d9;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+  color: #79c0ff;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #7ee787;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #ff7b72;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #ff7b72;
+}
+
+.token.function,
+.token.class-name {
+  color: #d2a8ff;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: #ffa657;
+}

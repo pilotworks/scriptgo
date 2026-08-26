@@ -1,4 +1,4 @@
-.PHONY: all build test test-frontend test-parity test-sanitizers lint clean release help
+.PHONY: all build test test-frontend test-parity test-sanitizers audit lint clean release help
 
 BINARY_NAME=scriptgo
 BUILD_DIR=bin
@@ -24,6 +24,11 @@ test-frontend:
 test-parity:
 	@echo "==> Running Node.js parity checker..."
 	go run ./cmd/parity
+
+## audit: Run official Node.js API coverage audit against corpus tests (Source of Truth)
+audit:
+	@echo "==> Running Node.js official API coverage audit against corpus..."
+	go run ./cmd/parity -audit
 
 ## test-sanitizers: Run native builds with AddressSanitizer & memory checks across the corpus in parallel
 test-sanitizers:
