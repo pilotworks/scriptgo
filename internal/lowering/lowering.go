@@ -58,7 +58,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "variable" && statement.Expression != nil {
+			if (statement.Kind == "variable" || statement.Kind == "const" || statement.Kind == "let" || statement.Kind == "var") && statement.Expression != nil {
 				topLevelVars[statement.Name] = statement
 			}
 			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
@@ -222,7 +222,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "variable" && statement.Name != "" {
+			if (statement.Kind == "variable" || statement.Kind == "const" || statement.Kind == "let" || statement.Kind == "var") && statement.Name != "" {
 				vType := statement.Type
 				if vType == "" && statement.InferredType != "" {
 					vType = statement.InferredType
@@ -389,39 +389,49 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 				}
 
-				// Lower constructor if present
-				if statement.Class.Constructor != nil {
+				// Lower constructor if present, or synthesize if fields have initializers
+				if statement.Class.Constructor != nil || len(fieldInits) > 0 {
 					ctorMangled := statement.Class.Name + "_constructor"
 					var ctorBody []typescriptgo.SyntaxStatement
-					if len(statement.Class.Constructor.Body) > 0 && statement.Class.Constructor.Body[0].Expression != nil && statement.Class.Constructor.Body[0].Expression.Kind == "call" && statement.Class.Constructor.Body[0].Expression.Left != nil && statement.Class.Constructor.Body[0].Expression.Left.Text == "super" {
-						ctorBody = append(ctorBody, statement.Class.Constructor.Body[0])
-						ctorBody = append(ctorBody, fieldInits...)
-						ctorBody = append(ctorBody, statement.Class.Constructor.Body[1:]...)
+					var ctorParams []typescriptgo.SyntaxParameter
+					var ctorSpan typescriptgo.SourceSpan
+					if statement.Class.Constructor != nil {
+						ctorSpan = statement.Class.Constructor.Span
+						ctorParams = statement.Class.Constructor.Parameters
+						if len(statement.Class.Constructor.Body) > 0 && statement.Class.Constructor.Body[0].Expression != nil && statement.Class.Constructor.Body[0].Expression.Kind == "call" && statement.Class.Constructor.Body[0].Expression.Left != nil && statement.Class.Constructor.Body[0].Expression.Left.Text == "super" {
+							ctorBody = append(ctorBody, statement.Class.Constructor.Body[0])
+							ctorBody = append(ctorBody, fieldInits...)
+							ctorBody = append(ctorBody, statement.Class.Constructor.Body[1:]...)
+						} else {
+							ctorBody = append(ctorBody, fieldInits...)
+							ctorBody = append(ctorBody, statement.Class.Constructor.Body...)
+						}
 					} else {
+						ctorSpan = statement.Class.Span
 						ctorBody = append(ctorBody, fieldInits...)
-						ctorBody = append(ctorBody, statement.Class.Constructor.Body...)
 					}
 					ctorStmt := typescriptgo.SyntaxStatement{
-						Span: statement.Class.Constructor.Span,
+						Span: ctorSpan,
 						Kind: "function",
 						Name: ctorMangled,
 						Type: "void",
 						Parameters: append([]typescriptgo.SyntaxParameter{
 							{Name: "this", Type: "object:" + statement.Class.Name},
-						}, statement.Class.Constructor.Parameters...),
+						}, ctorParams...),
 						Body: ctorBody,
 					}
 					function, err := lowerFunction(file.FileName, ctorStmt, shapes, signatures)
 					if err != nil {
-						return ir.Module{}, fmt.Errorf("lower class constructor %q: %w", ctorMangled, sourceError(file.FileName, statement.Class.Constructor.Span, err))
+						return ir.Module{}, fmt.Errorf("lower class constructor %q: %w", ctorMangled, sourceError(file.FileName, ctorSpan, err))
 					}
 					module.Functions = append(module.Functions, function)
+					signatures[ctorMangled] = function
 				}
 
 				// Lower methods, static methods, getters, setters
 				allMethods := getInheritedMethods(statement.Class.Name, hierarchy)
 				for _, method := range allMethods {
-					if method.IsAbstract || len(method.Body) == 0 {
+					if method.IsAbstract || method.Body == nil {
 						continue
 					}
 					var mangled string

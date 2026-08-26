@@ -424,6 +424,16 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 
 	shape, ok := shapes[className]
 	if !ok {
+		if idx := strings.LastIndex(className, "."); idx != -1 {
+			shortName := className[idx+1:]
+			if s, exists := shapes[shortName]; exists {
+				shape = s
+				ok = true
+				className = shortName
+			}
+		}
+	}
+	if !ok {
 		return "", "", fmt.Errorf("unknown class %q", className)
 	}
 	if result == "" {

@@ -46,7 +46,7 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 					Implements: stmt.Class.Implements,
 					IsAbstract: stmt.Class.IsAbstract,
 					Statics:    map[string]typescriptgo.SyntaxField{},
-					HasCtor:    stmt.Class.Constructor != nil,
+					HasCtor:    stmt.Class.Constructor != nil || len(stmt.Class.Fields) > 0,
 				}
 				for _, f := range stmt.Class.Fields {
 					if f.IsStatic {

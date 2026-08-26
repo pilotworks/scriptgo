@@ -229,14 +229,7 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 			out.WriteString("  ret ptr null\n")
 		}
 	} else {
-		retVal := instruction.Args[0]
-		if slot, ok := e.varSlots[retVal]; ok {
-			typ := e.types[retVal]
-			loaded := fmt.Sprintf("%s.ret.loaded.%d", retVal, e.loadCounter)
-			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(typ), slot))
-			retVal = loaded
-		}
+		retVal := e.resolveArg(out, instruction.Args[0])
 		out.WriteString(fmt.Sprintf("  ret %s %%%s\n", llvmType(e.function.ReturnType), retVal))
 	}
 	e.terminated = true

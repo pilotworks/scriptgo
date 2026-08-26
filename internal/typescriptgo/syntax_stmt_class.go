@@ -283,10 +283,11 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				})
 			}
 			var body []SyntaxStatement
-			if len(bindingStmts) > 0 {
-				body = append(body, bindingStmts...)
-			}
 			if b := member.Body(); b != nil {
+				body = []SyntaxStatement{}
+				if len(bindingStmts) > 0 {
+					body = append(body, bindingStmts...)
+				}
 				for _, s := range b.Statements() {
 					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
@@ -319,6 +320,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		case ast.KindGetAccessor:
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
+				body = []SyntaxStatement{}
 				for _, s := range b.Statements() {
 					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)
@@ -373,10 +375,11 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				})
 			}
 			var body []SyntaxStatement
-			if len(bindingStmts) > 0 {
-				body = append(body, bindingStmts...)
-			}
 			if b := member.Body(); b != nil {
+				body = []SyntaxStatement{}
+				if len(bindingStmts) > 0 {
+					body = append(body, bindingStmts...)
+				}
 				for _, s := range b.Statements() {
 					if converted, ok := syntaxStatement(s, chk); ok {
 						body = append(body, converted)

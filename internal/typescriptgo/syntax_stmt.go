@@ -16,9 +16,19 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		varStmt := node.AsVariableStatement()
 		declList := varStmt.DeclarationList.AsVariableDeclarationList()
 		declarations := declList.Declarations.Nodes
-		isUsing := (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsUsing
-		isAwaitUsing := (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsAwaitUsing
-		return syntaxVariableDeclarations(declarations, span, chk, isUsing, isAwaitUsing)
+		varKind := "variable"
+		if (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsAwaitUsing {
+			varKind = "await_using"
+		} else if (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsUsing {
+			varKind = "using"
+		} else if (declList.Flags & ast.NodeFlagsConst) != 0 {
+			varKind = "const"
+		} else if (declList.Flags & ast.NodeFlagsLet) != 0 {
+			varKind = "let"
+		} else {
+			varKind = "var"
+		}
+		return syntaxVariableDeclarations(declarations, span, chk, varKind)
 	case ast.KindFunctionDeclaration:
 		fnType := syntaxType(node.Type())
 		inferredRetType := resolveFunctionReturnType(chk, node)
@@ -307,7 +317,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		if forNode.Initializer != nil {
 			if forNode.Initializer.Kind == ast.KindVariableDeclarationList {
 				decls := forNode.Initializer.AsVariableDeclarationList().Declarations.Nodes
-				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk, false, false)
+				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk, "var")
 				if ok {
 					return SyntaxStatement{
 						Span: span,
@@ -447,6 +457,10 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			if modBlock := modDecl.Body.AsModuleBlock(); modBlock != nil && modBlock.Statements != nil {
 				for _, s := range modBlock.Statements.Nodes {
 					if conv, ok := syntaxStatement(s, chk); ok {
+						if conv.Kind == "class" && conv.Class != nil {
+							conv.Class.Name = name + "." + conv.Class.Name
+							conv.Name = conv.Class.Name
+						}
 						bodyStmts = append(bodyStmts, conv)
 					}
 				}

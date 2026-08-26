@@ -121,7 +121,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 
 func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	switch statement.Kind {
-	case "variable", "using", "await_using":
+	case "variable", "const", "let", "var", "using", "await_using":
 		if statement.Expression == nil {
 			return fmt.Errorf("variable %q has no initializer", statement.Name)
 		}

@@ -210,11 +210,18 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if err != nil {
 			return "", "", err
 		}
-		targetClass := ""
-		if expression.Right != nil && (expression.Right.Kind == "identifier" || expression.Right.Kind == "type") {
+		targetClass := callName(expression.Right)
+		if targetClass == "" && expression.Right != nil && (expression.Right.Kind == "identifier" || expression.Right.Kind == "type") {
 			targetClass = expression.Right.Text
-		} else {
+		}
+		if targetClass == "" {
 			return "", "", fmt.Errorf("instanceof requires a class identifier on the right")
+		}
+		if idx := strings.LastIndex(targetClass, "."); idx != -1 {
+			shortName := targetClass[idx+1:]
+			if _, exists := classHierarchy[shortName]; exists {
+				targetClass = shortName
+			}
 		}
 		if result == "" {
 			result = nextTemp(counter)

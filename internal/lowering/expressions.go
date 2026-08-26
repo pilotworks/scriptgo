@@ -652,6 +652,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeClosure, nil
 		}
 		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
+			if topVar.Kind == "let" || topVar.Kind == "var" {
+				varTyp := toIRType(topVar.Type)
+				if varTyp == "" {
+					varTyp = toIRType(topVar.InferredType)
+				}
+				if varTyp == "" {
+					varTyp = ir.TypeNumber
+				}
+				return expression.Text, varTyp, nil
+			}
 			inProgressVars[expression.Text] = true
 			res, typ, err := lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
 			delete(inProgressVars, expression.Text)

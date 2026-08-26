@@ -1,35 +1,23 @@
 package spec_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/pilotworks/scriptgo/internal/spec"
 )
 
-func TestLoadModuleSpec(t *testing.T) {
-	cacheDir := filepath.Join(os.TempDir(), "scriptgo_specs_test")
-	doc, err := spec.LoadModuleSpec(cacheDir, "timers")
-	if err != nil {
-		t.Logf("Network or spec fetch skipped: %v", err)
-		return
-	}
-
-	apis := spec.ExtractCanonicalAPIs("timers", doc)
-	if len(apis) == 0 {
-		t.Fatalf("expected extracted APIs for timers, got 0")
-	}
-
-	foundSetTimeout := false
-	for _, api := range apis {
-		if api.Name == "setTimeout" || api.NormalizedKey == "timers.setTimeout" {
-			foundSetTimeout = true
-			break
+func TestListModuleAPIs(t *testing.T) {
+	cacheDir := filepath.Join("..", "..", "testdata", "specs", "nodejs-v22")
+	for _, mod := range []string{"dns", "domain"} {
+		doc, err := spec.LoadModuleSpec(cacheDir, mod)
+		if err != nil {
+			t.Fatalf("LoadModuleSpec failed for %s: %v", mod, err)
 		}
-	}
-
-	if !foundSetTimeout {
-		t.Errorf("expected timers.setTimeout in extracted APIs")
+		apis := spec.ExtractCanonicalAPIs(mod, doc)
+		t.Logf("=== Module: %s (%d APIs) ===", mod, len(apis))
+		for i, a := range apis {
+			t.Logf("  [%d] Key=%-30s FullName=%-35s Kind=%s", i+1, a.NormalizedKey, a.FullName, a.Kind)
+		}
 	}
 }

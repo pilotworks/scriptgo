@@ -30,7 +30,7 @@ func extractParameterBinding(p *ast.Node, pIdx int, chk *checker.Checker) (strin
 	return "", nil
 }
 
-func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker, isUsing, isAwaitUsing bool) (SyntaxStatement, bool) {
+func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker.Checker, varKind string) (SyntaxStatement, bool) {
 	var stmts []SyntaxStatement
 	destructCounter := 0
 	for _, declaration := range decls {
@@ -62,11 +62,9 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker
 			if initExpr != nil && varType != "" && !strings.HasPrefix(varType, "{") && (initExpr.InferredType == "" || strings.HasPrefix(initExpr.InferredType, "{")) {
 				initExpr.InferredType = varType
 			}
-			kind := "variable"
-			if isAwaitUsing {
-				kind = "await_using"
-			} else if isUsing {
-				kind = "using"
+			kind := varKind
+			if kind == "" {
+				kind = "variable"
 			}
 			result := SyntaxStatement{
 				Span:         sourceSpan(declaration),

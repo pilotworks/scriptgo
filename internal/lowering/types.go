@@ -824,6 +824,11 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 			fallthroughReturns = caseReturns
 		}
 		return hasDefault
+	case "try":
+		bodyReturns := slices.ContainsFunc(stmt.Body, statementAlwaysReturns)
+		catchReturns := len(stmt.Catch) > 0 && slices.ContainsFunc(stmt.Catch, statementAlwaysReturns)
+		finallyReturns := len(stmt.Finally) > 0 && slices.ContainsFunc(stmt.Finally, statementAlwaysReturns)
+		return finallyReturns || (bodyReturns && catchReturns)
 	default:
 		return false
 	}

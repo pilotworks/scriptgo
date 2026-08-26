@@ -152,24 +152,26 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				}
 			} else if statement.Kind == "class" && statement.Class != nil {
 				// 1. Index constructor
-				if statement.Class.Constructor != nil {
+				if statement.Class.Constructor != nil || len(statement.Class.Fields) > 0 {
 					ctorMangled := statement.Class.Name + "_constructor"
 					ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid}
 					ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + statement.Class.Name)})
-					for pIdx, parameter := range statement.Class.Constructor.Parameters {
-						typ := toIRType(parameter.Type)
-						if parameter.Initializer != nil {
-							if defaultParamsIndex[ctorMangled] == nil {
-								defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+					if statement.Class.Constructor != nil {
+						for pIdx, parameter := range statement.Class.Constructor.Parameters {
+							typ := toIRType(parameter.Type)
+							if parameter.Initializer != nil {
+								if defaultParamsIndex[ctorMangled] == nil {
+									defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+								}
+								defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
+							} else if parameter.Optional {
+								if defaultParamsIndex[ctorMangled] == nil {
+									defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+								}
+								defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
 							}
-							defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
-						} else if parameter.Optional {
-							if defaultParamsIndex[ctorMangled] == nil {
-								defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
-							}
-							defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+							ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
-						ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 					}
 					index[ctorMangled] = ctorFn
 					functionsByFile[fileName] = append(functionsByFile[fileName], ctorFn)

@@ -43,7 +43,12 @@ func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruc
 	e.types[instruction.Result] = instruction.Type
 	e.arrayTypes = append(e.arrayTypes, arrayReference{name: instruction.Result, typ: instruction.Type})
 	slot := instruction.Result + ".slot"
-	out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+	if existingSlot, ok := e.varSlots[instruction.Result]; ok {
+		slot = existingSlot
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		e.varSlots[instruction.Result] = slot
+	}
 	elementSize, err := arrayElementSize(instruction.Type)
 	if err != nil {
 		return err
@@ -136,7 +141,12 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if llvmT == "void" || llvmT == "" {
 		llvmT = "{ i32, i32, i64 }"
 	}
-	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slot, llvmT))
+	if existingSlot, ok := e.varSlots[instruction.Result]; ok {
+		slot = existingSlot
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slot, llvmT))
+		e.varSlots[instruction.Result] = slot
+	}
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", instruction.Result, llvmT, slot))

@@ -727,6 +727,8 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 	slot := instruction.Result + ".slot"
 	if cellSlot, isCell := e.sharedEnvCells[instruction.Result]; isCell {
 		slot = cellSlot
+	} else if existingSlot, ok := e.varSlots[instruction.Result]; ok {
+		slot = existingSlot
 	} else {
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		e.varSlots[instruction.Result] = slot
