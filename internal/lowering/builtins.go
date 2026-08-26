@@ -487,6 +487,8 @@ func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 		callee = "__json.stringify_number_array"
 	case ir.TypeStringArray:
 		callee = "__json.stringify_string_array"
+	case ir.TypeUnknown:
+		callee = "__json.stringify_unknown"
 	default:
 		return "", "", fmt.Errorf("JSON.stringify does not support type %s", argType)
 	}
@@ -535,6 +537,10 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"String.fromCodePoint"}, CategoryECMAScript, "__string.fromCodePoint", []ir.Type{ir.TypeNumber}, ir.TypeString, 1, 1)
 	register([]string{"String.fromCharCode"}, CategoryECMAScript, "__string.fromCharCode", []ir.Type{ir.TypeNumber}, ir.TypeString, 0, -1)
 	register([]string{"String.raw"}, CategoryECMAScript, "__string.raw", nil, ir.TypeString, 1, -1)
+	register([]string{"encodeURIComponent"}, CategoryECMAScript, "__string.encodeURIComponent", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"decodeURIComponent"}, CategoryECMAScript, "__string.decodeURIComponent", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"encodeURI"}, CategoryECMAScript, "__string.encodeURI", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"decodeURI"}, CategoryECMAScript, "__string.decodeURI", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"Number"}, CategoryECMAScript, "__number.new", nil, ir.TypeNumber, 0, 1)
 	register([]string{"String"}, CategoryECMAScript, "__string.new", nil, ir.TypeString, 0, 1)
 	register([]string{"Object"}, CategoryECMAScript, "__object.new", nil, ir.TypeObject, 0, 1)

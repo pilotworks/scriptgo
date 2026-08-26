@@ -778,3 +778,130 @@ int scriptgo_string_sup(const char *value, char **out_value) {
     return 0;
 }
 
+static int is_uri_component_unescaped(unsigned char c) {
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) return 1;
+    switch (c) {
+        case '-': case '_': case '.': case '!': case '~': case '*': case '\'': case '(': case ')':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static int is_uri_unescaped(unsigned char c) {
+    if (is_uri_component_unescaped(c)) return 1;
+    switch (c) {
+        case ';': case ',': case '/': case '?': case ':': case '@': case '&': case '=': case '+': case '$': case '#':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static int hex_digit_to_int(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+int scriptgo_string_encode_uri_component(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    size_t cap = len * 3 + 1;
+    char *res = malloc(cap);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    size_t out_idx = 0;
+    static const char hex[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)value[i];
+        if (is_uri_component_unescaped(c)) {
+            res[out_idx++] = (char)c;
+        } else {
+            res[out_idx++] = '%';
+            res[out_idx++] = hex[(c >> 4) & 0x0F];
+            res[out_idx++] = hex[c & 0x0F];
+        }
+    }
+    res[out_idx] = '\0';
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_decode_uri_component(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    char *res = malloc(len + 1);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    size_t out_idx = 0;
+    for (size_t i = 0; i < len; ) {
+        if (value[i] == '%' && i + 2 < len) {
+            int h1 = hex_digit_to_int(value[i + 1]);
+            int h2 = hex_digit_to_int(value[i + 2]);
+            if (h1 >= 0 && h2 >= 0) {
+                res[out_idx++] = (char)((h1 << 4) | h2);
+                i += 3;
+                continue;
+            }
+        }
+        res[out_idx++] = value[i++];
+    }
+    res[out_idx] = '\0';
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_encode_uri(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    size_t cap = len * 3 + 1;
+    char *res = malloc(cap);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    size_t out_idx = 0;
+    static const char hex[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)value[i];
+        if (is_uri_unescaped(c)) {
+            res[out_idx++] = (char)c;
+        } else {
+            res[out_idx++] = '%';
+            res[out_idx++] = hex[(c >> 4) & 0x0F];
+            res[out_idx++] = hex[c & 0x0F];
+        }
+    }
+    res[out_idx] = '\0';
+    *out_value = res;
+    return 0;
+}
+
+int scriptgo_string_decode_uri(const char *value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t len = strlen(value);
+    char *res = malloc(len + 1);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    size_t out_idx = 0;
+    for (size_t i = 0; i < len; ) {
+        if (value[i] == '%' && i + 2 < len) {
+            int h1 = hex_digit_to_int(value[i + 1]);
+            int h2 = hex_digit_to_int(value[i + 2]);
+            if (h1 >= 0 && h2 >= 0) {
+                unsigned char c = (unsigned char)((h1 << 4) | h2);
+                if (c == ';' || c == ',' || c == '/' || c == '?' || c == ':' || c == '@' || c == '&' || c == '=' || c == '+' || c == '$' || c == '#') {
+                    res[out_idx++] = value[i++];
+                    res[out_idx++] = value[i++];
+                    res[out_idx++] = value[i++];
+                    continue;
+                }
+                res[out_idx++] = (char)c;
+                i += 3;
+                continue;
+            }
+        }
+        res[out_idx++] = value[i++];
+    }
+    res[out_idx] = '\0';
+    *out_value = res;
+    return 0;
+}
+
+

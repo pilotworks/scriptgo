@@ -65,7 +65,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 		switch member.Kind {
 		case ast.KindPropertyDeclaration:
 			property := member.AsPropertyDeclaration()
-			name := property.Name().Text()
+			name := syntaxMemberName(property.Name())
 			fType := syntaxType(property.Type)
 			inferredFType := resolveInferredType(chk, property.Name())
 			if inferredFType == "" {
@@ -149,7 +149,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			} else {
 				class.Fields = append(class.Fields, SyntaxField{
 					Span:         sourceSpan(member),
-					Name:         property.Name().Text(),
+					Name:         syntaxMemberName(property.Name()),
 					Type:         fType,
 					InferredType: inferredFType,
 					Initializer:  syntaxExpression(property.Initializer, chk),
@@ -303,7 +303,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			mDecs := syntaxDecorators(member, chk, "", pTypes, mType)
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:           sourceSpan(member),
-				Name:           member.Name().Text(),
+				Name:           syntaxMemberName(member.Name()),
 				Type:           mType,
 				InferredType:   inferredMType,
 				TypeParameters: syntaxTypeParameters(member.TypeParameters()),
@@ -333,7 +333,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			mDecs := syntaxDecorators(member, chk, mType, nil, "")
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:         sourceSpan(member),
-				Name:         member.Name().Text(),
+				Name:         syntaxMemberName(member.Name()),
 				Type:         mType,
 				InferredType: inferredMType,
 				Decorators:   mDecs,
@@ -386,7 +386,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			mDecs := syntaxDecorators(member, chk, "", pTypes, "void")
 			class.Methods = append(class.Methods, SyntaxMethod{
 				Span:         sourceSpan(member),
-				Name:         member.Name().Text(),
+				Name:         syntaxMemberName(member.Name()),
 				Type:         "void",
 				InferredType: "void",
 				Parameters:   params,
@@ -529,3 +529,24 @@ func replaceThisWithClassExpr(expr *SyntaxExpression, className string) *SyntaxE
 	}
 	return expr
 }
+
+func syntaxMemberName(nameNode *ast.Node) string {
+	if nameNode == nil {
+		return ""
+	}
+	if nameNode.Kind == ast.KindComputedPropertyName {
+		if expr := nameNode.Expression(); expr != nil {
+			if expr.Kind == ast.KindPropertyAccessExpression {
+				return syntaxMemberName(expr.Expression()) + "." + expr.Name().Text()
+			} else if expr.Kind == ast.KindIdentifier {
+				return expr.Text()
+			}
+		}
+		return "[computed]"
+	}
+	if nameNode.Kind == ast.KindIdentifier || nameNode.Kind == ast.KindPrivateIdentifier || nameNode.Kind == ast.KindStringLiteral || nameNode.Kind == ast.KindNumericLiteral {
+		return nameNode.Text()
+	}
+	return nameNode.Text()
+}
+

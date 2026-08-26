@@ -161,7 +161,11 @@ func lowerCallExpression(
 						if err != nil {
 							return "", "", err
 						}
-						if pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+						hasRest := (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0
+						restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
+						fixed := len(target.Parameters) - 1
+						needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed)
+						if needsUnknownBox && valType != ir.TypeUnknown {
 							boxed := nextTemp(counter)
 							function.Body = append(function.Body, ir.Instruction{
 								Op:     ir.OpBoxUnknown,
@@ -359,6 +363,18 @@ func lowerCallExpression(
 		if meta.Extends == "" {
 			return "", "", fmt.Errorf("super() called in class %q with no base class", currentClass)
 		}
+		if meta.Extends == "Error" || meta.Extends == "TypeError" || meta.Extends == "RangeError" || meta.Extends == "SyntaxError" || meta.Extends == "ReferenceError" || meta.Extends == "URIError" || meta.Extends == "EvalError" || meta.Extends == "DOMException" {
+			if len(expression.Arguments) > 0 {
+				msgVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: currentClass, Field: "message", FieldIndex: 0, Args: []string{"this", msgVal}, Span: toIRSpan(path, expression.Span),
+				})
+			}
+			return "", ir.TypeVoid, nil
+		}
 		ctor, ctorName, found := findConstructorInHierarchy(meta.Extends, signatures, classHierarchy)
 		if !found {
 			if len(expression.Arguments) == 0 {
@@ -438,7 +454,11 @@ func lowerCallExpression(
 					if err != nil {
 						return "", "", err
 					}
-					if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+					hasRest := (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0
+					restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
+					fixed := len(target.Parameters) - 1
+					needsUnknownBox := (aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown) || (restIsUnknown && aIdx >= fixed)
+					if needsUnknownBox && valType != ir.TypeUnknown {
 						boxed := nextTemp(counter)
 						function.Body = append(function.Body, ir.Instruction{
 							Op:     ir.OpBoxUnknown,
@@ -531,13 +551,13 @@ func lowerCallExpression(
 		if err != nil {
 			return "", "", err
 		}
-		cbVal := ""
-		if len(expression.Arguments) > 0 {
-			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		args := []string{receiverVal}
+		for _, arg := range expression.Arguments {
+			v, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", err
 			}
-			cbVal = v
+			args = append(args, v)
 		}
 		if result == "" {
 			result = nextTemp(counter)
@@ -551,7 +571,7 @@ func lowerCallExpression(
 			Type:   ir.Type("object:Promise"),
 			Result: result,
 			Callee: callee,
-			Args:   []string{receiverVal, cbVal},
+			Args:   args,
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.Type("object:Promise"), nil
@@ -784,7 +804,11 @@ func lowerCallExpression(
 		if err != nil {
 			return "", "", err
 		}
-		if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+		hasRest := (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0
+		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
+		fixed := len(target.Parameters) - 1
+		needsUnknownBox := (aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown) || (restIsUnknown && aIdx >= fixed)
+		if needsUnknownBox && valType != ir.TypeUnknown {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpBoxUnknown,
@@ -914,7 +938,7 @@ func lowerCallExpression(
 				undefConst := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpConst,
-					Type:   ir.TypeString,
+					Type:   ir.TypeVoid,
 					Result: undefConst,
 					Value:  "undefined",
 					Span:   toIRSpan(path, expression.Span),

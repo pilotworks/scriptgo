@@ -14,6 +14,9 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 	if expression.Kind == "identifier" {
 		return expression.Text
 	}
+	if expression.Kind == "as" {
+		return callName(expression.Left)
+	}
 	if (expression.Kind == "property" || expression.Kind == "optional_property") && expression.Left != nil && expression.Left.Kind == "identifier" {
 		return expression.Left.Text + "." + expression.Text
 	}

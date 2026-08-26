@@ -489,7 +489,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			} else {
 				elemType = ir.Type(elemName)
 			}
-		} else if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok && strings.HasPrefix(after, "__shape_") {
+		} else if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok {
 			shapeName := after
 			idx := 0
 			if expression.Right != nil {
@@ -497,22 +497,19 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					idx = n
 				}
 			}
-			fType := ir.TypeNumber
+			fType := ir.TypeUnknown
 			if shape, exists := shapes[shapeName]; exists && idx < len(shape.Fields) {
 				fType = shape.Fields[idx].Type
 			} else if shape, exists := anonymousShapes[shapeName]; exists && idx < len(shape.Fields) {
 				fType = shape.Fields[idx].Type
 			} else {
-				prefix := fmt.Sprintf("_%d_", idx)
-				if pos := strings.Index(shapeName, prefix); pos != -1 {
-					rest := shapeName[pos+len(prefix):]
-					if nextIdx := strings.Index(rest, fmt.Sprintf("_%d_", idx+1)); nextIdx != -1 {
-						rest = rest[:nextIdx]
-					}
-					rest = strings.ReplaceAll(rest, "object_", "object:")
-					rest = strings.ReplaceAll(rest, "_arr", "[]")
-					fType = toIRType(rest)
+				parts := strings.Split(shapeName, "_")
+				if idx < len(parts) {
+					fType = toIRType(parts[idx])
 				}
+			}
+			if fType == "" {
+				fType = ir.TypeUnknown
 			}
 			if result == "" {
 				result = nextTemp(counter)
@@ -555,7 +552,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		typ, ok := env[expression.Text]
 		if ok {
-			if typ == "" || typ == ir.TypeUnknown || typ == "any" || strings.Contains(string(typ), "|") {
+			if typ == "" || typ == "any" || strings.Contains(string(typ), "|") {
 				switch expression.InferredType {
 				case "number":
 					typ = ir.TypeNumber
@@ -806,7 +803,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 							strVal = val
 						}
 					} else {
-						return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+						strTemp := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: "__string.fromObject", Args: []string{val}, Span: toIRSpan(path, arg.Span)})
+						strVal = strTemp
 					}
 				} else {
 					strTemp := nextTemp(counter)
@@ -815,6 +814,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 						callee = "__string.fromBool"
 					} else if valType == ir.TypeBigInt {
 						callee = "__string.fromBigInt"
+					} else if valType == ir.TypeUnknown || valType == ir.TypeVoid {
+						callee = "__string.fromUnknown"
+					} else if valType == ir.TypeObject || strings.HasPrefix(string(valType), "object:") {
+						callee = "__string.fromObject"
 					} else if valType != ir.TypeNumber {
 						return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
 					}
@@ -890,6 +893,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					zeroVal = "null"
 				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})
+			} else if trueType == ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenFalse}, Span: toIRSpan(path, expression.WhenFalse.Span)})
+				whenFalse = boxed
+				falseType = ir.TypeUnknown
+			} else if falseType == ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenTrue}, Span: toIRSpan(path, expression.WhenTrue.Span)})
+				whenTrue = boxed
+				trueType = ir.TypeUnknown
 			} else {
 				return "", "", fmt.Errorf("conditional branches must have the same type")
 			}

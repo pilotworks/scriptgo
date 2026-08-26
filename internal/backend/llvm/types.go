@@ -60,6 +60,9 @@ func arrayElementType(arrayType ir.Type) ir.Type {
 		if elem == "boolean" {
 			return ir.TypeBool
 		}
+		if elem == "void" || elem == "undefined" || elem == "unknown" || elem == "any" {
+			return ir.TypeUnknown
+		}
 		return ir.Type(elem)
 	}
 	if arrayType == ir.TypeStringArray {
@@ -67,6 +70,9 @@ func arrayElementType(arrayType ir.Type) ir.Type {
 	}
 	if arrayType == ir.TypeBoolArray {
 		return ir.TypeBool
+	}
+	if arrayType == ir.TypeUnknown {
+		return ir.TypeUnknown
 	}
 	return ir.TypeNumber
 }

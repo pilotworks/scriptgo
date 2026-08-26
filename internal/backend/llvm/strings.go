@@ -76,6 +76,14 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			return fmt.Errorf("string.fromUnknown has invalid signature")
 		}
 		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if argType != ir.TypeUnknown {
+			boxedVar := fmt.Sprintf("box.stru.%d", e.loadCounter)
+			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
+				return err
+			}
+			arg = boxedVar
+		}
 		tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
 		padVar := fmt.Sprintf("pad.%d", e.loadCounter)
 		valVar := fmt.Sprintf("val.%d", e.loadCounter)
@@ -89,6 +97,20 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 	case "__string.fromObject":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.fromObject has invalid signature")
+		}
+		arg := instruction.Args[0]
+		if e.types[arg] == ir.TypeUnknown {
+			tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
+			padVar := fmt.Sprintf("pad.%d", e.loadCounter)
+			valVar := fmt.Sprintf("val.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", padVar, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", valVar, arg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_unknown(i32 %%%s, i32 %%%s, i64 %%%s, ptr %%__slot_ptr)\n", status, tagVar, padVar, valVar)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+			return nil
 		}
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
@@ -437,6 +459,26 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.sup":
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_sup(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.encodeURIComponent":
+		arg0 := e.resolveArg(out, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_encode_uri_component(ptr %%%s, ptr %%__slot_ptr)\n", status, arg0)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.decodeURIComponent":
+		arg0 := e.resolveArg(out, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_decode_uri_component(ptr %%%s, ptr %%__slot_ptr)\n", status, arg0)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.encodeURI":
+		arg0 := e.resolveArg(out, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_encode_uri(ptr %%%s, ptr %%__slot_ptr)\n", status, arg0)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.decodeURI":
+		arg0 := e.resolveArg(out, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_decode_uri(ptr %%%s, ptr %%__slot_ptr)\n", status, arg0)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.raw":

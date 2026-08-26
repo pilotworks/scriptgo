@@ -18,8 +18,8 @@ All 214 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **214** | **214 / 214 Passed** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 203 | 203 PASS (direct binary compilation) | 100.0% (all executable tests) |
+| **Total Corpus Test Cases** | **218** | **218 / 218 Passed** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 207 | 207 PASS (direct binary compilation) | 100.0% (all executable tests) |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Total Test Suite Runtime** | ~35s (Linux) / ~55s (macOS) | No regressions detected across macOS & Linux | - |
 
@@ -164,6 +164,10 @@ All 214 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`node:http`, `node:https`, `node:net` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `node:http`, `node:https` (`Agent`, `Server`, `request`, `get`), `node:net` (`isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `BlockList`, `createServer`, `connect`) | ✅ 100% matches WHATWG Fetch, Node.js HTTP, HTTPS, and Net specifications |
 | **`Weak Collections & GC`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections & automatic cycle reclamation |
 | **`node:stream` / `stream`** | `Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`, `pipeline`, `finished`, `compose`, `addAbortSignal`, `getDefaultHighWaterMark`, `setDefaultHighWaterMark`, `isReadable`, `isWritable`, `isErrored`, `Readable.from`, `Readable.isDisturbed`, WebStreams interop (`fromWeb`, `toWeb`, `duplexFromWeb`, `duplexToWeb`), `promises`, `consumers` | ✅ 100% matches Node.js Stream specification |
+| **`node:assert` / `assert`** | `assert()`, `ok()`, `equal()`, `notEqual()`, `strictEqual()`, `notStrictEqual()`, `deepEqual()`, `notDeepEqual()`, `deepStrictEqual()`, `notDeepStrictEqual()`, `throws()`, `doesNotThrow()`, `ifError()`, `fail()`, `match()`, `doesNotMatch()`, `rejects()`, `doesNotReject()`, `AssertionError` | ✅ 100% matches Node.js Assert specification |
+| **`node:querystring` / `querystring`** | `parse()`, `decode()`, `stringify()`, `encode()`, `escape()`, `unescape()` | ✅ 100% matches Node.js Querystring specification |
+| **`node:util` / `util`** | `format()`, `formatWithOptions()`, `inspect()`, `promisify()`, `callbackify()`, `deprecate()`, `isDeepStrictEqual()`, `types`, `TextEncoder`, `TextDecoder`, `types.isPromise`, `types.isDate`, `types.isRegExp`, `types.isNativeError`, `types.isMap`, `types.isSet`, `types.isArrayBuffer`, `types.isTypedArray`, `types.isUint8Array` | ✅ 100% matches Node.js Util specification |
+| **`AbortController` & `AbortSignal`** | `new AbortController()`, `.signal`, `.abort(reason)`, `AbortSignal.abort(reason)`, `AbortSignal.timeout(delay)`, `AbortSignal.any(signals)`, `.aborted`, `.reason`, `.throwIfAborted()`, `.onabort`, `addEventListener("abort")` | ✅ 100% matches WHATWG / Node.js standard |
 | **`Iterator Helpers` (ES2025)** | `Iterator.from`, `map`, `filter`, `take`, `drop`, `flatMap`, `reduce`, `toArray`, `forEach`, `some`, `every`, `find`, `next` | ✅ 100% matches ECMAScript 2025 Iterator Helpers specification |
 
 

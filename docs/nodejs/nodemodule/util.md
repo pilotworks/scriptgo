@@ -21,6 +21,18 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
+| `util.deprecate(fn, msg[, code])` | `(...) => any` | `__util.util.deprecate` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.format(format[, ...args])` | `(...) => any` | `__util.util.format` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.getSystemErrorMap()` | `(...) => any` | `__util.util.getSystemErrorMap` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.getSystemErrorName(err)` | `(...) => any` | `__util.util.getSystemErrorName` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.inspect(object[, options])` | `(...) => any` | `__util.util.inspect` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.inspect(object[, showHidden[, depth[, colors]]])` | `(...) => any` | `__util.util.inspect` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.isDeepStrictEqual(val1, val2)` | `(...) => any` | `__util.util.isDeepStrictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.parseEnv(content)` | `(...) => any` | `__util.util.parseEnv` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.stripVTControlCharacters(str)` | `(...) => any` | `__util.util.stripVTControlCharacters` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.styleText(format, text[, options])` | `(...) => any` | `__util.util.styleText` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.toUSVString(string)` | `(...) => any` | `__util.util.toUSVString` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
+| `util.types` | `any` | `__util.util.types` | ✅ Done | `internal/compiler/testdata/corpus/api/util.ts` |
 | `encoding` | `any` | `__util.encoding` | 📋 Planned | - |
 | `essence` | `any` | `__util.essence` | 📋 Planned | - |
 | `fatal` | `any` | `__util.fatal` | 📋 Planned | - |
@@ -50,22 +62,15 @@ Provide a concise technical summary:
 | `util.callbackify(original)` | `(...) => any` | `__util.util.callbackify` | 📋 Planned | - |
 | `util.debug(section)` | `(...) => any` | `__util.util.debug` | 📋 Planned | - |
 | `util.debuglog(section[, callback])` | `(...) => any` | `__util.util.debuglog` | 📋 Planned | - |
-| `util.deprecate(fn, msg[, code])` | `(...) => any` | `__util.util.deprecate` | 📋 Planned | - |
 | `util.diff(actual, expected)` | `(...) => any` | `__util.util.diff` | 📋 Planned | - |
-| `util.format(format[, ...args])` | `(...) => any` | `__util.util.format` | 📋 Planned | - |
 | `util.formatWithOptions(inspectOptions, format[, ...args])` | `(...) => any` | `__util.util.formatWithOptions` | 📋 Planned | - |
 | `util.getCallSites([frameCount][, options])` | `(...) => any` | `__util.util.getCallSites` | 📋 Planned | - |
-| `util.getSystemErrorMap()` | `(...) => any` | `__util.util.getSystemErrorMap` | 📋 Planned | - |
 | `util.getSystemErrorMessage(err)` | `(...) => any` | `__util.util.getSystemErrorMessage` | 📋 Planned | - |
-| `util.getSystemErrorName(err)` | `(...) => any` | `__util.util.getSystemErrorName` | 📋 Planned | - |
 | `util.inherits(constructor, superConstructor)` | `(...) => any` | `__util.util.inherits` | 📋 Planned | - |
-| `util.inspect(object[, options])` | `(...) => any` | `__util.util.inspect` | 📋 Planned | - |
-| `util.inspect(object[, showHidden[, depth[, colors]]])` | `(...) => any` | `__util.util.inspect` | 📋 Planned | - |
 | `util.isArray(object)` | `(...) => any` | `__util.util.isArray` | 📋 Planned | - |
 | `util.isBoolean(object)` | `(...) => any` | `__util.util.isBoolean` | 📋 Planned | - |
 | `util.isBuffer(object)` | `(...) => any` | `__util.util.isBuffer` | 📋 Planned | - |
 | `util.isDate(object)` | `(...) => any` | `__util.util.isDate` | 📋 Planned | - |
-| `util.isDeepStrictEqual(val1, val2)` | `(...) => any` | `__util.util.isDeepStrictEqual` | 📋 Planned | - |
 | `util.isError(object)` | `(...) => any` | `__util.util.isError` | 📋 Planned | - |
 | `util.isFunction(object)` | `(...) => any` | `__util.util.isFunction` | 📋 Planned | - |
 | `util.isNull(object)` | `(...) => any` | `__util.util.isNull` | 📋 Planned | - |
@@ -79,15 +84,10 @@ Provide a concise technical summary:
 | `util.isUndefined(object)` | `(...) => any` | `__util.util.isUndefined` | 📋 Planned | - |
 | `util.log(string)` | `(...) => any` | `__util.util.log` | 📋 Planned | - |
 | `util.parseArgs([config])` | `(...) => any` | `__util.util.parseArgs` | 📋 Planned | - |
-| `util.parseEnv(content)` | `(...) => any` | `__util.util.parseEnv` | 📋 Planned | - |
 | `util.promisify(original)` | `(...) => any` | `__util.util.promisify` | 📋 Planned | - |
 | `util.setTraceSigInt(enable)` | `(...) => any` | `__util.util.setTraceSigInt` | 📋 Planned | - |
-| `util.stripVTControlCharacters(str)` | `(...) => any` | `__util.util.stripVTControlCharacters` | 📋 Planned | - |
-| `util.styleText(format, text[, options])` | `(...) => any` | `__util.util.styleText` | 📋 Planned | - |
-| `util.toUSVString(string)` | `(...) => any` | `__util.util.toUSVString` | 📋 Planned | - |
 | `util.transferableAbortController()` | `(...) => any` | `__util.util.transferableAbortController` | 📋 Planned | - |
 | `util.transferableAbortSignal(signal)` | `(...) => any` | `__util.util.transferableAbortSignal` | 📋 Planned | - |
-| `util.types` | `any` | `__util.util.types` | 📋 Planned | - |
 
 ---
 

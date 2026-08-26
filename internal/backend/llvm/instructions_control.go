@@ -16,11 +16,12 @@ func (e *functionEmitter) emitIf(out *strings.Builder, instruction ir.Instructio
 	continueLabel := fmt.Sprintf("if.continue.%d", e.labelCounter)
 	e.labelCounter++
 
+	condVal := e.resolveArg(out, instruction.Args[0])
 	hasElse := len(instruction.Else) > 0
 	if hasElse {
-		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", instruction.Args[0], thenLabel, elseLabel))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, thenLabel, elseLabel))
 	} else {
-		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", instruction.Args[0], thenLabel, continueLabel))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", condVal, thenLabel, continueLabel))
 	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", thenLabel))

@@ -36,7 +36,19 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{nonNull, nonEmpty}, Span: toIRSpan(path, span)})
 		return boolRes, nil
 	}
-	if valType == ir.TypeObject || strings.HasPrefix(string(valType), "object:") || strings.HasSuffix(string(valType), "[]") || valType == ir.TypeNumberArray || valType == ir.TypeStringArray || valType == ir.TypeBoolArray || valType == ir.TypeBigIntArray || valType == ir.TypeMap || valType == ir.TypeSet || valType == ir.TypeBuffer || valType == ir.TypeUint8Array || valType == ir.TypeUnknown {
+	if valType == ir.TypeUnknown {
+		boolRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeBool,
+			Result: boolRes,
+			Callee: "__scriptgo.is_truthy",
+			Args:   []string{value},
+			Span:   toIRSpan(path, span),
+		})
+		return boolRes, nil
+	}
+	if valType == ir.TypeObject || strings.HasPrefix(string(valType), "object:") || strings.HasSuffix(string(valType), "[]") || valType == ir.TypeNumberArray || valType == ir.TypeStringArray || valType == ir.TypeBoolArray || valType == ir.TypeBigIntArray || valType == ir.TypeMap || valType == ir.TypeSet || valType == ir.TypeBuffer || valType == ir.TypeUint8Array || isPointerLikeType(valType) || valType == ir.TypeClosure || valType == ir.TypePointer {
 		nullConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: nullConst, Value: "null", Span: toIRSpan(path, span)})
 		boolRes := nextTemp(counter)
@@ -101,6 +113,33 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 	} else if statement.Expression != nil && statement.Expression.Kind == "binary" && (statement.Expression.Operator == "===" || statement.Expression.Operator == "==") {
 		left := statement.Expression.Left
 		right := statement.Expression.Right
+		if left != nil && left.Kind == "typeof" && left.Left != nil && left.Left.Kind == "identifier" && right != nil && (right.Kind == "string" || right.Kind == "literal") {
+			varName := left.Left.Text
+			valStr := strings.Trim(right.Text, "\"'`")
+			switch valStr {
+			case "number":
+				thenEnv[varName] = ir.TypeNumber
+			case "string":
+				thenEnv[varName] = ir.TypeString
+			case "boolean":
+				thenEnv[varName] = ir.TypeBool
+			case "bigint":
+				thenEnv[varName] = ir.TypeBigInt
+			}
+		} else if right != nil && right.Kind == "typeof" && right.Left != nil && right.Left.Kind == "identifier" && left != nil && (left.Kind == "string" || left.Kind == "literal") {
+			varName := right.Left.Text
+			valStr := strings.Trim(left.Text, "\"'`")
+			switch valStr {
+			case "number":
+				thenEnv[varName] = ir.TypeNumber
+			case "string":
+				thenEnv[varName] = ir.TypeString
+			case "boolean":
+				thenEnv[varName] = ir.TypeBool
+			case "bigint":
+				thenEnv[varName] = ir.TypeBigInt
+			}
+		}
 		var propAccess *typescriptgo.SyntaxExpression
 		var literalVal *typescriptgo.SyntaxExpression
 		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {

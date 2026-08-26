@@ -477,6 +477,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if valType != varType {
 			if strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(varType), "object:") {
 				// Polymorphic object assignment
+			} else if valType == ir.TypeUnknown {
+				unboxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   varType,
+					Result: unboxed,
+					Args:   []string{value},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				value = unboxed
+				valType = varType
 			} else {
 				return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
 			}
@@ -744,6 +755,28 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if valType != shape.Fields[fIndex].Type {
 			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "any[]" || valType == "unknown[]") {
 				valType = shape.Fields[fIndex].Type
+			} else if shape.Fields[fIndex].Type == ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: boxed,
+					Args:   []string{val},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				val = boxed
+				valType = ir.TypeUnknown
+			} else if valType == ir.TypeUnknown {
+				unboxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   shape.Fields[fIndex].Type,
+					Result: unboxed,
+					Args:   []string{val},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				val = unboxed
+				valType = shape.Fields[fIndex].Type
 			} else {
 				return fmt.Errorf("field set type mismatch for %q: %s := %s", statement.Name, shape.Fields[fIndex].Type, valType)
 			}
@@ -751,6 +784,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpFieldSet,
 			Type:       ir.TypeVoid,
+			Callee:     className,
 			Field:      statement.Name,
 			FieldIndex: fIndex,
 			Args:       []string{objVal, val},

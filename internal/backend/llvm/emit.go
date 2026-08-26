@@ -77,6 +77,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	for _, function := range module.Functions {
 		functions[function.Name] = function
+		if _, ok := stringsByValue[function.Name]; !ok {
+			stringsByValue[function.Name] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+		}
 		collectStrings(function.Body)
 	}
 	for _, typeStr := range []string{"number", "string", "boolean", "bigint", "symbol", "function", "undefined", "object", "true", "false", "null", ""} {
@@ -117,6 +120,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_console_trace(ptr)\n\n")
 	out.WriteString("declare void @__scriptgo_fail_checked_cast(i32, i32, ptr)\n")
 	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n")
+	out.WriteString("declare i32 @scriptgo_is_truthy_unknown(i32, i64)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_unknown(i32, i32, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_object(ptr, ptr)\n\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")
@@ -195,18 +199,23 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_bool_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_set(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_get(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_unknown_set(ptr, i64, i32, i64)\n")
+	out.WriteString("declare i32 @scriptgo_object_unknown_get(ptr, i64, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_get(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_instanceof(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_is_number(double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_is_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_is_ptr(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_is_unknown(i32, i64, i32, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_keys(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_bool(i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_string(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_number_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_string_array(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_json_stringify_unknown(i32, i32, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_parse_string(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_string_concat(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_length(ptr, ptr)\n")
@@ -255,6 +264,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_strike(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_sub(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_sup(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_encode_uri_component(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_decode_uri_component(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_encode_uri(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_decode_uri(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_release(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_compare(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_regex_test(ptr, ptr, ptr, ptr)\n")
@@ -348,6 +361,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_exception_get_bool(ptr)\n")
 	out.WriteString("declare void @scriptgo_exception_rethrow(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_closure_create(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_get_unknown(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number_from_ptr(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number_from_string(ptr, ptr, ptr)\n")
@@ -737,10 +751,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			slotName := varName + ".slot"
 			emitter.varSlots[varName] = slotName
 			emitter.types[varName] = typ
-			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, llvmType(typ)))
+			allocType := llvmType(typ)
+			if allocType == "void" {
+				allocType = "ptr"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, allocType))
 			for _, param := range function.Parameters {
 				if param.Name == varName {
-					out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(typ), varName, slotName))
+					out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", allocType, varName, slotName))
 					break
 				}
 			}
@@ -786,6 +804,7 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 	slotted := make(map[string]ir.Type)
 	counts := make(map[string]int)
 	types := make(map[string]ir.Type)
+	typeSets := make(map[string]map[ir.Type]bool)
 	var scan func(list []ir.Instruction)
 	scan = func(list []ir.Instruction) {
 		for _, inst := range list {
@@ -799,6 +818,10 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 				counts[inst.Result]++
 				if inst.Type != "" {
 					types[inst.Result] = inst.Type
+					if typeSets[inst.Result] == nil {
+						typeSets[inst.Result] = make(map[ir.Type]bool)
+					}
+					typeSets[inst.Result][inst.Type] = true
 				}
 			}
 			scan(inst.Then)

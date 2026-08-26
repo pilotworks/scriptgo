@@ -1,17 +1,17 @@
-# querystring Implementation Checklist
+# DOMException Implementation Checklist
 
-> **Category**: `CategoryNodeModule`  
-> **Import Path**: `node:querystring`  
-> **Specification Reference**: [Node.js 22 LTS querystring Documentation](https://nodejs.org/docs/latest-v22.x/api/querystring.html)  
-> **Type Definition Source**: [@types/node/querystring.d.ts](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node)  
-> **Gate Oracle**: Node.js 22 LTS test suite (test/parallel/test-querystring-*.js)
+> **Category**: `CategoryECMAScript`  
+> **Import Path**: `N/A (Global Scope)`  
+> **Specification Reference**: [TC39 ECMA-262 DOMException Specification](https://tc39.es/ecma262/#sec-domexception-objects)  
+> **Type Definition Source**: [microsoft/TypeScript lib.es2024.d.ts](https://github.com/microsoft/TypeScript/tree/main/src/lib)  
+> **Gate Oracle**: TC39 Test262 Test Suite & TypeScript baselines
 
 ---
 
 ## 1. Overview & Architectural Pipeline
 
 Provide a concise technical summary:
-- **Scope & Exposure**: Module-scoped symbols imported explicitly via `node:querystring`.
+- **Scope & Exposure**: Auto-global ambient identifiers available in root execution scope without explicit imports.
 - **Data & Memory Model**: Representation in IR (e.g., primitives, struct pointers, object shapes, buffer backing).
 - **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → LLVM runtime binding.
 
@@ -21,12 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `querystring.decode()` | `(...) => any` | `__querystring.querystring.decode` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
-| `querystring.encode()` | `(...) => any` | `__querystring.querystring.encode` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
-| `querystring.escape(str)` | `(...) => any` | `__querystring.querystring.escape` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
-| `querystring.parse(str[, sep[, eq[, options]]])` | `(...) => any` | `__querystring.querystring.parse` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
-| `querystring.stringify(obj[, sep[, eq[, options]]])` | `(...) => any` | `__querystring.querystring.stringify` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
-| `querystring.unescape(str)` | `(...) => any` | `__querystring.querystring.unescape` | ✅ Done | `internal/compiler/testdata/corpus/api/querystring.ts` |
+| `DOMException.readonly code: number` | `readonly code: number` | `__domexception.code` | 📋 Planned | - |
+| `DOMException.readonly message: string` | `readonly message: string` | `__domexception.message` | 📋 Planned | - |
+| `DOMException.readonly name: string` | `readonly name: string` | `__domexception.name` | 📋 Planned | - |
+| `new DOMException(message?: string, name?: string): DOMException` | `new(message?: string, name?: string): DOMException` | `__domexception.new` | 📋 Planned | - |
 
 ---
 
@@ -39,7 +37,7 @@ Describe expected standard semantics (e.g., IEEE-754 float precision, UTF-8 stri
 Document any constraints imposed by Ahead-Of-Time compilation (e.g., monomorphic type requirements, unsupported dynamic reflection).
 
 ### 3.3. Dual-Surface Mapping (if applicable)
-Corpus test cases for `querystring` are organized per API under `internal/compiler/testdata/corpus/querystring/<api_name>/<test_case>/` and verify identical lowering semantics across surfaces.
+Corpus test cases for `domexception` are organized per API under `internal/compiler/testdata/corpus/domexception/<api_name>/<test_case>/` and verify identical lowering semantics across surfaces.
 
 ---
 
@@ -51,7 +49,7 @@ When implementing or extending any symbol in this file, execute the following te
 - [ ] **Step 2: Lowering Registration**: Register the global value in `builtinGlobals` or intrinsic function in `builtinIntrinsics` within `internal/lowering/builtins.go`.
 - [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).
 - [ ] **Step 4: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
-- [ ] **Step 5: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/querystring/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
+- [ ] **Step 5: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/domexception/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
 - [ ] **Step 6: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
 
 ---

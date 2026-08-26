@@ -27,8 +27,11 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 		if e == nil {
 			return
 		}
-		if e.Kind == "identifier" {
+		if e.Kind == "identifier" || e.Kind == "this" {
 			name := e.Text
+			if e.Kind == "this" {
+				name = "this"
+			}
 			if !params[name] && !locals[name] && name != fn.Name && name != selfName {
 				if _, ok := outerEnv[name]; ok {
 					used = append(used, name)

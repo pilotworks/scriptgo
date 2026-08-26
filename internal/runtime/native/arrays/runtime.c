@@ -63,6 +63,45 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
     return 0;
 }
 
+int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
+    scriptgo_array *array = handle;
+    size_t offset;
+    uint32_t *tag_ptr;
+    uint64_t *payload_ptr;
+    if (array == NULL || out_value == NULL || array->element_size <= 0) {
+        return fail("scriptgo array access failed");
+    }
+    if (check_index(array, index, &offset) != 0) return -1;
+    tag_ptr = (uint32_t *)out_value;
+    tag_ptr[1] = 0; // padding
+    payload_ptr = (uint64_t *)((char *)out_value + 8);
+    if (array->element_size == 16) {
+        memcpy(out_value, array->data + offset, 16);
+        return 0;
+    }
+    if (array->element_size == 8) {
+        uint64_t val;
+        memcpy(&val, array->data + offset, 8);
+        *payload_ptr = val;
+        if (val == 0) {
+            *tag_ptr = 1; // NULL
+        } else if (val > 0x00007FFFFFFFFFFFULL && val != 0xFFFFFFFFFFFFFFFFULL) {
+            *tag_ptr = 3; // NUMBER
+        } else {
+            *tag_ptr = 5; // OBJECT / POINTER / STRING
+        }
+        return 0;
+    }
+    if (array->element_size == 1) {
+        uint8_t val = *(array->data + offset);
+        *tag_ptr = 2; // BOOLEAN
+        *payload_ptr = (uint64_t)val;
+        return 0;
+    }
+    memcpy(out_value, array->data + offset, (size_t)array->element_size);
+    return 0;
+}
+
 int scriptgo_array_set(void *handle, double index, const void *value) {
     scriptgo_array *array = handle;
     size_t offset;

@@ -533,9 +533,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		retType := ir.TypeNumber
+		retType := ir.TypeUnknown
 		if expression.InferredType != "" {
-			retType = toIRType(expression.InferredType)
+			if inferred := toIRType(expression.InferredType); inferred != "" {
+				retType = inferred
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
@@ -682,9 +684,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		retType := ir.TypeNumber
+		retType := ir.TypeUnknown
 		if expression.InferredType != "" {
-			retType = toIRType(expression.InferredType)
+			if inferred := toIRType(expression.InferredType); inferred != "" {
+				retType = inferred
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,

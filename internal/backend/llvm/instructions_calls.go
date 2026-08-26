@@ -69,9 +69,18 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 		e.loadCounter++
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", flagsVar, instruction.Args[0]))
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, instruction.Args[0]))
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if argType != ir.TypeUnknown {
+			boxedVar := fmt.Sprintf("box.con.%d", e.loadCounter)
+			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
+				return err
+			}
+			arg = boxedVar
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", flagsVar, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
 		name, _ := consoleRuntimeName(method, valueType)
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(i32 %%%s, i32 %%%s, i64 %%%s)\n", status, name, tagVar, flagsVar, payloadVar))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
@@ -106,6 +115,12 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		arg := instruction.Args[0]
 		argType := e.types[arg]
 		if argType == ir.TypeUnknown || argType == "any" {
+			if slot, ok := e.varSlots[arg]; ok {
+				loaded := fmt.Sprintf("%s.isarr.loaded.%d", arg, e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+				arg = loaded
+			}
 			tagVar := fmt.Sprintf("isarray.tag.%d", e.loadCounter)
 			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
@@ -458,6 +473,34 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if instruction.Callee == "__scriptgo.is_truthy" {
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		argVal := arg
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+			argVal = loaded
+		}
+		if argType != ir.TypeUnknown {
+			boxedVar := fmt.Sprintf("box.truthy.%d", e.loadCounter)
+			if err := e.emitBoxValue(out, argVal, argType, boxedVar); err != nil {
+				return err
+			}
+			argVal = boxedVar
+		}
+		tagVar := fmt.Sprintf("truthy.tag.%d", e.loadCounter)
+		payloadVar := fmt.Sprintf("truthy.payload.%d", e.loadCounter)
+		i32Res := fmt.Sprintf("truthy.i32.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, argVal))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, argVal))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_is_truthy_unknown(i32 %%%s, i64 %%%s)\n", i32Res, tagVar, payloadVar))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Res))
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__object.") {
 		if err := e.emitObjectIntrinsic(out, instruction); err != nil {
 			return err
@@ -627,9 +670,18 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	var callArgs []string
 	for index, argument := range instruction.Args {
 		paramType := llvmType(callee.Parameters[index].Type)
-		argType, hasArgType := e.types[argument]
-		argVal := argument
-		if hasArgType && (argType == ir.TypeUnknown || argType == "any") && callee.Parameters[index].Type != ir.TypeUnknown && callee.Parameters[index].Type != "any" {
+		argVal := e.resolveArg(out, argument)
+		argType, hasArgType := e.types[argVal]
+		if !hasArgType {
+			argType, hasArgType = e.types[argument]
+		}
+		if (callee.Parameters[index].Type == ir.TypeUnknown || callee.Parameters[index].Type == "any") && hasArgType && argType != ir.TypeUnknown && argType != "any" {
+			boxedName := fmt.Sprintf("call.box.%d", e.loadCounter)
+			if err := e.emitBoxValue(out, argVal, argType, boxedName); err != nil {
+				return err
+			}
+			argVal = boxedName
+		} else if hasArgType && (argType == ir.TypeUnknown || argType == "any") && callee.Parameters[index].Type != ir.TypeUnknown && callee.Parameters[index].Type != "any" {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("call.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, argument)
@@ -656,6 +708,9 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", paramType, argVal))
 	}
 	returnType := llvmType(callee.ReturnType)
+	if callee.ReturnType == ir.TypeBool {
+		returnType = "zeroext i1"
+	}
 	if returnType == "void" {
 		out.WriteString(fmt.Sprintf("  call void @%s(", instruction.Callee))
 	} else {
@@ -851,7 +906,7 @@ prepareArgs:
 	} else {
 		fnSig = "(ptr, { i32, i32, i64 }, { i32, i32, i64 }, { i32, i32, i64 }, { i32, i32, i64 }) "
 	}
-	if instruction.Type != ir.TypeVoid && instruction.Result != "" {
+	if instruction.Result != "" && retType != "void" {
 		e.types[instruction.Result] = instruction.Type
 		out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", callRes, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
@@ -861,6 +916,10 @@ prepareArgs:
 			defaultVal = "0.0"
 		} else if instruction.Type == ir.TypeBool {
 			defaultVal = "false"
+		} else if instruction.Type == ir.TypeUnknown || instruction.Type == "any" {
+			defaultVal = "zeroinitializer"
+		} else if instruction.Type == ir.TypeBigInt {
+			defaultVal = "0"
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = phi %s [ %s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, retType, defaultVal, nullBlock, callRes, callBlock))
 	} else {
@@ -909,6 +968,11 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		argTyp := e.types[instruction.Args[0]]
 		if argTyp == ir.TypeNumber {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+		} else if argTyp == ir.TypeUnknown {
+			valAlloca := fmt.Sprintf("%s.unknown_ptr", instruction.Args[0])
+			out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", valAlloca))
+			out.WriteString(fmt.Sprintf("  store { i32, i32, i64 } %%%s, ptr %%%s\n", instruction.Args[0], valAlloca))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, valAlloca))
 		} else {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
 		}
@@ -917,13 +981,21 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__async.promise_then":
-		if len(instruction.Args) != 2 {
+		if len(instruction.Args) < 2 {
 			return fmt.Errorf("promise.then requires promise and callback")
+		}
+		rejArg := "null"
+		if len(instruction.Args) >= 3 && instruction.Args[2] != "" && instruction.Args[2] != "null" {
+			rejArg = "%" + instruction.Args[2]
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr null)\n", status, instruction.Args[0], instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr %s)\n", status, instruction.Args[0], instruction.Args[1], rejArg))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		if instruction.Result != "" {
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+			e.types[instruction.Result] = instruction.Type
+		}
 		return nil
 	case "__async.promise_catch":
 		if len(instruction.Args) != 2 {
@@ -933,6 +1005,10 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1]))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		if instruction.Result != "" {
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+			e.types[instruction.Result] = instruction.Type
+		}
 		return nil
 	case "__async.await":
 		if len(instruction.Args) != 1 {
@@ -946,6 +1022,13 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_number(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		} else if instruction.Type == ir.TypeUnknown {
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_ptr(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			loadedPtr := fmt.Sprintf("%s.loaded_ptr", instruction.Result)
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loadedPtr, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", instruction.Result, loadedPtr))
 		} else {
 			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_await_ptr(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))

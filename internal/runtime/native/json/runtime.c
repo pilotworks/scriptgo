@@ -149,3 +149,37 @@ int scriptgo_json_parse_string(const char *input, char **out_str) {
     *out_str = strdup(input);
     return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
 }
+
+int scriptgo_string_from_object(void *obj, char **out_str);
+
+int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t payload, char **out_str) {
+    (void)padding;
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    switch (tag) {
+    case 0: // undefined
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    case 1: // null
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    case 2: // boolean
+        return scriptgo_json_stringify_bool((int)payload, out_str);
+    case 3: { // number
+        union {
+            uint64_t u64;
+            double d;
+        } u;
+        u.u64 = payload;
+        return scriptgo_json_stringify_number(u.d, out_str);
+    }
+    case 4: // string
+        return scriptgo_json_stringify_string((const char *)(uintptr_t)payload, out_str);
+    default:
+        if (payload == 0) {
+            *out_str = strdup("null");
+            return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+        }
+        return scriptgo_string_from_object((void *)(uintptr_t)payload, out_str);
+    }
+}
+

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
+#include <math.h>
 
 static char scriptgo_runtime_error[256];
 
@@ -90,6 +91,30 @@ void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected
                  scriptgo_tag_name(expected_tag));
     }
     scriptgo_throw_string(msg);
+}
+
+int32_t scriptgo_is_truthy_unknown(unsigned int tag, unsigned long long payload) {
+    switch (tag) {
+    case SCRIPTGO_TAG_UNDEFINED:
+    case SCRIPTGO_TAG_NULL:
+        return 0;
+    case SCRIPTGO_TAG_BOOLEAN:
+        return payload ? 1 : 0;
+    case SCRIPTGO_TAG_NUMBER: {
+        union {
+            unsigned long long u64;
+            double d;
+        } u;
+        u.u64 = payload;
+        return (u.d != 0.0 && !isnan(u.d)) ? 1 : 0;
+    }
+    case SCRIPTGO_TAG_STRING: {
+        const char *s = (const char *)(uintptr_t)payload;
+        return (s != NULL && s[0] != '\0') ? 1 : 0;
+    }
+    default:
+        return payload != 0 ? 1 : 0;
+    }
 }
 
 const char *__scriptgo_typeof_unknown(unsigned int tag) {
@@ -244,6 +269,16 @@ void scriptgo_throw_string(const char *str) {
         frame->thrown_string = str;
         frame->thrown_type = 1;
         longjmp(frame->buf, 1);
+    }
+    if (str != NULL && ((uintptr_t)str <= 0x00007FFFFFFFFFFFULL) && (uintptr_t)str > 0x1000) {
+        scriptgo_object_t *o = (scriptgo_object_t *)str;
+        if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
+            char *msg = NULL;
+            scriptgo_string_from_object((void*)str, &msg);
+            fprintf(stderr, "Uncaught exception object: %s type=%s\n", msg ? msg : "[object Object]", o->type_name ? o->type_name : "none");
+            if (msg) free(msg);
+            exit(1);
+        }
     }
     fprintf(stderr, "Uncaught exception: %s\n", str ? str : "");
     exit(1);

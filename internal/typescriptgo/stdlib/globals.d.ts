@@ -888,3 +888,110 @@ interface WebSocketConstructor {
 }
 
 declare var WebSocket: WebSocketConstructor;
+
+interface EventInit {
+    bubbles?: boolean;
+    cancelable?: boolean;
+    composed?: boolean;
+}
+
+interface CustomEventInit<T = any> extends EventInit {
+    detail?: T;
+}
+
+interface Event {
+    readonly type: string;
+    readonly target: any;
+    readonly currentTarget: any;
+    readonly bubbles: boolean;
+    readonly cancelable: boolean;
+    readonly defaultPrevented: boolean;
+    readonly timeStamp: number;
+    preventDefault(): void;
+    stopPropagation(): void;
+    stopImmediatePropagation(): void;
+}
+
+interface EventConstructor {
+    new(type: string, eventInitDict?: EventInit): Event;
+    readonly prototype: Event;
+}
+
+declare var Event: EventConstructor;
+
+interface CustomEvent<T = any> extends Event {
+    readonly detail: T;
+}
+
+interface CustomEventConstructor {
+    new<T = any>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
+    readonly prototype: CustomEvent;
+}
+
+declare var CustomEvent: CustomEventConstructor;
+
+interface EventListenerObject {
+    handleEvent(object: Event): void;
+}
+
+interface AddEventListenerOptions {
+    once?: boolean;
+    passive?: boolean;
+    capture?: boolean;
+    signal?: AbortSignal;
+}
+
+interface EventTarget {
+    addEventListener(type: string, callback: ((evt: Event) => void) | EventListenerObject | Function | null, options?: AddEventListenerOptions | boolean): void;
+    removeEventListener(type: string, callback: ((evt: Event) => void) | EventListenerObject | Function | null, options?: boolean | any): void;
+    dispatchEvent(event: Event): boolean;
+}
+
+interface EventTargetConstructor {
+    new(): EventTarget;
+    readonly prototype: EventTarget;
+}
+
+declare var EventTarget: EventTargetConstructor;
+
+interface DOMException extends Error {
+    readonly name: string;
+    readonly message: string;
+    readonly code: number;
+}
+
+interface DOMExceptionConstructor {
+    new(message?: string, name?: string): DOMException;
+    readonly prototype: DOMException;
+}
+
+declare var DOMException: DOMExceptionConstructor;
+
+interface AbortSignal extends EventTarget {
+    readonly aborted: boolean;
+    readonly reason: any;
+    onabort: ((this: AbortSignal, ev: Event) => any) | null;
+    throwIfAborted(): void;
+}
+
+interface AbortSignalConstructor {
+    readonly prototype: AbortSignal;
+    abort(reason?: any): AbortSignal;
+    timeout(milliseconds: number): AbortSignal;
+    any(signals: AbortSignal[]): AbortSignal;
+}
+
+declare var AbortSignal: AbortSignalConstructor;
+
+interface AbortController {
+    readonly signal: AbortSignal;
+    abort(reason?: any): void;
+}
+
+interface AbortControllerConstructor {
+    new(): AbortController;
+    readonly prototype: AbortController;
+}
+
+declare var AbortController: AbortControllerConstructor;
+

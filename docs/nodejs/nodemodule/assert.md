@@ -21,34 +21,34 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `assert(value[, message])` | `(...) => any` | `__assert.assert` | 📋 Planned | - |
-| `assert.Assert` | `(...) => any` | `__assert.assert.Assert` | 📋 Planned | - |
-| `assert.AssertionError` | `(...) => any` | `__assert.assert.AssertionError` | 📋 Planned | - |
-| `assert.CallTracker` | `(...) => any` | `__assert.assert.CallTracker` | 📋 Planned | - |
-| `assert.deepEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.deepEqual` | 📋 Planned | - |
-| `assert.deepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.deepStrictEqual` | 📋 Planned | - |
-| `assert.doesNotMatch(string, regexp[, message])` | `(...) => any` | `__assert.assert.doesNotMatch` | 📋 Planned | - |
+| `assert(value[, message])` | `(...) => any` | `__assert.assert` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.Assert` | `(...) => any` | `__assert.assert.Assert` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.AssertionError` | `(...) => any` | `__assert.assert.AssertionError` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.CallTracker` | `(...) => any` | `__assert.assert.CallTracker` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.deepEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.deepEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.deepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.deepStrictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.doesNotMatch(string, regexp[, message])` | `(...) => any` | `__assert.assert.doesNotMatch` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.doesNotThrow(fn[, error][, message])` | `(...) => any` | `__assert.assert.doesNotThrow` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.equal(actual, expected[, message])` | `(...) => any` | `__assert.assert.equal` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.fail([message])` | `(...) => any` | `__assert.assert.fail` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.fail(actual, expected[, message[, operator[, stackStartFn]]])` | `(...) => any` | `__assert.assert.fail` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.ifError(value)` | `(...) => any` | `__assert.assert.ifError` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.match(string, regexp[, message])` | `(...) => any` | `__assert.assert.match` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.notDeepEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notDeepEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.notDeepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notDeepStrictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.notEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.notStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notStrictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.ok(value[, message])` | `(...) => any` | `__assert.assert.ok` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.partialDeepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.partialDeepStrictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.strictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.strictEqual` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `assert.throws(fn[, error][, message])` | `(...) => any` | `__assert.assert.throws` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `tracker.calls([fn][, exact])` | `(...) => any` | `__assert.tracker.calls` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `tracker.getCalls(fn)` | `(...) => any` | `__assert.tracker.getCalls` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `tracker.report()` | `(...) => any` | `__assert.tracker.report` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `tracker.reset([fn])` | `(...) => any` | `__assert.tracker.reset` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
+| `tracker.verify()` | `(...) => any` | `__assert.tracker.verify` | ✅ Done | `internal/compiler/testdata/corpus/api/assert.ts` |
 | `assert.doesNotReject(asyncFn[, error][, message])` | `(...) => any` | `__assert.assert.doesNotReject` | 📋 Planned | - |
-| `assert.doesNotThrow(fn[, error][, message])` | `(...) => any` | `__assert.assert.doesNotThrow` | 📋 Planned | - |
-| `assert.equal(actual, expected[, message])` | `(...) => any` | `__assert.assert.equal` | 📋 Planned | - |
-| `assert.fail([message])` | `(...) => any` | `__assert.assert.fail` | 📋 Planned | - |
-| `assert.fail(actual, expected[, message[, operator[, stackStartFn]]])` | `(...) => any` | `__assert.assert.fail` | 📋 Planned | - |
-| `assert.ifError(value)` | `(...) => any` | `__assert.assert.ifError` | 📋 Planned | - |
-| `assert.match(string, regexp[, message])` | `(...) => any` | `__assert.assert.match` | 📋 Planned | - |
-| `assert.notDeepEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notDeepEqual` | 📋 Planned | - |
-| `assert.notDeepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notDeepStrictEqual` | 📋 Planned | - |
-| `assert.notEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notEqual` | 📋 Planned | - |
-| `assert.notStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.notStrictEqual` | 📋 Planned | - |
-| `assert.ok(value[, message])` | `(...) => any` | `__assert.assert.ok` | 📋 Planned | - |
-| `assert.partialDeepStrictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.partialDeepStrictEqual` | 📋 Planned | - |
 | `assert.rejects(asyncFn[, error][, message])` | `(...) => any` | `__assert.assert.rejects` | 📋 Planned | - |
-| `assert.strictEqual(actual, expected[, message])` | `(...) => any` | `__assert.assert.strictEqual` | 📋 Planned | - |
-| `assert.throws(fn[, error][, message])` | `(...) => any` | `__assert.assert.throws` | 📋 Planned | - |
-| `tracker.calls([fn][, exact])` | `(...) => any` | `__assert.tracker.calls` | 📋 Planned | - |
-| `tracker.getCalls(fn)` | `(...) => any` | `__assert.tracker.getCalls` | 📋 Planned | - |
-| `tracker.report()` | `(...) => any` | `__assert.tracker.report` | 📋 Planned | - |
-| `tracker.reset([fn])` | `(...) => any` | `__assert.tracker.reset` | 📋 Planned | - |
-| `tracker.verify()` | `(...) => any` | `__assert.tracker.verify` | 📋 Planned | - |
 
 ---
 

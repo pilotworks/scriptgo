@@ -73,6 +73,7 @@ const (
 	TypeBoolArray         Type = "bool[]"
 	TypeBigIntArray       Type = "bigint[]"
 	TypeSymbolArray       Type = "symbol[]"
+	TypeUnknownArray      Type = "unknown[]"
 	TypeObject            Type = "object"
 	TypeClosure           Type = "closure"
 	TypeUnknown           Type = "unknown"
