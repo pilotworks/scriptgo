@@ -384,6 +384,10 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
         *out_result = 0;
         return 0;
     }
+    if (!scriptgo_gc_is_registered(handle)) {
+        *out_result = 0;
+        return 0;
+    }
     scriptgo_object *obj = (scriptgo_object *)handle;
     if (obj->magic != SCRIPTGO_OBJECT_MAGIC || obj->type_name == NULL) {
         *out_result = 0;

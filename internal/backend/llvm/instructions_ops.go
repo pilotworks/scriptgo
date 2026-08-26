@@ -388,13 +388,25 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
-	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
+	if leftType == ir.TypeClosure {
+		eqVar := fmt.Sprintf("closure.eq.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_equals(ptr %%%s, ptr %%%s)\n", eqVar, arg0, arg1))
+		if instruction.Operator == "==" || instruction.Operator == "===" {
+			out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, eqVar))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", instruction.Result, eqVar))
+		}
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
+	}
+	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",
 		}[instruction.Operator]
 		if !ok {
-			return fmt.Errorf("unsupported LLVM pointer/closure compare operator %q", instruction.Operator)
+			return fmt.Errorf("unsupported LLVM pointer compare operator %q", instruction.Operator)
 		}
 		e.types[instruction.Result] = ir.TypeBool
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
@@ -474,6 +486,7 @@ func (e *functionEmitter) emitSelect(out *strings.Builder, instruction ir.Instru
 	if lt == "" {
 		lt = "ptr"
 	}
+	cond := e.resolveArg(out, instruction.Args[0])
 	arg1 := e.resolveArg(out, instruction.Args[1])
 	t1 := e.types[arg1]
 	if t1 == "" {
@@ -493,7 +506,7 @@ func (e *functionEmitter) emitSelect(out *strings.Builder, instruction ir.Instru
 	if err != nil {
 		return err
 	}
-	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n", instruction.Result, instruction.Args[0], lt, arg1, lt, arg2))
+	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n", instruction.Result, cond, lt, arg1, lt, arg2))
 	return nil
 }
 
@@ -561,10 +574,12 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 
 	argVal := arg
 	if slot, ok := e.varSlots[arg]; ok {
-		loaded := fmt.Sprintf("%s.box_load.%d", arg, e.loadCounter)
-		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
-		argVal = loaded
+		if argType != ir.TypeVoid && llvmType(argType) != "void" {
+			loaded := fmt.Sprintf("%s.box_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+			argVal = loaded
+		}
 	}
 
 	return e.emitBoxValue(out, argVal, argType, instruction.Result)
@@ -573,6 +588,7 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.Instruction) error {
 	e.types[instruction.Result] = instruction.Type
 	arg := instruction.Args[0]
+
 	if instruction.Type == ir.TypeUnknown || instruction.Type == "any" {
 		if e.types[arg] == ir.TypeUnknown || e.types[arg] == "any" {
 			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", instruction.Result, arg))
@@ -580,34 +596,49 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 		}
 		return e.emitBoxValue(out, arg, e.types[arg], instruction.Result)
 	}
-	if e.types[arg] != ir.TypeUnknown && e.types[arg] != "any" {
-		argVal := arg
-		if slot, ok := e.varSlots[arg]; ok {
-			loaded := fmt.Sprintf("%s.cast_load.%d", arg, e.loadCounter)
-			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load volatile ptr, ptr %%%s\n", loaded, slot))
-			argVal = loaded
+
+	argType, hasType := e.types[arg]
+	if hasType && argType != ir.TypeUnknown && argType != "any" {
+		if instruction.Result != arg {
+			srcType := llvmType(argType)
+			dstType := llvmType(instruction.Type)
+			if srcType == dstType {
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast %s %%%s to %s\n", instruction.Result, srcType, arg, dstType))
+			} else if dstType == "ptr" && srcType != "ptr" {
+				out.WriteString(fmt.Sprintf("  %%%s = inttoptr %s %%%s to ptr\n", instruction.Result, srcType, arg))
+			} else if srcType == "ptr" && dstType != "ptr" {
+				out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to %s\n", instruction.Result, arg, dstType))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast %s %%%s to %s\n", instruction.Result, srcType, arg, dstType))
+			}
+			if slot, ok := e.varSlots[instruction.Result]; ok {
+				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(instruction.Type), instruction.Result, slot))
+			}
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, argVal))
 		return nil
 	}
+
 	id := e.labelCounter
 	e.labelCounter++
 
-	var expectedTag int
+	expectedTag := 5
 	switch instruction.Type {
 	case ir.TypeNumber:
-		expectedTag = 3
+		expectedTag = 3 // SCRIPTGO_TAG_NUMBER
 	case ir.TypeBool:
-		expectedTag = 2
+		expectedTag = 2 // SCRIPTGO_TAG_BOOLEAN
 	case ir.TypeString:
-		expectedTag = 4
+		expectedTag = 4 // SCRIPTGO_TAG_STRING
 	case ir.TypeVoid:
-		expectedTag = 0
+		expectedTag = 0 // SCRIPTGO_TAG_UNDEFINED
 	case ir.TypeClosure:
-		expectedTag = 7
+		expectedTag = 7 // SCRIPTGO_TAG_FUNCTION
+	case ir.TypeBigInt:
+		expectedTag = 8 // SCRIPTGO_TAG_BIGINT
+	case ir.TypeSymbol:
+		expectedTag = 9 // SCRIPTGO_TAG_SYMBOL
 	case ir.TypeNumberArray, ir.TypeStringArray:
-		expectedTag = 6
+		expectedTag = 6 // SCRIPTGO_TAG_ARRAY
 	default:
 		if strings.HasSuffix(string(instruction.Type), "[]") {
 			expectedTag = 6
@@ -669,7 +700,7 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 	e.types[instruction.Result] = ir.TypeString
 	arg := instruction.Args[0]
 	argType, ok := e.types[arg]
-	if ok && argType != ir.TypeUnknown {
+	if ok && argType != ir.TypeUnknown && argType != "any" && !strings.Contains(string(argType), "|") {
 		if argType == ir.TypeClosure {
 			nullPtr := fmt.Sprintf("typeof.null.%d", e.loadCounter)
 			isNonNull := fmt.Sprintf("typeof.is_nonnull.%d", e.loadCounter)

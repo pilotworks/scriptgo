@@ -127,11 +127,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.length requires 1 argument")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_length(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_length(ptr %%%s, ptr %%%s)\n", status, ptrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -140,11 +141,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.byteLength requires 1 argument")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_byte_length(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_byte_length(ptr %%%s, ptr %%%s)\n", status, ptrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -153,11 +155,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.byteOffset requires 1 argument")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_byte_offset(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_byte_offset(ptr %%%s, ptr %%%s)\n", status, ptrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -166,11 +169,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.buffer requires 1 argument")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_buffer(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_buffer(ptr %%%s, ptr %%%s)\n", status, ptrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -179,11 +183,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("typedarray.subarray requires 3 arguments")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_subarray(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_subarray(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, ptrArg, instruction.Args[1], instruction.Args[2], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -192,11 +197,12 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("typedarray.slice requires 3 arguments")
 		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_slice(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_slice(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, ptrArg, instruction.Args[1], instruction.Args[2], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -205,9 +211,11 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("typedarray.set requires 3 arguments")
 		}
+		ptrArg0 := e.ensurePointerArg(out, instruction.Args[0])
+		ptrArg1 := e.ensurePointerArg(out, instruction.Args[1])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_set_array(ptr %%%s, ptr %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_set_array(ptr %%%s, ptr %%%s, double %%%s)\n", status, ptrArg0, ptrArg1, instruction.Args[2])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 

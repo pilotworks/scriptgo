@@ -96,7 +96,6 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					isHomogeneous = false
 				}
 			}
-			isTuple := false
 			if expression.InferredType != "" {
 				trimmed := strings.TrimSpace(expression.InferredType)
 				if strings.HasSuffix(trimmed, "[]") {
@@ -104,11 +103,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 					return result, arrType, nil
 				}
-				if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-					isTuple = true
-				}
 			}
-			if isHomogeneous && !isTuple {
+			if isHomogeneous {
 				var arrType ir.Type = ir.TypeNumberArray
 				if len(types) > 0 && types[0] == ir.TypeString {
 					arrType = ir.TypeStringArray
@@ -482,6 +478,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			elemType = ir.TypeString
 		} else if arrayType == ir.TypeBoolArray || arrayType == "boolean[]" || arrayType == "bool[]" {
 			elemType = ir.TypeBool
+		} else if arrayType == ir.TypeUnknown {
+			elemType = ir.TypeUnknown
 		} else if before, ok := strings.CutSuffix(string(arrayType), "[]"); ok {
 			elemName := before
 			if elemName == "boolean" {
@@ -552,7 +550,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		typ, ok := env[expression.Text]
 		if ok {
-			if typ == "" || typ == "any" || strings.Contains(string(typ), "|") {
+			if typ == "" || typ == "any" || typ == ir.TypeUnknown || strings.Contains(string(typ), "|") {
 				switch expression.InferredType {
 				case "number":
 					typ = ir.TypeNumber
@@ -568,6 +566,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					typ = ir.TypeNumberArray
 				case "string[]":
 					typ = ir.TypeStringArray
+				case "unknown[]":
+					typ = ir.TypeUnknownArray
 				case "Uint8Array":
 					typ = ir.TypeUint8Array
 				case "Int8Array":
@@ -624,7 +624,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "||", Args: []string{expression.Text, expression.Text}, Span: toIRSpan(path, expression.Span)})
 					return result, typ, nil
 				}
-				if strings.HasPrefix(string(typ), "object:") || strings.HasSuffix(string(typ), "[]") || typ == ir.TypeUnknown {
+				if strings.HasPrefix(string(typ), "object:") || strings.HasSuffix(string(typ), "[]") {
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpCheckedCast,
 						Type:   typ,
@@ -734,7 +734,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		if valType == ir.TypeUnknown || valType == ir.TypeClosure || strings.HasPrefix(string(valType), "object:") || valType == "ptr" {
+		if valType == ir.TypeUnknown || valType == "any" || valType == ir.TypeClosure || strings.Contains(string(valType), "|") {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpTypeOf,
 				Type:   ir.TypeString,

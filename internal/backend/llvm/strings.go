@@ -77,7 +77,18 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		}
 		arg := instruction.Args[0]
 		argType := e.types[arg]
-		if argType != ir.TypeUnknown {
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if argType == ir.TypeUnknown || argType == "any" {
+				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
+				arg = loaded
+			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
+				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				arg = loaded
+			}
+		}
+		if argType != ir.TypeUnknown && argType != "any" {
 			boxedVar := fmt.Sprintf("box.stru.%d", e.loadCounter)
 			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
 				return err
@@ -99,7 +110,19 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			return fmt.Errorf("string.fromObject has invalid signature")
 		}
 		arg := instruction.Args[0]
-		if e.types[arg] == ir.TypeUnknown {
+		argType := e.types[arg]
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if argType == ir.TypeUnknown || argType == "any" {
+				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
+				arg = loaded
+			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
+				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				arg = loaded
+			}
+		}
+		if argType == ir.TypeUnknown || argType == "any" {
 			tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
 			padVar := fmt.Sprintf("pad.%d", e.loadCounter)
 			valVar := fmt.Sprintf("val.%d", e.loadCounter)
@@ -112,7 +135,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, arg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.slice", "__string.substring":
@@ -513,6 +536,17 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		}
 		arg := instruction.Args[0]
 		argType := e.types[arg]
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if argType == ir.TypeUnknown || argType == "any" {
+				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
+				arg = loaded
+			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
+				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				arg = loaded
+			}
+		}
 		if argType == ir.TypeString {
 			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, arg)
 			return nil

@@ -22,7 +22,8 @@ import assert, {
     doesNotReject,
     AssertionError,
     CallTracker,
-    Assert
+    Assert,
+    strict
 } from "node:assert";
 
 // @api: assert(value[, message])
@@ -55,7 +56,6 @@ console.log("strictEqual passed");
 notStrictEqual(1, "1");
 console.log("notStrictEqual passed");
 
-// @api: assert.deepEqual(actual, expected[, message])
 // @expect: deepEqual passed
 deepEqual([1, 2], [1, 2]);
 console.log("deepEqual passed");
@@ -162,6 +162,13 @@ customAssert.ok(true);
 customAssert.strictEqual(100, 100);
 console.log("Assert class passed");
 
+// @api: assert.strict
+// @expect: strict mode passed
+strict.ok(true);
+strict.equal(42, 42);
+strict.deepEqual({ a: 1 }, { a: 1 });
+console.log("strict mode passed");
+
 // @api: assert.rejects
 // @expect: rejects passed
 await rejects(Promise.reject(new Error("async error")));
@@ -171,4 +178,3 @@ console.log("rejects passed");
 // @expect: doesNotReject passed
 await doesNotReject(Promise.resolve("ok"));
 console.log("doesNotReject passed");
-

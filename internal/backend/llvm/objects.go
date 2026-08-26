@@ -20,8 +20,12 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", status, instruction.FieldCount, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
-	if instruction.Value != "" {
-		if strGlobal, ok := e.stringsByValue[instruction.Value]; ok {
+	typeName := instruction.Value
+	if typeName == "" {
+		typeName = instruction.Callee
+	}
+	if typeName != "" {
+		if strGlobal, ok := e.stringsByValue[typeName]; ok {
 			typeStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 			e.runtimeStatus++
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_type_set(ptr %%%s, ptr %s)\n", typeStatus, instruction.Result, strGlobal))
@@ -76,8 +80,11 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 	}
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	actualType := e.types[valArg]
-	if actualType == "" || actualType == ir.TypeVoid {
+	actualType := e.types[instruction.Args[1]]
+	if actualType == "" {
+		actualType = e.types[valArg]
+	}
+	if actualType == "" {
 		actualType = valueType
 	}
 	if valueType == ir.TypeUnknown && actualType != ir.TypeUnknown {
@@ -428,7 +435,8 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 				return nil
 			}
 			if len(instruction.Args) > 0 {
-				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+				ptrArg := e.ensurePointerArg(out, instruction.Args[0])
+				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, ptrArg))
 			} else {
 				out.WriteString(fmt.Sprintf("  %%%s = alloca i8\n", instruction.Result))
 			}

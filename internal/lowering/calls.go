@@ -820,16 +820,18 @@ func lowerCallExpression(
 			value = boxed
 		}
 		if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeClosure && valType != ir.TypeClosure {
-			closureSlot := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpClosure,
-				Type:   ir.TypeClosure,
-				Result: closureSlot,
-				Callee: value,
-				Args:   nil,
-				Span:   toIRSpan(path, argument.Span),
-			})
-			value = closureSlot
+			if _, isSig := signatures[value]; isSig {
+				closureSlot := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpClosure,
+					Type:   ir.TypeClosure,
+					Result: closureSlot,
+					Callee: value,
+					Args:   nil,
+					Span:   toIRSpan(path, argument.Span),
+				})
+				value = closureSlot
+			}
 		}
 		if aIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[aIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
 			nullConst := nextTemp(counter)
@@ -914,16 +916,18 @@ func lowerCallExpression(
 						val = boxed
 					}
 					if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeClosure && valType != ir.TypeClosure {
-						closureSlot := nextTemp(counter)
-						function.Body = append(function.Body, ir.Instruction{
-							Op:     ir.OpClosure,
-							Type:   ir.TypeClosure,
-							Result: closureSlot,
-							Callee: val,
-							Args:   nil,
-							Span:   toIRSpan(path, initExpr.Span),
-						})
-						val = closureSlot
+						if _, isSig := signatures[val]; isSig {
+							closureSlot := nextTemp(counter)
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpClosure,
+								Type:   ir.TypeClosure,
+								Result: closureSlot,
+								Callee: val,
+								Args:   nil,
+								Span:   toIRSpan(path, initExpr.Span),
+							})
+							val = closureSlot
+						}
 					}
 					pName := target.Parameters[i].Name
 					if pName != "" && pName != "this" {

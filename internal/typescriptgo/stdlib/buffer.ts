@@ -2,7 +2,7 @@ declare namespace __scriptgo {
     function bufferAlloc(size: number, fill?: string): Buffer;
     function bufferAllocUnsafe(size: number): Buffer;
     function bufferFromString(str: string, encoding?: string): Buffer;
-    function bufferFromArray(array: any): Buffer;
+    function bufferFromArray(array: unknown): Buffer;
     function bufferConcat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
     function bufferIsBuffer(obj: unknown): boolean;
     function bufferByteLength(string: string, encoding?: string): number;

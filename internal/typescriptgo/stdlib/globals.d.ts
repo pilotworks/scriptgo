@@ -12,24 +12,24 @@ interface Process {
 declare var process: Process;
 
 interface Console {
-    log(...args: any[]): void;
-    info(...args: any[]): void;
-    warn(...args: any[]): void;
-    error(...args: any[]): void;
-    debug(...args: any[]): void;
-    assert(condition?: any, ...data: any[]): void;
+    log(...args: unknown[]): void;
+    info(...args: unknown[]): void;
+    warn(...args: unknown[]): void;
+    error(...args: unknown[]): void;
+    debug(...args: unknown[]): void;
+    assert(condition?: unknown, ...data: unknown[]): void;
     clear(): void;
     count(label?: string): void;
     countReset(label?: string): void;
     time(label?: string): void;
-    timeLog(label?: string, ...data: any[]): void;
+    timeLog(label?: string, ...data: unknown[]): void;
     timeEnd(label?: string): void;
-    trace(...data: any[]): void;
-    dir(item?: any, options?: any): void;
-    dirxml(...data: any[]): void;
-    table(tabularData?: any, properties?: string[]): void;
-    group(...data: any[]): void;
-    groupCollapsed(...data: any[]): void;
+    trace(...data: unknown[]): void;
+    dir(item?: unknown, options?: unknown): void;
+    dirxml(...data: unknown[]): void;
+    table(tabularData?: unknown, properties?: string[]): void;
+    group(...data: unknown[]): void;
+    groupCollapsed(...data: unknown[]): void;
     groupEnd(): void;
     profile(label?: string): void;
     profileEnd(label?: string): void;
@@ -39,18 +39,18 @@ interface Console {
 declare var console: Console;
 
 interface ConsoleConstructorOptions {
-    stdout?: any;
-    stderr?: any;
+    stdout?: unknown;
+    stderr?: unknown;
     ignoreErrors?: boolean;
     colorMode?: boolean | "auto";
-    inspectOptions?: any;
+    inspectOptions?: unknown;
     groupIndentation?: number;
 }
 
 interface ConsoleConstructor {
     prototype: Console;
-    new(stdout?: any, stderr?: any, ignoreErrors?: boolean): Console;
-    new(options?: ConsoleConstructorOptions | any): Console;
+    new(stdout?: unknown, stderr?: unknown, ignoreErrors?: boolean): Console;
+    new(options?: ConsoleConstructorOptions | unknown): Console;
 }
 
 declare var Console: ConsoleConstructor;
@@ -71,8 +71,8 @@ interface BigInt {
 }
 
 interface BigIntConstructor {
-    (value?: any): bigint;
-    new(value?: any): BigInt;
+    (value?: unknown): bigint;
+    new(value?: unknown): BigInt;
     asIntN(bits: number, int: bigint): bigint;
     asUintN(bits: number, int: bigint): bigint;
 }
@@ -92,6 +92,30 @@ interface RegExpConstructor {
 }
 
 declare var RegExp: RegExpConstructor;
+
+interface ObjectConstructor {
+    getPrototypeOf(o: unknown): unknown;
+    getOwnPropertyNames(o: unknown): string[];
+    getOwnPropertySymbols(o: unknown): symbol[];
+    getOwnPropertyDescriptor(o: unknown, p: string | symbol): PropertyDescriptor | undefined;
+    getOwnPropertyDescriptors(o: unknown): Record<string, PropertyDescriptor>;
+    keys(o: unknown): string[];
+    values(o: unknown): unknown[];
+    entries(o: unknown): [string, unknown][];
+    assign<T extends Record<string, unknown>>(target: T, ...sources: unknown[]): T;
+    is(value1: unknown, value2: unknown): boolean;
+    hasOwn(o: unknown, v: string | symbol): boolean;
+    create(o: object | null, properties?: unknown): unknown;
+    freeze<T>(a: T): T;
+    seal<T>(a: T): T;
+    preventExtensions<T>(a: T): T;
+    isFrozen(o: unknown): boolean;
+    isSealed(o: unknown): boolean;
+    isExtensible(o: unknown): boolean;
+    setPrototypeOf(o: unknown, proto: object | null): unknown;
+}
+
+declare var Object: ObjectConstructor;
 
 interface String {
     match(matcher: RegExp | string): string[] | null;
@@ -174,11 +198,11 @@ interface Date {
     toTimeString(): string;
     toISOString(): string;
     toUTCString(): string;
-    toJSON(key?: any): string;
-    toLocaleString(locales?: any, options?: any): string;
-    toLocaleDateString(locales?: any, options?: any): string;
-    toLocaleTimeString(locales?: any, options?: any): string;
-    toTemporalInstant(): any;
+    toJSON(key?: unknown): string;
+    toLocaleString(locales?: unknown, options?: unknown): string;
+    toLocaleDateString(locales?: unknown, options?: unknown): string;
+    toLocaleTimeString(locales?: unknown, options?: unknown): string;
+    toTemporalInstant(): unknown;
     valueOf(): number;
     getTime(): number;
     getFullYear(): number;
@@ -218,7 +242,7 @@ interface Date {
 interface DateConstructor {
     new(): Date;
     new(value: number | string | Date): Date;
-    (value?: any): string;
+    (value?: unknown): string;
     now(): number;
     parse(s: string): number;
     UTC(year: number, monthIndex?: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
@@ -234,7 +258,7 @@ interface ArrayBuffer {
 interface ArrayBufferConstructor {
     new(byteLength: number): ArrayBuffer;
     readonly prototype: ArrayBuffer;
-    isView(arg: any): boolean;
+    isView(arg: unknown): boolean;
 }
 
 declare var ArrayBuffer: ArrayBufferConstructor;
@@ -543,7 +567,7 @@ interface DataViewConstructor {
 }
 declare var DataView: DataViewConstructor;
 
-interface Map<K, V> {
+interface Map<K = unknown, V = unknown> {
     readonly size: number;
     get(key: K): V;
     set(key: K, value: V): this;
@@ -557,13 +581,13 @@ interface Map<K, V> {
 }
 
 interface MapConstructor {
-    new <K, V>(): Map<K, V>;
-    new <K, V>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
-    readonly prototype: Map<any, any>;
+    new <K = unknown, V = unknown>(): Map<K, V>;
+    new <K = unknown, V = unknown>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
+    readonly prototype: Map<unknown, unknown>;
 }
 declare var Map: MapConstructor;
 
-interface Set<T> {
+interface Set<T = unknown> {
     readonly size: number;
     add(value: T): this;
     has(value: T): boolean;
@@ -576,9 +600,9 @@ interface Set<T> {
 }
 
 interface SetConstructor {
-    new <T>(): Set<T>;
-    new <T>(values?: readonly T[] | null): Set<T>;
-    readonly prototype: Set<any>;
+    new <T = unknown>(): Set<T>;
+    new <T = unknown>(values?: readonly T[] | null): Set<T>;
+    readonly prototype: Set<unknown>;
 }
 declare var Set: SetConstructor;
 
@@ -612,7 +636,7 @@ interface TextDecoder {
     readonly encoding: string;
     readonly fatal: boolean;
     readonly ignoreBOM: boolean;
-    decode(input?: ArrayBuffer | Uint8Array | DataView, options?: TextDecodeOptions): string;
+    decode(input?: ArrayBufferView | ArrayBuffer, options?: TextDecodeOptions): string;
 }
 
 interface TextDecoderConstructor {
@@ -665,6 +689,14 @@ interface Buffer extends Uint8Array {
     readDoubleBE(offset: number): number;
     writeDoubleLE(value: number, offset: number): number;
     writeDoubleBE(value: number, offset: number): number;
+    readBigInt64LE(offset: number): bigint;
+    readBigInt64BE(offset: number): bigint;
+    writeBigInt64LE(value: bigint, offset: number): number;
+    writeBigInt64BE(value: bigint, offset: number): number;
+    readBigUInt64LE(offset: number): bigint;
+    readBigUInt64BE(offset: number): bigint;
+    writeBigUInt64LE(value: bigint, offset: number): number;
+    writeBigUInt64BE(value: bigint, offset: number): number;
 }
 
 interface BufferConstructor {
@@ -673,18 +705,18 @@ interface BufferConstructor {
     from(str: string, encoding?: string): Buffer;
     from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
     concat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
-    isBuffer(obj: any): boolean;
+    isBuffer(obj: unknown): boolean;
     byteLength(string: string, encoding?: string): number;
     readonly prototype: Buffer;
 }
 
 declare var Buffer: BufferConstructor;
 
-declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function setTimeout(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number;
 declare function clearTimeout(id: number | undefined): void;
-declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function setInterval(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number;
 declare function clearInterval(id: number | undefined): void;
-declare function setImmediate(callback: (...args: any[]) => void, ...args: any[]): number;
+declare function setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): number;
 declare function clearImmediate(id: number | undefined): void;
 
 interface URLSearchParams {
@@ -783,14 +815,14 @@ interface Response {
     readonly headers: Headers;
     readonly url: string;
     text(): Promise<string>;
-    json<T = any>(): Promise<T>;
+    json<T = unknown>(): Promise<T>;
     arrayBuffer(): Promise<ArrayBuffer>;
 }
 
 interface ResponseConstructor {
     new(body?: string | null, init?: ResponseInit): Response;
     readonly prototype: Response;
-    json(data: any, init?: ResponseInit): Response;
+    json(data: unknown, init?: ResponseInit): Response;
     error(): Response;
     redirect(url: string, status?: number): Response;
 }
@@ -799,12 +831,12 @@ declare var Response: ResponseConstructor;
 
 interface ReadableStream {
     readonly locked: boolean;
-    cancel(reason?: any): Promise<void>;
-    getReader(): any;
+    cancel(reason?: unknown): Promise<void>;
+    getReader(): unknown;
 }
 
 interface ReadableStreamConstructor {
-    new(underlyingSource?: any, strategy?: any): ReadableStream;
+    new(underlyingSource?: unknown, strategy?: unknown): ReadableStream;
     readonly prototype: ReadableStream;
 }
 
@@ -812,13 +844,13 @@ declare var ReadableStream: ReadableStreamConstructor;
 
 interface WritableStream {
     readonly locked: boolean;
-    abort(reason?: any): Promise<void>;
+    abort(reason?: unknown): Promise<void>;
     close(): Promise<void>;
-    getWriter(): any;
+    getWriter(): unknown;
 }
 
 interface WritableStreamConstructor {
-    new(underlyingSink?: any, strategy?: any): WritableStream;
+    new(underlyingSink?: unknown, strategy?: unknown): WritableStream;
     readonly prototype: WritableStream;
 }
 
@@ -827,32 +859,32 @@ declare var WritableStream: WritableStreamConstructor;
 declare function fetch(input: string | Request, init?: RequestInit): Promise<Response>;
 
 declare namespace Reflect {
-    function apply(target: any, thisArgument: any, argumentsList: any[]): any;
-    function construct(target: any, argumentsList: any[], newTarget?: any): any;
-    function defineProperty(target: any, propertyKey: string | symbol, attributes: any): boolean;
-    function deleteProperty(target: any, propertyKey: string | symbol): boolean;
-    function get(target: any, propertyKey: string | symbol, receiver?: any): any;
-    function getOwnPropertyDescriptor(target: any, propertyKey: string | symbol): PropertyDescriptor | undefined;
-    function getPrototypeOf(target: any): any;
-    function has(target: any, propertyKey: string | symbol): boolean;
-    function isExtensible(target: any): boolean;
-    function ownKeys(target: any): string[];
-    function preventExtensions(target: any): boolean;
-    function set(target: any, propertyKey: string | symbol, value: any, receiver?: any): boolean;
-    function setPrototypeOf(target: any, proto: any): boolean;
-    function getMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): any;
-    function getOwnMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): any;
-    function hasMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): boolean;
-    function hasOwnMetadata(metadataKey: any, target: any, propertyKey?: string | symbol): boolean;
-    function defineMetadata(metadataKey: any, metadataValue: any, target: any, propertyKey?: string | symbol): void;
-    function metadata(metadataKey: any, metadataValue: any): (target: any, propertyKey?: any) => void;
+    function apply(target: unknown, thisArgument: unknown, argumentsList: unknown[]): unknown;
+    function construct(target: unknown, argumentsList: unknown[], newTarget?: unknown): unknown;
+    function defineProperty(target: unknown, propertyKey: string | symbol, attributes: unknown): boolean;
+    function deleteProperty(target: unknown, propertyKey: string | symbol): boolean;
+    function get(target: unknown, propertyKey: string | symbol, receiver?: unknown): unknown;
+    function getOwnPropertyDescriptor(target: unknown, propertyKey: string | symbol): PropertyDescriptor | undefined;
+    function getPrototypeOf(target: unknown): unknown;
+    function has(target: unknown, propertyKey: string | symbol): boolean;
+    function isExtensible(target: unknown): boolean;
+    function ownKeys(target: unknown): string[];
+    function preventExtensions(target: unknown): boolean;
+    function set(target: unknown, propertyKey: string | symbol, value: unknown, receiver?: unknown): boolean;
+    function setPrototypeOf(target: unknown, proto: unknown): boolean;
+    function getMetadata(metadataKey: unknown, target: unknown, propertyKey?: string | symbol): unknown;
+    function getOwnMetadata(metadataKey: unknown, target: unknown, propertyKey?: string | symbol): unknown;
+    function hasMetadata(metadataKey: unknown, target: unknown, propertyKey?: string | symbol): boolean;
+    function hasOwnMetadata(metadataKey: unknown, target: unknown, propertyKey?: string | symbol): boolean;
+    function defineMetadata(metadataKey: unknown, metadataValue: unknown, target: unknown, propertyKey?: string | symbol): void;
+    function metadata(metadataKey: unknown, metadataValue: unknown): (target: unknown, propertyKey?: unknown) => void;
 }
 
 interface ArrayConstructor {
-    fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapfn?: (value: any, index: number) => any): Promise<any[]>;
+    fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapfn?: (value: unknown, index: number) => unknown): Promise<unknown[]>;
 }
 
-interface IteratorResult<T, TReturn = any> {
+interface IteratorResult<T, TReturn = unknown> {
     done: boolean;
     value: T;
 }
@@ -861,7 +893,7 @@ interface IteratorObject<T, TReturn = undefined, TNext = unknown> {
     [Symbol.iterator](): IteratorObject<T, TReturn, TNext>;
     next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
     return?(value?: TReturn): IteratorResult<T, TReturn>;
-    throw?(e?: any): IteratorResult<T, TReturn>;
+    throw?(e?: unknown): IteratorResult<T, TReturn>;
     map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>;
     filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>;
     filter(predicate: (value: T, index: number) => unknown): IteratorObject<T, undefined, unknown>;
@@ -908,14 +940,14 @@ interface EventInit {
     composed?: boolean;
 }
 
-interface CustomEventInit<T = any> extends EventInit {
+interface CustomEventInit<T = unknown> extends EventInit {
     detail?: T;
 }
 
 interface Event {
     readonly type: string;
-    readonly target: any;
-    readonly currentTarget: any;
+    readonly target: unknown;
+    readonly currentTarget: unknown;
     readonly bubbles: boolean;
     readonly cancelable: boolean;
     readonly defaultPrevented: boolean;
@@ -932,12 +964,12 @@ interface EventConstructor {
 
 declare var Event: EventConstructor;
 
-interface CustomEvent<T = any> extends Event {
+interface CustomEvent<T = unknown> extends Event {
     readonly detail: T;
 }
 
 interface CustomEventConstructor {
-    new <T = any>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
+    new <T = unknown>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
     readonly prototype: CustomEvent;
 }
 
@@ -956,7 +988,7 @@ interface AddEventListenerOptions {
 
 interface EventTarget {
     addEventListener(type: string, callback: ((evt: Event) => void) | EventListenerObject | Function | null, options?: AddEventListenerOptions | boolean): void;
-    removeEventListener(type: string, callback: ((evt: Event) => void) | EventListenerObject | Function | null, options?: boolean | any): void;
+    removeEventListener(type: string, callback: ((evt: Event) => void) | EventListenerObject | Function | null, options?: boolean | unknown): void;
     dispatchEvent(event: Event): boolean;
 }
 
@@ -982,14 +1014,14 @@ declare var DOMException: DOMExceptionConstructor;
 
 interface AbortSignal extends EventTarget {
     readonly aborted: boolean;
-    readonly reason: any;
-    onabort: ((this: AbortSignal, ev: Event) => any) | null;
+    readonly reason: unknown;
+    onabort: ((this: AbortSignal, ev: Event) => unknown) | null;
     throwIfAborted(): void;
 }
 
 interface AbortSignalConstructor {
     readonly prototype: AbortSignal;
-    abort(reason?: any): AbortSignal;
+    abort(reason?: unknown): AbortSignal;
     timeout(milliseconds: number): AbortSignal;
     any(signals: AbortSignal[]): AbortSignal;
 }
@@ -998,7 +1030,7 @@ declare var AbortSignal: AbortSignalConstructor;
 
 interface AbortController {
     readonly signal: AbortSignal;
-    abort(reason?: any): void;
+    abort(reason?: unknown): void;
 }
 
 interface AbortControllerConstructor {

@@ -254,10 +254,17 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, 
 		}
 		return nil
 	case "if":
-		if err := validateExpression(fileName, statement.Expression, isBuiltin); err != nil {
-			return err
+		if statement.Expression != nil && statement.Expression.Kind != "identifier" {
+			if err := validateExpression(fileName, statement.Expression, isBuiltin); err != nil {
+				return err
+			}
 		}
-		for _, branchStatement := range append(statement.Then, statement.Else...) {
+		for _, branchStatement := range statement.Then {
+			if err := validateStatement(fileName, branchStatement, isBuiltin); err != nil {
+				return err
+			}
+		}
+		for _, branchStatement := range statement.Else {
 			if err := validateStatement(fileName, branchStatement, isBuiltin); err != nil {
 				return err
 			}
@@ -269,8 +276,8 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, 
 		}
 		return validateExpression(fileName, statement.Expression, isBuiltin)
 	case "try":
-		for _, bodyStatement := range statement.Body {
-			if err := validateStatement(fileName, bodyStatement, isBuiltin); err != nil {
+		for _, tryStatement := range statement.Body {
+			if err := validateStatement(fileName, tryStatement, isBuiltin); err != nil {
 				return err
 			}
 		}
@@ -358,15 +365,12 @@ func isUnknownType(typ string) bool {
 
 func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string, isBuiltin bool) error {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
-	if isHeterogeneousUnion(normalized) {
-		return subsetError(fileName, span, CodeUnionNarrowing, fmt.Sprintf("unresolved union type %q", typ))
-	}
 	if !isBuiltin && strings.HasSuffix(normalized, "[]") && isUnknownType(strings.TrimSuffix(normalized, "[]")) {
 		return subsetError(fileName, span, CodeUnknownBoundary, "unknown array type")
 	}
 	switch normalized {
 	case "any", "anykeyword", "kindanykeyword":
-		return subsetError(fileName, span, CodeAnyBoundary, "any type")
+		return subsetError(fileName, span, CodeAnyBoundary, fmt.Sprintf("any type (file=%s, span=%+v, rawTyp=%q)", fileName, span, typ))
 	}
 	return nil
 }
@@ -422,13 +426,13 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			} else if WarnRuntimeCasts && (isUnknownType(expression.Left.InferredType) || (expression.Left.Kind == "as" && isUnknownType(expression.Left.Text))) && !isUnknownType(expression.Text) {
 				recordWarning(fileName, expression.Span, CodeWarnCheckedCast, fmt.Sprintf("runtime checked cast to %s", expression.Text))
 			}
-			return validateExpression(fileName, expression.Left, isBuiltin)
+			if expression.Left.Kind != "identifier" {
+				return validateExpression(fileName, expression.Left, isBuiltin)
+			}
+			return nil
 		}
 		return nil
 	case "identifier":
-		if isHeterogeneousUnion(expression.InferredType) {
-			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.InferredType))
-		}
 		return nil
 	case "number", "bigint", "regex", "string", "bool", "null", "undefined":
 		return nil
@@ -465,11 +469,17 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	case "spread":
 		return validateExpression(fileName, expression.Left, isBuiltin)
 	case "optional_index", "index":
+		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
+		}
 		if err := validateExpression(fileName, expression.Left, isBuiltin); err != nil {
 			return err
 		}
 		return validateExpression(fileName, expression.Right, isBuiltin)
 	case "optional_property", "property":
+		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
+		}
 		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal" || expression.Left.Kind == "as") {
 			return validateExpression(fileName, expression.Left, isBuiltin)
 		}
@@ -484,7 +494,12 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
 		}
 		return nil
-	case "typeof", "await", "yield", "yield_star":
+	case "typeof":
+		if expression.Left != nil && expression.Left.Kind != "identifier" {
+			return validateExpression(fileName, expression.Left, isBuiltin)
+		}
+		return nil
+	case "await", "yield", "yield_star":
 		if expression.Left != nil {
 			return validateExpression(fileName, expression.Left, isBuiltin)
 		}
@@ -493,13 +508,41 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" && expression.Operator != "++" && expression.Operator != "--" && expression.Operator != "void" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "unary operator "+expression.Operator)
 		}
+		if expression.Operator != "!" && expression.Operator != "void" && expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
+		}
+		if expression.Operator == "!" && expression.Left != nil && expression.Left.Kind == "identifier" {
+			return nil
+		}
 		return validateExpression(fileName, expression.Left, isBuiltin)
 	case "postfix_unary":
 		if expression.Operator != "++" && expression.Operator != "--" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "postfix operator "+expression.Operator)
 		}
+		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
+		}
 		return validateExpression(fileName, expression.Left, isBuiltin)
 	case "binary":
+		if expression.Operator == "instanceof" || expression.Operator == "in" || expression.Operator == "==" || expression.Operator == "!=" || expression.Operator == "===" || expression.Operator == "!==" || expression.Operator == "&&" || expression.Operator == "||" || expression.Operator == "??" {
+			if expression.Left != nil && expression.Left.Kind != "identifier" {
+				if err := validateExpression(fileName, expression.Left, isBuiltin); err != nil {
+					return err
+				}
+			}
+			if expression.Right != nil && expression.Right.Kind != "identifier" {
+				if err := validateExpression(fileName, expression.Right, isBuiltin); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
+		}
+		if expression.Right != nil && isHeterogeneousUnion(expression.Right.InferredType) {
+			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Right.InferredType))
+		}
 		if err := validateExpression(fileName, expression.Left, isBuiltin); err != nil {
 			return err
 		}
@@ -517,13 +560,22 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		}
 		return nil
 	case "conditional":
-		if err := validateExpression(fileName, expression.Left, isBuiltin); err != nil {
-			return err
+		if expression.Left != nil && expression.Left.Kind != "identifier" {
+			if err := validateExpression(fileName, expression.Left, isBuiltin); err != nil {
+				return err
+			}
 		}
-		if err := validateExpression(fileName, expression.WhenTrue, isBuiltin); err != nil {
-			return err
+		if expression.WhenTrue != nil {
+			if err := validateExpression(fileName, expression.WhenTrue, isBuiltin); err != nil {
+				return err
+			}
 		}
-		return validateExpression(fileName, expression.WhenFalse, isBuiltin)
+		if expression.WhenFalse != nil {
+			if err := validateExpression(fileName, expression.WhenFalse, isBuiltin); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "call", "optional_call":
 		for _, argument := range expression.Arguments {
 			if err := validateExpression(fileName, argument, isBuiltin); err != nil {

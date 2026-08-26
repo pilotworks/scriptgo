@@ -93,16 +93,8 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	}
-	arrArg := e.resolveArg(out, instruction.Args[0])
+	arrArg := e.ensurePointerArg(out, instruction.Args[0])
 	idxArg := e.resolveArg(out, instruction.Args[1])
-	if e.types[instruction.Args[0]] == ir.TypeUnknown {
-		e.tempCounter++
-		payloadName := fmt.Sprintf("arr.get.unbox.payload.%d", e.tempCounter)
-		ptrName := fmt.Sprintf("arr.get.unbox.ptr.%d", e.tempCounter)
-		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arrArg)
-		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-		arrArg = ptrName
-	}
 	if isTypedArrayType(arrayType) {
 		e.types[instruction.Result] = ir.TypeNumber
 		slot := instruction.Result + ".slot"
@@ -161,17 +153,9 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	if !ok {
 		return fmt.Errorf("unknown index.set array %q", instruction.Args[0])
 	}
-	arrArg := e.resolveArg(out, instruction.Args[0])
+	arrArg := e.ensurePointerArg(out, instruction.Args[0])
 	idxArg := e.resolveArg(out, instruction.Args[1])
 	valArg := e.resolveArg(out, instruction.Args[2])
-	if e.types[instruction.Args[0]] == ir.TypeUnknown {
-		e.tempCounter++
-		payloadName := fmt.Sprintf("arr.set.unbox.payload.%d", e.tempCounter)
-		ptrName := fmt.Sprintf("arr.set.unbox.ptr.%d", e.tempCounter)
-		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arrArg)
-		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-		arrArg = ptrName
-	}
 	if arrayType == ir.TypeBigInt64Array || arrayType == ir.TypeBigUint64Array {
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -249,15 +233,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("array.length has invalid signature")
 		}
-		ptrArg := e.resolveArg(out, instruction.Args[0])
-		if e.types[instruction.Args[0]] == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("arr.len.unbox.payload.%d", e.tempCounter)
-			ptrName := fmt.Sprintf("arr.len.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, ptrArg)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			ptrArg = ptrName
-		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		resultSlot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
@@ -271,16 +247,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) != 2 {
 			return fmt.Errorf("array.set_length has invalid signature")
 		}
-		ptrArg := e.resolveArg(out, instruction.Args[0])
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
 		lenArg := e.resolveArg(out, instruction.Args[1])
-		if e.types[instruction.Args[0]] == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("arr.len.unbox.payload.%d", e.tempCounter)
-			ptrName := fmt.Sprintf("arr.len.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, ptrArg)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			ptrArg = ptrName
-		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_set_length(ptr %%%s, double %%%s)\n", status, ptrArg, lenArg)

@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -72,94 +73,7 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 	elseEnv := make(map[string]ir.Type, len(env))
 	maps.Copy(elseEnv, env)
 
-	if statement.Expression != nil && statement.Expression.Kind == "binary" && statement.Expression.Operator == "in" && statement.Expression.Left != nil && (statement.Expression.Left.Kind == "string" || statement.Expression.Left.Kind == "literal") && statement.Expression.Right != nil && statement.Expression.Right.Kind == "identifier" {
-		varName := statement.Expression.Right.Text
-		propName := strings.Trim(statement.Expression.Left.Text, "\"'`")
-		for typeName, typeDef := range typeAliasesIndex {
-			if fields, ok := anonymousObjectFields(typeDef, nil); ok {
-				hasProp := false
-				for _, f := range fields {
-					if f.Name == propName {
-						hasProp = true
-						break
-					}
-				}
-				if hasProp {
-					thenEnv[varName] = toIRType(typeName)
-				} else {
-					elseEnv[varName] = toIRType(typeName)
-				}
-			}
-		}
-	} else if statement.Expression != nil && statement.Expression.Kind == "binary" && statement.Expression.Operator == "instanceof" && statement.Expression.Left != nil && statement.Expression.Left.Kind == "identifier" && statement.Expression.Right != nil && (statement.Expression.Right.Kind == "identifier" || statement.Expression.Right.Kind == "type") {
-		varName := statement.Expression.Left.Text
-		className := statement.Expression.Right.Text
-		thenEnv[varName] = toIRType(className)
-		if currType, ok := env[varName]; ok {
-			cleanCurr := strings.TrimPrefix(string(currType), "object:")
-			if strings.Contains(cleanCurr, "|") {
-				var remaining []string
-				for _, part := range strings.Split(cleanCurr, "|") {
-					trimmed := strings.TrimSpace(part)
-					if trimmed != className && trimmed != "object:"+className {
-						remaining = append(remaining, trimmed)
-					}
-				}
-				if len(remaining) > 0 {
-					elseEnv[varName] = toIRType(strings.Join(remaining, " | "))
-				}
-			}
-		}
-	} else if statement.Expression != nil && statement.Expression.Kind == "binary" && (statement.Expression.Operator == "===" || statement.Expression.Operator == "==") {
-		left := statement.Expression.Left
-		right := statement.Expression.Right
-		if left != nil && left.Kind == "typeof" && left.Left != nil && left.Left.Kind == "identifier" && right != nil && (right.Kind == "string" || right.Kind == "literal") {
-			varName := left.Left.Text
-			valStr := strings.Trim(right.Text, "\"'`")
-			switch valStr {
-			case "number":
-				thenEnv[varName] = ir.TypeNumber
-			case "string":
-				thenEnv[varName] = ir.TypeString
-			case "boolean":
-				thenEnv[varName] = ir.TypeBool
-			case "bigint":
-				thenEnv[varName] = ir.TypeBigInt
-			}
-		} else if right != nil && right.Kind == "typeof" && right.Left != nil && right.Left.Kind == "identifier" && left != nil && (left.Kind == "string" || left.Kind == "literal") {
-			varName := right.Left.Text
-			valStr := strings.Trim(left.Text, "\"'`")
-			switch valStr {
-			case "number":
-				thenEnv[varName] = ir.TypeNumber
-			case "string":
-				thenEnv[varName] = ir.TypeString
-			case "boolean":
-				thenEnv[varName] = ir.TypeBool
-			case "bigint":
-				thenEnv[varName] = ir.TypeBigInt
-			}
-		}
-		var propAccess *typescriptgo.SyntaxExpression
-		var literalVal *typescriptgo.SyntaxExpression
-		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {
-			propAccess = left
-			literalVal = right
-		} else if right != nil && (right.Kind == "property" || right.Kind == "member") && left != nil && (left.Kind == "string" || left.Kind == "literal") {
-			propAccess = right
-			literalVal = left
-		}
-		if propAccess != nil && propAccess.Left != nil && propAccess.Left.Kind == "identifier" && literalVal != nil {
-			varName := propAccess.Left.Text
-			valStr := literalVal.Text
-			if currType, ok := env[varName]; ok {
-				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
-				if matched != "" {
-					thenEnv[varName] = ir.Type("object:" + matched)
-				}
-			}
-		}
-	}
+	applyConditionNarrowing(statement.Expression, thenEnv, elseEnv, env, shapes)
 
 	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, thenEnv, counter, shapes, signatures)
 	if err != nil {
@@ -170,6 +84,9 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 		return err
 	}
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpIf, Type: ir.TypeVoid, Args: []string{condition}, Then: thenBody, Else: elseBody, Span: toIRSpan(path, statement.Span)})
+	if len(statement.Else) == 0 && slices.ContainsFunc(statement.Then, statementAlwaysReturns) {
+		maps.Copy(env, elseEnv)
+	}
 	return nil
 }
 
@@ -943,4 +860,118 @@ func findMatchingDiscriminatedType(targetVal string, unionType string, shapes ma
 		}
 	}
 	return ""
+}
+
+func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseEnv map[string]ir.Type, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape) {
+	if expr == nil {
+		return
+	}
+	if expr.Kind == "unary" && (expr.Operator == "!" || expr.Operator == "not") {
+		applyConditionNarrowing(expr.Left, elseEnv, thenEnv, baseEnv, shapes)
+		return
+	}
+	if expr.Kind == "binary" && (expr.Operator == "&&" || expr.Operator == "and") {
+		applyConditionNarrowing(expr.Left, thenEnv, elseEnv, baseEnv, shapes)
+		applyConditionNarrowing(expr.Right, thenEnv, elseEnv, baseEnv, shapes)
+		return
+	}
+	if expr.Kind == "binary" && expr.Operator == "in" && expr.Left != nil && (expr.Left.Kind == "string" || expr.Left.Kind == "literal") && expr.Right != nil && expr.Right.Kind == "identifier" {
+		varName := expr.Right.Text
+		propName := strings.Trim(expr.Left.Text, "\"'`")
+		for typeName, typeDef := range typeAliasesIndex {
+			if fields, ok := anonymousObjectFields(typeDef, nil); ok {
+				hasProp := false
+				for _, f := range fields {
+					if f.Name == propName {
+						hasProp = true
+						break
+					}
+				}
+				if hasProp {
+					thenEnv[varName] = toIRType(typeName)
+				} else {
+					elseEnv[varName] = toIRType(typeName)
+				}
+			}
+		}
+		return
+	}
+	if expr.Kind == "binary" && expr.Operator == "instanceof" && expr.Left != nil && expr.Left.Kind == "identifier" && expr.Right != nil && (expr.Right.Kind == "identifier" || expr.Right.Kind == "type") {
+		varName := expr.Left.Text
+		className := expr.Right.Text
+		thenEnv[varName] = toIRType(className)
+		if currType, ok := baseEnv[varName]; ok {
+			cleanCurr := strings.TrimPrefix(string(currType), "object:")
+			if strings.Contains(cleanCurr, "|") {
+				var remaining []string
+				for _, part := range strings.Split(cleanCurr, "|") {
+					trimmed := strings.TrimSpace(part)
+					if trimmed != className && trimmed != "object:"+className {
+						remaining = append(remaining, trimmed)
+					}
+				}
+				if len(remaining) > 0 {
+					elseEnv[varName] = toIRType(strings.Join(remaining, " | "))
+				}
+			}
+		}
+		return
+	}
+	if expr.Kind == "call" && expr.Left != nil && (expr.Left.Kind == "property" || expr.Left.Kind == "member") &&
+		expr.Left.Left != nil && expr.Left.Left.Kind == "identifier" && expr.Left.Left.Text == "Array" &&
+		expr.Left.Text == "isArray" && len(expr.Arguments) == 1 && expr.Arguments[0].Kind == "identifier" {
+		varName := expr.Arguments[0].Text
+		thenEnv[varName] = ir.TypeUnknownArray
+		return
+	}
+	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==") {
+		left := expr.Left
+		right := expr.Right
+		if left != nil && left.Kind == "typeof" && left.Left != nil && left.Left.Kind == "identifier" && right != nil && (right.Kind == "string" || right.Kind == "literal") {
+			varName := left.Left.Text
+			valStr := strings.Trim(right.Text, "\"'`")
+			switch valStr {
+			case "number":
+				thenEnv[varName] = ir.TypeNumber
+			case "string":
+				thenEnv[varName] = ir.TypeString
+			case "boolean":
+				thenEnv[varName] = ir.TypeBool
+			case "bigint":
+				thenEnv[varName] = ir.TypeBigInt
+			}
+		} else if right != nil && right.Kind == "typeof" && right.Left != nil && right.Left.Kind == "identifier" && left != nil && (left.Kind == "string" || left.Kind == "literal") {
+			varName := right.Left.Text
+			valStr := strings.Trim(left.Text, "\"'`")
+			switch valStr {
+			case "number":
+				thenEnv[varName] = ir.TypeNumber
+			case "string":
+				thenEnv[varName] = ir.TypeString
+			case "boolean":
+				thenEnv[varName] = ir.TypeBool
+			case "bigint":
+				thenEnv[varName] = ir.TypeBigInt
+			}
+		}
+		var propAccess *typescriptgo.SyntaxExpression
+		var literalVal *typescriptgo.SyntaxExpression
+		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {
+			propAccess = left
+			literalVal = right
+		} else if right != nil && (right.Kind == "property" || right.Kind == "member") && left != nil && (left.Kind == "string" || left.Kind == "literal") {
+			propAccess = right
+			literalVal = left
+		}
+		if propAccess != nil && propAccess.Left != nil && propAccess.Left.Kind == "identifier" && literalVal != nil {
+			varName := propAccess.Left.Text
+			valStr := literalVal.Text
+			if currType, ok := baseEnv[varName]; ok {
+				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
+				if matched != "" {
+					thenEnv[varName] = ir.Type("object:" + matched)
+				}
+			}
+		}
+	}
 }

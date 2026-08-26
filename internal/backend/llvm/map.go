@@ -36,7 +36,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 3 {
 			return fmt.Errorf("map.set requires 3 arguments")
 		}
-		mapArg := instruction.Args[0]
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		keyArg := instruction.Args[1]
 		valArg := instruction.Args[2]
 		keyType := e.types[keyArg]
@@ -72,7 +72,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("map.get requires 2 arguments")
 		}
-		mapArg := instruction.Args[0]
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		keyArg := instruction.Args[1]
 		keyType := e.types[keyArg]
 		retType := instruction.Type
@@ -129,7 +129,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("map.has requires 2 arguments")
 		}
-		mapArg := instruction.Args[0]
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		keyArg := instruction.Args[1]
 		keyType := e.types[keyArg]
 
@@ -164,7 +164,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("map.delete requires 2 arguments")
 		}
-		mapArg := instruction.Args[0]
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		keyArg := instruction.Args[1]
 		keyType := e.types[keyArg]
 
@@ -199,9 +199,10 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.clear requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_clear(ptr %%%s)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_clear(ptr %%%s)\n", status, mapArg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
@@ -209,11 +210,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.size requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_size(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_size(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -222,11 +224,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.toString requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_to_string(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_to_string(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -235,9 +238,10 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("map.forEach requires 2 arguments")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_for_each(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_for_each(ptr %%%s, ptr %%%s)\n", status, mapArg, instruction.Args[1])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
@@ -245,11 +249,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.keys requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_keys(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_keys(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -258,11 +263,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.values requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_values(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_values(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -271,11 +277,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.entries requires 1 argument")
 		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_entries(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_entries(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -322,7 +329,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("set.add requires 2 arguments")
 		}
-		setArg := instruction.Args[0]
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		valArg := instruction.Args[1]
 		valType := e.types[valArg]
 
@@ -354,7 +361,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("set.has requires 2 arguments")
 		}
-		setArg := instruction.Args[0]
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		valArg := instruction.Args[1]
 		valType := e.types[valArg]
 
@@ -387,7 +394,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("set.delete requires 2 arguments")
 		}
-		setArg := instruction.Args[0]
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		valArg := instruction.Args[1]
 		valType := e.types[valArg]
 
@@ -420,9 +427,10 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("set.clear requires 1 argument")
 		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_clear(ptr %%%s)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_clear(ptr %%%s)\n", status, setArg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
@@ -430,11 +438,12 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("set.size requires 1 argument")
 		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_size(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_size(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -443,11 +452,12 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("set.toString requires 1 argument")
 		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_to_string(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_to_string(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -456,10 +466,53 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("set.forEach requires 2 arguments")
 		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_for_each(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_for_each(ptr %%%s, ptr %%%s)\n", status, setArg, instruction.Args[1])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	case "__set.keys":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("set.keys requires 1 argument")
+		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_keys(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.values":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("set.values requires 1 argument")
+		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_values(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.entries":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("set.entries requires 1 argument")
+		}
+		setArg := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_entries(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
 
 	default:

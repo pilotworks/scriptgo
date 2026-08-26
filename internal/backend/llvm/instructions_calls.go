@@ -71,7 +71,17 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		e.runtimeStatus++
 		arg := instruction.Args[0]
 		argType := e.types[arg]
-		if argType != ir.TypeUnknown {
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.con_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if argType == ir.TypeUnknown || argType == "any" {
+				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+			}
+			arg = loaded
+		}
+		if argType != ir.TypeUnknown && argType != "any" {
 			boxedVar := fmt.Sprintf("box.con.%d", e.loadCounter)
 			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
 				return err

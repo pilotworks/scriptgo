@@ -267,6 +267,9 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			return ir.TypeUnknown
 		}
 	}
+	if strings.TrimSpace(value) == "{}" {
+		return ir.TypeUnknown
+	}
 	if strings.HasPrefix(value, "{") {
 		if !strings.HasSuffix(value, "}") {
 			value = value + "}"

@@ -390,3 +390,69 @@ int scriptgo_set_for_each(void *handle, void *closure_handle) {
     return 0;
 }
 
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_object_new(int64_t field_count, void **out_object);
+int scriptgo_object_number_set(void *handle, int64_t index, double value);
+int scriptgo_object_string_set(void *handle, int64_t index, const char *value);
+int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+} scriptgo_set_array_header;
+
+int scriptgo_set_values(void *handle, void **out_array) {
+    scriptgo_set_native *s = handle;
+    if (s == NULL || s->magic != SCRIPTGO_MAGIC_SET || out_array == NULL) return set_fail("invalid set handle");
+    int has_num = 0;
+    for (int64_t i = 0; i < s->size; i++) {
+        if (s->entries[i].val_type == SCRIPTGO_SET_VAL_NUMBER) { has_num = 1; break; }
+    }
+    if (has_num) {
+        if (scriptgo_array_new(s->size, sizeof(double), out_array) != 0) return -1;
+        scriptgo_set_array_header *arr = *out_array;
+        for (int64_t i = 0; i < s->size; i++) {
+            double d = s->entries[i].num_val;
+            memcpy(arr->data + (size_t)i * sizeof(double), &d, sizeof(double));
+        }
+        return 0;
+    }
+    if (scriptgo_array_new(s->size, sizeof(void *), out_array) != 0) return -1;
+    scriptgo_set_array_header *arr = *out_array;
+    for (int64_t i = 0; i < s->size; i++) {
+        void *val = (s->entries[i].val_type == SCRIPTGO_SET_VAL_STRING) ? (void *)s->entries[i].str_val : s->entries[i].ptr_val;
+        memcpy(arr->data + (size_t)i * sizeof(void *), &val, sizeof(void *));
+    }
+    return 0;
+}
+
+int scriptgo_set_keys(void *handle, void **out_array) {
+    return scriptgo_set_values(handle, out_array);
+}
+
+int scriptgo_set_entries(void *handle, void **out_array) {
+    scriptgo_set_native *s = handle;
+    if (s == NULL || s->magic != SCRIPTGO_MAGIC_SET || out_array == NULL) return set_fail("invalid set handle");
+    if (scriptgo_array_new(s->size, sizeof(void *), out_array) != 0) return -1;
+    scriptgo_set_array_header *arr = *out_array;
+    for (int64_t i = 0; i < s->size; i++) {
+        void *tup = NULL;
+        if (scriptgo_object_new(2, &tup) != 0) return -1;
+        if (s->entries[i].val_type == SCRIPTGO_SET_VAL_NUMBER) {
+            scriptgo_object_number_set(tup, 0, s->entries[i].num_val);
+            scriptgo_object_number_set(tup, 1, s->entries[i].num_val);
+        } else if (s->entries[i].val_type == SCRIPTGO_SET_VAL_STRING) {
+            scriptgo_object_string_set(tup, 0, s->entries[i].str_val ? s->entries[i].str_val : "");
+            scriptgo_object_string_set(tup, 1, s->entries[i].str_val ? s->entries[i].str_val : "");
+        } else {
+            scriptgo_object_ptr_set(tup, 0, s->entries[i].ptr_val);
+            scriptgo_object_ptr_set(tup, 1, s->entries[i].ptr_val);
+        }
+        memcpy(arr->data + (size_t)i * sizeof(void *), &tup, sizeof(void *));
+    }
+    return 0;
+}
+

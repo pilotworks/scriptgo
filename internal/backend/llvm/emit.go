@@ -51,9 +51,15 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
-			if (instruction.Op == ir.OpConst && (instruction.Type == ir.TypeString || instruction.Type == ir.TypeSymbol)) || (instruction.Op == ir.OpObjectNew && instruction.Value != "") || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
-				if _, ok := stringsByValue[instruction.Value]; !ok {
-					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+			if (instruction.Op == ir.OpConst && (instruction.Type == ir.TypeString || instruction.Type == ir.TypeSymbol)) || (instruction.Op == ir.OpObjectNew && (instruction.Value != "" || instruction.Callee != "")) || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
+				val := instruction.Value
+				if val == "" {
+					val = instruction.Callee
+				}
+				if val != "" {
+					if _, ok := stringsByValue[val]; !ok {
+						stringsByValue[val] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+					}
 				}
 			}
 			if instruction.Op == ir.OpDebugger {
@@ -121,6 +127,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare void @__scriptgo_fail_checked_cast(i32, i32, ptr)\n")
 	out.WriteString("declare ptr @__scriptgo_typeof_unknown(i32)\n")
 	out.WriteString("declare i32 @scriptgo_is_truthy_unknown(i32, i64)\n")
+	out.WriteString("declare i32 @scriptgo_closure_equals(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_unknown(i32, i32, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_object(ptr, ptr)\n\n")
 	out.WriteString("declare double @llvm.fabs.f64(double)\n")
@@ -528,7 +535,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_set_clear(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_set_size(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_set_to_string(ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_set_for_each(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_set_for_each(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_set_keys(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_set_values(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_set_entries(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_text_encoder_new(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_text_encoder_encoding(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_text_encoder_encode(ptr, ptr, ptr)\n")
@@ -748,6 +758,12 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	for varName, typ := range slotted {
 		if globalsMap[varName] {
 			continue
+		}
+		for _, param := range function.Parameters {
+			if param.Name == varName {
+				typ = param.Type
+				break
+			}
 		}
 		if _, ok := emitter.varSlots[varName]; !ok {
 			slotName := varName + ".slot"

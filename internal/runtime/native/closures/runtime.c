@@ -31,6 +31,14 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     return 0;
 }
 
+int scriptgo_closure_equals(void *h1, void *h2) {
+    if (h1 == h2) return 1;
+    if (h1 == NULL || h2 == NULL) return 0;
+    scriptgo_closure *c1 = h1;
+    scriptgo_closure *c2 = h2;
+    return (c1->fn_ptr == c2->fn_ptr && c1->env == c2->env) ? 1 : 0;
+}
+
 int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4) {
     scriptgo_closure *c = closure_handle;
     if (c == NULL || c->fn_ptr == NULL) return 0;

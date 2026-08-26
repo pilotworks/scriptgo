@@ -48,13 +48,38 @@ func (e *functionEmitter) dbg(span ir.SourceSpan) string {
 	return ", " + loc
 }
 
+func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) string {
+	if e.types[arg] == ir.TypeUnknown || e.types[arg] == "any" {
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.ptr_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+			arg = loaded
+		}
+		payloadVar := fmt.Sprintf("%s.payload.%d", arg, e.loadCounter)
+		ptrVar := fmt.Sprintf("%s.ptr.%d", arg, e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
+		return ptrVar
+	}
+	return e.resolveArg(out, arg)
+}
+
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 	if slot, ok := e.varSlots[arg]; ok {
 		typ := e.types[arg]
+		if typ == ir.TypeVoid || typ == "" {
+			return arg
+		}
+		lt := llvmType(typ)
+		if lt == "void" || lt == "" {
+			return arg
+		}
 		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
 		e.loadCounter++
 		e.types[loadName] = typ
-		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loadName, llvmType(typ), slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loadName, lt, slot))
 		return loadName
 	}
 	if e.localSSAs == nil || !e.localSSAs[arg] {
@@ -307,11 +332,15 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			}
 			e.types[targetResult] = typ
 		}
-		lt := llvmType(typ)
-		if lt == "" {
-			lt = "ptr"
+		if typ != ir.TypeVoid {
+			lt := llvmType(typ)
+			if lt == "" {
+				lt = "ptr"
+			}
+			if lt != "void" {
+				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
+			}
 		}
-		out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
 	}
 	if isGlobalResult && inst.Type != ir.TypeVoid {
 		typ := e.types[inst.Result]
