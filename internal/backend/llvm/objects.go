@@ -343,11 +343,21 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__object.keys":
+		objVar := instruction.Args[0]
+		if e.types[objVar] == ir.TypeUnknown || e.types[objVar] == "any" {
+			e.tempCounter++
+			payloadName := fmt.Sprintf("keys.unbox.payload.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objVar)
+			e.tempCounter++
+			ptrName := fmt.Sprintf("keys.unbox.ptr.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+			objVar = ptrName
+		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_keys(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_keys(ptr %%%s, ptr %%%s)\n", status, objVar, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type

@@ -681,3 +681,13 @@ func lowerConsoleTrace(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 	})
 	return "", ir.TypeVoid, nil
 }
+
+func lowerConsoleNoop(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	for _, arg := range call.Expression.Arguments {
+		if _, _, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures); err != nil {
+			return "", "", err
+		}
+	}
+	return "", ir.TypeVoid, nil
+}
+

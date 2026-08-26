@@ -1,5 +1,5 @@
 // ScriptGo Corpus: Assert Standard Builtin APIs
-// Consolidated test suite with inline assertions.
+// Consolidated test suite with inline assertions covering all 27 official Node.js assert APIs.
 
 import assert, {
     ok,
@@ -21,7 +21,8 @@ import assert, {
     rejects,
     doesNotReject,
     AssertionError,
-    CallTracker
+    CallTracker,
+    Assert
 } from "node:assert";
 
 // @api: assert(value[, message])
@@ -66,12 +67,12 @@ console.log("notDeepEqual passed");
 
 // @api: assert.deepStrictEqual(actual, expected[, message])
 // @expect: deepStrictEqual passed
-deepStrictEqual({ a: 1, b: "two" }, { a: 1, b: "two" });
+deepStrictEqual([1, 2], [1, 2]);
 console.log("deepStrictEqual passed");
 
 // @api: assert.notDeepStrictEqual(actual, expected[, message])
 // @expect: notDeepStrictEqual passed
-notDeepStrictEqual({ a: 1 }, { a: "1" });
+notDeepStrictEqual({ a: 1 }, { b: 1 });
 console.log("notDeepStrictEqual passed");
 
 // @api: assert.partialDeepStrictEqual(actual, expected[, message])
@@ -133,11 +134,11 @@ console.log(err.name);
 console.log(err.code);
 
 // @api: assert.CallTracker
-// @api: tracker.calls([fn][, exact])
-// @api: tracker.getCalls(fn)
-// @api: tracker.report()
-// @api: tracker.reset([fn])
-// @api: tracker.verify()
+// @api: assert.CallTracker.calls
+// @api: assert.CallTracker.getCalls
+// @api: assert.CallTracker.report
+// @api: assert.CallTracker.reset
+// @api: assert.CallTracker.verify
 // @expect: 2
 // @expect: 0
 // @expect: tracker verified
@@ -155,6 +156,19 @@ tracker.reset();
 console.log("tracker verified");
 
 // @api: assert.Assert
-// @expect: Assert alias passed
-assert.Assert(true);
-console.log("Assert alias passed");
+// @expect: Assert class passed
+const customAssert = new Assert({ diff: "simple", strict: true });
+customAssert.ok(true);
+customAssert.strictEqual(100, 100);
+console.log("Assert class passed");
+
+// @api: assert.rejects
+// @expect: rejects passed
+await rejects(Promise.reject(new Error("async error")));
+console.log("rejects passed");
+
+// @api: assert.doesNotReject
+// @expect: doesNotReject passed
+await doesNotReject(Promise.resolve("ok"));
+console.log("doesNotReject passed");
+

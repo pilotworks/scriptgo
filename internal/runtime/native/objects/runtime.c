@@ -60,7 +60,15 @@ int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
     scriptgo_object *oa = (scriptgo_object *)a;
     scriptgo_object *ob = (scriptgo_object *)b;
     if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-        int64_t count = ob->field_count < oa->field_count ? ob->field_count : oa->field_count;
+        if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
+            *out_result = 0;
+            return 0;
+        }
+        if (oa->field_count != ob->field_count) {
+            *out_result = 0;
+            return 0;
+        }
+        int64_t count = oa->field_count;
         for (int64_t i = 0; i < count; i++) {
             if (oa->fields[i] != ob->fields[i]) {
                 *out_result = 0;
@@ -124,7 +132,15 @@ int scriptgo_object_is_unknown(uint32_t tag0, uint64_t payload0, uint32_t tag1, 
         scriptgo_object *oa = (scriptgo_object *)(uintptr_t)payload0;
         scriptgo_object *ob = (scriptgo_object *)(uintptr_t)payload1;
         if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-            int64_t count = ob->field_count < oa->field_count ? ob->field_count : oa->field_count;
+            if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
+                *out_result = 0;
+                return 0;
+            }
+            if (oa->field_count != ob->field_count) {
+                *out_result = 0;
+                return 0;
+            }
+            int64_t count = oa->field_count;
             for (int64_t i = 0; i < count; i++) {
                 if (oa->fields[i] != ob->fields[i]) {
                     *out_result = 0;

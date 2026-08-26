@@ -31,6 +31,9 @@ interface Console {
     group(...data: any[]): void;
     groupCollapsed(...data: any[]): void;
     groupEnd(): void;
+    profile(label?: string): void;
+    profileEnd(label?: string): void;
+    timeStamp(label?: string): void;
 }
 
 declare var console: Console;

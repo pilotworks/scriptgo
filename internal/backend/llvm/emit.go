@@ -406,6 +406,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_promise_create(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_number(ptr, double)\n")
+	out.WriteString("declare i32 @scriptgo_promise_reject(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_ptr(ptr, ptr)\n")

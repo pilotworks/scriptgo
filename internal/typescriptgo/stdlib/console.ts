@@ -36,4 +36,7 @@ export class Console {
     trace(msg: string = ""): void { console.trace(msg); }
     group(): void { console.group(); }
     groupEnd(): void { console.groupEnd(); }
+    profile(label: string = ""): void {}
+    profileEnd(label: string = ""): void {}
+    timeStamp(label: string = ""): void {}
 }

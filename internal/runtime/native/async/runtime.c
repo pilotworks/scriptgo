@@ -117,6 +117,9 @@ int scriptgo_promise_create(void **out_promise) {
     return 0;
 }
 
+void scriptgo_throw_string(const char *str);
+void scriptgo_throw_number(double num);
+
 int scriptgo_promise_resolve(void *promise_handle, void *value) {
     scriptgo_promise *p = promise_handle;
     if (p == NULL) return scriptgo_runtime_set_error("scriptgo promise resolve failed");
@@ -139,6 +142,19 @@ int scriptgo_promise_resolve_number(void *promise_handle, double value) {
     p->is_number = 1;
     if (p->on_fulfilled != NULL) {
         scriptgo_queue_microtask_number(p->on_fulfilled, value);
+    }
+    return 0;
+}
+
+int scriptgo_promise_reject(void *promise_handle, void *reason) {
+    scriptgo_promise *p = promise_handle;
+    if (p == NULL) return scriptgo_runtime_set_error("scriptgo promise reject failed");
+    if (p->state != PROMISE_PENDING) return 0;
+    p->state = PROMISE_REJECTED;
+    p->ptr_value = reason;
+    p->is_number = 0;
+    if (p->on_rejected != NULL) {
+        scriptgo_queue_microtask(p->on_rejected, reason);
     }
     return 0;
 }
@@ -166,6 +182,14 @@ int scriptgo_promise_await_number(void *promise_handle, double *out_val) {
     if (p->state == PROMISE_PENDING) {
         scriptgo_event_loop_run();
     }
+    if (p->state == PROMISE_REJECTED) {
+        if (p->is_number) {
+            scriptgo_throw_number(p->num_value);
+        } else {
+            scriptgo_throw_string(p->ptr_value ? (const char *)p->ptr_value : "Promise rejected");
+        }
+        return -1;
+    }
     if (p->state == PROMISE_FULFILLED) {
         *out_val = p->num_value;
     } else {
@@ -179,6 +203,10 @@ int scriptgo_promise_await_ptr(void *promise_handle, void **out_val) {
     if (p == NULL || out_val == NULL) return scriptgo_runtime_set_error("scriptgo promise await failed");
     if (p->state == PROMISE_PENDING) {
         scriptgo_event_loop_run();
+    }
+    if (p->state == PROMISE_REJECTED) {
+        scriptgo_throw_string(p->ptr_value ? (const char *)p->ptr_value : "Promise rejected");
+        return -1;
     }
     if (p->state == PROMISE_FULFILLED) {
         *out_val = p->ptr_value;

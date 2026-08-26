@@ -951,6 +951,9 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	m["console.groupCollapsed"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.groupCollapsed", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleGroup}
 	m["console.timeLog"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.timeLog", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleTimeLog}
 	m["console.trace"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.trace", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleTrace}
+	m["console.profile"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.profile", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleNoop}
+	m["console.profileEnd"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.profileEnd", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleNoop}
+	m["console.timeStamp"] = BuiltinIntrinsic{Category: CategoryNodeGlobal, Name: "console.timeStamp", MinArgs: 0, MaxArgs: 256, Lower: lowerConsoleNoop}
 
 	register([]string{"console.clear", "__console.clear"}, CategoryNodeGlobal, "__console.clear", nil, ir.TypeVoid, 0, 0)
 	register([]string{"console.groupEnd", "__console.groupEnd"}, CategoryNodeGlobal, "__console.groupEnd", nil, ir.TypeVoid, 0, 0)
