@@ -21,8 +21,8 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `WeakRef.deref(): T \| undefined` | `deref(): T \| undefined` | `__weakref.deref` | 📋 Planned | - |
-| `new WeakRef<T extends WeakKey>(target: T): WeakRef<T>` | `new <T extends WeakKey>(target: T): WeakRef<T>` | `__weakref.new` | 📋 Planned | - |
+| `WeakRef.deref(): T \| undefined` | `deref(): T \| undefined` | `__weakref.deref` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `new WeakRef<T extends WeakKey>(target: T): WeakRef<T>` | `new <T extends WeakKey>(target: T): WeakRef<T>` | `__weakref.new` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
 
 ---
 

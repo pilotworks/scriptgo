@@ -264,6 +264,10 @@ func findCorpusAPITest(featureName, apiName string) (string, bool) {
 
 	features := []string{featureName}
 	switch featureName {
+	case "weakmap", "weakset", "weakref":
+		features = append(features, "weak_collections", "weakmap", "weakset", "weakref")
+	case "globals":
+		features = append(features, "console", "process", "buffer", "timers", "fetch", "url", "textencoder", "textdecoder", "abortcontroller", "perf_hooks", "crypto", "events", "encoding", "weak_collections", "math", "json", "date", "string", "array", "number")
 	case "headers":
 		features = append(features, "fetch", "http")
 	case "request", "requestinit":
@@ -667,6 +671,82 @@ func discoverAndParseNodeOfficial() ([]ModuleDocConfig, error) {
 			Folder:         folder,
 			Entries:        entries,
 		})
+
+		if rawName == "buffer" || rawName == "timers" {
+			configs = append(configs, ModuleDocConfig{
+				Category:       CatNodeGlobal,
+				ModuleName:     rawName,
+				FeatureName:    featName,
+				DisplayName:    displayName,
+				ImportPath:     "N/A (Global Scope)",
+				SpecRefURL:     fmt.Sprintf("https://nodejs.org/docs/latest-v22.x/api/%s.html", rawName),
+				SpecRefTitle:   fmt.Sprintf("Node.js 22 LTS %s Global Documentation", displayName),
+				TypeSourceURL:  "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+				TypeSourcePath: fmt.Sprintf("@types/node/%s.d.ts", rawName),
+				GateOracle:     fmt.Sprintf("Node.js 22 LTS test suite (test/parallel/test-%s-*.js)", rawName),
+				Folder:         "nodeglobal",
+				Entries:        entries,
+			})
+		}
+	}
+
+	// Process allDoc.Globals (e.g. process)
+	for _, glob := range allDoc.Globals {
+		rawName := strings.ToLower(glob.Name)
+		if rawName == "process" {
+			mod := NodeJSONModule{
+				Name:        glob.Name,
+				DisplayName: "process",
+				Desc:        glob.Desc,
+				Methods:     glob.Methods,
+				Properties:  glob.Properties,
+				Classes:     glob.Classes,
+			}
+			entries := extractEntries(mod, "process")
+			configs = append(configs, ModuleDocConfig{
+				Category:       CatNodeGlobal,
+				ModuleName:     "process",
+				FeatureName:    "process",
+				DisplayName:    "process",
+				ImportPath:     "N/A (Global Scope)",
+				SpecRefURL:     "https://nodejs.org/docs/latest-v22.x/api/process.html",
+				SpecRefTitle:   "Node.js 22 LTS process Global Documentation",
+				TypeSourceURL:  "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+				TypeSourcePath: "@types/node/process.d.ts",
+				GateOracle:     "Node.js 22 LTS test suite (test/parallel/test-process-*.js)",
+				Folder:         "nodeglobal",
+				Entries:        entries,
+			})
+		}
+	}
+
+	// Process allDoc.Miscs (e.g. Global objects)
+	for _, misc := range allDoc.Miscs {
+		if strings.Contains(misc.Name, "Global") || strings.Contains(misc.TextRaw, "Global") {
+			mod := NodeJSONModule{
+				Name:        "globals",
+				DisplayName: "Global Objects",
+				Desc:        misc.Desc,
+				Methods:     misc.Methods,
+				Properties:  misc.Properties,
+				Classes:     misc.Classes,
+			}
+			entries := extractEntries(mod, "globals")
+			configs = append(configs, ModuleDocConfig{
+				Category:       CatNodeGlobal,
+				ModuleName:     "globals",
+				FeatureName:    "globals",
+				DisplayName:    "Global Objects",
+				ImportPath:     "N/A (Global Scope)",
+				SpecRefURL:     "https://nodejs.org/docs/latest-v22.x/api/globals.html",
+				SpecRefTitle:   "Node.js 22 LTS Globals Documentation",
+				TypeSourceURL:  "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+				TypeSourcePath: "@types/node/globals.d.ts",
+				GateOracle:     "Node.js 22 LTS test suite (test/parallel/test-global-*.js)",
+				Folder:         "nodeglobal",
+				Entries:        entries,
+			})
+		}
 	}
 
 	return configs, nil

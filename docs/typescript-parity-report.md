@@ -18,8 +18,8 @@ All 214 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **218** | **218 / 218 Passed** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 207 | 207 PASS (direct binary compilation) | 100.0% (all executable tests) |
+| **Total Corpus Test Cases** | **214** | **214 / 214 Passed** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 203 | 203 PASS (direct binary compilation) | 100.0% (all executable tests) |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Total Test Suite Runtime** | ~35s (Linux) / ~55s (macOS) | No regressions detected across macOS & Linux | - |
 
@@ -140,7 +140,7 @@ All 214 test cases in the regression test suite (Corpus Test Suite) have been cr
 | **`Object`** | `Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign`, `Object.fromEntries`, `Object.groupBy` | ✅ 100% matches ECMAScript static method specifications |
 | **`Promise`** | `new Promise()`, `resolve`, `reject`, `.then()`, `.catch()`, `.finally()`, `Promise.allSettled()`, `Promise.any()`, `Promise.withResolvers()`, Microtask Queue | ✅ 100% matches Promise A+ & ES2024 specifications |
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
-| **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `toTemporalInstant()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (47/47 APIs) |
+| **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `toTemporalInstant()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (47/47 APIs) |
 | **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description`, `.toString()` | ✅ Matches primitive symbol format |
@@ -175,32 +175,40 @@ All 214 test cases in the regression test suite (Corpus Test Suite) have been cr
 
 ## 4. Corpus Test Results by Category
 
-Below is the category-by-category breakdown across all 12 test suites (`go run ./cmd/parity`):
+Below is the category-by-category breakdown across all 18 test suites (`go run ./cmd/parity`):
 
 ```text
 ================================================================================
   ScriptGo vs Node.js/TypeScript Parity Checker Summary
 ================================================================================
-  - Total Corpus Cases : 87
-  - Passed Cases       : 87 (100.0%)
+  - Total Corpus Cases : 214
+  - Passed Cases       : 214 (100.0%)
   - Failed / Diff Cases: 0 (0.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`api`** | 42 | **100%** | Standard APIs and built-ins: `date`, `path`, `json`, `set`, `array`, `timers`, `string`, `async`, `math`, `process`, `http`, `https`, `net`, `int32array`, `buffer`, `fs`, `regexp`, `crypto`, `url`, `map`, `stream`, `child_process`, `symbol`, `arraybuffer`, `bigint`, `os`, `number`, `events`, `weak_collections`, `object`, `uint8array`, `encoding`, `error`, `dataview`, `float64array`, `console`, `perf_hooks`, `promise`, `intl`, `fetch`, `iterator`. |
-| **`async`** | 1 | **100%** | Top-level await and asynchronous execution flow. |
-| **`destructuring`** | 4 | **100%** | Nested params, nested object, nested mixed, nested defaults. |
-| **`enums`** | 2 | **100%** | Numeric and string const enums with inlined constants. |
-| **`generics`** | 1 | **100%** | Const type parameters (`<const T>`) and generic specialization. |
-| **`language`** | 10 | **100%** | Static tier features, syntax, async & generators, circular references, types and generics, functions and closures, expressions, classes and objects, generics specialization, decorators. |
+| **`algorithms`** | 6 | **100%** | Binary search, Dijkstra pathfinding, LRU cache, Huffman encoding, bloom filter, stack evaluator. |
+| **`api`** | 63 | **100%** | Standard APIs and built-ins: `abortcontroller`, `array`, `arraybuffer`, `assert`, `async`, `bigint`, `buffer`, `child_process`, `console`, `crypto`, `dataview`, `date`, `encoding`, `error`, `events`, `fetch`, `float64array`, `fs`, `headers`, `http`, `https`, `int32array`, `intl`, `iterator`, `iteratorobject`, `iteratorresult`, `json`, `map`, `math`, `net`, `now`, `number`, `object`, `os`, `path`, `perf_hooks`, `performance`, `process`, `promise`, `querystring`, `reflect`, `regexp`, `request`, `requestinit`, `response`, `responseinit`, `set`, `stream`, `string`, `suppressederror`, `symbol`, `syntaxerror`, `textdecodeoptions`, `textdecoder`, `textdecoderoptions`, `textencoder`, `textencoderencodeintoresult`, `timers`, `uint8array`, `url`, `urlsearchparams`, `util`, `weak_collections`. |
+| **`async`** | 9 | **100%** | Top-level await, async pipelines, microtask sequencing, async generator iteration. |
+| **`classes`** | 10 | **100%** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism. |
+| **`control_flow`** | 10 | **100%** | Complex branching, do..while, for..in, for await..of, loop labeling. |
+| **`destructuring`** | 12 | **100%** | Nested params, nested object, nested mixed, nested defaults, rest bindings. |
+| **`enums`** | 8 | **100%** | Numeric, string, const enums, bitwise flags, reverse mapping. |
+| **`functions`** | 10 | **100%** | Closures, default/rest params, higher-order functions, generator delegation. |
+| **`generics`** | 11 | **100%** | Type parameters, constraints, variance, monomorphization. |
+| **`language`** | 14 | **100%** | Static tier features, syntax, async & generators, circular references, types, decorators. |
 | **`language/diagnostics`** | 5 | **100%** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100%** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100%** | Named/default exports/imports, initialization order, multi-level re-exports. |
-| **`operators`** | 2 | **100%** | Comma operator in expressions and loop headers. |
-| **`scenarios`** | 9 | **100%** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
-| **`tuples`** | 2 | **100%** | Extended optional (`[T, U?]`) and rest (`[T, ...U[]]`) element tuples. |
+| **`operators`** | 12 | **100%** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof. |
+| **`scenarios`** | 11 | **100%** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
+| **`tuples`** | 10 | **100%** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), destructuring, readonly tuples. |
+| **`types`** | 6 | **100%** | Indexed access, declaration merging, inheritance, intersection types, readonly properties. |
+| **`unions`** | 8 | **100%** | Discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`. |
+
+---]`) and rest (`[T, ...U[]]`) element tuples. |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |
 
 ---

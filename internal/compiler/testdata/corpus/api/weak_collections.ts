@@ -4,6 +4,9 @@
 declare function gc(): void;
 
 // 1. WeakRef
+// @api: WeakRef
+// @api: weakref.constructor
+// @api: weakref.deref
 // @expect: 42
 class DataHolder {
     val: number;
@@ -22,6 +25,12 @@ if (derefed) {
 }
 
 // 2. WeakMap
+// @api: WeakMap
+// @api: weakmap.constructor
+// @api: weakmap.set
+// @api: weakmap.get
+// @api: weakmap.has
+// @api: weakmap.delete
 // @expect: true
 // @expect: 999
 // @expect: true
@@ -32,6 +41,11 @@ console.log(wm.get(holder));
 console.log(wm.delete(holder));
 
 // 3. WeakSet
+// @api: WeakSet
+// @api: weakset.constructor
+// @api: weakset.add
+// @api: weakset.has
+// @api: weakset.delete
 // @expect: true
 // @expect: true
 const ws = new WeakSet<DataHolder>();
@@ -40,6 +54,7 @@ console.log(ws.has(holder));
 console.log(ws.delete(holder));
 
 // 4. GC invocation
+// @api: gc
 // @expect: gc ok
 gc();
 console.log("gc ok");

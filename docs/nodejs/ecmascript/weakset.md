@@ -21,10 +21,10 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `WeakSet.add(value: T): this` | `add(value: T): this` | `__weakset.add` | 📋 Planned | - |
-| `WeakSet.delete(value: T): boolean` | `delete(value: T): boolean` | `__weakset.delete` | 📋 Planned | - |
-| `WeakSet.has(value: T): boolean` | `has(value: T): boolean` | `__weakset.has` | 📋 Planned | - |
-| `new WeakSet<T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `new <T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `__weakset.new` | 📋 Planned | - |
+| `WeakSet.add(value: T): this` | `add(value: T): this` | `__weakset.add` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `WeakSet.delete(value: T): boolean` | `delete(value: T): boolean` | `__weakset.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `WeakSet.has(value: T): boolean` | `has(value: T): boolean` | `__weakset.has` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `new WeakSet<T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `new <T extends WeakKey = WeakKey>(values?: readonly T[] \| null): WeakSet<T>` | `__weakset.new` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
 
 ---
 

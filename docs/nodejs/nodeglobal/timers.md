@@ -1,10 +1,10 @@
-# Timers Global Implementation Checklist
+# Timers Implementation Checklist
 
 > **Category**: `CategoryNodeGlobal`  
 > **Import Path**: `N/A (Global Scope)`  
 > **Specification Reference**: [Node.js 22 LTS Timers Global Documentation](https://nodejs.org/docs/latest-v22.x/api/timers.html)  
 > **Type Definition Source**: [@types/node/timers.d.ts](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node)  
-> **Gate Oracle**: Node.js 22 LTS test suite (test/parallel/test-global-*.js, test-timers-*.js)
+> **Gate Oracle**: Node.js 22 LTS test suite (test/parallel/test-timers-*.js)
 
 ---
 
@@ -13,7 +13,7 @@
 Provide a concise technical summary:
 - **Scope & Exposure**: Auto-global ambient identifiers available in root execution scope without explicit imports.
 - **Data & Memory Model**: Representation in IR (e.g., primitives, struct pointers, object shapes, buffer backing).
-- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → Interpreter → LLVM runtime binding.
+- **Lowering Pipeline**: Path from TypeScript AST → IR Instruction → LLVM runtime binding.
 
 ---
 
@@ -21,18 +21,21 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `Timeout` | `(...) => any` | `__timers.Timeout` | ✅ Done | `internal/compiler/testdata/corpus/timers/timeout/` |
+| `clearImmediate(immediate)` | `(...) => any` | `__timers.clearImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `clearTimeout(timeout)` | `(...) => any` | `__timers.clearTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setImmediate(callback[, ...args])` | `(...) => any` | `__timers.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setInterval(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `setTimeout(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setImmediate([value[, options]])` | `(...) => any` | `__timers.timersPromises.setImmediate` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setInterval([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setInterval` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
+| `timersPromises.setTimeout([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setTimeout` | ✅ Done | `internal/compiler/testdata/corpus/api/timers.ts` |
 | `Immediate` | `(...) => any` | `__timers.Immediate` | 📋 Planned | - |
-| `clearImmediate(immediate)` | `(...) => any` | `__timers.clearImmediate` | 📋 Planned | - |
+| `Timeout` | `(...) => any` | `__timers.Timeout` | 📋 Planned | - |
 | `clearInterval(timeout)` | `(...) => any` | `__timers.clearInterval` | 📋 Planned | - |
-| `clearTimeout(timeout)` | `(...) => any` | `__timers.clearTimeout` | 📋 Planned | - |
 | `immediate.hasRef()` | `(...) => any` | `__timers.immediate.hasRef` | 📋 Planned | - |
 | `immediate.ref()` | `(...) => any` | `__timers.immediate.ref` | 📋 Planned | - |
 | `immediate.unref()` | `(...) => any` | `__timers.immediate.unref` | 📋 Planned | - |
 | `immediate[Symbol.dispose]()` | `(...) => any` | `__timers.immediate[Symbol.dispose]` | 📋 Planned | - |
-| `setImmediate(callback[, ...args])` | `(...) => any` | `__timers.setImmediate` | 📋 Planned | - |
-| `setInterval(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setInterval` | 📋 Planned | - |
-| `setTimeout(callback[, delay[, ...args]])` | `(...) => any` | `__timers.setTimeout` | 📋 Planned | - |
 | `timeout.close()` | `(...) => any` | `__timers.timeout.close` | 📋 Planned | - |
 | `timeout.hasRef()` | `(...) => any` | `__timers.timeout.hasRef` | 📋 Planned | - |
 | `timeout.ref()` | `(...) => any` | `__timers.timeout.ref` | 📋 Planned | - |
@@ -42,9 +45,6 @@ Provide a concise technical summary:
 | `timeout[Symbol.toPrimitive]()` | `(...) => any` | `__timers.timeout[Symbol.toPrimitive]` | 📋 Planned | - |
 | `timersPromises.scheduler.wait(delay[, options])` | `(...) => any` | `__timers.timersPromises.scheduler.wait` | 📋 Planned | - |
 | `timersPromises.scheduler.yield()` | `(...) => any` | `__timers.timersPromises.scheduler.yield` | 📋 Planned | - |
-| `timersPromises.setImmediate([value[, options]])` | `(...) => any` | `__timers.timersPromises.setImmediate` | 📋 Planned | - |
-| `timersPromises.setInterval([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setInterval` | 📋 Planned | - |
-| `timersPromises.setTimeout([delay[, value[, options]]])` | `(...) => any` | `__timers.timersPromises.setTimeout` | 📋 Planned | - |
 
 ---
 
@@ -68,10 +68,9 @@ When implementing or extending any symbol in this file, execute the following te
 - [ ] **Step 1: Frontend Type Contract**: Verify or register the ambient declaration in `internal/typescriptgo/stdlib/`.
 - [ ] **Step 2: Lowering Registration**: Register the global value in `builtinGlobals` or intrinsic function in `builtinIntrinsics` within `internal/lowering/builtins.go`.
 - [ ] **Step 3: IR Instruction Emission**: Lower the expression into standard IR instructions (`ir.OpCall`, `ir.OpObjectNew`, `ir.OpFieldSet`).
-- [ ] **Step 4: Interpreter Handler**: Implement or bind reference execution in `internal/interpreter/`.
-- [ ] **Step 5: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
-- [ ] **Step 6: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/timers/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
-- [ ] **Step 7: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
+- [ ] **Step 4: LLVM / Runtime C ABI**: Declare the external C ABI or emit native LLVM IR in `internal/backend/llvm/` and `internal/runtime/`.
+- [ ] **Step 5: Corpus Test Directory**: Create test subfolder under `internal/compiler/testdata/corpus/timers/<api_name>/<test_case>/` with `main.ts` and `run.expected`.
+- [ ] **Step 6: Documentation Sync**: Re-run `go run ./scripts/gendocs/main.go` to auto-reflect `✅ Done` status in this checklist.
 
 ---
 

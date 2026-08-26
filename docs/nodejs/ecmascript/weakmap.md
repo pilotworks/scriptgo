@@ -21,13 +21,13 @@ Provide a concise technical summary:
 
 | API / Symbol / Property | TypeScript Signature | Lowering Target / Callee | Status | Corpus Test Path |
 | :--- | :--- | :--- | :---: | :--- |
-| `WeakMap.delete(key: K): boolean` | `delete(key: K): boolean` | `__weakmap.delete` | 📋 Planned | - |
-| `WeakMap.get(key: K): V \| undefined` | `get(key: K): V \| undefined` | `__weakmap.get` | 📋 Planned | - |
+| `WeakMap.delete(key: K): boolean` | `delete(key: K): boolean` | `__weakmap.delete` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `WeakMap.get(key: K): V \| undefined` | `get(key: K): V \| undefined` | `__weakmap.get` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `WeakMap.has(key: K): boolean` | `has(key: K): boolean` | `__weakmap.has` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `WeakMap.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__weakmap.set` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
+| `new WeakMap<K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `__weakmap.new` | ✅ Done | `internal/compiler/testdata/corpus/api/weak_collections.ts` |
 | `WeakMap.getOrInsert(key: K, defaultValue: V): V` | `getOrInsert(key: K, defaultValue: V): V` | `__weakmap.getOrInsert` | 📋 Planned | - |
 | `WeakMap.getOrInsertComputed(key: K, callback: (key: K) => V): V` | `getOrInsertComputed(key: K, callback: (key: K) => V): V` | `__weakmap.getOrInsertComputed` | 📋 Planned | - |
-| `WeakMap.has(key: K): boolean` | `has(key: K): boolean` | `__weakmap.has` | 📋 Planned | - |
-| `WeakMap.set(key: K, value: V): this` | `set(key: K, value: V): this` | `__weakmap.set` | 📋 Planned | - |
-| `new WeakMap<K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `new <K extends WeakKey = WeakKey, V = any>(entries?: readonly (readonly [K, V])[] \| null): WeakMap<K, V>` | `__weakmap.new` | 📋 Planned | - |
 
 ---
 
