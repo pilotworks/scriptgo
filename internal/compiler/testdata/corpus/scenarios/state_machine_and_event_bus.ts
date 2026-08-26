@@ -17,7 +17,7 @@
 type EventListener<T> = (data: T) => void;
 
 class TypedEventEmitter {
-    private events: Map<string, EventListener<any>[]> = new Map();
+    private events: Map<string, Function[]> = new Map();
 
     on<T>(event: string, listener: EventListener<T>): void {
         if (!this.events.has(event)) {

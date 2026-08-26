@@ -331,3 +331,13 @@ export function get(urlOrOptions: unknown, optionsOrCb: unknown = null, cb: unkn
     req.end();
     return req;
 }
+
+export default {
+    Agent,
+    globalAgent,
+    Server,
+    ClientRequest,
+    createServer,
+    request,
+    get,
+};

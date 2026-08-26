@@ -103,6 +103,41 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__process.argv", Args: nil, Span: toIRSpan(path, expression.Span)})
 			return result, ir.TypeStringArray, nil
 		}
+		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "version" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.version", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
+		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "pid" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__process.pid", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeNumber, nil
+		}
+		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "ppid" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__process.ppid", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeNumber, nil
+		}
+		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "platform" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__os.platform", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
+		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "arch" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__os.arch", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
 	}
 
 	if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "env" {
@@ -113,6 +148,16 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.env", Args: []string{keyTemp}, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeString, nil
+	}
+
+	if expression.Left != nil && expression.Left.Kind == "property" && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "process" && expression.Left.Text == "versions" {
+		if expression.Text == "scriptgo" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.version", Args: nil, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeString, nil
+		}
 	}
 
 	object, objectType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
@@ -427,7 +472,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			})
 			return result, ir.TypeNumber, nil
 		}
-		if strings.HasSuffix(string(objectType), "[]") || objectType == ir.TypeStringArray || objectType == ir.TypeNumberArray || objectType == ir.TypeBoolArray || objectType == ir.Type("symbol[]") || objectType == ir.Type("any[]") {
+		if strings.HasSuffix(string(objectType), "[]") || objectType == ir.TypeStringArray || objectType == ir.TypeNumberArray || objectType == ir.TypeBoolArray || objectType == ir.Type("symbol[]") {
 			if result == "" {
 				result = nextTemp(counter)
 			}

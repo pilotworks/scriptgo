@@ -96,15 +96,23 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					isHomogeneous = false
 				}
 			}
+			inferredTuple := false
 			if expression.InferredType != "" {
 				trimmed := strings.TrimSpace(expression.InferredType)
+				trimmed = strings.TrimPrefix(trimmed, "readonly ")
+				if strings.HasPrefix(trimmed, "Readonly<") && strings.HasSuffix(trimmed, ">") {
+					trimmed = strings.TrimSuffix(strings.TrimPrefix(trimmed, "Readonly<"), ">")
+					trimmed = strings.TrimSpace(trimmed)
+				}
 				if strings.HasSuffix(trimmed, "[]") {
 					arrType := toIRType(trimmed)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 					return result, arrType, nil
+				} else if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+					inferredTuple = true
 				}
 			}
-			if isHomogeneous {
+			if isHomogeneous && !inferredTuple {
 				var arrType ir.Type = ir.TypeNumberArray
 				if len(types) > 0 && types[0] == ir.TypeString {
 					arrType = ir.TypeStringArray
@@ -155,7 +163,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, objType, nil
 		}
 		var arrType ir.Type = ir.TypeNumberArray
-		if expression.InferredType != "" && expression.InferredType != "never[]" && expression.InferredType != "any[]" {
+		if expression.InferredType != "" && expression.InferredType != "never[]" && expression.InferredType != "unknown[]" {
 			inferred := toIRType(expression.InferredType)
 			if strings.HasSuffix(string(inferred), "[]") {
 				arrType = inferred
@@ -550,7 +558,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		typ, ok := env[expression.Text]
 		if ok {
-			if typ == "" || typ == "any" || typ == ir.TypeUnknown || strings.Contains(string(typ), "|") {
+			if typ == "" || typ == ir.TypeUnknown || strings.Contains(string(typ), "|") {
 				switch expression.InferredType {
 				case "number":
 					typ = ir.TypeNumber
@@ -734,7 +742,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		if valType == ir.TypeUnknown || valType == "any" || valType == ir.TypeClosure || strings.Contains(string(valType), "|") {
+		if valType == ir.TypeUnknown || valType == ir.TypeClosure || strings.Contains(string(valType), "|") {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpTypeOf,
 				Type:   ir.TypeString,

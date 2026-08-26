@@ -255,9 +255,8 @@ export function create(): Domain {
     return new Domain();
 }
 
-export namespace domain {
-    export function create(): Domain {
-        return new Domain();
-    }
-    export let active: Domain | null = null;
-}
+export default {
+    Domain,
+    create,
+    active,
+};

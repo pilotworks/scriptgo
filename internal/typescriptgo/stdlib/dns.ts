@@ -533,27 +533,60 @@ export namespace promises {
     }
 }
 
-export namespace dns {
-    export function getServers(): string[] { return getServers(); }
-    export function setServers(servers: string[]): void { setServers(servers); }
-    export function getDefaultResultOrder(): string { return getDefaultResultOrder(); }
-    export function setDefaultResultOrder(order: string): void { setDefaultResultOrder(order); }
-    export function cancel(): void { cancel(); }
-    export function lookup(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void { lookup(hostname, optionsOrCallback, callback); }
-    export function lookupService(address: string, port: number, callback: (err: unknown, hostname: string, service: string) => void): void { lookupService(address, port, callback); }
-    export function resolve(hostname: string, rrtypeOrCallback?: unknown, callback?: unknown): void { resolve(hostname, rrtypeOrCallback, callback); }
-    export function resolve4(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void { resolve4(hostname, optionsOrCallback, callback); }
-    export function resolve6(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void { resolve6(hostname, optionsOrCallback, callback); }
-    export function resolveAny(hostname: string, callback: (err: unknown, records: AnyRecord[]) => void): void { resolveAny(hostname, callback); }
-    export function resolveCname(hostname: string, callback: (err: unknown, addresses: string[]) => void): void { resolveCname(hostname, callback); }
-    export function resolveCaa(hostname: string, callback: (err: unknown, records: CaaRecord[]) => void): void { resolveCaa(hostname, callback); }
-    export function resolveMx(hostname: string, callback: (err: unknown, addresses: MxRecord[]) => void): void { resolveMx(hostname, callback); }
-    export function resolveNaptr(hostname: string, callback: (err: unknown, records: NaptrRecord[]) => void): void { resolveNaptr(hostname, callback); }
-    export function resolveNs(hostname: string, callback: (err: unknown, addresses: string[]) => void): void { resolveNs(hostname, callback); }
-    export function resolvePtr(hostname: string, callback: (err: unknown, addresses: string[]) => void): void { resolvePtr(hostname, callback); }
-    export function resolveSoa(hostname: string, callback: (err: unknown, record: SoaRecord) => void): void { resolveSoa(hostname, callback); }
-    export function resolveSrv(hostname: string, callback: (err: unknown, records: SrvRecord[]) => void): void { resolveSrv(hostname, callback); }
-    export function resolveTlsa(hostname: string, callback: (err: unknown, records: string[]) => void): void { resolveTlsa(hostname, callback); }
-    export function resolveTxt(hostname: string, callback: (err: unknown, records: string[][]) => void): void { resolveTxt(hostname, callback); }
-    export function reverse(ip: string, callback: (err: unknown, hostnames: string[]) => void): void { reverse(ip, callback); }
-}
+export default {
+    NODATA,
+    FORMERR,
+    SERVFAIL,
+    NOTFOUND,
+    NOTIMP,
+    REFUSED,
+    BADQUERY,
+    BADNAME,
+    BADFAMILY,
+    BADRESP,
+    CONNREFUSED,
+    TIMEOUT,
+    EOF,
+    FILE,
+    NOMEM,
+    DESTRUCTION,
+    BADSTR,
+    BADFLAGS,
+    NONAME,
+    BADHINTS,
+    NOTINITIALIZED,
+    LOADIPHLPAPI,
+    ADDRGETNETWORKPARAMS,
+    CANCELLED,
+    LookupAddress,
+    MxRecord,
+    NaptrRecord,
+    SoaRecord,
+    SrvRecord,
+    CaaRecord,
+    AnyRecord,
+    Resolver,
+    lookup,
+    lookupService,
+    resolve,
+    resolve4,
+    resolve6,
+    resolveAny,
+    resolveCname,
+    resolveCaa,
+    resolveMx,
+    resolveNaptr,
+    resolveNs,
+    resolvePtr,
+    resolveSoa,
+    resolveSrv,
+    resolveTlsa,
+    resolveTxt,
+    reverse,
+    getServers,
+    setServers,
+    getDefaultResultOrder,
+    setDefaultResultOrder,
+    cancel,
+    promises,
+};

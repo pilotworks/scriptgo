@@ -33,11 +33,6 @@ console.log(METHODS[6]);
 console.log(STATUS_CODES["200"]);
 console.log(STATUS_CODES["404"]);
 
-// @api: WebSocket
-// @expect: 0
-const ws = new WebSocket("ws://localhost:8080");
-console.log(ws.readyState);
-
 // @api: aborted
 // @expect: false
 const incMsg1 = new IncomingMessage();

@@ -74,6 +74,8 @@ type SyntaxStatement struct {
 	Else           []SyntaxStatement
 	Cases          []SyntaxSwitchCase
 	CatchVar       string
+	CatchVarType   string
+	CatchVarSpan   SourceSpan
 	Catch          []SyntaxStatement
 	Finally        []SyntaxStatement
 	Class          *SyntaxClass

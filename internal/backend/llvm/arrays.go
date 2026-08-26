@@ -65,10 +65,11 @@ func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	}
 	for index, argument := range instruction.Args {
+		argVal := e.resolveArg(out, argument)
 		valueSlot := fmt.Sprintf("%s.element.%d", instruction.Result, index)
 		elementLLVMType := arrayElementLLVMType(instruction.Type)
 		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", valueSlot, elementLLVMType))
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elementLLVMType, argument, valueSlot))
+		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elementLLVMType, argVal, valueSlot))
 		status = fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Result, llvmNumber(float64(index)), valueSlot))

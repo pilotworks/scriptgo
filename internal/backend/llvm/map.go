@@ -23,11 +23,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("map.new_entries requires 1 argument")
 		}
+		arrArg := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_new_entries(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_new_entries(ptr %%%s, ptr %%%s)\n", status, arrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -37,10 +38,12 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.set requires 3 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		keyArg := instruction.Args[1]
-		valArg := instruction.Args[2]
-		keyType := e.types[keyArg]
-		valType := e.types[valArg]
+		origKey := instruction.Args[1]
+		origVal := instruction.Args[2]
+		keyType := e.types[origKey]
+		valType := e.types[origVal]
+		keyArg := e.resolveArg(out, origKey)
+		valArg := e.resolveArg(out, origVal)
 
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -73,8 +76,9 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.get requires 2 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		keyArg := instruction.Args[1]
-		keyType := e.types[keyArg]
+		origKey := instruction.Args[1]
+		keyType := e.types[origKey]
+		keyArg := e.resolveArg(out, origKey)
 		retType := instruction.Type
 
 		keyIsStr := "1"
@@ -130,8 +134,9 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.has requires 2 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		keyArg := instruction.Args[1]
-		keyType := e.types[keyArg]
+		origKey := instruction.Args[1]
+		keyType := e.types[origKey]
+		keyArg := e.resolveArg(out, origKey)
 
 		keyIsStr := "1"
 		keyStrArg := fmt.Sprintf("%%%s", keyArg)
@@ -165,8 +170,9 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.delete requires 2 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		keyArg := instruction.Args[1]
-		keyType := e.types[keyArg]
+		origKey := instruction.Args[1]
+		keyType := e.types[origKey]
+		keyArg := e.resolveArg(out, origKey)
 
 		keyIsStr := "1"
 		keyStrArg := fmt.Sprintf("%%%s", keyArg)
@@ -330,8 +336,9 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("set.add requires 2 arguments")
 		}
 		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		valArg := instruction.Args[1]
-		valType := e.types[valArg]
+		origVal := instruction.Args[1]
+		valType := e.types[origVal]
+		valArg := e.resolveArg(out, origVal)
 
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -362,8 +369,9 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("set.has requires 2 arguments")
 		}
 		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		valArg := instruction.Args[1]
-		valType := e.types[valArg]
+		origVal := instruction.Args[1]
+		valType := e.types[origVal]
+		valArg := e.resolveArg(out, origVal)
 
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -395,8 +403,9 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("set.delete requires 2 arguments")
 		}
 		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		valArg := instruction.Args[1]
-		valType := e.types[valArg]
+		origVal := instruction.Args[1]
+		valType := e.types[origVal]
+		valArg := e.resolveArg(out, origVal)
 
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

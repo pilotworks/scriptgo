@@ -153,4 +153,37 @@ export class FSPromises {
     }
 }
 
+export const constants = {
+    F_OK: 0,
+    R_OK: 4,
+    W_OK: 2,
+    X_OK: 1,
+};
+
+export const F_OK = 0;
+export const R_OK = 4;
+export const W_OK = 2;
+export const X_OK = 1;
+
 export const promises: FSPromises = new FSPromises();
+
+export default {
+    Stats,
+    readFileSync,
+    writeFileSync,
+    existsSync,
+    unlinkSync,
+    statSync,
+    readdirSync,
+    copyFileSync,
+    renameSync,
+    appendFileSync,
+    mkdirSync,
+    rmSync,
+    promises,
+    constants,
+    F_OK,
+    R_OK,
+    W_OK,
+    X_OK,
+};

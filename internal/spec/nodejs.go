@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -105,9 +104,6 @@ type CanonicalAPI struct {
 	Stability     int        `json:"stability,omitempty"`
 	StabilityText string     `json:"stability_text,omitempty"`
 }
-
-var parenRegex = regexp.MustCompile(`\(.*\)`)
-var codeBacktickRegex = regexp.MustCompile(`\` + "`" + `([^\` + "`" + `]+)\` + "`")
 
 // CleanSignature strips markdown wrapper backticks from raw signature strings.
 func CleanSignature(raw string) string {

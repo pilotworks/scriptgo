@@ -54,6 +54,28 @@ export function stringify(
                 parts.push(encKey + equals + encVal);
             }
         }
+    } else {
+        const rec = obj as Record<string, unknown>;
+        const keys = Object.keys(rec);
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            const val = rec[key];
+            const encKey = hasCustomEncode ? (options as StringifyOptions).encodeURIComponent!(key) : escape(key);
+
+            if (Array.isArray(val)) {
+                const arr = val as unknown[];
+                for (let j = 0; j < arr.length; j++) {
+                    const item: unknown = arr[j];
+                    const rawStr = item !== null && item !== undefined ? String(item) : "";
+                    const encVal = hasCustomEncode ? (options as StringifyOptions).encodeURIComponent!(rawStr) : escape(rawStr);
+                    parts.push(encKey + equals + encVal);
+                }
+            } else if (val !== undefined) {
+                const rawStr = val !== null ? String(val) : "";
+                const encVal = hasCustomEncode ? (options as StringifyOptions).encodeURIComponent!(rawStr) : escape(rawStr);
+                parts.push(encKey + equals + encVal);
+            }
+        }
     }
 
     return parts.join(separator);
@@ -167,43 +189,21 @@ export function decode(
     return parse(str, sep, eq, options);
 }
 
-export namespace querystring {
-    export function escape(str: string): string {
-        return encodeURIComponent(str);
-    }
-    export function unescape(str: string): string {
-        return decodeURIComponent(str.replace(/\+/g, " "));
-    }
-    export function stringify(
-        obj: Record<string, unknown> | null | undefined,
-        sep?: string,
-        eq?: string,
-        options?: StringifyOptions
-    ): string {
-        return escape(sep !== undefined ? sep : "");
-    }
-    export function encode(
-        obj: Record<string, unknown> | null | undefined,
-        sep?: string,
-        eq?: string,
-        options?: StringifyOptions
-    ): string {
-        return escape(sep !== undefined ? sep : "");
-    }
-    export function parse(
-        str: string,
-        sep?: string,
-        eq?: string,
-        options?: ParseOptions
-    ): Record<string, unknown> {
-        return parse(str, sep, eq, options);
-    }
-    export function decode(
-        str: string,
-        sep?: string,
-        eq?: string,
-        options?: ParseOptions
-    ): Record<string, unknown> {
-        return parse(str, sep, eq, options);
-    }
-}
+export const querystring = {
+    escape,
+    unescape,
+    stringify,
+    encode,
+    parse,
+    decode,
+};
+
+export default {
+    escape,
+    unescape,
+    stringify,
+    encode,
+    parse,
+    decode,
+    querystring,
+};

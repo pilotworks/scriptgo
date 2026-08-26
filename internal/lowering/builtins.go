@@ -963,6 +963,10 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"console.timeEnd", "__console.timeEnd"}, CategoryNodeGlobal, "__console.timeEnd", []ir.Type{ir.TypeString}, ir.TypeVoid, 0, 1)
 	register([]string{"process.exit", "__scriptgo.exit"}, CategoryNodeGlobal, "__process.exit", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"process.cwd", "__scriptgo.cwd"}, CategoryNodeGlobal, "__process.cwd", nil, ir.TypeString, 0, 0)
+	register([]string{"__scriptgo.argv"}, CategoryNodeGlobal, "__process.argv", nil, ir.TypeStringArray, 0, 0)
+	register([]string{"__scriptgo.pid"}, CategoryNodeGlobal, "__process.pid", nil, ir.TypeNumber, 0, 0)
+	register([]string{"__scriptgo.ppid"}, CategoryNodeGlobal, "__process.ppid", nil, ir.TypeNumber, 0, 0)
+	register([]string{"__scriptgo.version"}, CategoryNodeGlobal, "__process.version", nil, ir.TypeString, 0, 0)
 
 	register([]string{"__scriptgo.readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeString, 1, 2)
 	register([]string{"__scriptgo.writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)

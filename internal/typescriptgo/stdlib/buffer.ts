@@ -79,3 +79,8 @@ export class Buffer {
         return __scriptgo.bufferByteLength(string, encoding);
     }
 }
+
+export const constants = {
+    MAX_LENGTH: 2147483647,
+    MAX_STRING_LENGTH: 536870888,
+};

@@ -484,3 +484,20 @@ export function getDefaultAutoSelectFamilyAttemptTimeout(): number {
 export function setDefaultAutoSelectFamilyAttemptTimeout(value: number): void {
     // runtime configuration hook
 }
+
+export default {
+    SocketAddress,
+    BlockList,
+    Socket,
+    Server,
+    isIP,
+    isIPv4,
+    isIPv6,
+    createServer,
+    createConnection,
+    connect,
+    getDefaultAutoSelectFamily,
+    setDefaultAutoSelectFamily,
+    getDefaultAutoSelectFamilyAttemptTimeout,
+    setDefaultAutoSelectFamilyAttemptTimeout,
+};

@@ -1,5 +1,9 @@
 interface ProcessEnv {
-    [key: string]: string | undefined;
+    [key: string]: string;
+}
+
+interface ProcessVersions {
+    [key: string]: string;
 }
 
 interface Process {
@@ -7,6 +11,15 @@ interface Process {
     env: ProcessEnv;
     exit(code?: number): void;
     cwd(): string;
+    pid: number;
+    ppid: number;
+    version: string;
+    versions: ProcessVersions;
+    platform: string;
+    arch: string;
+    uptime(): number;
+    hrtime(time?: [number, number]): [number, number];
+    nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void;
 }
 
 declare var process: Process;
@@ -94,7 +107,7 @@ interface RegExpConstructor {
 declare var RegExp: RegExpConstructor;
 
 interface ObjectConstructor {
-    getPrototypeOf(o: unknown): unknown;
+    getPrototypeOf(o: unknown): object;
     getOwnPropertyNames(o: unknown): string[];
     getOwnPropertySymbols(o: unknown): symbol[];
     getOwnPropertyDescriptor(o: unknown, p: string | symbol): PropertyDescriptor | undefined;
@@ -105,7 +118,7 @@ interface ObjectConstructor {
     assign<T extends Record<string, unknown>>(target: T, ...sources: unknown[]): T;
     is(value1: unknown, value2: unknown): boolean;
     hasOwn(o: unknown, v: string | symbol): boolean;
-    create(o: object | null, properties?: unknown): unknown;
+    create(o: object | null, properties?: unknown): object;
     freeze<T>(a: T): T;
     seal<T>(a: T): T;
     preventExtensions<T>(a: T): T;

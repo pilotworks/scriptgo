@@ -194,12 +194,6 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 	return result, nil
 }
 
-func fileSymbols(program *compiler.Program, ctx context.Context, file *ast.SourceFile) []Symbol {
-	checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)
-	defer done()
-	return fileSymbolsWithChecker(checkerInstance, file)
-}
-
 func fileSymbolsWithChecker(checkerInstance *checker.Checker, file *ast.SourceFile) []Symbol {
 	names := make([]string, 0, len(file.Locals))
 	for name := range file.Locals {

@@ -216,7 +216,15 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, 
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic function %q", statement.Name))
 		}
 		for _, parameter := range statement.Parameters {
+			if !isBuiltin && isHeterogeneousUnion(parameter.Type) {
+				return subsetError(fileName, parameter.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union type in parameter %q", parameter.Name))
+			}
 			if err := validateStaticType(fileName, parameter.Span, parameter.Type, isBuiltin); err != nil {
+				return err
+			}
+		}
+		if statement.Type != "" {
+			if err := validateStaticType(fileName, statement.Span, statement.Type, isBuiltin); err != nil {
 				return err
 			}
 		}
@@ -276,6 +284,11 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement, 
 		}
 		return validateExpression(fileName, statement.Expression, isBuiltin)
 	case "try":
+		if statement.CatchVarType != "" {
+			if err := validateStaticType(fileName, statement.CatchVarSpan, statement.CatchVarType, isBuiltin); err != nil {
+				return err
+			}
+		}
 		for _, tryStatement := range statement.Body {
 			if err := validateStatement(fileName, tryStatement, isBuiltin); err != nil {
 				return err
@@ -363,14 +376,45 @@ func isUnknownType(typ string) bool {
 	return normalized == "unknown" || normalized == "unknownkeyword" || normalized == "kindunknownkeyword"
 }
 
+func isOrContainsAny(typ string) bool {
+	typ = strings.ToLower(strings.TrimSpace(typ))
+	if typ == "" {
+		return false
+	}
+	if typ == "any" || typ == "anykeyword" || typ == "kindanykeyword" {
+		return true
+	}
+	n := len(typ)
+	for i := 0; i < n; {
+		b := typ[i]
+		if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '$' {
+			start := i
+			for i < n {
+				c := typ[i]
+				if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$' {
+					i++
+				} else {
+					break
+				}
+			}
+			word := typ[start:i]
+			if word == "any" || word == "anykeyword" || word == "kindanykeyword" {
+				return true
+			}
+		} else {
+			i++
+		}
+	}
+	return false
+}
+
 func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string, isBuiltin bool) error {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
 	if !isBuiltin && strings.HasSuffix(normalized, "[]") && isUnknownType(strings.TrimSuffix(normalized, "[]")) {
 		return subsetError(fileName, span, CodeUnknownBoundary, "unknown array type")
 	}
-	switch normalized {
-	case "any", "anykeyword", "kindanykeyword":
-		return subsetError(fileName, span, CodeAnyBoundary, fmt.Sprintf("any type (file=%s, span=%+v, rawTyp=%q)", fileName, span, typ))
+	if isOrContainsAny(typ) {
+		return subsetError(fileName, span, CodeAnyBoundary, "any type")
 	}
 	return nil
 }
@@ -439,7 +483,15 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	case "arrow_function":
 		if expression.Function != nil {
 			for _, p := range expression.Function.Parameters {
+				if !isBuiltin && isHeterogeneousUnion(p.Type) {
+					return subsetError(fileName, p.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union type in parameter %q", p.Name))
+				}
 				if err := validateStaticType(fileName, p.Span, p.Type, isBuiltin); err != nil {
+					return err
+				}
+			}
+			if expression.Function.Type != "" {
+				if err := validateStaticType(fileName, expression.Span, expression.Function.Type, isBuiltin); err != nil {
 					return err
 				}
 			}

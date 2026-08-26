@@ -30,3 +30,9 @@ export function randomUUID(): string {
     return __scriptgo.randomUUID();
 }
 
+export default {
+    Hash,
+    createHash,
+    randomUUID,
+};
+

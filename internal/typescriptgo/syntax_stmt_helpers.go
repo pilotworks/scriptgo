@@ -140,10 +140,6 @@ func desugarAssignment(expr *SyntaxExpression) (*SyntaxExpression, bool) {
 	return nil, false
 }
 
-func evalConstNumber(expr *SyntaxExpression) (float64, bool) {
-	return evalConstNumberWithEnv(expr, nil)
-}
-
 func evalConstNumberWithEnv(expr *SyntaxExpression, env map[string]float64) (float64, bool) {
 	if expr == nil {
 		return 0, false

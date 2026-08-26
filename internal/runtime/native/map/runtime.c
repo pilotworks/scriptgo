@@ -83,11 +83,10 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
     if (scriptgo_map_new(out_map) != 0) return -1;
     if (entries_array == NULL) return 0;
     scriptgo_map_native *m = *out_map;
-    scriptgo_array_inner_map *arr = entries_array;
-    if (arr->data == NULL) return 0;
-    if (arr->element_size == sizeof(void *)) {
-        for (int64_t i = 0; i < arr->length; i++) {
-            void *item = *(void **)(arr->data + (size_t)i * sizeof(void *));
+    scriptgo_object_inner_map *root_obj = (scriptgo_object_inner_map *)entries_array;
+    if (root_obj->magic == 0x53474F424A454354ULL) {
+        for (int64_t i = 0; i < root_obj->field_count; i++) {
+            void *item = (void *)root_obj->fields[i];
             if (item == NULL) continue;
             scriptgo_object_inner_map *obj = (scriptgo_object_inner_map *)item;
             if (obj->magic == 0x53474F424A454354ULL && obj->field_count >= 2) {
@@ -100,6 +99,42 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
                 if (sub_arr->length >= 2 && sub_arr->data != NULL) {
                     const char *k = *(const char **)(sub_arr->data);
                     const char *v = *(const char **)(sub_arr->data + sizeof(void *));
+                    void *dummy;
+                    scriptgo_map_set_string_string(m, k, v, &dummy);
+                }
+            }
+        }
+        return 0;
+    }
+    scriptgo_array_inner_map *arr = entries_array;
+    if (arr->data == NULL) return 0;
+    if (arr->element_size == sizeof(void *) || arr->element_size == 16) {
+        for (int64_t i = 0; i < arr->length; i++) {
+            void *item = NULL;
+            if (arr->element_size == 16) {
+                item = (void *)*(uintptr_t *)(arr->data + (size_t)i * 16 + 8);
+            } else {
+                item = *(void **)(arr->data + (size_t)i * sizeof(void *));
+            }
+            if (item == NULL) continue;
+            scriptgo_object_inner_map *obj = (scriptgo_object_inner_map *)item;
+            if (obj->magic == 0x53474F424A454354ULL && obj->field_count >= 2) {
+                const char *k = (const char *)obj->fields[0];
+                const char *v = (const char *)obj->fields[1];
+                void *dummy;
+                scriptgo_map_set_string_string(m, k, v, &dummy);
+            } else {
+                scriptgo_array_inner_map *sub_arr = (scriptgo_array_inner_map *)item;
+                if (sub_arr->length >= 2 && sub_arr->data != NULL) {
+                    const char *k = NULL;
+                    const char *v = NULL;
+                    if (sub_arr->element_size == 16) {
+                        k = (const char *)*(uintptr_t *)(sub_arr->data + 8);
+                        v = (const char *)*(uintptr_t *)(sub_arr->data + 16 + 8);
+                    } else {
+                        k = *(const char **)(sub_arr->data);
+                        v = *(const char **)(sub_arr->data + sizeof(void *));
+                    }
                     void *dummy;
                     scriptgo_map_set_string_string(m, k, v, &dummy);
                 }

@@ -13,11 +13,12 @@ type arrayReference struct {
 }
 
 type functionEmitter struct {
-	function       ir.Function
-	functions      map[string]ir.Function
-	stringsByValue map[string]string
-	debug          *debugInfo
-	module         ir.Module
+	function        ir.Function
+	functions       map[string]ir.Function
+	stringsByValue  map[string]string
+	debug           *debugInfo
+	module          ir.Module
+	compilerVersion string
 
 	types              map[string]ir.Type
 	varSlots           map[string]string

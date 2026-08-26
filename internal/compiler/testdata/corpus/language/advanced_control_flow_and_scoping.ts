@@ -86,8 +86,9 @@ function testTryCatchFinallyExecutionOrder(): void {
             }
             trace.push("try-end");
             return "SUCCESS";
-        } catch (err: any) {
-            trace.push(`caught:${err.message}`);
+        } catch (err) {
+            const e = err as Error;
+            trace.push(`caught:${e.message}`);
             if (!handled) {
                 trace.push("rethrowing");
                 throw err;

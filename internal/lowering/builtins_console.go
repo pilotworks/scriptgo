@@ -780,4 +780,3 @@ func lowerConsoleNoop(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, i
 	}
 	return "", ir.TypeVoid, nil
 }
-

@@ -425,6 +425,10 @@ export function setMaxIdleHTTPParsers(max: number): void {
     // runtime configuration hook
 }
 
+export function getMaxIdleHTTPParsers(): number {
+    return 1000;
+}
+
 export interface AgentOptions {
     maxFreeSockets?: number;
     maxSockets?: number;
@@ -1117,19 +1121,21 @@ export function get(urlOrOptions: unknown, optionsOrCb: unknown = null, cb: unkn
     return req;
 }
 
-export class WebSocket {
-    url: string;
-    readyState: number = 0;
-
-    constructor(url: string) {
-        this.url = url;
-    }
-
-    close(): void {
-        this.readyState = 3;
-    }
-
-    send(data: unknown): void {
-        const dummy = data;
-    }
-}
+export default {
+    METHODS,
+    STATUS_CODES,
+    Agent,
+    globalAgent,
+    OutgoingMessage,
+    ServerResponse,
+    IncomingMessage,
+    ClientRequest,
+    Server,
+    createServer,
+    request,
+    get,
+    validateHeaderName,
+    validateHeaderValue,
+    setMaxIdleHTTPParsers,
+    getMaxIdleHTTPParsers,
+};

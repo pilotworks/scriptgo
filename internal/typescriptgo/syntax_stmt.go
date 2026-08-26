@@ -16,7 +16,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		varStmt := node.AsVariableStatement()
 		declList := varStmt.DeclarationList.AsVariableDeclarationList()
 		declarations := declList.Declarations.Nodes
-		varKind := "variable"
+		var varKind string
 		if (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsAwaitUsing {
 			varKind = "await_using"
 		} else if (declList.Flags & ast.NodeFlagsBlockScoped) == ast.NodeFlagsUsing {
@@ -32,7 +32,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	case ast.KindFunctionDeclaration:
 		fnType := syntaxType(node.Type())
 		inferredRetType := resolveFunctionReturnType(chk, node)
-		if fnType == "" && inferredRetType != "" {
+		if fnType == "" && inferredRetType != "" && inferredRetType != "any" && inferredRetType != "unknown" {
 			fnType = inferredRetType
 		}
 		fnDecl := node.AsFunctionDeclaration()
@@ -118,6 +118,10 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			catchClause := tryNode.CatchClause.AsCatchClause()
 			if catchClause.VariableDeclaration != nil {
 				res.CatchVar = catchClause.VariableDeclaration.Name().Text()
+				if catchClause.VariableDeclaration.Type() != nil {
+					res.CatchVarType = syntaxType(catchClause.VariableDeclaration.Type())
+				}
+				res.CatchVarSpan = sourceSpan(catchClause.VariableDeclaration.Name())
 			}
 			res.Catch = syntaxBlockStatements(catchClause.Block, chk)
 		}

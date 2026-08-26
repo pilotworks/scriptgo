@@ -489,3 +489,19 @@ export const defaultMaxListeners = 10;
 export const captureRejectionsSymbol = Symbol("captureRejections");
 export const errorMonitor = Symbol("events.errorMonitor");
 
+export default {
+    EventEmitter,
+    AbortController,
+    AbortSignal,
+    EventTarget,
+    Event,
+    CustomEvent,
+    getEventListeners,
+    listenerCount,
+    once,
+    on,
+    defaultMaxListeners,
+    captureRejectionsSymbol,
+    errorMonitor,
+};
+

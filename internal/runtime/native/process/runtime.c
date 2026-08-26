@@ -64,3 +64,21 @@ int scriptgo_process_env(const char *key, char **out_value) {
     *out_value = res;
     return 0;
 }
+
+int scriptgo_process_pid(double *out_pid) {
+    if (out_pid == NULL) return process_fail("scriptgo process invalid arguments");
+    *out_pid = (double)getpid();
+    return 0;
+}
+
+int scriptgo_process_ppid(double *out_ppid) {
+    if (out_ppid == NULL) return process_fail("scriptgo process invalid arguments");
+    *out_ppid = (double)getppid();
+    return 0;
+}
+
+int scriptgo_process_version(char **out_version) {
+    if (out_version == NULL) return process_fail("scriptgo process invalid arguments");
+    *out_version = strdup("v0.1.0");
+    return 0;
+}

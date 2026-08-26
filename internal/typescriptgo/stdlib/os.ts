@@ -46,3 +46,32 @@ export function tmpdir(): string {
     return __scriptgo.tmpdir();
 }
 
+export const EOL = "\n";
+export const devNull = "/dev/null";
+export const constants = {
+    UV_UDP_REUSEADDR: 4,
+    signals: {},
+    errno: {},
+    priority: {},
+};
+
+export function availableParallelism(): number {
+    return 1;
+}
+
+export default {
+    EOL,
+    devNull,
+    constants,
+    availableParallelism,
+    platform,
+    arch,
+    homedir,
+    uptime,
+    totalmem,
+    freemem,
+    type,
+    release,
+    tmpdir,
+};
+

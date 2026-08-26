@@ -795,7 +795,11 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 		catchEnv := make(map[string]ir.Type, len(env)+1)
 		maps.Copy(catchEnv, env)
 		if statement.CatchVar != "" {
-			catchEnv[statement.CatchVar] = ir.Type("object:Error")
+			if statement.CatchVarType != "" {
+				catchEnv[statement.CatchVar] = toIRType(statement.CatchVarType)
+			} else {
+				catchEnv[statement.CatchVar] = ir.Type("object:Error")
+			}
 		}
 		catchBranch := ir.Function{Name: "catch", ReturnType: function.ReturnType}
 		for _, catchStmt := range statement.Catch {

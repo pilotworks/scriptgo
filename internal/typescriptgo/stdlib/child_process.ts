@@ -57,3 +57,9 @@ export function spawnSync(command: string, args: string[] = defaultSpawnArgs, op
     const raw = __scriptgo.spawnSync(command, args, cwd, input);
     return new SpawnSyncReturns(raw.stdout, raw.stderr, raw.status);
 }
+
+export default {
+    SpawnSyncReturns,
+    execSync,
+    spawnSync,
+};

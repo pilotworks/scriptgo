@@ -49,7 +49,7 @@ jobs:
           ASAN_OPTIONS: 'detect_leaks=0'
         run: |
           mkdir -p bin_gate
-          go build -o bin_gate/scriptgo ./cmd/scriptgo
+          go build -ldflags="-X main.version=${GITHUB_REF_NAME}" -o bin_gate/scriptgo ./cmd/scriptgo
           ./bin_gate/scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_gate/fib
           ./bin_gate/fib
           ./bin_gate/scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_gate/oop
@@ -115,7 +115,7 @@ jobs:
           mkdir -p build_pkg dist
           
           # Compile binary
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "build_pkg/${BINARY_NAME}" ./cmd/scriptgo
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "build_pkg/${BINARY_NAME}" ./cmd/scriptgo
           
           # Copy documentation
           cp LICENSE README.md build_pkg/ 2>/dev/null || true

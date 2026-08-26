@@ -221,6 +221,45 @@ func (e *functionEmitter) emitProcessIntrinsic(out *strings.Builder, instruction
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__process.pid":
+		if len(instruction.Args) != 0 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("process.pid has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_process_pid(ptr %%%s)\n", status, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__process.ppid":
+		if len(instruction.Args) != 0 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("process.ppid has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_process_ppid(ptr %%%s)\n", status, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__process.version":
+		if len(instruction.Args) != 0 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("process.version has invalid signature")
+		}
+		verStr := e.compilerVersion
+		if verStr == "" || verStr == "dev" {
+			verStr = "v0.1.0"
+		}
+		if !strings.HasPrefix(verStr, "v") {
+			verStr = "v" + verStr
+		}
+		global := e.stringsByValue[verStr]
+		length := len([]byte(verStr)) + 1
+		fmt.Fprintf(out, "  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", instruction.Result, length, global)
+		return nil
 	default:
 		return fmt.Errorf("unknown process intrinsic %q", instruction.Callee)
 	}

@@ -217,8 +217,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			env[statement.Name] = declaredType
 			return nil
 		}
-		if statement.Expression != nil && statement.Expression.Kind == "array" && statement.Type != "" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
-			statement.Expression.InferredType = statement.Type
+		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) && statement.Type != "" {
+			if strings.HasSuffix(statement.Type, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" {
+				statement.Expression.InferredType = statement.Type
+			}
 		}
 		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && statement.Type != "" && !strings.Contains(statement.Type, "|") {
 			if aliased, isUnion := typeAliasesIndex[statement.Type]; !isUnion || !strings.Contains(aliased, "|") {
@@ -457,8 +459,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			})
 			return nil
 		}
-		if statement.Expression != nil && statement.Expression.Kind == "array" && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]") {
-			statement.Expression.InferredType = string(varType)
+		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) {
+			targetType := string(varType)
+			if strings.HasSuffix(targetType, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" {
+				statement.Expression.InferredType = targetType
+			}
 		}
 		value, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -729,8 +734,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if fIndex < 0 {
 			return fmt.Errorf("unknown field %q on object shape %q", statement.Name, className)
 		}
-		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "unknown[]" || statement.Expression.InferredType == "void[]") {
-			statement.Expression.InferredType = string(shape.Fields[fIndex].Type)
+		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) {
+			targetFieldType := string(shape.Fields[fIndex].Type)
+			if strings.HasSuffix(targetFieldType, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" || statement.Expression.InferredType == "void[]" {
+				statement.Expression.InferredType = targetFieldType
+			}
 		}
 		var val string
 		var valType ir.Type
@@ -752,7 +760,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 		if valType != shape.Fields[fIndex].Type {
-			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "any[]" || valType == "unknown[]") {
+			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "unknown[]") {
 				// allowed array assignment
 			} else if shape.Fields[fIndex].Type == ir.TypeUnknown {
 				boxed := nextTemp(counter)

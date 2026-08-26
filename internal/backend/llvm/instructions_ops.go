@@ -621,7 +621,7 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	id := e.labelCounter
 	e.labelCounter++
 
-	expectedTag := 5
+	var expectedTag int
 	switch instruction.Type {
 	case ir.TypeNumber:
 		expectedTag = 3 // SCRIPTGO_TAG_NUMBER

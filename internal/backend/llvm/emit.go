@@ -48,6 +48,16 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	functions := make(map[string]ir.Function, len(module.Functions))
 	stringsByValue := map[string]string{}
+	verStr := options.CompilerVersion
+	if verStr == "" || verStr == "dev" {
+		verStr = "v0.1.0"
+	}
+	if !strings.HasPrefix(verStr, "v") {
+		verStr = "v" + verStr
+	}
+	if _, ok := stringsByValue[verStr]; !ok {
+		stringsByValue[verStr] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+	}
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
@@ -591,6 +601,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_os_uptime(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_os_totalmem(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_os_freemem(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_process_pid(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_process_ppid(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_process_version(ptr)\n\n")
 	out.WriteString("declare ptr @malloc(i64)\n\n")
 
 	alreadyDeclared := map[string]bool{
@@ -664,7 +677,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("\n")
 
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue, debug, module)
+		text, err := emitFunction(function, functions, stringsByValue, debug, module, options)
 		if err != nil {
 			return "", err
 		}
@@ -676,7 +689,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	return out.String(), nil
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module, options Options) (string, error) {
 	returnType := llvmType(function.ReturnType)
 	if function.ReturnType == ir.TypeBool {
 		returnType = "zeroext i1"
@@ -703,15 +716,24 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		out.WriteString("  call void @scriptgo_process_init(i32 %argc, ptr %argv)\n")
 	}
 
+	verStr := options.CompilerVersion
+	if verStr == "" || verStr == "dev" {
+		verStr = "v0.1.0"
+	}
+	if !strings.HasPrefix(verStr, "v") {
+		verStr = "v" + verStr
+	}
+
 	emitter := &functionEmitter{
-		function:       function,
-		functions:      functions,
-		stringsByValue: stringsByValue,
-		debug:          debug,
-		module:         module,
-		types:          make(map[string]ir.Type, len(function.Parameters)),
-		varSlots:       make(map[string]string),
-		localSSAs:      make(map[string]bool),
+		function:        function,
+		functions:       functions,
+		stringsByValue:  stringsByValue,
+		debug:           debug,
+		module:          module,
+		compilerVersion: verStr,
+		types:           make(map[string]ir.Type, len(function.Parameters)),
+		varSlots:        make(map[string]string),
+		localSSAs:       make(map[string]bool),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {

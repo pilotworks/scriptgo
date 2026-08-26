@@ -14,18 +14,21 @@ function parsePositiveInt(s: string): number {
 
 try {
     console.log(parsePositiveInt("123"));
-} catch (e: any) {
-    console.log(e.name + ": " + e.message);
+} catch (e: unknown) {
+    const err = e as Error;
+    console.log(err.name + ": " + err.message);
 }
 
 try {
     console.log(parsePositiveInt("abc"));
-} catch (e: any) {
-    console.log(e.name + ": " + e.message);
+} catch (e: unknown) {
+    const err = e as Error;
+    console.log(err.name + ": " + err.message);
 }
 
 try {
     console.log(parsePositiveInt("-50"));
-} catch (e: any) {
-    console.log(e.name + ": " + e.message);
+} catch (e: unknown) {
+    const err = e as Error;
+    console.log(err.name + ": " + err.message);
 }

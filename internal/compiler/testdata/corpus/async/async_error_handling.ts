@@ -12,15 +12,17 @@ async function main() {
     try {
         const ok = await riskyOperation(false);
         console.log(ok);
-    } catch (e: any) {
-        console.log("Caught: " + e.message);
+    } catch (e: unknown) {
+        const err = e as Error;
+        console.log("Caught: " + err.message);
     }
 
     try {
         const bad = await riskyOperation(true);
         console.log(bad);
-    } catch (e: any) {
-        console.log("Caught error: " + e.message);
+    } catch (e: unknown) {
+        const err = e as Error;
+        console.log("Caught error: " + err.message);
     } finally {
         console.log("Cleanup done");
     }

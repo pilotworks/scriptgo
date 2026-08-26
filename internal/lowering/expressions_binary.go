@@ -500,7 +500,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				rightType = ir.TypeUnknown
 			}
 		} else if (expression.Operator == "||" || expression.Operator == "&&") && isPointerLikeType(leftType) {
-			if rightType == "never[]" || rightType == "any[]" || isPointerLikeType(rightType) {
+			if rightType == "never[]" || rightType == "unknown[]" || isPointerLikeType(rightType) {
 				rightType = leftType
 			} else if rightType == ir.TypeBool {
 				boolTemp := nextTemp(counter)

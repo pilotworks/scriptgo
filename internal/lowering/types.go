@@ -473,7 +473,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeTextDecoder
 	case "Buffer":
 		return ir.TypeBuffer
-	case "void", "any", "":
+	case "void", "":
 		return ir.TypeVoid
 	default:
 		if strings.HasPrefix(value, "Intl.") {
@@ -663,6 +663,12 @@ func splitTopLevelUnion(s string) []string {
 }
 
 func tupleFields(typeStr string) ([]ir.Field, bool) {
+	typeStr = strings.TrimSpace(typeStr)
+	typeStr = strings.TrimPrefix(typeStr, "readonly ")
+	if strings.HasPrefix(typeStr, "Readonly<") && strings.HasSuffix(typeStr, ">") {
+		typeStr = strings.TrimSuffix(strings.TrimPrefix(typeStr, "Readonly<"), ">")
+		typeStr = strings.TrimSpace(typeStr)
+	}
 	if !strings.HasPrefix(typeStr, "[") || !strings.HasSuffix(typeStr, "]") {
 		return nil, false
 	}

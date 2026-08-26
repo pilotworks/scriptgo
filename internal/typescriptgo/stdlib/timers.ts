@@ -30,3 +30,40 @@ export function setImmediate(callback: (...args: unknown[]) => void, ...args: un
 export function clearImmediate(id: number | undefined): void {
     __scriptgo.clearImmediate(id);
 }
+
+export class TimersPromises {
+    async setTimeout(delay: number = 1, value?: unknown): Promise<unknown> {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve(value);
+            }, delay);
+        });
+    }
+
+    async setImmediate(value?: unknown): Promise<unknown> {
+        return new Promise((resolve) => {
+            setImmediate(() => {
+                resolve(value);
+            });
+        });
+    }
+
+    async *setInterval(delay: number = 1, value?: unknown): AsyncIterableIterator<unknown> {
+        while (true) {
+            await this.setTimeout(delay);
+            yield value;
+        }
+    }
+}
+
+export const promises: TimersPromises = new TimersPromises();
+
+export default {
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    setImmediate,
+    clearImmediate,
+    promises,
+};

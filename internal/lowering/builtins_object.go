@@ -244,13 +244,13 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 			}
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op:     ir.OpCall,
-				Type:   ir.Type("any[]"),
+				Type:   ir.Type("[string,unknown][]"),
 				Result: result,
 				Callee: "__object.entries",
 				Args:   []string{objVal},
 				Span:   toIRSpan(call.Path, call.Expression.Span),
 			})
-			return result, ir.Type("any[]"), nil
+			return result, ir.Type("[string,unknown][]"), nil
 		},
 	}
 

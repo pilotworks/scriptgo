@@ -51,7 +51,7 @@ export class WebReadableStream {
     }
 }
 
-export class ReadableStream extends WebReadableStream {}
+export class ReadableStream extends WebReadableStream { }
 
 export class WebWritableStream {
     _stream: Writable | null = null;
@@ -60,7 +60,7 @@ export class WebWritableStream {
     }
 }
 
-export class WritableStream extends WebWritableStream {}
+export class WritableStream extends WebWritableStream { }
 
 export class WebDuplexStream {
     readable: WebReadableStream;
@@ -84,7 +84,7 @@ export class Stream {
     private _events: StreamEventBucket[] = [];
     private _maxListeners: number = 10;
 
-    constructor() {}
+    constructor() { }
 
     private _findBucketIndex(event: string): number {
         for (let i = 0; i < this._events.length; i++) {
@@ -631,7 +631,7 @@ export class Readable extends Stream {
         }
         if (typeof this._customDestroy === "function") {
             const fn = this._customDestroy as Function;
-            fn(error !== undefined ? error : null, (err: Error | null) => {});
+            fn(error !== undefined ? error : null, (err: Error | null) => { });
         }
         this.emit("close");
         return this;
@@ -925,7 +925,7 @@ export class Writable extends Stream {
         }
         if (typeof this._customDestroy === "function") {
             const fn = this._customDestroy as Function;
-            fn(error !== undefined ? error : null, (err: Error | null) => {});
+            fn(error !== undefined ? error : null, (err: Error | null) => { });
         }
         this.emit("close");
         return this;
@@ -1568,5 +1568,28 @@ export class StreamConsumers {
     }
 }
 
+export function destroy(stream: unknown, err?: unknown): void {
+    if (stream instanceof Stream) {
+        stream.destroy(err);
+    }
+}
+
 export const promises: StreamPromises = new StreamPromises();
 export const consumers: StreamConsumers = new StreamConsumers();
+
+export default {
+    Stream,
+    Readable,
+    Writable,
+    Duplex,
+    Transform,
+    PassThrough,
+    pipeline,
+    finished,
+    destroy,
+    compose,
+    getDefaultHighWaterMark,
+    setDefaultHighWaterMark,
+    promises,
+    consumers,
+};

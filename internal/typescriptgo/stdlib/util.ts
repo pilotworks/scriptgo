@@ -479,8 +479,45 @@ export function parseEnv(content: string): Map<string, string> {
     return result;
 }
 
-export namespace util {
-    export function format(formatStr?: unknown, ...args: unknown[]): string {
-        return "";
-    }
-}
+export default {
+    MIMEParams,
+    MIMEType,
+    isArray,
+    isBoolean,
+    isNull,
+    isNullOrUndefined,
+    isNumber,
+    isString,
+    isSymbol,
+    isUndefined,
+    isRegExp,
+    isObject,
+    isDate,
+    isError,
+    isFunction,
+    isPrimitive,
+    isBuffer,
+    isDeepStrictEqual,
+    types,
+    inspect,
+    format,
+    formatWithOptions,
+    debuglog,
+    deprecate,
+    callbackify,
+    promisify,
+    toUSVString,
+    stripVTControlCharacters,
+    styleText,
+    getSystemErrorMap,
+    getSystemErrorName,
+    getSystemErrorMessage,
+    getCallSites,
+    setTraceSigInt,
+    diff,
+    aborted,
+    transferableAbortController,
+    transferableAbortSignal,
+    parseArgs,
+    parseEnv,
+};

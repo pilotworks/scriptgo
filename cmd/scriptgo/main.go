@@ -12,6 +12,14 @@ import (
 	"github.com/pilotworks/scriptgo/internal/compiler"
 )
 
+var version = ""
+
+func init() {
+	if version != "" {
+		compiler.Version = version
+	}
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		printMainUsage()

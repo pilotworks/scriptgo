@@ -393,7 +393,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		}
 		fnType := syntaxType(node.Type())
 		inferredRetType := resolveFunctionReturnType(chk, node)
-		if fnType == "" && inferredRetType != "" {
+		if fnType == "" && inferredRetType != "" && inferredRetType != "any" && inferredRetType != "unknown" {
 			fnType = inferredRetType
 		}
 		isGen := false
