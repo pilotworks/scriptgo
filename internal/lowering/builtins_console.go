@@ -30,11 +30,17 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span ty
 		callee = "__map.toString"
 	case ir.TypeSet:
 		callee = "__set.toString"
+	case ir.TypeUnknown:
+		callee = "__string.fromUnknown"
+	case ir.TypeObject:
+		callee = "__string.fromObject"
 	default:
 		if strings.HasSuffix(string(valType), "[]") {
 			callee = "__json.stringify_string_array"
+		} else if strings.HasPrefix(string(valType), "object:") {
+			callee = "__string.fromObject"
 		} else {
-			callee = "__string.fromNumber"
+			callee = "__string.fromUnknown"
 		}
 	}
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -46,6 +52,38 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span ty
 		Span:   toIRSpan(call.Path, span),
 	})
 	return strTemp
+}
+
+func lowerConsoleArg(call IntrinsicCall, arg *typescriptgo.SyntaxExpression) (string, error) {
+	if arg.Kind == "spread" && arg.Left != nil {
+		arrVal, _, err := call.LowerExpression(call.Path, arg.Left, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		if err != nil {
+			return "", err
+		}
+		spaceConst := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
+			Result: spaceConst,
+			Value:  " ",
+			Span:   toIRSpan(call.Path, arg.Span),
+		})
+		joinTemp := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeString,
+			Result: joinTemp,
+			Callee: "__array.join",
+			Args:   []string{arrVal, spaceConst},
+			Span:   toIRSpan(call.Path, arg.Span),
+		})
+		return joinTemp, nil
+	}
+	val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", err
+	}
+	return lowerValueToString(call, val, valType, arg.Span), nil
 }
 
 func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
@@ -69,6 +107,20 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 	}
 
 	if len(call.Expression.Arguments) == 1 {
+		if call.Expression.Arguments[0].Kind == "spread" {
+			strVal, err := lowerConsoleArg(call, call.Expression.Arguments[0])
+			if err != nil {
+				return "", "", err
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpPrint,
+				Type:   ir.TypeVoid,
+				Callee: intrinsic.Name,
+				Args:   []string{strVal},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return "", ir.TypeVoid, nil
+		}
 		argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 		if err != nil {
 			return "", "", err
@@ -221,11 +273,11 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 
 	var strParts []string
 	for _, arg := range call.Expression.Arguments {
-		val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		part, err := lowerConsoleArg(call, arg)
 		if err != nil {
 			return "", "", err
 		}
-		strParts = append(strParts, lowerValueToString(call, val, valType, arg.Span))
+		strParts = append(strParts, part)
 	}
 
 	spaceTemp := nextTemp(call.Counter)
@@ -348,7 +400,7 @@ func lowerFormatString(call IntrinsicCall, fmtStr string, extraArgs []*typescrip
 	// Any remaining arguments after format specifiers are appended with space
 	for ; argIdx < len(extraArgs); argIdx++ {
 		arg := extraArgs[argIdx]
-		val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		part, err := lowerConsoleArg(call, arg)
 		if err != nil {
 			return "", err
 		}
@@ -360,7 +412,7 @@ func lowerFormatString(call IntrinsicCall, fmtStr string, extraArgs []*typescrip
 			Value:  " ",
 			Span:   toIRSpan(call.Path, call.Expression.Span),
 		})
-		parts = append(parts, spaceConst, lowerValueToString(call, val, valType, arg.Span))
+		parts = append(parts, spaceConst, part)
 	}
 
 	if len(parts) == 0 {
@@ -436,8 +488,42 @@ func lowerConsoleAssert(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 				Args:     []string{condVal, zeroConst},
 				Span:     toIRSpan(call.Path, call.Expression.Span),
 			})
-			boolCond = boolTemp
+		} else if condType == ir.TypeString {
+			emptyConst := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeString,
+				Result: emptyConst,
+				Value:  "",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   boolTemp,
+				Operator: "!=",
+				Args:     []string{condVal, emptyConst},
+				Span:     toIRSpan(call.Path, call.Expression.Span),
+			})
+		} else {
+			nullConst := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   condType,
+				Result: nullConst,
+				Value:  "null",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   boolTemp,
+				Operator: "!=",
+				Args:     []string{condVal, nullConst},
+				Span:     toIRSpan(call.Path, call.Expression.Span),
+			})
 		}
+		boolCond = boolTemp
 	}
 
 	falseConst := nextTemp(call.Counter)
@@ -481,11 +567,11 @@ func lowerConsoleAssert(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string,
 		})
 		var msgParts []string
 		for _, arg := range call.Expression.Arguments[1:] {
-			val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			part, err := lowerConsoleArg(call, arg)
 			if err != nil {
 				return "", "", err
 			}
-			msgParts = append(msgParts, lowerValueToString(call, val, valType, arg.Span))
+			msgParts = append(msgParts, part)
 		}
 		spaceConst := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -573,11 +659,11 @@ func lowerConsoleTimeLog(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string
 	if len(call.Expression.Arguments) > 1 {
 		var dataParts []string
 		for _, arg := range call.Expression.Arguments[1:] {
-			val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			part, err := lowerConsoleArg(call, arg)
 			if err != nil {
 				return "", "", err
 			}
-			dataParts = append(dataParts, lowerValueToString(call, val, valType, arg.Span))
+			dataParts = append(dataParts, part)
 		}
 		spaceConst := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -634,11 +720,11 @@ func lowerConsoleTrace(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 	if len(call.Expression.Arguments) > 0 {
 		var parts []string
 		for _, arg := range call.Expression.Arguments {
-			val, valType, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			part, err := lowerConsoleArg(call, arg)
 			if err != nil {
 				return "", "", err
 			}
-			parts = append(parts, lowerValueToString(call, val, valType, arg.Span))
+			parts = append(parts, part)
 		}
 		spaceConst := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -684,7 +770,11 @@ func lowerConsoleTrace(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 
 func lowerConsoleNoop(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	for _, arg := range call.Expression.Arguments {
-		if _, _, err := call.LowerExpression(call.Path, arg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures); err != nil {
+		expr := arg
+		if arg.Kind == "spread" && arg.Left != nil {
+			expr = arg.Left
+		}
+		if _, _, err := call.LowerExpression(call.Path, expr, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures); err != nil {
 			return "", "", err
 		}
 	}

@@ -548,6 +548,51 @@ int scriptgo_array_join_bigint(void *handle, const char *separator, char **out_s
     return 0;
 }
 
+typedef struct {
+    uint32_t tag;
+    uint32_t padding;
+    uint64_t payload;
+} scriptgo_boxed_unknown_t;
+
+int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigned long long payload, char **out_str);
+
+int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str) {
+    scriptgo_array *array = handle;
+    size_t cap = 256, len = 0;
+    char *buf;
+    const char *sep = separator != NULL ? separator : ",";
+    size_t sep_len = strlen(sep);
+    if (array == NULL || out_str == NULL || array->element_size != sizeof(scriptgo_boxed_unknown_t)) {
+        return fail("scriptgo array access failed");
+    }
+    buf = malloc(cap);
+    if (buf == NULL) return fail("scriptgo string allocation failed");
+    buf[0] = '\0';
+    for (int64_t i = 0; i < array->length; i++) {
+        scriptgo_boxed_unknown_t *item = (scriptgo_boxed_unknown_t *)(array->data + (size_t)i * sizeof(scriptgo_boxed_unknown_t));
+        char *val_str = NULL;
+        if (scriptgo_string_from_unknown(item->tag, item->padding, item->payload, &val_str) != 0 || val_str == NULL) {
+            val_str = "";
+        }
+        size_t s_len = strlen(val_str);
+        while (len + s_len + sep_len + 1 >= cap) {
+            cap *= 2;
+            char *new_buf = realloc(buf, cap);
+            if (new_buf == NULL) { free(buf); return fail("scriptgo string allocation failed"); }
+            buf = new_buf;
+        }
+        if (i > 0) {
+            memcpy(buf + len, sep, sep_len);
+            len += sep_len;
+        }
+        memcpy(buf + len, val_str, s_len);
+        len += s_len;
+        buf[len] = '\0';
+    }
+    *out_str = buf;
+    return 0;
+}
+
 static int cmp_doubles(const void *a, const void *b) {
     double da = *(const double *)a;
     double db = *(const double *)b;

@@ -17,7 +17,7 @@ interface Console {
     warn(...args: any[]): void;
     error(...args: any[]): void;
     debug(...args: any[]): void;
-    assert(condition?: boolean, ...data: any[]): void;
+    assert(condition?: any, ...data: any[]): void;
     clear(): void;
     count(label?: string): void;
     countReset(label?: string): void;
@@ -38,9 +38,19 @@ interface Console {
 
 declare var console: Console;
 
+interface ConsoleConstructorOptions {
+    stdout?: any;
+    stderr?: any;
+    ignoreErrors?: boolean;
+    colorMode?: boolean | "auto";
+    inspectOptions?: any;
+    groupIndentation?: number;
+}
+
 interface ConsoleConstructor {
     prototype: Console;
-    new(): Console;
+    new(stdout?: any, stderr?: any, ignoreErrors?: boolean): Console;
+    new(options?: ConsoleConstructorOptions | any): Console;
 }
 
 declare var Console: ConsoleConstructor;
@@ -134,7 +144,7 @@ interface ErrorConstructor {
 
 declare var Error: ErrorConstructor;
 
-interface TypeError extends Error {}
+interface TypeError extends Error { }
 interface TypeErrorConstructor {
     new(message?: string): TypeError;
     (message?: string): TypeError;
@@ -142,7 +152,7 @@ interface TypeErrorConstructor {
 }
 declare var TypeError: TypeErrorConstructor;
 
-interface RangeError extends Error {}
+interface RangeError extends Error { }
 interface RangeErrorConstructor {
     new(message?: string): RangeError;
     (message?: string): RangeError;
@@ -150,7 +160,7 @@ interface RangeErrorConstructor {
 }
 declare var RangeError: RangeErrorConstructor;
 
-interface SyntaxError extends Error {}
+interface SyntaxError extends Error { }
 interface SyntaxErrorConstructor {
     new(message?: string): SyntaxError;
     (message?: string): SyntaxError;
@@ -547,8 +557,8 @@ interface Map<K, V> {
 }
 
 interface MapConstructor {
-    new<K, V>(): Map<K, V>;
-    new<K, V>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
+    new <K, V>(): Map<K, V>;
+    new <K, V>(entries?: readonly (readonly [K, V])[] | null): Map<K, V>;
     readonly prototype: Map<any, any>;
 }
 declare var Map: MapConstructor;
@@ -566,8 +576,8 @@ interface Set<T> {
 }
 
 interface SetConstructor {
-    new<T>(): Set<T>;
-    new<T>(values?: readonly T[] | null): Set<T>;
+    new <T>(): Set<T>;
+    new <T>(values?: readonly T[] | null): Set<T>;
     readonly prototype: Set<any>;
 }
 declare var Set: SetConstructor;
@@ -927,7 +937,7 @@ interface CustomEvent<T = any> extends Event {
 }
 
 interface CustomEventConstructor {
-    new<T = any>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
+    new <T = any>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
     readonly prototype: CustomEvent;
 }
 

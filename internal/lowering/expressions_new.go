@@ -19,7 +19,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if className == "Date" {
 		ensureDateShape(shapes)
 	}
-	if className == "Console" {
+	if className == "Console" || className == "NodeConsole" || strings.HasSuffix(className, ".Console") || strings.HasSuffix(className, ".NodeConsole") {
 		if result == "" {
 			result = nextTemp(counter)
 		}

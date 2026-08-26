@@ -441,7 +441,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			}
 		}
 		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
-	case ast.KindImportDeclaration, ast.KindExportDeclaration:
+	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindExportAssignment:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	case ast.KindModuleDeclaration:
 		if ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient) || (node.Name() != nil && (strings.HasPrefix(node.Name().Text(), "\"") || strings.HasPrefix(node.Name().Text(), "'"))) {

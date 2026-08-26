@@ -188,6 +188,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_join_number(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_join_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_join_bigint(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_join_unknown(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_keys(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_entries(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
