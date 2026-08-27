@@ -79,7 +79,6 @@ func findTypesNodeDir(customDir string) string {
 		filepath.Join("..", "..", "node_modules", "@types", "node"),
 	}
 
-
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		candidates = append(candidates, filepath.Join(home, ".cache", "types-node"))
 	}

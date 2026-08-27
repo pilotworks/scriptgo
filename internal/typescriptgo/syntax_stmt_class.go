@@ -567,4 +567,3 @@ func syntaxMemberName(nameNode *ast.Node) string {
 		return ""
 	}
 }
-

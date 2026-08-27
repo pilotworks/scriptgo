@@ -60,8 +60,6 @@ func ParseFileToSyntax(fileName, source string) (SyntaxFile, error) {
 	return syntaxFile(file, nil), nil
 }
 
-
-
 // Check creates a TypeScript-Go program. Program creation performs local module
 // resolution and binds/checks the complete reachable source graph.
 func Check(entryPath string) (ProgramResult, error) {

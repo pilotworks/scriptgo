@@ -228,7 +228,6 @@ func matchCatalogItem(catalog *StdlibCatalog, cleanMod string, api spec.Canonica
 	return foundItem
 }
 
-
 // AuditAllModules runs audit across specified modules (or all StandardNodeModules if empty).
 func AuditAllModules(cacheDir, corpusDir string, moduleNames []string) (*OverallAuditReport, error) {
 	corpus, err := ScanCorpusAPIs(corpusDir)
@@ -261,7 +260,6 @@ func AuditAllModules(cacheDir, corpusDir string, moduleNames []string) (*Overall
 		report.TotalVerifiedAPIs += modReport.VerifiedCount
 		report.TotalMissingAPIs += modReport.MissingCount
 	}
-
 
 	if report.TotalOfficialAPIs > 0 {
 		report.OverallCoverage = float64(report.TotalVerifiedAPIs) / float64(report.TotalOfficialAPIs) * 100.0

@@ -74,5 +74,3 @@ func TestScanTypesNode(t *testing.T) {
 		t.Logf("querystring.unescape in @types/node: %+v", unescapeItem)
 	}
 }
-
-

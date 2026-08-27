@@ -169,7 +169,6 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 					env[boxed] = ir.TypeUnknown
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{rightVal}, Span: toIRSpan(path, expression.Span)})
 					rightVal = boxed
-					rightTyp = ir.TypeUnknown
 				}
 			} else if strings.HasPrefix(string(leftTyp), "object:") && strings.HasPrefix(string(rightTyp), "object:") {
 				castTemp := nextTemp(counter)

@@ -600,7 +600,6 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		return SyntaxStatement{Span: span, Kind: "interface", Name: name, Class: cls}, true
 
-
 	case ast.KindTypeAliasDeclaration:
 		alias := node.AsTypeAliasDeclaration()
 		name := ""

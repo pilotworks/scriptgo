@@ -85,7 +85,6 @@ type DocParam struct {
 	Optional bool   `json:"optional,omitempty"`
 }
 
-
 type DocReturn struct {
 	Type string `json:"type,omitempty"`
 	Desc string `json:"desc,omitempty"`
@@ -129,7 +128,6 @@ func CleanTypeString(raw string) string {
 	s = strings.ReplaceAll(s, `\|`, "|")
 	return s
 }
-
 
 // FormatConstructorSignature builds a canonical constructor signature like "new Console([options])"
 // based on structured class metadata and parameter lists.
@@ -302,8 +300,6 @@ func getClassConstructorParams(c DocClass) ([]DocParam, *DocReturn) {
 	}
 	return nil, nil
 }
-
-
 
 func extractPropertyName(p DocProperty) string {
 	name := NormalizeAPIName(p.Name)
