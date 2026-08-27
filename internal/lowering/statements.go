@@ -50,8 +50,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 			fnSig = parameter.InferredType
 		}
 		if strings.Contains(fnSig, "=>") {
-			parts := strings.Split(fnSig, "=>")
-			retStr := strings.TrimSpace(parts[len(parts)-1])
+			retStr := extractTopLevelReturnType(fnSig)
 			env[parameter.Name+".retType"] = toIRType(retStr)
 		}
 	}
@@ -245,10 +244,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				statement.Expression.InferredType = statement.Type
 			}
 		}
-		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && statement.Type != "" && !strings.Contains(statement.Type, "|") {
-			if aliased, isUnion := typeAliasesIndex[statement.Type]; !isUnion || !strings.Contains(aliased, "|") {
-				statement.Expression.InferredType = statement.Type
-			}
+		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && statement.Type != "" {
+			statement.Expression.InferredType = statement.Type
 		}
 		if statement.Expression != nil && (statement.Expression.Kind == "function" || statement.Expression.Function != nil || strings.Contains(statement.Type, "=>") || strings.Contains(statement.InferredType, "=>")) {
 			env[statement.Name] = ir.TypeClosure
@@ -257,8 +254,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				fnSig = statement.InferredType
 			}
 			if strings.Contains(fnSig, "=>") {
-				parts := strings.Split(fnSig, "=>")
-				retStr := strings.TrimSpace(parts[len(parts)-1])
+				retStr := extractTopLevelReturnType(fnSig)
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
@@ -299,8 +295,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				fnSig = statement.InferredType
 			}
 			if strings.Contains(fnSig, "=>") {
-				parts := strings.Split(fnSig, "=>")
-				retStr := strings.TrimSpace(parts[len(parts)-1])
+				retStr := extractTopLevelReturnType(fnSig)
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
@@ -801,7 +796,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		var val string
 		var valType ir.Type
-		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && (strings.HasPrefix(string(shape.Fields[fIndex].Type), "object:") || shape.Fields[fIndex].Type == ir.TypeClosure) {
+		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && (isPointerLikeType(shape.Fields[fIndex].Type) || shape.Fields[fIndex].Type == ir.TypePointer) {
 			val = nextTemp(counter)
 			valType = shape.Fields[fIndex].Type
 			function.Body = append(function.Body, ir.Instruction{
@@ -821,6 +816,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if valType != shape.Fields[fIndex].Type {
 			if strings.HasSuffix(string(shape.Fields[fIndex].Type), "[]") && (valType == "void[]" || valType == "never[]" || valType == "unknown[]") {
 				// allowed array assignment
+			} else if valType == ir.TypePointer && (isPointerLikeType(shape.Fields[fIndex].Type) || shape.Fields[fIndex].Type == ir.TypePointer) {
+				// allowed null pointer assignment to pointer-like field
+			} else if isSubtype(string(valType), string(shape.Fields[fIndex].Type)) {
+				// allowed subtype/interface implementation assignment
 			} else if shape.Fields[fIndex].Type == ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{

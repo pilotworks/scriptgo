@@ -85,11 +85,12 @@ typedef struct {
     int64_t element_size;
     unsigned char *data;
     void *owned_data;
+    int64_t element_tag;
 } scriptgo_array_internal;
 
 int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
     scriptgo_array_internal *array = handle;
-    if (array == NULL || out_str == NULL || array->element_size != sizeof(char *)) return json_fail("scriptgo json invalid argument");
+    if (array == NULL || out_str == NULL || array->element_size <= 0) return json_fail("scriptgo json invalid argument");
     size_t cap = 256, len = 0;
     char *buf = malloc(cap);
     if (buf == NULL) return json_fail("scriptgo json allocation failed");
@@ -174,6 +175,54 @@ int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t pay
     }
     case 4: // string
         return scriptgo_json_stringify_string((const char *)(uintptr_t)payload, out_str);
+    case 6: { // array
+        scriptgo_array_internal *arr = (scriptgo_array_internal *)(uintptr_t)payload;
+        if (arr == NULL) {
+            *out_str = strdup("null");
+            return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+        }
+        if (arr->element_tag == 4) {
+            return scriptgo_json_stringify_string_array(arr, out_str);
+        } else if (arr->element_size == 16) {
+            size_t cap = 256, len = 0;
+            char *buf = malloc(cap);
+            if (buf == NULL) return json_fail("scriptgo json allocation failed");
+            buf[len++] = '[';
+            buf[len] = '\0';
+            typedef struct {
+                uint32_t tag;
+                uint32_t padding;
+                uint64_t payload;
+            } scriptgo_unknown_t;
+            for (int64_t i = 0; i < arr->length; i++) {
+                scriptgo_unknown_t *elem = (scriptgo_unknown_t *)(arr->data + (size_t)i * sizeof(scriptgo_unknown_t));
+                char *elem_json = NULL;
+                if (scriptgo_json_stringify_unknown(elem->tag, elem->padding, elem->payload, &elem_json) != 0) {
+                    free(buf);
+                    return -1;
+                }
+                size_t s_len = strlen(elem_json);
+                while (len + s_len + 3 >= cap) {
+                    cap *= 2;
+                    char *new_buf = realloc(buf, cap);
+                    if (new_buf == NULL) { free(elem_json); free(buf); return json_fail("scriptgo json allocation failed"); }
+                    buf = new_buf;
+                }
+                if (i > 0) {
+                    buf[len++] = ',';
+                }
+                memcpy(buf + len, elem_json, s_len);
+                len += s_len;
+                free(elem_json);
+            }
+            buf[len++] = ']';
+            buf[len] = '\0';
+            *out_str = buf;
+            return 0;
+        } else {
+            return scriptgo_json_stringify_number_array(arr, out_str);
+        }
+    }
     default:
         if (payload == 0) {
             *out_str = strdup("null");

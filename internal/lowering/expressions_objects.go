@@ -40,6 +40,26 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		})
 		return result, objType, nil
 	}
+	var parentShape *ir.ObjectShape
+	var cleanParent string
+	if expression.InferredType != "" {
+		cleanParent = strings.TrimPrefix(expression.InferredType, "object:")
+		irT := toIRType(cleanParent)
+		cleanT := strings.TrimPrefix(string(irT), "object:")
+		if s, ok := shapes[cleanT]; ok {
+			parentShape = &s
+		} else if s, ok := anonymousShapes[cleanT]; ok {
+			parentShape = &s
+		} else if s, ok := registeredShapes[cleanT]; ok {
+			parentShape = &s
+		} else if s, ok := shapes[cleanParent]; ok {
+			parentShape = &s
+		} else if s, ok := anonymousShapes[cleanParent]; ok {
+			parentShape = &s
+		} else if s, ok := registeredShapes[cleanParent]; ok {
+			parentShape = &s
+		}
+	}
 	var fields []ir.Field
 	var propValues []string
 	for _, prop := range expression.Arguments {
@@ -72,6 +92,18 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			}
 			continue
 		}
+		if parentShape != nil && prop.Left != nil && prop.Left.Kind == "object_literal" && (prop.Left.InferredType == "" || strings.HasPrefix(prop.Left.InferredType, "{") || prop.Left.InferredType == "object") {
+			for _, pf := range parentShape.Fields {
+				if pf.Name == prop.Text {
+					t := strings.TrimPrefix(string(pf.Type), "object:")
+					if t == "" || t == "object" {
+						t = cleanParent
+					}
+					prop.Left.InferredType = t
+					break
+				}
+			}
+		}
 		val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -90,7 +122,57 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		for strings.HasPrefix(cleanInf, "(") && strings.HasSuffix(cleanInf, ")") && !strings.Contains(cleanInf, "=>") {
 			cleanInf = strings.TrimSpace(cleanInf[1 : len(cleanInf)-1])
 		}
-		if strings.Contains(cleanInf, "|") || (typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|")) {
+		if s, ok := shapes[cleanInf]; ok {
+			allFound := true
+			for _, f := range fields {
+				if fieldIndex(s, f.Name) < 0 {
+					allFound = false
+					break
+				}
+			}
+			if allFound {
+				targetS = &s
+			}
+		} else if s, ok := anonymousShapes[cleanInf]; ok {
+			allFound := true
+			for _, f := range fields {
+				if fieldIndex(s, f.Name) < 0 {
+					allFound = false
+					break
+				}
+			}
+			if allFound {
+				targetS = &s
+			}
+		}
+		if targetS == nil {
+			irT := toIRType(cleanInf)
+			cleanT := strings.TrimPrefix(string(irT), "object:")
+			if s, ok := shapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			} else if s, ok := anonymousShapes[cleanT]; ok {
+				allFound := true
+				for _, f := range fields {
+					if fieldIndex(s, f.Name) < 0 {
+						allFound = false
+						break
+					}
+				}
+				if allFound {
+					targetS = &s
+				}
+			}
+		}
+		if targetS == nil && (strings.Contains(cleanInf, "|") || (typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|"))) {
 			unionStr := cleanInf
 			if typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|") {
 				unionStr = typeAliasesIndex[cleanInf]
@@ -113,97 +195,6 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				}
 			}
 		}
-		if targetS == nil {
-			irT := toIRType(cleanInf)
-			cleanT := strings.TrimPrefix(string(irT), "object:")
-			if s, ok := shapes[cleanT]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound {
-					targetS = &s
-				}
-			} else if s, ok := anonymousShapes[cleanT]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound {
-					targetS = &s
-				}
-			} else if s, ok := shapes[cleanInf]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound {
-					targetS = &s
-				}
-			}
-		}
-		if targetS == nil {
-			irT := toIRType(cleanInf)
-			cleanT := strings.TrimPrefix(string(irT), "object:")
-			if s, ok := shapes[cleanT]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
-					targetS = &s
-				}
-			} else if s, ok := anonymousShapes[cleanT]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
-					targetS = &s
-				}
-			} else if aliased, hasAlias := typeAliasesIndex[cleanInf]; hasAlias {
-				if f, ok := anonymousObjectFields(aliased, nil); ok {
-					s := ir.ObjectShape{Name: cleanInf, Fields: f}
-					shapes[cleanInf] = s
-					allFound := true
-					for _, f := range fields {
-						if fieldIndex(s, f.Name) < 0 {
-							allFound = false
-							break
-						}
-					}
-					if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
-						targetS = &s
-					}
-				}
-			} else if s, ok := shapes[cleanInf]; ok {
-				allFound := true
-				for _, f := range fields {
-					if fieldIndex(s, f.Name) < 0 {
-						allFound = false
-						break
-					}
-				}
-				if allFound && (!strings.HasPrefix(s.Name, "__shape_") || len(s.Fields) == len(fields)) {
-					targetS = &s
-				}
-			}
-		}
 		if targetS != nil {
 			allFound := true
 			for _, f := range fields {
@@ -212,7 +203,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 					break
 				}
 			}
-			if allFound && (!strings.HasPrefix(targetS.Name, "__shape_") || len(targetS.Fields) == len(fields)) {
+			if allFound {
 				shapes[targetS.Name] = *targetS
 				shapeName = targetS.Name
 			}
@@ -254,14 +245,15 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		}
 	}
 	var targetShape ir.ObjectShape
-	if s, ok := shapes[shapeName]; ok {
+	if targetS != nil {
+		targetShape = *targetS
+		shapeName = targetS.Name
+		shapes[shapeName] = *targetS
+	} else if s, ok := shapes[shapeName]; ok {
 		targetShape = s
 	} else if s, ok := anonymousShapes[shapeName]; ok {
 		targetShape = s
 		shapes[shapeName] = s
-	} else if targetS != nil {
-		targetShape = *targetS
-		shapes[shapeName] = *targetS
 	} else {
 		targetShape = ir.ObjectShape{
 			Name:   shapeName,

@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -62,6 +63,33 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	classHierarchy = hierarchy
 	classSyntax = syntax
 	return hierarchy
+}
+
+func isSubtype(subType, superType string) bool {
+	sub := strings.TrimPrefix(subType, "object:")
+	super := strings.TrimPrefix(superType, "object:")
+	if sub == super {
+		return true
+	}
+	meta, ok := classHierarchy[sub]
+	if !ok {
+		return false
+	}
+	if meta.Extends != "" {
+		for _, rawBase := range strings.Split(meta.Extends, ",") {
+			base := strings.TrimSpace(rawBase)
+			if base != "" && (base == super || isSubtype(base, super)) {
+				return true
+			}
+		}
+	}
+	for _, imp := range meta.Implements {
+		imp = strings.TrimSpace(imp)
+		if imp != "" && (imp == super || isSubtype(imp, super)) {
+			return true
+		}
+	}
+	return false
 }
 
 func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxMethod {
@@ -205,6 +233,15 @@ func findStaticMethodInHierarchy(className, methodName string, signatures map[st
 	return ir.Function{}, "", false
 }
 
+func normalizeGenericName(s string) string {
+	s = strings.ReplaceAll(s, "<", "__")
+	s = strings.ReplaceAll(s, ">", "")
+	s = strings.ReplaceAll(s, ", ", "_")
+	s = strings.ReplaceAll(s, ",", "_")
+	s = strings.ReplaceAll(s, " ", "")
+	return s
+}
+
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	if className == "this" || className == "" {
 		for cls := range hierarchy {
@@ -252,13 +289,163 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 	} else if idx := strings.Index(className, "__"); idx != -1 {
 		cleanCls = className[:idx]
 	}
+	normClass := normalizeGenericName(className)
+	mangledCls := className
+	if strings.Contains(className, "<") && strings.HasSuffix(className, ">") {
+		mangledCls = mangleGenericTypeString(className)
+	}
+	var exactSubs []string
+	var allSubs []string
+	seenSub := map[string]bool{}
 	for subName, meta := range hierarchy {
-		if meta.Extends == className || meta.Extends == cleanCls {
-			subMangled := subName + "_" + methodName
-			if fn, ok := signatures[subMangled]; ok {
-				return fn, subMangled, true
+		isExact := false
+		isLoose := false
+		for _, imp := range meta.Implements {
+			impClean := imp
+			if idx := strings.Index(imp, "<"); idx != -1 {
+				impClean = imp[:idx]
+			} else if idx := strings.Index(imp, "__"); idx != -1 {
+				impClean = imp[:idx]
+			}
+			impMangled := imp
+			if strings.Contains(imp, "<") && strings.HasSuffix(imp, ">") {
+				impMangled = mangleGenericTypeString(imp)
+			}
+			if imp == className || impMangled == mangledCls || normalizeGenericName(imp) == normClass {
+				isExact = true
+				break
+			}
+			if imp == cleanCls || impClean == cleanCls {
+				isLoose = true
 			}
 		}
+		if !isExact && !isLoose && (meta.Extends == className || meta.Extends == cleanCls || normalizeGenericName(meta.Extends) == normClass) {
+			if meta.Extends == className || normalizeGenericName(meta.Extends) == normClass {
+				isExact = true
+			} else {
+				isLoose = true
+			}
+		}
+		subMangled := subName + "_" + methodName
+		if _, ok := signatures[subMangled]; ok && !seenSub[subName] {
+			if isExact {
+				exactSubs = append(exactSubs, subName)
+				seenSub[subName] = true
+			} else if isLoose {
+				allSubs = append(allSubs, subName)
+			}
+		}
+	}
+	candidateSubs := exactSubs
+	if len(candidateSubs) == 0 {
+		candidateSubs = allSubs
+	}
+	if len(candidateSubs) == 1 {
+		subMangled := candidateSubs[0] + "_" + methodName
+		return signatures[subMangled], subMangled, true
+	} else if len(candidateSubs) > 1 {
+		slices.Sort(candidateSubs)
+		dispatchName := cleanCls + "_" + methodName
+		if fn, ok := signatures[dispatchName]; ok {
+			return fn, dispatchName, true
+		}
+		firstSig := signatures[candidateSubs[0]+"_"+methodName]
+		var params []ir.Parameter
+		var forwardArgs []string
+		for i, p := range firstSig.Parameters {
+			if i == 0 {
+				params = append(params, ir.Parameter{Name: "this", Type: ir.TypePointer})
+				forwardArgs = append(forwardArgs, "this")
+			} else {
+				params = append(params, p)
+				forwardArgs = append(forwardArgs, p.Name)
+			}
+		}
+		dispatchFn := ir.Function{
+			Name:       dispatchName,
+			ReturnType: firstSig.ReturnType,
+			Parameters: params,
+		}
+		counter := 0
+		for i, subName := range candidateSubs {
+			subMangled := subName + "_" + methodName
+			if i == len(candidateSubs)-1 {
+				if firstSig.ReturnType == ir.TypeVoid {
+					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: subMangled,
+						Args:   forwardArgs,
+					})
+					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+						Op:   ir.OpReturn,
+						Type: ir.TypeVoid,
+					})
+				} else {
+					retVal := fmt.Sprintf("ret.%d", counter)
+					counter++
+					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   firstSig.ReturnType,
+						Result: retVal,
+						Callee: subMangled,
+						Args:   forwardArgs,
+					})
+					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+						Op:   ir.OpReturn,
+						Type: firstSig.ReturnType,
+						Args: []string{retVal},
+					})
+				}
+			} else {
+				condVar := fmt.Sprintf("is.%s.%d", subName, counter)
+				counter++
+				dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+					Op:     ir.OpInstanceOf,
+					Type:   ir.TypeBool,
+					Result: condVar,
+					Value:  subName,
+					Args:   []string{"this"},
+				})
+				var thenBody []ir.Instruction
+				if firstSig.ReturnType == ir.TypeVoid {
+					thenBody = append(thenBody, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   ir.TypeVoid,
+						Callee: subMangled,
+						Args:   forwardArgs,
+					})
+					thenBody = append(thenBody, ir.Instruction{
+						Op:   ir.OpReturn,
+						Type: ir.TypeVoid,
+					})
+				} else {
+					retVal := fmt.Sprintf("ret.%d", counter)
+					counter++
+					thenBody = append(thenBody, ir.Instruction{
+						Op:     ir.OpCall,
+						Type:   firstSig.ReturnType,
+						Result: retVal,
+						Callee: subMangled,
+						Args:   forwardArgs,
+					})
+					thenBody = append(thenBody, ir.Instruction{
+						Op:   ir.OpReturn,
+						Type: firstSig.ReturnType,
+						Args: []string{retVal},
+					})
+				}
+				dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
+					Op:   ir.OpIf,
+					Type: ir.TypeVoid,
+					Args: []string{condVar},
+					Then: thenBody,
+				})
+			}
+		}
+		extraFunctions = append(extraFunctions, dispatchFn)
+		signatures[dispatchName] = dispatchFn
+		return dispatchFn, dispatchName, true
 	}
 	if className != "" && className != "this" {
 		for sigName, fn := range signatures {

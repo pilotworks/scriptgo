@@ -106,7 +106,11 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]str
 			classEnv[k] = v
 		}
 		if res.Class != nil {
-			classEnv["this"] = res.Class.Name
+			clsName := res.Class.Name
+			if clsName == "" {
+				clsName = res.Name
+			}
+			classEnv["this"] = clsName
 		}
 		var nonGenericMethods []typescriptgo.SyntaxMethod
 		for _, m := range res.Class.Methods {
@@ -226,6 +230,10 @@ func rewriteExpr(expr *typescriptgo.SyntaxExpression, env map[string]string, gen
 	}
 	if res.WhenFalse != nil {
 		res.WhenFalse = rewriteExpr(res.WhenFalse, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+	}
+	if res.Function != nil {
+		fnStmt := rewriteStatementTypes(*res.Function, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+		res.Function = &fnStmt
 	}
 	return res
 }

@@ -21,12 +21,12 @@ func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, e
 			}
 		}
 		scanAndSpecializeExpr(stmt.Expression, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
-	}
-	if stmt.Expression != nil {
+	} else if stmt.Expression != nil {
 		scanAndSpecializeExpr(stmt.Expression, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
 	}
 	for _, p := range stmt.Parameters {
 		if p.Type != "" {
+			env[p.Name] = p.Type
 			scanTypeForGenerics(p.Type, fileName, genericClasses, reqCls)
 		}
 		if p.Initializer != nil {
@@ -71,13 +71,23 @@ func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, e
 			if m.Type != "" {
 				scanTypeForGenerics(m.Type, fileName, genericClasses, reqCls)
 			}
+			mEnv := map[string]string{}
+			for k, v := range env {
+				mEnv[k] = v
+			}
+			clsName := stmt.Class.Name
+			if clsName == "" {
+				clsName = stmt.Name
+			}
+			mEnv["this"] = clsName
 			for _, p := range m.Parameters {
 				if p.Type != "" {
 					scanTypeForGenerics(p.Type, fileName, genericClasses, reqCls)
+					mEnv[p.Name] = p.Type
 				}
 			}
 			for _, s := range m.Body {
-				scanAndSpecializeStmt(s, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
+				scanAndSpecializeStmt(s, fileName, mEnv, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
 			}
 		}
 	}
@@ -259,10 +269,14 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescr
 }
 
 func inferTypeArgsForFunc(fnTemplate typescriptgo.SyntaxStatement, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
+	return inferTypeArgsForFuncDepth(fnTemplate, args, env, funcTypes, 0)
+}
+
+func inferTypeArgsForFuncDepth(fnTemplate typescriptgo.SyntaxStatement, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) []string {
 	inferred := map[string]string{}
 	for i, param := range fnTemplate.Parameters {
 		if i < len(args) {
-			argType := inferExprType(args[i], env, funcTypes)
+			argType := inferExprTypeDepth(args[i], env, funcTypes, depth)
 			matchTypeParam(param.Type, argType, inferred)
 		}
 	}
@@ -323,14 +337,38 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 	}
 	paramType = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(paramType, "| null"), "| undefined"))
 	paramType = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(paramType, "null |"), "undefined |"))
+	paramType = strings.TrimPrefix(paramType, "object:")
 	argType = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(argType, "| null"), "| undefined"))
 	argType = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(argType, "null |"), "undefined |"))
+	argType = strings.TrimPrefix(argType, "object:")
 
 	if strings.Contains(argType, "__") && !strings.Contains(argType, "<") {
 		idx := strings.Index(argType, "__")
 		base := argType[:idx]
-		inner := strings.ReplaceAll(argType[idx+2:], "__", ", ")
-		argType = base + "<" + inner + ">"
+		if _, ok := currGenericClasses[base]; ok {
+			inner := strings.ReplaceAll(argType[idx+2:], "__", ", ")
+			argType = base + "<" + inner + ">"
+		} else if _, ok := currGenericTypeAliases[base]; ok {
+			inner := strings.ReplaceAll(argType[idx+2:], "__", ", ")
+			argType = base + "<" + inner + ">"
+		}
+	}
+
+	if strings.HasSuffix(paramType, "[]") && strings.HasSuffix(argType, "[]") {
+		matchTypeParam(paramType[:len(paramType)-2], argType[:len(argType)-2], inferred)
+		return
+	}
+	if strings.HasPrefix(paramType, "Array<") && strings.HasSuffix(paramType, ">") {
+		innerParam := strings.TrimSuffix(strings.TrimPrefix(paramType, "Array<"), ">")
+		if strings.HasSuffix(argType, "[]") {
+			matchTypeParam(innerParam, argType[:len(argType)-2], inferred)
+			return
+		}
+		if strings.HasPrefix(argType, "Array<") && strings.HasSuffix(argType, ">") {
+			innerArg := strings.TrimSuffix(strings.TrimPrefix(argType, "Array<"), ">")
+			matchTypeParam(innerParam, innerArg, inferred)
+			return
+		}
 	}
 
 	if strings.HasPrefix(paramType, "[") && strings.HasSuffix(paramType, "]") {
@@ -358,34 +396,76 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 		}
 		return
 	}
-	if strings.HasSuffix(paramType, "[]") && strings.HasSuffix(argType, "[]") {
-		matchTypeParam(paramType[:len(paramType)-2], argType[:len(argType)-2], inferred)
+	if strings.HasPrefix(paramType, "__shape_") {
+		pClean := strings.TrimPrefix(paramType, "__shape_")
+		pTokens := strings.Split(pClean, "_")
+		var pParts []string
+		for i := 0; i < len(pTokens); i += 2 {
+			if i+1 < len(pTokens) {
+				pParts = append(pParts, pTokens[i+1])
+			}
+		}
+		var aParts []string
+		if strings.HasPrefix(argType, "__shape_") {
+			aClean := strings.TrimPrefix(argType, "__shape_")
+			aTokens := strings.Split(aClean, "_")
+			for i := 0; i < len(aTokens); i += 2 {
+				if i+1 < len(aTokens) {
+					aParts = append(aParts, aTokens[i+1])
+				}
+			}
+		} else if strings.HasPrefix(argType, "[") && strings.HasSuffix(argType, "]") {
+			aInner := argType[1 : len(argType)-1]
+			aParts = strings.Split(aInner, ",")
+		}
+		minLen := len(pParts)
+		if len(aParts) < minLen {
+			minLen = len(aParts)
+		}
+		for i := 0; i < minLen; i++ {
+			matchTypeParam(strings.TrimSpace(pParts[i]), strings.TrimSpace(aParts[i]), inferred)
+		}
 		return
 	}
-	if strings.HasPrefix(paramType, "Array<") && strings.HasSuffix(paramType, ">") {
-		innerParam := strings.TrimSuffix(strings.TrimPrefix(paramType, "Array<"), ">")
-		if strings.HasSuffix(argType, "[]") {
-			matchTypeParam(innerParam, argType[:len(argType)-2], inferred)
-			return
-		}
-		if strings.HasPrefix(argType, "Array<") && strings.HasSuffix(argType, ">") {
-			innerArg := strings.TrimSuffix(strings.TrimPrefix(argType, "Array<"), ">")
-			matchTypeParam(innerParam, innerArg, inferred)
-			return
-		}
-	}
-	if strings.Contains(paramType, "<") && strings.HasSuffix(paramType, ">") && strings.Contains(argType, "<") && strings.HasSuffix(argType, ">") {
+	if strings.Contains(paramType, "<") && strings.HasSuffix(paramType, ">") {
 		pIdx := strings.Index(paramType, "<")
-		aIdx := strings.Index(argType, "<")
-		if paramType[:pIdx] == argType[:aIdx] {
-			pParts := splitTypeArguments(paramType[pIdx+1 : len(paramType)-1])
-			aParts := splitTypeArguments(argType[aIdx+1 : len(argType)-1])
-			minLen := len(pParts)
-			if len(aParts) < minLen {
-				minLen = len(aParts)
+		pName := paramType[:pIdx]
+		pParts := splitTypeArguments(paramType[pIdx+1 : len(paramType)-1])
+		if alias, ok := currGenericTypeAliases[pName]; ok {
+			tParams := alias.TypeParameters
+			if len(tParams) == 0 && alias.Class != nil {
+				tParams = alias.Class.TypeParameters
 			}
-			for i := 0; i < minLen; i++ {
-				matchTypeParam(pParts[i], aParts[i], inferred)
+			if len(pParts) == len(tParams) {
+				subst := make(map[string]string, len(pParts))
+				for i, tp := range tParams {
+					subst[tp] = pParts[i]
+				}
+				expanded := substituteType(alias.Type, subst)
+				matchTypeParam(expanded, argType, inferred)
+				return
+			}
+		}
+		if strings.Contains(argType, "<") && strings.HasSuffix(argType, ">") {
+			aIdx := strings.Index(argType, "<")
+			if paramType[:pIdx] == argType[:aIdx] {
+				aParts := splitTypeArguments(argType[aIdx+1 : len(argType)-1])
+				minLen := len(pParts)
+				if len(aParts) < minLen {
+					minLen = len(aParts)
+				}
+				for i := 0; i < minLen; i++ {
+					matchTypeParam(pParts[i], aParts[i], inferred)
+				}
+				return
+			}
+		}
+		if meta, ok := classHierarchy[argType]; ok {
+			for _, imp := range meta.Implements {
+				matchTypeParam(paramType, imp, inferred)
+			}
+			if meta.Extends != "" {
+				matchTypeParam(paramType, meta.Extends, inferred)
 			}
 			return
 		}
@@ -409,11 +489,20 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 }
 
 func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) string {
-	if expr == nil {
+	return inferExprTypeDepth(expr, env, funcTypes, 0)
+}
+
+func inferExprTypeDepth(expr *typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) string {
+	if expr == nil || depth > 8 {
 		return ""
 	}
 	if funcTypes == nil {
 		funcTypes = currFuncTypes
+	}
+	if expr.Kind == "this" || expr.Text == "this" || expr.InferredType == "this" {
+		if t, ok := env["this"]; ok && t != "" {
+			return t
+		}
 	}
 	if expr.InferredType != "" {
 		return expr.InferredType
@@ -425,6 +514,11 @@ func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, f
 		return "string"
 	case "bool":
 		return "bool"
+	case "this":
+		if t, ok := env["this"]; ok && t != "" {
+			return t
+		}
+		return ""
 	case "identifier":
 		if t, ok := env[expr.Text]; ok && t != "" {
 			return t
@@ -437,7 +531,7 @@ func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, f
 		return ""
 	case "array":
 		if len(expr.Arguments) > 0 {
-			elemType := inferExprType(expr.Arguments[0], env, funcTypes)
+			elemType := inferExprTypeDepth(expr.Arguments[0], env, funcTypes, depth+1)
 			if elemType != "" {
 				return elemType + "[]"
 			}
@@ -457,7 +551,7 @@ func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, f
 				if fnTemplate, ok := currGenericFuncs[fnName]; ok {
 					typeArgs := expr.TypeArguments
 					if len(typeArgs) == 0 {
-						typeArgs = inferTypeArgsForFunc(fnTemplate, expr.Arguments, env, funcTypes)
+						typeArgs = inferTypeArgsForFuncDepth(fnTemplate, expr.Arguments, env, funcTypes, depth+1)
 					}
 					if len(typeArgs) == len(fnTemplate.TypeParameters) {
 						subst := make(map[string]string, len(typeArgs))
@@ -468,7 +562,7 @@ func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, f
 					}
 				}
 			} else if (expr.Left.Kind == "property" || expr.Left.Kind == "member") && expr.Left.Left != nil {
-				recvType := inferExprType(expr.Left.Left, env, funcTypes)
+				recvType := inferExprTypeDepth(expr.Left.Left, env, funcTypes, depth+1)
 				cleanRecv := strings.TrimPrefix(recvType, "object:")
 				var className string
 				var classTypeArgs []string

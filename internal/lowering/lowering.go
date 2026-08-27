@@ -43,6 +43,13 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
 	inProgressVars = map[string]bool{}
+	anonymousShapes = make(map[string]ir.ObjectShape)
+	registeredShapes = nil
+	generatorASTIndex = map[string]typescriptgo.SyntaxStatement{}
+	defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+	restParamsIndex = map[string]bool{}
+	activeReturnFinallyStack = nil
+	activeThrowFinallyStack = nil
 	clearMetadataRegistry()
 	ClearDiagnostics()
 	var err error
@@ -228,18 +235,44 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					vType = statement.InferredType
 				}
 				typ := toIRType(vType)
-				if statement.Expression != nil && (typ == "" || (typ == ir.TypePointer && strings.Contains(vType, "|"))) {
-					switch statement.Expression.Kind {
-					case "number", "literal":
-						if _, err := strconv.ParseFloat(statement.Expression.Text, 64); err == nil {
-							typ = ir.TypeNumber
+				if statement.Expression != nil {
+					if typ == "" || typ == ir.TypeNumber {
+						switch statement.Expression.Kind {
+						case "arrow_function", "function":
+							typ = ir.TypeClosure
+						case "new":
+							if statement.Expression.Left != nil {
+								typ = ir.Type("object:" + statement.Expression.Left.Text)
+							}
+						case "call":
+							if statement.Expression.Left != nil {
+								calleeName := statement.Expression.Left.Text
+								if calleeVar, ok := topLevelVars[calleeName]; ok {
+									if isReturningClosure(calleeVar) {
+										typ = ir.TypeClosure
+									} else if calleeVar.Type != "" {
+										t := toIRType(calleeVar.Type)
+										if t == ir.TypeClosure || strings.HasPrefix(string(t), "object:") {
+											typ = t
+										}
+									}
+								}
+							}
 						}
-					case "string":
-						typ = ir.TypeString
-					case "bool":
-						typ = ir.TypeBool
-					case "bigint":
-						typ = ir.TypeBigInt
+					}
+					if typ == "" || (typ == ir.TypePointer && strings.Contains(vType, "|")) {
+						switch statement.Expression.Kind {
+						case "number", "literal":
+							if _, err := strconv.ParseFloat(statement.Expression.Text, 64); err == nil {
+								typ = ir.TypeNumber
+							}
+						case "string":
+							typ = ir.TypeString
+						case "bool":
+							typ = ir.TypeBool
+						case "bigint":
+							typ = ir.TypeBigInt
+						}
 					}
 				}
 				if typ == "" {

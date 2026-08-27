@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -57,12 +58,13 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, typ, nil
 	case "array":
 		if len(expression.Arguments) == 0 {
-			arrType := toIRType(expression.InferredType)
-			if !strings.HasSuffix(string(arrType), "[]") && arrType != ir.TypeNumberArray && arrType != ir.TypeStringArray && arrType != ir.TypeBoolArray && arrType != ir.TypeBigIntArray && arrType != ir.TypeSymbolArray {
-				if varType, ok := env[result]; ok && strings.HasSuffix(string(varType), "[]") {
-					arrType = varType
-				} else {
-					arrType = ir.TypeNumberArray
+			arrType := ir.TypeNumberArray
+			if varType, ok := env[result]; ok && strings.HasSuffix(string(varType), "[]") {
+				arrType = varType
+			} else if expression.InferredType != "" {
+				inferredIR := toIRType(expression.InferredType)
+				if strings.HasSuffix(string(inferredIR), "[]") || inferredIR == ir.TypeNumberArray || inferredIR == ir.TypeStringArray || inferredIR == ir.TypeBoolArray || inferredIR == ir.TypeBigIntArray || inferredIR == ir.TypeSymbolArray {
+					arrType = inferredIR
 				}
 			}
 			if result == "" {
@@ -123,7 +125,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					}
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 					return result, arrType, nil
-				} else if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+				} else if _, ok := tupleFields(trimmed); ok {
 					inferredTuple = true
 				}
 			}
@@ -206,6 +208,17 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 						}
 					}
 				}
+			} else if firstElem.Left != nil {
+				if firstElem.Left.InferredType != "" {
+					inf := toIRType(firstElem.Left.InferredType)
+					if strings.HasSuffix(string(inf), "[]") {
+						arrType = inf
+					}
+				} else if firstElem.Left.Kind == "identifier" {
+					if t, ok := env[firstElem.Left.Text]; ok && strings.HasSuffix(string(t), "[]") {
+						arrType = t
+					}
+				}
 			}
 		}
 		elemTypeStr := ""
@@ -224,7 +237,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				elem.InferredType = elemTypeStr
 			}
 			if elem.Kind == "spread" {
-				spreadVal, _, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
+				spreadVal, spreadType, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return "", "", err
 				}
@@ -237,9 +250,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				condBody = append(condBody, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condVar, Operator: "<", Args: []string{idxVar, lenVar}, Span: toIRSpan(path, elem.Span)})
 				var loopBody []ir.Instruction
 				itemVar := nextTemp(counter)
-				itemType := ir.TypeNumber
-				if arrType == ir.TypeStringArray {
-					itemType = ir.TypeString
+				itemType := arrayElementType(arrType)
+				if spreadType != "" && strings.HasSuffix(string(spreadType), "[]") {
+					itemType = arrayElementType(spreadType)
 				}
 				loopBody = append(loopBody, ir.Instruction{Op: ir.OpIndex, Type: itemType, Result: itemVar, Args: []string{spreadVal, idxVar}, Span: toIRSpan(path, elem.Span)})
 				pushRes := nextTemp(counter)
@@ -519,14 +532,24 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 			fType := ir.TypeUnknown
-			if shape, exists := shapes[shapeName]; exists && idx < len(shape.Fields) {
-				fType = shape.Fields[idx].Type
-			} else if shape, exists := anonymousShapes[shapeName]; exists && idx < len(shape.Fields) {
-				fType = shape.Fields[idx].Type
+			if shape, exists := shapes[shapeName]; exists {
+				if idx < len(shape.Fields) {
+					fType = shape.Fields[idx].Type
+				} else if len(shape.Fields) > 0 {
+					fType = shape.Fields[len(shape.Fields)-1].Type
+				}
+			} else if shape, exists := anonymousShapes[shapeName]; exists {
+				if idx < len(shape.Fields) {
+					fType = shape.Fields[idx].Type
+				} else if len(shape.Fields) > 0 {
+					fType = shape.Fields[len(shape.Fields)-1].Type
+				}
 			} else {
 				parts := strings.Split(shapeName, "_")
 				if idx < len(parts) {
 					fType = toIRType(parts[idx])
+				} else if len(parts) > 0 {
+					fType = toIRType(parts[len(parts)-1])
 				}
 			}
 			if fType == "" {
@@ -692,7 +715,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeClosure, nil
 		}
 		if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
-			if topVar.VarDeclKind == "let" || topVar.VarDeclKind == "var" {
+			isPrimitiveConst := topVar.VarDeclKind == "const" && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")
+			if !isPrimitiveConst || function.Name != "main" {
 				varTyp := toIRType(topVar.Type)
 				if varTyp == "" {
 					varTyp = toIRType(topVar.InferredType)
@@ -919,11 +943,21 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				return "", "", fmt.Errorf("conditional expression requires a bool condition")
 			}
 		}
-		whenTrue, trueType, err := lowerExpression(path, expression.WhenTrue, "", function, env, counter, shapes, signatures)
+		resSlot := result
+		if resSlot == "" {
+			resSlot = nextTemp(counter)
+		}
+		thenFn := ir.Function{Name: function.Name}
+		thenEnv := make(map[string]ir.Type, len(env))
+		maps.Copy(thenEnv, env)
+		whenTrue, trueType, err := lowerExpression(path, expression.WhenTrue, "", &thenFn, thenEnv, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
-		whenFalse, falseType, err := lowerExpression(path, expression.WhenFalse, "", function, env, counter, shapes, signatures)
+		elseFn := ir.Function{Name: function.Name}
+		elseEnv := make(map[string]ir.Type, len(env))
+		maps.Copy(elseEnv, env)
+		whenFalse, falseType, err := lowerExpression(path, expression.WhenFalse, "", &elseFn, elseEnv, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
@@ -934,7 +968,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				if trueType == ir.TypeString {
 					zeroVal = "null"
 				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: trueType, Result: whenFalse, Value: zeroVal, Span: toIRSpan(path, expression.WhenFalse.Span)})
+				elseFn.Body = append(elseFn.Body, ir.Instruction{Op: ir.OpConst, Type: trueType, Result: whenFalse, Value: zeroVal, Span: toIRSpan(path, expression.WhenFalse.Span)})
 			} else if expression.WhenTrue != nil && (expression.WhenTrue.Kind == "null" || expression.WhenTrue.Kind == "undefined") {
 				trueType = falseType
 				whenTrue = nextTemp(counter)
@@ -942,25 +976,59 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				if falseType == ir.TypeString {
 					zeroVal = "null"
 				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})
+				thenFn.Body = append(thenFn.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})
 			} else if trueType == ir.TypeUnknown {
 				boxed := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenFalse}, Span: toIRSpan(path, expression.WhenFalse.Span)})
+				elseFn.Body = append(elseFn.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenFalse}, Span: toIRSpan(path, expression.WhenFalse.Span)})
 				whenFalse = boxed
 			} else if falseType == ir.TypeUnknown {
 				boxed := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenTrue}, Span: toIRSpan(path, expression.WhenTrue.Span)})
+				thenFn.Body = append(thenFn.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{whenTrue}, Span: toIRSpan(path, expression.WhenTrue.Span)})
 				whenTrue = boxed
 				trueType = ir.TypeUnknown
 			} else {
 				return "", "", fmt.Errorf("conditional branches must have the same type")
 			}
 		}
-		if result == "" {
-			result = nextTemp(counter)
+		initVal := "0"
+		if trueType == ir.TypeBool {
+			initVal = "false"
+		} else if trueType == ir.TypeString {
+			initVal = ""
+		} else if strings.HasPrefix(string(trueType), "object:") || trueType == ir.TypePointer {
+			initVal = "null"
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: trueType, Result: result, Args: []string{condition, whenTrue, whenFalse}, Span: toIRSpan(path, expression.Span)})
-		return result, trueType, nil
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   trueType,
+			Result: resSlot,
+			Value:  initVal,
+			Span:   toIRSpan(path, expression.Span),
+		})
+		thenFn.Body = append(thenFn.Body, ir.Instruction{
+			Op:     ir.OpAssign,
+			Type:   trueType,
+			Result: resSlot,
+			Args:   []string{whenTrue},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		elseFn.Body = append(elseFn.Body, ir.Instruction{
+			Op:     ir.OpAssign,
+			Type:   trueType,
+			Result: resSlot,
+			Args:   []string{whenFalse},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpIf,
+			Type: ir.TypeVoid,
+			Args: []string{condition},
+			Then: thenFn.Body,
+			Else: elseFn.Body,
+			Span: toIRSpan(path, expression.Span),
+		})
+		env[resSlot] = trueType
+		return resSlot, trueType, nil
 	case "property", "optional_property":
 		return lowerPropertyExpression(path, expression, result, function, env, counter, shapes, signatures)
 	case "object_literal":
@@ -1032,4 +1100,25 @@ func nextTemp(counter *int) string {
 
 func isComparison(operator string) bool {
 	return operator == "==" || operator == "===" || operator == "!=" || operator == "!==" || operator == "<" || operator == "<=" || operator == ">" || operator == ">="
+}
+
+func arrayElementType(arrType ir.Type) ir.Type {
+	switch arrType {
+	case ir.TypeNumberArray:
+		return ir.TypeNumber
+	case ir.TypeStringArray:
+		return ir.TypeString
+	case ir.TypeBoolArray:
+		return ir.TypeBool
+	case ir.TypeBigIntArray:
+		return ir.TypeBigInt
+	case ir.TypeSymbolArray:
+		return ir.TypeSymbol
+	default:
+		s := string(arrType)
+		if strings.HasSuffix(s, "[]") {
+			return toIRType(strings.TrimSuffix(s, "[]"))
+		}
+		return ir.TypeNumber
+	}
 }

@@ -20,6 +20,7 @@ var (
 // SpecializeGenerics monomorphizes generic functions and classes based on
 // concrete type arguments at call sites, instantiations, and type annotations.
 func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
+	buildClassHierarchy(program)
 	genericFuncs := map[string]typescriptgo.SyntaxStatement{}
 	genericClasses := map[string]typescriptgo.SyntaxClass{}
 	genericClassKinds := map[string]string{}
@@ -476,7 +477,14 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		}
 		for i := 0; i < len(funcInstances[file.FileName]); i++ {
 			fnStmt := funcInstances[file.FileName][i]
-			rewrittenFn := rewriteStatementTypes(fnStmt, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
+			fnEnv := make(map[string]string, len(fileEnv)+len(fnStmt.Parameters))
+			maps.Copy(fnEnv, fileEnv)
+			for _, p := range fnStmt.Parameters {
+				if p.Type != "" {
+					fnEnv[p.Name] = p.Type
+				}
+			}
+			rewrittenFn := rewriteStatementTypes(fnStmt, fnEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
 			newStmts = append(newStmts, rewrittenFn)
 		}
 

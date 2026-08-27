@@ -715,8 +715,7 @@ func lowerCallExpression(
 			} else if expression.InferredType != "" {
 				retType = toIRType(expression.InferredType)
 			} else if expression.Left.InferredType != "" && strings.Contains(expression.Left.InferredType, "=>") {
-				parts := strings.Split(expression.Left.InferredType, "=>")
-				retStr := strings.TrimSpace(parts[len(parts)-1])
+				retStr := extractTopLevelReturnType(expression.Left.InferredType)
 				if parsed := toIRType(retStr); parsed != "" {
 					retType = parsed
 				}
@@ -802,6 +801,15 @@ func lowerCallExpression(
 			retType = target.ReturnType
 		} else if expression.InferredType != "" {
 			retType = toIRType(expression.InferredType)
+		} else if topVar, ok := topLevelVars[callee]; ok {
+			if isReturningClosure(topVar) {
+				retType = ir.TypeClosure
+			} else if topVar.Type != "" {
+				t := toIRType(topVar.Type)
+				if t == ir.TypeClosure || strings.HasPrefix(string(t), "object:") {
+					retType = t
+				}
+			}
 		}
 		calleeName := callee
 		if targetName, ok := env[callee+".closureTarget"]; ok && targetName != "" {
@@ -840,8 +848,8 @@ func lowerCallExpression(
 			if expression.InferredType != "" {
 				retType = toIRType(expression.InferredType)
 			} else if strings.Contains(string(closureType), "=>") {
-				arrowParts := strings.Split(string(closureType), "=>")
-				retType = toIRType(strings.TrimSpace(arrowParts[len(arrowParts)-1]))
+				retStr := extractTopLevelReturnType(string(closureType))
+				retType = toIRType(retStr)
 			} else if rt, ok := env[closureVal+".retType"]; ok && rt != "" {
 				retType = rt
 			} else if strings.HasPrefix(string(closureType), "object:Generator_") {

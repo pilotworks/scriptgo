@@ -101,22 +101,40 @@ func substituteType(typ string, subst map[string]string) string {
 	hasObj := strings.HasPrefix(typ, "object:")
 	clean := strings.TrimPrefix(typ, "object:")
 	if strings.Contains(clean, "=>") {
-		parts := strings.Split(clean, "=>")
-		paramPart := strings.TrimSpace(parts[0])
-		retPart := strings.TrimSpace(parts[1])
-		substRet := substituteType(retPart, subst)
-		substParams := paramPart
-		for k, v := range subst {
-			substParams = strings.ReplaceAll(substParams, ": "+k, ": "+v)
-			substParams = strings.ReplaceAll(substParams, ":"+k, ":"+v)
-			substParams = strings.ReplaceAll(substParams, " "+k, " "+v)
-			substParams = strings.ReplaceAll(substParams, "("+k, "("+v)
+		depth := 0
+		splitIdx := -1
+		for i := 0; i < len(clean)-1; i++ {
+			switch clean[i] {
+			case '(', '<', '{', '[':
+				depth++
+			case ')', '>', '}', ']':
+				if depth > 0 {
+					depth--
+				}
+			case '=':
+				if depth == 0 && clean[i+1] == '>' {
+					splitIdx = i
+					break
+				}
+			}
 		}
-		res := substParams + " => " + substRet
-		if hasObj {
-			return "object:" + res
+		if splitIdx != -1 {
+			paramPart := strings.TrimSpace(clean[:splitIdx])
+			retPart := strings.TrimSpace(clean[splitIdx+2:])
+			substRet := substituteType(retPart, subst)
+			substParams := substituteType(paramPart, subst)
+			for k, v := range subst {
+				substParams = strings.ReplaceAll(substParams, ": "+k, ": "+v)
+				substParams = strings.ReplaceAll(substParams, ":"+k, ":"+v)
+				substParams = strings.ReplaceAll(substParams, " "+k, " "+v)
+				substParams = strings.ReplaceAll(substParams, "("+k, "("+v)
+			}
+			res := substParams + " => " + substRet
+			if hasObj {
+				return "object:" + res
+			}
+			return res
 		}
-		return res
 	}
 	if strings.Contains(clean, "|") {
 		parts := strings.Split(clean, "|")
@@ -165,6 +183,34 @@ func substituteType(typ string, subst map[string]string) string {
 			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
 		}
 		res := "[" + strings.Join(newParts, ", ") + "]"
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
+	if strings.HasPrefix(clean, "__shape_") {
+		cleanShape := strings.TrimPrefix(clean, "__shape_")
+		tokens := strings.Split(cleanShape, "_")
+		var newTokens []string
+		for i := 0; i < len(tokens); i += 2 {
+			if i+1 < len(tokens) {
+				fName := tokens[i]
+				fType := tokens[i+1]
+				isArr := false
+				if strings.HasSuffix(fType, "arr") {
+					isArr = true
+					fType = strings.TrimSuffix(strings.TrimSuffix(fType, "_arr"), "arr")
+				}
+				substType := substituteType(fType, subst)
+				cleanSubst := strings.ReplaceAll(substType, ":", "_")
+				cleanSubst = strings.ReplaceAll(cleanSubst, "[]", "_arr")
+				if isArr && !strings.HasSuffix(cleanSubst, "_arr") {
+					cleanSubst = cleanSubst + "_arr"
+				}
+				newTokens = append(newTokens, fName, cleanSubst)
+			}
+		}
+		res := "__shape_" + strings.Join(newTokens, "_")
 		if hasObj {
 			return "object:" + res
 		}

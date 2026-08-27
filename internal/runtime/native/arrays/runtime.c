@@ -68,7 +68,9 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
     if (array == NULL || out_value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    if (check_index(array, index, &offset) != 0) return -1;
+    if (check_index(array, index, &offset) != 0) {
+        return -1;
+    }
     if (array->element_size == 16) {
         memcpy(out_value, array->data + offset + 8, 8);
         return 0;
@@ -85,10 +87,18 @@ int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
     if (array == NULL || out_value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    if (check_index(array, index, &offset) != 0) return -1;
     tag_ptr = (uint32_t *)out_value;
+    tag_ptr[0] = 0; // UNDEFINED
     tag_ptr[1] = 0; // padding
     payload_ptr = (uint64_t *)((char *)out_value + 8);
+    *payload_ptr = 0;
+    if (index != index || index < 0 || index != (double)(int64_t)index) {
+        return fail("scriptgo array index out of bounds");
+    }
+    if ((int64_t)index >= array->length) {
+        return 0;
+    }
+    offset = (size_t)index * (size_t)array->element_size;
     if (array->element_size == 16) {
         memcpy(out_value, array->data + offset, 16);
         return 0;
@@ -273,6 +283,24 @@ int scriptgo_array_index_of_string(void *handle, const char *target, double from
     return 0;
 }
 
+int scriptgo_array_index_of_ptr(void *handle, const void *target, double from_index, double *out_index) {
+    scriptgo_array *array = handle;
+    int64_t start, i;
+    if (array == NULL || out_index == NULL || array->element_size != sizeof(void *)) {
+        return fail("scriptgo array access failed");
+    }
+    start = from_index < 0.0 ? 0 : (int64_t)from_index;
+    for (i = start; i < array->length; i++) {
+        const void *val = *(const void **)(array->data + (size_t)i * sizeof(void *));
+        if (val == target) {
+            *out_index = (double)i;
+            return 0;
+        }
+    }
+    *out_index = -1.0;
+    return 0;
+}
+
 int scriptgo_array_includes_number(void *handle, double target, double *out_bool) {
     double idx = -1.0;
     if (scriptgo_array_index_of_number(handle, target, 0.0, &idx) != 0) return -1;
@@ -283,6 +311,13 @@ int scriptgo_array_includes_number(void *handle, double target, double *out_bool
 int scriptgo_array_includes_string(void *handle, const char *target, double *out_bool) {
     double idx = -1.0;
     if (scriptgo_array_index_of_string(handle, target, 0.0, &idx) != 0) return -1;
+    *out_bool = idx >= 0.0 ? 1.0 : 0.0;
+    return 0;
+}
+
+int scriptgo_array_includes_ptr(void *handle, const void *target, double *out_bool) {
+    double idx = -1.0;
+    if (scriptgo_array_index_of_ptr(handle, target, 0.0, &idx) != 0) return -1;
     *out_bool = idx >= 0.0 ? 1.0 : 0.0;
     return 0;
 }

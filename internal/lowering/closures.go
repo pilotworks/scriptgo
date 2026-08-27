@@ -157,19 +157,32 @@ func lowerClosureExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
+	if fnStmt == nil {
+		return "", "", fmt.Errorf("closure syntax statement is nil")
+	}
 	closureCounter++
 	closureName := fmt.Sprintf("__closure_%d", closureCounter)
 
 	capturedVars := findFreeVariables(fnStmt, env, result)
 
+	fnType := fnStmt.Type
+	if strings.Contains(fnType, "=>") {
+		fnType = extractTopLevelReturnType(fnType)
+	}
 	// Create closure function
 	targetFn := ir.Function{
 		Name:       closureName,
 		Span:       toIRSpan(path, fnStmt.Span),
-		ReturnType: toIRType(fnStmt.Type),
+		ReturnType: toIRType(fnType),
 	}
-	if (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) && fnStmt.InferredType != "" {
-		targetFn.ReturnType = toIRType(fnStmt.InferredType)
+	if isReturningClosure(*fnStmt) {
+		targetFn.ReturnType = ir.TypeClosure
+	} else if (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) && fnStmt.InferredType != "" {
+		inferred := fnStmt.InferredType
+		if strings.Contains(inferred, "=>") {
+			inferred = extractTopLevelReturnType(inferred)
+		}
+		targetFn.ReturnType = toIRType(inferred)
 	}
 	if (fnStmt.IsAsync || fnStmt.Kind == "async_function") && (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) {
 		targetFn.ReturnType = ir.Type("object:Promise")

@@ -374,8 +374,13 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		if arrayType == ir.TypeStringArray {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_string(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
+		elemLLVMType := arrayElementLLVMType(arrayType)
+		if elemLLVMType == "ptr" {
+			if arrayType == ir.TypeStringArray {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_string(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
+			} else {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_ptr(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
+			}
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_number(ptr %%%s, double %%%s, double %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromArg, resSlot)
 		}
@@ -390,8 +395,13 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		if arrayType == ir.TypeStringArray {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
+		incElemLLVMType := arrayElementLLVMType(arrayType)
+		if incElemLLVMType == "ptr" {
+			if arrayType == ir.TypeStringArray {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
+			} else {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
+			}
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], resSlot)
 		}
@@ -762,11 +772,24 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fnName := "scriptgo_array_sort_number"
-		if arrayType == ir.TypeStringArray {
-			fnName = "scriptgo_array_sort_string"
+		elemLLVMType := arrayElementLLVMType(arrayType)
+		if len(instruction.Args) > 1 {
+			fnName := "scriptgo_array_sort_closure_number"
+			if elemLLVMType == "ptr" {
+				if arrayType == ir.TypeStringArray {
+					fnName = "scriptgo_array_sort_closure_string"
+				} else {
+					fnName = "scriptgo_array_sort_closure_ptr"
+				}
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], instruction.Args[1], slot))
+		} else {
+			fnName := "scriptgo_array_sort_number"
+			if arrayType == ir.TypeStringArray {
+				fnName = "scriptgo_array_sort_string"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], slot))
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil
