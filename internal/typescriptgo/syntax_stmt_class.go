@@ -41,10 +41,13 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					case ast.KindExpressionWithTypeArguments:
 						exprNode := t.AsExpressionWithTypeArguments()
 						if exprNode != nil && exprNode.Expression != nil {
-							class.Extends = exprNode.Expression.Text()
+							class.Extends = syntaxMemberName(exprNode.Expression)
 						}
 					case ast.KindTypeReference:
-						class.Extends = t.AsTypeReferenceNode().TypeName.Text()
+						ref := t.AsTypeReferenceNode()
+						if ref != nil && ref.TypeName != nil {
+							class.Extends = syntaxMemberName(ref.TypeName)
+						}
 					}
 				}
 			} else if hc.Token == ast.KindImplementsKeyword && hc.Types != nil {
@@ -52,10 +55,13 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					if t.Kind == ast.KindExpressionWithTypeArguments {
 						exprNode := t.AsExpressionWithTypeArguments()
 						if exprNode != nil && exprNode.Expression != nil {
-							class.Implements = append(class.Implements, exprNode.Expression.Text())
+							class.Implements = append(class.Implements, syntaxMemberName(exprNode.Expression))
 						}
 					} else if t.Kind == ast.KindTypeReference {
-						class.Implements = append(class.Implements, t.AsTypeReferenceNode().TypeName.Text())
+						ref := t.AsTypeReferenceNode()
+						if ref != nil && ref.TypeName != nil {
+							class.Implements = append(class.Implements, syntaxMemberName(ref.TypeName))
+						}
 					}
 				}
 			}
@@ -537,18 +543,28 @@ func syntaxMemberName(nameNode *ast.Node) string {
 	if nameNode == nil {
 		return ""
 	}
-	if nameNode.Kind == ast.KindComputedPropertyName {
+	switch nameNode.Kind {
+	case ast.KindComputedPropertyName:
 		if expr := nameNode.Expression(); expr != nil {
 			if expr.Kind == ast.KindPropertyAccessExpression {
-				return syntaxMemberName(expr.Expression()) + "." + expr.Name().Text()
+				return syntaxMemberName(expr.Expression()) + "." + syntaxMemberName(expr.Name())
 			} else if expr.Kind == ast.KindIdentifier {
 				return expr.Text()
 			}
 		}
 		return "[computed]"
-	}
-	if nameNode.Kind == ast.KindIdentifier || nameNode.Kind == ast.KindPrivateIdentifier || nameNode.Kind == ast.KindStringLiteral || nameNode.Kind == ast.KindNumericLiteral {
+	case ast.KindPropertyAccessExpression:
+		return syntaxMemberName(nameNode.Expression()) + "." + syntaxMemberName(nameNode.Name())
+	case ast.KindQualifiedName:
+		qn := nameNode.AsQualifiedName()
+		if qn != nil {
+			return syntaxMemberName(qn.Left) + "." + syntaxMemberName(qn.Right)
+		}
+		return ""
+	case ast.KindIdentifier, ast.KindPrivateIdentifier, ast.KindStringLiteral, ast.KindNumericLiteral:
 		return nameNode.Text()
+	default:
+		return ""
 	}
-	return nameNode.Text()
 }
+

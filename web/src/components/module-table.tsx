@@ -8,6 +8,16 @@ interface ModuleTableProps {
   searchTerm?: string;
 }
 
+const formatType = (t?: string): string => {
+  if (!t) return '';
+  return t
+    .replace(/\\\[/g, '[')
+    .replace(/\\\]/g, ']')
+    .replace(/\\</g, '<')
+    .replace(/\\>/g, '>')
+    .replace(/\\\|/g, '|');
+};
+
 export const ModuleTable: React.FC<ModuleTableProps> = ({ moduleName, report, searchTerm }) => {
   const isGuide = report.total_official_apis === 0;
   const rate = report.coverage_rate_percent || 0;
@@ -22,9 +32,12 @@ export const ModuleTable: React.FC<ModuleTableProps> = ({ moduleName, report, se
     );
   });
 
+
   // Extract all verified items with their docs & corpus code examples
   const verifiedDocItems: {
     specApi: CanonicalAPI;
+    stdlibApi?: import('../types').StdlibAPIItem;
+    typesNodeApi?: import('../types').StdlibAPIItem;
     filePath: string;
     lineNumber: number;
     snippet: string;
@@ -37,6 +50,8 @@ export const ModuleTable: React.FC<ModuleTableProps> = ({ moduleName, report, se
       if (t.code_snippet) {
         verifiedDocItems.push({
           specApi: res.spec_api,
+          stdlibApi: res.stdlib_api,
+          typesNodeApi: res.types_node_api,
           filePath: t.file_path,
           lineNumber: t.line_number,
           snippet: t.code_snippet,
@@ -220,30 +235,132 @@ export const ModuleTable: React.FC<ModuleTableProps> = ({ moduleName, report, se
                       </div>
 
                       {/* Parameters List */}
-                      {api.params && api.params.length > 0 && (
-                        <div className="space-y-1 pt-1">
-                          <div className="text-xs font-mono font-semibold text-doc-muted uppercase tracking-wider">
-                            Parameters
-                          </div>
-                          <ul className="list-disc list-inside space-y-1 text-xs font-mono text-doc-text">
-                            {api.params.map((p, pIdx) => (
-                              <li key={pIdx}>
-                                <span className="font-semibold text-white">{p.name}</span>
-                                {p.type && (
-                                  <span className="text-[#79c0ff] ml-1.5 font-normal">
-                                    &lt;{p.type}&gt;
+                      {((api.params && api.params.length > 0) || item.typesNodeApi || item.stdlibApi) && (
+                        <div className="space-y-3 pt-1">
+                          {/* 1. Official Spec Parameters */}
+                          {api.params && api.params.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="text-xs font-mono font-semibold text-doc-muted uppercase tracking-wider flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span>Parameters</span>
+                                  <span className="text-[10px] font-mono font-normal normal-case px-1.5 py-0.5 rounded bg-blue-950/60 text-blue-400 border border-blue-800/40">
+                                    Official Spec (Node.js Docs)
+                                  </span>
+                                </div>
+                              </div>
+                              <ul className="list-disc list-inside space-y-1 text-xs font-mono text-doc-text">
+                                {api.params.map((p, pIdx) => (
+                                  <li key={pIdx}>
+                                    <span className="font-semibold text-white">{p.name}</span>
+                                    {p.type && (
+                                      <span className="text-[#79c0ff] ml-1.5 font-normal">
+                                        &lt;{formatType(p.type)}&gt;
+                                      </span>
+                                    )}
+                                    {p.optional && (
+                                      <span className="text-doc-muted text-[11px] ml-1.5 font-normal">
+                                        (optional)
+                                      </span>
+                                    )}
+                                    {p.default && (
+                                      <span className="text-doc-dim text-[11px] ml-1.5 font-normal">
+                                        = {p.default}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* 2. @types/node TypeScript Definitions */}
+                          {item.typesNodeApi && item.typesNodeApi.params && item.typesNodeApi.params.length > 0 && (
+                            <div className="space-y-1.5 pt-2 border-t border-doc-border-subtle/60">
+                              <div className="text-xs font-mono font-semibold text-doc-muted uppercase tracking-wider flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span>Parameters</span>
+                                  <span className="text-[10px] font-mono font-normal normal-case px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-400 border border-purple-800/40">
+                                    @types/node (TypeScript Spec)
+                                  </span>
+                                </div>
+                                {item.typesNodeApi.file_path && (
+                                  <span className="text-[11px] text-doc-dim lowercase font-normal">
+                                    {item.typesNodeApi.file_path}
+                                    {item.typesNodeApi.line_number ? `:${item.typesNodeApi.line_number}` : ''}
                                   </span>
                                 )}
-                                {p.optional && (
-                                  <span className="text-doc-muted text-[11px] ml-1.5 font-normal">
-                                    (optional)
+                              </div>
+
+                              <ul className="list-disc list-inside space-y-1 text-xs font-mono text-doc-text">
+                                {item.typesNodeApi.params.map((p, pIdx) => (
+                                  <li key={pIdx}>
+                                    <span className="font-semibold text-white">{p.name}</span>
+                                    {p.type && (
+                                      <span className="text-[#d2a8ff] ml-1.5 font-normal">
+                                        &lt;{formatType(p.type)}&gt;
+                                      </span>
+                                    )}
+                                    {p.optional && (
+                                      <span className="text-doc-muted text-[11px] ml-1.5 font-normal">
+                                        (optional)
+                                      </span>
+                                    )}
+                                    {p.default_value && (
+                                      <span className="text-doc-dim text-[11px] ml-1.5 font-normal">
+                                        = {p.default_value}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* 3. Actual Stdlib Defined Parameters */}
+                          {item.stdlibApi && item.stdlibApi.params && item.stdlibApi.params.length > 0 && (
+                            <div className="space-y-1.5 pt-2 border-t border-doc-border-subtle/60">
+                              <div className="text-xs font-mono font-semibold text-doc-muted uppercase tracking-wider flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span>Parameters</span>
+                                  <span className="text-[10px] font-mono font-normal normal-case px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                                    ScriptGo Stdlib (Actual TS)
+                                  </span>
+                                </div>
+                                {item.stdlibApi.file_path && (
+                                  <span className="text-[11px] text-doc-dim lowercase font-normal">
+                                    {item.stdlibApi.file_path}
+                                    {item.stdlibApi.line_number ? `:${item.stdlibApi.line_number}` : ''}
                                   </span>
                                 )}
-                              </li>
-                            ))}
-                          </ul>
+                              </div>
+
+                              <ul className="list-disc list-inside space-y-1 text-xs font-mono text-doc-text">
+                                {item.stdlibApi.params.map((p, pIdx) => (
+                                  <li key={pIdx}>
+                                    <span className="font-semibold text-white">{p.name}</span>
+                                    {p.type && (
+                                      <span className="text-[#7ee787] ml-1.5 font-normal">
+                                        &lt;{formatType(p.type)}&gt;
+                                      </span>
+                                    )}
+                                    {p.optional && (
+                                      <span className="text-doc-muted text-[11px] ml-1.5 font-normal">
+                                        (optional)
+                                      </span>
+                                    )}
+                                    {p.default_value && (
+                                      <span className="text-doc-dim text-[11px] ml-1.5 font-normal">
+                                        = {p.default_value}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       )}
+
 
                       {/* Return Info */}
                       {api.return && api.return.type && (
@@ -251,7 +368,7 @@ export const ModuleTable: React.FC<ModuleTableProps> = ({ moduleName, report, se
                           <span className="font-semibold text-doc-muted uppercase tracking-wider text-[11px] mr-2">
                             Returns:
                           </span>
-                          <span className="text-doc-green font-semibold">&lt;{api.return.type}&gt;</span>
+                          <span className="text-doc-green font-semibold">&lt;{formatType(api.return.type)}&gt;</span>
                         </div>
                       )}
 

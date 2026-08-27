@@ -29,3 +29,50 @@ func TestScanCorpusAPIs(t *testing.T) {
 		t.Errorf("expected 'assert.ok' in catalog keys")
 	}
 }
+
+func TestScanStdlibAPIs(t *testing.T) {
+	stdlib, err := audit.ScanStdlibAPIs()
+	if err != nil {
+		t.Fatalf("ScanStdlibAPIs failed: %v", err)
+	}
+
+	if len(stdlib.AllItems) == 0 {
+		t.Fatalf("expected stdlib items, got 0")
+	}
+
+	t.Logf("Found %d stdlib items across %d unique keys and %d modules",
+		len(stdlib.AllItems), len(stdlib.ItemsByKey), len(stdlib.ItemsByModule))
+
+	// Verify querystring.unescape
+	unescapeItem, ok := stdlib.ItemsByKey["querystring.unescape"]
+	if !ok {
+		t.Fatalf("expected 'querystring.unescape' in stdlib catalog keys")
+	}
+	if len(unescapeItem.Params) == 0 || unescapeItem.Params[0].Name != "str" {
+		t.Errorf("expected param 'str' in querystring.unescape, got %+v", unescapeItem.Params)
+	}
+
+	// Verify string_decoder.stringdecoder or methods
+	if _, ok := stdlib.ItemsByKey["string_decoder.stringdecoder.prototype.write"]; !ok {
+		if _, ok2 := stdlib.ItemsByKey["stringdecoder.prototype.write"]; !ok2 {
+			t.Errorf("expected write method for StringDecoder in catalog")
+		}
+	}
+}
+
+func TestScanTypesNode(t *testing.T) {
+	typesCatalog, err := audit.ScanTypesNode("")
+	if err != nil {
+		t.Logf("ScanTypesNode skipped or returned: %v", err)
+		return
+	}
+
+	t.Logf("Found %d @types/node items across %d unique keys and %d modules",
+		len(typesCatalog.AllItems), len(typesCatalog.ItemsByKey), len(typesCatalog.ItemsByModule))
+
+	if unescapeItem, ok := typesCatalog.ItemsByKey["querystring.unescape"]; ok {
+		t.Logf("querystring.unescape in @types/node: %+v", unescapeItem)
+	}
+}
+
+

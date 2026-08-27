@@ -115,11 +115,17 @@ func ScanCorpusAPIs(corpusRoot string) (*CorpusAPICatalog, error) {
 			// Clean snippet
 			snippetStr := strings.TrimSpace(strings.Join(snippetLines, "\n"))
 
+			cleanFilePath := filepath.Clean(path)
+			for strings.HasPrefix(cleanFilePath, "../") || strings.HasPrefix(cleanFilePath, "..\\") {
+				cleanFilePath = strings.TrimPrefix(strings.TrimPrefix(cleanFilePath, "../"), "..\\")
+			}
+			cleanFilePath = strings.TrimPrefix(cleanFilePath, "./")
+
 			item := CorpusAPIItem{
 				Tag:           rawTag,
 				NormalizedKey: normKey,
 				Module:        strings.ToLower(module),
-				FilePath:      path,
+				FilePath:      cleanFilePath,
 				LineNumber:    i + 1,
 				CodeSnippet:   snippetStr,
 			}

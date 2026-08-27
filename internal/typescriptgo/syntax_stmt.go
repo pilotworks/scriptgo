@@ -448,20 +448,17 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindExportAssignment:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	case ast.KindModuleDeclaration:
-		if ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient) || (node.Name() != nil && (strings.HasPrefix(node.Name().Text(), "\"") || strings.HasPrefix(node.Name().Text(), "'"))) {
-			return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
-		}
 		modDecl := node.AsModuleDeclaration()
 		name := ""
 		if node.Name() != nil {
-			name = node.Name().Text()
+			name = strings.Trim(node.Name().Text(), "\"'")
 		}
 		var bodyStmts []SyntaxStatement
 		if modDecl != nil && modDecl.Body != nil {
 			if modBlock := modDecl.Body.AsModuleBlock(); modBlock != nil && modBlock.Statements != nil {
 				for _, s := range modBlock.Statements.Nodes {
 					if conv, ok := syntaxStatement(s, chk); ok {
-						if conv.Kind == "class" && conv.Class != nil {
+						if conv.Kind == "class" && conv.Class != nil && !strings.Contains(conv.Class.Name, ".") {
 							conv.Class.Name = name + "." + conv.Class.Name
 							conv.Name = conv.Class.Name
 						}
@@ -513,26 +510,77 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			}
 		}
 		var fields []SyntaxField
+		var methods []SyntaxMethod
+		var constructor *SyntaxConstructor
 		members := node.Members()
 		if len(members) == 0 && iface != nil && iface.Members != nil {
 			members = iface.Members.Nodes
 		}
 		for _, member := range members {
-			if member.Kind == ast.KindPropertySignature {
+			switch member.Kind {
+			case ast.KindPropertySignature:
 				fType := syntaxType(member.Type())
 				inferredFType := resolveInferredType(chk, member.Name())
 				if inferredFType == "" {
 					inferredFType = resolveInferredType(chk, member)
 				}
-				pName := ""
-				if member.Name() != nil {
-					pName = member.Name().Text()
-				}
+				pName := syntaxMemberName(member.Name())
 				fields = append(fields, SyntaxField{
 					Span:         sourceSpan(member),
 					Name:         pName,
 					Type:         fType,
 					InferredType: inferredFType,
+				})
+			case ast.KindConstructSignature:
+				mType := syntaxType(member.Type())
+				var params []SyntaxParameter
+				for _, p := range member.Parameters() {
+					paramName := syntaxMemberName(p.Name())
+					paramType := syntaxType(p.Type())
+					pDecl := p.AsParameterDeclaration()
+					isOpt := pDecl != nil && pDecl.QuestionToken != nil
+					isRest := pDecl != nil && pDecl.DotDotDotToken != nil
+					params = append(params, SyntaxParameter{
+						Span:     sourceSpan(p),
+						Name:     paramName,
+						Type:     paramType,
+						Optional: isOpt,
+						Rest:     isRest,
+					})
+				}
+				constructor = &SyntaxConstructor{
+					Span:       sourceSpan(member),
+					Parameters: params,
+				}
+				methods = append(methods, SyntaxMethod{
+					Span:       sourceSpan(member),
+					Name:       "constructor",
+					Type:       mType,
+					Parameters: params,
+				})
+			case ast.KindMethodSignature, ast.KindCallSignature:
+				mType := syntaxType(member.Type())
+				pName := syntaxMemberName(member.Name())
+				var params []SyntaxParameter
+				for _, p := range member.Parameters() {
+					paramName := syntaxMemberName(p.Name())
+					paramType := syntaxType(p.Type())
+					pDecl := p.AsParameterDeclaration()
+					isOpt := pDecl != nil && pDecl.QuestionToken != nil
+					isRest := pDecl != nil && pDecl.DotDotDotToken != nil
+					params = append(params, SyntaxParameter{
+						Span:     sourceSpan(p),
+						Name:     paramName,
+						Type:     paramType,
+						Optional: isOpt,
+						Rest:     isRest,
+					})
+				}
+				methods = append(methods, SyntaxMethod{
+					Span:       sourceSpan(member),
+					Name:       pName,
+					Type:       mType,
+					Parameters: params,
 				})
 			}
 		}
@@ -546,8 +594,12 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			TypeParameters: tParams,
 			Extends:        extendsName,
 			Fields:         fields,
+			Methods:        methods,
+			Constructor:    constructor,
+			IsAbstract:     true,
 		}
 		return SyntaxStatement{Span: span, Kind: "interface", Name: name, Class: cls}, true
+
 
 	case ast.KindTypeAliasDeclaration:
 		alias := node.AsTypeAliasDeclaration()

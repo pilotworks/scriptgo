@@ -20,6 +20,8 @@ type APIAuditResult struct {
 	CanonicalAPI spec.CanonicalAPI `json:"spec_api"`
 	Status       APIStatus         `json:"status"`
 	CorpusTests  []CorpusAPIItem   `json:"corpus_tests,omitempty"`
+	StdlibAPI    *StdlibAPIItem    `json:"stdlib_api,omitempty"`
+	TypesNodeAPI *StdlibAPIItem    `json:"types_node_api,omitempty"`
 }
 
 // ModuleAuditReport summarizes the audit result for a single module.
@@ -99,20 +101,20 @@ var StandardNodeModules = []string{
 	"tls",
 	"tracing",
 	"tty",
-	"typescript",
 	"url",
 	"util",
 	"v8",
 	"vm",
 	"wasi",
 	"webcrypto",
+	"webstorage",
 	"webstreams",
 	"worker_threads",
 	"zlib",
 }
 
-// AuditModule audits a single module against the corpus catalog.
-func AuditModule(moduleName string, doc *spec.DocRoot, corpus *CorpusAPICatalog) ModuleAuditReport {
+// AuditModule audits a single module against the corpus catalog, stdlib definitions, and @types/node.
+func AuditModule(moduleName string, doc *spec.DocRoot, corpus *CorpusAPICatalog, stdlib *StdlibCatalog, typesNode *StdlibCatalog) ModuleAuditReport {
 	canonicalList := spec.ExtractCanonicalAPIs(moduleName, doc)
 	cleanMod := strings.ToLower(strings.TrimPrefix(moduleName, "node:"))
 
@@ -143,6 +145,8 @@ func AuditModule(moduleName string, doc *spec.DocRoot, corpus *CorpusAPICatalog)
 
 		res := APIAuditResult{
 			CanonicalAPI: api,
+			StdlibAPI:    matchCatalogItem(stdlib, cleanMod, api),
+			TypesNodeAPI: matchCatalogItem(typesNode, cleanMod, api),
 		}
 
 		if found && len(tests) > 0 {
@@ -176,12 +180,64 @@ func AuditModule(moduleName string, doc *spec.DocRoot, corpus *CorpusAPICatalog)
 	return report
 }
 
+func matchCatalogItem(catalog *StdlibCatalog, cleanMod string, api spec.CanonicalAPI) *StdlibAPIItem {
+	if catalog == nil {
+		return nil
+	}
+	normKey := strings.ToLower(api.NormalizedKey)
+	var foundItem *StdlibAPIItem
+
+	if item, exists := catalog.ItemsByKey[normKey]; exists {
+		foundItem = item
+	} else if idx := strings.Index(normKey, "."); idx != -1 {
+		shortKey := normKey[idx+1:]
+		if item, exists := catalog.ItemsByKey[shortKey]; exists {
+			foundItem = item
+		}
+	}
+	if foundItem == nil {
+		altKey := cleanMod + "." + strings.ToLower(api.Name)
+		if item, exists := catalog.ItemsByKey[altKey]; exists {
+			foundItem = item
+		}
+	}
+	if foundItem == nil {
+		if item, exists := catalog.ItemsByKey[strings.ToLower(api.Name)]; exists {
+			foundItem = item
+		}
+	}
+
+	// For classes/constructors: if found item has no params or constructor was asked
+	if api.Kind == "class" || api.Kind == "constructor" {
+		if foundItem == nil || len(foundItem.Params) == 0 {
+			ctorKeys := []string{
+				normKey + ".constructor",
+				cleanMod + "." + strings.ToLower(api.Name) + ".constructor",
+				strings.ToLower(api.Name) + ".constructor",
+				cleanMod + "." + strings.ToLower(api.Name) + "constructor",
+				strings.ToLower(api.Name) + "constructor",
+			}
+			for _, k := range ctorKeys {
+				if ctorItem, exists := catalog.ItemsByKey[k]; exists && len(ctorItem.Params) > 0 {
+					return ctorItem
+				}
+			}
+		}
+	}
+
+	return foundItem
+}
+
+
 // AuditAllModules runs audit across specified modules (or all StandardNodeModules if empty).
 func AuditAllModules(cacheDir, corpusDir string, moduleNames []string) (*OverallAuditReport, error) {
 	corpus, err := ScanCorpusAPIs(corpusDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan corpus APIs: %w", err)
 	}
+
+	stdlib, _ := ScanStdlibAPIs()
+	typesNode, _ := ScanTypesNode("")
 
 	targets := moduleNames
 	if len(targets) == 0 {
@@ -198,13 +254,14 @@ func AuditAllModules(cacheDir, corpusDir string, moduleNames []string) (*Overall
 			// Skip or record warning if network/spec unavailable
 			continue
 		}
-		modReport := AuditModule(mod, doc, corpus)
+		modReport := AuditModule(mod, doc, corpus, stdlib, typesNode)
 		report.ModuleReports[mod] = modReport
 		report.TotalModules++
 		report.TotalOfficialAPIs += modReport.TotalOfficial
 		report.TotalVerifiedAPIs += modReport.VerifiedCount
 		report.TotalMissingAPIs += modReport.MissingCount
 	}
+
 
 	if report.TotalOfficialAPIs > 0 {
 		report.OverallCoverage = float64(report.TotalVerifiedAPIs) / float64(report.TotalOfficialAPIs) * 100.0

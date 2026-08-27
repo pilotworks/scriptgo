@@ -81,8 +81,10 @@ type DocParam struct {
 	Name     string `json:"name"`
 	Type     string `json:"type,omitempty"`
 	Desc     string `json:"desc,omitempty"`
+	Default  string `json:"default,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
 }
+
 
 type DocReturn struct {
 	Type string `json:"type,omitempty"`
@@ -105,12 +107,29 @@ type CanonicalAPI struct {
 	StabilityText string     `json:"stability_text,omitempty"`
 }
 
-// CleanSignature strips markdown wrapper backticks from raw signature strings.
+// CleanSignature strips markdown wrapper backticks and escaped brackets from raw signature strings.
 func CleanSignature(raw string) string {
 	s := strings.TrimSpace(raw)
 	s = strings.ReplaceAll(s, "`", "")
+	s = strings.ReplaceAll(s, `\[`, "[")
+	s = strings.ReplaceAll(s, `\]`, "]")
+	s = strings.ReplaceAll(s, `\<`, "<")
+	s = strings.ReplaceAll(s, `\>`, ">")
 	return s
 }
+
+// CleanTypeString normalizes and strips markdown escaping from type strings.
+func CleanTypeString(raw string) string {
+	s := strings.TrimSpace(raw)
+	s = strings.ReplaceAll(s, "`", "")
+	s = strings.ReplaceAll(s, `\[`, "[")
+	s = strings.ReplaceAll(s, `\]`, "]")
+	s = strings.ReplaceAll(s, `\<`, "<")
+	s = strings.ReplaceAll(s, `\>`, ">")
+	s = strings.ReplaceAll(s, `\|`, "|")
+	return s
+}
+
 
 // FormatConstructorSignature builds a canonical constructor signature like "new Console([options])"
 // based on structured class metadata and parameter lists.
@@ -214,19 +233,77 @@ func LoadModuleSpec(cacheDir, moduleName string) (*DocRoot, error) {
 	return &doc, nil
 }
 
+func normalizeDocParams(params []DocParam, signatureText string) []DocParam {
+	if len(params) == 0 {
+		return nil
+	}
+	cleanSig := strings.ReplaceAll(signatureText, "`", "")
+	res := make([]DocParam, len(params))
+	for i, p := range params {
+		cleanName := CleanSignature(p.Name)
+		isOpt := p.Optional
+
+		// 1. If name is wrapped in brackets e.g. [options] or [encoding]
+		if strings.HasPrefix(cleanName, "[") && strings.HasSuffix(cleanName, "]") {
+			isOpt = true
+			cleanName = strings.Trim(cleanName, "[]")
+		}
+
+		// 2. If default value is provided in doc
+		if p.Default != "" {
+			isOpt = true
+		}
+
+		// 3. Check if signature text contains [, <name> or [<name>
+		if !isOpt && cleanSig != "" && cleanName != "" {
+			if strings.Contains(cleanSig, "["+cleanName) ||
+				strings.Contains(cleanSig, "[, "+cleanName) ||
+				strings.Contains(cleanSig, "[,"+cleanName) ||
+				strings.Contains(cleanSig, "[,  "+cleanName) ||
+				strings.Contains(cleanSig, "["+cleanName+"]") {
+				isOpt = true
+			}
+		}
+
+		cleanDefault := strings.Trim(strings.ReplaceAll(p.Default, "`", ""), " '\"")
+		cleanType := CleanTypeString(p.Type)
+
+		res[i] = DocParam{
+			Name:     cleanName,
+			Type:     cleanType,
+			Desc:     p.Desc,
+			Default:  cleanDefault,
+			Optional: isOpt,
+		}
+	}
+	return res
+}
+
 func getMethodParamsAndReturn(m DocMethod) ([]DocParam, *DocReturn) {
 	if len(m.Signatures) > 0 {
-		return m.Signatures[0].Params, m.Signatures[0].Return
+		params := normalizeDocParams(m.Signatures[0].Params, m.TextRaw)
+		ret := m.Signatures[0].Return
+		if ret != nil {
+			ret.Type = CleanTypeString(ret.Type)
+		}
+		return params, ret
 	}
 	return nil, nil
 }
 
 func getClassConstructorParams(c DocClass) ([]DocParam, *DocReturn) {
 	if len(c.Signatures) > 0 {
-		return c.Signatures[0].Params, c.Signatures[0].Return
+		params := normalizeDocParams(c.Signatures[0].Params, c.TextRaw)
+		ret := c.Signatures[0].Return
+		if ret != nil {
+			ret.Type = CleanTypeString(ret.Type)
+		}
+		return params, ret
 	}
 	return nil, nil
 }
+
+
 
 func extractPropertyName(p DocProperty) string {
 	name := NormalizeAPIName(p.Name)

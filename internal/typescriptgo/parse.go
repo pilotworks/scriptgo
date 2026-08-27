@@ -46,6 +46,22 @@ func Parse(fileName, source string) (ParseResult, error) {
 	return result, nil
 }
 
+// ParseFileToSyntax parses one TypeScript source file into a SyntaxFile AST structure.
+func ParseFileToSyntax(fileName, source string) (SyntaxFile, error) {
+	absoluteName, err := filepath.Abs(fileName)
+	if err != nil {
+		return SyntaxFile{}, err
+	}
+	absoluteName = filepath.Clean(absoluteName)
+	file := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: absoluteName,
+		Path:     tspath.ToPath(absoluteName, "", true),
+	}, source, core.ScriptKindTS)
+	return syntaxFile(file, nil), nil
+}
+
+
+
 // Check creates a TypeScript-Go program. Program creation performs local module
 // resolution and binds/checks the complete reachable source graph.
 func Check(entryPath string) (ProgramResult, error) {

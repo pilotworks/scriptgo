@@ -2,8 +2,10 @@ export interface DocParam {
   name: string;
   type: string;
   desc?: string;
+  default?: string;
   optional?: boolean;
 }
+
 
 export interface DocReturn {
   type?: string;
@@ -34,11 +36,35 @@ export interface CorpusAPIItem {
   code_snippet?: string;
 }
 
+export interface StdlibParam {
+  name: string;
+  type?: string;
+  optional?: boolean;
+  default_value?: string;
+}
+
+export interface StdlibAPIItem {
+  name: string;
+  full_name: string;
+  normalized_key: string;
+  kind: string;
+  signature: string;
+  params?: StdlibParam[];
+  return_type?: string;
+  file_path?: string;
+  line_number?: number;
+  module?: string;
+}
+
 export interface APIAuditResult {
   spec_api: CanonicalAPI;
   status: 'VERIFIED' | 'MISSING';
   corpus_tests?: CorpusAPIItem[];
+  stdlib_api?: StdlibAPIItem;
+  types_node_api?: StdlibAPIItem;
 }
+
+
 
 export interface ModuleAuditReport {
   module_name: string;

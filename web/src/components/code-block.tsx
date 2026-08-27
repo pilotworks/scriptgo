@@ -30,13 +30,20 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  let shortPath = (filePath || '').replace(/.*testdata\/corpus\//, '').replace(/.*corpus\//, '');
+  let shortPath = (filePath || '')
+    .replace(/^(\.\.[\/\\])+/, '')
+    .replace(/.*testdata\/corpus\//, '')
+    .replace(/.*corpus\//, '');
   const lineSuffix = lineNumber ? `:${lineNumber}` : '';
 
-  const cleanPath = (filePath || '').replace(/^\/?/, '');
+  const cleanPath = (filePath || '')
+    .replace(/^(\.\.[\/\\])+/, '')
+    .replace(/^(\.[\/\\])+/, '')
+    .replace(/^\/?/, '');
   const githubUrl = cleanPath
     ? `https://github.com/pilotworks/scriptgo/blob/main/${cleanPath}${lineNumber ? `#L${lineNumber}` : ''}`
     : null;
+
 
   return (
     <div className="rounded-lg border border-doc-border overflow-hidden bg-[#03070d] shadow-sm my-2">
