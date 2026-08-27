@@ -526,7 +526,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return nil
 		}
 		if valType != varType {
-			if strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(varType), "object:") {
+			if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(varType), "object:") || varType == ir.TypeObject) {
 				// Polymorphic object assignment
 			} else if valType == ir.TypeUnknown {
 				unboxed := nextTemp(counter)

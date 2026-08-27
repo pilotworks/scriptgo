@@ -1,6 +1,8 @@
 package typescriptgo
 
 import (
+	"strings"
+
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/checker"
 )
@@ -41,12 +43,28 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					case ast.KindExpressionWithTypeArguments:
 						exprNode := t.AsExpressionWithTypeArguments()
 						if exprNode != nil && exprNode.Expression != nil {
-							class.Extends = syntaxMemberName(exprNode.Expression)
+							extName := syntaxMemberName(exprNode.Expression)
+							if exprNode.TypeArguments != nil && len(exprNode.TypeArguments.Nodes) > 0 {
+								var typeArgs []string
+								for _, ta := range exprNode.TypeArguments.Nodes {
+									typeArgs = append(typeArgs, syntaxType(ta))
+								}
+								extName = extName + "<" + strings.Join(typeArgs, ", ") + ">"
+							}
+							class.Extends = extName
 						}
 					case ast.KindTypeReference:
 						ref := t.AsTypeReferenceNode()
 						if ref != nil && ref.TypeName != nil {
-							class.Extends = syntaxMemberName(ref.TypeName)
+							extName := syntaxMemberName(ref.TypeName)
+							if ref.TypeArguments != nil && len(ref.TypeArguments.Nodes) > 0 {
+								var typeArgs []string
+								for _, ta := range ref.TypeArguments.Nodes {
+									typeArgs = append(typeArgs, syntaxType(ta))
+								}
+								extName = extName + "<" + strings.Join(typeArgs, ", ") + ">"
+							}
+							class.Extends = extName
 						}
 					}
 				}
@@ -55,12 +73,28 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					if t.Kind == ast.KindExpressionWithTypeArguments {
 						exprNode := t.AsExpressionWithTypeArguments()
 						if exprNode != nil && exprNode.Expression != nil {
-							class.Implements = append(class.Implements, syntaxMemberName(exprNode.Expression))
+							impName := syntaxMemberName(exprNode.Expression)
+							if exprNode.TypeArguments != nil && len(exprNode.TypeArguments.Nodes) > 0 {
+								var typeArgs []string
+								for _, ta := range exprNode.TypeArguments.Nodes {
+									typeArgs = append(typeArgs, syntaxType(ta))
+								}
+								impName = impName + "<" + strings.Join(typeArgs, ", ") + ">"
+							}
+							class.Implements = append(class.Implements, impName)
 						}
 					} else if t.Kind == ast.KindTypeReference {
 						ref := t.AsTypeReferenceNode()
 						if ref != nil && ref.TypeName != nil {
-							class.Implements = append(class.Implements, syntaxMemberName(ref.TypeName))
+							impName := syntaxMemberName(ref.TypeName)
+							if ref.TypeArguments != nil && len(ref.TypeArguments.Nodes) > 0 {
+								var typeArgs []string
+								for _, ta := range ref.TypeArguments.Nodes {
+									typeArgs = append(typeArgs, syntaxType(ta))
+								}
+								impName = impName + "<" + strings.Join(typeArgs, ", ") + ">"
+							}
+							class.Implements = append(class.Implements, impName)
 						}
 					}
 				}

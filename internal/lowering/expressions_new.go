@@ -718,6 +718,53 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 						argType = paramType
 					}
 				}
+				if (arg.Kind == "null" || arg.Kind == "undefined") && paramType != ir.TypeUnknown {
+					if paramType == ir.TypeNumber {
+						numConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeNumber,
+							Result: numConst,
+							Value:  "0",
+							Span:   toIRSpan(path, arg.Span),
+						})
+						argVal = numConst
+						argType = ir.TypeNumber
+					} else if paramType == ir.TypeBool {
+						boolConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeBool,
+							Result: boolConst,
+							Value:  "false",
+							Span:   toIRSpan(path, arg.Span),
+						})
+						argVal = boolConst
+						argType = ir.TypeBool
+					} else if paramType == ir.TypeBigInt {
+						biConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeBigInt,
+							Result: biConst,
+							Value:  "0",
+							Span:   toIRSpan(path, arg.Span),
+						})
+						argVal = biConst
+						argType = ir.TypeBigInt
+					} else if isPointerLikeType(paramType) || strings.HasPrefix(string(paramType), "object:") {
+						nullConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   paramType,
+							Result: nullConst,
+							Value:  "null",
+							Span:   toIRSpan(path, arg.Span),
+						})
+						argVal = nullConst
+						argType = paramType
+					}
+				}
 				if paramType == ir.TypeUnknown && argType != ir.TypeUnknown {
 					boxed := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{
@@ -732,36 +779,101 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			}
 			args = append(args, argVal)
 		}
-		if defaults := defaultParamsIndex[ctorName]; defaults != nil {
+		if len(args) < len(ctor.Parameters) {
+			defaults := defaultParamsIndex[ctorName]
+			if defaults == nil {
+				defaults = defaultParamsIndex[strings.Split(ctorName, "__")[0]]
+			}
 			for i := len(args); i < len(ctor.Parameters); i++ {
-				if defExpr, ok := defaults[i]; ok {
-					defVal, defType, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
-					if err != nil {
-						return "", "", err
-					}
-					if i < len(ctor.Parameters) && ctor.Parameters[i].Type == ir.TypeUnknown && defType != ir.TypeUnknown {
-						boxed := nextTemp(counter)
+				var val string
+				var valType ir.Type
+				paramType := ctor.Parameters[i].Type
+				if defaults != nil && defaults[i] != nil {
+					defExpr := defaults[i]
+					if paramType == ir.TypeNumber && (defExpr.Kind == "undefined" || defExpr.Kind == "null") {
+						numConst := nextTemp(counter)
 						function.Body = append(function.Body, ir.Instruction{
-							Op:     ir.OpBoxUnknown,
-							Type:   ir.TypeUnknown,
-							Result: boxed,
-							Args:   []string{defVal},
+							Op:     ir.OpConst,
+							Type:   ir.TypeNumber,
+							Result: numConst,
+							Value:  "0",
 							Span:   toIRSpan(path, defExpr.Span),
 						})
-						defVal = boxed
-					} else if i < len(ctor.Parameters) && strings.HasPrefix(string(ctor.Parameters[i].Type), "object:") && (defExpr.Kind == "null" || defExpr.Kind == "undefined") {
+						val = numConst
+						valType = ir.TypeNumber
+					} else if paramType == ir.TypeBool && (defExpr.Kind == "undefined" || defExpr.Kind == "null") {
+						boolConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeBool,
+							Result: boolConst,
+							Value:  "false",
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						val = boolConst
+						valType = ir.TypeBool
+					} else if paramType == ir.TypeBigInt && (defExpr.Kind == "undefined" || defExpr.Kind == "null") {
+						biConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeBigInt,
+							Result: biConst,
+							Value:  "0",
+							Span:   toIRSpan(path, defExpr.Span),
+						})
+						val = biConst
+						valType = ir.TypeBigInt
+					} else if (strings.HasPrefix(string(paramType), "object:") || isPointerLikeType(paramType)) && (defExpr.Kind == "null" || defExpr.Kind == "undefined") {
 						nullConst := nextTemp(counter)
 						function.Body = append(function.Body, ir.Instruction{
 							Op:     ir.OpConst,
-							Type:   ctor.Parameters[i].Type,
+							Type:   paramType,
 							Result: nullConst,
 							Value:  "null",
 							Span:   toIRSpan(path, defExpr.Span),
 						})
-						defVal = nullConst
+						val = nullConst
+						valType = paramType
+					} else {
+						v, vt, err := lowerExpression(path, defExpr, "", function, env, counter, shapes, signatures)
+						if err != nil {
+							return "", "", err
+						}
+						val = v
+						valType = vt
 					}
-					args = append(args, defVal)
 				}
+				if val == "" {
+					val = nextTemp(counter)
+					valType = paramType
+					defStr := "0"
+					if paramType == ir.TypeBool {
+						defStr = "false"
+					} else if paramType == ir.TypeString {
+						defStr = ""
+					} else if isPointerLikeType(paramType) || strings.HasPrefix(string(paramType), "object:") {
+						defStr = "null"
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   paramType,
+						Result: val,
+						Value:  defStr,
+						Span:   toIRSpan(path, expression.Span),
+					})
+				}
+				if paramType == ir.TypeUnknown && valType != ir.TypeUnknown {
+					boxed := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpBoxUnknown,
+						Type:   ir.TypeUnknown,
+						Result: boxed,
+						Args:   []string{val},
+						Span:   toIRSpan(path, expression.Span),
+					})
+					val = boxed
+				}
+				args = append(args, val)
 			}
 		}
 		function.Body = append(function.Body, ir.Instruction{

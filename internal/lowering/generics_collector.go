@@ -107,27 +107,13 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 				clsName = ident
 				if t, ok := env[ident]; ok && t != "" {
 					isInstance = true
-					cleanT := strings.TrimPrefix(t, "object:")
-					if idx := strings.Index(cleanT, "<"); idx != -1 {
-						cleanT = cleanT[:idx]
-					}
-					if idx := strings.Index(cleanT, "__"); idx != -1 {
-						cleanT = cleanT[:idx]
-					}
-					clsName = cleanT
+					clsName = strings.TrimPrefix(rewriteTypeString(t), "object:")
 				}
 			} else {
 				isInstance = true
 				t := inferExprType(expr.Left.Left, env, funcTypes)
 				if t != "" {
-					cleanT := strings.TrimPrefix(t, "object:")
-					if idx := strings.Index(cleanT, "<"); idx != -1 {
-						cleanT = cleanT[:idx]
-					}
-					if idx := strings.Index(cleanT, "__"); idx != -1 {
-						cleanT = cleanT[:idx]
-					}
-					clsName = cleanT
+					clsName = strings.TrimPrefix(rewriteTypeString(t), "object:")
 				}
 			}
 			methodName := expr.Left.Text
@@ -139,8 +125,9 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 			if !isInstance {
 				lookupKey = clsName + ".static." + methodName
 			}
+			callTypeArgs := expr.TypeArguments
 			if mTemplate, ok := genericMethods[lookupKey]; ok {
-				typeArgs := expr.TypeArguments
+				typeArgs := callTypeArgs
 				if len(typeArgs) == 0 {
 					typeArgs = inferTypeArgsForMethod(mTemplate, mTemplate.TypeParameters, expr.Arguments, env, funcTypes)
 				}
@@ -150,7 +137,7 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 			}
 			if !isInstance && expr.Left.Left.Kind == "identifier" {
 				if clsTemplate, ok := genericClasses[clsName]; ok {
-					typeArgs := expr.TypeArguments
+					typeArgs := callTypeArgs
 					if len(typeArgs) == 0 {
 						for _, m := range clsTemplate.Methods {
 							if m.IsStatic && m.Name == methodName {

@@ -648,15 +648,24 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			unionStr = typeAliasesIndex[className]
 		}
 		if strings.Contains(unionStr, "|") {
-			for _, m := range strings.Split(unionStr, "|") {
+			for _, m := range splitTopLevelUnion(unionStr) {
 				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
 				var s ir.ObjectShape
 				var okS bool
 				if s, okS = shapes[cleanM]; !okS {
 					s, okS = registeredShapes[cleanM]
 				}
+				if !okS {
+					if fields, okF := anonymousObjectFields(cleanM, nil); okF {
+						name := anonymousShapeName(fields)
+						s = ir.ObjectShape{Name: name, Fields: fields}
+						shapes[name] = s
+						okS = true
+					}
+				}
 				if okS && fieldIndex(s, expression.Text) >= 0 {
 					shape = s
+					className = s.Name
 					ok = true
 					break
 				}
@@ -673,12 +682,20 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			unionStr = typeAliasesIndex[className]
 		}
 		if strings.Contains(unionStr, "|") {
-			for _, m := range strings.Split(unionStr, "|") {
+			for _, m := range splitTopLevelUnion(unionStr) {
 				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
 				var s ir.ObjectShape
 				var okS bool
 				if s, okS = shapes[cleanM]; !okS {
 					s, okS = registeredShapes[cleanM]
+				}
+				if !okS {
+					if fields, okF := anonymousObjectFields(cleanM, nil); okF {
+						name := anonymousShapeName(fields)
+						s = ir.ObjectShape{Name: name, Fields: fields}
+						shapes[name] = s
+						okS = true
+					}
 				}
 				if okS && fieldIndex(s, expression.Text) >= 0 {
 					matchedShape = &s

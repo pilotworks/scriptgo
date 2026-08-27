@@ -223,6 +223,25 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			baseName := className[:strings.Index(className, "__")]
 			methodInstances[baseName] = append(methodInstances[baseName], specM)
 		}
+
+		originFile := ""
+		for _, f := range program.Files {
+			if !strings.HasSuffix(f.FileName, ".d.ts") {
+				originFile = f.FileName
+				break
+			}
+		}
+		specEnv := map[string]string{"this": className}
+		for _, p := range specM.Parameters {
+			if p.Type != "" {
+				specEnv[p.Name] = p.Type
+				scanTypeForGenerics(p.Type, originFile, genericClasses, requestClassSpec)
+			}
+		}
+		for _, stmt := range specM.Body {
+			scanAndSpecializeStmt(stmt, originFile, specEnv, funcTypes, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec)
+		}
+
 		return mangled
 	}
 
@@ -286,6 +305,12 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				for j := range specCls.Methods[i].Parameters {
 					specCls.Methods[i].Parameters[j].Type = substituteType(specCls.Methods[i].Parameters[j].Type, subst)
 					specCls.Methods[i].Parameters[j].InferredType = substituteType(specCls.Methods[i].Parameters[j].InferredType, subst)
+					if specCls.Methods[i].Parameters[j].Initializer != nil {
+						specCls.Methods[i].Parameters[j].Initializer = cloneAndSubstituteExpr(specCls.Methods[i].Parameters[j].Initializer, subst)
+					}
+				}
+				for j := range specCls.Methods[i].Body {
+					specCls.Methods[i].Body[j] = cloneAndSubstituteStmt(specCls.Methods[i].Body[j], subst)
 				}
 				if specCls.Methods[i].IsStatic {
 					genericMethods[specCls.Name+".static."+specCls.Methods[i].Name] = specCls.Methods[i]

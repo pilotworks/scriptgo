@@ -210,10 +210,56 @@ func lowerCallExpression(
 							paramType := target.Parameters[i].Type
 							if defaults != nil && defaults[i] != nil {
 								initExpr := defaults[i]
-								v, vt, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
-								if err == nil {
-									val = v
-									valType = vt
+								if paramType == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									numConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeNumber,
+										Result: numConst,
+										Value:  "0",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									val = numConst
+									valType = ir.TypeNumber
+								} else if paramType == ir.TypeBool && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									boolConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeBool,
+										Result: boolConst,
+										Value:  "false",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									val = boolConst
+									valType = ir.TypeBool
+								} else if paramType == ir.TypeBigInt && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									biConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeBigInt,
+										Result: biConst,
+										Value:  "0",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									val = biConst
+									valType = ir.TypeBigInt
+								} else if (strings.HasPrefix(string(paramType), "object:") || isPointerLikeType(paramType)) && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
+									nullConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   paramType,
+										Result: nullConst,
+										Value:  "null",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									val = nullConst
+									valType = paramType
+								} else {
+									v, vt, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
+									if err == nil {
+										val = v
+										valType = vt
+									}
 								}
 							}
 							if val == "" {
@@ -224,7 +270,7 @@ func lowerCallExpression(
 									defStr = "false"
 								} else if paramType == ir.TypeString {
 									defStr = ""
-								} else if isPointerLikeType(paramType) {
+								} else if isPointerLikeType(paramType) || strings.HasPrefix(string(paramType), "object:") {
 									defStr = "null"
 								}
 								function.Body = append(function.Body, ir.Instruction{
@@ -489,6 +535,41 @@ func lowerCallExpression(
 					if defaults != nil {
 						for i := len(args); i < len(target.Parameters); i++ {
 							if initExpr, ok := defaults[i]; ok {
+								paramType := target.Parameters[i].Type
+								if paramType == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									numConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeNumber,
+										Result: numConst,
+										Value:  "0",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									args = append(args, numConst)
+									continue
+								} else if paramType == ir.TypeBool && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									boolConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeBool,
+										Result: boolConst,
+										Value:  "false",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									args = append(args, boolConst)
+									continue
+								} else if paramType == ir.TypeBigInt && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+									biConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op:     ir.OpConst,
+										Type:   ir.TypeBigInt,
+										Result: biConst,
+										Value:  "0",
+										Span:   toIRSpan(path, initExpr.Span),
+									})
+									args = append(args, biConst)
+									continue
+								}
 								val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
 								if err != nil {
 									return "", "", err
@@ -503,7 +584,7 @@ func lowerCallExpression(
 										Span:   toIRSpan(path, initExpr.Span),
 									})
 									val = boxed
-								} else if i < len(target.Parameters) && isPointerLikeType(target.Parameters[i].Type) && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
+								} else if i < len(target.Parameters) && (isPointerLikeType(target.Parameters[i].Type) || strings.HasPrefix(string(target.Parameters[i].Type), "object:")) && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
 									nullConst := nextTemp(counter)
 									function.Body = append(function.Body, ir.Instruction{
 										Op:     ir.OpConst,
@@ -826,13 +907,14 @@ func lowerCallExpression(
 			value = boxed
 		}
 		if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeClosure && valType != ir.TypeClosure {
-			if _, isSig := signatures[value]; isSig {
+			if sig, isSig := signatures[value]; isSig {
 				closureSlot := nextTemp(counter)
+				calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpClosure,
 					Type:   ir.TypeClosure,
 					Result: closureSlot,
-					Callee: value,
+					Callee: calleeName,
 					Args:   nil,
 					Span:   toIRSpan(path, argument.Span),
 				})
@@ -922,13 +1004,14 @@ func lowerCallExpression(
 						val = boxed
 					}
 					if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeClosure && valType != ir.TypeClosure {
-						if _, isSig := signatures[val]; isSig {
+						if sig, isSig := signatures[val]; isSig {
 							closureSlot := nextTemp(counter)
+							calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
 							function.Body = append(function.Body, ir.Instruction{
 								Op:     ir.OpClosure,
 								Type:   ir.TypeClosure,
 								Result: closureSlot,
-								Callee: val,
+								Callee: calleeName,
 								Args:   nil,
 								Span:   toIRSpan(path, initExpr.Span),
 							})

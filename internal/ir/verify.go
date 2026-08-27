@@ -245,7 +245,8 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				return fmt.Errorf("assign to unknown variable %q", instruction.Result)
 			}
 			valType, ok := known[instruction.Args[0]]
-			if !ok || (varType != valType && !(strings.HasPrefix(string(varType), "object:") && strings.HasPrefix(string(valType), "object:"))) {
+			isObjPair := (varType == TypeObject || strings.HasPrefix(string(varType), "object:")) && (valType == TypeObject || strings.HasPrefix(string(valType), "object:"))
+			if !ok || (varType != valType && !isObjPair) {
 				return fmt.Errorf("assign type mismatch: %s := %s", varType, valType)
 			}
 		case OpIf:

@@ -253,7 +253,7 @@ int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    o->fields[index] = (uintptr_t)(value != 0 ? 1 : 0);
+    o->fields[index] = (uintptr_t)((2ULL << 32) | (value != 0 ? 1 : 0));
     return 0;
 }
 
@@ -271,10 +271,12 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
         return 0;
     }
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
         *out_value = 0;
+    } else if ((val >> 32) == 2) {
+        *out_value = (int32_t)(val & 1);
     } else {
-        *out_value = (int32_t)val;
+        *out_value = (int32_t)(val != 0 ? 1 : 0);
     }
     return 0;
 }
@@ -321,8 +323,15 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint6
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    (void)tag;
-    o->fields[index] = (uintptr_t)payload;
+    if (tag == 2) {
+        o->fields[index] = (uintptr_t)((2ULL << 32) | (payload != 0 ? 1 : 0));
+    } else if (tag == 1) {
+        o->fields[index] = (uintptr_t)(1ULL << 32);
+    } else if (tag == 0) {
+        o->fields[index] = 0;
+    } else {
+        o->fields[index] = (uintptr_t)payload;
+    }
     return 0;
 }
 
@@ -337,17 +346,17 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
     }
     scriptgo_object *o = (scriptgo_object *)handle;
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
         *out_tag = 0;
         *out_payload = 0;
-    } else if (val == 0) {
-        *out_tag = 0;
+    } else if ((val >> 32) == 2) {
+        *out_tag = 2;
+        *out_payload = (val & 1);
+    } else if ((val >> 32) == 1 && (val & 0xFFFFFFFF) == 0) {
+        *out_tag = 1;
         *out_payload = 0;
     } else if ((val & 0xFFF8000000000000ULL) != 0) {
         *out_tag = 3;
-        *out_payload = (uint64_t)val;
-    } else if (val < 4096) {
-        *out_tag = 2;
         *out_payload = (uint64_t)val;
     } else {
         if (scriptgo_gc_is_registered((void *)val)) {

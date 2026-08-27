@@ -735,8 +735,8 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 }
 
 func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
-	if strings.HasPrefix(typeStr, "{") && !strings.HasSuffix(typeStr, "}") {
-		typeStr = typeStr + "}"
+	if strings.Contains(typeStr, "|") && len(splitTopLevelUnion(typeStr)) > 1 {
+		return nil, false
 	}
 	if !strings.HasPrefix(typeStr, "{") || !strings.HasSuffix(typeStr, "}") {
 		return nil, false

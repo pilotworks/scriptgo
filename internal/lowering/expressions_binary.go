@@ -113,6 +113,9 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if err != nil {
 			return "", "", err
 		}
+		if expression.Right != nil && (expression.Right.InferredType == "" || expression.Right.InferredType == "{}") && strings.HasPrefix(string(leftTyp), "object:") {
+			expression.Right.InferredType = string(leftTyp)
+		}
 		rightVal, rightTyp, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -154,6 +157,31 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				return result, leftTyp, nil
 			}
 			return leftVal, leftTyp, nil
+		}
+		if strings.HasPrefix(string(leftTyp), "object:") && (rightTyp == ir.TypeUnknown || rightTyp == "object:__shape_empty" || (expression.Right != nil && expression.Right.Kind == "object_literal" && len(expression.Right.Arguments) == 0)) {
+			castTemp := nextTemp(counter)
+			env[castTemp] = leftTyp
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   leftTyp,
+				Result: castTemp,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			rightVal = castTemp
+			rightTyp = leftTyp
+		} else if strings.HasPrefix(string(rightTyp), "object:") && (leftTyp == ir.TypeUnknown || leftTyp == "object:__shape_empty" || (expression.Left != nil && expression.Left.Kind == "object_literal" && len(expression.Left.Arguments) == 0)) {
+			castTemp := nextTemp(counter)
+			env[castTemp] = rightTyp
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   rightTyp,
+				Result: castTemp,
+				Args:   []string{leftVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			leftVal = castTemp
+			leftTyp = rightTyp
 		}
 		if leftTyp != rightTyp {
 			if leftTyp == ir.TypeUnknown || rightTyp == ir.TypeUnknown {
@@ -324,7 +352,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				return "", "", err
 			}
 			if valType != varType && varType != ir.TypeUnknown {
-				if strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(varType), "object:") {
+				if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(varType), "object:") || varType == ir.TypeObject) {
 					// Polymorphic object assignment
 				} else {
 					return "", "", fmt.Errorf("assignment type mismatch for %q: %s := %s", varName, varType, valType)

@@ -434,3 +434,89 @@ func lowerClosureExpression(
 
 	return result, ir.TypeClosure, nil
 }
+
+func ensureFunctionClosureTrampoline(path string, sig ir.Function, signatures map[string]ir.Function) string {
+	if strings.HasPrefix(sig.Name, "__closure_") {
+		return sig.Name
+	}
+	trampolineName := "__closure_trampoline_" + sig.Name
+	if _, exists := signatures[trampolineName]; exists {
+		return trampolineName
+	}
+
+	trampolineFn := ir.Function{
+		Name:       trampolineName,
+		ReturnType: sig.ReturnType,
+		Span:       sig.Span,
+	}
+
+	// Closure ABI parameters: (__env_ctx: ptr, param0$raw: unknown, param1$raw: unknown, param2$raw: unknown, param3$raw: unknown)
+	trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
+		Name: "__env_ctx",
+		Type: ir.TypePointer,
+	})
+
+	var callArgs []string
+	counter := 0
+	for i, param := range sig.Parameters {
+		rawName := fmt.Sprintf("arg_%d$raw", i)
+		trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
+			Name: rawName,
+			Type: ir.TypeUnknown,
+		})
+		unboxedName := fmt.Sprintf("arg_%d", i)
+		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
+			Op:     ir.OpCheckedCast,
+			Type:   param.Type,
+			Result: unboxedName,
+			Args:   []string{rawName},
+			Span:   sig.Span,
+		})
+		callArgs = append(callArgs, unboxedName)
+		counter++
+	}
+
+	// Fill remaining up to 4 raw args if sig has fewer than 4 parameters
+	for i := len(sig.Parameters); i < 4; i++ {
+		rawName := fmt.Sprintf("__unused_arg_%d$raw", i)
+		trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
+			Name: rawName,
+			Type: ir.TypeUnknown,
+		})
+	}
+
+	if sig.ReturnType != ir.TypeVoid {
+		retVal := fmt.Sprintf("ret_%d", counter)
+		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   sig.ReturnType,
+			Result: retVal,
+			Callee: sig.Name,
+			Args:   callArgs,
+			Span:   sig.Span,
+		})
+		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
+			Op:   ir.OpReturn,
+			Type: sig.ReturnType,
+			Args: []string{retVal},
+			Span: sig.Span,
+		})
+	} else {
+		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeVoid,
+			Callee: sig.Name,
+			Args:   callArgs,
+			Span:   sig.Span,
+		})
+		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
+			Op:   ir.OpReturn,
+			Type: ir.TypeVoid,
+			Span: sig.Span,
+		})
+	}
+
+	extraFunctions = append(extraFunctions, trampolineFn)
+	signatures[trampolineName] = trampolineFn
+	return trampolineName
+}

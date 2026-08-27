@@ -101,6 +101,9 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 
 		if binding.Initializer != nil {
 			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			if defaultExpr != nil && (defaultExpr.InferredType == "" || defaultExpr.InferredType == "{}") && propExpr.InferredType != "" {
+				defaultExpr.InferredType = propExpr.InferredType
+			}
 			propExpr = &SyntaxExpression{
 				Span:         sourceSpan(elem),
 				Kind:         "binary",

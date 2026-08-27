@@ -680,11 +680,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			if result == "" {
 				result = nextTemp(counter)
 			}
+			calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpClosure,
 				Type:   ir.TypeClosure,
 				Result: result,
-				Callee: sig.Name,
+				Callee: calleeName,
 				Args:   nil,
 				Span:   toIRSpan(path, expression.Span),
 			})
