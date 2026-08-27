@@ -161,7 +161,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, retType, nil
 	}
 
-	if className == "ArrayBuffer" {
+	if className == "ArrayBuffer" || className == "SharedArrayBuffer" {
 		byteLenVal := ""
 		if len(expression.Arguments) > 0 {
 			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
@@ -179,15 +179,65 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		callee := "__arraybuffer.new"
+		if className == "SharedArrayBuffer" {
+			callee = "__atomics.sharedArrayBufferNew"
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   ir.TypeArrayBuffer,
 			Result: result,
-			Callee: "__arraybuffer.new",
+			Callee: callee,
 			Args:   []string{byteLenVal},
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeArrayBuffer, nil
+	}
+
+	if className == "WeakRef" {
+		targetVal := "null"
+		if len(expression.Arguments) > 0 {
+			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			targetVal = v
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeObject,
+			Result: result,
+			Callee: "__weakref.new",
+			Args:   []string{targetVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeObject, nil
+	}
+
+	if className == "FinalizationRegistry" {
+		cbVal := "null"
+		if len(expression.Arguments) > 0 {
+			v, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			cbVal = v
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeObject,
+			Result: result,
+			Callee: "__finalization_registry.new",
+			Args:   []string{cbVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeObject, nil
 	}
 
 	if isTypedArrayClassName(className) {

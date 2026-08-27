@@ -567,11 +567,20 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	}
-	if strings.HasPrefix(instruction.Callee, "__weak") {
+	if strings.HasPrefix(instruction.Callee, "__weak") || strings.HasPrefix(instruction.Callee, "__finalization_registry.") {
 		if err := e.emitWeakIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__atomics.") {
+		if err := e.emitAtomicsIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__intl.") {

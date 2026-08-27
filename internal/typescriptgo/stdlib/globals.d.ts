@@ -1082,3 +1082,62 @@ interface Punycode {
 
 declare var punycode: Punycode;
 
+declare function setTimeout(callback: (...args: unknown[]) => void, ms?: number): number;
+declare function clearTimeout(id: number | undefined): void;
+declare function setInterval(callback: (...args: unknown[]) => void, ms?: number): number;
+declare function clearInterval(id: number | undefined): void;
+declare function setImmediate(callback: (...args: unknown[]) => void): number;
+declare function clearImmediate(id: number | undefined): void;
+
+interface SharedArrayBuffer {
+    readonly byteLength: number;
+    slice(begin?: number, end?: number): SharedArrayBuffer;
+}
+
+interface SharedArrayBufferConstructor {
+    readonly prototype: SharedArrayBuffer;
+    new(byteLength: number): SharedArrayBuffer;
+}
+
+declare var SharedArrayBuffer: SharedArrayBufferConstructor;
+
+interface Atomics {
+    isLockFree(size: number): boolean;
+    add(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    sub(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    and(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    or(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    xor(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    load(typedArray: Int32Array | Uint32Array, index: number): number;
+    store(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    exchange(typedArray: Int32Array | Uint32Array, index: number, value: number): number;
+    compareExchange(typedArray: Int32Array | Uint32Array, index: number, expected: number, replacement: number): number;
+    wait(typedArray: Int32Array, index: number, value: number, timeout?: number): "ok" | "not-equal" | "timed-out";
+    notify(typedArray: Int32Array, index: number, count?: number): number;
+}
+
+declare var Atomics: Atomics;
+
+interface WeakRef<T extends object> {
+    deref(): T | undefined;
+}
+
+interface WeakRefConstructor {
+    readonly prototype: WeakRef<object>;
+    new<T extends object>(target: T): WeakRef<T>;
+}
+
+declare var WeakRef: WeakRefConstructor;
+
+interface FinalizationRegistry<T> {
+    register(target: object, heldValue: T, unregisterToken?: object): void;
+    unregister(unregisterToken: object): boolean;
+}
+
+interface FinalizationRegistryConstructor {
+    readonly prototype: FinalizationRegistry<unknown>;
+    new<T>(cleanupCallback: (heldValue: T) => void): FinalizationRegistry<T>;
+}
+
+declare var FinalizationRegistry: FinalizationRegistryConstructor;
+

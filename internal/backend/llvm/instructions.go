@@ -77,7 +77,12 @@ func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) str
 }
 
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
-	if slot, ok := e.varSlots[arg]; ok {
+	slot, ok := e.varSlots[arg]
+	if cellSlot, isCell := e.sharedEnvCells[arg]; isCell {
+		slot = cellSlot
+		ok = true
+	}
+	if ok {
 		typ := e.types[arg]
 		if e.isParamUnknown(arg) {
 			typ = ir.TypeUnknown
@@ -204,8 +209,15 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		}
 		if isGlobal {
 			out.WriteString(fmt.Sprintf("  store %s %s, ptr @%s\n", llvmType(typ), argVal, targetResult))
+			if cellSlot, isCell := e.sharedEnvCells[targetResult]; isCell {
+				out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
+			}
 		} else {
-			out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, e.varSlots[targetResult]))
+			slot := e.varSlots[targetResult]
+			if cellSlot, isCell := e.sharedEnvCells[targetResult]; isCell {
+				slot = cellSlot
+			}
+			out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, slot))
 		}
 		return nil
 	case ir.OpBinary:
@@ -336,7 +348,12 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return fmt.Errorf("unsupported LLVM instruction %q", inst.Op)
 	}
 
-	if slot, ok := e.varSlots[targetResult]; ok {
+	slot, hasSlot := e.varSlots[targetResult]
+	if cellSlot, isCell := e.sharedEnvCells[targetResult]; isCell {
+		slot = cellSlot
+		hasSlot = true
+	}
+	if hasSlot {
 		typ := e.types[targetResult]
 		if typ == "" {
 			typ = inst.Type

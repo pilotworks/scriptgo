@@ -159,8 +159,9 @@ int scriptgo_timers_drain(void) {
 
         if (earliest->closure != NULL && earliest->closure->fn_ptr != NULL) {
             currently_running_timer = earliest;
-            void (*fn)(void *) = (void (*)(void *))earliest->closure->fn_ptr;
-            fn(earliest->closure->env);
+            void (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
+                (void (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))earliest->closure->fn_ptr;
+            fn(earliest->closure->env, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             currently_running_timer = NULL;
         }
 

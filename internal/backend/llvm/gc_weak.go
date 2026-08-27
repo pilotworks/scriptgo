@@ -148,6 +148,37 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", i32Val, slot)
 		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val)
 
+	case "__finalization_registry.new":
+		cbArg := "null"
+		if len(instruction.Args) > 0 && instruction.Args[0] != "" {
+			cbArg = "%" + e.resolveArg(out, instruction.Args[0])
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_finalization_registry_new(ptr %s, ptr %%%s)\n", status, cbArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+
+	case "__finalization_registry.register":
+		handle := e.resolveArg(out, instruction.Args[0])
+		target := e.resolveArg(out, instruction.Args[1])
+		held := e.resolveArg(out, instruction.Args[2])
+		token := "null"
+		if len(instruction.Args) > 3 {
+			token = "%" + e.resolveArg(out, instruction.Args[3])
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_finalization_registry_register(ptr %%%s, ptr %%%s, ptr %%%s, ptr %s)\n", status, handle, target, held, token)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+
+	case "__finalization_registry.unregister":
+		handle := e.resolveArg(out, instruction.Args[0])
+		token := e.resolveArg(out, instruction.Args[1])
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_finalization_registry_unregister(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, handle, token, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		i32Val := instruction.Result + ".i32"
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", i32Val, slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val)
+
 	default:
 		return fmt.Errorf("unknown weak intrinsic %q", instruction.Callee)
 	}

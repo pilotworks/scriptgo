@@ -109,7 +109,6 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 	}
 
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
-	e.sharedEnvCells = make(map[string]string)
 	e.terminated = false
 	for _, inst := range instruction.Body {
 		if err := e.emitInstruction(out, inst); err != nil {
@@ -172,7 +171,6 @@ func (e *functionEmitter) emitDoWhile(out *strings.Builder, instruction ir.Instr
 
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
-	e.sharedEnvCells = make(map[string]string)
 	e.terminated = false
 	for _, inst := range instruction.Body {
 		if err := e.emitInstruction(out, inst); err != nil {

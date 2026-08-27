@@ -1,0 +1,9 @@
+SAB byteLength: 1024
+ta length: 256
+Loaded after store: 100
+oldAdd: 100 newVal: 125
+oldSub: 125 newVal: 115
+oldEx: 115 newVal: 500
+oldCmp: 500 newVal: 999
+isLockFree 4: true
+isLockFree 3: false

@@ -187,6 +187,56 @@ func lowerWeakReceiverMethod(
 			}
 		}
 	}
+	if receiverType == "object:FinalizationRegistry" || strings.HasPrefix(string(receiverType), "object:FinalizationRegistry<") || strings.HasPrefix(string(receiverType), "object:FinalizationRegistry__") || receiverType == "FinalizationRegistry" {
+		switch methodName {
+		case "register":
+			if len(expression.Arguments) >= 2 {
+				targetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", true, err
+				}
+				heldVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", true, err
+				}
+				tokenVal := "null"
+				if len(expression.Arguments) >= 3 {
+					tok, _, err := lowerExpression(path, expression.Arguments[2], "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", true, err
+					}
+					tokenVal = tok
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeVoid,
+					Callee: "__finalization_registry.register",
+					Args:   []string{receiver, targetVal, heldVal, tokenVal},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return "", ir.TypeVoid, true, nil
+			}
+		case "unregister":
+			if len(expression.Arguments) >= 1 {
+				tokenVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", true, err
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeBool,
+					Result: result,
+					Callee: "__finalization_registry.unregister",
+					Args:   []string{receiver, tokenVal},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeBool, true, nil
+			}
+		}
+	}
 	return "", "", false, nil
 }
 

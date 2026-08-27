@@ -484,7 +484,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeBigUint64Array
 	case "DataView":
 		return ir.TypeDataView
-	case "ArrayBuffer":
+	case "ArrayBuffer", "SharedArrayBuffer":
 		return ir.TypeArrayBuffer
 	case "Map":
 		return ir.TypeMap
@@ -496,6 +496,8 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.Type("object:WeakSet")
 	case "WeakRef":
 		return ir.Type("object:WeakRef")
+	case "FinalizationRegistry":
+		return ir.Type("object:FinalizationRegistry")
 	case "TextEncoder":
 		return ir.TypeTextEncoder
 	case "TextDecoder":

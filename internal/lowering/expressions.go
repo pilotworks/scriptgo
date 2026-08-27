@@ -618,7 +618,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					typ = ir.TypeBigUint64Array
 				case "DataView":
 					typ = ir.TypeDataView
-				case "ArrayBuffer":
+				case "ArrayBuffer", "SharedArrayBuffer":
 					typ = ir.TypeArrayBuffer
 				case "Buffer":
 					typ = ir.TypeBuffer

@@ -1,0 +1,3 @@
+WeakRef deref user name: Alice
+FinalizationRegistry unregister success: true
+FinalizationRegistry unregister second time: false

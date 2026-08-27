@@ -1,30 +1,30 @@
 declare namespace __scriptgo {
-    function setTimeout(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number;
+    function setTimeout(callback: (...args: unknown[]) => void, ms?: number): number;
     function clearTimeout(id: number | undefined): void;
-    function setInterval(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number;
+    function setInterval(callback: (...args: unknown[]) => void, ms?: number): number;
     function clearInterval(id: number | undefined): void;
-    function setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): number;
+    function setImmediate(callback: (...args: unknown[]) => void): number;
     function clearImmediate(id: number | undefined): void;
 }
 
-export function setTimeout(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number {
-    return __scriptgo.setTimeout(callback, ms, ...args);
+export function setTimeout(callback: (...args: unknown[]) => void, ms?: number): number {
+    return __scriptgo.setTimeout(callback, ms);
 }
 
 export function clearTimeout(id: number | undefined): void {
     __scriptgo.clearTimeout(id);
 }
 
-export function setInterval(callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]): number {
-    return __scriptgo.setInterval(callback, ms, ...args);
+export function setInterval(callback: (...args: unknown[]) => void, ms?: number): number {
+    return __scriptgo.setInterval(callback, ms);
 }
 
 export function clearInterval(id: number | undefined): void {
     __scriptgo.clearInterval(id);
 }
 
-export function setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): number {
-    return __scriptgo.setImmediate(callback, ...args);
+export function setImmediate(callback: (...args: unknown[]) => void): number {
+    return __scriptgo.setImmediate(callback);
 }
 
 export function clearImmediate(id: number | undefined): void {

@@ -204,3 +204,75 @@ int scriptgo_weakset_delete(void *handle, void *value, int32_t *out_deleted) {
     *out_deleted = 0;
     return 0;
 }
+
+// --- FinalizationRegistry ---
+
+typedef struct {
+    void *target;
+    void *held_value;
+    void *unregister_token;
+} finalization_entry;
+
+typedef struct {
+    void *cleanup_closure;
+    int64_t count;
+    int64_t capacity;
+    finalization_entry *entries;
+} scriptgo_finalization_registry;
+
+int scriptgo_finalization_registry_new(void *cleanup_closure, void **out_registry) {
+    if (out_registry == NULL) return weak_fail("FinalizationRegistry: null output pointer");
+    scriptgo_finalization_registry *r = (scriptgo_finalization_registry *)calloc(1, sizeof(scriptgo_finalization_registry));
+    if (r == NULL) return weak_fail("FinalizationRegistry allocation failed");
+    r->cleanup_closure = cleanup_closure;
+    r->capacity = 8;
+    r->entries = (finalization_entry *)calloc((size_t)r->capacity, sizeof(finalization_entry));
+    if (r->entries == NULL) {
+        free(r);
+        return weak_fail("FinalizationRegistry allocation failed");
+    }
+    *out_registry = r;
+    return 0;
+}
+
+int scriptgo_finalization_registry_register(void *handle, void *target, void *held_value, void *unregister_token) {
+    if (handle == NULL) return weak_fail("FinalizationRegistry.register: null handle");
+    if (target == NULL) return weak_fail("FinalizationRegistry.register: target must be an object");
+    scriptgo_finalization_registry *r = (scriptgo_finalization_registry *)handle;
+    if (r->count >= r->capacity) {
+        int64_t new_cap = r->capacity * 2;
+        finalization_entry *new_entries = (finalization_entry *)realloc(r->entries, (size_t)new_cap * sizeof(finalization_entry));
+        if (new_entries == NULL) return weak_fail("FinalizationRegistry realloc failed");
+        r->entries = new_entries;
+        r->capacity = new_cap;
+    }
+    r->entries[r->count].target = target;
+    r->entries[r->count].held_value = held_value;
+    r->entries[r->count].unregister_token = unregister_token;
+    r->count++;
+    return 0;
+}
+
+int scriptgo_finalization_registry_unregister(void *handle, void *unregister_token, int32_t *out_success) {
+    if (handle == NULL || out_success == NULL) return weak_fail("FinalizationRegistry.unregister failed");
+    if (unregister_token == NULL) {
+        *out_success = 0;
+        return 0;
+    }
+    scriptgo_finalization_registry *r = (scriptgo_finalization_registry *)handle;
+    int found = 0;
+    int64_t write_idx = 0;
+    for (int64_t i = 0; i < r->count; i++) {
+        if (r->entries[i].unregister_token == unregister_token) {
+            found = 1;
+        } else {
+            if (write_idx != i) {
+                r->entries[write_idx] = r->entries[i];
+            }
+            write_idx++;
+        }
+    }
+    r->count = write_idx;
+    *out_success = found ? 1 : 0;
+    return 0;
+}
