@@ -86,6 +86,12 @@ func TestCompileRejectsUnsupportedSanitizer(t *testing.T) {
 	}
 }
 
+func TestCompileRejectsUnsupportedOptLevel(t *testing.T) {
+	if _, err := CompileWithOptions("main.ts", BuildOptions{OptLevel: "99"}); err == nil || !strings.Contains(err.Error(), "unsupported optimization level") {
+		t.Fatalf("CompileWithOptions error = %v, want unsupported optimization level diagnostic", err)
+	}
+}
+
 func TestBuildProducesExecutable(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang is not installed")
@@ -474,6 +480,7 @@ func TestBuildOptionsDefaultsAndEnvironment(t *testing.T) {
 	// Default values when neither struct fields nor env vars are set
 	t.Setenv("SCRIPTGO_CC", "")
 	t.Setenv("SCRIPTGO_TARGET", "")
+	t.Setenv("SCRIPTGO_OPT_LEVEL", "")
 	t.Setenv("CC", "ignored-generic-cc")
 	t.Setenv("TARGET", "ignored-generic-target")
 	opts := BuildOptions{}.normalized()
@@ -483,10 +490,14 @@ func TestBuildOptionsDefaultsAndEnvironment(t *testing.T) {
 	if opts.Target != "native" {
 		t.Errorf("default Target = %q, want %q", opts.Target, "native")
 	}
+	if opts.OptLevel != "2" {
+		t.Errorf("default OptLevel = %q, want %q", opts.OptLevel, "2")
+	}
 
-	// SCRIPTGO_CC / SCRIPTGO_TARGET environment variables
+	// SCRIPTGO_CC / SCRIPTGO_TARGET / SCRIPTGO_OPT_LEVEL environment variables
 	t.Setenv("SCRIPTGO_CC", "zig cc")
 	t.Setenv("SCRIPTGO_TARGET", "x86_64-linux-gnu")
+	t.Setenv("SCRIPTGO_OPT_LEVEL", "0")
 	envOpts := BuildOptions{}.normalized()
 	if envOpts.CC != "zig cc" {
 		t.Errorf("env CC = %q, want %q", envOpts.CC, "zig cc")
@@ -494,14 +505,20 @@ func TestBuildOptionsDefaultsAndEnvironment(t *testing.T) {
 	if envOpts.Target != "x86_64-linux-gnu" {
 		t.Errorf("env Target = %q, want %q", envOpts.Target, "x86_64-linux-gnu")
 	}
+	if envOpts.OptLevel != "0" {
+		t.Errorf("env OptLevel = %q, want %q", envOpts.OptLevel, "0")
+	}
 
 	// Explicit struct field overrides environment variables
-	explicitOpts := BuildOptions{CC: "gcc", Target: "aarch64-macos"}.normalized()
+	explicitOpts := BuildOptions{CC: "gcc", Target: "aarch64-macos", OptLevel: "3"}.normalized()
 	if explicitOpts.CC != "gcc" {
 		t.Errorf("explicit CC = %q, want %q", explicitOpts.CC, "gcc")
 	}
 	if explicitOpts.Target != "aarch64-macos" {
 		t.Errorf("explicit Target = %q, want %q", explicitOpts.Target, "aarch64-macos")
+	}
+	if explicitOpts.OptLevel != "3" {
+		t.Errorf("explicit OptLevel = %q, want %q", explicitOpts.OptLevel, "3")
 	}
 }
 

@@ -105,6 +105,10 @@ func TestCorpus(t *testing.T) {
 	if sanitizerEnv != "" {
 		buildOpts.Sanitizers = strings.Split(sanitizerEnv, ",")
 	}
+	buildOpts.OptLevel = "0"
+	if optEnv := os.Getenv("SCRIPTGO_OPT_LEVEL"); optEnv != "" {
+		buildOpts.OptLevel = optEnv
+	}
 
 	for _, caseTarget := range cases {
 		t.Run(filepath.ToSlash(caseTarget), func(t *testing.T) {
@@ -137,7 +141,7 @@ func TestCorpus(t *testing.T) {
 
 			if hasRunExp {
 				expectations++
-				got, err := Run(entry)
+				got, err := RunWithOptions(entry, buildOpts)
 				if err != nil {
 					t.Fatalf("Run failed: %v", err)
 				}
@@ -176,7 +180,7 @@ func TestCorpus(t *testing.T) {
 					t.Skip("clang is not installed")
 				}
 				outputPath := filepath.Join(t.TempDir(), "main")
-				if err := Build(entry, outputPath); err != nil {
+				if err := BuildWithOptions(entry, outputPath, buildOpts); err != nil {
 					t.Fatalf("Build failed: %v", err)
 				}
 				got, err := exec.Command(outputPath).CombinedOutput()
@@ -200,7 +204,7 @@ func TestCorpus(t *testing.T) {
 
 			if hasRunErr {
 				expectations++
-				if _, err := Run(entry); err == nil || !strings.Contains(err.Error(), strings.TrimSpace(runErrExp)) {
+				if _, err := RunWithOptions(entry, buildOpts); err == nil || !strings.Contains(err.Error(), strings.TrimSpace(runErrExp)) {
 					t.Fatalf("Run error = %v, want substring %q", err, strings.TrimSpace(runErrExp))
 				}
 			}

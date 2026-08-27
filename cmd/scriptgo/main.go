@@ -77,7 +77,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "-O") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -125,6 +125,7 @@ func handleRun(args []string) {
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
 	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
@@ -178,6 +179,7 @@ func handleRun(args []string) {
 		CC:               *cc,
 		Target:           *target,
 		Debug:            *debug,
+		OptLevel:         *optLevel,
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
@@ -226,6 +228,7 @@ func handleBuild(args []string) {
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
 	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
@@ -295,6 +298,7 @@ func handleBuild(args []string) {
 		CC:               *cc,
 		Target:           *target,
 		Debug:            *debug,
+		OptLevel:         *optLevel,
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,

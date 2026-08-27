@@ -13,6 +13,7 @@ type BuildOptions struct {
 	CC               string
 	Target           string
 	Debug            bool
+	OptLevel         string
 	Sanitizers       []string
 	WarnRuntimeCasts bool
 	StrictCasts      bool
@@ -35,6 +36,15 @@ func (options BuildOptions) normalized() BuildOptions {
 			options.Target = envTarget
 		} else {
 			options.Target = "native"
+		}
+	}
+	if options.OptLevel == "" {
+		if options.Debug {
+			options.OptLevel = "0"
+		} else if envOpt := os.Getenv("SCRIPTGO_OPT_LEVEL"); envOpt != "" {
+			options.OptLevel = envOpt
+		} else {
+			options.OptLevel = "2"
 		}
 	}
 	return options

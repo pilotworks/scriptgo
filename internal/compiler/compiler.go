@@ -67,6 +67,13 @@ func validateOptions(options BuildOptions) error {
 			return fmt.Errorf("unsupported sanitizer %q; supported sanitizers: address, undefined, leak", sanitizer)
 		}
 	}
+	if options.OptLevel != "" {
+		switch options.OptLevel {
+		case "0", "1", "2", "3", "s", "z", "fast":
+		default:
+			return fmt.Errorf("unsupported optimization level %q; supported: 0, 1, 2, 3, s, z, fast", options.OptLevel)
+		}
+	}
 	return nil
 }
 
@@ -234,7 +241,9 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	}
 
 	args = append(args, "-x", "none")
-	if options.Debug {
+	if options.OptLevel != "" {
+		args = append(args, "-O"+options.OptLevel)
+	} else if options.Debug {
 		args = append(args, "-O0")
 	} else {
 		args = append(args, "-O2")
@@ -368,6 +377,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	h := sha256.New()
 	h.Write(runtime.Source)
 	h.Write([]byte(options.Target))
+	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
 	if options.Debug {
 		h.Write([]byte("debug"))
@@ -388,7 +398,12 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
 	buildArgs = append(buildArgs, "-c", srcPath, "-o", objPath)
-	if options.Debug {
+	if options.OptLevel != "" {
+		buildArgs = append(buildArgs, "-O"+options.OptLevel)
+		if options.Debug {
+			buildArgs = append(buildArgs, "-g")
+		}
+	} else if options.Debug {
 		buildArgs = append(buildArgs, "-O0", "-g")
 	} else {
 		buildArgs = append(buildArgs, "-O2")
