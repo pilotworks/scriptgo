@@ -777,37 +777,22 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			if !okTyp {
 				typ = ir.TypeNumber
 			}
-			cellSlot, ok := e.sharedEnvCells[arg]
-			if !ok {
-				cellSlot = fmt.Sprintf("cell.%s.%d", arg, e.loadCounter)
-				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
-				if e.sharedEnvCells == nil {
-					e.sharedEnvCells = make(map[string]string)
-				}
-				e.sharedEnvCells[arg] = cellSlot
-			}
-			argVal := arg
-			if slot, ok := e.varSlots[arg]; ok {
-				loaded := fmt.Sprintf("%s.loaded.%d", arg, e.loadCounter)
-				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(typ), slot))
-				argVal = loaded
-			} else {
-				for _, g := range e.module.Globals {
-					if g.Name == arg {
-						loaded := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
-						e.loadCounter++
-						out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loaded, llvmType(typ), g.Name))
-						argVal = loaded
-						break
-					}
-				}
-			}
-			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
-			out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellSlot, fieldPtr))
+			if cellSlot, ok := e.sharedEnvCells[arg]; ok && len(e.loopBreakLabels) == 0 {
+				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellSlot, fieldPtr))
+			} else {
+				cellAlloc := fmt.Sprintf("closure.cell.%s.%d", arg, e.loadCounter)
+				e.loadCounter++
+				allocSize := 8
+				if typ == ir.TypeUnknown {
+					allocSize = 16
+				}
+				out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %d)\n", cellAlloc, allocSize))
+				argVal := e.resolveArg(out, arg)
+				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellAlloc))
+				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellAlloc, fieldPtr))
+			}
 		}
 		envPtr = "%" + envAlloc
 	}

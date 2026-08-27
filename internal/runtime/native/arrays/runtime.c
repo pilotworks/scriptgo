@@ -68,6 +68,10 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
         return fail("scriptgo array access failed");
     }
     if (check_index(array, index, &offset) != 0) return -1;
+    if (array->element_size == 16) {
+        memcpy(out_value, array->data + offset + 8, 8);
+        return 0;
+    }
     memcpy(out_value, array->data + offset, (size_t)array->element_size);
     return 0;
 }

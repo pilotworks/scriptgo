@@ -788,8 +788,28 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	for _, capName := range capturedInBody {
 		cellSlot := fmt.Sprintf("cell.%s.%d", capName, emitter.loadCounter)
 		emitter.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 8)\n", cellSlot))
+		allocSize := 8
+		for _, param := range function.Parameters {
+			if param.Name == capName {
+				emitter.types[capName] = param.Type
+				if param.Type == ir.TypeUnknown {
+					allocSize = 16
+				}
+				break
+			}
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %d)\n", cellSlot, allocSize))
 		emitter.sharedEnvCells[capName] = cellSlot
+		for _, param := range function.Parameters {
+			if param.Name == capName {
+				pType := param.Type
+				if pType == "" || pType == ir.TypeVoid {
+					pType = ir.TypeUnknown
+				}
+				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(pType), param.Name, cellSlot))
+				break
+			}
+		}
 	}
 
 	slotted := findSlottedVariables(function.Body)
