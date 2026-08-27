@@ -269,6 +269,30 @@ func rewriteTypeString(typ string) string {
 	}
 	hasObj := strings.HasPrefix(typ, "object:")
 	clean := strings.TrimPrefix(typ, "object:")
+	if strings.Contains(clean, "__") {
+		idx := strings.Index(clean, "__")
+		name := clean[:idx]
+		inner := clean[idx+2:]
+		inner = strings.TrimSuffix(inner, "_arr")
+		parts := strings.Split(inner, "_")
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, rewriteTypeString(p))
+		}
+		if alias, ok := currGenericTypeAliases[name]; ok {
+			tParams := alias.TypeParameters
+			if len(tParams) == 0 && alias.Class != nil {
+				tParams = alias.Class.TypeParameters
+			}
+			if len(newParts) == len(tParams) {
+				subst := make(map[string]string, len(newParts))
+				for i, tp := range tParams {
+					subst[tp] = newParts[i]
+				}
+				return rewriteTypeString(substituteType(alias.Type, subst))
+			}
+		}
+	}
 	if strings.Contains(clean, "<") && strings.HasSuffix(clean, ">") {
 		idx := strings.Index(clean, "<")
 		name := clean[:idx]

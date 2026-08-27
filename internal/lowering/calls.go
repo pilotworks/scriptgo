@@ -612,7 +612,7 @@ func lowerCallExpression(
 		return result, retType, nil
 	}
 
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index") {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "call" || expression.Left.Kind == "paren" || expression.Left.Kind == "optional_call") {
 		closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err == nil && (closureType == ir.TypeClosure || closureType == "Function" || closureType == "function" || strings.Contains(string(closureType), "=>")) {
 			args := make([]string, 0, len(expression.Arguments))
@@ -633,6 +633,12 @@ func lowerCallExpression(
 				retType = target.ReturnType
 			} else if expression.InferredType != "" {
 				retType = toIRType(expression.InferredType)
+			} else if expression.Left.InferredType != "" && strings.Contains(expression.Left.InferredType, "=>") {
+				parts := strings.Split(expression.Left.InferredType, "=>")
+				retStr := strings.TrimSpace(parts[len(parts)-1])
+				if parsed := toIRType(retStr); parsed != "" {
+					retType = parsed
+				}
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpClosureCall,

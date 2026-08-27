@@ -278,7 +278,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Postfix / Prefix `++` / `--` in Expr** | `let y = x++; foo(x--);` | ✅ Full | Prefix and postfix operators on variables, properties, array indices in all expressions and statements. |
 | **Binary Arithmetic & String Concat** | `+`, `-`, `*`, `/`, `%`, `**` | ✅ Full | IEEE-754 arithmetic and automatic string concatenation coercions (`string + number`, `number + string`, `string + boolean`). |
 | **Binary Bitwise** | `&`, `\|`, `^`, `<<`, `>>`, `>>>` | ✅ Full | 32-bit integer bitwise operations conforming to ECMAScript standard. |
-| **Binary Comparison** | `===`, `!==`, `==`, `!=`, `<`, `>`, `<=`, `>=` | ✅ Full | Strict and abstract equality comparisons. |
+| **Binary Comparison** | `===`, `!==`, `==`, `!=`, `<`, `>`, `<=`, `>=` | ✅ Full | Strict and abstract equality comparisons, including full Node.js/TS parity on primitives and nullable unions (`number \| null`, `boolean \| null`, `string \| null`). |
 | **Binary Logical** | `&&`, `\|\|`, `??` | ✅ Full | Short-circuit evaluation and nullish coalescing. |
 | **Compound Assignment** | `+=`, `-=`, `*=`, `/=`, `&&=`, `\|\|=`, `??=` | ✅ Full | Accurately desugared into assignment and binary operations. |
 | **Ternary Operator** | `cond ? val1 : val2` | ✅ Full | Conditional expression evaluation with correct branch selection. |
@@ -302,7 +302,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Decorators (Stage 3 / Experimental & Reflection)** | ✅ Full | Standardized in Frontend; desugared to static wrappers & compile-time metadata registry (`Reflect.getMetadata`, `defineMetadata`, `hasMetadata`) in Static Tier. |
 | **User-defined Type Predicates** | ⚠️ Rudimentary | Complex `x is Type` functions (beyond basic `typeof` and `instanceof`) are not yet deeply narrowed in the backend. |
 | **Complex Conditional & Mapped Types** | ⚠️ Frontend only | Resolved at compile-time by TypeScript-Go, but complex dynamic layout generation is not fully lowered to IR. |
-| **Polymorphic Discriminated Unions** | ✅ Full | Supported via tagged shape unions, type assertion/narrowing (`s as Circle`), and dynamic `instanceof` / tag checks across multi-branch control flow. |
+| **Polymorphic & Generic Discriminated Unions** | ✅ Full | Supported via tagged shape unions, generic type alias expansions (`Result<T, E> = Ok<T> \| Err<E>`), type narrowing (`if (res.ok)`), and dynamic `instanceof` / discriminator tag checks across control flow. |
 
 ---
 

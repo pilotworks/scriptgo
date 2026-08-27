@@ -189,8 +189,8 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 					if instruction.Type != TypeNumber {
 						return fmt.Errorf("index instruction on typed array must produce number")
 					}
-				} else if instruction.Type != elementType(arrType) {
-					return fmt.Errorf("index instruction has incompatible result type %s", instruction.Type)
+				} else if instruction.Type != elementType(arrType) && !isAssignableTo(instruction.Type, elementType(arrType)) {
+					return fmt.Errorf("index instruction has incompatible result type %s (expected %s for array %s, result=%s, args=%v)", instruction.Type, elementType(arrType), arrType, instruction.Result, instruction.Args)
 				}
 			}
 			if instruction.Op == OpObjectNew && !strings.HasPrefix(string(instruction.Type), string(TypeObject)+":") {
@@ -340,6 +340,9 @@ func elementType(arrayType Type) Type {
 	if arrayType == TypeBoolArray {
 		return TypeBool
 	}
+	if arrayType == TypeUnknownArray || arrayType == TypeUnknown {
+		return TypeUnknown
+	}
 	return TypeNumber
 }
 
@@ -444,6 +447,9 @@ func isBigIntTypedArrayType(t Type) bool {
 
 func isAssignableTo(actual, expected Type) bool {
 	if actual == expected {
+		return true
+	}
+	if actual == TypeUnknown || expected == TypeUnknown {
 		return true
 	}
 	if (actual == "never[]" || actual == "object:never[]" || actual == "any[]" || actual == "object:any[]") && strings.HasSuffix(string(expected), "[]") {

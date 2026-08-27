@@ -20,7 +20,20 @@ func lowerRegExpReceiverMethod(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	if receiverType != "object:RegExp" {
+	isRegExp := receiverType == "object:RegExp" || receiverType == "RegExp"
+	if !isRegExp && receiverType == ir.TypeUnknown && expression.Left != nil && expression.Left.Left != nil && (expression.Left.Left.InferredType == "RegExp" || expression.Left.Left.InferredType == "object:RegExp") {
+		isRegExp = true
+		castRec := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCheckedCast,
+			Type:   ir.Type("object:RegExp"),
+			Result: castRec,
+			Args:   []string{receiver},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		receiver = castRec
+	}
+	if !isRegExp {
 		return "", "", false, nil
 	}
 	if methodName == "test" && len(expression.Arguments) > 0 {

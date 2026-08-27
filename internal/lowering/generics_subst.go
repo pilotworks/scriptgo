@@ -118,6 +118,18 @@ func substituteType(typ string, subst map[string]string) string {
 		}
 		return res
 	}
+	if strings.Contains(clean, "|") {
+		parts := strings.Split(clean, "|")
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
+		}
+		res := strings.Join(newParts, " | ")
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
 	if strings.Contains(clean, "<") && strings.HasSuffix(clean, ">") {
 		idx := strings.Index(clean, "<")
 		name := clean[:idx]
@@ -153,18 +165,6 @@ func substituteType(typ string, subst map[string]string) string {
 			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
 		}
 		res := "[" + strings.Join(newParts, ", ") + "]"
-		if hasObj {
-			return "object:" + res
-		}
-		return res
-	}
-	if strings.Contains(clean, "|") {
-		parts := strings.Split(clean, "|")
-		var newParts []string
-		for _, p := range parts {
-			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
-		}
-		res := strings.Join(newParts, " | ")
 		if hasObj {
 			return "object:" + res
 		}

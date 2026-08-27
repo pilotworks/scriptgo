@@ -225,6 +225,19 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescr
 		parts := strings.Split(inner, "_")
 		if _, ok := genericClasses[name]; ok {
 			reqCls(name, parts, fileName)
+		} else if alias, ok := currGenericTypeAliases[name]; ok {
+			tParams := alias.TypeParameters
+			if len(tParams) == 0 && alias.Class != nil {
+				tParams = alias.Class.TypeParameters
+			}
+			if len(parts) == len(tParams) {
+				subst := make(map[string]string, len(parts))
+				for i, tp := range tParams {
+					subst[tp] = parts[i]
+				}
+				expanded := substituteType(alias.Type, subst)
+				scanTypeForGenerics(expanded, fileName, genericClasses, reqCls)
+			}
 		}
 		for _, p := range parts {
 			scanTypeForGenerics(p, fileName, genericClasses, reqCls)
@@ -238,6 +251,19 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescr
 		parts := splitTypeArguments(inner)
 		if _, ok := genericClasses[name]; ok {
 			reqCls(name, parts, fileName)
+		} else if alias, ok := currGenericTypeAliases[name]; ok {
+			tParams := alias.TypeParameters
+			if len(tParams) == 0 && alias.Class != nil {
+				tParams = alias.Class.TypeParameters
+			}
+			if len(parts) == len(tParams) {
+				subst := make(map[string]string, len(parts))
+				for i, tp := range tParams {
+					subst[tp] = parts[i]
+				}
+				expanded := substituteType(alias.Type, subst)
+				scanTypeForGenerics(expanded, fileName, genericClasses, reqCls)
+			}
 		}
 		for _, p := range parts {
 			scanTypeForGenerics(p, fileName, genericClasses, reqCls)
@@ -320,6 +346,31 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 		argType = base + "<" + inner + ">"
 	}
 
+	if strings.HasPrefix(paramType, "[") && strings.HasSuffix(paramType, "]") {
+		pInner := paramType[1 : len(paramType)-1]
+		pParts := strings.Split(pInner, ",")
+		var aParts []string
+		if strings.HasPrefix(argType, "[") && strings.HasSuffix(argType, "]") {
+			aInner := argType[1 : len(argType)-1]
+			aParts = strings.Split(aInner, ",")
+		} else if strings.HasPrefix(argType, "__shape_") {
+			clean := strings.TrimPrefix(argType, "__shape_")
+			tokens := strings.Split(clean, "_")
+			for i := 0; i < len(tokens); i += 2 {
+				if i+1 < len(tokens) {
+					aParts = append(aParts, tokens[i+1])
+				}
+			}
+		}
+		minLen := len(pParts)
+		if len(aParts) < minLen {
+			minLen = len(aParts)
+		}
+		for i := 0; i < minLen; i++ {
+			matchTypeParam(strings.TrimSpace(pParts[i]), strings.TrimSpace(aParts[i]), inferred)
+		}
+		return
+	}
 	if strings.HasSuffix(paramType, "[]") && strings.HasSuffix(argType, "[]") {
 		matchTypeParam(paramType[:len(paramType)-2], argType[:len(argType)-2], inferred)
 		return

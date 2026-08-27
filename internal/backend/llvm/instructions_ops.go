@@ -47,7 +47,7 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeUnknown:
 		tag := 0
 		if instruction.Value == "null" {
-			tag = 5
+			tag = 1
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", instruction.Result, tag))
 	default:
@@ -522,6 +522,12 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 	id := e.loadCounter
 	e.loadCounter++
 
+	if slot, ok := e.varSlots[argVal]; ok {
+		loaded := fmt.Sprintf("%s.box_load.%d", argVal, id)
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(argType), slot))
+		argVal = loaded
+	}
+
 	var tag int
 	var payloadVal string
 
@@ -548,6 +554,10 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 	case ir.TypeVoid:
 		tag = 0 // SCRIPTGO_TAG_UNDEFINED
 		payloadVal = "0"
+	case ir.TypePointer:
+		tag = 1 // SCRIPTGO_TAG_NULL
+		payloadVal = fmt.Sprintf("payload.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", payloadVal, argVal))
 	case ir.TypeUnknown:
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", result, argVal))
 		return nil
@@ -687,10 +697,13 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	out.WriteString("  unreachable\n")
 
 	out.WriteString(fmt.Sprintf("\n%s:\n", castOk))
-
 	switch instruction.Type {
 	case ir.TypeNumber:
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", instruction.Result, rawPayload))
+		dblVal := fmt.Sprintf("cast.dbl.%d", id)
+		isNotNumber := fmt.Sprintf("cast.not_num.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", dblVal, rawPayload))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 3\n", isNotNumber, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double 0x7FF8000000000000, double %%%s\n", instruction.Result, isNotNumber, dblVal))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", instruction.Result, rawPayload))
 	case ir.TypeString:

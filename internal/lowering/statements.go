@@ -179,6 +179,28 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 		if declaredType == ir.TypeUnknown {
+			if statement.Expression != nil && statement.Expression.Kind == "null" {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeUnknown,
+					Result: statement.Name,
+					Value:  "null",
+					Span:   toIRSpan(path, statement.Span),
+				})
+				env[statement.Name] = ir.TypeUnknown
+				return nil
+			}
+			if statement.Expression != nil && statement.Expression.Kind == "undefined" {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeUnknown,
+					Result: statement.Name,
+					Value:  "undefined",
+					Span:   toIRSpan(path, statement.Span),
+				})
+				env[statement.Name] = ir.TypeUnknown
+				return nil
+			}
 			value, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return err
@@ -240,22 +262,34 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
-		value, typ, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
+		value, valType, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
-		if value != statement.Name {
-			return fmt.Errorf("variable %q produced unnamed value %q", statement.Name, value)
-		}
-		if statement.Type != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
-			if !strings.Contains(statement.Type, "|") {
-				if declared := toIRType(statement.Type); declared != "" {
-					typ = declared
+		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown {
+			if value == statement.Name {
+				tempVal := nextTemp(counter)
+				for i := len(function.Body) - 1; i >= 0; i-- {
+					if function.Body[i].Result == statement.Name {
+						function.Body[i].Result = tempVal
+						break
+					}
 				}
+				value = tempVal
 			}
-		} else if statement.InferredType != "" && !strings.HasPrefix(string(typ), "object:Generator_") {
-			if inferred := toIRType(statement.InferredType); inferred != "" {
-				typ = inferred
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   declaredType,
+				Result: statement.Name,
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			valType = declaredType
+		}
+		typ := valType
+		if declaredType != "" && declaredType != ir.TypeUnknown {
+			if !(strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(declaredType), "object:") && !strings.Contains(string(declaredType), "shape_") && !strings.Contains(string(declaredType), "{")) {
+				typ = declaredType
 			}
 		}
 		env[statement.Name] = typ
@@ -359,6 +393,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			})
 			value = boxed
 			typ = ir.TypeUnknown
+		} else if function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeUnknown && typ == ir.TypeUnknown {
+			castVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   function.ReturnType,
+				Result: castVal,
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			value = castVal
+			typ = function.ReturnType
 		}
 		if strings.HasPrefix(string(function.ReturnType), "object:Promise") && !strings.HasPrefix(string(typ), "object:Promise") {
 			prom := nextTemp(counter)
@@ -621,6 +666,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 			val = zeroVal
 			valType = expectedElemType
+		}
+		if expectedElemType == ir.TypeUnknown && valType != ir.TypeUnknown {
+			boxedVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpBoxUnknown,
+				Type:   ir.TypeUnknown,
+				Result: boxedVal,
+				Args:   []string{val},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			env[boxedVal] = ir.TypeUnknown
+			val = boxedVal
+			valType = ir.TypeUnknown
 		}
 		if expectedElemType != "" && valType != expectedElemType && valType != ir.TypeUnknown && expectedElemType != ir.TypeUnknown {
 			return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)

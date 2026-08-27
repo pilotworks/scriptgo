@@ -231,13 +231,13 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
-			Type:   ir.TypeObject,
+			Type:   ir.Type("object:FinalizationRegistry"),
 			Result: result,
 			Callee: "__finalization_registry.new",
 			Args:   []string{cbVal},
 			Span:   toIRSpan(path, expression.Span),
 		})
-		return result, ir.TypeObject, nil
+		return result, ir.Type("object:FinalizationRegistry"), nil
 	}
 
 	if isTypedArrayClassName(className) {

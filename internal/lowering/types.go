@@ -179,6 +179,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			if len(nonNullish) == 0 {
 				return ir.TypeVoid
 			}
+			hasNullish := len(nonNullish) < len(parts)
 			allStrings := true
 			for _, p := range nonNullish {
 				if p != "string" && !((strings.HasPrefix(p, "\"") && strings.HasSuffix(p, "\"")) || (strings.HasPrefix(p, "'") && strings.HasSuffix(p, "'"))) {
@@ -198,7 +199,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 					}
 				}
 			}
-			if allNumbers {
+			if allNumbers && !hasNullish {
 				return ir.TypeNumber
 			}
 			allByteBuffers := true
@@ -224,7 +225,10 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				}
 			}
 			if allSameIR && firstIR != "" && firstIR != ir.TypeUnknown && firstIR != ir.TypeObject {
-				return firstIR
+				if !hasNullish || isPointerLikeType(firstIR) {
+					return firstIR
+				}
+				return ir.TypeUnknown
 			}
 			if len(nonNullish) > 1 {
 				allObjects := true
@@ -444,8 +448,12 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeStringArray
 	case "RegExp":
 		return ir.Type("object:RegExp")
-	case "string", "null", "undefined":
+	case "string":
 		return ir.TypeString
+	case "null":
+		return ir.TypePointer
+	case "undefined":
+		return ir.TypeVoid
 	case "bool", "boolean":
 		return ir.TypeBool
 	case "bool[]", "boolean[]":

@@ -45,11 +45,19 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 	if initExpr != nil && initExpr.Kind == "identifier" {
 		objVar = initExpr.Text
 	} else {
+		inferred := ""
+		if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+			inferred = initExpr.InferredType
+		} else {
+			inferred = resolveInferredType(chk, nameNode)
+		}
 		stmts = append(stmts, SyntaxStatement{
-			Span:       sourceSpan(nameNode),
-			Kind:       "variable",
-			Name:       objVar,
-			Expression: initExpr,
+			Span:         sourceSpan(nameNode),
+			Kind:         "variable",
+			Name:         objVar,
+			Type:         inferred,
+			InferredType: inferred,
+			Expression:   initExpr,
 		})
 	}
 
@@ -137,11 +145,19 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 	if initExpr != nil && initExpr.Kind == "identifier" {
 		arrVar = initExpr.Text
 	} else {
+		inferred := ""
+		if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+			inferred = initExpr.InferredType
+		} else {
+			inferred = resolveInferredType(chk, nameNode)
+		}
 		stmts = append(stmts, SyntaxStatement{
-			Span:       sourceSpan(nameNode),
-			Kind:       "variable",
-			Name:       arrVar,
-			Expression: initExpr,
+			Span:         sourceSpan(nameNode),
+			Kind:         "variable",
+			Name:         arrVar,
+			Type:         inferred,
+			InferredType: inferred,
+			Expression:   initExpr,
 		})
 	}
 
@@ -151,6 +167,74 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 		}
 		binding := elem.AsBindingElement()
 		if binding == nil {
+			continue
+		}
+
+		targetNode := binding.Name()
+		if binding.Initializer != nil && targetNode != nil && targetNode.Kind != ast.KindObjectBindingPattern && targetNode.Kind != ast.KindArrayBindingPattern {
+			varName := targetNode.Text()
+			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" || inferredType == "void" || inferredType == "undefined" {
+				if defaultExpr != nil && defaultExpr.InferredType != "" && defaultExpr.InferredType != "void" && defaultExpr.InferredType != "undefined" {
+					inferredType = defaultExpr.InferredType
+				} else {
+					inferredType = resolveInferredType(chk, elem)
+				}
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         varName,
+				Type:         inferredType,
+				InferredType: inferredType,
+				Expression:   defaultExpr,
+			})
+			rawIdxExpr := &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "index",
+				InferredType: inferredType,
+				Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+				Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span: sourceSpan(elem),
+				Kind: "if",
+				Expression: &SyntaxExpression{
+					Span:     sourceSpan(elem),
+					Kind:     "binary",
+					Operator: "<",
+					Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+					Right: &SyntaxExpression{
+						Span:         sourceSpan(elem),
+						Kind:         "property",
+						Text:         "length",
+						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+						InferredType: "number",
+					},
+				},
+				Then: []SyntaxStatement{
+					{
+						Span: sourceSpan(elem),
+						Kind: "if",
+						Expression: &SyntaxExpression{
+							Span:     sourceSpan(elem),
+							Kind:     "binary",
+							Operator: "!==",
+							Left:     rawIdxExpr,
+							Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
+						},
+						Then: []SyntaxStatement{
+							{
+								Span:       sourceSpan(elem),
+								Kind:       "assign",
+								Name:       varName,
+								Expression: rawIdxExpr,
+							},
+						},
+					},
+				},
+			})
 			continue
 		}
 
@@ -193,7 +277,6 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 			}
 		}
 
-		targetNode := binding.Name()
 		if targetNode != nil && (targetNode.Kind == ast.KindObjectBindingPattern || targetNode.Kind == ast.KindArrayBindingPattern) {
 			nestedStmts := flattenDestructuring(targetNode, itemExpr, chk, counter)
 			stmts = append(stmts, nestedStmts...)
@@ -222,11 +305,19 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 	var stmts []SyntaxStatement
 	*counter++
 	tmpVar := fmt.Sprintf("__destruct_assign_%d_%d", leftNode.Pos(), *counter)
+	inferred := ""
+	if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+		inferred = initExpr.InferredType
+	} else {
+		inferred = resolveInferredType(chk, leftNode)
+	}
 	stmts = append(stmts, SyntaxStatement{
-		Span:       sourceSpan(leftNode),
-		Kind:       "variable",
-		Name:       tmpVar,
-		Expression: initExpr,
+		Span:         sourceSpan(leftNode),
+		Kind:         "variable",
+		Name:         tmpVar,
+		Type:         inferred,
+		InferredType: inferred,
+		Expression:   initExpr,
 	})
 
 	if leftNode.Kind == ast.KindArrayLiteralExpression {

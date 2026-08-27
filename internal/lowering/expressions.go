@@ -575,7 +575,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if ok {
 			typ := rawEnvType
 			origParamType, isParam := env["__param."+expression.Text]
-			isOriginallyUnknown := (rawEnvType == ir.TypeUnknown || rawEnvType == "" || strings.Contains(string(rawEnvType), "|") || (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))))
+			isOriginallyUnknown := (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))) || rawEnvType == ir.TypeUnknown
 			if isOriginallyUnknown {
 				switch expression.InferredType {
 				case "number":
@@ -623,21 +623,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				case "Buffer":
 					typ = ir.TypeBuffer
 				default:
-					if expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && !strings.HasPrefix(string(typ), "object:Generator_") {
+					if expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && !strings.HasPrefix(string(typ), "object:Generator_") && expression.InferredType != "null" && expression.InferredType != "undefined" {
 						inferredIR := toIRType(expression.InferredType)
-						if inferredIR != "" && inferredIR != ir.TypeUnknown {
+						if inferredIR != "" && inferredIR != ir.TypeUnknown && inferredIR != ir.TypeVoid && inferredIR != ir.TypePointer {
 							typ = inferredIR
 						} else if _, isShape := shapes[expression.InferredType]; isShape {
 							typ = ir.Type("object:" + expression.InferredType)
 						}
 					}
-				}
-			} else if typ == ir.TypeUnknown && expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && expression.InferredType != "unknown" && expression.InferredType != "any" {
-				inferredIR := toIRType(expression.InferredType)
-				if inferredIR != "" && inferredIR != ir.TypeUnknown {
-					typ = inferredIR
-				} else if _, isShape := shapes[expression.InferredType]; isShape {
-					typ = ir.Type("object:" + expression.InferredType)
 				}
 			}
 			if isOriginallyUnknown && typ != ir.TypeUnknown && typ != "" {

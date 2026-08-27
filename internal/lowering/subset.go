@@ -625,10 +625,10 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		for target != nil && (target.Kind == "as" || target.Kind == "paren" || target.Kind == "cast" || target.Kind == "type_assertion" || target.Kind == "non_null") {
 			target = target.Left
 		}
-		if target != nil && target.Kind == "arrow_function" {
+		if target != nil && (target.Kind == "arrow_function" || target.Kind == "call" || target.Kind == "optional_call") {
 			return validateExpression(fileName, target)
 		}
-		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && (target == nil || (target.Kind != "property" && target.Kind != "optional_property" && target.Kind != "index" && target.Kind != "optional_index" && target.Kind != "identifier")) {
+		if callName(expression.Left) == "" && stringMethod(expression.Left) == "" && arrayMethod(expression.Left) == "" && (target == nil || (target.Kind != "property" && target.Kind != "optional_property" && target.Kind != "index" && target.Kind != "optional_index" && target.Kind != "identifier" && target.Kind != "call" && target.Kind != "optional_call")) {
 			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
 		}
 		return nil

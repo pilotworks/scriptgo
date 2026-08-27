@@ -289,11 +289,37 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		Span:       toIRSpan(path, expression.Span),
 	})
 	propMap := map[string]string{}
+	propTypeMap := map[string]ir.Type{}
 	for i, f := range fields {
 		propMap[f.Name] = propValues[i]
+		propTypeMap[f.Name] = f.Type
 	}
 	for i, field := range targetShape.Fields {
 		if val, exists := propMap[field.Name]; exists {
+			valType := propTypeMap[field.Name]
+			if field.Type == ir.TypeUnknown && valType != ir.TypeUnknown {
+				boxed := nextTemp(counter)
+				env[boxed] = ir.TypeUnknown
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: boxed,
+					Args:   []string{val},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				val = boxed
+			} else if field.Type != ir.TypeUnknown && valType == ir.TypeUnknown {
+				unboxed := nextTemp(counter)
+				env[unboxed] = field.Type
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   field.Type,
+					Result: unboxed,
+					Args:   []string{val},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				val = unboxed
+			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:         ir.OpFieldSet,
 				Type:       ir.TypeVoid,

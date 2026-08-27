@@ -696,7 +696,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			continue
 		}
 		fType := field.Type
-		if (fType == ir.TypeUnknown || fType == ir.TypeVoid || fType == "") && expression.InferredType != "" {
+		if (fType == ir.TypeVoid || fType == "") && expression.InferredType != "" {
 			inferred := toIRType(expression.InferredType)
 			if inferred != "" && inferred != ir.TypeUnknown && inferred != ir.TypeVoid {
 				fType = inferred

@@ -5,6 +5,7 @@
 #include <string.h>
 
 int scriptgo_runtime_set_error(const char *message);
+int scriptgo_array_set_length(void *handle, double length);
 
 typedef struct {
     int64_t length;
@@ -118,10 +119,20 @@ int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
 int scriptgo_array_set(void *handle, double index, const void *value) {
     scriptgo_array *array = handle;
     size_t offset;
+    int64_t idx;
     if (array == NULL || value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    if (check_index(array, index, &offset) != 0) return -1;
+    if (index != index || index < 0 || index != (double)(int64_t)index) {
+        return fail("scriptgo array index out of bounds");
+    }
+    idx = (int64_t)index;
+    if (idx >= array->length) {
+        if (scriptgo_array_set_length(handle, (double)(idx + 1)) != 0) {
+            return -1;
+        }
+    }
+    offset = (size_t)idx * (size_t)array->element_size;
     memcpy(array->data + offset, value, (size_t)array->element_size);
     return 0;
 }

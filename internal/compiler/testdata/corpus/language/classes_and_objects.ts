@@ -394,10 +394,10 @@ console.log(v_classes_multi_level_inheritance_9 instanceof Car_classes_multi_lev
 console.log(v_classes_multi_level_inheritance_9 instanceof Vehicle_classes_multi_level_inheritance_9);
 
 // --- Context Case: language_classes_polymorphism ---
-// @expect: 0
-// @expect: Rectangle area = 0
-// @expect: 0
-// @expect: Circle area = 0
+// @expect: 50
+// @expect: Rectangle area = 50
+// @expect: 12.56
+// @expect: Circle area = 12.56
 class Shape_classes_polymorphism_10 {
   name: string = "Generic Shape";
 
