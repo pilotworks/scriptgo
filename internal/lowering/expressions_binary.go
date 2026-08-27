@@ -642,6 +642,17 @@ func isPointerLikeType(typ ir.Type) bool {
 		typ == ir.TypeTextEncoder ||
 		typ == ir.TypeTextDecoder ||
 		typ == ir.TypeBuffer ||
+		typ == ir.TypeUint8Array ||
+		typ == ir.TypeInt8Array ||
+		typ == ir.TypeUint8ClampedArray ||
+		typ == ir.TypeInt16Array ||
+		typ == ir.TypeUint16Array ||
+		typ == ir.TypeInt32Array ||
+		typ == ir.TypeUint32Array ||
+		typ == ir.TypeFloat32Array ||
+		typ == ir.TypeFloat64Array ||
+		typ == ir.TypeBigInt64Array ||
+		typ == ir.TypeBigUint64Array ||
 		typ == ir.TypePointer ||
 		typ == "ptr"
 }

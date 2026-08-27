@@ -400,7 +400,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		e.types[instruction.Result] = ir.TypeBool
 		return nil
 	}
-	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
+	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || isTypedArrayType(leftType) || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
 		predicate, ok := map[string]string{
 			"==": "eq", "===": "eq",
 			"!=": "ne", "!==": "ne",

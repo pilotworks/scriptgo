@@ -7,6 +7,7 @@
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_arraybuffer_new(int64_t byte_length, void **out_buffer);
 int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, int64_t byte_offset, void **out_array);
+int scriptgo_typedarray_from_array(int64_t kind, void *array_handle, void **out_array);
 
 #define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252 // "TARR"
 #define SCRIPTGO_MAGIC_BUFFER     0x42554646 // "BUFF"
@@ -206,11 +207,8 @@ int scriptgo_buffer_from_array(void *arr_handle, void **out_buf) {
         *out_buf = dst;
         return 0;
     }
-    // Generic array or ArrayBuffer
-    scriptgo_buffer_array_buffer *ab = (scriptgo_buffer_array_buffer *)arr_handle;
-    if (ab->byte_length >= 0 && ab->data != NULL) {
-        void *created = NULL;
-        if (scriptgo_typedarray_new(2, ab->byte_length, arr_handle, 0, &created) != 0) return -1;
+    void *created = NULL;
+    if (scriptgo_typedarray_from_array(2, arr_handle, &created) == 0 && created != NULL) {
         scriptgo_buffer_view *dst = (scriptgo_buffer_view *)created;
         dst->magic = SCRIPTGO_MAGIC_BUFFER;
         *out_buf = dst;

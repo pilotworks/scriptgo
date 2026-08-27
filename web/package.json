@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run sync-data && vite",
+    "build": "npm run sync-data && vite build",
     "sync-data": "go run ../cmd/parity -export-data src/data",
     "preview": "vite preview"
   },

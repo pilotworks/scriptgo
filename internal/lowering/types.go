@@ -199,6 +199,31 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			if allNumbers {
 				return ir.TypeNumber
 			}
+			allByteBuffers := true
+			for _, p := range nonNullish {
+				irT := toIRTypeInternal(p, visited)
+				if irT != ir.TypeUint8Array && irT != ir.TypeBuffer && irT != ir.TypeUint8ClampedArray {
+					allByteBuffers = false
+					break
+				}
+			}
+			if allByteBuffers {
+				return ir.TypeUint8Array
+			}
+			allSameIR := true
+			var firstIR ir.Type
+			for i, p := range nonNullish {
+				irT := toIRTypeInternal(p, visited)
+				if i == 0 {
+					firstIR = irT
+				} else if irT != firstIR {
+					allSameIR = false
+					break
+				}
+			}
+			if allSameIR && firstIR != "" && firstIR != ir.TypeUnknown && firstIR != ir.TypeObject {
+				return firstIR
+			}
 			if len(nonNullish) > 1 {
 				allObjects := true
 				var unionFields []ir.Field

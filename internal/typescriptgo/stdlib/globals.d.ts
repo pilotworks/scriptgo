@@ -1053,3 +1053,32 @@ interface AbortControllerConstructor {
 
 declare var AbortController: AbortControllerConstructor;
 
+interface StringDecoder {
+    encoding: string;
+    write(buffer: Buffer | Uint8Array | string): string;
+    end(buffer?: Buffer | Uint8Array | string): string;
+}
+
+interface StringDecoderConstructor {
+    new(encoding?: string): StringDecoder;
+    readonly prototype: StringDecoder;
+}
+
+declare var StringDecoder: StringDecoderConstructor;
+
+interface PunycodeUcs2 {
+    decode(string: string): number[];
+    encode(codePoints: number[]): string;
+}
+
+interface Punycode {
+    decode(input: string): string;
+    encode(input: string): string;
+    toASCII(domain: string): string;
+    toUnicode(domain: string): string;
+    ucs2: PunycodeUcs2;
+    version: string;
+}
+
+declare var punycode: Punycode;
+

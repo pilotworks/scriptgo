@@ -433,6 +433,14 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			}
 		}
 	}
+	if !ok && expression.InferredType != "" {
+		inferred := strings.TrimPrefix(expression.InferredType, "object:")
+		if s, exists := shapes[inferred]; exists {
+			shape = s
+			ok = true
+			className = inferred
+		}
+	}
 	if !ok {
 		return "", "", fmt.Errorf("unknown class %q", className)
 	}

@@ -830,7 +830,8 @@ func isTypedArrayType(t ir.Type) bool {
 	switch t {
 	case ir.TypeInt8Array, ir.TypeUint8Array, ir.TypeUint8ClampedArray,
 		ir.TypeInt16Array, ir.TypeUint16Array, ir.TypeInt32Array, ir.TypeUint32Array,
-		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
+		ir.TypeFloat32Array, ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array,
+		ir.TypeBuffer:
 		return true
 	default:
 		return false
