@@ -348,3 +348,34 @@ console.log(s1, s2, k, desc, str, iter);
 		t.Errorf("stmt[0].Type = %q, want %q", file.Syntax.Statements[0].Type, "symbol")
 	}
 }
+
+func TestCheckSupportsSatisfiesAndEmptyStatements(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := `
+const num = (42 + 8) satisfies number;;;
+const str = "hello" satisfies string;
+;
+console.log(num, str);
+`
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for satisfies and empty statements: %+v", result.Diagnostics)
+	}
+	file := result.Files[len(result.Files)-1]
+	if len(file.Syntax.Statements) != 3 {
+		t.Fatalf("expected 3 statements (2 variables + 1 call, empty statements skipped), got %d", len(file.Syntax.Statements))
+	}
+	for _, stmt := range file.Syntax.Statements {
+		if stmt.Kind == "unsupported" {
+			t.Fatalf("statement was converted as unsupported: %+v", stmt)
+		}
+	}
+}
+

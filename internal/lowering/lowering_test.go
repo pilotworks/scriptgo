@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -89,16 +90,24 @@ func TestLowerHelloProgram(t *testing.T) {
 
 func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
-	source := ";\n"
-	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
-		t.Fatal(err)
+	program := frontend.Program{
+		Files: []typescriptgo.SourceFile{
+			{
+				FileName: entry,
+				Syntax: typescriptgo.SyntaxFile{
+					FileName: entry,
+					Statements: []typescriptgo.SyntaxStatement{
+						{
+							Kind: "unsupported",
+							Type: "CustomUnsupportedStatement",
+						},
+					},
+				},
+			},
+		},
 	}
-	program, err := frontend.NewProgram(entry, source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = Lower(program)
-	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "EmptyStatement") || !strings.Contains(err.Error(), entry) {
+	_, err := Lower(program)
+	if err == nil || !strings.Contains(err.Error(), "native subset") || !strings.Contains(err.Error(), "CustomUnsupportedStatement") || !strings.Contains(err.Error(), entry) {
 		t.Fatalf("Lower error = %v, want actionable native subset diagnostic", err)
 	}
 }
