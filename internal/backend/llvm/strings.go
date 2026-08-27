@@ -80,7 +80,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			if argType == ir.TypeUnknown || argType == "any" {
+			if argType == ir.TypeUnknown {
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
@@ -88,7 +88,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				arg = loaded
 			}
 		}
-		if argType != ir.TypeUnknown && argType != "any" {
+		if argType != ir.TypeUnknown {
 			boxedVar := fmt.Sprintf("box.stru.%d", e.loadCounter)
 			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
 				return err
@@ -114,7 +114,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			if argType == ir.TypeUnknown || argType == "any" {
+			if argType == ir.TypeUnknown {
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
@@ -122,7 +122,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				arg = loaded
 			}
 		}
-		if argType == ir.TypeUnknown || argType == "any" {
+		if argType == ir.TypeUnknown {
 			tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
 			padVar := fmt.Sprintf("pad.%d", e.loadCounter)
 			valVar := fmt.Sprintf("val.%d", e.loadCounter)
@@ -539,7 +539,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.str_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			if argType == ir.TypeUnknown || argType == "any" {
+			if argType == ir.TypeUnknown {
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
@@ -580,7 +580,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [10 x i8], ptr %s, i64 0, i64 0\n", instruction.Result, undefGlobal)
 			return nil
 		}
-		if argType == ir.TypeUnknown || argType == "any" {
+		if argType == ir.TypeUnknown {
 			tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
 			padVar := fmt.Sprintf("pad.%d", e.loadCounter)
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)

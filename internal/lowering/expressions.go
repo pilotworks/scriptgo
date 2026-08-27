@@ -106,6 +106,21 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 				if strings.HasSuffix(trimmed, "[]") {
 					arrType := toIRType(trimmed)
+					if arrType == ir.TypeUnknownArray {
+						for idx, argName := range arguments {
+							if types[idx] != ir.TypeUnknown {
+								boxed := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpBoxUnknown,
+									Type:   ir.TypeUnknown,
+									Result: boxed,
+									Args:   []string{argName},
+									Span:   toIRSpan(path, expression.Span),
+								})
+								arguments[idx] = boxed
+							}
+						}
+					}
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 					return result, arrType, nil
 				} else if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
@@ -556,9 +571,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				return result, typ, nil
 			}
 		}
-		typ, ok := env[expression.Text]
+		rawEnvType, ok := env[expression.Text]
 		if ok {
-			if typ == "" || typ == ir.TypeUnknown || strings.Contains(string(typ), "|") {
+			typ := rawEnvType
+			origParamType, isParam := env["__param."+expression.Text]
+			isOriginallyUnknown := (rawEnvType == ir.TypeUnknown || rawEnvType == "" || strings.Contains(string(rawEnvType), "|") || (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))))
+			if isOriginallyUnknown {
 				switch expression.InferredType {
 				case "number":
 					typ = ir.TypeNumber
@@ -614,6 +632,26 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 						}
 					}
 				}
+			} else if typ == ir.TypeUnknown && expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && expression.InferredType != "unknown" && expression.InferredType != "any" {
+				inferredIR := toIRType(expression.InferredType)
+				if inferredIR != "" && inferredIR != ir.TypeUnknown {
+					typ = inferredIR
+				} else if _, isShape := shapes[expression.InferredType]; isShape {
+					typ = ir.Type("object:" + expression.InferredType)
+				}
+			}
+			if isOriginallyUnknown && typ != ir.TypeUnknown && typ != "" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   typ,
+					Result: result,
+					Args:   []string{expression.Text},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, typ, nil
 			}
 			if result != "" && result != expression.Text {
 				if typ == ir.TypeNumber {

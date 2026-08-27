@@ -211,7 +211,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		}
 		arg := instruction.Args[0]
 		argType := e.types[arg]
-		if argType == ir.TypeUnknown {
+		if argType == ir.TypeUnknown || e.isParamUnknown(arg) {
 			if slot, ok := e.varSlots[arg]; ok {
 				loaded := fmt.Sprintf("%s.isarr.loaded.%d", arg, e.loadCounter)
 				e.loadCounter++
@@ -263,7 +263,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		elemType := arrayElementType(arrayType)
 		arg1 := e.resolveArg(out, instruction.Args[1])
 		arg1Type := e.types[instruction.Args[1]]
-		if (arg1Type == ir.TypeUnknown || arg1Type == "any") && elemType != ir.TypeUnknown && elemType != "any" {
+		if arg1Type == ir.TypeUnknown && elemType != ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("push.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arg1)

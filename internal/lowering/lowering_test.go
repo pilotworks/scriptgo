@@ -128,9 +128,9 @@ func TestLowerRejectsAnyInStaticMode(t *testing.T) {
 	}
 }
 
-func TestLowerRejectsUnknownInClassFieldsOrArrays(t *testing.T) {
+func TestLowerAllowsUnknownInClassFieldsAndArrays(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
-	source := "class C { x: unknown; }\n"
+	source := "class C { x: unknown; }\nconst arr: unknown[] = [1, \"a\"];\n"
 	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -138,9 +138,12 @@ func TestLowerRejectsUnknownInClassFieldsOrArrays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = Lower(program)
-	if err == nil || !strings.Contains(err.Error(), "SG1006") || !strings.Contains(err.Error(), "unknown") {
-		t.Fatalf("Lower error = %v, want SG1006 for unknown class field in Static mode", err)
+	module, err := Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, want success for unknown class field and array", err)
+	}
+	if err := module.Verify(); err != nil {
+		t.Fatalf("Verify error = %v", err)
 	}
 }
 
@@ -190,7 +193,7 @@ func TestLowerConsoleIntrinsics(t *testing.T) {
 	}
 }
 
-func TestLowerRejectsUnresolvedUnion(t *testing.T) {
+func TestLowerAllowsUnionParameters(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	source := "function printVal(value: string | number) { console.log(value); }\n"
 	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
@@ -200,9 +203,12 @@ func TestLowerRejectsUnresolvedUnion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = Lower(program)
-	if err == nil || !strings.Contains(err.Error(), "SG1002") || !strings.Contains(err.Error(), "union type") {
-		t.Fatalf("Lower error = %v, want SG1002 for unresolved union type", err)
+	irModule, err := Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, expected nil", err)
+	}
+	if len(irModule.Functions) == 0 {
+		t.Fatalf("expected lowered functions")
 	}
 }
 

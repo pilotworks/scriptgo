@@ -88,7 +88,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			keyIsStr = "0"
 			keyStrArg = "null"
 			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown || keyType == "any" {
+		} else if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.get.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -112,7 +112,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_string(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		} else if retType == ir.TypeUnknown || retType == "any" {
+		} else if retType == ir.TypeUnknown {
 			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_ptr(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
@@ -145,7 +145,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			keyIsStr = "0"
 			keyStrArg = "null"
 			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown || keyType == "any" {
+		} else if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.has.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -181,7 +181,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			keyIsStr = "0"
 			keyStrArg = "null"
 			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown || keyType == "any" {
+		} else if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.del.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -349,7 +349,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
 		} else if valType == ir.TypeString {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown || valType == "any" {
+		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.add.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)
@@ -382,7 +382,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
 		} else if valType == ir.TypeString {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown || valType == "any" {
+		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.has.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)
@@ -416,7 +416,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
 		} else if valType == ir.TypeString {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown || valType == "any" {
+		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.del.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)

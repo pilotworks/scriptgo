@@ -211,6 +211,7 @@ func lowerClosureExpression(
 		})
 		closureEnv[pName+"$raw"] = ir.TypeUnknown
 		closureEnv[pName] = pType
+		closureEnv["__param."+pName] = pType
 	}
 
 	for _, capVar := range capturedVars {

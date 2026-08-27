@@ -95,6 +95,8 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			return ir.TypeBoolArray
 		case ir.TypeBigInt:
 			return ir.TypeBigIntArray
+		case ir.TypeUnknown:
+			return ir.TypeUnknownArray
 		default:
 			return ir.Type(string(elemType) + "[]")
 		}
@@ -454,8 +456,10 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeStringArray
 	case "closure", "function", "Function":
 		return ir.TypeClosure
-	case "unknown":
+	case "unknown", "any":
 		return ir.TypeUnknown
+	case "unknown[]", "any[]":
+		return ir.TypeUnknownArray
 	case "Uint8Array":
 		return ir.TypeUint8Array
 	case "Int8Array":

@@ -38,11 +38,11 @@ All 216 test cases in the regression test suite (Corpus Test Suite) have been cr
 | `boolean` (`true`, `false`) | ✅ Full | Maps to 1-bit boolean in IR/LLVM (`i1`). |
 | `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`). |
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
-| `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism, supports checked casts (`as number`, `as string`) and `typeof` narrowing. |
+| `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism (16-byte tagged value), supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
 | `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
 | `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`). |
 | `Enum & Const Enum` | ✅ Full | Supports numeric enums, string enums, reverse mapping, and `const enum` member inlining directly into machine constants. |
-| `Union types` (`T \| U`) | ✅ Full | Supports literal unions, homogeneous unions, nullish unions (`T \| null \| undefined`), and type narrowing via `typeof`. |
+| `Union types` (`T \| U`) | ✅ Full | Flexible multi-variant primitive & object unions (e.g. `number \| string \| boolean \| null`), automatic boxing/unboxing, truthiness coercion, subtyping broadening across function calls, and control-flow type narrowing without manual `as` casts. |
 | `Generics & Const Type Parameters` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, type aliases, and `<const T>` type parameters. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`), `DataView` with full binary access methods (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
@@ -208,7 +208,7 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 | **`scenarios`** | 11 | **100%** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
 | **`tuples`** | 10 | **100%** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), destructuring, readonly tuples. |
 | **`types`** | 6 | **100%** | Indexed access, declaration merging, inheritance, intersection types, readonly properties. |
-| **`unions`** | 8 | **100%** | Discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`. |
+| **`unions`** | 9 | **100%** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`. |
 
 ---]`) and rest (`[T, ...U[]]`) element tuples. |
 | **`unions`** | 3 | **100%** | Multi-variant discriminated unions (`Circle \| Rectangle \| Square`), literal unions, type alias resolution. |

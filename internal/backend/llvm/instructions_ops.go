@@ -222,6 +222,10 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 
 func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instruction) error {
 	leftType, ok := e.types[instruction.Args[0]]
+	if e.isParamUnknown(instruction.Args[0]) {
+		leftType = ir.TypeUnknown
+		ok = true
+	}
 	if !ok {
 		for _, g := range e.module.Globals {
 			if g.Name == instruction.Args[0] {
@@ -232,6 +236,10 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		}
 	}
 	rightType, okR := e.types[instruction.Args[1]]
+	if e.isParamUnknown(instruction.Args[1]) {
+		rightType = ir.TypeUnknown
+		okR = true
+	}
 	if !okR {
 		for _, g := range e.module.Globals {
 			if g.Name == instruction.Args[1] {
@@ -589,8 +597,8 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	e.types[instruction.Result] = instruction.Type
 	arg := instruction.Args[0]
 
-	if instruction.Type == ir.TypeUnknown || instruction.Type == "any" {
-		if e.types[arg] == ir.TypeUnknown || e.types[arg] == "any" {
+	if instruction.Type == ir.TypeUnknown {
+		if e.types[arg] == ir.TypeUnknown {
 			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", instruction.Result, arg))
 			return nil
 		}
@@ -598,7 +606,7 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	}
 
 	argType, hasType := e.types[arg]
-	if hasType && argType != ir.TypeUnknown && argType != "any" {
+	if hasType && argType != ir.TypeUnknown {
 		if instruction.Result != arg {
 			srcType := llvmType(argType)
 			dstType := llvmType(instruction.Type)
@@ -700,7 +708,7 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 	e.types[instruction.Result] = ir.TypeString
 	arg := instruction.Args[0]
 	argType, ok := e.types[arg]
-	if ok && argType != ir.TypeUnknown && argType != "any" && !strings.Contains(string(argType), "|") {
+	if ok && argType != ir.TypeUnknown && !strings.Contains(string(argType), "|") && !e.isParamUnknown(arg) {
 		if argType == ir.TypeClosure {
 			nullPtr := fmt.Sprintf("typeof.null.%d", e.loadCounter)
 			isNonNull := fmt.Sprintf("typeof.is_nonnull.%d", e.loadCounter)

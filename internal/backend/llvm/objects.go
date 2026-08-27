@@ -351,7 +351,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		return nil
 	case "__object.keys":
 		objVar := instruction.Args[0]
-		if e.types[objVar] == ir.TypeUnknown || e.types[objVar] == "any" {
+		if e.types[objVar] == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("keys.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objVar)

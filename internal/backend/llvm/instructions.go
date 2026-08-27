@@ -49,8 +49,17 @@ func (e *functionEmitter) dbg(span ir.SourceSpan) string {
 	return ", " + loc
 }
 
+func (e *functionEmitter) isParamUnknown(arg string) bool {
+	for _, p := range e.function.Parameters {
+		if p.Name == arg && p.Type == ir.TypeUnknown {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) string {
-	if e.types[arg] == ir.TypeUnknown || e.types[arg] == "any" {
+	if e.types[arg] == ir.TypeUnknown || e.isParamUnknown(arg) {
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.ptr_load.%d", arg, e.loadCounter)
 			e.loadCounter++
@@ -70,6 +79,9 @@ func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) str
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 	if slot, ok := e.varSlots[arg]; ok {
 		typ := e.types[arg]
+		if e.isParamUnknown(arg) {
+			typ = ir.TypeUnknown
+		}
 		if typ == ir.TypeVoid || typ == "" {
 			return arg
 		}

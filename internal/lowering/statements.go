@@ -44,6 +44,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		} else {
 			env[parameter.Name] = typ
 		}
+		env["__param."+parameter.Name] = typ
 		fnSig := parameter.Type
 		if fnSig == "" || fnSig == "closure" {
 			fnSig = parameter.InferredType

@@ -74,14 +74,14 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.con_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			if argType == ir.TypeUnknown || argType == "any" {
+			if argType == ir.TypeUnknown {
 				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
 			} else {
 				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
 			}
 			arg = loaded
 		}
-		if argType != ir.TypeUnknown && argType != "any" {
+		if argType != ir.TypeUnknown {
 			boxedVar := fmt.Sprintf("box.con.%d", e.loadCounter)
 			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
 				return err
@@ -124,7 +124,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	if instruction.Callee == "__array.isArray" {
 		arg := instruction.Args[0]
 		argType := e.types[arg]
-		if argType == ir.TypeUnknown || argType == "any" {
+		if argType == ir.TypeUnknown || e.isParamUnknown(arg) {
 			if slot, ok := e.varSlots[arg]; ok {
 				loaded := fmt.Sprintf("%s.isarr.loaded.%d", arg, e.loadCounter)
 				e.loadCounter++
@@ -685,13 +685,13 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		if !hasArgType {
 			argType, hasArgType = e.types[argument]
 		}
-		if (callee.Parameters[index].Type == ir.TypeUnknown || callee.Parameters[index].Type == "any") && hasArgType && argType != ir.TypeUnknown && argType != "any" {
+		if callee.Parameters[index].Type == ir.TypeUnknown && hasArgType && argType != ir.TypeUnknown {
 			boxedName := fmt.Sprintf("call.box.%d", e.loadCounter)
 			if err := e.emitBoxValue(out, argVal, argType, boxedName); err != nil {
 				return err
 			}
 			argVal = boxedName
-		} else if hasArgType && (argType == ir.TypeUnknown || argType == "any") && callee.Parameters[index].Type != ir.TypeUnknown && callee.Parameters[index].Type != "any" {
+		} else if hasArgType && argType == ir.TypeUnknown && callee.Parameters[index].Type != ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("call.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, argument)
@@ -837,7 +837,7 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 			}
 		}
 	}
-	if e.types[closureVar] == ir.TypeUnknown || e.types[closureVar] == "any" || e.types[instruction.Callee] == ir.TypeUnknown || e.types[instruction.Callee] == "any" {
+	if e.types[closureVar] == ir.TypeUnknown || e.types[instruction.Callee] == ir.TypeUnknown {
 		e.tempCounter++
 		payloadName := fmt.Sprintf("closure.unbox.payload.%d", e.tempCounter)
 		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, closureVar)
@@ -928,7 +928,7 @@ prepareArgs:
 			defaultVal = "0.0"
 		} else if instruction.Type == ir.TypeBool {
 			defaultVal = "false"
-		} else if instruction.Type == ir.TypeUnknown || instruction.Type == "any" {
+		} else if instruction.Type == ir.TypeUnknown {
 			defaultVal = "zeroinitializer"
 		} else if instruction.Type == ir.TypeBigInt {
 			defaultVal = "0"
@@ -1056,7 +1056,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 			return fmt.Errorf("await requires 1 argument")
 		}
 		promVar := instruction.Args[0]
-		if e.types[promVar] == ir.TypeUnknown || e.types[promVar] == "any" {
+		if e.types[promVar] == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("await.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, promVar)

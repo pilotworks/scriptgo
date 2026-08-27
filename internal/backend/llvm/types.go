@@ -46,7 +46,7 @@ func llvmType(typ ir.Type) string {
 		return "i1"
 	case ir.TypeVoid:
 		return "void"
-	case ir.TypeUnknown, "any", "{ i32, i32, i64 }":
+	case ir.TypeUnknown, "{ i32, i32, i64 }":
 		return "{ i32, i32, i64 }"
 	default:
 		return "ptr"
@@ -60,7 +60,7 @@ func arrayElementType(arrayType ir.Type) ir.Type {
 		if elem == "boolean" {
 			return ir.TypeBool
 		}
-		if elem == "void" || elem == "undefined" || elem == "unknown" || elem == "any" {
+		if elem == "void" || elem == "undefined" || elem == "unknown" {
 			return ir.TypeUnknown
 		}
 		return ir.Type(elem)
@@ -86,7 +86,7 @@ func arrayElementSize(arrayType ir.Type) (int64, error) {
 		return 8, nil
 	case ir.TypeString, ir.TypeObject:
 		return 8, nil
-	case ir.TypeUnknown, "any":
+	case ir.TypeUnknown:
 		return 16, nil
 	default:
 		if strings.HasPrefix(string(elem), "object:") || strings.HasSuffix(string(elem), "[]") {
