@@ -71,7 +71,7 @@ console.log(incMsg1.complete);
 
 // @api: connection
 // @expect: true
-console.log(incMsg1.connection === null || incMsg1.connection === undefined || incMsg1.connection === "");
+console.log(incMsg1.connection === null);
 
 // @api: finished
 // @expect: true
@@ -216,7 +216,7 @@ console.log(ag.maxTotalSockets > 0);
 
 // @api: message.connection
 // @expect: true
-console.log(inc2.connection === null || inc2.connection === undefined || inc2.connection === "");
+console.log(inc2.connection === null);
 
 // @api: message.destroy
 // @expect: true
@@ -246,7 +246,7 @@ console.log(out2.hasHeader("x-custom"));
 
 // @api: outgoingMessage.connection
 // @expect: true
-console.log(out2.connection === null || out2.connection === undefined || out2.connection === "");
+console.log(out2.connection === null);
 
 // @api: outgoingMessage.cork
 // @expect: 1
@@ -576,7 +576,7 @@ console.log("disposed");
 
 // @api: socket
 // @expect: true
-console.log(incMsg1.socket === null || incMsg1.socket === undefined || incMsg1.socket === "");
+console.log(incMsg1.socket === null);
 
 // @api: sockets
 // @expect: true

@@ -28,13 +28,20 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 		nonNull := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonNull, Operator: "!=", Args: []string{value, nullConst}, Span: toIRSpan(path, span)})
 
+		undefConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, span)})
+		nonUndef := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonUndef, Operator: "!=", Args: []string{value, undefConst}, Span: toIRSpan(path, span)})
+
 		emptyConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyConst, Value: `""`, Span: toIRSpan(path, span)})
 		nonEmpty := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonEmpty, Operator: "!=", Args: []string{value, emptyConst}, Span: toIRSpan(path, span)})
 
+		temp1 := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: temp1, Operator: "&&", Args: []string{nonNull, nonUndef}, Span: toIRSpan(path, span)})
 		boolRes := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{nonNull, nonEmpty}, Span: toIRSpan(path, span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{temp1, nonEmpty}, Span: toIRSpan(path, span)})
 		return boolRes, nil
 	}
 	if valType == ir.TypeUnknown {
@@ -52,8 +59,16 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 	if valType == ir.TypeObject || strings.HasPrefix(string(valType), "object:") || strings.HasSuffix(string(valType), "[]") || valType == ir.TypeNumberArray || valType == ir.TypeStringArray || valType == ir.TypeBoolArray || valType == ir.TypeBigIntArray || valType == ir.TypeMap || valType == ir.TypeSet || valType == ir.TypeBuffer || valType == ir.TypeUint8Array || isPointerLikeType(valType) || valType == ir.TypeClosure || valType == ir.TypePointer {
 		nullConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: nullConst, Value: "null", Span: toIRSpan(path, span)})
+		nonNull := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonNull, Operator: "!=", Args: []string{value, nullConst}, Span: toIRSpan(path, span)})
+
+		undefConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: undefConst, Value: "undefined", Span: toIRSpan(path, span)})
+		nonUndef := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonUndef, Operator: "!=", Args: []string{value, undefConst}, Span: toIRSpan(path, span)})
+
 		boolRes := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolRes, Operator: "!=", Args: []string{value, nullConst}, Span: toIRSpan(path, span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{nonNull, nonUndef}, Span: toIRSpan(path, span)})
 		return boolRes, nil
 	}
 	return "", fmt.Errorf("cannot coerce %s to boolean condition", valType)
@@ -735,51 +750,129 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 	maps.Copy(switchEnv, env)
 	switchBranch := ir.Function{Name: "switch_body", ReturnType: function.ReturnType}
 
-	var normalCases []typescriptgo.SyntaxSwitchCase
-	var defaultCase *typescriptgo.SyntaxSwitchCase
-	for i := range statement.Cases {
-		c := statement.Cases[i]
+	var hasDefault bool
+	var cmpResults = make([]string, len(statement.Cases))
+	var caseCmps []string
+
+	for i, c := range statement.Cases {
 		if c.Expression != nil {
-			normalCases = append(normalCases, c)
+			caseVal, _, err := lowerExpression(path, c.Expression, "", &switchBranch, switchEnv, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
+			cmpResult := fmt.Sprintf("__cmp_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   cmpResult,
+				Operator: "===",
+				Args:     []string{targetVal, caseVal},
+				Span:     toIRSpan(path, c.Span),
+			})
+			switchEnv[cmpResult] = ir.TypeBool
+			cmpResults[i] = cmpResult
+			caseCmps = append(caseCmps, cmpResult)
 		} else {
-			defaultCase = &statement.Cases[i]
+			hasDefault = true
 		}
 	}
 
-	for _, c := range normalCases {
-		caseVal, _, err := lowerExpression(path, c.Expression, "", &switchBranch, switchEnv, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		cmpResult := fmt.Sprintf("__cmp_%d", *counter)
-		*counter++
-		switchBranch.Body = append(switchBranch.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   cmpResult,
-			Operator: "===",
-			Args:     []string{targetVal, caseVal},
-			Span:     toIRSpan(path, c.Span),
-		})
-		switchEnv[cmpResult] = ir.TypeBool
+	var shouldRunDefault string
+	if hasDefault {
+		if len(caseCmps) == 0 {
+			trueVal := fmt.Sprintf("__def_true_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: trueVal,
+				Value:  "true",
+				Span:   toIRSpan(path, statement.Span),
+			})
+			switchEnv[trueVal] = ir.TypeBool
+			shouldRunDefault = trueVal
+		} else {
+			anyMatched := caseCmps[0]
+			for _, cmp := range caseCmps[1:] {
+				orRes := fmt.Sprintf("__any_cmp_%d", *counter)
+				*counter++
+				switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+					Op:       ir.OpBinary,
+					Type:     ir.TypeBool,
+					Result:   orRes,
+					Operator: "||",
+					Args:     []string{anyMatched, cmp},
+					Span:     toIRSpan(path, statement.Span),
+				})
+				switchEnv[orRes] = ir.TypeBool
+				anyMatched = orRes
+			}
+			falseConst := fmt.Sprintf("__false_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: falseConst,
+				Value:  "false",
+				Span:   toIRSpan(path, statement.Span),
+			})
+			switchEnv[falseConst] = ir.TypeBool
 
-		newMatched := fmt.Sprintf("__new_matched_%d", *counter)
-		*counter++
-		switchBranch.Body = append(switchBranch.Body, ir.Instruction{
-			Op:       ir.OpBinary,
-			Type:     ir.TypeBool,
-			Result:   newMatched,
-			Operator: "||",
-			Args:     []string{matchedVar, cmpResult},
-			Span:     toIRSpan(path, c.Span),
-		})
-		switchBranch.Body = append(switchBranch.Body, ir.Instruction{
-			Op:     ir.OpAssign,
-			Type:   ir.TypeBool,
-			Result: matchedVar,
-			Args:   []string{newMatched},
-			Span:   toIRSpan(path, c.Span),
-		})
+			notAny := fmt.Sprintf("__not_any_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:       ir.OpCompare,
+				Type:     ir.TypeBool,
+				Result:   notAny,
+				Operator: "==",
+				Args:     []string{anyMatched, falseConst},
+				Span:     toIRSpan(path, statement.Span),
+			})
+			switchEnv[notAny] = ir.TypeBool
+			shouldRunDefault = notAny
+		}
+	}
+
+	for i, c := range statement.Cases {
+		if c.Expression != nil {
+			cmpResult := cmpResults[i]
+			newMatched := fmt.Sprintf("__new_matched_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:       ir.OpBinary,
+				Type:     ir.TypeBool,
+				Result:   newMatched,
+				Operator: "||",
+				Args:     []string{matchedVar, cmpResult},
+				Span:     toIRSpan(path, c.Span),
+			})
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: matchedVar,
+				Args:   []string{newMatched},
+				Span:   toIRSpan(path, c.Span),
+			})
+		} else {
+			newMatched := fmt.Sprintf("__new_matched_%d", *counter)
+			*counter++
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:       ir.OpBinary,
+				Type:     ir.TypeBool,
+				Result:   newMatched,
+				Operator: "||",
+				Args:     []string{matchedVar, shouldRunDefault},
+				Span:     toIRSpan(path, c.Span),
+			})
+			switchBranch.Body = append(switchBranch.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   ir.TypeBool,
+				Result: matchedVar,
+				Args:   []string{newMatched},
+				Span:   toIRSpan(path, c.Span),
+			})
+		}
 
 		caseEnv := make(map[string]ir.Type, len(switchEnv))
 		maps.Copy(caseEnv, switchEnv)
@@ -807,14 +900,6 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 				Span: toIRSpan(path, c.Span),
 			})
 		}
-	}
-
-	if defaultCase != nil {
-		defStmts, err := lowerBranch(path, defaultCase.Statements, function.ReturnType, switchEnv, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
-		switchBranch.Body = append(switchBranch.Body, defStmts...)
 	}
 
 	switchBranch.Body = append(switchBranch.Body, ir.Instruction{
@@ -993,9 +1078,115 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		thenEnv[varName] = ir.TypeUnknownArray
 		return
 	}
+	if expr.Kind == "binary" && (expr.Operator == "!==" || expr.Operator == "!=") {
+		left := expr.Left
+		right := expr.Right
+		var targetIdent *typescriptgo.SyntaxExpression
+		var nullishKind string
+		if left != nil && left.Kind == "identifier" {
+			targetIdent = left
+			if right != nil && (right.Kind == "undefined" || right.Text == "undefined") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if right != nil && (right.Kind == "null" || right.Text == "null") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		} else if right != nil && right.Kind == "identifier" {
+			targetIdent = right
+			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if left != nil && (left.Kind == "null" || left.Text == "null") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		}
+		if targetIdent != nil && nullishKind != "" {
+			varName := targetIdent.Text
+			declStr := string(baseEnv["__decl_str."+varName])
+			if declStr == "" {
+				if topVar, ok := topLevelVars[varName]; ok {
+					declStr = topVar.Type
+					if declStr == "" {
+						declStr = topVar.InferredType
+					}
+				}
+			}
+			if declStr != "" && strings.Contains(declStr, "|") {
+				narrowedType := narrowUnionTypeString(declStr, nullishKind)
+				if narrowedType != "" {
+					thenEnv[varName] = narrowedType
+				}
+			}
+		}
+	}
 	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==") {
 		left := expr.Left
 		right := expr.Right
+		var targetIdent *typescriptgo.SyntaxExpression
+		var nullishKind string
+		if left != nil && left.Kind == "identifier" {
+			targetIdent = left
+			if right != nil && (right.Kind == "undefined" || right.Text == "undefined") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if right != nil && (right.Kind == "null" || right.Text == "null") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		} else if right != nil && right.Kind == "identifier" {
+			targetIdent = right
+			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if left != nil && (left.Kind == "null" || left.Text == "null") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		}
+		if targetIdent != nil && nullishKind != "" {
+			varName := targetIdent.Text
+			declStr := string(baseEnv["__decl_str."+varName])
+			if declStr == "" {
+				if topVar, ok := topLevelVars[varName]; ok {
+					declStr = topVar.Type
+					if declStr == "" {
+						declStr = topVar.InferredType
+					}
+				}
+			}
+			if declStr != "" && strings.Contains(declStr, "|") {
+				narrowedType := narrowUnionTypeString(declStr, nullishKind)
+				if narrowedType != "" {
+					elseEnv[varName] = narrowedType
+				}
+			}
+		}
 		if left != nil && left.Kind == "typeof" && left.Left != nil && left.Left.Kind == "identifier" && right != nil && (right.Kind == "string" || right.Kind == "literal") {
 			varName := left.Left.Text
 			valStr := strings.Trim(right.Text, "\"'`")
@@ -1043,4 +1234,37 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			}
 		}
 	}
+}
+
+func narrowUnionTypeString(declStr string, excludeKind string) ir.Type {
+	parts := splitTopLevelUnion(declStr)
+	var remaining []string
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			continue
+		}
+		switch excludeKind {
+		case "undefined":
+			if trimmed == "undefined" || trimmed == "void" {
+				continue
+			}
+		case "null":
+			if trimmed == "null" {
+				continue
+			}
+		case "nullish":
+			if trimmed == "undefined" || trimmed == "void" || trimmed == "null" {
+				continue
+			}
+		}
+		remaining = append(remaining, trimmed)
+	}
+	if len(remaining) == 0 {
+		return ir.TypeVoid
+	}
+	if len(remaining) == 1 {
+		return toIRType(remaining[0])
+	}
+	return toIRType(strings.Join(remaining, " | "))
 }

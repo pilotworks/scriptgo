@@ -115,6 +115,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	if options.SourceHash != "" {
 		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
 	}
+	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n\n")
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")
 	for _, method := range []string{"log", "info", "debug", "warn", "error"} {
@@ -192,6 +193,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_push(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_pop(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_slice(ptr, double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_slice_with_size(ptr, double, double, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_index_of_number(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_index_of_string(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_index_of_ptr(ptr, ptr, double, ptr)\n")

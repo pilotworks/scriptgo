@@ -32,7 +32,15 @@ int scriptgo_json_stringify_bool(int value, char **out_str) {
 }
 
 int scriptgo_json_stringify_string(const char *value, char **out_str) {
-    if (value == NULL || out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (value == NULL) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    if (value == &scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
     size_t len = strlen(value);
     size_t cap = len * 2 + 3;
     char *buf = malloc(cap);
@@ -64,8 +72,16 @@ int scriptgo_json_stringify_string(const char *value, char **out_str) {
 int scriptgo_array_join_number(void *handle, const char *separator, char **out_str);
 
 int scriptgo_json_stringify_number_array(void *handle, char **out_str) {
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (handle == NULL) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    if (handle == &scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
     char *joined = NULL;
-    if (handle == NULL || out_str == NULL) return json_fail("scriptgo json invalid argument");
     if (scriptgo_array_join_number(handle, ",", &joined) != 0) return -1;
     size_t len = strlen(joined);
     char *res = malloc(len + 3);
@@ -88,9 +104,57 @@ typedef struct {
     int64_t element_tag;
 } scriptgo_array_internal;
 
-int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
+int scriptgo_json_stringify_bool_array(void *handle, char **out_str) {
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (handle == NULL) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    if (handle == &scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
     scriptgo_array_internal *array = handle;
-    if (array == NULL || out_str == NULL || array->element_size <= 0) return json_fail("scriptgo json invalid argument");
+    if (array->element_size <= 0) return json_fail("scriptgo json invalid argument");
+    size_t cap = 256, len = 0;
+    char *buf = malloc(cap);
+    if (buf == NULL) return json_fail("scriptgo json allocation failed");
+    buf[len++] = '[';
+    for (int64_t i = 0; i < array->length; i++) {
+        uint8_t elem = *(uint8_t *)(array->data + (size_t)i);
+        const char *val_str = elem ? "true" : "false";
+        size_t v_len = strlen(val_str);
+        while (len + v_len + 3 >= cap) {
+            cap *= 2;
+            char *new_buf = realloc(buf, cap);
+            if (new_buf == NULL) { free(buf); return json_fail("scriptgo json allocation failed"); }
+            buf = new_buf;
+        }
+        if (i > 0) {
+            buf[len++] = ',';
+        }
+        memcpy(buf + len, val_str, v_len);
+        len += v_len;
+    }
+    buf[len++] = ']';
+    buf[len] = '\0';
+    *out_str = buf;
+    return 0;
+}
+
+int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (handle == NULL) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    if (handle == &scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    scriptgo_array_internal *array = handle;
+    if (array->element_size <= 0) return json_fail("scriptgo json invalid argument");
+    if (array->element_size == 1) return scriptgo_json_stringify_bool_array(handle, out_str);
     size_t cap = 256, len = 0;
     char *buf = malloc(cap);
     if (buf == NULL) return json_fail("scriptgo json allocation failed");

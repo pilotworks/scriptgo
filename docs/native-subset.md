@@ -58,6 +58,11 @@ functions use IEEE-754 `number` values and match JavaScript for the supported
 one-argument numeric cases; coercion, omitted arguments, extra arguments, and
 the rest of the JavaScript `Math` namespace are not part of the native subset.
 
+For unboxed native numbers (64-bit IEEE-754 `double`), missing/nullish values
+arising from short-circuited optional chaining (`?.`) or uninitialized number fields
+are represented natively as `NaN`. Nullish coalescing (`??`) and nullish checks
+recognize `NaN` as a missing/nullish state to provide compatible fallbacks.
+
 Standard-library eligibility is defined in [`stdlib.md`](stdlib.md). A Node.js
 API is rejected unless its module, signature, runtime representation, and
 parity tests are explicitly promoted into this table.

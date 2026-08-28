@@ -126,26 +126,40 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			if statement.Kind == "using" || statement.Kind == "await_using" {
 				return fmt.Errorf("resource %q has no initializer", statement.Name)
 			}
-			declaredType := toIRType(statement.Type)
-			if declaredType == "" && statement.InferredType != "" {
-				declaredType = toIRType(statement.InferredType)
+			typeStr := statement.Type
+			if typeStr == "" {
+				typeStr = statement.InferredType
 			}
+			declaredType := toIRType(typeStr)
 			if declaredType == "" {
 				declaredType = ir.TypeUnknown
 			}
 			env[statement.Name] = declaredType
+			env["__storage_type."+statement.Name] = declaredType
+			env["__decl_str."+statement.Name] = ir.Type(typeStr)
 			var zeroVal string
+			hasUndef := strings.Contains(typeStr, "undefined") || strings.Contains(typeStr, "void")
 			switch declaredType {
 			case ir.TypeNumber:
 				zeroVal = "0"
 			case ir.TypeBool:
 				zeroVal = "false"
+			case ir.TypeBigInt:
+				zeroVal = "0"
 			case ir.TypeString:
-				zeroVal = ""
+				if hasUndef {
+					zeroVal = "undefined"
+				} else {
+					zeroVal = ""
+				}
 			case ir.TypeUnknown:
 				zeroVal = "undefined"
 			default:
-				zeroVal = "null"
+				if hasUndef {
+					zeroVal = "undefined"
+				} else {
+					zeroVal = "null"
+				}
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
@@ -231,17 +245,29 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				env[statement.Name] = ir.TypeUnknown
 				return nil
 			}
-			value, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			value, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return err
 			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpBoxUnknown,
-				Type:   ir.TypeUnknown,
-				Result: statement.Name,
-				Args:   []string{value},
-				Span:   toIRSpan(path, statement.Span),
-			})
+			if valType == ir.TypeUnknown {
+				if value != statement.Name {
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpAssign,
+						Type:   ir.TypeUnknown,
+						Result: statement.Name,
+						Args:   []string{value},
+						Span:   toIRSpan(path, statement.Span),
+					})
+				}
+			} else {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: statement.Name,
+					Args:   []string{value},
+					Span:   toIRSpan(path, statement.Span),
+				})
+			}
 			env[statement.Name] = ir.TypeUnknown
 			return nil
 		}
@@ -258,7 +284,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					defaultVal = "null"
 				}
 			} else if strings.HasPrefix(string(declaredType), "object:") || declaredType == ir.TypePointer {
-				defaultVal = "null"
+				if statement.Expression.Kind == "undefined" {
+					defaultVal = "undefined"
+				} else {
+					defaultVal = "null"
+				}
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
@@ -271,7 +301,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			return nil
 		}
 		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) && statement.Type != "" {
-			if strings.HasSuffix(statement.Type, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" {
+			if toIRType(statement.Type) == ir.TypeUnknownArray {
+				statement.Expression.InferredType = "unknown[]"
+			} else if strings.HasSuffix(statement.Type, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" {
 				statement.Expression.InferredType = statement.Type
 			}
 		}
@@ -293,7 +325,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
-		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown {
+		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown && !isOptionalChainExpr(statement.Expression) {
 			if value == statement.Name {
 				tempVal := nextTemp(counter)
 				for i := len(function.Body) - 1; i >= 0; i-- {
@@ -505,14 +537,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				return fmt.Errorf("assignment to unknown variable %q", statement.Name)
 			}
 		}
-		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && varType != ir.TypeString && varType != ir.TypeUnknown {
+		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && varType != ir.TypeUnknown {
 			defaultVal := "0"
-			if varType == ir.TypeNumber {
-				defaultVal = "NaN"
-			} else if varType == ir.TypeBool {
-				defaultVal = "false"
-			} else if strings.HasPrefix(string(varType), "object:") {
-				defaultVal = "null"
+			if statement.Expression.Kind == "undefined" {
+				if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
+					defaultVal = "undefined"
+				} else if varType == ir.TypeNumber {
+					defaultVal = "NaN"
+				} else if varType == ir.TypeBool {
+					defaultVal = "false"
+				}
+			} else {
+				if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
+					defaultVal = "null"
+				} else if varType == ir.TypeNumber {
+					defaultVal = "NaN"
+				} else if varType == ir.TypeBool {
+					defaultVal = "false"
+				}
 			}
 			tmp := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
@@ -541,7 +583,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
-		if varType == ir.TypeUnknown && valType != ir.TypeUnknown {
+		storageType := env["__storage_type."+statement.Name]
+		if storageType == "" {
+			if topVar, isTop := topLevelVars[statement.Name]; isTop {
+				vType := topVar.Type
+				if vType == "" && topVar.InferredType != "" {
+					vType = topVar.InferredType
+				}
+				storageType = toIRType(vType)
+			}
+		}
+		if (varType == ir.TypeUnknown || storageType == ir.TypeUnknown) && valType != ir.TypeUnknown {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpBoxUnknown,
 				Type:   ir.TypeUnknown,
@@ -564,6 +616,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					Span:   toIRSpan(path, statement.Span),
 				})
 				value = unboxed
+			} else if isPointerLikeType(varType) && (valType == ir.TypeVoid || valType == ir.TypePointer) {
+				// Assigning undefined or null to a pointer-like variable
 			} else {
 				return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
 			}
@@ -961,4 +1015,14 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 		}
 	}
 	return branch.Body, nil
+}
+
+func isOptionalChainExpr(expr *typescriptgo.SyntaxExpression) bool {
+	if expr == nil {
+		return false
+	}
+	if expr.Kind == "optional_call" || expr.Kind == "optional_property" || expr.Kind == "optional_index" {
+		return true
+	}
+	return isOptionalChainExpr(expr.Left) || isOptionalChainExpr(expr.Right)
 }

@@ -207,7 +207,11 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				}
 			}
 			if len(nonNullish) == 1 {
-				return toIRTypeInternal(nonNullish[0], visited)
+				singleIR := toIRTypeInternal(nonNullish[0], visited)
+				if hasNullish && !isPointerLikeType(singleIR) {
+					return ir.TypeUnknown
+				}
+				return singleIR
 			}
 			return ir.TypeUnknown
 		}
@@ -320,6 +324,9 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			name := anonymousShapeName(fields)
 			registerAnonymousShape(name, fields)
 			return ir.Type("object:" + name)
+		}
+		if strings.Contains(value, "...") {
+			return ir.TypeUnknownArray
 		}
 	}
 	if strings.Contains(value, "<") && strings.HasSuffix(value, ">") {
@@ -768,7 +775,7 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 		return nil, false
 	}
 	inner := strings.TrimSpace(typeStr[1 : len(typeStr)-1])
-	if inner == "" {
+	if inner == "" || strings.Contains(inner, "...") {
 		return nil, false
 	}
 	parts := splitTopLevel(inner)

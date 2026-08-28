@@ -16,6 +16,12 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			cleanInf := strings.TrimPrefix(expression.InferredType, "object:")
 			if _, ok := shapes[cleanInf]; ok {
 				shapeName = cleanInf
+			} else if s, ok := registeredShapes[cleanInf]; ok {
+				shapes[cleanInf] = s
+				shapeName = cleanInf
+			} else if s, ok := anonymousShapes[cleanInf]; ok {
+				shapes[cleanInf] = s
+				shapeName = cleanInf
 			}
 		}
 		if _, ok := shapes[shapeName]; !ok {
@@ -38,6 +44,33 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			FieldCount: len(targetShape.Fields),
 			Span:       toIRSpan(path, expression.Span),
 		})
+		for i, field := range targetShape.Fields {
+			defVal := "undefined"
+			defType := field.Type
+			switch field.Type {
+			case ir.TypeNumber:
+				defVal = "NaN"
+			case ir.TypeBool:
+				defVal = "false"
+			}
+			defConst := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   defType,
+				Result: defConst,
+				Value:  defVal,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      field.Name,
+				FieldIndex: i,
+				Args:       []string{result, defConst},
+				Span:       toIRSpan(path, expression.Span),
+			})
+		}
 		return result, objType, nil
 	}
 	var parentShape *ir.ObjectShape
@@ -322,7 +355,7 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				Span:       toIRSpan(path, expression.Span),
 			})
 		} else {
-			defVal := "null"
+			defVal := "undefined"
 			defType := field.Type
 			if field.Type == ir.TypeNumber {
 				defVal = "NaN"

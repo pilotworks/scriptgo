@@ -723,6 +723,11 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to %s\n", valName, payloadName, paramType)
 				argVal = valName
 			}
+		} else if hasArgType && argType == ir.TypeVoid && paramType == "double" {
+			nanName := fmt.Sprintf("call.nan.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 0x7FF8000000000000\n", nanName))
+			argVal = nanName
 		}
 		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", paramType, argVal))
 	}

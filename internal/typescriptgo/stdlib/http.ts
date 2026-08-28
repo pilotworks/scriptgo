@@ -833,8 +833,8 @@ export class ClientRequest extends OutgoingMessage {
 export class IncomingMessage {
     aborted: boolean = false;
     complete: boolean = true;
-    connection: string = "";
-    socket: string = "";
+    connection: string | null = null;
+    socket: string | null = null;
     headers: string[] = [];
     headersDistinct: string[] = [];
     httpVersion: string = "1.1";

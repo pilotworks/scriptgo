@@ -99,8 +99,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 			inferredTuple := false
+			var trimmed string
 			if expression.InferredType != "" {
-				trimmed := strings.TrimSpace(expression.InferredType)
+				trimmed = strings.TrimSpace(expression.InferredType)
 				trimmed = strings.TrimPrefix(trimmed, "readonly ")
 				if strings.HasPrefix(trimmed, "Readonly<") && strings.HasSuffix(trimmed, ">") {
 					trimmed = strings.TrimSuffix(strings.TrimPrefix(trimmed, "Readonly<"), ">")
@@ -140,14 +141,37 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				return result, arrType, nil
 			}
 
+			if strings.Contains(trimmed, "...") || toIRType(trimmed) == ir.TypeUnknownArray {
+				arrType := ir.TypeUnknownArray
+				for idx, argName := range arguments {
+					if types[idx] != ir.TypeUnknown {
+						boxed := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpBoxUnknown,
+							Type:   ir.TypeUnknown,
+							Result: boxed,
+							Args:   []string{argName},
+							Span:   toIRSpan(path, expression.Arguments[idx].Span),
+						})
+						arguments[idx] = boxed
+					}
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+				return result, arrType, nil
+			}
+
 			// Heterogeneous elements -> lower as anonymous tuple object
 			var fields []ir.Field
-			for i, typ := range types {
-				fields = append(fields, ir.Field{
-					Name: strconv.Itoa(i),
-					Type: typ,
-					Span: toIRSpan(path, expression.Arguments[i].Span),
-				})
+			if tFields, ok := tupleFields(trimmed); ok && len(tFields) > 0 {
+				fields = tFields
+			} else {
+				for i, typ := range types {
+					fields = append(fields, ir.Field{
+						Name: strconv.Itoa(i),
+						Type: typ,
+						Span: toIRSpan(path, expression.Arguments[i].Span),
+					})
+				}
 			}
 			shapeName := anonymousShapeName(fields)
 			if _, ok := shapes[shapeName]; !ok {
@@ -167,13 +191,33 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				Span:       toIRSpan(path, expression.Span),
 			})
 			for i, field := range fields {
+				var val string
+				if i < len(arguments) {
+					val = arguments[i]
+				} else {
+					defVal := "undefined"
+					if field.Type == ir.TypeNumber {
+						defVal = "NaN"
+					} else if field.Type == ir.TypeBool {
+						defVal = "false"
+					}
+					defConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   field.Type,
+						Result: defConst,
+						Value:  defVal,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					val = defConst
+				}
 				function.Body = append(function.Body, ir.Instruction{
 					Op:         ir.OpFieldSet,
 					Type:       ir.TypeVoid,
 					Callee:     shapeName,
 					Field:      field.Name,
 					FieldIndex: i,
-					Args:       []string{result, arguments[i]},
+					Args:       []string{result, val},
 					Span:       toIRSpan(path, expression.Span),
 				})
 			}
@@ -374,6 +418,89 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if err != nil {
 			return "", "", err
 		}
+		if expression.Kind == "optional_index" {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			retType := ir.TypeUnknown
+			if expression.InferredType != "" {
+				if t := toIRType(expression.InferredType); t != "" {
+					retType = t
+				}
+			}
+			if retType == ir.TypeNumber || retType == ir.TypeBool {
+				retType = ir.TypeUnknown
+			}
+			initVal := "undefined"
+			if retType != ir.TypeString && retType != ir.TypeUnknown {
+				initVal = "null"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   retType,
+				Result: result,
+				Value:  initVal,
+				Span:   toIRSpan(path, expression.Span),
+			})
+
+			cond, err := coerceToBool(path, array, arrayType, function, counter, expression.Span)
+			if err != nil {
+				return "", "", err
+			}
+
+			thenFn := &ir.Function{}
+			if array != "" && arrayType != "" {
+				env[array] = arrayType
+			}
+			elemType := ""
+			if expression.InferredType != "" {
+				parts := strings.Split(expression.InferredType, "|")
+				for _, p := range parts {
+					trimmed := strings.TrimSpace(p)
+					if trimmed != "undefined" && trimmed != "null" && trimmed != "void" && trimmed != "" {
+						elemType = trimmed
+						break
+					}
+				}
+			}
+			standardIndex := &typescriptgo.SyntaxExpression{
+				Span:         expression.Span,
+				Kind:         "index",
+				Left:         &typescriptgo.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: array, InferredType: string(arrayType)},
+				Right:        expression.Right,
+				InferredType: elemType,
+			}
+			idxRes, idxType, err := lowerExpression(path, standardIndex, "", thenFn, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if retType == ir.TypeUnknown && idxType != ir.TypeUnknown {
+				thenFn.Body = append(thenFn.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: result,
+					Args:   []string{idxRes},
+					Span:   toIRSpan(path, expression.Span),
+				})
+			} else {
+				thenFn.Body = append(thenFn.Body, ir.Instruction{
+					Op:     ir.OpAssign,
+					Type:   idxType,
+					Result: result,
+					Args:   []string{idxRes},
+					Span:   toIRSpan(path, expression.Span),
+				})
+			}
+
+			function.Body = append(function.Body, ir.Instruction{
+				Op:   ir.OpIf,
+				Type: ir.TypeVoid,
+				Args: []string{cond},
+				Then: thenFn.Body,
+				Span: toIRSpan(path, expression.Span),
+			})
+			return result, retType, nil
+		}
 		if arrayType == ir.TypeString {
 			index, indexType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -417,9 +544,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 			if ok {
-				if expression.Right != nil && expression.Right.Kind == "number" {
-					fieldIdx, _ := strconv.Atoi(expression.Right.Text)
-					if fieldIdx >= 0 && fieldIdx < len(shape.Fields) {
+				if expression.Right != nil && (expression.Right.Kind == "number" || expression.Right.Kind == "literal") {
+					fieldIdx, err := strconv.Atoi(expression.Right.Text)
+					if err == nil && fieldIdx >= 0 && fieldIdx < len(shape.Fields) {
 						field := shape.Fields[fieldIdx]
 						if result == "" {
 							result = nextTemp(counter)
@@ -597,8 +724,18 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		rawEnvType, ok := env[expression.Text]
 		if ok {
 			typ := rawEnvType
+			storageType := env["__storage_type."+expression.Text]
+			if storageType == "" {
+				if topVar, ok := topLevelVars[expression.Text]; ok {
+					vType := topVar.Type
+					if vType == "" && topVar.InferredType != "" {
+						vType = topVar.InferredType
+					}
+					storageType = toIRType(vType)
+				}
+			}
 			origParamType, isParam := env["__param."+expression.Text]
-			isOriginallyUnknown := (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))) || rawEnvType == ir.TypeUnknown
+			isOriginallyUnknown := (rawEnvType == "" || (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))))
 			if isOriginallyUnknown {
 				switch expression.InferredType {
 				case "number":
@@ -656,7 +793,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					}
 				}
 			}
-			if isOriginallyUnknown && typ != ir.TypeUnknown && typ != "" {
+			if (storageType == ir.TypeUnknown && rawEnvType != ir.TypeUnknown && rawEnvType != "") || (isOriginallyUnknown && typ != ir.TypeUnknown && typ != "") {
 				if result == "" {
 					result = nextTemp(counter)
 				}
@@ -917,7 +1054,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if conditionType != ir.TypeBool {
-			if strings.HasPrefix(string(conditionType), "object:") || conditionType == "ptr" {
+			if strings.HasPrefix(string(conditionType), "object:") || conditionType == "ptr" || isPointerLikeType(conditionType) {
 				nullConst := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: conditionType, Result: nullConst, Value: "0", Span: toIRSpan(path, expression.Span)})
 				boolTemp := nextTemp(counter)
@@ -987,7 +1124,13 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				whenTrue = boxed
 				trueType = ir.TypeUnknown
 			} else {
-				return "", "", fmt.Errorf("conditional branches must have the same type")
+				boxedTrue := nextTemp(counter)
+				thenFn.Body = append(thenFn.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxedTrue, Args: []string{whenTrue}, Span: toIRSpan(path, expression.WhenTrue.Span)})
+				whenTrue = boxedTrue
+				boxedFalse := nextTemp(counter)
+				elseFn.Body = append(elseFn.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxedFalse, Args: []string{whenFalse}, Span: toIRSpan(path, expression.WhenFalse.Span)})
+				whenFalse = boxedFalse
+				trueType = ir.TypeUnknown
 			}
 		}
 		initVal := "0"

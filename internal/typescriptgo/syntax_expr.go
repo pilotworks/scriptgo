@@ -119,6 +119,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Kind:          kind,
 			Left:          syntaxExpression(callExpr.Expression, chk),
 			TypeArguments: syntaxTypeArguments(callExpr.TypeArguments),
+			InferredType:  resolveInferredType(chk, node),
 		}
 		for _, argument := range node.Arguments() {
 			result.Arguments = append(result.Arguments, syntaxExpression(argument, chk))
@@ -265,10 +266,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			kind = "optional_index"
 		}
 		return &SyntaxExpression{
-			Span:  sourceSpan(node),
-			Kind:  kind,
-			Left:  syntaxExpression(element.Expression, chk),
-			Right: syntaxExpression(element.ArgumentExpression, chk),
+			Span:         sourceSpan(node),
+			Kind:         kind,
+			Left:         syntaxExpression(element.Expression, chk),
+			Right:        syntaxExpression(element.ArgumentExpression, chk),
+			InferredType: resolveInferredType(chk, node),
 		}
 	case ast.KindPropertyAccessExpression:
 		prop := node.AsPropertyAccessExpression()
@@ -277,10 +279,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			kind = "optional_property"
 		}
 		return &SyntaxExpression{
-			Span: sourceSpan(node),
-			Kind: kind,
-			Text: node.Name().Text(),
-			Left: syntaxExpression(node.Expression(), chk),
+			Span:         sourceSpan(node),
+			Kind:         kind,
+			Text:         node.Name().Text(),
+			Left:         syntaxExpression(node.Expression(), chk),
+			InferredType: resolveInferredType(chk, node),
 		}
 	case ast.KindNewExpression:
 		newExpression := node.AsNewExpression()

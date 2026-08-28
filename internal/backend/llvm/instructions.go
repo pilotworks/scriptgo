@@ -147,19 +147,21 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 	targetResult := inst.Result
 	isGlobalResult := false
 	var globalResultType ir.Type
-	for _, g := range e.module.Globals {
-		if g.Name == inst.Result {
-			isGlobalResult = true
-			globalResultType = g.Type
-			break
-		}
-	}
 	if _, ok := e.varSlots[inst.Result]; ok {
 		inst.Result = fmt.Sprintf("%s.val.%d", inst.Result, e.loadCounter)
 		e.loadCounter++
-	} else if isGlobalResult {
-		inst.Result = fmt.Sprintf("%s.gres.%d", inst.Result, e.loadCounter)
-		e.loadCounter++
+	} else {
+		for _, g := range e.module.Globals {
+			if g.Name == inst.Result {
+				isGlobalResult = true
+				globalResultType = g.Type
+				break
+			}
+		}
+		if isGlobalResult {
+			inst.Result = fmt.Sprintf("%s.gres.%d", inst.Result, e.loadCounter)
+			e.loadCounter++
+		}
 	}
 
 	switch inst.Op {
@@ -173,13 +175,15 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			typ = e.types[targetResult]
 		}
 		isGlobal := false
-		for _, g := range e.module.Globals {
-			if g.Name == targetResult {
-				if typ == "" {
-					typ = g.Type
+		if _, ok := e.varSlots[targetResult]; !ok {
+			for _, g := range e.module.Globals {
+				if g.Name == targetResult {
+					if typ == "" {
+						typ = g.Type
+					}
+					isGlobal = true
+					break
 				}
-				isGlobal = true
-				break
 			}
 		}
 		arg := inst.Args[0]

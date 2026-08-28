@@ -1,10 +1,10 @@
 declare namespace __scriptgo {
     function setTimeout(callback: (...args: unknown[]) => void, ms?: number): number;
-    function clearTimeout(id: number | undefined): void;
+    function clearTimeout(id: number): void;
     function setInterval(callback: (...args: unknown[]) => void, ms?: number): number;
-    function clearInterval(id: number | undefined): void;
+    function clearInterval(id: number): void;
     function setImmediate(callback: (...args: unknown[]) => void): number;
-    function clearImmediate(id: number | undefined): void;
+    function clearImmediate(id: number): void;
 }
 
 export function setTimeout(callback: (...args: unknown[]) => void, ms?: number): number {
@@ -12,7 +12,9 @@ export function setTimeout(callback: (...args: unknown[]) => void, ms?: number):
 }
 
 export function clearTimeout(id: number | undefined): void {
-    __scriptgo.clearTimeout(id);
+    if (typeof id === "number") {
+        __scriptgo.clearTimeout(id);
+    }
 }
 
 export function setInterval(callback: (...args: unknown[]) => void, ms?: number): number {
@@ -20,7 +22,9 @@ export function setInterval(callback: (...args: unknown[]) => void, ms?: number)
 }
 
 export function clearInterval(id: number | undefined): void {
-    __scriptgo.clearInterval(id);
+    if (typeof id === "number") {
+        __scriptgo.clearInterval(id);
+    }
 }
 
 export function setImmediate(callback: (...args: unknown[]) => void): number {
@@ -28,7 +32,9 @@ export function setImmediate(callback: (...args: unknown[]) => void): number {
 }
 
 export function clearImmediate(id: number | undefined): void {
-    __scriptgo.clearImmediate(id);
+    if (typeof id === "number") {
+        __scriptgo.clearImmediate(id);
+    }
 }
 
 export class TimersPromises {

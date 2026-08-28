@@ -64,10 +64,18 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	typeAliasesIndex = map[string]string{}
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
-		for _, statement := range file.Syntax.Statements {
-			if (statement.Kind == "variable" || statement.Kind == "using" || statement.Kind == "await_using") && statement.Name != "" {
-				topLevelVars[statement.Name] = statement
+		var collectTopLevel func(s typescriptgo.SyntaxStatement)
+		collectTopLevel = func(s typescriptgo.SyntaxStatement) {
+			if (s.Kind == "variable" || s.Kind == "using" || s.Kind == "await_using") && s.Name != "" {
+				topLevelVars[s.Name] = s
+			} else if s.Kind == "block" || s.Kind == "namespace" {
+				for _, sub := range s.Body {
+					collectTopLevel(sub)
+				}
 			}
+		}
+		for _, statement := range file.Syntax.Statements {
+			collectTopLevel(statement)
 			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
 				typeAliasesIndex[statement.Name] = statement.Type
 			}
@@ -257,9 +265,15 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		}
 	}
 
+	seenGlobals := map[string]bool{}
 	for _, file := range program.Files {
-		for _, statement := range file.Syntax.Statements {
+		var collectGlobals func(statement typescriptgo.SyntaxStatement)
+		collectGlobals = func(statement typescriptgo.SyntaxStatement) {
 			if statement.Kind == "variable" && statement.Name != "" {
+				if seenGlobals[statement.Name] {
+					return
+				}
+				seenGlobals[statement.Name] = true
 				vType := statement.Type
 				if vType == "" && statement.InferredType != "" {
 					vType = statement.InferredType
@@ -312,7 +326,14 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					Name: statement.Name,
 					Type: typ,
 				})
+			} else if statement.Kind == "namespace" {
+				for _, sub := range statement.Body {
+					collectGlobals(sub)
+				}
 			}
+		}
+		for _, statement := range file.Syntax.Statements {
+			collectGlobals(statement)
 		}
 	}
 

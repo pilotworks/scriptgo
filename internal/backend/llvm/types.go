@@ -28,7 +28,7 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 		if typ == ir.TypeVoid {
 			return "scriptgo_console_" + method + "_string", true
 		}
-		if strings.HasPrefix(string(typ), "object:") || typ == ir.TypeObject || typ == ir.TypeClosure || strings.HasSuffix(string(typ), "[]") {
+		if strings.HasPrefix(string(typ), "object:") || typ == ir.TypeObject || typ == ir.TypeClosure || strings.HasSuffix(string(typ), "[]") || typ == ir.TypePointer || typ == "ptr" {
 			return "scriptgo_console_" + method + "_object", true
 		}
 		return "", false

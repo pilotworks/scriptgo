@@ -188,20 +188,17 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			env[cmpNull] = ir.TypeBool
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
 
-			cond = cmpNull
-			if leftTyp == ir.TypeString {
-				undefConst := nextTemp(counter)
-				env[undefConst] = ir.TypeString
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
-				cmpUndef := nextTemp(counter)
-				env[cmpUndef] = ir.TypeBool
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
+			undefConst := nextTemp(counter)
+			env[undefConst] = leftTyp
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+			cmpUndef := nextTemp(counter)
+			env[cmpUndef] = ir.TypeBool
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{leftVal, undefConst}, Span: toIRSpan(path, expression.Span)})
 
-				condTemp := nextTemp(counter)
-				env[condTemp] = ir.TypeBool
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
-				cond = condTemp
-			}
+			condTemp := nextTemp(counter)
+			env[condTemp] = ir.TypeBool
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+			cond = condTemp
 		}
 
 		elseBlock := ir.Function{Name: "nullish_fallback", ReturnType: function.ReturnType}
@@ -325,9 +322,30 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			if err != nil {
 				return "", "", err
 			}
+			if varType == ir.TypeUnknown && valType != ir.TypeUnknown {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpBoxUnknown,
+					Type:   ir.TypeUnknown,
+					Result: varName,
+					Args:   []string{val},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				if result != "" {
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpAssign,
+						Type:   varType,
+						Result: result,
+						Args:   []string{varName},
+						Span:   toIRSpan(path, expression.Span),
+					})
+				}
+				return result, varType, nil
+			}
 			if valType != varType && varType != ir.TypeUnknown {
 				if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(varType), "object:") || varType == ir.TypeObject) {
 					// Polymorphic object assignment
+				} else if isPointerLikeType(varType) && (valType == ir.TypeVoid || valType == ir.TypePointer) {
+					// Assigning undefined or null to a pointer-like variable
 				} else {
 					return "", "", fmt.Errorf("assignment type mismatch for %q: %s := %s", varName, varType, valType)
 				}

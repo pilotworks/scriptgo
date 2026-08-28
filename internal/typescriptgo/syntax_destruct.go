@@ -2,6 +2,7 @@ package typescriptgo
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/checker"
@@ -99,22 +100,93 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 			}
 		}
 
+		targetNode := binding.Name()
+		if binding.Initializer != nil && targetNode != nil && targetNode.Kind != ast.KindObjectBindingPattern && targetNode.Kind != ast.KindArrayBindingPattern {
+			varName := targetNode.Text()
+			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" || inferredType == "void" || inferredType == "undefined" {
+				if defaultExpr != nil && defaultExpr.InferredType != "" && defaultExpr.InferredType != "void" && defaultExpr.InferredType != "undefined" {
+					inferredType = defaultExpr.InferredType
+				} else if propExpr.InferredType != "" {
+					inferredType = propExpr.InferredType
+				} else {
+					inferredType = resolveInferredType(chk, elem)
+				}
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         varName,
+				Type:         inferredType,
+				InferredType: inferredType,
+				Expression:   defaultExpr,
+			})
+			stmts = append(stmts, SyntaxStatement{
+				Span: sourceSpan(elem),
+				Kind: "if",
+				Expression: &SyntaxExpression{
+					Span:     sourceSpan(elem),
+					Kind:     "binary",
+					Operator: "!==",
+					Left:     propExpr,
+					Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
+				},
+				Then: []SyntaxStatement{
+					{
+						Span:       sourceSpan(elem),
+						Kind:       "assign",
+						Name:       varName,
+						Expression: propExpr,
+					},
+				},
+			})
+			continue
+		}
+
 		if binding.Initializer != nil {
 			defaultExpr := syntaxExpression(binding.Initializer, chk)
-			if defaultExpr != nil && (defaultExpr.InferredType == "" || defaultExpr.InferredType == "{}") && propExpr.InferredType != "" {
-				defaultExpr.InferredType = propExpr.InferredType
+			*counter++
+			tmpVar := fmt.Sprintf("__destruct_opt_%d_%d", elem.Pos(), *counter)
+			inferredType := resolveInferredType(chk, elem)
+			if inferredType == "" && propExpr.InferredType != "" {
+				inferredType = propExpr.InferredType
 			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         tmpVar,
+				Type:         inferredType,
+				InferredType: inferredType,
+				Expression:   defaultExpr,
+			})
+			stmts = append(stmts, SyntaxStatement{
+				Span: sourceSpan(elem),
+				Kind: "if",
+				Expression: &SyntaxExpression{
+					Span:     sourceSpan(elem),
+					Kind:     "binary",
+					Operator: "!==",
+					Left:     propExpr,
+					Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
+				},
+				Then: []SyntaxStatement{
+					{
+						Span:       sourceSpan(elem),
+						Kind:       "assign",
+						Name:       tmpVar,
+						Expression: propExpr,
+					},
+				},
+			})
 			propExpr = &SyntaxExpression{
 				Span:         sourceSpan(elem),
-				Kind:         "binary",
-				Operator:     "??",
-				Left:         propExpr,
-				Right:        defaultExpr,
-				InferredType: propExpr.InferredType,
+				Kind:         "identifier",
+				Text:         tmpVar,
+				InferredType: inferredType,
 			}
 		}
 
-		targetNode := binding.Name()
 		if targetNode != nil && (targetNode.Kind == ast.KindObjectBindingPattern || targetNode.Kind == ast.KindArrayBindingPattern) {
 			nestedStmts := flattenDestructuring(targetNode, propExpr, chk, counter)
 			stmts = append(stmts, nestedStmts...)
@@ -145,21 +217,21 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 
 	*counter++
 	arrVar := fmt.Sprintf("__destruct_arr_%d_%d", nameNode.Pos(), *counter)
+	arrInferred := ""
+	if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+		arrInferred = initExpr.InferredType
+	} else {
+		arrInferred = resolveInferredType(chk, nameNode)
+	}
 	if initExpr != nil && initExpr.Kind == "identifier" {
 		arrVar = initExpr.Text
 	} else {
-		inferred := ""
-		if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
-			inferred = initExpr.InferredType
-		} else {
-			inferred = resolveInferredType(chk, nameNode)
-		}
 		stmts = append(stmts, SyntaxStatement{
 			Span:         sourceSpan(nameNode),
 			Kind:         "variable",
 			Name:         arrVar,
-			Type:         inferred,
-			InferredType: inferred,
+			Type:         arrInferred,
+			InferredType: arrInferred,
 			Expression:   initExpr,
 		})
 	}
@@ -200,41 +272,50 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 				Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
 				Right:        &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
 			}
-			stmts = append(stmts, SyntaxStatement{
-				Span: sourceSpan(elem),
-				Kind: "if",
-				Expression: &SyntaxExpression{
+			var condExpr *SyntaxExpression = &SyntaxExpression{
+				Span:     sourceSpan(elem),
+				Kind:     "binary",
+				Operator: "!==",
+				Left:     rawIdxExpr,
+				Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
+			}
+			isArray := false
+			if initExpr != nil && strings.HasSuffix(initExpr.InferredType, "[]") {
+				isArray = true
+			} else if strings.HasSuffix(arrInferred, "[]") {
+				isArray = true
+			}
+			if isArray {
+				condExpr = &SyntaxExpression{
 					Span:     sourceSpan(elem),
 					Kind:     "binary",
-					Operator: "<",
-					Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-					Right: &SyntaxExpression{
-						Span:         sourceSpan(elem),
-						Kind:         "property",
-						Text:         "length",
-						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
-						InferredType: "number",
+					Operator: "&&",
+					Left: &SyntaxExpression{
+						Span:     sourceSpan(elem),
+						Kind:     "binary",
+						Operator: "<",
+						Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+						Right: &SyntaxExpression{
+							Span:         sourceSpan(elem),
+							Kind:         "property",
+							Text:         "length",
+							Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+							InferredType: "number",
+						},
 					},
-				},
+					Right: condExpr,
+				}
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:       sourceSpan(elem),
+				Kind:       "if",
+				Expression: condExpr,
 				Then: []SyntaxStatement{
 					{
-						Span: sourceSpan(elem),
-						Kind: "if",
-						Expression: &SyntaxExpression{
-							Span:     sourceSpan(elem),
-							Kind:     "binary",
-							Operator: "!==",
-							Left:     rawIdxExpr,
-							Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
-						},
-						Then: []SyntaxStatement{
-							{
-								Span:       sourceSpan(elem),
-								Kind:       "assign",
-								Name:       varName,
-								Expression: rawIdxExpr,
-							},
-						},
+						Span:       sourceSpan(elem),
+						Kind:       "assign",
+						Name:       varName,
+						Expression: rawIdxExpr,
 					},
 				},
 			})
@@ -255,7 +336,6 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 				},
 				Arguments: []*SyntaxExpression{
 					{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-					{Span: sourceSpan(elem), Kind: "property", Text: "length", Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar}, InferredType: "number"},
 				},
 			}
 		} else {

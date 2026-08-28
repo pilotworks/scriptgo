@@ -346,7 +346,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", instruction.Result, elemLLVMType, resSlot)
 		return nil
 	case "__array.slice":
-		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != arrayType {
+		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || (!strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray && instruction.Type != ir.TypeBoolArray && instruction.Type != ir.TypeBigIntArray && instruction.Type != ir.TypeUnknownArray) {
 			return fmt.Errorf("array.slice has invalid signature")
 		}
 		startArg := "%" + instruction.Args[1]
@@ -354,11 +354,17 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) == 3 {
 			endArg = "%" + instruction.Args[2]
 		}
+		targetElemSize := 8
+		if instruction.Type == ir.TypeBoolArray || instruction.Type == "bool[]" || instruction.Type == "boolean[]" {
+			targetElemSize = 1
+		} else if instruction.Type == ir.TypeUnknownArray || instruction.Type == "unknown[]" || instruction.Type == "any[]" {
+			targetElemSize = 16
+		}
 		resSlot := instruction.Result + ".slot"
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double %s, double %s, ptr %%%s)\n", status, instruction.Args[0], startArg, endArg, resSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice_with_size(ptr %%%s, double %s, double %s, i64 %d, ptr %%%s)\n", status, instruction.Args[0], startArg, endArg, targetElemSize, resSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
 		return nil

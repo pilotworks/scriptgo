@@ -726,6 +726,65 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		if expression.Kind == "optional_property" {
+			if fType == ir.TypeNumber || fType == ir.TypeBool {
+				fType = ir.TypeUnknown
+			}
+			initVal := "undefined"
+			if fType != ir.TypeString && fType != ir.TypeUnknown {
+				initVal = "null"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   fType,
+				Result: result,
+				Value:  initVal,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			cond, err := coerceToBool(path, object, objectType, function, counter, expression.Span)
+			if err == nil {
+				thenFn := &ir.Function{}
+				if fType == ir.TypeUnknown && field.Type != ir.TypeUnknown {
+					rawRes := nextTemp(counter)
+					thenFn.Body = append(thenFn.Body, ir.Instruction{
+						Op:         ir.OpFieldGet,
+						Type:       field.Type,
+						Result:     rawRes,
+						Callee:     className,
+						Field:      field.Name,
+						FieldIndex: fieldIndex(shape, field.Name),
+						Args:       []string{object},
+						Span:       toIRSpan(path, expression.Span),
+					})
+					thenFn.Body = append(thenFn.Body, ir.Instruction{
+						Op:     ir.OpBoxUnknown,
+						Type:   ir.TypeUnknown,
+						Result: result,
+						Args:   []string{rawRes},
+						Span:   toIRSpan(path, expression.Span),
+					})
+				} else {
+					thenFn.Body = append(thenFn.Body, ir.Instruction{
+						Op:         ir.OpFieldGet,
+						Type:       fType,
+						Result:     result,
+						Callee:     className,
+						Field:      field.Name,
+						FieldIndex: fieldIndex(shape, field.Name),
+						Args:       []string{object},
+						Span:       toIRSpan(path, expression.Span),
+					})
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:   ir.OpIf,
+					Type: ir.TypeVoid,
+					Args: []string{cond},
+					Then: thenFn.Body,
+					Span: toIRSpan(path, expression.Span),
+				})
+				return result, fType, nil
+			}
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpFieldGet,
 			Type:       fType,
@@ -756,6 +815,42 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				retType = inferred
 			}
 		}
+		if expression.Kind == "optional_property" {
+			initVal := "undefined"
+			switch retType {
+			case ir.TypeBool:
+				initVal = "false"
+			case ir.TypeNumber:
+				initVal = "NaN"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   retType,
+				Result: result,
+				Value:  initVal,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			cond, err := coerceToBool(path, object, objectType, function, counter, expression.Span)
+			if err == nil {
+				thenFn := &ir.Function{}
+				thenFn.Body = append(thenFn.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   retType,
+					Result: result,
+					Callee: "__object.get_prop",
+					Args:   []string{object, propNameConst},
+					Span:   toIRSpan(path, expression.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:   ir.OpIf,
+					Type: ir.TypeVoid,
+					Args: []string{cond},
+					Then: thenFn.Body,
+					Span: toIRSpan(path, expression.Span),
+				})
+				return result, retType, nil
+			}
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   retType,
@@ -770,19 +865,12 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		retType := ir.TypeString
+		retType := ir.TypeUnknown
 		valStr := "undefined"
 		if expression.InferredType != "" {
 			inferred := toIRType(expression.InferredType)
-			if inferred == ir.TypeNumber {
-				retType = ir.TypeNumber
-				valStr = "NaN"
-			} else if inferred == ir.TypeBool {
-				retType = ir.TypeBool
-				valStr = "false"
-			} else if inferred != "" && inferred != ir.TypeString {
+			if inferred != "" && inferred != ir.TypeNumber && inferred != ir.TypeBool {
 				retType = inferred
-				valStr = "null"
 			}
 		}
 		function.Body = append(function.Body, ir.Instruction{

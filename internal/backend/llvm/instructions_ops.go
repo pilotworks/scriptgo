@@ -12,6 +12,10 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	e.types[instruction.Result] = instruction.Type
 	switch instruction.Type {
 	case ir.TypeNumber:
+		if instruction.Value == "null" || instruction.Value == "undefined" || instruction.Value == "NaN" {
+			out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 0x7FF8000000000000\n", instruction.Result))
+			return nil
+		}
 		number, err := strconv.ParseFloat(instruction.Value, 64)
 		if err != nil {
 			return fmt.Errorf("invalid number %q: %w", instruction.Value, err)
@@ -20,6 +24,10 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeString:
 		if instruction.Value == "null" {
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
+			return nil
+		}
+		if instruction.Value == "undefined" {
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr i8, ptr @scriptgo_undefined_sentinel, i64 0\n", instruction.Result))
 			return nil
 		}
 		global := e.stringsByValue[instruction.Value]
@@ -43,7 +51,7 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %s\n", instruction.Result, instruction.Value))
 	case ir.TypeVoid:
-		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr i8, ptr @scriptgo_undefined_sentinel, i64 0\n", instruction.Result))
 	case ir.TypeUnknown:
 		tag := 0
 		if instruction.Value == "null" {
@@ -52,6 +60,10 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", instruction.Result, tag))
 	default:
 		if llvmType(instruction.Type) == "ptr" {
+			if instruction.Value == "undefined" {
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr i8, ptr @scriptgo_undefined_sentinel, i64 0\n", instruction.Result))
+				return nil
+			}
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
 			return nil
 		}
@@ -346,11 +358,35 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %%%s\n", valEq, val0, val1))
 
 		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothEq, tagEq, valEq))
+
+		finalEq := bothEq
+		if instruction.Operator == "==" || instruction.Operator == "!=" {
+			tag0Null := fmt.Sprintf("%s.tag0_null.%d", instruction.Result, e.loadCounter)
+			tag0Undef := fmt.Sprintf("%s.tag0_undef.%d", instruction.Result, e.loadCounter)
+			tag0Nullish := fmt.Sprintf("%s.tag0_nullish.%d", instruction.Result, e.loadCounter)
+			tag1Null := fmt.Sprintf("%s.tag1_null.%d", instruction.Result, e.loadCounter)
+			tag1Undef := fmt.Sprintf("%s.tag1_undef.%d", instruction.Result, e.loadCounter)
+			tag1Nullish := fmt.Sprintf("%s.tag1_nullish.%d", instruction.Result, e.loadCounter)
+			bothNullish := fmt.Sprintf("%s.both_nullish.%d", instruction.Result, e.loadCounter)
+			looseEq := fmt.Sprintf("%s.loose_eq.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 1\n", tag0Null, tag0))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", tag0Undef, tag0))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", tag0Nullish, tag0Null, tag0Undef))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 1\n", tag1Null, tag1))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", tag1Undef, tag1))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", tag1Nullish, tag1Null, tag1Undef))
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothNullish, tag0Nullish, tag1Nullish))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", looseEq, bothEq, bothNullish))
+			finalEq = looseEq
+		}
+
 		e.types[instruction.Result] = ir.TypeBool
 		if instruction.Operator == "==" || instruction.Operator == "===" {
-			out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %%%s\n", instruction.Result, bothEq))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %%%s\n", instruction.Result, finalEq))
 		} else {
-			out.WriteString(fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", instruction.Result, bothEq))
+			out.WriteString(fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", instruction.Result, finalEq))
 		}
 		return nil
 	}
@@ -408,15 +444,46 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		e.types[instruction.Result] = ir.TypeBool
 		return nil
 	}
-	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || isTypedArrayType(leftType) || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
+	if leftType == ir.TypeObject || leftType == ir.TypeSymbol || strings.HasPrefix(string(leftType), "object:") || leftType == "ptr" || leftType == ir.TypePointer || leftType == ir.TypeArrayBuffer || leftType == ir.TypeBuffer || isTypedArrayType(leftType) || leftType == ir.TypeDataView || leftType == ir.TypeTextEncoder || leftType == ir.TypeTextDecoder || leftType == ir.TypeMap || leftType == ir.TypeSet || strings.HasSuffix(string(leftType), "[]") {
+		e.types[instruction.Result] = ir.TypeBool
+		if instruction.Operator == "==" || instruction.Operator == "!=" {
+			p0Null := fmt.Sprintf("%s.p0_null.%d", instruction.Result, e.loadCounter)
+			p0Undef := fmt.Sprintf("%s.p0_undef.%d", instruction.Result, e.loadCounter)
+			p0Nullish := fmt.Sprintf("%s.p0_nullish.%d", instruction.Result, e.loadCounter)
+			p1Null := fmt.Sprintf("%s.p1_null.%d", instruction.Result, e.loadCounter)
+			p1Undef := fmt.Sprintf("%s.p1_undef.%d", instruction.Result, e.loadCounter)
+			p1Nullish := fmt.Sprintf("%s.p1_nullish.%d", instruction.Result, e.loadCounter)
+			bothNullish := fmt.Sprintf("%s.both_nullish.%d", instruction.Result, e.loadCounter)
+			rawEq := fmt.Sprintf("%s.raw_eq.%d", instruction.Result, e.loadCounter)
+			looseEq := fmt.Sprintf("%s.loose_eq.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", p0Null, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", p0Undef, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", p0Nullish, p0Null, p0Undef))
+
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", p1Null, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", p1Undef, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", p1Nullish, p1Null, p1Undef))
+
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothNullish, p0Nullish, p1Nullish))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, %%%s\n", rawEq, arg0, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", looseEq, rawEq, bothNullish))
+
+			if instruction.Operator == "==" {
+				out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %%%s\n", instruction.Result, looseEq))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", instruction.Result, looseEq))
+			}
+			return nil
+		}
 		predicate, ok := map[string]string{
-			"==": "eq", "===": "eq",
-			"!=": "ne", "!==": "ne",
+			"===": "eq",
+			"!==": "ne",
 		}[instruction.Operator]
 		if !ok {
 			return fmt.Errorf("unsupported LLVM pointer compare operator %q", instruction.Operator)
 		}
-		e.types[instruction.Result] = ir.TypeBool
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s ptr %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
@@ -522,11 +589,14 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 	id := e.loadCounter
 	e.loadCounter++
 
-	if slot, ok := e.varSlots[argVal]; ok {
-		loaded := fmt.Sprintf("%s.box_load.%d", argVal, id)
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", loaded, llvmType(argType), slot))
-		argVal = loaded
+	resolved := e.resolveArg(out, argVal)
+	if argType == "" || argType == ir.TypeVoid {
+		argType = e.types[argVal]
+		if argType == "" {
+			argType = e.types[resolved]
+		}
 	}
+	argVal = resolved
 
 	var tag int
 	var payloadVal string
@@ -590,14 +660,9 @@ func (e *functionEmitter) emitBoxUnknown(out *strings.Builder, instruction ir.In
 	arg := instruction.Args[0]
 	argType := e.types[arg]
 
-	argVal := arg
-	if slot, ok := e.varSlots[arg]; ok {
-		if argType != ir.TypeVoid && llvmType(argType) != "void" {
-			loaded := fmt.Sprintf("%s.box_load.%d", arg, e.loadCounter)
-			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot))
-			argVal = loaded
-		}
+	argVal := e.resolveArg(out, arg)
+	if argType == "" || argType == ir.TypeVoid {
+		argType = e.types[arg]
 	}
 
 	return e.emitBoxValue(out, argVal, argType, instruction.Result)
@@ -706,6 +771,8 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double 0x7FF8000000000000, double %%%s\n", instruction.Result, isNotNumber, dblVal))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", instruction.Result, rawPayload))
+	case ir.TypeBigInt:
+		out.WriteString(fmt.Sprintf("  %%%s = add i64 0, %%%s\n", instruction.Result, rawPayload))
 	case ir.TypeString:
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, rawPayload))
 	default:

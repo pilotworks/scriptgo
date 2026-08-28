@@ -293,22 +293,24 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     return 0;
 }
 
+extern const char scriptgo_undefined_sentinel;
+
 int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     if (out_value == NULL) {
         return 0;
     }
     if (handle == NULL || index < 0 || index >= 64) {
-        *out_value = NULL;
+        *out_value = (void *)&scriptgo_undefined_sentinel;
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
-        *out_value = NULL;
+        *out_value = (void *)&scriptgo_undefined_sentinel;
         return 0;
     }
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
-        *out_value = NULL;
+        *out_value = (void *)&scriptgo_undefined_sentinel;
     } else {
         *out_value = (void *)val;
     }

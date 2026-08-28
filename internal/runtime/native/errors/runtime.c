@@ -18,6 +18,7 @@
 #include <setjmp.h>
 #include <math.h>
 
+const char scriptgo_undefined_sentinel = 0;
 static char scriptgo_runtime_error[256];
 
 int scriptgo_runtime_set_error(const char *message) {
@@ -197,6 +198,10 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
     }
     if (obj == NULL) {
         *out_str = strdup("null");
+        return 0;
+    }
+    if (obj == &scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
         return 0;
     }
     if (scriptgo_gc_is_registered(obj)) {

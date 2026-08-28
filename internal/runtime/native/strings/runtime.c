@@ -27,23 +27,23 @@ static int string_copy_range(const char *value, size_t start, size_t length, cha
     return 0;
 }
 
+extern const char scriptgo_undefined_sentinel;
+
 int scriptgo_string_compare(const char *left, const char *right) {
     if (left == right) return 0;
-    if (left == NULL) {
-        if (right == NULL || strcmp(right, "null") == 0 || strcmp(right, "undefined") == 0) return 0;
-        return -1;
-    }
-    if (right == NULL) {
-        if (strcmp(left, "null") == 0 || strcmp(left, "undefined") == 0) return 0;
-        return 1;
-    }
+    if (left == NULL) return -1;
+    if (right == NULL) return 1;
+    if (left == &scriptgo_undefined_sentinel) return -1;
+    if (right == &scriptgo_undefined_sentinel) return 1;
     return strcmp(left, right);
 }
 
 int scriptgo_string_concat(const char *left, const char *right, char **out_value) {
     if (out_value == NULL) return string_fail("scriptgo string argument is invalid");
     if (left == NULL) left = "null";
+    else if (left == &scriptgo_undefined_sentinel) left = "undefined";
     if (right == NULL) right = "null";
+    else if (right == &scriptgo_undefined_sentinel) right = "undefined";
     size_t left_length = strlen(left);
     size_t right_length = strlen(right);
     char *result = malloc(left_length + right_length + 1);

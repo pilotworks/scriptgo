@@ -245,8 +245,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				return fmt.Errorf("assign to unknown variable %q", instruction.Result)
 			}
 			valType, ok := known[instruction.Args[0]]
-			isObjPair := (varType == TypeObject || strings.HasPrefix(string(varType), "object:")) && (valType == TypeObject || strings.HasPrefix(string(valType), "object:"))
-			if !ok || (varType != valType && !isObjPair) {
+			if !ok || !isAssignableTo(valType, varType) {
 				return fmt.Errorf("assign type mismatch: %s := %s", varType, valType)
 			}
 		case OpIf:
@@ -439,7 +438,7 @@ func isTypedArrayType(t Type) bool {
 }
 
 func isPointerType(t Type) bool {
-	return t == TypePointer || t == "ptr" || t == TypeObject || strings.HasPrefix(string(t), "object:") || strings.HasSuffix(string(t), "[]") || t == TypeClosure || t == TypeArrayBuffer || t == TypeBuffer || t == TypeDataView || t == TypeTextEncoder || t == TypeTextDecoder || t == TypeMap || t == TypeSet || t == TypeSymbol || isTypedArrayType(t)
+	return t == TypeString || t == TypePointer || t == "ptr" || t == TypeObject || strings.HasPrefix(string(t), "object:") || strings.HasSuffix(string(t), "[]") || t == TypeClosure || t == TypeArrayBuffer || t == TypeBuffer || t == TypeDataView || t == TypeTextEncoder || t == TypeTextDecoder || t == TypeMap || t == TypeSet || t == TypeSymbol || isTypedArrayType(t)
 }
 
 func isBigIntTypedArrayType(t Type) bool {
@@ -459,10 +458,10 @@ func isAssignableTo(actual, expected Type) bool {
 	if strings.HasPrefix(string(actual), "object:") && strings.HasPrefix(string(expected), "object:") {
 		return true
 	}
-	if actual == TypePointer && (strings.HasPrefix(string(expected), "object:") || expected == TypeClosure) {
+	if (actual == TypePointer || actual == TypeVoid) && isPointerType(expected) {
 		return true
 	}
-	if expected == TypePointer && (strings.HasPrefix(string(actual), "object:") || actual == TypeClosure) {
+	if (expected == TypePointer || expected == TypeVoid) && isPointerType(actual) {
 		return true
 	}
 	return false
