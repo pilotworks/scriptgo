@@ -54,7 +54,6 @@ func lowerOptionalCallExpression(
 						return "", "", err
 					}
 					calleeVal = receiverVal
-					calleeType = receiverType
 					standardCall = &typescriptgo.SyntaxExpression{
 						Span: expression.Span,
 						Kind: "call",

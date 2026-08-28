@@ -17,9 +17,9 @@ timer = setInterval(() => {
     if (count >= 3) {
         clearInterval(timer);
         console.log("CLEARED INTERVAL");
+        setTimeout(() => {
+            console.log("TIMEOUT DONE");
+        }, 5);
     }
 }, 5);
 
-setTimeout(() => {
-    console.log("TIMEOUT DONE");
-}, 30);
