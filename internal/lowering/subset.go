@@ -314,10 +314,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 func isHeterogeneousUnion(typ string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(typ))
 	if strings.HasSuffix(normalized, "[]") {
-		elem := strings.TrimSuffix(normalized, "[]")
-		elem = strings.TrimPrefix(elem, "(")
-		elem = strings.TrimSuffix(elem, ")")
-		return isHeterogeneousUnion(elem)
+		return false
 	}
 	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") || strings.Contains(normalized, "string | symbol") || strings.Contains(normalized, "symbol | string") {
 		return false

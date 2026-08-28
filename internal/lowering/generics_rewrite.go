@@ -408,6 +408,13 @@ func normalizeStmtArrayTypes(stmt typescriptgo.SyntaxStatement) typescriptgo.Syn
 				stmt.Class.StaticBlocks[i][j] = normalizeStmtArrayTypes(stmt.Class.StaticBlocks[i][j])
 			}
 		}
+		for i := range stmt.Class.StaticElements {
+			if stmt.Class.StaticElements[i].Kind == typescriptgo.StaticElementBlock {
+				for j := range stmt.Class.StaticElements[i].Statements {
+					stmt.Class.StaticElements[i].Statements[j] = normalizeStmtArrayTypes(stmt.Class.StaticElements[i].Statements[j])
+				}
+			}
+		}
 	}
 	return stmt
 }

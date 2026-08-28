@@ -126,6 +126,21 @@ type SyntaxClass struct {
 	Constructor    *SyntaxConstructor
 	Methods        []SyntaxMethod
 	StaticBlocks   [][]SyntaxStatement
+	StaticElements []SyntaxStaticElement
+}
+
+type StaticElementKind string
+
+const (
+	StaticElementField StaticElementKind = "field"
+	StaticElementBlock StaticElementKind = "block"
+)
+
+type SyntaxStaticElement struct {
+	Span       SourceSpan
+	Kind       StaticElementKind
+	Field      *SyntaxField
+	Statements []SyntaxStatement
 }
 
 type SyntaxConstructor struct {

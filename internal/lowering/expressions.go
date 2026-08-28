@@ -1054,30 +1054,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return "", "", err
 		}
 		if conditionType != ir.TypeBool {
-			if strings.HasPrefix(string(conditionType), "object:") || conditionType == "ptr" || isPointerLikeType(conditionType) {
-				nullConst := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: conditionType, Result: nullConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-				boolTemp := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, nullConst}, Span: toIRSpan(path, expression.Span)})
-				condition = boolTemp
-			} else if conditionType == ir.TypeNumber {
-				zeroConst := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-				boolTemp := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, zeroConst}, Span: toIRSpan(path, expression.Span)})
-				condition = boolTemp
-			} else if conditionType == ir.TypeString {
-				emptyConst := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyConst, Value: "", Span: toIRSpan(path, expression.Span)})
-				boolTemp := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{condition, emptyConst}, Span: toIRSpan(path, expression.Span)})
-				condition = boolTemp
-			} else if conditionType == ir.TypeUnknown {
-				boolTemp := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCheckedCast, Type: ir.TypeBool, Result: boolTemp, Args: []string{condition}, Span: toIRSpan(path, expression.Span)})
-				condition = boolTemp
-			} else {
-				return "", "", fmt.Errorf("conditional expression requires a bool condition")
+			condition, err = coerceToBool(path, condition, conditionType, function, counter, expression.Span)
+			if err != nil {
+				return "", "", fmt.Errorf("conditional condition: %w", err)
 			}
 		}
 		resSlot := result

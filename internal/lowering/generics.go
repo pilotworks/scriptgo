@@ -262,10 +262,6 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		}
 
 		methodInstances[className] = append(methodInstances[className], specM)
-		if strings.Contains(className, "__") {
-			baseName := className[:strings.Index(className, "__")]
-			methodInstances[baseName] = append(methodInstances[baseName], specM)
-		}
 
 		originFile := ""
 		for _, f := range program.Files {
@@ -525,7 +521,13 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				classEnv := make(map[string]string, len(fileEnv)+1)
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = rewritten.Class.Name
-				for _, ms := range [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]} {
+				var candidateMethodLists [][]typescriptgo.SyntaxMethod
+				if strings.Contains(rewritten.Class.Name, "__") {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name]}
+				} else {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]}
+				}
+				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
 						if !seen[m.Name] {
 							seen[m.Name] = true
@@ -552,7 +554,13 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				classEnv := make(map[string]string, len(fileEnv)+1)
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = clsStmt.Class.Name
-				for _, ms := range [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]} {
+				var candidateMethodLists [][]typescriptgo.SyntaxMethod
+				if strings.Contains(clsStmt.Class.Name, "__") {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name]}
+				} else {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]}
+				}
+				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
 						if !seen[m.Name] {
 							seen[m.Name] = true

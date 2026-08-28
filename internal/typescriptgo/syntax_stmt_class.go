@@ -187,7 +187,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Kind:       "set",
 				})
 			} else {
-				class.Fields = append(class.Fields, SyntaxField{
+				field := SyntaxField{
 					Span:         sourceSpan(member),
 					Name:         syntaxMemberName(property.Name()),
 					Type:         fType,
@@ -197,7 +197,15 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),
 					IsPrivate:    ast.HasSyntacticModifier(member, ast.ModifierFlagsPrivate),
 					IsReadonly:   ast.HasSyntacticModifier(member, ast.ModifierFlagsReadonly),
-				})
+				}
+				class.Fields = append(class.Fields, field)
+				if field.IsStatic {
+					class.StaticElements = append(class.StaticElements, SyntaxStaticElement{
+						Span:  sourceSpan(member),
+						Kind:  StaticElementField,
+						Field: &field,
+					})
+				}
 			}
 		case ast.KindConstructor:
 			var params []SyntaxParameter
@@ -450,6 +458,11 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				}
 			}
 			class.StaticBlocks = append(class.StaticBlocks, body)
+			class.StaticElements = append(class.StaticElements, SyntaxStaticElement{
+				Span:       sourceSpan(member),
+				Kind:       StaticElementBlock,
+				Statements: body,
+			})
 		default:
 			class.Fields = append(class.Fields, SyntaxField{Span: sourceSpan(member), Name: member.Kind.String()})
 		}

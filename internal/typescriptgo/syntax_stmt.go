@@ -362,10 +362,16 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		return whileStmt, true
 	case ast.KindExpressionStatement:
 		innerNode := node.Expression()
+		for innerNode != nil && innerNode.Kind == ast.KindParenthesizedExpression {
+			innerNode = innerNode.AsParenthesizedExpression().Expression
+		}
 		if innerNode != nil && innerNode.Kind == ast.KindBinaryExpression {
 			bin := innerNode.AsBinaryExpression()
 			if bin != nil && bin.OperatorToken != nil && bin.OperatorToken.Kind == ast.KindEqualsToken {
 				leftNode := bin.Left
+				for leftNode != nil && leftNode.Kind == ast.KindParenthesizedExpression {
+					leftNode = leftNode.AsParenthesizedExpression().Expression
+				}
 				if leftNode != nil && (leftNode.Kind == ast.KindArrayLiteralExpression || leftNode.Kind == ast.KindObjectLiteralExpression) {
 					c := 0
 					stmts := flattenDestructuringAssignment(leftNode, syntaxExpression(bin.Right, chk), chk, &c)

@@ -454,16 +454,66 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 				} else if prop.Kind == ast.KindPropertyAssignment {
 					pAssign := prop.AsPropertyAssignment()
 					propName := pAssign.Name().Text()
-					if pAssign.Initializer != nil && pAssign.Initializer.Kind == ast.KindIdentifier {
+					if pAssign.Initializer != nil {
+						if pAssign.Initializer.Kind == ast.KindIdentifier {
+							stmts = append(stmts, SyntaxStatement{
+								Span: sourceSpan(prop),
+								Kind: "assign",
+								Name: pAssign.Initializer.Text(),
+								Expression: &SyntaxExpression{
+									Span: sourceSpan(prop),
+									Kind: "property",
+									Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+									Text: propName,
+								},
+							})
+						} else if pAssign.Initializer.Kind == ast.KindBinaryExpression {
+							bin := pAssign.Initializer.AsBinaryExpression()
+							if bin != nil && bin.OperatorToken != nil && bin.OperatorToken.Kind == ast.KindEqualsToken {
+								targetName := bin.Left.Text()
+								defaultVal := syntaxExpression(bin.Right, chk)
+								propExpr := &SyntaxExpression{
+									Span: sourceSpan(prop),
+									Kind: "property",
+									Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+									Text: propName,
+								}
+								stmts = append(stmts, SyntaxStatement{
+									Span: sourceSpan(prop),
+									Kind: "assign",
+									Name: targetName,
+									Expression: &SyntaxExpression{
+										Span:     sourceSpan(prop),
+										Kind:     "binary",
+										Operator: "??",
+										Left:     propExpr,
+										Right:    defaultVal,
+									},
+								})
+							}
+						}
+					}
+				} else if prop.Kind == ast.KindBinaryExpression {
+					bin := prop.AsBinaryExpression()
+					if bin != nil && bin.OperatorToken != nil && bin.OperatorToken.Kind == ast.KindEqualsToken {
+						propName := bin.Left.Text()
+						defaultVal := syntaxExpression(bin.Right, chk)
+						propExpr := &SyntaxExpression{
+							Span: sourceSpan(prop),
+							Kind: "property",
+							Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+							Text: propName,
+						}
 						stmts = append(stmts, SyntaxStatement{
 							Span: sourceSpan(prop),
 							Kind: "assign",
-							Name: pAssign.Initializer.Text(),
+							Name: propName,
 							Expression: &SyntaxExpression{
-								Span: sourceSpan(prop),
-								Kind: "property",
-								Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
-								Text: propName,
+								Span:     sourceSpan(prop),
+								Kind:     "binary",
+								Operator: "??",
+								Left:     propExpr,
+								Right:    defaultVal,
 							},
 						})
 					}

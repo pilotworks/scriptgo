@@ -50,6 +50,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	restParamsIndex = map[string]bool{}
 	activeReturnFinallyStack = nil
 	activeThrowFinallyStack = nil
+	loopFinallyScopeStack = nil
 	clearMetadataRegistry()
 	ClearDiagnostics()
 	var err error
@@ -280,6 +281,13 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				typ := toIRType(vType)
 				if statement.Expression != nil {
+					if (statement.Type == "" && statement.InferredType == "") || typ == "" {
+						if inferred := inferExprType(statement.Expression, nil, nil); inferred != "" {
+							if ityp := toIRType(inferred); ityp != "" {
+								typ = ityp
+							}
+						}
+					}
 					if typ == "" || typ == ir.TypeNumber {
 						switch statement.Expression.Kind {
 						case "arrow_function", "function":
@@ -552,19 +560,41 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 
 				// Lower static field initializers and static blocks in class definition order
-				for _, f := range statement.Class.Fields {
-					if f.IsStatic && f.Initializer != nil {
-						staticVar := statement.Class.Name + "_" + f.Name
-						_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
-						if err == nil {
-							env[staticVar] = valType
+				if len(statement.Class.StaticElements) > 0 {
+					for _, elem := range statement.Class.StaticElements {
+						switch elem.Kind {
+						case typescriptgo.StaticElementField:
+							f := elem.Field
+							if f != nil && f.IsStatic && f.Initializer != nil {
+								staticVar := statement.Class.Name + "_" + f.Name
+								_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
+								if err == nil {
+									env[staticVar] = valType
+								}
+							}
+						case typescriptgo.StaticElementBlock:
+							for _, stmt := range elem.Statements {
+								if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
+									return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+								}
+							}
 						}
 					}
-				}
-				for _, block := range statement.Class.StaticBlocks {
-					for _, stmt := range block {
-						if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
-							return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+				} else {
+					for _, f := range statement.Class.Fields {
+						if f.IsStatic && f.Initializer != nil {
+							staticVar := statement.Class.Name + "_" + f.Name
+							_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
+							if err == nil {
+								env[staticVar] = valType
+							}
+						}
+					}
+					for _, block := range statement.Class.StaticBlocks {
+						for _, stmt := range block {
+							if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
+								return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+							}
 						}
 					}
 				}

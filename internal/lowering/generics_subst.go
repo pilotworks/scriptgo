@@ -271,6 +271,16 @@ func cloneClass(cls typescriptgo.SyntaxClass) typescriptgo.SyntaxClass {
 			res.StaticBlocks[i][j] = cloneStatement(s)
 		}
 	}
+	res.StaticElements = make([]typescriptgo.SyntaxStaticElement, len(cls.StaticElements))
+	for i, elem := range cls.StaticElements {
+		res.StaticElements[i] = elem
+		if elem.Kind == typescriptgo.StaticElementBlock {
+			res.StaticElements[i].Statements = make([]typescriptgo.SyntaxStatement, len(elem.Statements))
+			for j, s := range elem.Statements {
+				res.StaticElements[i].Statements[j] = cloneStatement(s)
+			}
+		}
+	}
 	return res
 }
 

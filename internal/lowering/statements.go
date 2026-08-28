@@ -414,6 +414,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				Value:  defaultVal,
 				Span:   toIRSpan(path, statement.Span),
 			})
+			bodyLenBeforeFinally := len(function.Body)
+			if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+			if len(function.Body) > bodyLenBeforeFinally && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+				return nil
+			}
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{res}, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
@@ -492,8 +499,23 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				}
 			}
 		}
+		if len(activeReturnFinallyStack) > 0 && value != "" && typ != ir.TypeVoid {
+			savedVal := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   typ,
+				Result: savedVal,
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			value = savedVal
+		}
+		bodyLenBeforeFinally := len(function.Body)
 		if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
 			return err
+		}
+		if len(function.Body) > bodyLenBeforeFinally && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+			return nil
 		}
 		if typ == ir.TypeVoid || value == "" {
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
@@ -628,8 +650,20 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	case "if":
 		return lowerIf(path, statement, function, env, counter, shapes, signatures)
 	case "break":
+		if err := lowerActiveBreakFinally(path, function, env, counter, shapes, signatures); err != nil {
+			return err
+		}
+		if len(function.Body) > 0 && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+			return nil
+		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBreak, Type: ir.TypeVoid, Value: statement.Name, Span: toIRSpan(path, statement.Span)})
 	case "continue":
+		if err := lowerActiveBreakFinally(path, function, env, counter, shapes, signatures); err != nil {
+			return err
+		}
+		if len(function.Body) > 0 && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+			return nil
+		}
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpContinue, Type: ir.TypeVoid, Value: statement.Name, Span: toIRSpan(path, statement.Span)})
 	case "dowhile":
 		return lowerDoWhile(path, statement, function, env, counter, shapes, signatures)
@@ -958,8 +992,12 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
+		bodyLenBeforeFinally := len(function.Body)
 		if err := lowerActiveThrowFinally(path, function, env, counter, shapes, signatures); err != nil {
 			return err
+		}
+		if len(function.Body) > bodyLenBeforeFinally && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+			return nil
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:   ir.OpThrow,
@@ -984,10 +1022,20 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 }
 
 func lowerActiveReturnFinally(path string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
-	for i := len(activeReturnFinallyStack) - 1; i >= 0; i-- {
-		for _, finStmt := range activeReturnFinallyStack[i] {
+	savedStack := activeReturnFinallyStack
+	activeReturnFinallyStack = nil
+	defer func() {
+		activeReturnFinallyStack = savedStack
+	}()
+
+	for i := len(savedStack) - 1; i >= 0; i-- {
+		activeReturnFinallyStack = savedStack[:i]
+		for _, finStmt := range savedStack[i] {
 			if err := lowerStatement(path, finStmt, function, env, counter, shapes, signatures); err != nil {
 				return err
+			}
+			if len(function.Body) > 0 && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+				return nil
 			}
 		}
 	}
@@ -995,10 +1043,45 @@ func lowerActiveReturnFinally(path string, function *ir.Function, env map[string
 }
 
 func lowerActiveThrowFinally(path string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
-	for i := len(activeThrowFinallyStack) - 1; i >= 0; i-- {
-		for _, finStmt := range activeThrowFinallyStack[i] {
+	savedStack := activeThrowFinallyStack
+	activeThrowFinallyStack = nil
+	defer func() {
+		activeThrowFinallyStack = savedStack
+	}()
+
+	for i := len(savedStack) - 1; i >= 0; i-- {
+		activeThrowFinallyStack = savedStack[:i]
+		for _, finStmt := range savedStack[i] {
 			if err := lowerStatement(path, finStmt, function, env, counter, shapes, signatures); err != nil {
 				return err
+			}
+			if len(function.Body) > 0 && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func lowerActiveBreakFinally(path string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	minDepth := 0
+	if len(loopFinallyScopeStack) > 0 {
+		minDepth = loopFinallyScopeStack[len(loopFinallyScopeStack)-1]
+	}
+	savedStack := activeReturnFinallyStack
+	activeReturnFinallyStack = nil
+	defer func() {
+		activeReturnFinallyStack = savedStack
+	}()
+
+	for i := len(savedStack) - 1; i >= minDepth; i-- {
+		activeReturnFinallyStack = savedStack[:i]
+		for _, finStmt := range savedStack[i] {
+			if err := lowerStatement(path, finStmt, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+			if len(function.Body) > 0 && function.Body[len(function.Body)-1].Op == ir.OpReturn {
+				return nil
 			}
 		}
 	}

@@ -18,8 +18,12 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 	if valType == ir.TypeNumber {
 		zeroConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, span)})
+		isNonZero := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: isNonZero, Operator: "!=", Args: []string{value, zeroConst}, Span: toIRSpan(path, span)})
+		isNotNaN := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: isNotNaN, Operator: "==", Args: []string{value, value}, Span: toIRSpan(path, span)})
 		boolRes := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolRes, Operator: "!=", Args: []string{value, zeroConst}, Span: toIRSpan(path, span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{isNonZero, isNotNaN}, Span: toIRSpan(path, span)})
 		return boolRes, nil
 	}
 	if valType == ir.TypeString {
@@ -33,15 +37,25 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 		nonUndef := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonUndef, Operator: "!=", Args: []string{value, undefConst}, Span: toIRSpan(path, span)})
 
-		emptyConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyConst, Value: `""`, Span: toIRSpan(path, span)})
-		nonEmpty := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonEmpty, Operator: "!=", Args: []string{value, emptyConst}, Span: toIRSpan(path, span)})
+		nonNullish := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: nonNullish, Operator: "&&", Args: []string{nonNull, nonUndef}, Span: toIRSpan(path, span)})
 
-		temp1 := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: temp1, Operator: "&&", Args: []string{nonNull, nonUndef}, Span: toIRSpan(path, span)})
+		strLen := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeNumber,
+			Result: strLen,
+			Callee: "__string.length",
+			Args:   []string{value},
+			Span:   toIRSpan(path, span),
+		})
+		zeroConst := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, span)})
+		nonEmpty := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: nonEmpty, Operator: ">", Args: []string{strLen, zeroConst}, Span: toIRSpan(path, span)})
+
 		boolRes := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{temp1, nonEmpty}, Span: toIRSpan(path, span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: boolRes, Operator: "&&", Args: []string{nonNullish, nonEmpty}, Span: toIRSpan(path, span)})
 		return boolRes, nil
 	}
 	if valType == ir.TypeUnknown {
@@ -106,6 +120,10 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 }
 
 func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
+	defer func() {
+		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
+	}()
 	condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
 	condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
 	if err != nil {
@@ -140,6 +158,10 @@ func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *i
 }
 
 func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
+	defer func() {
+		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
+	}()
 	condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
 	condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
 	if err != nil {
@@ -174,6 +196,10 @@ func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function 
 }
 
 func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
+	defer func() {
+		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
+	}()
 	arrVal, arrType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return err
@@ -541,6 +567,10 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 }
 
 func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
+	defer func() {
+		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
+	}()
 	objVal, objType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return err
@@ -720,6 +750,10 @@ func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *i
 }
 
 func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
+	defer func() {
+		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
+	}()
 	targetVal, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return err
@@ -921,26 +955,25 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 
 var activeReturnFinallyStack [][]typescriptgo.SyntaxStatement
 var activeThrowFinallyStack [][]typescriptgo.SyntaxStatement
+var loopFinallyScopeStack []int
 
 func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	if len(statement.Finally) > 0 {
 		activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
-		defer func() {
-			activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
-		}()
 	}
 
 	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	if len(statement.Finally) > 0 {
+		activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
+	}
 	if err != nil {
 		return err
 	}
 	var catchInstructions []ir.Instruction
 	if len(statement.Catch) > 0 {
 		if len(statement.Finally) > 0 {
+			activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
 			activeThrowFinallyStack = append(activeThrowFinallyStack, statement.Finally)
-			defer func() {
-				activeThrowFinallyStack = activeThrowFinallyStack[:len(activeThrowFinallyStack)-1]
-			}()
 		}
 		catchEnv := make(map[string]ir.Type, len(env)+1)
 		maps.Copy(catchEnv, env)
@@ -954,8 +987,16 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 		catchBranch := ir.Function{Name: "catch", ReturnType: function.ReturnType}
 		for _, catchStmt := range statement.Catch {
 			if err := lowerStatement(path, catchStmt, &catchBranch, catchEnv, counter, shapes, signatures); err != nil {
+				if len(statement.Finally) > 0 {
+					activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
+					activeThrowFinallyStack = activeThrowFinallyStack[:len(activeThrowFinallyStack)-1]
+				}
 				return err
 			}
+		}
+		if len(statement.Finally) > 0 {
+			activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
+			activeThrowFinallyStack = activeThrowFinallyStack[:len(activeThrowFinallyStack)-1]
 		}
 		catchInstructions = catchBranch.Body
 	}
