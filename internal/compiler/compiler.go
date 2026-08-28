@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goRuntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -241,7 +242,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = append(args, "-x", "c", src)
 	}
 
-	args = append(args, "-x", "none")
+	args = append(args, "-x", "none", "-ffunction-sections", "-fdata-sections")
 	if options.OptLevel != "" {
 		args = append(args, "-O"+options.OptLevel)
 	} else if options.Debug {
@@ -276,6 +277,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	for _, fw := range extraFrameworks {
 		args = append(args, "-framework", fw)
 	}
+	args = append(args, linkerDCEFlags(options.Target)...)
 	args = append(args, options.LinkFlags...)
 	cmdArgs := append(ccParts[1:], args...)
 	command := exec.Command(ccParts[0], cmdArgs...)
@@ -389,6 +391,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	h.Write([]byte(options.Target))
 	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
+	h.Write([]byte("sections-v1"))
 	if options.Debug {
 		h.Write([]byte("debug"))
 	}
@@ -410,7 +413,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	defer os.Remove(tmpObjPath)
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
-	buildArgs = append(buildArgs, "-c", tmpSrcPath, "-o", tmpObjPath)
+	buildArgs = append(buildArgs, "-ffunction-sections", "-fdata-sections", "-c", tmpSrcPath, "-o", tmpObjPath)
 	if options.OptLevel != "" {
 		buildArgs = append(buildArgs, "-O"+options.OptLevel)
 		if options.Debug {
@@ -435,4 +438,18 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 		return "", err
 	}
 	return objPath, nil
+}
+
+func linkerDCEFlags(target string) []string {
+	t := strings.ToLower(target)
+	if t == "native" || t == "" {
+		if goRuntime.GOOS == "darwin" {
+			return []string{"-Wl,-dead_strip"}
+		}
+		return []string{"-Wl,--gc-sections"}
+	}
+	if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") {
+		return []string{"-Wl,-dead_strip"}
+	}
+	return []string{"-Wl,--gc-sections"}
 }
