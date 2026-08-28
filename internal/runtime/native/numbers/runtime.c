@@ -187,3 +187,19 @@ int scriptgo_math_f16round(double val, double *out_value) {
     *out_value = (double)h;
     return 0;
 }
+
+int32_t scriptgo_to_int32(double val) {
+    if (isnan(val) || isinf(val) || val == 0.0) {
+        return 0;
+    }
+    if (fabs(val) < 2147483648.0) {
+        return (int32_t)val;
+    }
+    double two32 = 4294967296.0;
+    double two31 = 2147483648.0;
+    double res = fmod(trunc(val), two32);
+    if (res < 0.0) res += two32;
+    if (res >= two31) res -= two32;
+    return (int32_t)res;
+}
+

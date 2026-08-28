@@ -20,6 +20,8 @@ typedef struct {
     void *env;
 } scriptgo_closure;
 
+extern const char scriptgo_undefined_sentinel;
+
 int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     scriptgo_closure *c;
     if (out_closure == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
@@ -33,15 +35,16 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
 
 int scriptgo_closure_equals(void *h1, void *h2) {
     if (h1 == h2) return 1;
-    if (h1 == NULL || h2 == NULL) return 0;
+    if (h1 == NULL || h2 == NULL || h1 == &scriptgo_undefined_sentinel || h2 == &scriptgo_undefined_sentinel) return 0;
     scriptgo_closure *c1 = h1;
     scriptgo_closure *c2 = h2;
     return (c1->fn_ptr == c2->fn_ptr && c1->env == c2->env) ? 1 : 0;
 }
 
 int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4) {
+    if (closure_handle == NULL || closure_handle == &scriptgo_undefined_sentinel) return 0;
     scriptgo_closure *c = closure_handle;
-    if (c == NULL || c->fn_ptr == NULL) return 0;
+    if (c->fn_ptr == NULL) return 0;
     scriptgo_boxed_value dummy = {0};
     const scriptgo_boxed_value *v1 = (a1 != NULL && arg_count >= 1) ? a1 : &dummy;
     const scriptgo_boxed_value *v2 = (a2 != NULL && arg_count >= 2) ? a2 : &dummy;

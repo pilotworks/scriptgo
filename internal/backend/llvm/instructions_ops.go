@@ -185,8 +185,8 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", rI32, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, bitOp, lI32, rI32))
 		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
 		return nil
@@ -196,9 +196,11 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
-		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, shiftOp, lI32, rI32))
+		shift := instruction.Result + ".shift"
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", rI32, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rI32))
+		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, shiftOp, lI32, shift))
 		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
 		return nil
 	}
@@ -208,8 +210,8 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		rI32 := instruction.Result + ".r_i32"
 		resU32 := instruction.Result + ".res_u32"
 		shift := instruction.Result + ".shift"
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", lI32, arg0))
-		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i32\n", rI32, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", lI32, arg0))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", rI32, arg1))
 		out.WriteString(fmt.Sprintf("  %%%s = and i32 %%%s, 31\n", shift, rI32))
 		out.WriteString(fmt.Sprintf("  %%%s = lshr i32 %%%s, %%%s\n", resU32, lI32, shift))
 		out.WriteString(fmt.Sprintf("  %%%s = uitofp i32 %%%s to double\n", instruction.Result, resU32))

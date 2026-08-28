@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
@@ -364,7 +365,16 @@ func Check(entryPath string) error {
 	return lowering.ValidateSubset(program)
 }
 
+var runtimeCacheMu sync.Mutex
+
 func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, error) {
+	if len(ccParts) == 0 {
+		return "", fmt.Errorf("no C compiler specified")
+	}
+
+	runtimeCacheMu.Lock()
+	defer runtimeCacheMu.Unlock()
+
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		cacheDir = os.TempDir()
@@ -385,19 +395,22 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	hash := hex.EncodeToString(h.Sum(nil))
 	objPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s.o", hash[:16]))
 
-	if _, err := os.Stat(objPath); err == nil {
+	if info, err := os.Stat(objPath); err == nil && info.Size() > 0 {
 		return objPath, nil
 	}
 
-	srcPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s.c", hash[:16]))
+	tmpSrcPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s-%d.c", hash[:16], os.Getpid()))
 	runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
-	if err := os.WriteFile(srcPath, runtimeSource, 0o644); err != nil {
+	if err := os.WriteFile(tmpSrcPath, runtimeSource, 0o644); err != nil {
 		return "", err
 	}
-	defer os.Remove(srcPath)
+	defer os.Remove(tmpSrcPath)
+
+	tmpObjPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s-%d.o", hash[:16], os.Getpid()))
+	defer os.Remove(tmpObjPath)
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
-	buildArgs = append(buildArgs, "-c", srcPath, "-o", objPath)
+	buildArgs = append(buildArgs, "-c", tmpSrcPath, "-o", tmpObjPath)
 	if options.OptLevel != "" {
 		buildArgs = append(buildArgs, "-O"+options.OptLevel)
 		if options.Debug {
@@ -417,6 +430,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	cmd := exec.Command(ccParts[0], buildArgs...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("compile runtime: %w: %s", err, string(out))
+	}
+	if err := os.Rename(tmpObjPath, objPath); err != nil {
+		return "", err
 	}
 	return objPath, nil
 }

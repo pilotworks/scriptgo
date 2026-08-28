@@ -175,6 +175,8 @@ static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
     return 0;
 }
 
+int scriptgo_gc_get_tag(void *ptr);
+
 static int scriptgo_console_object(FILE *stream, void *value) {
     if (value == NULL) {
         return scriptgo_console_string(stream, "null");
@@ -182,25 +184,27 @@ static int scriptgo_console_object(FILE *stream, void *value) {
     if (value == &scriptgo_undefined_sentinel) {
         return scriptgo_console_string(stream, "undefined");
     }
-    if (*(uint64_t *)value == SCRIPTGO_OBJECT_MAGIC) {
+    int tag = scriptgo_gc_get_tag(value);
+    if (tag == 1 /* SCRIPTGO_TYPE_OBJECT */) {
         scriptgo_object_raw_t *o = (scriptgo_object_raw_t *)value;
-        if (o->type_name != NULL && strstr(o->type_name, "Error") != NULL) {
-            if (o->field_count > 0 && o->fields[0] != 0 && o->fields[0] != 0x7FF8000000000000ULL) {
-                return scriptgo_console_string(stream, (const char *)o->fields[0]);
+        if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
+            if (o->type_name != NULL && strstr(o->type_name, "Error") != NULL) {
+                if (o->field_count > 0 && o->fields[0] != 0 && o->fields[0] != 0x7FF8000000000000ULL) {
+                    return scriptgo_console_string(stream, (const char *)o->fields[0]);
+                }
             }
+            return scriptgo_console_string(stream, "[object Object]");
         }
-        return scriptgo_console_string(stream, "[object Object]");
-    }
-    scriptgo_array_raw_t *arr = (scriptgo_array_raw_t *)value;
-    if (arr->length >= 0 && arr->capacity >= arr->length && arr->element_size > 0 && arr->element_size <= 16 && (arr->length == 0 || arr->data != NULL)) {
+    } else if (tag == 2 /* SCRIPTGO_TYPE_ARRAY */) {
+        scriptgo_array_raw_t *arr = (scriptgo_array_raw_t *)value;
         return scriptgo_console_array(stream, arr);
     }
     char *str = NULL;
     int err = scriptgo_string_from_object(value, &str);
-    if (err != 0 || str == NULL) {
-        return scriptgo_console_string(stream, "[object Object]");
+    if (err == 0 && str != NULL) {
+        return scriptgo_console_string(stream, str);
     }
-    return scriptgo_console_string(stream, str);
+    return scriptgo_console_string(stream, (const char *)value);
 }
 
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \

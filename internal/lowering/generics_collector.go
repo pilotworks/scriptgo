@@ -522,10 +522,35 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 		return
 	}
 	if strings.Contains(paramType, "=>") && strings.Contains(argType, "=>") {
-		pParts := strings.Split(paramType, "=>")
-		aParts := strings.Split(argType, "=>")
-		matchTypeParam(strings.TrimSpace(pParts[0]), strings.TrimSpace(aParts[0]), inferred)
-		matchTypeParam(strings.TrimSpace(pParts[1]), strings.TrimSpace(aParts[1]), inferred)
+		pIdx := strings.LastIndex(paramType, "=>")
+		aIdx := strings.LastIndex(argType, "=>")
+		pParamsStr := strings.TrimSpace(paramType[:pIdx])
+		aParamsStr := strings.TrimSpace(argType[:aIdx])
+		pRet := strings.TrimSpace(paramType[pIdx+2:])
+		aRet := strings.TrimSpace(argType[aIdx+2:])
+		matchTypeParam(pRet, aRet, inferred)
+
+		pParamsStr = strings.TrimPrefix(strings.TrimSuffix(pParamsStr, ")"), "(")
+		aParamsStr = strings.TrimPrefix(strings.TrimSuffix(aParamsStr, ")"), "(")
+		if pParamsStr != "" && aParamsStr != "" {
+			pList := strings.Split(pParamsStr, ",")
+			aList := strings.Split(aParamsStr, ",")
+			minLen := len(pList)
+			if len(aList) < minLen {
+				minLen = len(aList)
+			}
+			for i := 0; i < minLen; i++ {
+				pItem := strings.TrimSpace(pList[i])
+				aItem := strings.TrimSpace(aList[i])
+				if idx := strings.Index(pItem, ":"); idx != -1 {
+					pItem = strings.TrimSpace(pItem[idx+1:])
+				}
+				if idx := strings.Index(aItem, ":"); idx != -1 {
+					aItem = strings.TrimSpace(aItem[idx+1:])
+				}
+				matchTypeParam(pItem, aItem, inferred)
+			}
+		}
 		return
 	}
 	cleanParam := strings.TrimSpace(strings.TrimPrefix(paramType, "() => "))
@@ -561,10 +586,47 @@ func inferExprTypeDepth(expr *typescriptgo.SyntaxExpression, env map[string]stri
 	switch expr.Kind {
 	case "number":
 		return "number"
-	case "string":
+	case "string", "template":
 		return "string"
 	case "bool":
 		return "bool"
+	case "arrow_function", "function":
+		if expr.Function != nil {
+			fn := expr.Function
+			var paramTypes []string
+			for _, p := range fn.Parameters {
+				pt := p.Type
+				if pt == "" {
+					pt = p.InferredType
+				}
+				if pt == "" {
+					pt = "unknown"
+				}
+				paramTypes = append(paramTypes, pt)
+			}
+			retType := fn.Type
+			if retType == "" {
+				retType = fn.InferredType
+			}
+			if retType == "" && len(fn.Body) > 0 {
+				for _, stmt := range fn.Body {
+					if stmt.Kind == "return" && stmt.Expression != nil {
+						retType = inferExprTypeDepth(stmt.Expression, env, funcTypes, depth+1)
+						break
+					}
+				}
+			}
+			if retType == "" {
+				retType = "void"
+			}
+			return "(" + strings.Join(paramTypes, ", ") + ") => " + retType
+		}
+		return "() => void"
+	case "property", "member":
+		if expr.Text == "length" {
+			return "number"
+		}
+		return ""
 	case "this":
 		if t, ok := env["this"]; ok && t != "" {
 			return t

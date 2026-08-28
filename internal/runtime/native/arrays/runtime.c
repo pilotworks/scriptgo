@@ -34,6 +34,9 @@ int scriptgo_array_set_tag(void *handle, int64_t tag) {
     return 0;
 }
 
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
+int scriptgo_gc_unregister(void *ptr);
+
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
     scriptgo_array *array;
     size_t byte_length;
@@ -58,6 +61,7 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
     array->element_size = element_size;
     array->element_tag = 0;
     array->owned_data = NULL;
+    scriptgo_gc_register(array, 2, 0);
     *out_array = array;
     return 0;
 }
@@ -386,6 +390,7 @@ int scriptgo_array_includes_ptr(void *handle, const void *target, double *out_bo
 int scriptgo_array_release(void *handle) {
     scriptgo_array *array = handle;
     if (array != NULL) {
+        scriptgo_gc_unregister(array);
         free(array->owned_data);
         free(array->data);
         free(array);

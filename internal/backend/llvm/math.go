@@ -67,7 +67,7 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 		}
 		u32 := instruction.Result + "_u32"
 		clz := instruction.Result + "_clz"
-		fmt.Fprintf(out, "  %%%s = fptoui double %%%s to i32\n", u32, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", u32, instruction.Args[0])
 		fmt.Fprintf(out, "  %%%s = call i32 @llvm.ctlz.i32(i32 %%%s, i1 false)\n", clz, u32)
 		fmt.Fprintf(out, "  %%%s = uitofp i32 %%%s to double\n", instruction.Result, clz)
 		return nil
@@ -78,8 +78,8 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 		a32 := instruction.Result + "_a32"
 		b32 := instruction.Result + "_b32"
 		mul := instruction.Result + "_mul"
-		fmt.Fprintf(out, "  %%%s = fptosi double %%%s to i32\n", a32, instruction.Args[0])
-		fmt.Fprintf(out, "  %%%s = fptosi double %%%s to i32\n", b32, instruction.Args[1])
+		fmt.Fprintf(out, "  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", a32, instruction.Args[0])
+		fmt.Fprintf(out, "  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", b32, instruction.Args[1])
 		fmt.Fprintf(out, "  %%%s = mul i32 %%%s, %%%s\n", mul, a32, b32)
 		fmt.Fprintf(out, "  %%%s = sitofp i32 %%%s to double\n", instruction.Result, mul)
 		return nil

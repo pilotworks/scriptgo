@@ -90,6 +90,12 @@ int scriptgo_gc_is_registered(void *ptr) {
     return find_node(ptr) != NULL ? 1 : 0;
 }
 
+int scriptgo_gc_get_tag(void *ptr) {
+    if (ptr == NULL) return 0;
+    gc_node *node = find_node(ptr);
+    return node != NULL ? (int)node->header.type_tag : 0;
+}
+
 int scriptgo_gc_unregister(void *ptr) {
     if (ptr == NULL) return 0;
     gc_node *node = find_node(ptr);

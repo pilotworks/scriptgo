@@ -37,6 +37,7 @@ int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 int scriptgo_gc_add_root(void *ptr);
 int scriptgo_gc_remove_root(void *ptr);
+int scriptgo_gc_get_tag(void *ptr);
 int scriptgo_gc_collect(int64_t *out_collected_count);
 int scriptgo_gc_get_stats(int64_t *out_live_count, int64_t *out_heap_bytes);
 

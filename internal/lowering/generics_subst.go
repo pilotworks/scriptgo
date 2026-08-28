@@ -216,6 +216,29 @@ func substituteType(typ string, subst map[string]string) string {
 		}
 		return res
 	}
+	if strings.Contains(clean, "__") {
+		idx := strings.Index(clean, "__")
+		name := clean[:idx]
+		inner := clean[idx+2:]
+		isArr := false
+		if strings.HasSuffix(inner, "_arr") {
+			isArr = true
+			inner = strings.TrimSuffix(inner, "_arr")
+		}
+		parts := strings.Split(inner, "_")
+		var newParts []string
+		for _, p := range parts {
+			newParts = append(newParts, substituteType(p, subst))
+		}
+		mangled := mangleGenericName(name, newParts)
+		if isArr {
+			mangled = mangled + "[]"
+		}
+		if hasObj {
+			return "object:" + mangled
+		}
+		return mangled
+	}
 	if val, ok := subst[clean]; ok {
 		if hasObj {
 			return "object:" + val
