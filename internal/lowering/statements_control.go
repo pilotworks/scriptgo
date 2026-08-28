@@ -332,6 +332,71 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	var elemType ir.Type
 	if isString {
 		elemType = ir.TypeString
+	} else if isMapType(arrType) {
+		keyType := ir.TypeString
+		valType := ir.TypeUnknown
+		if after, ok := strings.CutPrefix(string(arrType), "object:Map__"); ok {
+			parts := strings.Split(after, "_")
+			if len(parts) >= 2 {
+				keyType = toIRType(parts[0])
+				valType = toIRType(strings.Join(parts[1:], "_"))
+			} else if len(parts) == 1 {
+				keyType = toIRType(parts[0])
+			}
+		} else if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") {
+			inferred := strings.TrimSpace(statement.Expression.InferredType)
+			idx := strings.Index(inferred, "<")
+			inner := inferred[idx+1 : len(inferred)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) >= 2 {
+				keyType = toIRType(parts[0])
+				valType = toIRType(parts[1])
+			}
+		}
+		var fields []ir.Field
+		fields = append(fields, ir.Field{Name: "0", Type: keyType})
+		fields = append(fields, ir.Field{Name: "1", Type: valType})
+		shapeName := anonymousShapeName(fields)
+		registerAnonymousShape(shapeName, fields)
+		elemType = ir.Type("object:" + shapeName)
+
+		entriesRes := nextTemp(counter)
+		entriesArrType := ir.Type(string(elemType) + "[]")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   entriesArrType,
+			Result: entriesRes,
+			Callee: "__map.entries",
+			Args:   []string{arrVal},
+			Span:   toIRSpan(path, statement.Span),
+		})
+		env[entriesRes] = entriesArrType
+		arrVal = entriesRes
+	} else if isSetType(arrType) {
+		elemType = ir.TypeUnknown
+		if after, ok := strings.CutPrefix(string(arrType), "object:Set__"); ok {
+			elemType = toIRType(after)
+		} else if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") {
+			inferred := strings.TrimSpace(statement.Expression.InferredType)
+			idx := strings.Index(inferred, "<")
+			inner := inferred[idx+1 : len(inferred)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) >= 1 {
+				elemType = toIRType(parts[0])
+			}
+		}
+		valuesRes := nextTemp(counter)
+		valuesArrType := ir.Type(string(elemType) + "[]")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   valuesArrType,
+			Result: valuesRes,
+			Callee: "__set.values",
+			Args:   []string{arrVal},
+			Span:   toIRSpan(path, statement.Span),
+		})
+		env[valuesRes] = valuesArrType
+		arrVal = valuesRes
 	} else if strings.Contains(string(arrType), "MapIterator") || strings.Contains(string(arrType), "SetIterator") {
 		if after, ok := strings.CutPrefix(string(arrType), "object:MapIterator__"); ok {
 			clean := after

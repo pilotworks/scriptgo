@@ -131,18 +131,35 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 				currUsedMethods[clsName+"."+methodName] = true
 				currUsedMethods[methodName] = true
 			}
+			baseCls := clsName
+			if idx := strings.Index(clsName, "<"); idx != -1 {
+				baseCls = clsName[:idx]
+			} else if idx := strings.Index(clsName, "__"); idx != -1 {
+				baseCls = clsName[:idx]
+			}
 			lookupKey := clsName + "." + methodName
 			if !isInstance {
 				lookupKey = clsName + ".static." + methodName
 			}
+			mTemplate, ok := genericMethods[lookupKey]
+			if !ok {
+				if !isInstance {
+					mTemplate, ok = genericMethods[baseCls+".static."+methodName]
+				} else {
+					mTemplate, ok = genericMethods[baseCls+"."+methodName]
+				}
+			}
 			callTypeArgs := expr.TypeArguments
-			if mTemplate, ok := genericMethods[lookupKey]; ok {
+			if ok {
 				typeArgs := callTypeArgs
 				if len(typeArgs) == 0 {
 					typeArgs = inferTypeArgsForMethod(mTemplate, mTemplate.TypeParameters, expr.Arguments, env, funcTypes)
 				}
 				if len(typeArgs) == len(mTemplate.TypeParameters) {
 					reqMethod(clsName, methodName, typeArgs)
+					if baseCls != clsName {
+						reqMethod(baseCls, methodName, typeArgs)
+					}
 				}
 			}
 			if !isInstance && expr.Left.Left.Kind == "identifier" {
@@ -220,17 +237,29 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescr
 		inner := clean[idx+2:]
 		inner = strings.TrimSuffix(inner, "_arr")
 		parts := strings.Split(inner, "_")
-		if _, ok := genericClasses[name]; ok {
-			reqCls(name, parts, fileName)
+		if clsTemplate, ok := genericClasses[name]; ok {
+			pList := parts
+			if len(pList) > len(clsTemplate.TypeParameters) && len(clsTemplate.TypeParameters) > 0 {
+				numParams := len(clsTemplate.TypeParameters)
+				mergedLast := strings.Join(pList[numParams-1:], "_")
+				pList = append(append([]string(nil), pList[:numParams-1]...), mergedLast)
+			}
+			reqCls(name, pList, fileName)
 		} else if alias, ok := currGenericTypeAliases[name]; ok {
 			tParams := alias.TypeParameters
 			if len(tParams) == 0 && alias.Class != nil {
 				tParams = alias.Class.TypeParameters
 			}
-			if len(parts) == len(tParams) {
-				subst := make(map[string]string, len(parts))
+			pList := parts
+			if len(pList) > len(tParams) && len(tParams) > 0 {
+				numParams := len(tParams)
+				mergedLast := strings.Join(pList[numParams-1:], "_")
+				pList = append(append([]string(nil), pList[:numParams-1]...), mergedLast)
+			}
+			if len(pList) == len(tParams) {
+				subst := make(map[string]string, len(pList))
 				for i, tp := range tParams {
-					subst[tp] = parts[i]
+					subst[tp] = pList[i]
 				}
 				expanded := substituteType(alias.Type, subst)
 				scanTypeForGenerics(expanded, fileName, genericClasses, reqCls)
@@ -470,6 +499,28 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 			return
 		}
 	}
+	if strings.HasPrefix(paramType, "(") && strings.HasSuffix(paramType, ")") && strings.HasPrefix(argType, "(") && strings.HasSuffix(argType, ")") && !strings.Contains(paramType, "=>") && !strings.Contains(argType, "=>") {
+		pInner := paramType[1 : len(paramType)-1]
+		aInner := argType[1 : len(argType)-1]
+		pParts := splitTypeArguments(pInner)
+		aParts := splitTypeArguments(aInner)
+		minLen := len(pParts)
+		if len(aParts) < minLen {
+			minLen = len(aParts)
+		}
+		for i := 0; i < minLen; i++ {
+			pP := pParts[i]
+			aP := aParts[i]
+			if idx := strings.Index(pP, ":"); idx != -1 {
+				pP = strings.TrimSpace(pP[idx+1:])
+			}
+			if idx := strings.Index(aP, ":"); idx != -1 {
+				aP = strings.TrimSpace(aP[idx+1:])
+			}
+			matchTypeParam(pP, aP, inferred)
+		}
+		return
+	}
 	if strings.Contains(paramType, "=>") && strings.Contains(argType, "=>") {
 		pParts := strings.Split(paramType, "=>")
 		aParts := strings.Split(argType, "=>")
@@ -525,7 +576,7 @@ func inferExprTypeDepth(expr *typescriptgo.SyntaxExpression, env map[string]stri
 		}
 		if funcTypes != nil {
 			if t, ok := funcTypes[expr.Text]; ok && t != "" {
-				return "() => " + t
+				return t
 			}
 		}
 		return ""
@@ -560,6 +611,13 @@ func inferExprTypeDepth(expr *typescriptgo.SyntaxExpression, env map[string]stri
 						}
 						return substituteType(fnTemplate.Type, subst)
 					}
+				} else if retType, ok := funcTypes[fnName]; ok && retType != "" {
+					return retType
+				} else if t, ok := env[fnName]; ok && t != "" {
+					if strings.Contains(t, "=>") {
+						return extractTopLevelReturnType(t)
+					}
+					return t
 				}
 			} else if (expr.Left.Kind == "property" || expr.Left.Kind == "member") && expr.Left.Left != nil {
 				recvType := inferExprTypeDepth(expr.Left.Left, env, funcTypes, depth+1)

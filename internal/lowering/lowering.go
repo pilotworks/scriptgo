@@ -65,7 +65,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
 		for _, statement := range file.Syntax.Statements {
-			if statement.Kind == "variable" && statement.Expression != nil {
+			if (statement.Kind == "variable" || statement.Kind == "using" || statement.Kind == "await_using") && statement.Name != "" {
 				topLevelVars[statement.Name] = statement
 			}
 			if statement.Kind == "type_alias" && statement.Name != "" && statement.Type != "" {
@@ -195,6 +195,36 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				if statement.Name != "" {
 					shapes[statement.Name] = ir.ObjectShape{Name: statement.Name, Fields: fields}
+				}
+			}
+		}
+	}
+	for _, file := range program.Files {
+		for _, stmt := range file.Syntax.Statements {
+			if stmt.Kind == "type_alias" && strings.Contains(stmt.Type, "|") {
+				unionIR := toIRType(stmt.Type)
+				unionShapeName := strings.TrimPrefix(string(unionIR), "object:")
+				if unionShape, ok := anonymousShapes[unionShapeName]; ok && len(unionShape.Fields) > 0 {
+					if stmt.Name != "" {
+						shapes[stmt.Name] = unionShape
+					}
+					for _, member := range splitTopLevelUnion(stmt.Type) {
+						cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(member), "object:"))
+						if _, isVariant := shapes[cleanM]; isVariant {
+							shapes[cleanM] = unionShape
+						}
+						var memberTypeStr string
+						if aliased, ok := typeAliasesIndex[cleanM]; ok {
+							memberTypeStr = aliased
+						} else {
+							memberTypeStr = cleanM
+						}
+						if f, ok := anonymousObjectFields(memberTypeStr, nil); ok {
+							anonName := anonymousShapeName(f)
+							shapes[anonName] = unionShape
+							anonymousShapes[anonName] = unionShape
+						}
+					}
 				}
 			}
 		}

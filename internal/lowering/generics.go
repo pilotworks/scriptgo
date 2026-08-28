@@ -67,7 +67,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 					genericClassKinds[statement.Class.Name] = statement.Kind
 				}
 				for _, m := range statement.Class.Methods {
-					if len(m.TypeParameters) > 0 && len(m.Body) > 0 {
+					if len(m.TypeParameters) > 0 {
 						if m.IsStatic {
 							genericMethods[statement.Class.Name+".static."+m.Name] = m
 						} else {
@@ -85,7 +85,22 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				if t == "" {
 					t = statement.InferredType
 				}
-				funcTypes[statement.Name] = t
+				if t == "" {
+					t = "void"
+				}
+				var paramTypes []string
+				for _, p := range statement.Parameters {
+					pt := p.Type
+					if pt == "" {
+						pt = p.InferredType
+					}
+					if pt == "" {
+						pt = "unknown"
+					}
+					paramTypes = append(paramTypes, p.Name+": "+pt)
+				}
+				fullSig := "(" + strings.Join(paramTypes, ", ") + ") => " + t
+				funcTypes[statement.Name] = fullSig
 			}
 		}
 	}
@@ -202,6 +217,33 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		for i, param := range mTemplate.TypeParameters {
 			subst[param] = typeArgs[i]
 		}
+		if strings.Contains(className, "__") {
+			baseCls := className[:strings.Index(className, "__")]
+			clsArgs := strings.Split(className[strings.Index(className, "__")+2:], "_")
+			if clsTemplate, ok := genericClasses[baseCls]; ok {
+				if len(clsArgs) > len(clsTemplate.TypeParameters) && len(clsTemplate.TypeParameters) > 0 {
+					numParams := len(clsTemplate.TypeParameters)
+					mergedLast := strings.Join(clsArgs[numParams-1:], "_")
+					clsArgs = append(append([]string(nil), clsArgs[:numParams-1]...), mergedLast)
+				}
+				for i, p := range clsTemplate.TypeParameters {
+					if i < len(clsArgs) {
+						subst[p] = clsArgs[i]
+					}
+				}
+			}
+		} else if strings.Contains(className, "<") && strings.HasSuffix(className, ">") {
+			idx := strings.Index(className, "<")
+			baseCls := className[:idx]
+			clsArgs := splitTypeArguments(className[idx+1 : len(className)-1])
+			if clsTemplate, ok := genericClasses[baseCls]; ok {
+				for i, p := range clsTemplate.TypeParameters {
+					if i < len(clsArgs) {
+						subst[p] = clsArgs[i]
+					}
+				}
+			}
+		}
 
 		specM := cloneMethod(mTemplate)
 		specM.Name = mangled
@@ -243,6 +285,44 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			scanAndSpecializeStmt(stmt, originFile, specEnv, funcTypes, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec)
 		}
 
+		baseName := className
+		var classTypeArgs []string
+		if strings.Contains(className, "__") {
+			baseName = className[:strings.Index(className, "__")]
+			classTypeArgs = strings.Split(className[strings.Index(className, "__")+2:], "_")
+		} else if strings.Contains(className, "<") && strings.HasSuffix(className, ">") {
+			idx := strings.Index(className, "<")
+			baseName = className[:idx]
+			classTypeArgs = splitTypeArguments(className[idx+1 : len(className)-1])
+		}
+		for subName, subMeta := range classHierarchy {
+			cleanExtends := subMeta.Extends
+			if idx := strings.Index(cleanExtends, "<"); idx != -1 {
+				cleanExtends = cleanExtends[:idx]
+			}
+			isSub := subMeta.Extends == className || subMeta.Extends == baseName || cleanExtends == baseName
+			if !isSub {
+				for _, imp := range subMeta.Implements {
+					cleanImp := imp
+					if idx := strings.Index(cleanImp, "<"); idx != -1 {
+						cleanImp = cleanImp[:idx]
+					}
+					if imp == className || imp == baseName || cleanImp == baseName {
+						isSub = true
+						break
+					}
+				}
+			}
+			if isSub && subName != className && subName != baseName {
+				requestMethodSpec(subName, methodName, typeArgs)
+				if len(classTypeArgs) > 0 {
+					subMangled := mangleGenericName(subName, classTypeArgs)
+					requestClassSpec(subName, classTypeArgs, originFile)
+					requestMethodSpec(subMangled, methodName, typeArgs)
+				}
+			}
+		}
+
 		return mangled
 	}
 
@@ -256,7 +336,15 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			}
 		}
 		clsTemplate, ok := genericClasses[name]
-		if !ok || len(typeArgs) != len(clsTemplate.TypeParameters) {
+		if !ok {
+			return name
+		}
+		if len(typeArgs) > len(clsTemplate.TypeParameters) && len(clsTemplate.TypeParameters) > 0 {
+			numParams := len(clsTemplate.TypeParameters)
+			mergedLast := strings.Join(typeArgs[numParams-1:], "_")
+			typeArgs = append(append([]string(nil), typeArgs[:numParams-1]...), mergedLast)
+		}
+		if len(typeArgs) != len(clsTemplate.TypeParameters) {
 			return name
 		}
 		for _, arg := range typeArgs {

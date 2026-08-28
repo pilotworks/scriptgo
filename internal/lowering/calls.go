@@ -778,7 +778,7 @@ func lowerCallExpression(
 	calleeType, hasCalleeType := env[callee]
 	if hasCalleeType && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || calleeType == ir.TypeObject || calleeType == "Function" || calleeType == "function" || strings.Contains(string(calleeType), "=>")) {
 		calleeIsClosure = true
-	} else if topVar, isTop := topLevelVars[callee]; isTop && (topVar.Expression != nil && (topVar.Expression.Kind == "arrow_function" || topVar.Expression.Kind == "function" || strings.Contains(topVar.Type, "=>") || strings.Contains(topVar.InferredType, "=>"))) {
+	} else if topVar, isTop := topLevelVars[callee]; isTop && ((topVar.Expression != nil && (topVar.Expression.Kind == "arrow_function" || topVar.Expression.Kind == "function")) || strings.Contains(topVar.Type, "=>") || strings.Contains(topVar.InferredType, "=>")) {
 		calleeIsClosure = true
 	}
 

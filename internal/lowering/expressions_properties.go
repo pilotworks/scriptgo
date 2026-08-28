@@ -596,7 +596,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	}
 	shape, ok := shapes[className]
 	if !ok {
-		if s, exists := anonymousShapes[className]; exists {
+		if s, exists := registeredShapes[className]; exists {
+			shape = s
+			shapes[className] = s
+			ok = true
+		} else if s, exists := anonymousShapes[className]; exists {
 			shape = s
 			shapes[className] = s
 			ok = true

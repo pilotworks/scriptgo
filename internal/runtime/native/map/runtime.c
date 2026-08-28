@@ -6,6 +6,8 @@
 
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_map_set_string_string(void *handle, const char *key, const char *value, void **out_map);
+int scriptgo_map_set_string_number(void *handle, const char *key, double value, void **out_map);
+int scriptgo_map_set_string_ptr(void *handle, const char *key, void *value, void **out_map);
 
 #define SCRIPTGO_MAGIC_MAP 0x4D415031 // "MAP1"
 
@@ -83,6 +85,23 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
     if (scriptgo_map_new(out_map) != 0) return -1;
     if (entries_array == NULL) return 0;
     scriptgo_map_native *m = *out_map;
+    uint32_t *magic_check = (uint32_t *)entries_array;
+    if (*magic_check == SCRIPTGO_MAGIC_MAP) {
+        scriptgo_map_native *src = (scriptgo_map_native *)entries_array;
+        for (int64_t i = 0; i < src->size; i++) {
+            scriptgo_map_native_entry *e = &src->entries[i];
+            if (e->key_str == NULL) continue;
+            void *dummy;
+            if (e->val_type == SCRIPTGO_MAP_VAL_NUMBER) {
+                scriptgo_map_set_string_number(m, e->key_str, e->num_val, &dummy);
+            } else if (e->val_type == SCRIPTGO_MAP_VAL_STRING) {
+                scriptgo_map_set_string_string(m, e->key_str, e->str_val, &dummy);
+            } else {
+                scriptgo_map_set_string_ptr(m, e->key_str, e->ptr_val, &dummy);
+            }
+        }
+        return 0;
+    }
     scriptgo_object_inner_map *root_obj = (scriptgo_object_inner_map *)entries_array;
     if (root_obj->magic == 0x53474F424A454354ULL) {
         for (int64_t i = 0; i < root_obj->field_count; i++) {

@@ -791,6 +791,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		emitter.sharedEnvCells = make(map[string]string)
 	}
 	for _, capName := range capturedInBody {
+		if _, alreadyCaptured := emitter.sharedEnvCells[capName]; alreadyCaptured {
+			continue
+		}
 		cellSlot := fmt.Sprintf("cell.%s.%d", capName, emitter.loadCounter)
 		emitter.loadCounter++
 		allocSize := 8

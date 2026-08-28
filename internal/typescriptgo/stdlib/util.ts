@@ -398,7 +398,12 @@ export function styleText(formatName: string | string[], text: string, options?:
     return text;
 }
 
+let _sysErrorMap: Map<number, [string, string]> | null = null;
+
 export function getSystemErrorMap(): Map<number, [string, string]> {
+    if (_sysErrorMap !== null) {
+        return _sysErrorMap;
+    }
     const map = new Map<number, [string, string]>();
     map.set(-1, ["EPERM", "Operation not permitted"]);
     map.set(-2, ["ENOENT", "No such file or directory"]);
@@ -409,7 +414,8 @@ export function getSystemErrorMap(): Map<number, [string, string]> {
     map.set(-12, ["ENOMEM", "Cannot allocate memory"]);
     map.set(-13, ["EACCES", "Permission denied"]);
     map.set(-22, ["EINVAL", "Invalid argument"]);
-    return map;
+    _sysErrorMap = map;
+    return _sysErrorMap;
 }
 
 export function getSystemErrorName(err: number): string {

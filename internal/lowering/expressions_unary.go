@@ -128,6 +128,18 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 			}
 		}
 		if !ok {
+			if topVar, exists := topLevelVars[varName]; exists {
+				varType = toIRType(topVar.Type)
+				if varType == "" {
+					varType = toIRType(topVar.InferredType)
+				}
+				if varType == "" {
+					varType = ir.TypeNumber
+				}
+				ok = true
+			}
+		}
+		if !ok {
 			return "", "", fmt.Errorf("unknown identifier %q for %s", lvalue.Text, op)
 		}
 		if varType != ir.TypeNumber && varType != ir.TypeBigInt {

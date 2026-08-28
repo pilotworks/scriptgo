@@ -109,110 +109,47 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		}
 	}
 	if expression.Operator == "??" {
+		if expression.Left != nil && (expression.Left.Kind == "null" || expression.Left.Kind == "undefined") {
+			return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
+		}
+		if expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined") {
+			return lowerExpression(path, expression.Left, result, function, env, counter, shapes, signatures)
+		}
 		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
-		if expression.Right != nil && (expression.Right.InferredType == "" || expression.Right.InferredType == "{}") && strings.HasPrefix(string(leftTyp), "object:") {
-			expression.Right.InferredType = string(leftTyp)
+		if leftTyp == ir.TypePointer || leftTyp == "ptr" || leftTyp == ir.TypeVoid {
+			return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
 		}
-		rightVal, rightTyp, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		if (expression.Right.Kind == "null" || expression.Right.Kind == "undefined") && rightTyp != leftTyp {
-			rightTyp = leftTyp
-			nullVal := "null"
-			switch leftTyp {
-			case ir.TypeNumber:
-				nullVal = "0"
-			case ir.TypeBool:
-				nullVal = "false"
-			}
-			rightVal = nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: rightVal, Value: nullVal, Span: toIRSpan(path, expression.Right.Span)})
-		}
-		if leftTyp == ir.TypeVoid || leftTyp == ir.TypePointer || leftTyp == "ptr" || (expression.Left != nil && (expression.Left.Kind == "null" || expression.Left.Kind == "undefined")) {
-			if result != "" && result != rightVal {
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpCheckedCast,
-					Type:   rightTyp,
-					Result: result,
-					Args:   []string{rightVal},
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, rightTyp, nil
-			}
-			return rightVal, rightTyp, nil
-		}
-		if rightTyp == ir.TypeVoid || (expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined")) {
-			if result != "" && result != leftVal {
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpCheckedCast,
-					Type:   leftTyp,
-					Result: result,
-					Args:   []string{leftVal},
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, leftTyp, nil
-			}
-			return leftVal, leftTyp, nil
-		}
-		if strings.HasPrefix(string(leftTyp), "object:") && (rightTyp == ir.TypeUnknown || rightTyp == "object:__shape_empty" || (expression.Right != nil && expression.Right.Kind == "object_literal" && len(expression.Right.Arguments) == 0)) {
-			castTemp := nextTemp(counter)
-			env[castTemp] = leftTyp
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCheckedCast,
-				Type:   leftTyp,
-				Result: castTemp,
-				Args:   []string{rightVal},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			rightVal = castTemp
-			rightTyp = leftTyp
-		} else if strings.HasPrefix(string(rightTyp), "object:") && (leftTyp == ir.TypeUnknown || leftTyp == "object:__shape_empty" || (expression.Left != nil && expression.Left.Kind == "object_literal" && len(expression.Left.Arguments) == 0)) {
-			castTemp := nextTemp(counter)
-			env[castTemp] = rightTyp
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCheckedCast,
-				Type:   rightTyp,
-				Result: castTemp,
-				Args:   []string{leftVal},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			leftVal = castTemp
-			leftTyp = rightTyp
-		}
-		if leftTyp != rightTyp {
-			if leftTyp == ir.TypeUnknown || rightTyp == ir.TypeUnknown {
-				if leftTyp != ir.TypeUnknown {
-					boxed := nextTemp(counter)
-					env[boxed] = ir.TypeUnknown
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{leftVal}, Span: toIRSpan(path, expression.Span)})
-					leftVal = boxed
-					leftTyp = ir.TypeUnknown
-				}
-				if rightTyp != ir.TypeUnknown {
-					boxed := nextTemp(counter)
-					env[boxed] = ir.TypeUnknown
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{rightVal}, Span: toIRSpan(path, expression.Span)})
-					rightVal = boxed
-				}
-			} else if strings.HasPrefix(string(leftTyp), "object:") && strings.HasPrefix(string(rightTyp), "object:") {
-				castTemp := nextTemp(counter)
-				env[castTemp] = leftTyp
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpCheckedCast,
-					Type:   leftTyp,
-					Result: castTemp,
-					Args:   []string{rightVal},
-					Span:   toIRSpan(path, expression.Span),
-				})
-				rightVal = castTemp
-			} else {
-				return "", "", fmt.Errorf("operator ?? does not support %s and %s", leftTyp, rightTyp)
+		outTyp := leftTyp
+		if expression.InferredType != "" {
+			infIR := toIRType(expression.InferredType)
+			if infIR != "" && infIR != ir.TypeVoid {
+				outTyp = infIR
 			}
 		}
+		res := result
+		if res == "" || outTyp == ir.TypeUnknown {
+			res = nextTemp(counter)
+		}
+		env[res] = outTyp
+
+		initLeft := leftVal
+		if outTyp == ir.TypeUnknown && leftTyp != ir.TypeUnknown {
+			boxed := nextTemp(counter)
+			env[boxed] = ir.TypeUnknown
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{leftVal}, Span: toIRSpan(path, expression.Span)})
+			initLeft = boxed
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCheckedCast,
+			Type:   outTyp,
+			Result: res,
+			Args:   []string{initLeft},
+			Span:   toIRSpan(path, expression.Span),
+		})
+
 		var cond string
 		if leftTyp == ir.TypeNumber {
 			cmpNaN := nextTemp(counter)
@@ -246,8 +183,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		} else {
 			nullConst := nextTemp(counter)
 			env[nullConst] = leftTyp
-			nullVal := "null"
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: nullVal, Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftTyp, Result: nullConst, Value: "null", Span: toIRSpan(path, expression.Span)})
 			cmpNull := nextTemp(counter)
 			env[cmpNull] = ir.TypeBool
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNull, Operator: "!=", Args: []string{leftVal, nullConst}, Span: toIRSpan(path, expression.Span)})
@@ -268,12 +204,50 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			}
 		}
 
-		if result == "" || leftTyp == ir.TypeUnknown {
-			result = nextTemp(counter)
+		elseBlock := ir.Function{Name: "nullish_fallback", ReturnType: function.ReturnType}
+		elseEnv := make(map[string]ir.Type, len(env))
+		maps.Copy(elseEnv, env)
+		if expression.Right != nil && (expression.Right.InferredType == "" || expression.Right.InferredType == "{}") && strings.HasPrefix(string(outTyp), "object:") {
+			expression.Right.InferredType = string(outTyp)
 		}
-		env[result] = leftTyp
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftTyp, Result: result, Args: []string{cond, leftVal, rightVal}, Span: toIRSpan(path, expression.Span)})
-		return result, leftTyp, nil
+		rightVal, rightTyp, err := lowerExpression(path, expression.Right, "", &elseBlock, elseEnv, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		finalRight := rightVal
+		if outTyp == ir.TypeUnknown && rightTyp != ir.TypeUnknown {
+			boxed := nextTemp(counter)
+			elseEnv[boxed] = ir.TypeUnknown
+			elseBlock.Body = append(elseBlock.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{rightVal}, Span: toIRSpan(path, expression.Span)})
+			finalRight = boxed
+		} else if strings.HasPrefix(string(outTyp), "object:") && rightTyp != outTyp {
+			castTemp := nextTemp(counter)
+			elseEnv[castTemp] = outTyp
+			elseBlock.Body = append(elseBlock.Body, ir.Instruction{
+				Op:     ir.OpCheckedCast,
+				Type:   outTyp,
+				Result: castTemp,
+				Args:   []string{rightVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			finalRight = castTemp
+		}
+		elseBlock.Body = append(elseBlock.Body, ir.Instruction{
+			Op:     ir.OpAssign,
+			Type:   outTyp,
+			Result: res,
+			Args:   []string{finalRight},
+			Span:   toIRSpan(path, expression.Span),
+		})
+
+		function.Body = append(function.Body, ir.Instruction{
+			Op:   ir.OpIf,
+			Type: ir.TypeVoid,
+			Args: []string{cond},
+			Else: elseBlock.Body,
+			Span: toIRSpan(path, expression.Span),
+		})
+		return res, outTyp, nil
 	}
 	if expression.Operator == "instanceof" {
 		left, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)

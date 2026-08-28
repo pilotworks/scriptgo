@@ -123,7 +123,38 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 	switch statement.Kind {
 	case "variable", "using", "await_using":
 		if statement.Expression == nil {
-			return fmt.Errorf("variable %q has no initializer", statement.Name)
+			if statement.Kind == "using" || statement.Kind == "await_using" {
+				return fmt.Errorf("resource %q has no initializer", statement.Name)
+			}
+			declaredType := toIRType(statement.Type)
+			if declaredType == "" && statement.InferredType != "" {
+				declaredType = toIRType(statement.InferredType)
+			}
+			if declaredType == "" {
+				declaredType = ir.TypeUnknown
+			}
+			env[statement.Name] = declaredType
+			var zeroVal string
+			switch declaredType {
+			case ir.TypeNumber:
+				zeroVal = "0"
+			case ir.TypeBool:
+				zeroVal = "false"
+			case ir.TypeString:
+				zeroVal = ""
+			case ir.TypeUnknown:
+				zeroVal = "undefined"
+			default:
+				zeroVal = "null"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   declaredType,
+				Result: statement.Name,
+				Value:  zeroVal,
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
 		}
 		inProgressVars[statement.Name] = true
 		defer delete(inProgressVars, statement.Name)
@@ -624,10 +655,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if idxType != ir.TypeNumber {
 			return fmt.Errorf("array index_set requires number index, got %s", idxType)
 		}
-		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return err
-		}
 		var expectedElemType ir.Type
 		if arrType == ir.TypeBigInt64Array || arrType == ir.TypeBigUint64Array {
 			expectedElemType = ir.TypeBigInt
@@ -646,6 +673,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		} else {
 			return fmt.Errorf("array index_set requires an array, got %s", arrType)
+		}
+		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
 		}
 		if valType == ir.TypeVoid || (statement.Expression != nil && (statement.Expression.Kind == "undefined" || statement.Expression.Kind == "null" || (statement.Expression.Kind == "identifier" && statement.Expression.Text == "undefined"))) {
 			zeroVal := nextTemp(counter)
@@ -676,7 +707,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			valType = ir.TypeUnknown
 		}
 		if expectedElemType != "" && valType != expectedElemType && valType != ir.TypeUnknown && expectedElemType != ir.TypeUnknown {
-			return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
+			if !strings.HasSuffix(string(expectedElemType), "[]") || (valType != "never[]" && valType != "object:never[]" && valType != ir.TypeObject && valType != "never") {
+				return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
+			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:   ir.OpIndexSet,
@@ -781,6 +814,17 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 
 		shape, ok := shapes[className]
+		if !ok {
+			if s, exists := registeredShapes[className]; exists {
+				shape = s
+				shapes[className] = s
+				ok = true
+			} else if s, exists := anonymousShapes[className]; exists {
+				shape = s
+				shapes[className] = s
+				ok = true
+			}
+		}
 		if !ok {
 			return fmt.Errorf("field set on unknown object shape %q", className)
 		}

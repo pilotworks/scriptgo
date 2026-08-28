@@ -163,18 +163,35 @@ func rewriteExpr(expr *typescriptgo.SyntaxExpression, env map[string]string, gen
 				}
 			}
 			methodName := res.Left.Text
+			baseCls := clsName
+			if idx := strings.Index(clsName, "<"); idx != -1 {
+				baseCls = clsName[:idx]
+			} else if idx := strings.Index(clsName, "__"); idx != -1 {
+				baseCls = clsName[:idx]
+			}
 			lookupKey := clsName + "." + methodName
 			if !isInstance {
 				lookupKey = clsName + ".static." + methodName
 			}
+			mTemplate, ok := genericMethods[lookupKey]
+			if !ok {
+				if !isInstance {
+					mTemplate, ok = genericMethods[baseCls+".static."+methodName]
+				} else {
+					mTemplate, ok = genericMethods[baseCls+"."+methodName]
+				}
+			}
 			callTypeArgs := res.TypeArguments
-			if mTemplate, ok := genericMethods[lookupKey]; ok {
+			if ok {
 				typeArgs := callTypeArgs
 				if len(typeArgs) == 0 {
 					typeArgs = inferTypeArgsForMethod(mTemplate, mTemplate.TypeParameters, res.Arguments, env, nil)
 				}
 				if len(typeArgs) == len(mTemplate.TypeParameters) {
 					mangledMethod := reqMethod(clsName, methodName, typeArgs)
+					if baseCls != clsName {
+						reqMethod(baseCls, methodName, typeArgs)
+					}
 					res.Left.Text = mangledMethod
 					res.TypeArguments = nil
 				}

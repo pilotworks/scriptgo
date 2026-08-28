@@ -178,12 +178,17 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			}
 		}
 		return nil
-	case "variable", "using", "await_using":
+	case "variable":
 		if statement.Expression == nil {
-			return subsetError(fileName, statement.Span, CodeLanguageLowering, "variable declaration without an initializer")
+			return nil
 		}
 		if statement.Expression.Kind == "object_literal" && len(statement.Expression.Arguments) == 0 && (statement.Type == "" || statement.Type == "{}") && (statement.InferredType == "" || statement.InferredType == "{}") && !strings.HasPrefix(statement.Name, "__destruct_") {
 			return subsetError(fileName, statement.Span, CodeLanguageLowering, "unannotated empty object literal is not supported in native subset")
+		}
+		return validateExpression(fileName, statement.Expression)
+	case "using", "await_using":
+		if statement.Expression == nil {
+			return subsetError(fileName, statement.Span, CodeLanguageLowering, "resource declaration without an initializer")
 		}
 		return validateExpression(fileName, statement.Expression)
 	case "namespace":

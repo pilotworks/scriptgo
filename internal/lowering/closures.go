@@ -127,6 +127,18 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 			for _, st := range s.Body {
 				collectStmt(st)
 			}
+		} else if s.Kind == "function" || s.Kind == "arrow_function" {
+			oldLocals := make(map[string]bool, len(locals))
+			for k, v := range locals {
+				oldLocals[k] = v
+			}
+			for _, p := range s.Parameters {
+				locals[p.Name] = true
+			}
+			for _, st := range s.Body {
+				collectStmt(st)
+			}
+			locals = oldLocals
 		}
 	}
 

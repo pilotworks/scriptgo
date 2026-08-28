@@ -191,8 +191,8 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 					}
 					for _, f := range fields {
 						if existingIdx, exists := seenFields[f.Name]; exists {
-							if unionFields[existingIdx].Type == ir.TypeUnknown {
-								unionFields[existingIdx].Type = f.Type
+							if unionFields[existingIdx].Type != f.Type {
+								unionFields[existingIdx].Type = ir.TypeUnknown
 							}
 						} else {
 							seenFields[f.Name] = len(unionFields)
@@ -563,6 +563,11 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			}
 			return ir.TypeObject
 		}
+		if fields, ok := parseFlattenedShapeFields(value); ok {
+			name := anonymousShapeName(fields)
+			registerAnonymousShape(name, fields)
+			return ir.Type("object:" + name)
+		}
 		if strings.Contains(value, "=>") || strings.HasPrefix(value, "(") || strings.HasPrefix(value, "Function") {
 			return ir.TypeClosure
 		}
@@ -571,6 +576,54 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+func isValidFieldName(s string) bool {
+	if s == "" {
+		return false
+	}
+	r := s[0]
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || r == '$'
+}
+
+func parseFlattenedShapeFields(s string) ([]ir.Field, bool) {
+	s = strings.TrimPrefix(s, "object:")
+	if strings.Contains(s, "<") || strings.Contains(s, "{") || strings.Contains(s, "(") || strings.Contains(s, "|") {
+		return nil, false
+	}
+	s = strings.TrimPrefix(s, "__shape_")
+	tokens := strings.Split(s, "_")
+	if len(tokens) < 2 || len(tokens)%2 != 0 {
+		return nil, false
+	}
+	var fields []ir.Field
+	for i := 0; i < len(tokens); i += 2 {
+		fName := tokens[i]
+		fType := tokens[i+1]
+		if !isValidFieldName(fName) {
+			return nil, false
+		}
+		var typ ir.Type
+		switch fType {
+		case "number":
+			typ = ir.TypeNumber
+		case "string":
+			typ = ir.TypeString
+		case "bool", "boolean":
+			typ = ir.TypeBool
+		case "bigint":
+			typ = ir.TypeBigInt
+		default:
+			if strings.HasSuffix(fType, "arr") {
+				elem := strings.TrimSuffix(strings.TrimSuffix(fType, "_arr"), "arr")
+				typ = ir.Type(string(toIRType(elem)) + "[]")
+			} else {
+				return nil, false
+			}
+		}
+		fields = append(fields, ir.Field{Name: fName, Type: typ})
+	}
+	return fields, true
 }
 
 var anonymousShapes = make(map[string]ir.ObjectShape)
