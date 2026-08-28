@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,19 @@ static void scriptgo_console_print_indent(FILE *stream) {
 }
 
 static void scriptgo_format_double_shortest(char *buf, size_t size, double value) {
+    if (isnan(value)) {
+        snprintf(buf, size, "NaN");
+        return;
+    }
+    if (isinf(value)) {
+        if (value > 0) snprintf(buf, size, "Infinity");
+        else snprintf(buf, size, "-Infinity");
+        return;
+    }
+    if (value == 0.0 && signbit(value)) {
+        snprintf(buf, size, "-0");
+        return;
+    }
     char b15[64], b16[64], b17[64];
     snprintf(b15, sizeof(b15), "%.15g", value);
     if (strtod(b15, NULL) == value) {
@@ -33,7 +47,9 @@ static void scriptgo_format_double_shortest(char *buf, size_t size, double value
 static int scriptgo_console_number(FILE *stream, double value) {
     scriptgo_console_print_indent(stream);
     int ret;
-    if (value == (double)(long long)value && value >= -9007199254740991.0 && value <= 9007199254740991.0) {
+    if (value == 0.0 && signbit(value)) {
+        ret = fprintf(stream, "-0\n");
+    } else if (!isnan(value) && !isinf(value) && value == (double)(long long)value && value >= -9007199254740991.0 && value <= 9007199254740991.0) {
         ret = fprintf(stream, "%lld\n", (long long)value);
     } else {
         char buf[64];

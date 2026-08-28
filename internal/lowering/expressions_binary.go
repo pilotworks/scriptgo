@@ -204,8 +204,10 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		elseBlock := ir.Function{Name: "nullish_fallback", ReturnType: function.ReturnType}
 		elseEnv := make(map[string]ir.Type, len(env))
 		maps.Copy(elseEnv, env)
-		if expression.Right != nil && (expression.Right.InferredType == "" || expression.Right.InferredType == "{}") && strings.HasPrefix(string(outTyp), "object:") {
-			expression.Right.InferredType = string(outTyp)
+		if expression.Right != nil && (expression.Right.InferredType == "" || expression.Right.InferredType == "{}" || expression.Right.InferredType == "never[]" || expression.Right.InferredType == "unknown[]" || expression.Right.InferredType == "[]") {
+			if strings.HasPrefix(string(outTyp), "object:") || strings.HasSuffix(string(outTyp), "[]") {
+				expression.Right.InferredType = string(outTyp)
+			}
 		}
 		rightVal, rightTyp, err := lowerExpression(path, expression.Right, "", &elseBlock, elseEnv, counter, shapes, signatures)
 		if err != nil {

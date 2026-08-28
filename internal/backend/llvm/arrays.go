@@ -29,6 +29,11 @@ func arrayElementTag(arrayType ir.Type) int {
 		return 8
 	case ir.TypeSymbol:
 		return 9
+	case ir.TypeClosure:
+		return 7
+	}
+	if elemType == "closure" || elemType == "Function" || elemType == "function" || strings.Contains(string(elemType), "=>") {
+		return 7
 	}
 	if strings.HasPrefix(string(elemType), "object:") || elemType == ir.TypeObject {
 		return 5
@@ -262,7 +267,18 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		arrArg := e.resolveArg(out, instruction.Args[0])
 		elemType := arrayElementType(arrayType)
 		arg1 := e.resolveArg(out, instruction.Args[1])
-		arg1Type := e.types[instruction.Args[1]]
+		arg1Type := e.types[arg1]
+		if arg1Type == "" {
+			arg1Type = e.types[instruction.Args[1]]
+		}
+		if arg1Type == "" {
+			for _, g := range e.module.Globals {
+				if g.Name == instruction.Args[1] {
+					arg1Type = g.Type
+					break
+				}
+			}
+		}
 		if arg1Type == ir.TypeUnknown && elemType != ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("push.unbox.payload.%d", e.tempCounter)
@@ -511,19 +527,32 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		switch arrayType {
+		case ir.TypeNumberArray:
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_number(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		case ir.TypeStringArray:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_string(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		case ir.TypeBigIntArray:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_bigint(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
-		case ir.TypeUnknownArray:
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_unknown(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		default:
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_number(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_unknown(ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], sepArg, resSlot)
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
 		return nil
-	case "__array.map", "__array.flatMap":
+	case "__array.flatMap", "__array.flatMap_scalar":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		fnName := "scriptgo_array_flat_map_number"
+		if instruction.Callee == "__array.flatMap_scalar" {
+			fnName = "scriptgo_array_flat_map_number_scalar"
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, fnName, instruction.Args[0], instruction.Args[1], slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		return nil
+	case "__array.map":
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		var fnName string

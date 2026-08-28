@@ -98,6 +98,30 @@ func registerArrayBuiltins(m map[string]BuiltinIntrinsic) {
 					}
 				}
 			}
+			if len(args) >= 2 {
+				rawArr := nextTemp(call.Counter)
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   retType,
+					Result: rawArr,
+					Callee: "__array.from",
+					Args:   []string{args[0]},
+					Span:   toIRSpan(call.Path, call.Expression.Span),
+				})
+				result := call.Result
+				if result == "" {
+					result = nextTemp(call.Counter)
+				}
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   retType,
+					Result: result,
+					Callee: "__array.map",
+					Args:   []string{rawArr, args[1]},
+					Span:   toIRSpan(call.Path, call.Expression.Span),
+				})
+				return result, retType, nil
+			}
 			result := call.Result
 			if result == "" {
 				result = nextTemp(call.Counter)

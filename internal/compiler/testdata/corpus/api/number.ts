@@ -80,7 +80,7 @@ console.log(Number.POSITIVE_INFINITY > 1e300);
 console.log(Number.NEGATIVE_INFINITY < -1e300);
 
 // @api: Number.toExponential
-// @expect: 1.23e+02
+// @expect: 1.23e+2
 console.log((123.456).toExponential(2));
 
 // @api: Number.toPrecision

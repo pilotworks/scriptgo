@@ -444,13 +444,20 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 				res = nextTemp(call.Counter)
 			}
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op: ir.OpObjectNew, Type: ir.Type("object:RegExp"), Result: res, FieldCount: 2, Span: toIRSpan(call.Path, call.Expression.Span),
+				Op: ir.OpObjectNew, Type: ir.Type("object:RegExp"), Result: res, FieldCount: 3, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{res, patternVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{res, flagsVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			zeroVal := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroVal, Value: "0", Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "lastIndex", FieldIndex: 2, Args: []string{res, zeroVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 			return res, ir.Type("object:RegExp"), nil
 		},

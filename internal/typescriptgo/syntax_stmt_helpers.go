@@ -91,6 +91,19 @@ func syntaxVariableDeclarations(decls []*ast.Node, span SourceSpan, chk *checker
 	}, true
 }
 
+func appendSyntaxStatement(target *[]SyntaxStatement, node *ast.Node, chk *checker.Checker) {
+	if node == nil {
+		return
+	}
+	if converted, ok := syntaxStatement(node, chk); ok {
+		if converted.Kind == "block" && node.Kind != ast.KindBlock {
+			*target = append(*target, converted.Body...)
+		} else {
+			*target = append(*target, converted)
+		}
+	}
+}
+
 func syntaxBlockStatements(node *ast.Node, chk *checker.Checker) []SyntaxStatement {
 	if node == nil {
 		return nil
@@ -98,16 +111,26 @@ func syntaxBlockStatements(node *ast.Node, chk *checker.Checker) []SyntaxStateme
 	if node.Kind == ast.KindBlock {
 		result := make([]SyntaxStatement, 0, len(node.Statements()))
 		for _, statement := range node.Statements() {
-			if converted, ok := syntaxStatement(statement, chk); ok {
-				result = append(result, converted)
-			}
+			appendSyntaxStatement(&result, statement, chk)
 		}
 		return result
 	}
-	if converted, ok := syntaxStatement(node, chk); ok {
-		return []SyntaxStatement{converted}
+	var result []SyntaxStatement
+	appendSyntaxStatement(&result, node, chk)
+	return result
+}
+
+func flattenCommaExpressions(expr *SyntaxExpression) []*SyntaxExpression {
+	if expr == nil {
+		return nil
 	}
-	return nil
+	if expr.Kind == "binary" && expr.Operator == "," {
+		var res []*SyntaxExpression
+		res = append(res, flattenCommaExpressions(expr.Left)...)
+		res = append(res, flattenCommaExpressions(expr.Right)...)
+		return res
+	}
+	return []*SyntaxExpression{expr}
 }
 
 func isAssignmentOperator(op string) bool {

@@ -52,6 +52,35 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 		} else {
 			inferred = resolveInferredType(chk, nameNode)
 		}
+		if inferred == "" || inferred == "void" || inferred == "undefined" {
+			var fields []string
+			for _, elem := range pattern.Elements.Nodes {
+				if elem != nil && elem.Kind != ast.KindOmittedExpression {
+					if b := elem.AsBindingElement(); b != nil {
+						pName := ""
+						if b.PropertyName != nil {
+							pName = b.PropertyName.Text()
+						} else if b.Name() != nil {
+							pName = b.Name().Text()
+						}
+						t := resolveInferredType(chk, b.Name())
+						if t == "" || t == "void" {
+							if b.Initializer != nil {
+								t = resolveInferredType(chk, b.Initializer)
+							}
+						}
+						if pName != "" && t != "" && t != "void" {
+							fields = append(fields, fmt.Sprintf("%s?: %s", pName, t))
+						}
+					}
+				}
+			}
+			if len(fields) > 0 {
+				inferred = "{" + strings.Join(fields, "; ") + "}"
+			} else {
+				inferred = "object"
+			}
+		}
 		stmts = append(stmts, SyntaxStatement{
 			Span:         sourceSpan(nameNode),
 			Kind:         "variable",
@@ -78,13 +107,55 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 			propName = binding.Name().Text()
 		}
 
+		targetNode := binding.Name()
 		var propExpr *SyntaxExpression
 		if binding.DotDotDotToken != nil {
-			// Rest in object: unsupported or copy remaining fields
-			propExpr = &SyntaxExpression{
-				Span: sourceSpan(elem),
-				Kind: "identifier",
-				Text: objVar,
+			inferred := resolveInferredType(chk, targetNode)
+			if inferred == "" || inferred == "void" || inferred == "undefined" {
+				inferred = resolveInferredType(chk, elem)
+			}
+			var fieldArgs []*SyntaxExpression
+			if chk != nil && targetNode != nil {
+				if t := chk.GetTypeAtLocation(targetNode); t != nil {
+					for _, sym := range chk.GetPropertiesOfType(t) {
+						if sym != nil {
+							symName := sym.Name
+							symType := normalizeInferredType(chk.TypeToString(chk.GetTypeOfSymbolAtLocation(sym, targetNode)))
+							fieldArgs = append(fieldArgs, &SyntaxExpression{
+								Span:         sourceSpan(elem),
+								Kind:         "property",
+								Text:         symName,
+								InferredType: symType,
+								Left: &SyntaxExpression{
+									Span:         sourceSpan(elem),
+									Kind:         "property",
+									Text:         symName,
+									InferredType: symType,
+									Left: &SyntaxExpression{
+										Span: sourceSpan(elem),
+										Kind: "identifier",
+										Text: objVar,
+									},
+								},
+							})
+						}
+					}
+				}
+			}
+			if len(fieldArgs) > 0 {
+				propExpr = &SyntaxExpression{
+					Span:         sourceSpan(elem),
+					Kind:         "object_literal",
+					Arguments:    fieldArgs,
+					InferredType: inferred,
+				}
+			} else {
+				propExpr = &SyntaxExpression{
+					Span:         sourceSpan(elem),
+					Kind:         "identifier",
+					Text:         objVar,
+					InferredType: inferred,
+				}
 			}
 		} else {
 			propExpr = &SyntaxExpression{
@@ -100,7 +171,6 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 			}
 		}
 
-		targetNode := binding.Name()
 		if binding.Initializer != nil && targetNode != nil && targetNode.Kind != ast.KindObjectBindingPattern && targetNode.Kind != ast.KindArrayBindingPattern {
 			varName := targetNode.Text()
 			defaultExpr := syntaxExpression(binding.Initializer, chk)
@@ -148,9 +218,47 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 			defaultExpr := syntaxExpression(binding.Initializer, chk)
 			*counter++
 			tmpVar := fmt.Sprintf("__destruct_opt_%d_%d", elem.Pos(), *counter)
-			inferredType := resolveInferredType(chk, elem)
-			if inferredType == "" && propExpr.InferredType != "" {
-				inferredType = propExpr.InferredType
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" || inferredType == "void" || inferredType == "undefined" || inferredType == "{}" || inferredType == "object" {
+				if propExpr != nil && propExpr.InferredType != "" && propExpr.InferredType != "void" && propExpr.InferredType != "undefined" {
+					inferredType = propExpr.InferredType
+				} else if defaultExpr != nil && defaultExpr.InferredType != "" && defaultExpr.InferredType != "void" && defaultExpr.InferredType != "{}" {
+					inferredType = defaultExpr.InferredType
+				}
+			}
+			if targetNode != nil && targetNode.Kind == ast.KindObjectBindingPattern && (inferredType == "" || inferredType == "void" || inferredType == "undefined" || inferredType == "{}" || inferredType == "object") {
+				var fields []string
+				if pat := targetNode.AsBindingPattern(); pat != nil && pat.Elements != nil {
+					for _, sub := range pat.Elements.Nodes {
+						if sub != nil && sub.Kind != ast.KindOmittedExpression {
+							if sb := sub.AsBindingElement(); sb != nil {
+								pName := ""
+								if sb.PropertyName != nil {
+									pName = sb.PropertyName.Text()
+								} else if sb.Name() != nil {
+									pName = sb.Name().Text()
+								}
+								st := resolveInferredType(chk, sb.Name())
+								if st == "" || st == "void" || st == "undefined" {
+									if sb.Initializer != nil {
+										st = resolveInferredType(chk, sb.Initializer)
+									}
+								}
+								if pName != "" && st != "" && st != "void" && st != "undefined" {
+									fields = append(fields, fmt.Sprintf("%s?: %s", pName, st))
+								}
+							}
+						}
+					}
+				}
+				if len(fields) > 0 {
+					inferredType = "{" + strings.Join(fields, "; ") + "}"
+				} else {
+					inferredType = "object"
+				}
+			}
+			if defaultExpr != nil && (defaultExpr.InferredType == "" || defaultExpr.InferredType == "{}" || defaultExpr.InferredType == "void" || defaultExpr.InferredType == "object") {
+				defaultExpr.InferredType = inferredType
 			}
 			stmts = append(stmts, SyntaxStatement{
 				Span:         sourceSpan(elem),
@@ -223,6 +331,49 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 	} else {
 		arrInferred = resolveInferredType(chk, nameNode)
 	}
+	var elemTypes []string
+	for _, elem := range pattern.Elements.Nodes {
+		if elem != nil && elem.Kind != ast.KindOmittedExpression {
+			if b := elem.AsBindingElement(); b != nil {
+				t := resolveInferredType(chk, b.Name())
+				if t == "" || t == "void" || t == "undefined" {
+					if b.Name() != nil && b.Name().Kind == ast.KindArrayBindingPattern {
+						t = "unknown[]"
+					} else if b.Name() != nil && b.Name().Kind == ast.KindObjectBindingPattern {
+						t = "object"
+					} else if b.Initializer != nil {
+						t = resolveInferredType(chk, b.Initializer)
+					}
+				}
+				if t != "" && t != "void" && t != "undefined" {
+					elemTypes = append(elemTypes, t)
+				}
+			}
+		}
+	}
+	isHeterogeneousPattern := false
+	if len(elemTypes) > 1 {
+		for i := 1; i < len(elemTypes); i++ {
+			if elemTypes[i] != elemTypes[0] {
+				isHeterogeneousPattern = true
+				break
+			}
+		}
+	}
+	initTupleLen := countTupleElements(arrInferred)
+	isTupleType := initTupleLen >= len(pattern.Elements.Nodes)
+	if (isHeterogeneousPattern && !isTupleType) || (initTupleLen >= 0 && initTupleLen < len(pattern.Elements.Nodes)) {
+		arrInferred = "unknown[]"
+		if initExpr != nil && (countTupleElements(initExpr.InferredType) < len(pattern.Elements.Nodes)) {
+			initExpr.InferredType = "unknown[]"
+		}
+	} else if arrInferred == "" || arrInferred == "void" || arrInferred == "undefined" {
+		if len(elemTypes) > 0 {
+			arrInferred = elemTypes[0] + "[]"
+		} else {
+			arrInferred = "unknown[]"
+		}
+	}
 	if initExpr != nil && initExpr.Kind == "identifier" {
 		arrVar = initExpr.Text
 	} else {
@@ -279,32 +430,24 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 				Left:     rawIdxExpr,
 				Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
 			}
-			isArray := false
-			if initExpr != nil && strings.HasSuffix(initExpr.InferredType, "[]") {
-				isArray = true
-			} else if strings.HasSuffix(arrInferred, "[]") {
-				isArray = true
-			}
-			if isArray {
-				condExpr = &SyntaxExpression{
+			condExpr = &SyntaxExpression{
+				Span:     sourceSpan(elem),
+				Kind:     "binary",
+				Operator: "&&",
+				Left: &SyntaxExpression{
 					Span:     sourceSpan(elem),
 					Kind:     "binary",
-					Operator: "&&",
-					Left: &SyntaxExpression{
-						Span:     sourceSpan(elem),
-						Kind:     "binary",
-						Operator: "<",
-						Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
-						Right: &SyntaxExpression{
-							Span:         sourceSpan(elem),
-							Kind:         "property",
-							Text:         "length",
-							Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
-							InferredType: "number",
-						},
+					Operator: "<",
+					Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+					Right: &SyntaxExpression{
+						Span:         sourceSpan(elem),
+						Kind:         "property",
+						Text:         "length",
+						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+						InferredType: "number",
 					},
-					Right: condExpr,
-				}
+				},
+				Right: condExpr,
 			}
 			stmts = append(stmts, SyntaxStatement{
 				Span:       sourceSpan(elem),
@@ -324,15 +467,23 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 
 		var itemExpr *SyntaxExpression
 		if binding.DotDotDotToken != nil {
+			inferred := resolveInferredType(chk, targetNode)
+			if inferred == "" || inferred == "void" || inferred == "undefined" {
+				inferred = resolveInferredType(chk, elem)
+			}
+			if (inferred == "" || inferred == "void" || inferred == "undefined") && arrInferred != "" {
+				inferred = arrInferred
+			}
 			itemExpr = &SyntaxExpression{
 				Span:         sourceSpan(elem),
 				Kind:         "call",
-				InferredType: resolveInferredType(chk, elem),
+				InferredType: inferred,
 				Left: &SyntaxExpression{
-					Span: sourceSpan(elem),
-					Kind: "property",
-					Text: "slice",
-					Left: &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+					Span:         sourceSpan(elem),
+					Kind:         "property",
+					Text:         "slice",
+					InferredType: inferred,
+					Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar, InferredType: arrInferred},
 				},
 				Arguments: []*SyntaxExpression{
 					{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
@@ -348,7 +499,99 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 			}
 		}
 
-		if binding.Initializer != nil {
+		if binding.Initializer != nil && targetNode != nil && (targetNode.Kind == ast.KindObjectBindingPattern || targetNode.Kind == ast.KindArrayBindingPattern) {
+			defaultExpr := syntaxExpression(binding.Initializer, chk)
+			*counter++
+			tmpVar := fmt.Sprintf("__destruct_opt_%d_%d", elem.Pos(), *counter)
+			inferredType := resolveInferredType(chk, targetNode)
+			if inferredType == "" || inferredType == "void" || inferredType == "undefined" || inferredType == "never[]" || inferredType == "void[]" || inferredType == "[]" {
+				if defaultExpr != nil && defaultExpr.InferredType != "" && defaultExpr.InferredType != "void" && defaultExpr.InferredType != "never[]" && defaultExpr.InferredType != "void[]" && defaultExpr.InferredType != "[]" {
+					inferredType = defaultExpr.InferredType
+				} else if targetNode.Kind == ast.KindArrayBindingPattern {
+					var subTypes []string
+					if pat := targetNode.AsBindingPattern(); pat != nil && pat.Elements != nil {
+						for _, sub := range pat.Elements.Nodes {
+							if sub != nil && sub.Kind != ast.KindOmittedExpression {
+								if sb := sub.AsBindingElement(); sb != nil {
+									st := resolveInferredType(chk, sb.Name())
+									if st == "" || st == "void" || st == "undefined" {
+										if sb.Initializer != nil {
+											st = resolveInferredType(chk, sb.Initializer)
+										}
+									}
+									if st != "" && st != "void" && st != "undefined" {
+										subTypes = append(subTypes, st)
+									}
+								}
+							}
+						}
+					}
+					if len(subTypes) > 0 {
+						inferredType = subTypes[0] + "[]"
+					} else {
+						inferredType = "unknown[]"
+					}
+				} else {
+					inferredType = "object"
+				}
+			}
+			if defaultExpr != nil && (defaultExpr.InferredType == "" || defaultExpr.InferredType == "never[]" || defaultExpr.InferredType == "void[]" || defaultExpr.InferredType == "[]") {
+				defaultExpr.InferredType = inferredType
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:         sourceSpan(elem),
+				Kind:         "variable",
+				Name:         tmpVar,
+				Type:         inferredType,
+				InferredType: inferredType,
+				Expression:   defaultExpr,
+			})
+			itemExpr.InferredType = inferredType
+			condExpr := &SyntaxExpression{
+				Span:     sourceSpan(elem),
+				Kind:     "binary",
+				Operator: "&&",
+				Left: &SyntaxExpression{
+					Span:     sourceSpan(elem),
+					Kind:     "binary",
+					Operator: "<",
+					Left:     &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx), InferredType: "number"},
+					Right: &SyntaxExpression{
+						Span:         sourceSpan(elem),
+						Kind:         "property",
+						Text:         "length",
+						Left:         &SyntaxExpression{Span: sourceSpan(elem), Kind: "identifier", Text: arrVar},
+						InferredType: "number",
+					},
+				},
+				Right: &SyntaxExpression{
+					Span:     sourceSpan(elem),
+					Kind:     "binary",
+					Operator: "!==",
+					Left:     itemExpr,
+					Right:    &SyntaxExpression{Span: sourceSpan(elem), Kind: "undefined", Text: "undefined"},
+				},
+			}
+			stmts = append(stmts, SyntaxStatement{
+				Span:       sourceSpan(elem),
+				Kind:       "if",
+				Expression: condExpr,
+				Then: []SyntaxStatement{
+					{
+						Span:       sourceSpan(elem),
+						Kind:       "assign",
+						Name:       tmpVar,
+						Expression: itemExpr,
+					},
+				},
+			})
+			itemExpr = &SyntaxExpression{
+				Span:         sourceSpan(elem),
+				Kind:         "identifier",
+				Text:         tmpVar,
+				InferredType: inferredType,
+			}
+		} else if binding.Initializer != nil {
 			defaultExpr := syntaxExpression(binding.Initializer, chk)
 			itemExpr = &SyntaxExpression{
 				Span:         sourceSpan(elem),
@@ -522,4 +765,29 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 		}
 	}
 	return stmts
+}
+
+func countTupleElements(tupleType string) int {
+	if !strings.HasPrefix(tupleType, "[") || !strings.HasSuffix(tupleType, "]") {
+		return -1
+	}
+	inner := strings.TrimSpace(tupleType[1 : len(tupleType)-1])
+	if inner == "" {
+		return 0
+	}
+	count := 1
+	depth := 0
+	for _, ch := range inner {
+		switch ch {
+		case '[', '{', '(':
+			depth++
+		case ']', '}', ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				count++
+			}
+		}
+	}
+	return count
 }

@@ -3,63 +3,18 @@
 export class Ucs2 {
     decode(str: string): number[] {
         const output: number[] = [];
-        let counter = 0;
-        const length = str.length;
-        while (counter < length) {
-            const b = str.charCodeAt(counter);
-            counter++;
-            if (b < 0x80) {
-                output.push(b);
-            } else if ((b & 0xE0) === 0xC0 && counter < length) {
-                const b2 = str.charCodeAt(counter);
-                counter++;
-                output.push(((b & 0x1F) << 6) | (b2 & 0x3F));
-            } else if ((b & 0xF0) === 0xE0 && counter + 1 < length) {
-                const b2 = str.charCodeAt(counter);
-                counter++;
-                const b3 = str.charCodeAt(counter);
-                counter++;
-                output.push(((b & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
-            } else if ((b & 0xF8) === 0xF0 && counter + 2 < length) {
-                const b2 = str.charCodeAt(counter);
-                counter++;
-                const b3 = str.charCodeAt(counter);
-                counter++;
-                const b4 = str.charCodeAt(counter);
-                counter++;
-                output.push(((b & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F));
-            } else {
-                output.push(b);
-            }
+        for (let i = 0; i < str.length; i++) {
+            output.push(str.charCodeAt(i));
         }
         return output;
     }
 
     encode(codePoints: number[]): string {
-        const bytes: number[] = [];
+        let res = "";
         for (let i = 0; i < codePoints.length; i++) {
-            const cp = codePoints[i];
-            if (cp < 0x80) {
-                bytes.push(cp);
-            } else if (cp < 0x800) {
-                bytes.push(0xC0 | (cp >> 6));
-                bytes.push(0x80 | (cp & 0x3F));
-            } else if (cp < 0x10000) {
-                bytes.push(0xE0 | (cp >> 12));
-                bytes.push(0x80 | ((cp >> 6) & 0x3F));
-                bytes.push(0x80 | (cp & 0x3F));
-            } else {
-                bytes.push(0xF0 | (cp >> 18));
-                bytes.push(0x80 | ((cp >> 12) & 0x3F));
-                bytes.push(0x80 | ((cp >> 6) & 0x3F));
-                bytes.push(0x80 | (cp & 0x3F));
-            }
+            res += String.fromCharCode(codePoints[i]);
         }
-        const buf = Buffer.alloc(bytes.length);
-        for (let i = 0; i < bytes.length; i++) {
-            buf.writeUInt8(bytes[i], i);
-        }
-        return buf.toString("utf8");
+        return res;
     }
 }
 

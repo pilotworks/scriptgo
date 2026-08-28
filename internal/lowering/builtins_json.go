@@ -85,7 +85,7 @@ func lowerJSONStringifyValue(call IntrinsicCall, val string, valType ir.Type) (s
 			Op:     ir.OpCall,
 			Type:   ir.TypeString,
 			Result: res,
-			Callee: "__string.fromNumber",
+			Callee: "__json.stringify_number",
 			Args:   []string{val},
 			Span:   toIRSpan(call.Path, call.Expression.Span),
 		})
@@ -97,7 +97,7 @@ func lowerJSONStringifyValue(call IntrinsicCall, val string, valType ir.Type) (s
 			Op:     ir.OpCall,
 			Type:   ir.TypeString,
 			Result: res,
-			Callee: "__string.fromBool",
+			Callee: "__json.stringify_bool",
 			Args:   []string{val},
 			Span:   toIRSpan(call.Path, call.Expression.Span),
 		})
@@ -334,6 +334,42 @@ func lowerJSONStringifyArray(call IntrinsicCall, arrVal string, elemType ir.Type
 }
 
 func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.ObjectShape) (string, ir.Type, error) {
+	if shape.Name == "Date" {
+		timeVal := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:         ir.OpFieldGet,
+			Type:       ir.TypeNumber,
+			Result:     timeVal,
+			Callee:     "Date",
+			Field:      "time",
+			FieldIndex: 0,
+			Args:       []string{argVal},
+			Span:       toIRSpan(call.Path, call.Expression.Span),
+		})
+		isoStr := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeString,
+			Result: isoStr,
+			Callee: "__date.toISOString",
+			Args:   []string{timeVal},
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		jsonStr := call.Result
+		if jsonStr == "" {
+			jsonStr = nextTemp(call.Counter)
+		}
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeString,
+			Result: jsonStr,
+			Callee: "__json.stringify_string",
+			Args:   []string{isoStr},
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		return jsonStr, ir.TypeString, nil
+	}
+
 	isTuple := isTupleShape(shape)
 	openBracket := "{"
 	closeBracket := "}"
@@ -342,59 +378,25 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 		closeBracket = "]"
 	}
 
-	curr := nextTemp(call.Counter)
+	res := nextTemp(call.Counter)
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
 		Op:     ir.OpConst,
 		Type:   ir.TypeString,
-		Result: curr,
+		Result: res,
 		Value:  openBracket,
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
 
+	hasFieldsConst := nextTemp(call.Counter)
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpConst,
+		Type:   ir.TypeBool,
+		Result: hasFieldsConst,
+		Value:  "false",
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+
 	for i, f := range shape.Fields {
-		if i > 0 {
-			commaConst := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeString,
-				Result: commaConst,
-				Value:  ",",
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			afterComma := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:       ir.OpBinary,
-				Type:     ir.TypeString,
-				Result:   afterComma,
-				Operator: "+",
-				Args:     []string{curr, commaConst},
-				Span:     toIRSpan(call.Path, call.Expression.Span),
-			})
-			curr = afterComma
-		}
-
-		if !isTuple {
-			prefix := fmt.Sprintf("\"%s\":", f.Name)
-			prefConst := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeString,
-				Result: prefConst,
-				Value:  prefix,
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			afterPref := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:       ir.OpBinary,
-				Type:     ir.TypeString,
-				Result:   afterPref,
-				Operator: "+",
-				Args:     []string{curr, prefConst},
-				Span:     toIRSpan(call.Path, call.Expression.Span),
-			})
-			curr = afterPref
-		}
-
 		fVal := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
 			Op:         ir.OpFieldGet,
@@ -407,21 +409,80 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 			Span:       toIRSpan(call.Path, call.Expression.Span),
 		})
 
-		fStr, err := lowerJSONStringifyValue(call, fVal, f.Type)
+		subFunc := &ir.Function{}
+		subCall := call
+		subCall.Function = subFunc
+		fStr, err := lowerJSONStringifyValue(subCall, fVal, f.Type)
 		if err != nil {
 			return "", "", err
 		}
+		call.Function.Body = append(call.Function.Body, subFunc.Body...)
 
-		afterVal := nextTemp(call.Counter)
+		undefStr := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:       ir.OpBinary,
-			Type:     ir.TypeString,
-			Result:   afterVal,
-			Operator: "+",
-			Args:     []string{curr, fStr},
+			Op:     ir.OpConst,
+			Type:   ir.TypeString,
+			Result: undefStr,
+			Value:  "undefined",
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		isNotUndef := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:       ir.OpCompare,
+			Type:     ir.TypeBool,
+			Result:   isNotUndef,
+			Operator: "!=",
+			Args:     []string{fStr, undefStr},
 			Span:     toIRSpan(call.Path, call.Expression.Span),
 		})
-		curr = afterVal
+
+		var thenInstructions []ir.Instruction
+
+		commaConst := nextTemp(call.Counter)
+		afterComma := nextTemp(call.Counter)
+		thenInstructions = append(thenInstructions, ir.Instruction{
+			Op:   ir.OpIf,
+			Type: ir.TypeVoid,
+			Args: []string{hasFieldsConst},
+			Then: []ir.Instruction{
+				{Op: ir.OpConst, Type: ir.TypeString, Result: commaConst, Value: ",", Span: toIRSpan(call.Path, call.Expression.Span)},
+				{Op: ir.OpBinary, Type: ir.TypeString, Result: afterComma, Operator: "+", Args: []string{res, commaConst}, Span: toIRSpan(call.Path, call.Expression.Span)},
+				{Op: ir.OpAssign, Type: ir.TypeString, Result: res, Args: []string{afterComma}, Span: toIRSpan(call.Path, call.Expression.Span)},
+			},
+			Span: toIRSpan(call.Path, call.Expression.Span),
+		})
+
+		if !isTuple {
+			prefix := fmt.Sprintf("\"%s\":", f.Name)
+			prefConst := nextTemp(call.Counter)
+			afterPref := nextTemp(call.Counter)
+			thenInstructions = append(thenInstructions,
+				ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: prefConst, Value: prefix, Span: toIRSpan(call.Path, call.Expression.Span)},
+				ir.Instruction{Op: ir.OpBinary, Type: ir.TypeString, Result: afterPref, Operator: "+", Args: []string{res, prefConst}, Span: toIRSpan(call.Path, call.Expression.Span)},
+				ir.Instruction{Op: ir.OpAssign, Type: ir.TypeString, Result: res, Args: []string{afterPref}, Span: toIRSpan(call.Path, call.Expression.Span)},
+			)
+		}
+
+		afterVal := nextTemp(call.Counter)
+		trueConst := nextTemp(call.Counter)
+		thenInstructions = append(thenInstructions,
+			ir.Instruction{Op: ir.OpBinary, Type: ir.TypeString, Result: afterVal, Operator: "+", Args: []string{res, fStr}, Span: toIRSpan(call.Path, call.Expression.Span)},
+			ir.Instruction{Op: ir.OpAssign, Type: ir.TypeString, Result: res, Args: []string{afterVal}, Span: toIRSpan(call.Path, call.Expression.Span)},
+			ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(call.Path, call.Expression.Span)},
+			ir.Instruction{Op: ir.OpAssign, Type: ir.TypeBool, Result: hasFieldsConst, Args: []string{trueConst}, Span: toIRSpan(call.Path, call.Expression.Span)},
+		)
+
+		if !isTuple {
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:   ir.OpIf,
+				Type: ir.TypeVoid,
+				Args: []string{isNotUndef},
+				Then: thenInstructions,
+				Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+		} else {
+			call.Function.Body = append(call.Function.Body, thenInstructions...)
+		}
 	}
 
 	closeConst := nextTemp(call.Counter)
@@ -432,19 +493,19 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 		Value:  closeBracket,
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
-	res := call.Result
-	if res == "" {
-		res = nextTemp(call.Counter)
+	finalRes := call.Result
+	if finalRes == "" {
+		finalRes = nextTemp(call.Counter)
 	}
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
 		Op:       ir.OpBinary,
 		Type:     ir.TypeString,
-		Result:   res,
+		Result:   finalRes,
 		Operator: "+",
-		Args:     []string{curr, closeConst},
+		Args:     []string{res, closeConst},
 		Span:     toIRSpan(call.Path, call.Expression.Span),
 	})
-	return res, ir.TypeString, nil
+	return finalRes, ir.TypeString, nil
 }
 
 func parseAnonymousObjectShape(shapeName string) (ir.ObjectShape, bool) {

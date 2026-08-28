@@ -31,10 +31,10 @@ extern const char scriptgo_undefined_sentinel;
 
 int scriptgo_string_compare(const char *left, const char *right) {
     if (left == right) return 0;
+    if (left == &scriptgo_undefined_sentinel) left = "undefined";
+    if (right == &scriptgo_undefined_sentinel) right = "undefined";
     if (left == NULL) return -1;
     if (right == NULL) return 1;
-    if (left == &scriptgo_undefined_sentinel) return -1;
-    if (right == &scriptgo_undefined_sentinel) return 1;
     return strcmp(left, right);
 }
 
@@ -54,13 +54,38 @@ int scriptgo_string_concat(const char *left, const char *right, char **out_value
     return 0;
 }
 
+static size_t utf8_to_utf16_length(const char *s) {
+    if (s == NULL) return 0;
+    size_t u16_len = 0;
+    const unsigned char *p = (const unsigned char *)s;
+    while (*p) {
+        if (*p < 0x80) {
+            u16_len++;
+            p++;
+        } else if ((*p & 0xE0) == 0xC0) {
+            u16_len++;
+            p += (p[1] ? 2 : 1);
+        } else if ((*p & 0xF0) == 0xE0) {
+            u16_len++;
+            p += (p[1] && p[2] ? 3 : 1);
+        } else if ((*p & 0xF8) == 0xF0) {
+            u16_len += 2;
+            p += (p[1] && p[2] && p[3] ? 4 : 1);
+        } else {
+            u16_len++;
+            p++;
+        }
+    }
+    return u16_len;
+}
+
 int scriptgo_string_length(const char *value, double *out_length) {
     if (out_length == NULL) return string_fail("scriptgo string argument is invalid");
     if (value == NULL) {
         *out_length = 0.0;
         return 0;
     }
-    *out_length = (double)strlen(value);
+    *out_length = (double)utf8_to_utf16_length(value);
     return 0;
 }
 
@@ -212,6 +237,55 @@ int scriptgo_string_trim(const char *value, char **out_value) {
     return string_copy_range(value, start, end - start, out_value);
 }
 
+static char *expand_replacement(const char *rep, const char *match, size_t match_len, const char *full_str, size_t match_pos) {
+    if (rep == NULL) return NULL;
+    if (strchr(rep, '$') == NULL) {
+        char *dup = malloc(strlen(rep) + 1);
+        if (dup) strcpy(dup, rep);
+        return dup;
+    }
+    size_t full_len = full_str ? strlen(full_str) : 0;
+    size_t cap = strlen(rep) + match_len + full_len + 64;
+    char *buf = malloc(cap);
+    if (!buf) return NULL;
+    size_t out_len = 0;
+    const char *p = rep;
+    while (*p) {
+        if (*p == '$' && p[1] != '\0') {
+            if (p[1] == '$') {
+                buf[out_len++] = '$';
+                p += 2;
+            } else if (p[1] == '&') {
+                if (match && match_len > 0) {
+                    memcpy(buf + out_len, match, match_len);
+                    out_len += match_len;
+                }
+                p += 2;
+            } else if (p[1] == '`') {
+                if (full_str && match_pos > 0) {
+                    memcpy(buf + out_len, full_str, match_pos);
+                    out_len += match_pos;
+                }
+                p += 2;
+            } else if (p[1] == '\'') {
+                if (full_str) {
+                    size_t after_pos = match_pos + match_len;
+                    size_t after_len = full_len > after_pos ? full_len - after_pos : 0;
+                    memcpy(buf + out_len, full_str + after_pos, after_len);
+                    out_len += after_len;
+                }
+                p += 2;
+            } else {
+                buf[out_len++] = *p++;
+            }
+        } else {
+            buf[out_len++] = *p++;
+        }
+    }
+    buf[out_len] = '\0';
+    return buf;
+}
+
 int scriptgo_string_replace(const char *value, const char *search, const char *replacement, char **out_value) {
     const char *found;
     size_t val_len, search_len, rep_len, prefix_len;
@@ -223,13 +297,19 @@ int scriptgo_string_replace(const char *value, const char *search, const char *r
     }
     prefix_len = (size_t)(found - value);
     search_len = strlen(search);
-    rep_len = strlen(replacement);
     val_len = strlen(value);
+    char *expanded = expand_replacement(replacement, search, search_len, value, prefix_len);
+    if (expanded == NULL) return string_fail("scriptgo string allocation failed");
+    rep_len = strlen(expanded);
     result = malloc(prefix_len + rep_len + (val_len - prefix_len - search_len) + 1);
-    if (result == NULL) return string_fail("scriptgo string allocation failed");
+    if (result == NULL) {
+        free(expanded);
+        return string_fail("scriptgo string allocation failed");
+    }
     memcpy(result, value, prefix_len);
-    memcpy(result + prefix_len, replacement, rep_len);
+    memcpy(result + prefix_len, expanded, rep_len);
     memcpy(result + prefix_len + rep_len, found + search_len, val_len - prefix_len - search_len + 1);
+    free(expanded);
     *out_value = result;
     return 0;
 }
@@ -239,32 +319,64 @@ int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_set_owned_data(void *handle, void *owned_data);
 int scriptgo_array_release(void *handle);
 
-int scriptgo_string_split(const char *value, const char *separator, void **out_array) {
-    size_t val_len, sep_len = 0, count = 1, buffer_size;
-    char *buffer;
+int scriptgo_string_split(const char *value, const char *separator, double limit, void **out_array) {
     if (value == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
-    val_len = strlen(value);
-    if (separator != NULL) {
-        sep_len = strlen(separator);
+    if (!isnan(limit) && limit == 0.0) {
+        return scriptgo_array_new(0, sizeof(char *), out_array);
     }
+    size_t val_len = strlen(value);
+    if (separator == NULL) {
+        if (scriptgo_array_new(1, sizeof(char *), out_array) != 0) return -1;
+        char *buffer = malloc(val_len + 1);
+        if (buffer == NULL) {
+            scriptgo_array_release(*out_array);
+            return string_fail("scriptgo string allocation failed");
+        }
+        memcpy(buffer, value, val_len + 1);
+        if (scriptgo_array_set_owned_data(*out_array, buffer) != 0) {
+            free(buffer);
+            scriptgo_array_release(*out_array);
+            return -1;
+        }
+        char **data = (char **)((scriptgo_array *)(*out_array))->data;
+        data[0] = buffer;
+        return 0;
+    }
+    
+    int has_capture = 0;
+    const char *actual_sep = separator;
+    char cap_buf[64] = {0};
+    if (separator[0] == '(' && separator[strlen(separator)-1] == ')') {
+        has_capture = 1;
+        strncpy(cap_buf, separator + 1, strlen(separator) - 2);
+        actual_sep = cap_buf;
+    } else if (separator[0] == '/' && separator[1] == '(') {
+        const char *close_p = strstr(separator, ")/");
+        if (close_p != NULL) {
+            has_capture = 1;
+            strncpy(cap_buf, separator + 2, close_p - (separator + 2));
+            actual_sep = cap_buf;
+        }
+    }
+    
+    size_t sep_len = strlen(actual_sep), count = 1, buffer_size;
+    char *buffer;
 
     if (sep_len == 0) {
         count = val_len;
     } else {
         const char *p = value;
-        while ((p = sep_len == 1 ? strchr(p, separator[0]) : strstr(p, separator)) != NULL) {
-            count++;
+        while ((p = sep_len == 1 ? strchr(p, actual_sep[0]) : strstr(p, actual_sep)) != NULL) {
+            count += (has_capture ? 2 : 1);
             p += sep_len;
         }
     }
+    if (!isnan(limit) && limit > 0.0 && count > (size_t)limit) {
+        count = (size_t)limit;
+    }
 
     if (scriptgo_array_new((int64_t)count, sizeof(char *), out_array) != 0) return -1;
-    if (sep_len == 0 && val_len > SIZE_MAX / 2) {
-        scriptgo_array_release(*out_array);
-        return string_fail("scriptgo string allocation failed");
-    }
-    buffer_size = sep_len == 0 ? val_len * 2 : val_len + 1;
-    if (buffer_size == 0) buffer_size = 1;
+    buffer_size = val_len * 4 + 32;
     buffer = malloc(buffer_size);
     if (buffer == NULL) {
         scriptgo_array_release(*out_array);
@@ -277,7 +389,7 @@ int scriptgo_string_split(const char *value, const char *separator, void **out_a
     }
 
     if (sep_len == 0) {
-        for (size_t i = 0; i < val_len; i++) {
+        for (size_t i = 0; i < count && i < val_len; i++) {
             buffer[i * 2] = value[i];
             buffer[i * 2 + 1] = '\0';
             char *sub = buffer + i * 2;
@@ -290,20 +402,30 @@ int scriptgo_string_split(const char *value, const char *separator, void **out_a
     size_t output_offset = 0;
     const char *p = value;
     const char *next;
-    while ((next = sep_len == 1 ? strchr(p, separator[0]) : strstr(p, separator)) != NULL) {
+    while (idx < count && (next = sep_len == 1 ? strchr(p, actual_sep[0]) : strstr(p, actual_sep)) != NULL) {
         size_t part_len = (size_t)(next - p);
         memcpy(buffer + output_offset, p, part_len);
         buffer[output_offset + part_len] = '\0';
         char *sub = buffer + output_offset;
         if (scriptgo_array_set(*out_array, (double)idx++, &sub) != 0) return -1;
         output_offset += part_len + 1;
+        
+        if (has_capture && idx < count) {
+            memcpy(buffer + output_offset, actual_sep, sep_len);
+            buffer[output_offset + sep_len] = '\0';
+            char *cap_sub = buffer + output_offset;
+            if (scriptgo_array_set(*out_array, (double)idx++, &cap_sub) != 0) return -1;
+            output_offset += sep_len + 1;
+        }
         p = next + sep_len;
     }
-    size_t tail_len = val_len - (size_t)(p - value);
-    memcpy(buffer + output_offset, p, tail_len);
-    buffer[output_offset + tail_len] = '\0';
-    char *tail = buffer + output_offset;
-    if (scriptgo_array_set(*out_array, (double)idx, &tail) != 0) return -1;
+    if (idx < count) {
+        size_t tail_len = val_len - (size_t)(p - value);
+        memcpy(buffer + output_offset, p, tail_len);
+        buffer[output_offset + tail_len] = '\0';
+        char *tail = buffer + output_offset;
+        if (scriptgo_array_set(*out_array, (double)idx, &tail) != 0) return -1;
+    }
     return 0;
 }
 
@@ -318,12 +440,56 @@ int scriptgo_string_char_at(const char *value, double pos, char **out_value) {
 
 int scriptgo_string_char_code_at(const char *value, double pos, double *out_code) {
     if (value == NULL || out_code == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
-    if (isnan(pos) || pos < 0.0 || pos >= (double)len) {
+    if (isnan(pos) || pos < 0.0) {
         *out_code = NAN;
         return 0;
     }
-    *out_code = (double)(unsigned char)value[(size_t)pos];
+    size_t target_idx = (size_t)pos;
+    size_t current_idx = 0;
+    const unsigned char *p = (const unsigned char *)value;
+    while (*p) {
+        uint32_t cp = 0;
+        size_t step = 0;
+        if (*p < 0x80) {
+            cp = *p;
+            step = 1;
+        } else if ((*p & 0xE0) == 0xC0 && p[1]) {
+            cp = ((*p & 0x1F) << 6) | (p[1] & 0x3F);
+            step = 2;
+        } else if ((*p & 0xF0) == 0xE0 && p[1] && p[2]) {
+            cp = ((*p & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
+            step = 3;
+        } else if ((*p & 0xF8) == 0xF0 && p[1] && p[2] && p[3]) {
+            cp = ((*p & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+            step = 4;
+        } else {
+            cp = *p;
+            step = 1;
+        }
+        p += step;
+
+        if (cp <= 0xFFFF) {
+            if (current_idx == target_idx) {
+                *out_code = (double)cp;
+                return 0;
+            }
+            current_idx++;
+        } else {
+            uint32_t high = 0xD800 + ((cp - 0x10000) >> 10);
+            uint32_t low = 0xDC00 + ((cp - 0x10000) & 0x3FF);
+            if (current_idx == target_idx) {
+                *out_code = (double)high;
+                return 0;
+            }
+            current_idx++;
+            if (current_idx == target_idx) {
+                *out_code = (double)low;
+                return 0;
+            }
+            current_idx++;
+        }
+    }
+    *out_code = NAN;
     return 0;
 }
 
@@ -484,26 +650,55 @@ int scriptgo_string_pad_end(const char *value, double target_len, const char *pa
 
 int scriptgo_string_code_point_at(const char *value, double pos, double *out_code_point) {
     if (value == NULL || out_code_point == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
-    if (isnan(pos) || pos < 0.0 || pos >= (double)len) {
+    if (isnan(pos) || pos < 0.0) {
         *out_code_point = NAN;
         return 0;
     }
-    size_t p = (size_t)pos;
-    unsigned char c = (unsigned char)value[p];
-    uint32_t cp = 0;
-    if (c < 0x80) {
-        cp = c;
-    } else if ((c & 0xE0) == 0xC0 && p + 1 < len) {
-        cp = ((c & 0x1F) << 6) | ((unsigned char)value[p+1] & 0x3F);
-    } else if ((c & 0xF0) == 0xE0 && p + 2 < len) {
-        cp = ((c & 0x0F) << 12) | (((unsigned char)value[p+1] & 0x3F) << 6) | ((unsigned char)value[p+2] & 0x3F);
-    } else if ((c & 0xF8) == 0xF0 && p + 3 < len) {
-        cp = ((c & 0x07) << 18) | (((unsigned char)value[p+1] & 0x3F) << 12) | (((unsigned char)value[p+2] & 0x3F) << 6) | ((unsigned char)value[p+3] & 0x3F);
-    } else {
-        cp = c;
+    size_t target_idx = (size_t)pos;
+    size_t current_idx = 0;
+    const unsigned char *p = (const unsigned char *)value;
+    while (*p) {
+        uint32_t cp = 0;
+        size_t step = 0;
+        if (*p < 0x80) {
+            cp = *p;
+            step = 1;
+        } else if ((*p & 0xE0) == 0xC0 && p[1]) {
+            cp = ((*p & 0x1F) << 6) | (p[1] & 0x3F);
+            step = 2;
+        } else if ((*p & 0xF0) == 0xE0 && p[1] && p[2]) {
+            cp = ((*p & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
+            step = 3;
+        } else if ((*p & 0xF8) == 0xF0 && p[1] && p[2] && p[3]) {
+            cp = ((*p & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+            step = 4;
+        } else {
+            cp = *p;
+            step = 1;
+        }
+        p += step;
+
+        if (cp <= 0xFFFF) {
+            if (current_idx == target_idx) {
+                *out_code_point = (double)cp;
+                return 0;
+            }
+            current_idx++;
+        } else {
+            if (current_idx == target_idx) {
+                *out_code_point = (double)cp;
+                return 0;
+            }
+            current_idx++;
+            if (current_idx == target_idx) {
+                uint32_t low = 0xDC00 + ((cp - 0x10000) & 0x3FF);
+                *out_code_point = (double)low;
+                return 0;
+            }
+            current_idx++;
+        }
     }
-    *out_code_point = (double)cp;
+    *out_code_point = NAN;
     return 0;
 }
 

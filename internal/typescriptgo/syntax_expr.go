@@ -138,11 +138,48 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Kind:         "array",
 			InferredType: "string[]",
 		}
+		isRaw := false
+		if tagged.Tag != nil {
+			if tagged.Tag.Kind == ast.KindIdentifier && tagged.Tag.Text() == "raw" {
+				isRaw = true
+			} else if tagged.Tag.Kind == ast.KindPropertyAccessExpression {
+				prop := tagged.Tag.AsPropertyAccessExpression()
+				if prop != nil && prop.Name() != nil && prop.Name().Text() == "raw" && prop.Expression != nil && prop.Expression.Kind == ast.KindIdentifier && prop.Expression.Text() == "String" {
+					isRaw = true
+				}
+			}
+		}
+		extractRaw := func(n *ast.Node) string {
+			if n == nil {
+				return ""
+			}
+			sf := ast.GetSourceFileOfNode(n)
+			if sf == nil {
+				return n.Text()
+			}
+			src := sf.Text()
+			pos := n.Pos()
+			end := n.End()
+			if pos < 0 || end > len(src) || pos >= end {
+				return n.Text()
+			}
+			piece := src[pos:end]
+			piece = strings.TrimPrefix(piece, "`")
+			piece = strings.TrimPrefix(piece, "}")
+			piece = strings.TrimSuffix(piece, "`")
+			piece = strings.TrimSuffix(piece, "${")
+			return piece
+		}
+
 		if tagged.Template.Kind == ast.KindNoSubstitutionTemplateLiteral {
+			txt := tagged.Template.Text()
+			if isRaw {
+				txt = extractRaw(tagged.Template)
+			}
 			stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
 				Span:         sourceSpan(tagged.Template),
 				Kind:         "string",
-				Text:         tagged.Template.Text(),
+				Text:         txt,
 				InferredType: "string",
 			})
 			result.Arguments = append(result.Arguments, stringsArray)
@@ -150,7 +187,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			tpl := tagged.Template.AsTemplateExpression()
 			headText := ""
 			if tpl.Head != nil {
-				headText = tpl.Head.Text()
+				if isRaw {
+					headText = extractRaw(tpl.Head)
+				} else {
+					headText = tpl.Head.Text()
+				}
 			}
 			stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
 				Span:         sourceSpan(tpl.Head),
@@ -167,7 +208,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 					}
 					litText := ""
 					if span.Literal != nil {
-						litText = span.Literal.Text()
+						if isRaw {
+							litText = extractRaw(span.Literal)
+						} else {
+							litText = span.Literal.Text()
+						}
 					}
 					stringsArray.Arguments = append(stringsArray.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(span.Literal),
@@ -379,9 +424,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		if b := node.Body(); b != nil {
 			if b.Kind == ast.KindBlock {
 				for _, statement := range b.Statements() {
-					if converted, ok := syntaxStatement(statement, chk); ok {
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&body, statement, chk)
 				}
 			} else {
 				body = append(body, SyntaxStatement{

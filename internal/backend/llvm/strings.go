@@ -277,10 +277,18 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			current = stepResult
 		}
 	case "__string.split":
-		if len(instruction.Args) != 2 || instruction.Type != ir.TypeStringArray {
+		if len(instruction.Args) < 1 || len(instruction.Args) > 3 || instruction.Type != ir.TypeStringArray {
 			return fmt.Errorf("string.split has invalid signature")
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1])
+		sepArg := "null"
+		if len(instruction.Args) >= 2 {
+			sepArg = "%" + instruction.Args[1]
+		}
+		limitArg := "-1.000000e+00"
+		if len(instruction.Args) >= 3 {
+			limitArg = "%" + instruction.Args[2]
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %s, double %s, ptr %%__slot_ptr)\n", status, instruction.Args[0], sepArg, limitArg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.fromBigInt":
@@ -514,7 +522,52 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			statusRaw := fmt.Sprintf("%s.raw.status", instruction.Result)
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double 0.0, ptr %%__slot_ptr)\n", statusRaw, instruction.Args[0])
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusRaw)
-			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+			currentStr := fmt.Sprintf("%s.str.0", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", currentStr)
+
+			for i := 1; i < len(instruction.Args); i++ {
+				subArg := instruction.Args[i]
+				subTyp := e.types[subArg]
+				subStrVar := fmt.Sprintf("%s.sub.%d", instruction.Result, i)
+				if subTyp == ir.TypeNumber {
+					subStatus := fmt.Sprintf("%s.sub_status.%d", instruction.Result, i)
+					fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_number(double %%%s, ptr %%__slot_ptr)\n", subStatus, subArg)
+					fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", subStatus)
+					fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", subStrVar)
+				} else if subTyp == ir.TypeBigInt {
+					subStatus := fmt.Sprintf("%s.sub_status.%d", instruction.Result, i)
+					fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%__slot_ptr)\n", subStatus, subArg)
+					fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", subStatus)
+					fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", subStrVar)
+				} else {
+					subStrVar = subArg
+				}
+
+				concat1 := fmt.Sprintf("%s.concat1.%d", instruction.Result, i)
+				concat1Status := fmt.Sprintf("%s.concat1_status.%d", instruction.Result, i)
+				concat1Slot := fmt.Sprintf("%s.concat1_slot.%d", instruction.Result, i)
+				fmt.Fprintf(out, "  %%%s = alloca ptr\n", concat1Slot)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", concat1Status, currentStr, subStrVar, concat1Slot)
+				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", concat1Status)
+				fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", concat1, concat1Slot)
+				currentStr = concat1
+
+				litGetStatus := fmt.Sprintf("%s.lit_get_status.%d", instruction.Result, i)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %f, ptr %%__slot_ptr)\n", litGetStatus, instruction.Args[0], float64(i))
+				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", litGetStatus)
+				litStr := fmt.Sprintf("%s.lit_str.%d", instruction.Result, i)
+				fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", litStr)
+
+				concat2 := fmt.Sprintf("%s.concat2.%d", instruction.Result, i)
+				concat2Status := fmt.Sprintf("%s.concat2_status.%d", instruction.Result, i)
+				concat2Slot := fmt.Sprintf("%s.concat2_slot.%d", instruction.Result, i)
+				fmt.Fprintf(out, "  %%%s = alloca ptr\n", concat2Slot)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_concat(ptr %%%s, ptr %%%s, ptr %%%s)\n", concat2Status, currentStr, litStr, concat2Slot)
+				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", concat2Status)
+				fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", concat2, concat2Slot)
+				currentStr = concat2
+			}
+			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, currentStr)
 		} else {
 			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0])
 		}

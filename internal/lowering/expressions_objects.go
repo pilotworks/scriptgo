@@ -125,15 +125,29 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 			}
 			continue
 		}
-		if parentShape != nil && prop.Left != nil && prop.Left.Kind == "object_literal" && (prop.Left.InferredType == "" || strings.HasPrefix(prop.Left.InferredType, "{") || prop.Left.InferredType == "object") {
-			for _, pf := range parentShape.Fields {
-				if pf.Name == prop.Text {
-					t := strings.TrimPrefix(string(pf.Type), "object:")
-					if t == "" || t == "object" {
-						t = cleanParent
+		if parentShape != nil && prop.Left != nil {
+			if prop.Left.Kind == "object_literal" && (prop.Left.InferredType == "" || strings.HasPrefix(prop.Left.InferredType, "{") || prop.Left.InferredType == "object") {
+				for _, pf := range parentShape.Fields {
+					if pf.Name == prop.Text {
+						t := strings.TrimPrefix(string(pf.Type), "object:")
+						if t == "" || t == "object" {
+							t = cleanParent
+						}
+						prop.Left.InferredType = t
+						break
 					}
-					prop.Left.InferredType = t
-					break
+				}
+			} else if prop.Left.Kind == "array" {
+				for _, pf := range parentShape.Fields {
+					if pf.Name == prop.Text {
+						pfShape := strings.TrimPrefix(string(pf.Type), "object:")
+						if (shapes != nil && shapes[pfShape].Fields != nil && len(shapes[pfShape].Fields) > 0 && shapes[pfShape].Fields[0].Name == "0") || strings.HasPrefix(pfShape, "__shape_0_") {
+							prop.Left.InferredType = string(pf.Type)
+						} else if prop.Left.InferredType == "" || prop.Left.InferredType == "unknown[]" || prop.Left.InferredType == "never[]" {
+							prop.Left.InferredType = string(pf.Type)
+						}
+						break
+					}
 				}
 			}
 		}
@@ -203,6 +217,18 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				if allFound {
 					targetS = &s
 				}
+			}
+		}
+		if targetS == nil && (strings.Contains(cleanInf, "&") || (typeAliasesIndex != nil && (strings.Contains(typeAliasesIndex[cleanInf], "&") || typeAliasesIndex[cleanInf] != ""))) {
+			interStr := cleanInf
+			if typeAliasesIndex != nil && typeAliasesIndex[cleanInf] != "" {
+				interStr = typeAliasesIndex[cleanInf]
+			}
+			if fields, okF := resolveShapeFields(interStr, shapes); okF {
+				shape := ir.ObjectShape{Name: cleanInf, Fields: fields}
+				shapes[cleanInf] = shape
+				shapes[interStr] = shape
+				targetS = &shape
 			}
 		}
 		if targetS == nil && (strings.Contains(cleanInf, "|") || (typeAliasesIndex != nil && strings.Contains(typeAliasesIndex[cleanInf], "|"))) {

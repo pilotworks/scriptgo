@@ -234,7 +234,7 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 			return ir.TypeBoolArray
 		case ir.TypeBigInt:
 			return ir.TypeBigIntArray
-		case ir.TypeUnknown:
+		case ir.TypeUnknown, "never", "object:never":
 			return ir.TypeUnknownArray
 		default:
 			return ir.Type(string(elemType) + "[]")
@@ -253,24 +253,12 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeBool
 	}
 	if strings.Contains(value, "&") && !strings.Contains(value, "=>") {
-		parts := strings.Split(value, "&")
-		var mergedFields []ir.Field
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			pType := toIRTypeInternal(p, visited)
-			shapeName := strings.TrimPrefix(string(pType), "object:")
-			if s, ok := registeredShapes[shapeName]; ok {
-				mergedFields = append(mergedFields, s.Fields...)
-			} else if s, ok := anonymousShapes[shapeName]; ok {
-				mergedFields = append(mergedFields, s.Fields...)
-			}
-		}
-		if len(mergedFields) > 0 {
-			shapeName := anonymousShapeName(mergedFields)
+		if fields, ok := anonymousObjectFields(value, visited); ok && len(fields) > 0 {
+			shapeName := anonymousShapeName(fields)
 			if _, ok := anonymousShapes[shapeName]; !ok {
 				anonymousShapes[shapeName] = ir.ObjectShape{
 					Name:   shapeName,
-					Fields: mergedFields,
+					Fields: fields,
 				}
 			}
 			return ir.Type("object:" + shapeName)
@@ -764,12 +752,74 @@ func splitTopLevelUnion(s string) []string {
 	return parts
 }
 
+func splitTopLevelIntersection(s string) []string {
+	var parts []string
+	var cur strings.Builder
+	depthBrace := 0
+	depthBracket := 0
+	depthAngle := 0
+	depthParen := 0
+
+	for _, r := range s {
+		switch r {
+		case '{':
+			depthBrace++
+			cur.WriteRune(r)
+		case '}':
+			depthBrace--
+			cur.WriteRune(r)
+		case '[':
+			depthBracket++
+			cur.WriteRune(r)
+		case ']':
+			depthBracket--
+			cur.WriteRune(r)
+		case '<':
+			depthAngle++
+			cur.WriteRune(r)
+		case '>':
+			depthAngle--
+			cur.WriteRune(r)
+		case '(':
+			depthParen++
+			cur.WriteRune(r)
+		case ')':
+			depthParen--
+			cur.WriteRune(r)
+		case '&':
+			if depthBrace == 0 && depthBracket == 0 && depthAngle == 0 && depthParen == 0 {
+				if cur.Len() > 0 {
+					trimmed := strings.TrimSpace(cur.String())
+					if trimmed != "" {
+						parts = append(parts, trimmed)
+					}
+					cur.Reset()
+				}
+			} else {
+				cur.WriteRune(r)
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		trimmed := strings.TrimSpace(cur.String())
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
 func tupleFields(typeStr string) ([]ir.Field, bool) {
 	typeStr = strings.TrimSpace(typeStr)
 	typeStr = strings.TrimPrefix(typeStr, "readonly ")
 	if strings.HasPrefix(typeStr, "Readonly<") && strings.HasSuffix(typeStr, ">") {
 		typeStr = strings.TrimSuffix(strings.TrimPrefix(typeStr, "Readonly<"), ">")
 		typeStr = strings.TrimSpace(typeStr)
+	}
+	if typeAliasesIndex != nil && typeAliasesIndex[typeStr] != "" {
+		return tupleFields(typeAliasesIndex[typeStr])
 	}
 	if strings.HasSuffix(typeStr, "[]") || !strings.HasPrefix(typeStr, "[") || !strings.HasSuffix(typeStr, "]") {
 		return nil, false
@@ -806,7 +856,40 @@ func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field,
 	if strings.Contains(typeStr, "|") && len(splitTopLevelUnion(typeStr)) > 1 {
 		return nil, false
 	}
+	if strings.Contains(typeStr, "&") {
+		interParts := splitTopLevelIntersection(typeStr)
+		if len(interParts) > 1 {
+			var allFields []ir.Field
+			seenFields := make(map[string]bool)
+			for _, ip := range interParts {
+				if fList, ok := anonymousObjectFields(strings.TrimSpace(ip), visited); ok {
+					for _, f := range fList {
+						if !seenFields[f.Name] {
+							seenFields[f.Name] = true
+							allFields = append(allFields, f)
+						}
+					}
+				}
+			}
+			if len(allFields) > 0 {
+				return allFields, true
+			}
+		}
+	}
 	if !strings.HasPrefix(typeStr, "{") || !strings.HasSuffix(typeStr, "}") {
+		clean := strings.TrimSpace(strings.TrimPrefix(typeStr, "object:"))
+		if s, ok := registeredShapes[clean]; ok {
+			return s.Fields, true
+		}
+		if typeAliasesIndex != nil && typeAliasesIndex[clean] != "" {
+			if visited == nil {
+				visited = make(map[string]bool)
+			}
+			if !visited[clean] {
+				visited[clean] = true
+				return anonymousObjectFields(typeAliasesIndex[clean], visited)
+			}
+		}
 		return nil, false
 	}
 	inner := strings.TrimSpace(typeStr[1 : len(typeStr)-1])
@@ -965,4 +1048,46 @@ func isReturningClosure(stmt typescriptgo.SyntaxStatement) bool {
 		return isReturningClosure(*stmt.Expression.Function)
 	}
 	return false
+}
+
+func isTupleShapeName(shapeName string) bool {
+	if s, ok := registeredShapes[shapeName]; ok && isTupleShape(s) {
+		return true
+	}
+	if s, ok := anonymousShapes[shapeName]; ok && isTupleShape(s) {
+		return true
+	}
+	return false
+}
+
+func tupleCommonElementType(shapeName string) ir.Type {
+	var s ir.ObjectShape
+	if shape, ok := registeredShapes[shapeName]; ok {
+		s = shape
+	} else if shape, ok := anonymousShapes[shapeName]; ok {
+		s = shape
+	} else {
+		return ir.TypeUnknownArray
+	}
+	if len(s.Fields) == 0 {
+		return ir.TypeUnknownArray
+	}
+	firstType := s.Fields[0].Type
+	for i := 1; i < len(s.Fields); i++ {
+		if s.Fields[i].Type != firstType {
+			return ir.TypeUnknownArray
+		}
+	}
+	switch firstType {
+	case ir.TypeNumber:
+		return ir.TypeNumberArray
+	case ir.TypeString:
+		return ir.TypeStringArray
+	case ir.TypeBool:
+		return ir.TypeBoolArray
+	case ir.TypeBigInt:
+		return ir.TypeBigIntArray
+	default:
+		return ir.Type(string(firstType) + "[]")
+	}
 }

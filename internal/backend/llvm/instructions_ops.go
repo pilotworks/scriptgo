@@ -20,7 +20,7 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		if err != nil {
 			return fmt.Errorf("invalid number %q: %w", instruction.Value, err)
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, %s\n", instruction.Result, llvmNumber(number)))
+		out.WriteString(fmt.Sprintf("  %%%s = fadd double -0.0, %s\n", instruction.Result, llvmNumber(number)))
 	case ir.TypeString:
 		if instruction.Value == "null" {
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
@@ -160,6 +160,11 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 		return nil
 	}
 	if leftType == ir.TypeBigInt {
+		if instruction.Operator == "**" {
+			e.types[instruction.Result] = instruction.Type
+			out.WriteString(fmt.Sprintf("  %%%s = call i64 @scriptgo_bigint_pow(i64 %%%s, i64 %%%s)\n", instruction.Result, arg0, arg1))
+			return nil
+		}
 		if op, ok := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "sdiv", "%": "srem", "&": "and", "|": "or", "^": "xor", "<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
 			e.types[instruction.Result] = instruction.Type
 			out.WriteString(fmt.Sprintf("  %%%s = %s i64 %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
@@ -172,7 +177,7 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if instruction.Operator == "**" {
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = call double @llvm.pow.f64(double %%%s, double %%%s)\n", instruction.Result, arg0, arg1))
+		out.WriteString(fmt.Sprintf("  %%%s = call double @scriptgo_math_pow(double %%%s, double %%%s)\n", instruction.Result, arg0, arg1))
 		return nil
 	}
 	if op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]; ok {
@@ -749,7 +754,15 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	}
 	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, argVal))
 	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", rawPayload, argVal))
-	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %d\n", cmpVar, tagVar, expectedTag))
+	if instruction.Type == ir.TypeClosure {
+		cmpFn := fmt.Sprintf("cast.cmp_fn.%d", id)
+		cmpObj := fmt.Sprintf("cast.cmp_obj.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 7\n", cmpFn, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 5\n", cmpObj, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpVar, cmpFn, cmpObj))
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %d\n", cmpVar, tagVar, expectedTag))
+	}
 	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, 0\n", isNullVar, rawPayload))
 	out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpFinal, cmpVar, isNullVar))
 	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", cmpFinal, castOk, castFail))

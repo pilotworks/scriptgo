@@ -16,16 +16,24 @@ typedef struct {
     void *env;
 } scriptgo_closure_inner;
 
+typedef struct scriptgo_reaction {
+    scriptgo_closure_inner *on_fulfilled;
+    scriptgo_closure_inner *on_rejected;
+    struct scriptgo_reaction *next;
+} scriptgo_reaction;
+
 typedef struct scriptgo_promise {
     scriptgo_promise_state state;
     void *ptr_value;
     double num_value;
-    int is_number;
-    scriptgo_closure_inner *on_fulfilled;
-    scriptgo_closure_inner *on_rejected;
+    uint32_t tag;
+    int is_queued;
+    scriptgo_reaction *reactions_head;
+    scriptgo_reaction *reactions_tail;
 } scriptgo_promise;
 
 typedef struct scriptgo_microtask {
+    scriptgo_promise *promise;
     scriptgo_closure_inner *closure;
     void *ptr_arg;
     double num_arg;
@@ -36,44 +44,54 @@ typedef struct scriptgo_microtask {
 static scriptgo_microtask *microtask_head = NULL;
 static scriptgo_microtask *microtask_tail = NULL;
 
+static void queue_microtask_node(scriptgo_microtask *task) {
+    task->next = NULL;
+    if (microtask_tail != NULL) {
+        microtask_tail->next = task;
+        microtask_tail = task;
+    } else {
+        microtask_head = task;
+        microtask_tail = task;
+    }
+}
+
 int scriptgo_queue_microtask(void *closure_handle, void *arg) {
-    scriptgo_microtask *task;
     if (closure_handle == NULL) return 0;
-    task = malloc(sizeof(scriptgo_microtask));
+    scriptgo_microtask *task = malloc(sizeof(scriptgo_microtask));
     if (task == NULL) return scriptgo_runtime_set_error("scriptgo microtask allocation failed");
+    task->promise = NULL;
     task->closure = (scriptgo_closure_inner *)closure_handle;
     task->ptr_arg = arg;
     task->num_arg = 0.0;
     task->is_number = 0;
-    task->next = NULL;
-    if (microtask_tail != NULL) {
-        microtask_tail->next = task;
-        microtask_tail = task;
-    } else {
-        microtask_head = task;
-        microtask_tail = task;
-    }
+    queue_microtask_node(task);
     return 0;
 }
 
 int scriptgo_queue_microtask_number(void *closure_handle, double value) {
-    scriptgo_microtask *task;
     if (closure_handle == NULL) return 0;
-    task = malloc(sizeof(scriptgo_microtask));
+    scriptgo_microtask *task = malloc(sizeof(scriptgo_microtask));
     if (task == NULL) return scriptgo_runtime_set_error("scriptgo microtask allocation failed");
+    task->promise = NULL;
     task->closure = (scriptgo_closure_inner *)closure_handle;
     task->ptr_arg = NULL;
     task->num_arg = value;
     task->is_number = 1;
-    task->next = NULL;
-    if (microtask_tail != NULL) {
-        microtask_tail->next = task;
-        microtask_tail = task;
-    } else {
-        microtask_head = task;
-        microtask_tail = task;
-    }
+    queue_microtask_node(task);
     return 0;
+}
+
+static void scriptgo_queue_promise_reactions(scriptgo_promise *p) {
+    if (p == NULL || p->reactions_head == NULL || p->is_queued) return;
+    scriptgo_microtask *task = malloc(sizeof(scriptgo_microtask));
+    if (task == NULL) return;
+    p->is_queued = 1;
+    task->promise = p;
+    task->closure = NULL;
+    task->ptr_arg = NULL;
+    task->num_arg = 0.0;
+    task->is_number = 0;
+    queue_microtask_node(task);
 }
 
 int scriptgo_event_loop_run(void) {
@@ -83,7 +101,57 @@ int scriptgo_event_loop_run(void) {
         if (microtask_head == NULL) {
             microtask_tail = NULL;
         }
-        if (task->closure != NULL && task->closure->fn_ptr != NULL) {
+        if (task->promise != NULL) {
+            scriptgo_promise *p = task->promise;
+            p->is_queued = 0;
+            scriptgo_reaction *r = p->reactions_head;
+            if (r != NULL) {
+                p->reactions_head = r->next;
+                if (p->reactions_head == NULL) {
+                    p->reactions_tail = NULL;
+                }
+                if (p->state == PROMISE_FULFILLED && r->on_fulfilled != NULL && r->on_fulfilled->fn_ptr != NULL) {
+                    uint64_t payload = 0;
+                    uint32_t tag = p->tag;
+                    if (tag == 3) {
+                        memcpy(&payload, &p->num_value, sizeof(double));
+                    } else if (p->ptr_value != NULL) {
+                        payload = (uint64_t)(uintptr_t)p->ptr_value;
+                    }
+                    if (tag == 3) {
+                        double (*fn_d)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
+                            (double (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))r->on_fulfilled->fn_ptr;
+                        double res_num = fn_d(r->on_fulfilled->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                        p->num_value = res_num;
+                        p->tag = 3;
+                    } else {
+                        uint64_t (*fn_ptr)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
+                            (uint64_t (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))r->on_fulfilled->fn_ptr;
+                        uint64_t res_p = fn_ptr(r->on_fulfilled->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                        p->ptr_value = (void *)(uintptr_t)res_p;
+                        p->tag = 4;
+                    }
+                } else if (p->state == PROMISE_REJECTED && r->on_rejected != NULL && r->on_rejected->fn_ptr != NULL) {
+                    uint64_t payload = 0;
+                    uint32_t tag = p->tag ? p->tag : 5; // object/error
+                    if (tag == 3) {
+                        memcpy(&payload, &p->num_value, sizeof(double));
+                    } else if (p->ptr_value != NULL) {
+                        payload = (uint64_t)(uintptr_t)p->ptr_value;
+                    }
+                    uint64_t (*fn_ptr)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
+                        (uint64_t (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))r->on_rejected->fn_ptr;
+                    uint64_t res_p = fn_ptr(r->on_rejected->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    p->state = PROMISE_FULFILLED;
+                    p->ptr_value = (void *)(uintptr_t)res_p;
+                    p->tag = 4;
+                }
+                free(r);
+                if (p->reactions_head != NULL) {
+                    scriptgo_queue_promise_reactions(p);
+                }
+            }
+        } else if (task->closure != NULL && task->closure->fn_ptr != NULL) {
             uint64_t payload = 0;
             uint32_t tag = 0;
             if (task->is_number) {
@@ -110,9 +178,9 @@ int scriptgo_promise_create(void **out_promise) {
     p->state = PROMISE_PENDING;
     p->ptr_value = NULL;
     p->num_value = 0.0;
-    p->is_number = 0;
-    p->on_fulfilled = NULL;
-    p->on_rejected = NULL;
+    p->tag = 0;
+    p->reactions_head = NULL;
+    p->reactions_tail = NULL;
     *out_promise = p;
     return 0;
 }
@@ -126,10 +194,8 @@ int scriptgo_promise_resolve(void *promise_handle, void *value) {
     if (p->state != PROMISE_PENDING) return 0;
     p->state = PROMISE_FULFILLED;
     p->ptr_value = value;
-    p->is_number = 0;
-    if (p->on_fulfilled != NULL) {
-        scriptgo_queue_microtask(p->on_fulfilled, value);
-    }
+    p->tag = 5;
+    scriptgo_queue_promise_reactions(p);
     return 0;
 }
 
@@ -139,10 +205,8 @@ int scriptgo_promise_resolve_number(void *promise_handle, double value) {
     if (p->state != PROMISE_PENDING) return 0;
     p->state = PROMISE_FULFILLED;
     p->num_value = value;
-    p->is_number = 1;
-    if (p->on_fulfilled != NULL) {
-        scriptgo_queue_microtask_number(p->on_fulfilled, value);
-    }
+    p->tag = 3;
+    scriptgo_queue_promise_reactions(p);
     return 0;
 }
 
@@ -152,26 +216,28 @@ int scriptgo_promise_reject(void *promise_handle, void *reason) {
     if (p->state != PROMISE_PENDING) return 0;
     p->state = PROMISE_REJECTED;
     p->ptr_value = reason;
-    p->is_number = 0;
-    if (p->on_rejected != NULL) {
-        scriptgo_queue_microtask(p->on_rejected, reason);
-    }
+    p->tag = 5;
+    scriptgo_queue_promise_reactions(p);
     return 0;
 }
 
-int scriptgo_promise_then(void *promise_handle, void *on_fulfilled_closure, void **out_promise) {
+int scriptgo_promise_then(void *promise_handle, void *on_fulfilled_closure, void *on_rejected_closure) {
     scriptgo_promise *p = promise_handle;
     if (p == NULL) return scriptgo_runtime_set_error("scriptgo promise then failed");
-    if (out_promise != NULL) {
-        if (scriptgo_promise_create(out_promise) != 0) return -1;
+    scriptgo_reaction *r = malloc(sizeof(scriptgo_reaction));
+    if (r == NULL) return scriptgo_runtime_set_error("scriptgo promise reaction allocation failed");
+    r->on_fulfilled = (scriptgo_closure_inner *)on_fulfilled_closure;
+    r->on_rejected = (scriptgo_closure_inner *)on_rejected_closure;
+    r->next = NULL;
+    if (p->reactions_tail != NULL) {
+        p->reactions_tail->next = r;
+        p->reactions_tail = r;
+    } else {
+        p->reactions_head = r;
+        p->reactions_tail = r;
     }
-    p->on_fulfilled = (scriptgo_closure_inner *)on_fulfilled_closure;
-    if (p->state == PROMISE_FULFILLED) {
-        if (p->is_number) {
-            scriptgo_queue_microtask_number(on_fulfilled_closure, p->num_value);
-        } else {
-            scriptgo_queue_microtask(on_fulfilled_closure, p->ptr_value);
-        }
+    if (p->state != PROMISE_PENDING) {
+        scriptgo_queue_promise_reactions(p);
     }
     return 0;
 }
@@ -183,7 +249,7 @@ int scriptgo_promise_await_number(void *promise_handle, double *out_val) {
         scriptgo_event_loop_run();
     }
     if (p->state == PROMISE_REJECTED) {
-        if (p->is_number) {
+        if (p->tag == 3) {
             scriptgo_throw_number(p->num_value);
         } else {
             scriptgo_throw_string(p->ptr_value ? (const char *)p->ptr_value : "Promise rejected");
@@ -215,4 +281,5 @@ int scriptgo_promise_await_ptr(void *promise_handle, void **out_val) {
     }
     return 0;
 }
+
 

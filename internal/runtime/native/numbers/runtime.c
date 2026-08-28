@@ -8,17 +8,29 @@
 
 int scriptgo_runtime_set_error(const char *message);
 
-int scriptgo_number_parse_int(const char *str, double *out_value) {
+int scriptgo_number_parse_int_radix(const char *str, double radix, double *out_value) {
     if (str == NULL || out_value == NULL) return scriptgo_runtime_set_error("invalid argument to parseInt");
     while (isspace((unsigned char)*str)) str++;
+    int r = 10;
+    if (!isnan(radix) && radix != 0.0) {
+        if (radix < 2.0 || radix > 36.0) {
+            *out_value = NAN;
+            return 0;
+        }
+        r = (int)radix;
+    }
     char *endptr = NULL;
-    long long val = strtoll(str, &endptr, 10);
+    long long val = strtoll(str, &endptr, r);
     if (endptr == str) {
         *out_value = NAN;
     } else {
         *out_value = (double)val;
     }
     return 0;
+}
+
+int scriptgo_number_parse_int(const char *str, double *out_value) {
+    return scriptgo_number_parse_int_radix(str, 0.0, out_value);
 }
 
 int scriptgo_number_parse_float(const char *str, double *out_value) {
@@ -72,7 +84,9 @@ int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
     } else {
-        snprintf(buf, sizeof(buf), "%.*f", d, val);
+        double factor = pow(10.0, d);
+        double rounded = round(val * factor) / factor;
+        snprintf(buf, sizeof(buf), "%.*f", d, rounded);
     }
     size_t len = strlen(buf);
     char *res = malloc(len + 1);
@@ -94,23 +108,23 @@ int scriptgo_number_to_string(double val, double radix, char **out_value) {
     } else if (isinf(val)) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
-    } else if (r == 16) {
-        unsigned long long uval = (unsigned long long)val;
-        snprintf(buf, sizeof(buf), "%llx", uval);
-    } else if (r == 8) {
-        unsigned long long uval = (unsigned long long)val;
-        snprintf(buf, sizeof(buf), "%llo", uval);
-    } else if (r == 2) {
-        unsigned long long uval = (unsigned long long)val;
+    } else if (r != 10 && trunc(val) == val) {
+        long long num = (long long)val;
+        int is_neg = num < 0;
+        unsigned long long uval = is_neg ? -num : num;
         if (uval == 0) {
             snprintf(buf, sizeof(buf), "0");
         } else {
             char temp[65];
             int pos = 64;
             temp[pos] = '\0';
+            const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
             while (uval > 0 && pos > 0) {
-                temp[--pos] = (uval & 1) ? '1' : '0';
-                uval >>= 1;
+                temp[--pos] = digits[uval % r];
+                uval /= r;
+            }
+            if (is_neg && pos > 0) {
+                temp[--pos] = '-';
             }
             snprintf(buf, sizeof(buf), "%s", &temp[pos]);
         }
@@ -143,6 +157,16 @@ int scriptgo_number_to_exponential(double val, double fractionDigits, char **out
         snprintf(buf, sizeof(buf), "%.*e", d, val);
     } else {
         snprintf(buf, sizeof(buf), "%e", val);
+    }
+    char *e_pos = strchr(buf, 'e');
+    if (e_pos != NULL) {
+        char *sign = e_pos + 1;
+        if (*sign == '+' || *sign == '-') {
+            char *digits = sign + 1;
+            if (*digits == '0' && *(digits + 1) != '\0') {
+                memmove(digits, digits + 1, strlen(digits));
+            }
+        }
     }
     size_t len = strlen(buf);
     char *res = malloc(len + 1);
@@ -201,5 +225,19 @@ int32_t scriptgo_to_int32(double val) {
     if (res < 0.0) res += two32;
     if (res >= two31) res -= two32;
     return (int32_t)res;
+}
+
+double scriptgo_math_round(double x) {
+    if (isnan(x) || isinf(x) || x == 0.0) return x;
+    if (x >= -0.5 && x < 0.0) return -0.0;
+    return floor(x + 0.5);
+}
+
+double scriptgo_math_pow(double x, double y) {
+    if (isnan(y)) return NAN;
+    if (y == 0.0) return 1.0;
+    if (isnan(x)) return NAN;
+    if (fabs(x) == 1.0 && isinf(y)) return NAN;
+    return pow(x, y);
 }
 

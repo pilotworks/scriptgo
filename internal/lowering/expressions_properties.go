@@ -65,6 +65,48 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			return result, getter.ReturnType, nil
 		}
 
+		// 2.5. Check function reflection (.length and .name)
+		if fn, isFunc := signatures[expression.Left.Text]; isFunc {
+			if expression.Text == "length" {
+				arity := len(fn.Parameters)
+				if defaults, hasDefaults := defaultParamsIndex[fn.Name]; hasDefaults {
+					for i := 0; i < len(fn.Parameters); i++ {
+						if _, isDefault := defaults[i]; isDefault {
+							arity = i
+							break
+						}
+					}
+				}
+				if restParamsIndex[fn.Name] && arity == len(fn.Parameters) && arity > 0 {
+					arity = len(fn.Parameters) - 1
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeNumber,
+					Result: result,
+					Value:  strconv.Itoa(arity),
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeNumber, nil
+			}
+			if expression.Text == "name" {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: result,
+					Value:  fn.Name,
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeString, nil
+			}
+		}
+
 		// 3. Check static fields in class hierarchy
 		if meta, ok := classHierarchy[expression.Left.Text]; ok {
 			if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
@@ -400,7 +442,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]") || objectType == ir.Type("object:Array")) && expression.Text == "length" {
+	if (objectType == ir.TypeString || objectType == ir.TypeNumberArray || objectType == ir.TypeStringArray || objectType == ir.TypeBoolArray || objectType == ir.TypeBigIntArray || strings.HasSuffix(string(objectType), "[]") || objectType == ir.Type("object:Array") || isTupleShapeName(strings.TrimPrefix(string(objectType), "object:"))) && expression.Text == "length" {
 		if result == "" {
 			result = nextTemp(counter)
 		}
@@ -447,11 +489,14 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				result = nextTemp(counter)
 			}
 			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Value:  "0",
-				Span:   toIRSpan(path, expression.Span),
+				Op:         ir.OpFieldGet,
+				Type:       ir.TypeNumber,
+				Result:     result,
+				Callee:     "RegExp",
+				Field:      "lastIndex",
+				FieldIndex: 2,
+				Args:       []string{object},
+				Span:       toIRSpan(path, expression.Span),
 			})
 			return result, ir.TypeNumber, nil
 		}
@@ -643,6 +688,20 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 					ok = true
 					break
 				}
+			}
+		}
+	}
+	if !ok {
+		interStr := className
+		if typeAliasesIndex != nil && typeAliasesIndex[className] != "" {
+			interStr = typeAliasesIndex[className]
+		}
+		if strings.Contains(interStr, "&") || (typeAliasesIndex != nil && typeAliasesIndex[className] != "") {
+			if fields, okF := resolveShapeFields(interStr, shapes); okF {
+				shape = ir.ObjectShape{Name: className, Fields: fields}
+				shapes[className] = shape
+				shapes[interStr] = shape
+				ok = true
 			}
 		}
 	}
@@ -887,4 +946,44 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		fieldNames = append(fieldNames, f.Name)
 	}
 	return "", "", fmt.Errorf("unknown field %q on object %q (fields: %v)", expression.Text, className, fieldNames)
+}
+
+func resolveShapeFields(name string, shapes map[string]ir.ObjectShape) ([]ir.Field, bool) {
+	clean := strings.TrimSpace(strings.TrimPrefix(name, "object:"))
+	if s, ok := shapes[clean]; ok {
+		return s.Fields, true
+	}
+	if s, ok := registeredShapes[clean]; ok {
+		return s.Fields, true
+	}
+	if fields, ok := anonymousObjectFields(clean, nil); ok {
+		return fields, true
+	}
+	if typeAliasesIndex != nil && typeAliasesIndex[clean] != "" {
+		aliased := typeAliasesIndex[clean]
+		if strings.Contains(aliased, "&") {
+			var fields []ir.Field
+			for _, sub := range strings.Split(aliased, "&") {
+				if subFields, ok := resolveShapeFields(sub, shapes); ok {
+					fields = append(fields, subFields...)
+				}
+			}
+			if len(fields) > 0 {
+				return fields, true
+			}
+		}
+		return resolveShapeFields(aliased, shapes)
+	}
+	if strings.Contains(clean, "&") {
+		var fields []ir.Field
+		for _, sub := range strings.Split(clean, "&") {
+			if subFields, ok := resolveShapeFields(sub, shapes); ok {
+				fields = append(fields, subFields...)
+			}
+		}
+		if len(fields) > 0 {
+			return fields, true
+		}
+	}
+	return nil, false
 }

@@ -161,7 +161,14 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		if argType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], slot)
+			emptyGlobal := "@.str.empty"
+			if strGlobal, ok := e.stringsByValue[""]; ok {
+				emptyGlobal = strGlobal
+			}
+			emptyPtr := fmt.Sprintf("empty.str.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [1 x i8], ptr %s, i64 0, i64 0\n", emptyPtr, emptyGlobal)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %%%s, double -1.000000e+00, ptr %%%s)\n", status, instruction.Args[0], emptyPtr, slot)
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot)
 		}
@@ -180,6 +187,15 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 
 	if strings.HasPrefix(instruction.Callee, "__array.") {
 		arrayType, ok := e.types[instruction.Args[0]]
+		if !ok || arrayType == "" {
+			for _, g := range e.module.Globals {
+				if g.Name == instruction.Args[0] {
+					arrayType = g.Type
+					ok = true
+					break
+				}
+			}
+		}
 		if !ok {
 			return fmt.Errorf("unknown array intrinsic argument %q", instruction.Args[0])
 		}
@@ -541,7 +557,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return nil
 	}
 	if strings.HasPrefix(instruction.Callee, "__regex.") || strings.HasPrefix(instruction.Callee, "__regexp.") {
-		if err := emitRegexIntrinsic(out, instruction); err != nil {
+		if err := e.emitRegexIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
@@ -851,6 +867,8 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	envSlot := fmt.Sprintf("%s.env_slot.%d", instruction.Result, e.loadCounter)
 	envCtx := fmt.Sprintf("%s.env_ctx.%d", instruction.Result, e.loadCounter)
 	closureIsNull := fmt.Sprintf("closure.is_null.%d", e.loadCounter)
+	closureIsUndef := fmt.Sprintf("closure.is_undef.%d", e.loadCounter)
+	closureInvalid := fmt.Sprintf("closure.invalid.%d", e.loadCounter)
 	nullBlock := fmt.Sprintf("closure.null.%d", e.loadCounter)
 	callBlock := fmt.Sprintf("closure.call.%d", e.loadCounter)
 	contBlock := fmt.Sprintf("closure.cont.%d", e.loadCounter)
@@ -866,7 +884,9 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	}
 
 	out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", closureIsNull, closureVar))
-	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", closureIsNull, nullBlock, callBlock))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", closureIsUndef, closureVar))
+	out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", closureInvalid, closureIsNull, closureIsUndef))
+	out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", closureInvalid, nullBlock, callBlock))
 
 	out.WriteString(fmt.Sprintf("%s:\n", nullBlock))
 	out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))

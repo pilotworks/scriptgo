@@ -126,7 +126,9 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					}
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 					return result, arrType, nil
-				} else if _, ok := tupleFields(trimmed); ok {
+				} else if tFields, ok := tupleFields(trimmed); ok && len(tFields) > 1 {
+					inferredTuple = true
+				} else if shape, ok := shapes[strings.TrimPrefix(trimmed, "object:")]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
 					inferredTuple = true
 				}
 			}
@@ -164,6 +166,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			var fields []ir.Field
 			if tFields, ok := tupleFields(trimmed); ok && len(tFields) > 0 {
 				fields = tFields
+			} else if shape, ok := shapes[strings.TrimPrefix(trimmed, "object:")]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
+				fields = shape.Fields
 			} else {
 				for i, typ := range types {
 					fields = append(fields, ir.Field{
@@ -721,10 +725,20 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				return result, typ, nil
 			}
 		}
-		rawEnvType, ok := env[expression.Text]
+		identName := expression.Text
+		if mangled, hasMangled := env["__ident."+expression.Text]; hasMangled {
+			identName = string(mangled)
+		}
+		rawEnvType, ok := env[identName]
+		if !ok {
+			rawEnvType, ok = env[expression.Text]
+		}
 		if ok {
 			typ := rawEnvType
-			storageType := env["__storage_type."+expression.Text]
+			storageType := env["__storage_type."+identName]
+			if storageType == "" {
+				storageType = env["__storage_type."+expression.Text]
+			}
 			if storageType == "" {
 				if topVar, ok := topLevelVars[expression.Text]; ok {
 					vType := topVar.Type
@@ -734,7 +748,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					storageType = toIRType(vType)
 				}
 			}
-			origParamType, isParam := env["__param."+expression.Text]
+			origParamType, isParam := env["__param."+identName]
+			if !isParam {
+				origParamType, isParam = env["__param."+expression.Text]
+			}
 			isOriginallyUnknown := (rawEnvType == "" || (isParam && (origParamType == ir.TypeUnknown || origParamType == "" || strings.Contains(string(origParamType), "|"))))
 			if isOriginallyUnknown {
 				switch expression.InferredType {
@@ -758,16 +775,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					typ = ir.TypeUint8Array
 				case "Int8Array":
 					typ = ir.TypeInt8Array
-				case "Uint8ClampedArray":
-					typ = ir.TypeUint8ClampedArray
-				case "Int16Array":
-					typ = ir.TypeInt16Array
 				case "Uint16Array":
 					typ = ir.TypeUint16Array
-				case "Int32Array":
-					typ = ir.TypeInt32Array
+				case "Int16Array":
+					typ = ir.TypeInt16Array
 				case "Uint32Array":
 					typ = ir.TypeUint32Array
+				case "Int32Array":
+					typ = ir.TypeInt32Array
 				case "Float32Array":
 					typ = ir.TypeFloat32Array
 				case "Float64Array":
@@ -776,20 +791,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					typ = ir.TypeBigInt64Array
 				case "BigUint64Array":
 					typ = ir.TypeBigUint64Array
+				case "ArrayBuffer":
+					typ = ir.TypeArrayBuffer
 				case "DataView":
 					typ = ir.TypeDataView
-				case "ArrayBuffer", "SharedArrayBuffer":
-					typ = ir.TypeArrayBuffer
-				case "Buffer":
-					typ = ir.TypeBuffer
 				default:
-					if expression.InferredType != "" && !strings.Contains(expression.InferredType, "|") && !strings.HasPrefix(string(typ), "object:Generator_") && expression.InferredType != "null" && expression.InferredType != "undefined" {
-						inferredIR := toIRType(expression.InferredType)
-						if inferredIR != "" && inferredIR != ir.TypeUnknown && inferredIR != ir.TypeVoid && inferredIR != ir.TypePointer {
-							typ = inferredIR
-						} else if _, isShape := shapes[expression.InferredType]; isShape {
-							typ = ir.Type("object:" + expression.InferredType)
-						}
+					if strings.HasPrefix(expression.InferredType, "object:") {
+						typ = ir.Type(expression.InferredType)
+					} else if _, isShape := shapes[expression.InferredType]; isShape {
+						typ = ir.Type("object:" + expression.InferredType)
 					}
 				}
 			}
@@ -801,26 +811,26 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					Op:     ir.OpCheckedCast,
 					Type:   typ,
 					Result: result,
-					Args:   []string{expression.Text},
+					Args:   []string{identName},
 					Span:   toIRSpan(path, expression.Span),
 				})
 				return result, typ, nil
 			}
-			if result != "" && result != expression.Text {
+			if result != "" && result != identName {
 				if typ == ir.TypeNumber {
 					zeroConst := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{expression.Text, zeroConst}, Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{identName, zeroConst}, Span: toIRSpan(path, expression.Span)})
 					return result, typ, nil
 				}
 				if typ == ir.TypeString {
 					emptyStr := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, expression.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{expression.Text, emptyStr}, Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{identName, emptyStr}, Span: toIRSpan(path, expression.Span)})
 					return result, typ, nil
 				}
 				if typ == ir.TypeBool {
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "||", Args: []string{expression.Text, expression.Text}, Span: toIRSpan(path, expression.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "||", Args: []string{identName, identName}, Span: toIRSpan(path, expression.Span)})
 					return result, typ, nil
 				}
 				if strings.HasPrefix(string(typ), "object:") || strings.HasSuffix(string(typ), "[]") {
@@ -828,13 +838,13 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 						Op:     ir.OpCheckedCast,
 						Type:   typ,
 						Result: result,
-						Args:   []string{expression.Text},
+						Args:   []string{identName},
 						Span:   toIRSpan(path, expression.Span),
 					})
 					return result, typ, nil
 				}
 			}
-			return expression.Text, typ, nil
+			return identName, typ, nil
 		}
 		if sig, ok := signatures[expression.Text]; ok {
 			if result == "" {

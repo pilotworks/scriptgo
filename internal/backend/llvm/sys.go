@@ -563,7 +563,8 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("JSON.stringify bool has invalid signature")
 		}
-		boolVal := fmt.Sprintf("%s.i32", argVal)
+		boolVal := fmt.Sprintf("%s.bool_i32.%d", instruction.Result, e.loadCounter)
+		e.loadCounter++
 		fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolVal, argVal)
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -950,7 +951,8 @@ func (e *functionEmitter) emitStreamIntrinsic(out *strings.Builder, instruction 
 	case "__stream.getDefaultHighWaterMark":
 		arg := "0"
 		if len(instruction.Args) > 0 {
-			boolVal := fmt.Sprintf("%s.i32", instruction.Args[0])
+			boolVal := fmt.Sprintf("%s.bool_i32.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolVal, instruction.Args[0])
 			arg = "%" + boolVal
 		}
@@ -966,7 +968,8 @@ func (e *functionEmitter) emitStreamIntrinsic(out *strings.Builder, instruction 
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("setDefaultHighWaterMark requires 2 arguments")
 		}
-		boolVal := fmt.Sprintf("%s.i32", instruction.Args[0])
+		boolVal := fmt.Sprintf("%s.bool_i32.%d", instruction.Result, e.loadCounter)
+		e.loadCounter++
 		fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolVal, instruction.Args[0])
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

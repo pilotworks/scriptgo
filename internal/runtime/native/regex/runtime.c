@@ -92,9 +92,20 @@ int scriptgo_regex_test(const char *pattern, const char *flags, const char *str,
     return 0;
 }
 
-int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str, void **out_array) {
+int scriptgo_regex_exec_stateful(const char *pattern, const char *flags, const char *str, double *inout_last_index, void **out_array) {
     if (pattern == NULL || str == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("invalid argument to regex exec");
+    }
+    int is_global = (flags != NULL && (strchr(flags, 'g') != NULL || strchr(flags, 'y') != NULL));
+    size_t last_idx = 0;
+    if (is_global && inout_last_index != NULL && !isnan(*inout_last_index) && *inout_last_index > 0.0) {
+        last_idx = (size_t)*inout_last_index;
+    }
+    size_t str_len = strlen(str);
+    if (last_idx > str_len) {
+        if (is_global && inout_last_index != NULL) *inout_last_index = 0.0;
+        *out_array = NULL;
+        return 0;
     }
     int cflags = REG_EXTENDED;
     if (flags != NULL) {
@@ -109,11 +120,15 @@ int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str,
     }
     if (norm) free(norm);
     regmatch_t pmatch[16];
-    int status = regexec(&re, str, 16, pmatch, 0);
+    int status = regexec(&re, str + last_idx, 16, pmatch, 0);
     if (status != 0) {
         regfree(&re);
+        if (is_global && inout_last_index != NULL) *inout_last_index = 0.0;
         *out_array = NULL;
         return 0;
+    }
+    if (is_global && inout_last_index != NULL) {
+        *inout_last_index = (double)(last_idx + pmatch[0].rm_eo);
     }
     int count = 0;
     for (int i = 0; i < 16; i++) {
@@ -126,12 +141,16 @@ int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str,
         int len = pmatch[i].rm_eo - pmatch[i].rm_so;
         char *sub = malloc(len + 1);
         if (sub != NULL) {
-            memcpy(sub, str + pmatch[i].rm_so, len);
+            memcpy(sub, str + last_idx + pmatch[i].rm_so, len);
             sub[len] = '\0';
             scriptgo_array_set(*out_array, (double)i, &sub);
         }
     }
     return 0;
+}
+
+int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str, void **out_array) {
+    return scriptgo_regex_exec_stateful(pattern, flags, str, NULL, out_array);
 }
 
 int scriptgo_string_match(const char *str, const char *pattern, const char *flags, void **out_array) {
@@ -348,6 +367,26 @@ int scriptgo_bigint_as_uint_n(long long bits, long long value, long long *out_va
     unsigned long long mask = (1ULL << bits) - 1ULL;
     *out_value = (long long)(uval & mask);
     return 0;
+}
+
+long long scriptgo_bigint_pow(long long base, long long exp) {
+    if (exp < 0) {
+        if (base == 1) return 1;
+        if (base == -1) return (exp % 2 == 0) ? 1 : -1;
+        return 0;
+    }
+    if (exp == 0) return 1;
+    long long result = 1;
+    long long b = base;
+    unsigned long long e = (unsigned long long)exp;
+    while (e > 0) {
+        if (e & 1) {
+            result *= b;
+        }
+        b *= b;
+        e >>= 1;
+    }
+    return result;
 }
 
 int scriptgo_regex_escape(const char *str, char **out_str) {

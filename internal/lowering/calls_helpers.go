@@ -84,7 +84,7 @@ func resolveMapTypes(expr *typescriptgo.SyntaxExpression, env map[string]ir.Type
 			}
 		}
 	} else if target.Kind == "identifier" {
-		if t, ok := env[target.Text]; ok {
+		if t, ok := env[target.Text]; ok && strings.Contains(string(t), "<") {
 			rawType = string(t)
 		}
 	}

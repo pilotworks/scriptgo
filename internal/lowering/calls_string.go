@@ -72,6 +72,31 @@ func lowerStringReceiverMethod(
 			return result, ir.TypeString, true, nil
 		}
 	}
+	if methodName == "split" && len(expression.Arguments) > 0 {
+		arg0Val, arg0Typ, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", true, err
+		}
+		sepVal := arg0Val
+		if arg0Typ == "object:RegExp" {
+			sepVal = nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: sepVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)})
+		}
+		splitArgs := []string{receiver, sepVal}
+		if len(expression.Arguments) > 1 {
+			limVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			splitArgs = append(splitArgs, limVal)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		env[result] = ir.TypeStringArray
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.split", Args: splitArgs, Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeStringArray, true, nil
+	}
 	args := []string{receiver}
 	for _, argument := range expression.Arguments {
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)

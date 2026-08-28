@@ -95,9 +95,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		if body := node.Body(); body != nil {
 			for _, statement := range body.Statements() {
-				if converted, ok := syntaxStatement(statement, chk); ok {
-					result.Body = append(result.Body, converted)
-				}
+				appendSyntaxStatement(&result.Body, statement, chk)
 			}
 		}
 		return result, true
@@ -293,21 +291,23 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		var stepStatements []SyntaxStatement
 		if forNode.Incrementor != nil {
 			incExpr := syntaxExpression(forNode.Incrementor, chk)
-			if incExpr != nil && incExpr.Kind == "binary" && isAssignmentOperator(incExpr.Operator) {
-				if incExpr.Left != nil && incExpr.Left.Kind == "identifier" {
-					valExpr, _ := desugarAssignment(incExpr)
-					stepStatements = append(stepStatements, SyntaxStatement{
-						Span:       sourceSpan(forNode.Incrementor),
-						Kind:       "assign",
-						Name:       incExpr.Left.Text,
-						Expression: valExpr,
-					})
+			for _, sub := range flattenCommaExpressions(incExpr) {
+				if sub != nil && sub.Kind == "binary" && isAssignmentOperator(sub.Operator) {
+					if sub.Left != nil && sub.Left.Kind == "identifier" {
+						valExpr, _ := desugarAssignment(sub)
+						stepStatements = append(stepStatements, SyntaxStatement{
+							Span:       sub.Span,
+							Kind:       "assign",
+							Name:       sub.Left.Text,
+							Expression: valExpr,
+						})
+						continue
+					}
 				}
-			} else {
 				stepStatements = append(stepStatements, SyntaxStatement{
-					Span:       sourceSpan(forNode.Incrementor),
+					Span:       sub.Span,
 					Kind:       "expression",
-					Expression: incExpr,
+					Expression: sub,
 				})
 			}
 		}
@@ -323,39 +323,46 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				decls := forNode.Initializer.AsVariableDeclarationList().Declarations.Nodes
 				initStmt, ok := syntaxVariableDeclarations(decls, sourceSpan(forNode.Initializer), chk, "var")
 				if ok {
+					var initStmts []SyntaxStatement
+					if initStmt.Kind == "block" {
+						initStmts = append(initStmts, initStmt.Body...)
+					} else {
+						initStmts = append(initStmts, initStmt)
+					}
+					initStmts = append(initStmts, whileStmt)
 					return SyntaxStatement{
 						Span: span,
 						Kind: "block",
-						Body: []SyntaxStatement{initStmt, whileStmt},
+						Body: initStmts,
 					}, true
 				}
 			} else {
 				initExpr := syntaxExpression(forNode.Initializer, chk)
-				if initExpr != nil && initExpr.Kind == "binary" && isAssignmentOperator(initExpr.Operator) {
-					if initExpr.Left != nil && initExpr.Left.Kind == "identifier" {
-						valExpr, _ := desugarAssignment(initExpr)
-						initStmt := SyntaxStatement{
-							Span:       sourceSpan(forNode.Initializer),
-							Kind:       "assign",
-							Name:       initExpr.Left.Text,
-							Expression: valExpr,
+				var initStmts []SyntaxStatement
+				for _, sub := range flattenCommaExpressions(initExpr) {
+					if sub != nil && sub.Kind == "binary" && isAssignmentOperator(sub.Operator) {
+						if sub.Left != nil && sub.Left.Kind == "identifier" {
+							valExpr, _ := desugarAssignment(sub)
+							initStmts = append(initStmts, SyntaxStatement{
+								Span:       sub.Span,
+								Kind:       "assign",
+								Name:       sub.Left.Text,
+								Expression: valExpr,
+							})
+							continue
 						}
-						return SyntaxStatement{
-							Span: span,
-							Kind: "block",
-							Body: []SyntaxStatement{initStmt, whileStmt},
-						}, true
 					}
+					initStmts = append(initStmts, SyntaxStatement{
+						Span:       sub.Span,
+						Kind:       "expression",
+						Expression: sub,
+					})
 				}
-				initStmt := SyntaxStatement{
-					Span:       sourceSpan(forNode.Initializer),
-					Kind:       "expression",
-					Expression: initExpr,
-				}
+				initStmts = append(initStmts, whileStmt)
 				return SyntaxStatement{
 					Span: span,
 					Kind: "block",
-					Body: []SyntaxStatement{initStmt, whileStmt},
+					Body: initStmts,
 				}, true
 			}
 		}

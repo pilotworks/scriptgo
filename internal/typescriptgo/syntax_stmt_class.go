@@ -267,9 +267,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			var body []SyntaxStatement
 			if b := member.Body(); b != nil {
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&body, s, chk)
 				}
 			}
 			if len(bindingStmts) > 0 {
@@ -337,9 +335,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					body = append(body, bindingStmts...)
 				}
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&body, s, chk)
 				}
 			}
 			mType := syntaxType(member.Type())
@@ -370,9 +366,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			if b := member.Body(); b != nil {
 				body = []SyntaxStatement{}
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&body, s, chk)
 				}
 			}
 			mType := syntaxType(member.Type())
@@ -429,9 +423,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					body = append(body, bindingStmts...)
 				}
 				for _, s := range b.Statements() {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&body, s, chk)
 				}
 			}
 			mDecs := syntaxDecorators(member, chk, "", pTypes, "void")
@@ -450,11 +442,13 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			staticBlock := member.AsClassStaticBlockDeclaration()
 			var body []SyntaxStatement
 			if staticBlock.Body != nil {
+				var rawBody []SyntaxStatement
 				for _, s := range staticBlock.Body.Statements() {
-					if converted, ok := syntaxStatement(s, chk); ok {
-						converted = replaceThisWithClassStmt(converted, class.Name)
-						body = append(body, converted)
-					}
+					appendSyntaxStatement(&rawBody, s, chk)
+				}
+				for _, converted := range rawBody {
+					converted = replaceThisWithClassStmt(converted, class.Name)
+					body = append(body, converted)
 				}
 			}
 			class.StaticBlocks = append(class.StaticBlocks, body)

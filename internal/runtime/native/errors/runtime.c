@@ -168,7 +168,7 @@ int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigne
         return scriptgo_string_from_number(u.d, out_str);
     }
     case SCRIPTGO_TAG_STRING:
-        *out_str = (char *)(uintptr_t)payload;
+        *out_str = strdup(payload != 0 ? (char *)(uintptr_t)payload : "");
         return 0;
     case SCRIPTGO_TAG_BIGINT:
         return scriptgo_string_from_bigint((long long)payload, out_str);

@@ -22,6 +22,32 @@ func lowerCallExpression(
 		methodName := expression.Left.Text
 		receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 		if err == nil {
+			if methodName == "then" || methodName == "catch" {
+				args := []string{receiver}
+				for _, arg := range expression.Arguments {
+					v, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
+					if err != nil {
+						return "", "", err
+					}
+					args = append(args, v)
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				callee := "__async.promise_then"
+				if methodName == "catch" {
+					callee = "__async.promise_catch"
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.Type("object:Promise"),
+					Result: result,
+					Callee: callee,
+					Args:   args,
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.Type("object:Promise"), nil
+			}
 			if res, typ, handled, err := lowerWeakReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 				return res, typ, err
 			}
@@ -639,37 +665,6 @@ func lowerCallExpression(
 		}
 	}
 
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && (expression.Left.Text == "then" || expression.Left.Text == "catch") {
-		receiverVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args := []string{receiverVal}
-		for _, arg := range expression.Arguments {
-			v, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
-			if err != nil {
-				return "", "", err
-			}
-			args = append(args, v)
-		}
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		callee := "__async.promise_then"
-		if expression.Left.Text == "catch" {
-			callee = "__async.promise_catch"
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.Type("object:Promise"),
-			Result: result,
-			Callee: callee,
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, ir.Type("object:Promise"), nil
-	}
-
 	if expression.Left != nil && expression.Left.Kind == "arrow_function" {
 		closureVal, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -906,6 +901,14 @@ func lowerCallExpression(
 		if (argument.Kind == "object_literal" || argument.Kind == "object") && (argument.InferredType == "" || strings.HasPrefix(argument.InferredType, "{")) && aIdx < len(target.Parameters) {
 			paramType := string(target.Parameters[aIdx].Type)
 			argument.InferredType = strings.TrimPrefix(paramType, "object:")
+		} else if argument.Kind == "array" && aIdx < len(target.Parameters) {
+			paramType := target.Parameters[aIdx].Type
+			shapeName := strings.TrimPrefix(string(paramType), "object:")
+			if shape, ok := shapes[shapeName]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
+				argument.InferredType = string(paramType)
+			} else if fields, isTup := tupleFields(string(paramType)); isTup && len(fields) > 0 {
+				argument.InferredType = string(paramType)
+			}
 		}
 		defaults := defaultParamsIndex[callee]
 		if defaults == nil {

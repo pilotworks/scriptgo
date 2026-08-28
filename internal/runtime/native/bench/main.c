@@ -8,7 +8,7 @@ int scriptgo_array_new(int64_t, int64_t, void **);
 int scriptgo_array_set(void *, double, const void *);
 int scriptgo_array_index_of_number(void *, double, double, double *);
 int scriptgo_array_release(void *);
-int scriptgo_string_split(const char *, const char *, void **);
+int scriptgo_string_split(const char *, const char *, double, void **);
 int scriptgo_web_btoa(const char *, char **);
 int scriptgo_web_atob(const char *, char **);
 
@@ -53,7 +53,7 @@ static int bench_string_split(void) {
     uint64_t checksum = 0;
     uint64_t start = now_ns();
     for (int64_t i = 0; i < operations; i++) {
-        if (scriptgo_string_split(value, ",", &array) != 0) return 1;
+        if (scriptgo_string_split(value, ",", -1.0, &array) != 0) return 1;
         checksum += 10;
         scriptgo_array_release(array);
     }

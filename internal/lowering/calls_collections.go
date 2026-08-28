@@ -259,9 +259,18 @@ func lowerMapSetReceiverMethod(
 			if len(expression.Arguments) < 2 {
 				return "", "", true, fmt.Errorf("Map.set requires key and value arguments")
 			}
+			_, valTypeStr := resolveMapTypes(expression.Left, env)
+			if valTypeStr != "" && expression.Arguments[1].Kind == "array" && (expression.Arguments[1].InferredType == "" || expression.Arguments[1].InferredType == "never[]" || expression.Arguments[1].InferredType == "unknown[]") {
+				expression.Arguments[1].InferredType = valTypeStr
+			}
 			kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", true, err
+			}
+			if _, mapValType := resolveMapTypes(expression.Left, env); mapValType != "" {
+				if expression.Arguments[1].InferredType == "" || expression.Arguments[1].InferredType == "unknown[]" || expression.Arguments[1].InferredType == "any[]" {
+					expression.Arguments[1].InferredType = mapValType
+				}
 			}
 			vVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
 			if err != nil {

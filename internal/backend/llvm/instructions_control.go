@@ -213,6 +213,8 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 	if e.function.Name == "main" {
 		out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 		out.WriteString("  ret i32 0\n")
+	} else if strings.HasPrefix(e.function.Name, "__closure_") && (e.function.ReturnType == ir.TypeVoid || e.function.ReturnType == "") {
+		out.WriteString("  ret { i32, i32, i64 } zeroinitializer\n")
 	} else if e.function.ReturnType == ir.TypeVoid {
 		out.WriteString("  ret void\n")
 	} else if len(instruction.Args) == 0 || instruction.Type == ir.TypeVoid {

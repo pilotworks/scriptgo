@@ -105,7 +105,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "SuppressedError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "error", Type: ir.TypeString}, {Name: "suppressed", Type: ir.TypeString}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
-		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}}},
+		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}, {Name: "lastIndex", Type: ir.TypeNumber}}},
 		{Name: "ResponseInit", Fields: []ir.Field{{Name: "status", Type: ir.TypeNumber}, {Name: "statusText", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}}},
 		{Name: "RequestInit", Fields: []ir.Field{{Name: "method", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}, {Name: "body", Type: ir.TypeUnknown}, {Name: "mode", Type: ir.TypeString}, {Name: "credentials", Type: ir.TypeString}, {Name: "cache", Type: ir.TypeString}, {Name: "redirect", Type: ir.TypeString}, {Name: "referrer", Type: ir.TypeString}}},
 		{Name: "TextDecoderOptions", Fields: []ir.Field{{Name: "fatal", Type: ir.TypeBool}, {Name: "ignoreBOM", Type: ir.TypeBool}}},
@@ -208,32 +208,50 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			}
 		}
 	}
+	var allUnionTypes []string
+	addUnionType := func(t string) {
+		t = strings.TrimSpace(t)
+		if strings.Contains(t, "|") {
+			allUnionTypes = append(allUnionTypes, t)
+		}
+	}
 	for _, file := range program.Files {
 		for _, stmt := range file.Syntax.Statements {
-			if stmt.Kind == "type_alias" && strings.Contains(stmt.Type, "|") {
-				unionIR := toIRType(stmt.Type)
-				unionShapeName := strings.TrimPrefix(string(unionIR), "object:")
-				if unionShape, ok := anonymousShapes[unionShapeName]; ok && len(unionShape.Fields) > 0 {
-					if stmt.Name != "" {
-						shapes[stmt.Name] = unionShape
-					}
-					for _, member := range splitTopLevelUnion(stmt.Type) {
-						cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(member), "object:"))
-						if _, isVariant := shapes[cleanM]; isVariant {
-							shapes[cleanM] = unionShape
-						}
-						var memberTypeStr string
-						if aliased, ok := typeAliasesIndex[cleanM]; ok {
-							memberTypeStr = aliased
-						} else {
-							memberTypeStr = cleanM
-						}
-						if f, ok := anonymousObjectFields(memberTypeStr, nil); ok {
-							anonName := anonymousShapeName(f)
-							shapes[anonName] = unionShape
-							anonymousShapes[anonName] = unionShape
-						}
-					}
+			addUnionType(stmt.Type)
+			addUnionType(stmt.InferredType)
+			for _, param := range stmt.Parameters {
+				addUnionType(param.Type)
+				addUnionType(param.InferredType)
+			}
+			for _, sub := range stmt.Body {
+				addUnionType(sub.Type)
+				addUnionType(sub.InferredType)
+				for _, param := range sub.Parameters {
+					addUnionType(param.Type)
+					addUnionType(param.InferredType)
+				}
+			}
+		}
+	}
+	for _, unionTypeStr := range allUnionTypes {
+		unionIR := toIRType(unionTypeStr)
+		unionShapeName := strings.TrimPrefix(string(unionIR), "object:")
+		if unionShape, ok := anonymousShapes[unionShapeName]; ok && len(unionShape.Fields) > 0 {
+			for _, member := range splitTopLevelUnion(unionTypeStr) {
+				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(member), "object:"))
+				if _, isVariant := shapes[cleanM]; isVariant {
+					shapes[cleanM] = unionShape
+				}
+				var memberTypeStr string
+				if aliased, ok := typeAliasesIndex[cleanM]; ok {
+					memberTypeStr = aliased
+				} else {
+					memberTypeStr = cleanM
+				}
+				if f, ok := anonymousObjectFields(memberTypeStr, nil); ok {
+					anonName := anonymousShapeName(f)
+					shapes[anonName] = unionShape
+					anonymousShapes[anonName] = unionShape
 				}
 			}
 		}

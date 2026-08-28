@@ -50,8 +50,12 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		zeroVal := "0"
+		if valType == ir.TypeNumber {
+			zeroVal = "-0.0"
+		}
 		zeroConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: valType, Result: zeroConst, Value: zeroVal, Span: toIRSpan(path, expression.Span)})
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: valType, Result: result, Operator: "-", Args: []string{zeroConst, value}, Span: toIRSpan(path, expression.Span)})
 		return result, valType, nil
 	}
@@ -116,6 +120,9 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 	switch lvalue.Kind {
 	case "identifier":
 		varName := lvalue.Text
+		if mangled, hasMangled := env["__ident."+varName]; hasMangled {
+			varName = string(mangled)
+		}
 		varType, ok := env[varName]
 		if !ok {
 			// Check static field

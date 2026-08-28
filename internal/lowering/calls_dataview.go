@@ -63,7 +63,7 @@ func lowerRegExpReceiverMethod(
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__regex.exec", Args: []string{srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__regex.exec_stateful", Args: []string{receiver, srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeStringArray, true, nil
 	}
 	if methodName == "compile" {

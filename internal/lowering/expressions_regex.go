@@ -13,6 +13,7 @@ func init() {
 			Fields: []ir.Field{
 				{Name: "source", Type: ir.TypeString},
 				{Name: "flags", Type: ir.TypeString},
+				{Name: "lastIndex", Type: ir.TypeNumber},
 			},
 		}
 	}
@@ -27,6 +28,7 @@ func ensureRegExpShape(shapes map[string]ir.ObjectShape) {
 			Fields: []ir.Field{
 				{Name: "source", Type: ir.TypeString},
 				{Name: "flags", Type: ir.TypeString},
+				{Name: "lastIndex", Type: ir.TypeNumber},
 			},
 		}
 	}
@@ -48,7 +50,7 @@ func lowerRegexLiteral(path string, expression *typescriptgo.SyntaxExpression, r
 		Type:       ir.Type("object:RegExp"),
 		Result:     res,
 		Value:      ":RegExp:",
-		FieldCount: 2,
+		FieldCount: 3,
 		Span:       toIRSpan(path, expression.Span),
 	})
 
@@ -85,6 +87,24 @@ func lowerRegexLiteral(path string, expression *typescriptgo.SyntaxExpression, r
 		Field:      "flags",
 		FieldIndex: 1,
 		Args:       []string{res, flagsConst},
+		Span:       toIRSpan(path, expression.Span),
+	})
+
+	lastIdxConst := nextTemp(counter)
+	function.Body = append(function.Body, ir.Instruction{
+		Op:     ir.OpConst,
+		Type:   ir.TypeNumber,
+		Result: lastIdxConst,
+		Value:  "0",
+		Span:   toIRSpan(path, expression.Span),
+	})
+	function.Body = append(function.Body, ir.Instruction{
+		Op:         ir.OpFieldSet,
+		Type:       ir.TypeVoid,
+		Callee:     "RegExp",
+		Field:      "lastIndex",
+		FieldIndex: 2,
+		Args:       []string{res, lastIdxConst},
 		Span:       toIRSpan(path, expression.Span),
 	})
 

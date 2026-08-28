@@ -367,8 +367,10 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) > 2 {
 			leArg = instruction.Args[2]
 			if e.types[leArg] == ir.TypeBool {
-				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
-				leArg = "%" + leArg + ".i32"
+				leVar := fmt.Sprintf("%s.le_i32.%d", instruction.Result, e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leVar, leArg)
+				leArg = "%" + leVar
 			} else {
 				leArg = "%" + leArg
 			}
@@ -388,8 +390,10 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) > 3 {
 			leArg = instruction.Args[3]
 			if e.types[leArg] == ir.TypeBool {
-				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
-				leArg = "%" + leArg + ".i32"
+				leVar := fmt.Sprintf("%s.le_i32.%d", instruction.Result, e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leVar, leArg)
+				leArg = "%" + leVar
 			} else {
 				leArg = "%" + leArg
 			}
@@ -410,8 +414,10 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) > 2 {
 			leArg = instruction.Args[2]
 			if e.types[leArg] == ir.TypeBool {
-				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
-				leArg = "%" + leArg + ".i32"
+				leVar := fmt.Sprintf("%s.le_i32.%d", instruction.Result, e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leVar, leArg)
+				leArg = "%" + leVar
 			} else {
 				leArg = "%" + leArg
 			}
@@ -433,8 +439,10 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) > 3 {
 			leArg = instruction.Args[3]
 			if e.types[leArg] == ir.TypeBool {
-				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leArg+".i32", leArg)
-				leArg = "%" + leArg + ".i32"
+				leVar := fmt.Sprintf("%s.le_i32.%d", instruction.Result, e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", leVar, leArg)
+				leArg = "%" + leVar
 			} else {
 				leArg = "%" + leArg
 			}

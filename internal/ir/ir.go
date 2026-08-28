@@ -50,6 +50,7 @@ type Function struct {
 	Span       SourceSpan
 	Parameters []Parameter
 	Captured   []Parameter
+	Locals     []Parameter
 	ReturnType Type
 	Body       []Instruction
 }

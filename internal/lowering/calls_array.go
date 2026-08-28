@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"strconv"
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
@@ -154,12 +155,99 @@ func lowerArrayReceiverMethod(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	isArr := receiverType == ir.TypeNumberArray || receiverType == ir.TypeStringArray || receiverType == ir.TypeBoolArray || receiverType == ir.TypeBigIntArray || strings.HasSuffix(string(receiverType), "[]") || receiverType == "object:Array" || receiverType == "Array"
+	shapeName := strings.TrimPrefix(string(receiverType), "object:")
+	isTuple := isTupleShapeName(shapeName)
+	isArr := receiverType == ir.TypeNumberArray || receiverType == ir.TypeStringArray || receiverType == ir.TypeBoolArray || receiverType == ir.TypeBigIntArray || strings.HasSuffix(string(receiverType), "[]") || receiverType == "object:Array" || receiverType == "Array" || isTuple
 	if !isArr || !isArrayMethod(methodName) {
 		return "", "", false, nil
 	}
+	if isTuple && methodName == "slice" {
+		var srcShape ir.ObjectShape
+		if s, ok := shapes[shapeName]; ok {
+			srcShape = s
+		} else if s, ok := registeredShapes[shapeName]; ok {
+			srcShape = s
+		} else if s, ok := anonymousShapes[shapeName]; ok {
+			srcShape = s
+		}
+		if len(srcShape.Fields) > 0 {
+			startIdx := 0
+			if len(expression.Arguments) > 0 {
+				if n, err := strconv.Atoi(expression.Arguments[0].Text); err == nil {
+					startIdx = n
+				}
+			}
+			endIdx := len(srcShape.Fields)
+			if len(expression.Arguments) > 1 {
+				if n, err := strconv.Atoi(expression.Arguments[1].Text); err == nil {
+					endIdx = n
+				}
+			}
+			if startIdx < 0 {
+				startIdx = 0
+			}
+			if endIdx > len(srcShape.Fields) {
+				endIdx = len(srcShape.Fields)
+			}
+			var resFields []ir.Field
+			for i := startIdx; i < endIdx; i++ {
+				resFields = append(resFields, ir.Field{
+					Name: strconv.Itoa(len(resFields)),
+					Type: srcShape.Fields[i].Type,
+				})
+			}
+			resShapeName := anonymousShapeName(resFields)
+			resShape := ir.ObjectShape{
+				Name:   resShapeName,
+				Fields: resFields,
+			}
+			shapes[resShapeName] = resShape
+			anonymousShapes[resShapeName] = resShape
+			registeredShapes[resShapeName] = resShape
+			resType := ir.Type("object:" + resShapeName)
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:         ir.OpObjectNew,
+				Type:       resType,
+				Result:     result,
+				Callee:     resShapeName,
+				FieldCount: len(resFields),
+				Span:       toIRSpan(path, expression.Span),
+			})
+			for newIdx, oldIdx := 0, startIdx; oldIdx < endIdx; newIdx, oldIdx = newIdx+1, oldIdx+1 {
+				fVal := nextTemp(counter)
+				fType := srcShape.Fields[oldIdx].Type
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldGet,
+					Type:       fType,
+					Result:     fVal,
+					Callee:     shapeName,
+					Field:      srcShape.Fields[oldIdx].Name,
+					FieldIndex: oldIdx,
+					Args:       []string{receiver},
+					Span:       toIRSpan(path, expression.Span),
+				})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:         ir.OpFieldSet,
+					Type:       ir.TypeVoid,
+					Callee:     resShapeName,
+					Field:      resFields[newIdx].Name,
+					FieldIndex: newIdx,
+					Args:       []string{result, fVal},
+					Span:       toIRSpan(path, expression.Span),
+				})
+			}
+			return result, resType, true, nil
+		}
+	}
 	args := []string{receiver}
+	elemType := arrayElementType(receiverType)
 	for _, argument := range expression.Arguments {
+		if (methodName == "push" || methodName == "unshift") && argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && elemType != "" {
+			argument.InferredType = string(elemType)
+		}
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
@@ -172,7 +260,11 @@ func lowerArrayReceiverMethod(
 	returnType := ir.TypeNumber
 	switch methodName {
 	case "map", "flatMap":
-		returnType = receiverType
+		if isTuple {
+			returnType = tupleCommonElementType(shapeName)
+		} else {
+			returnType = receiverType
+		}
 		if len(args) > 1 {
 			if cbRet, ok := env[args[1]+".retType"]; ok && cbRet != "" {
 				switch cbRet {
@@ -190,7 +282,11 @@ func lowerArrayReceiverMethod(
 			}
 		}
 	case "slice", "reverse", "concat", "splice", "filter", "fill", "toReversed", "toSorted", "toSpliced", "with", "sort", "copyWithin", "flat", "values":
-		returnType = receiverType
+		if isTuple {
+			returnType = tupleCommonElementType(shapeName)
+		} else {
+			returnType = receiverType
+		}
 	case "keys":
 		returnType = ir.TypeNumberArray
 	case "entries":
@@ -219,6 +315,12 @@ func lowerArrayReceiverMethod(
 	case "forEach":
 		returnType = ir.TypeVoid
 	}
-	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__array." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
+	callee := "__array." + methodName
+	if methodName == "flatMap" && len(args) > 1 {
+		if cbRet, ok := env[args[1]+".retType"]; ok && cbRet == ir.TypeNumber {
+			callee = "__array.flatMap_scalar"
+		}
+	}
+	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 	return result, returnType, true, nil
 }

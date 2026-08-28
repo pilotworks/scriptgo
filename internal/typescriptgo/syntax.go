@@ -15,7 +15,11 @@ func syntaxFile(file *ast.SourceFile, chk *checker.Checker) SyntaxFile {
 	}
 	for _, statement := range file.Statements.Nodes {
 		if converted, ok := syntaxStatement(statement, chk); ok {
-			result.Statements = append(result.Statements, converted)
+			if converted.Kind == "block" && statement.Kind != ast.KindBlock {
+				result.Statements = append(result.Statements, converted.Body...)
+			} else {
+				result.Statements = append(result.Statements, converted)
+			}
 		}
 	}
 	return result

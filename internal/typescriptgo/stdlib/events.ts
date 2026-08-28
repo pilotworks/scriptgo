@@ -280,16 +280,20 @@ class TargetListenerEntry {
 
 class TargetListenerBucket {
     type: string;
-    entries: TargetListenerEntry[];
+    entries: TargetListenerEntry[] = [];
 
-    constructor(type: string, entries: TargetListenerEntry[]) {
+    constructor(type: string) {
         this.type = type;
-        this.entries = entries;
+        this.entries = [];
     }
 }
 
 export class EventTarget {
-    private _targetBuckets: TargetListenerBucket[] = [];
+    protected _targetBuckets: TargetListenerBucket[] = [];
+
+    constructor() {
+        this._targetBuckets = [];
+    }
 
     private _findTargetBucketIndex(type: string): number {
         for (let i = 0; i < this._targetBuckets.length; i++) {
@@ -303,19 +307,14 @@ export class EventTarget {
     private _getOrCreateTargetBucketIndex(type: string): number {
         let idx = this._findTargetBucketIndex(type);
         if (idx < 0) {
-            this._targetBuckets.push(new TargetListenerBucket(type, []));
+            this._targetBuckets.push(new TargetListenerBucket(type));
             idx = this._targetBuckets.length - 1;
         }
         return idx;
     }
 
-    addEventListener(type: string, callback: Function | unknown, options?: unknown): void {
+    addEventListener(type: string, callback: Function, options?: unknown): void {
         if (!callback) return;
-        let fn: Function | null = null;
-        if (typeof callback === "function") {
-            fn = callback as Function;
-        }
-        if (!fn) return;
         let once = false;
         if (typeof options === "boolean") {
             once = options as boolean;
@@ -325,25 +324,21 @@ export class EventTarget {
         const idx = this._getOrCreateTargetBucketIndex(type);
         const bucket = this._targetBuckets[idx];
         for (let i = 0; i < bucket.entries.length; i++) {
-            if (bucket.entries[i].listener === fn) {
+            if (bucket.entries[i].listener === callback) {
                 return;
             }
         }
-        bucket.entries.push(new TargetListenerEntry(fn, once));
+        bucket.entries.push(new TargetListenerEntry(callback, once));
     }
 
-    removeEventListener(type: string, callback: Function | unknown, options?: unknown): void {
+    removeEventListener(type: string, callback: Function, options?: unknown): void {
         if (!callback) return;
-        let fn: Function | null = null;
-        if (typeof callback === "function") {
-            fn = callback as Function;
-        }
         const idx = this._findTargetBucketIndex(type);
         if (idx >= 0) {
             const bucket = this._targetBuckets[idx];
             const next: TargetListenerEntry[] = [];
             for (let i = 0; i < bucket.entries.length; i++) {
-                if (bucket.entries[i].listener !== fn) {
+                if (bucket.entries[i].listener !== callback) {
                     next.push(bucket.entries[i]);
                 }
             }
@@ -359,7 +354,10 @@ export class EventTarget {
         const bucket = this._targetBuckets[idx];
         if (bucket.entries.length === 0) return true;
 
-        const snapshot = bucket.entries.slice(0);
+        const snapshot: TargetListenerEntry[] = [];
+        for (let i = 0; i < bucket.entries.length; i++) {
+            snapshot.push(bucket.entries[i]);
+        }
         const remaining: TargetListenerEntry[] = [];
         for (let i = 0; i < bucket.entries.length; i++) {
             if (!bucket.entries[i].once) {
@@ -385,6 +383,7 @@ export class AbortSignal extends EventTarget {
 
     constructor() {
         super();
+        this._targetBuckets = [];
     }
 
     static abort(reason?: unknown): AbortSignal {
@@ -414,7 +413,7 @@ export class AbortSignal extends EventTarget {
             result._signalAbort(target ? target.reason : new DOMException("This operation was aborted", "AbortError"));
         };
         for (let i = 0; i < signals.length; i++) {
-            signals[i].addEventListener("abort", onAnyAbort, { once: true });
+            signals[i].addEventListener("abort", onAnyAbort, true);
         }
         return result;
     }

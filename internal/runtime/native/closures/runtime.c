@@ -80,6 +80,69 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
     return 0;
 }
 
+int scriptgo_array_push(void *handle, const void *value, double *out_length);
+
+int scriptgo_array_set_tag(void *handle, int64_t tag);
+
+int scriptgo_array_flat_map_number(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array flatMap failed");
+    }
+    if (scriptgo_array_new(0, sizeof(double), out_array) != 0) {
+        return -1;
+    }
+    scriptgo_array_set_tag(*out_array, 3);
+    for (int64_t i = 0; i < array->length; i++) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        void *res_ptr = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        double out_len;
+        if (res_ptr != NULL) {
+            scriptgo_array_inner *sub = res_ptr;
+            if (sub->element_size == sizeof(double)) {
+                for (int64_t j = 0; j < sub->length; j++) {
+                    double v = *(double *)(sub->data + (size_t)j * sizeof(double));
+                    scriptgo_array_push(*out_array, &v, &out_len);
+                }
+            } else {
+                double v = (double)(uintptr_t)res_ptr;
+                scriptgo_array_push(*out_array, &v, &out_len);
+            }
+        }
+    }
+    return 0;
+}
+
+int scriptgo_array_flat_map_number_scalar(void *handle, void *closure_handle, void **out_array) {
+    scriptgo_array_inner *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_array == NULL) {
+        return scriptgo_runtime_set_error("scriptgo array flatMap failed");
+    }
+    if (scriptgo_array_new(0, sizeof(double), out_array) != 0) {
+        return -1;
+    }
+    scriptgo_array_set_tag(*out_array, 3);
+    for (int64_t i = 0; i < array->length; i++) {
+        double item = *(double *)(array->data + (size_t)i * sizeof(double));
+        union { double d; int64_t i; } u_item, u_idx;
+        u_item.d = item;
+        u_idx.d = (double)i;
+        double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        double res_val = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        double out_len;
+        scriptgo_array_push(*out_array, &res_val, &out_len);
+    }
+    return 0;
+}
+
 int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void **out_array) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;

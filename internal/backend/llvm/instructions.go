@@ -76,6 +76,15 @@ func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) str
 	return e.resolveArg(out, arg)
 }
 
+func (e *functionEmitter) isParam(name string) bool {
+	for _, p := range e.function.Parameters {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 	slot, ok := e.varSlots[arg]
 	if cellSlot, isCell := e.sharedEnvCells[arg]; isCell {
@@ -101,23 +110,25 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 		return loadName
 	}
 	if e.localSSAs == nil || !e.localSSAs[arg] {
-		for _, g := range e.module.Globals {
-			if g.Name == arg {
-				loadName := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
-				e.loadCounter++
-				typ := e.types[arg]
-				if typ == "" || typ == ir.TypeVoid {
-					typ = g.Type
+		if !e.isParam(arg) {
+			for _, g := range e.module.Globals {
+				if g.Name == arg {
+					loadName := fmt.Sprintf("%s.gload.%d", arg, e.loadCounter)
+					e.loadCounter++
+					typ := e.types[arg]
 					if typ == "" || typ == ir.TypeVoid {
-						typ = ir.TypePointer
+						typ = g.Type
+						if typ == "" || typ == ir.TypeVoid {
+							typ = ir.TypePointer
+						}
 					}
+					e.types[loadName] = typ
+					if strings.HasSuffix(string(typ), "[]") || typ == ir.TypeStringArray || typ == ir.TypeNumberArray {
+						e.arrayTypes = append(e.arrayTypes, arrayReference{name: loadName, typ: typ})
+					}
+					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), g.Name))
+					return loadName
 				}
-				e.types[loadName] = typ
-				if strings.HasSuffix(string(typ), "[]") || typ == ir.TypeStringArray || typ == ir.TypeNumberArray {
-					e.arrayTypes = append(e.arrayTypes, arrayReference{name: loadName, typ: typ})
-				}
-				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), g.Name))
-				return loadName
 			}
 		}
 	}
@@ -150,6 +161,8 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 	if _, ok := e.varSlots[inst.Result]; ok {
 		inst.Result = fmt.Sprintf("%s.val.%d", inst.Result, e.loadCounter)
 		e.loadCounter++
+	} else if e.function.Name != "main" && (e.isParam(inst.Result) || (e.localSSAs != nil && e.localSSAs[inst.Result])) {
+		// Local parameter or SSA in non-main function, do not shadow to global
 	} else {
 		for _, g := range e.module.Globals {
 			if g.Name == inst.Result {

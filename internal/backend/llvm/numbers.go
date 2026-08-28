@@ -16,7 +16,12 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			return fmt.Errorf("parseInt has invalid signature")
 		}
 		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_int(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		if len(instruction.Args) == 2 {
+			radixArg := e.resolveArg(out, instruction.Args[1])
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_int_radix(ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], radixArg, slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_int(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 	case "__number.parseFloat":

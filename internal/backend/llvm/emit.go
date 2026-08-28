@@ -168,12 +168,14 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare double @log1p(double)\n")
 	out.WriteString("declare double @atan2(double, double)\n")
 	out.WriteString("declare double @hypot(double, double)\n")
+	out.WriteString("declare double @llvm.minimum.f64(double, double)\n")
+	out.WriteString("declare double @llvm.maximum.f64(double, double)\n")
+	out.WriteString("declare double @scriptgo_math_round(double)\n")
+	out.WriteString("declare double @scriptgo_math_pow(double, double)\n")
 	out.WriteString("declare double @drand48()\n")
-	out.WriteString("declare double @llvm.minnum.f64(double, double)\n")
-	out.WriteString("declare double @llvm.maxnum.f64(double, double)\n")
-	out.WriteString("declare double @llvm.pow.f64(double, double)\n")
 	out.WriteString("declare i32 @llvm.ctlz.i32(i32, i1)\n\n")
 	out.WriteString("declare i32 @scriptgo_number_parse_int(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_number_parse_int_radix(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_parse_float(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_is_nan(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_is_finite(double, ptr)\n")
@@ -271,7 +273,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_replace_regex(ptr, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_match(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_search(ptr, ptr, ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_string_split(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_string_split(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_substr(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_char_codes(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_at(ptr, double, ptr)\n")
@@ -296,11 +298,13 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_compare(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_regex_test(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_regex_exec(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_regex_exec_stateful(ptr, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_regex_escape(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_from_string(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_bigint_as_int_n(i64, i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_bigint_as_uint_n(i64, i64, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_bigint_as_uint_n(i64, i64, ptr)\n")
+	out.WriteString("declare i64 @scriptgo_bigint_pow(i64, i64)\n\n")
 	out.WriteString("declare i32 @scriptgo_symbol_create(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_symbol_for(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_symbol_key_for(ptr, ptr)\n")
@@ -387,6 +391,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_closure_create(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_get_unknown(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_flat_map_number(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_array_flat_map_number_scalar(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number_from_ptr(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_number_from_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_map_string(ptr, ptr, ptr)\n")
@@ -632,6 +638,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 
 	alreadyDeclared := map[string]bool{
 		"malloc": true, "setjmp": true, "tan": true, "atan": true, "atan2": true, "hypot": true, "drand48": true,
+		"scriptgo_math_round": true, "scriptgo_math_pow": true, "scriptgo_bigint_pow": true,
 	}
 	for _, ext := range module.Externs {
 		if alreadyDeclared[ext.Name] || strings.HasPrefix(ext.Name, "llvm.") {
@@ -714,8 +721,11 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 }
 
 func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module, options Options) (string, error) {
+	isClosure := strings.HasPrefix(function.Name, "__closure_")
 	returnType := llvmType(function.ReturnType)
-	if function.ReturnType == ir.TypeBool {
+	if isClosure && (function.ReturnType == ir.TypeVoid || function.ReturnType == "") {
+		returnType = "{ i32, i32, i64 }"
+	} else if function.ReturnType == ir.TypeBool {
 		returnType = "zeroext i1"
 	}
 	name := function.Name
@@ -755,19 +765,33 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		debug:           debug,
 		module:          module,
 		compilerVersion: verStr,
-		types:           make(map[string]ir.Type, len(function.Parameters)),
+		types:           make(map[string]ir.Type, len(function.Parameters)+len(module.Globals)),
 		varSlots:        make(map[string]string),
 		localSSAs:       make(map[string]bool),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {
+		emitter.types[g.Name] = g.Type
 		globalsMap[g.Name] = true
 	}
 	for _, parameter := range function.Parameters {
 		emitter.types[parameter.Name] = parameter.Type
 		emitter.localSSAs[parameter.Name] = true
 	}
-	collectSSADefs(function.Body, emitter.localSSAs, function.Name == "main", globalsMap)
+	isLocalDecl := func(name string) bool {
+		for _, l := range function.Locals {
+			if l.Name == name {
+				return true
+			}
+		}
+		for _, p := range function.Parameters {
+			if p.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	collectSSADefs(function.Body, emitter.localSSAs, function.Name == "main", globalsMap, isLocalDecl)
 
 	if len(function.Captured) > 0 {
 		fieldTypes := make([]string, len(function.Captured))
@@ -825,8 +849,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 	slotted := findSlottedVariables(function.Body)
 	for varName, typ := range slotted {
-		if globalsMap[varName] {
-			continue
+		if function.Name == "main" {
+			if globalsMap[varName] {
+				continue
+			}
+		} else {
+			if globalsMap[varName] && !isLocalDecl(varName) {
+				continue
+			}
 		}
 		for _, param := range function.Parameters {
 			if param.Name == varName {
@@ -870,6 +900,8 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		if function.Name == "main" {
 			out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 			out.WriteString("  ret i32 0\n")
+		} else if isClosure && (function.ReturnType == ir.TypeVoid || function.ReturnType == "") {
+			out.WriteString("  ret { i32, i32, i64 } zeroinitializer\n")
 		} else if function.ReturnType == ir.TypeVoid {
 			out.WriteString("  ret void\n")
 		} else {
@@ -958,19 +990,25 @@ func findCapturedInFunction(instructions []ir.Instruction) []string {
 	return captured
 }
 
-func collectSSADefs(instructions []ir.Instruction, defs map[string]bool, isMain bool, globals map[string]bool) {
+func collectSSADefs(instructions []ir.Instruction, defs map[string]bool, isMain bool, globals map[string]bool, isLocalDecl func(string) bool) {
 	for _, inst := range instructions {
 		if inst.Result != "" {
-			if !globals[inst.Result] {
-				defs[inst.Result] = true
+			if isMain {
+				if !globals[inst.Result] {
+					defs[inst.Result] = true
+				}
+			} else {
+				if !globals[inst.Result] || isLocalDecl(inst.Result) {
+					defs[inst.Result] = true
+				}
 			}
 		}
-		collectSSADefs(inst.Then, defs, isMain, globals)
-		collectSSADefs(inst.Else, defs, isMain, globals)
-		collectSSADefs(inst.Cond, defs, isMain, globals)
-		collectSSADefs(inst.Body, defs, isMain, globals)
-		collectSSADefs(inst.Step, defs, isMain, globals)
-		collectSSADefs(inst.Catch, defs, isMain, globals)
-		collectSSADefs(inst.Finally, defs, isMain, globals)
+		collectSSADefs(inst.Then, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Else, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Cond, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Body, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Step, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Catch, defs, isMain, globals, isLocalDecl)
+		collectSSADefs(inst.Finally, defs, isMain, globals, isLocalDecl)
 	}
 }

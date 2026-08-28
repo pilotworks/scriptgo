@@ -367,9 +367,26 @@ int scriptgo_array_index_of_ptr(void *handle, const void *target, double from_in
 }
 
 int scriptgo_array_includes_number(void *handle, double target, double *out_bool) {
-    double idx = -1.0;
-    if (scriptgo_array_index_of_number(handle, target, 0.0, &idx) != 0) return -1;
-    *out_bool = idx >= 0.0 ? 1.0 : 0.0;
+    if (out_bool == NULL) return -1;
+    scriptgo_array *array = handle;
+    if (array == NULL) {
+        *out_bool = 0.0;
+        return 0;
+    }
+    double *data = (double *)array->data;
+    int target_is_nan = isnan(target);
+    for (size_t i = 0; i < array->length; i++) {
+        if (target_is_nan) {
+            if (isnan(data[i])) {
+                *out_bool = 1.0;
+                return 0;
+            }
+        } else if (data[i] == target) {
+            *out_bool = 1.0;
+            return 0;
+        }
+    }
+    *out_bool = 0.0;
     return 0;
 }
 
@@ -671,30 +688,84 @@ typedef struct {
 } scriptgo_boxed_unknown_t;
 
 int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigned long long payload, char **out_str);
+int scriptgo_string_from_number(double value, char **out_value);
 
 int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str) {
+    if (handle == NULL || out_str == NULL) {
+        return fail("scriptgo array access failed");
+    }
+    if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
+        scriptgo_runtime_object_header *obj = handle;
+        size_t cap = 256, len = 0;
+        char *buf = malloc(cap);
+        if (buf == NULL) return fail("scriptgo string allocation failed");
+        buf[0] = '\0';
+        const char *sep = separator != NULL ? separator : ",";
+        size_t sep_len = strlen(sep);
+        for (int64_t i = 0; i < obj->field_count; i++) {
+            char *val_str = (char *)obj->fields[i];
+            if (val_str == NULL) val_str = "";
+            size_t s_len = strlen(val_str);
+            while (len + s_len + sep_len + 1 >= cap) {
+                cap *= 2;
+                char *new_buf = realloc(buf, cap);
+                if (new_buf == NULL) { free(buf); return fail("scriptgo string allocation failed"); }
+                buf = new_buf;
+            }
+            if (i > 0) {
+                memcpy(buf + len, sep, sep_len);
+                len += sep_len;
+            }
+            memcpy(buf + len, val_str, s_len);
+            len += s_len;
+            buf[len] = '\0';
+        }
+        *out_str = buf;
+        return 0;
+    }
     scriptgo_array *array = handle;
+    if (array->element_size <= 0) {
+        return fail("scriptgo array access failed");
+    }
     size_t cap = 256, len = 0;
     char *buf;
     const char *sep = separator != NULL ? separator : ",";
     size_t sep_len = strlen(sep);
-    if (array == NULL || out_str == NULL || array->element_size != sizeof(scriptgo_boxed_unknown_t)) {
-        return fail("scriptgo array access failed");
-    }
     buf = malloc(cap);
     if (buf == NULL) return fail("scriptgo string allocation failed");
     buf[0] = '\0';
     for (int64_t i = 0; i < array->length; i++) {
-        scriptgo_boxed_unknown_t *item = (scriptgo_boxed_unknown_t *)(array->data + (size_t)i * sizeof(scriptgo_boxed_unknown_t));
         char *val_str = NULL;
-        if (scriptgo_string_from_unknown(item->tag, item->padding, item->payload, &val_str) != 0 || val_str == NULL) {
+        int need_free = 0;
+        if (array->element_size == sizeof(scriptgo_boxed_unknown_t)) {
+            scriptgo_boxed_unknown_t *item = (scriptgo_boxed_unknown_t *)(array->data + (size_t)i * sizeof(scriptgo_boxed_unknown_t));
+            if (scriptgo_string_from_unknown(item->tag, item->padding, item->payload, &val_str) != 0 || val_str == NULL) {
+                val_str = "";
+            } else {
+                need_free = 1;
+            }
+        } else if (array->element_tag == 3) {
+            double d = *(double *)(array->data + (size_t)i * sizeof(double));
+            if (scriptgo_string_from_number(d, &val_str) == 0 && val_str != NULL) {
+                need_free = 1;
+            } else {
+                val_str = "";
+            }
+        } else if (array->element_tag == 4 || array->element_size == sizeof(char *)) {
+            val_str = *(char **)(array->data + (size_t)i * sizeof(char *));
+            if (val_str == NULL) val_str = "";
+        } else {
             val_str = "";
         }
         size_t s_len = strlen(val_str);
         while (len + s_len + sep_len + 1 >= cap) {
             cap *= 2;
             char *new_buf = realloc(buf, cap);
-            if (new_buf == NULL) { free(buf); return fail("scriptgo string allocation failed"); }
+            if (new_buf == NULL) {
+                if (need_free) free(val_str);
+                free(buf);
+                return fail("scriptgo string allocation failed");
+            }
             buf = new_buf;
         }
         if (i > 0) {
@@ -704,6 +775,9 @@ int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_
         memcpy(buf + len, val_str, s_len);
         len += s_len;
         buf[len] = '\0';
+        if (need_free) {
+            free(val_str);
+        }
     }
     *out_str = buf;
     return 0;

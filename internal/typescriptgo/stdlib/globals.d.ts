@@ -92,11 +92,26 @@ interface BigIntConstructor {
 
 declare var BigInt: BigIntConstructor;
 
+interface RegExpExecArray extends Array<string> {
+    index: number;
+    input: string;
+    groups?: { [key: string]: string };
+    [index: number]: string;
+}
+
+interface RegExpMatchArray extends Array<string> {
+    index?: number;
+    input?: string;
+    groups?: { [key: string]: string };
+    [index: number]: string;
+}
+
 interface RegExp {
     readonly source: string;
     readonly flags: string;
+    lastIndex: number;
     test(string: string): boolean;
-    exec(string: string): string[] | null;
+    exec(string: string): RegExpExecArray | null;
 }
 
 interface RegExpConstructor {

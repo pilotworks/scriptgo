@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: August 23, 2026  
+> **Report Date**: August 29, 2026  
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon) & Linux x86_64 / ARM64  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -14,14 +14,14 @@
 
 #### Parity Benchmark Overview
 
-All 340 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Native Binary)** and **Node.js**:
+All 357 test cases in the regression test suite (Corpus Test Suite) have been cross-checked directly between **ScriptGo (Native Binary)** and **Node.js**:
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **340** | **340 / 340 Passed** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 329 | 329 PASS (direct binary compilation) | 100.0% |
+| **Total Corpus Test Cases** | **353** | **353 / 353 Passed** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 342 | 342 PASS (direct binary compilation) | 100.0% |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~1m30s (macOS / Linux) | Verified across macOS & Linux | - |
+| **Total Test Suite Runtime** | ~3m55s (macOS / Linux) | Verified across macOS & Linux | - |
 
 ---
 

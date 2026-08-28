@@ -22,7 +22,7 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 			"__Math.floor": "llvm.floor.f64",
 			"__Math.trunc": "llvm.trunc.f64",
 			"__Math.sqrt":  "llvm.sqrt.f64",
-			"__Math.round": "llvm.round.f64",
+			"__Math.round": "scriptgo_math_round",
 			"__Math.sin":   "llvm.sin.f64",
 			"__Math.cos":   "llvm.cos.f64",
 			"__Math.log":   "llvm.log.f64",
@@ -103,9 +103,9 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 			return fmt.Errorf("math intrinsic %q requires two numbers", instruction.Callee)
 		}
 		name := map[string]string{
-			"__Math.min":   "llvm.minnum.f64",
-			"__Math.max":   "llvm.maxnum.f64",
-			"__Math.pow":   "llvm.pow.f64",
+			"__Math.min":   "llvm.minimum.f64",
+			"__Math.max":   "llvm.maximum.f64",
+			"__Math.pow":   "scriptgo_math_pow",
 			"__Math.atan2": "atan2",
 			"__Math.hypot": "hypot",
 		}[instruction.Callee]

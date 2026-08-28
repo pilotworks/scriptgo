@@ -122,6 +122,13 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	switch statement.Kind {
 	case "variable", "using", "await_using":
+		varResultName := statement.Name
+		if _, isShadowed := env[statement.Name]; isShadowed {
+			varResultName = fmt.Sprintf("%s$%d", statement.Name, *counter)
+			*counter++
+			env["__ident."+statement.Name] = ir.Type(varResultName)
+		}
+		function.Locals = append(function.Locals, ir.Parameter{Name: varResultName})
 		if statement.Expression == nil {
 			if statement.Kind == "using" || statement.Kind == "await_using" {
 				return fmt.Errorf("resource %q has no initializer", statement.Name)
@@ -134,9 +141,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			if declaredType == "" {
 				declaredType = ir.TypeUnknown
 			}
+			env[varResultName] = declaredType
 			env[statement.Name] = declaredType
-			env["__storage_type."+statement.Name] = declaredType
-			env["__decl_str."+statement.Name] = ir.Type(typeStr)
+			env["__storage_type."+varResultName] = declaredType
+			env["__decl_str."+varResultName] = ir.Type(typeStr)
 			var zeroVal string
 			hasUndef := strings.Contains(typeStr, "undefined") || strings.Contains(typeStr, "void")
 			switch declaredType {
@@ -164,7 +172,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
 				Type:   declaredType,
-				Result: statement.Name,
+				Result: varResultName,
 				Value:  zeroVal,
 				Span:   toIRSpan(path, statement.Span),
 			})
@@ -181,42 +189,48 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			if statement.Expression.Kind == "this" {
 				identText = "this"
 			}
+			if mangled, hasMangled := env["__ident."+identText]; hasMangled {
+				identText = string(mangled)
+			}
 			srcType, ok := env[identText]
 			if ok && (declaredType == "" || declaredType == srcType || declaredType == ir.TypeUnknown) {
 				if declaredType == ir.TypeUnknown {
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpBoxUnknown,
 						Type:   ir.TypeUnknown,
-						Result: statement.Name,
+						Result: varResultName,
 						Args:   []string{identText},
 						Span:   toIRSpan(path, statement.Span),
 					})
+					env[varResultName] = ir.TypeUnknown
 					env[statement.Name] = ir.TypeUnknown
 					return nil
 				}
+				env[varResultName] = srcType
 				env[statement.Name] = srcType
 				switch srcType {
 				case ir.TypeNumber:
 					zeroConst := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{identText, zeroConst}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: varResultName, Operator: "+", Args: []string{identText, zeroConst}, Span: toIRSpan(path, statement.Span)})
 				case ir.TypeString:
 					emptyStr := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "+", Args: []string{identText, emptyStr}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: varResultName, Operator: "+", Args: []string{identText, emptyStr}, Span: toIRSpan(path, statement.Span)})
 				case ir.TypeBool:
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: statement.Name, Operator: "||", Args: []string{identText, identText}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: varResultName, Operator: "||", Args: []string{identText, identText}, Span: toIRSpan(path, statement.Span)})
 				default:
 					trueConst := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueConst, Value: "true", Span: toIRSpan(path, statement.Span)})
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: statement.Name, Args: []string{trueConst, identText, identText}, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: varResultName, Args: []string{trueConst, identText, identText}, Span: toIRSpan(path, statement.Span)})
 				}
 				return nil
 			} else if !ok {
 				global, isGlobal := builtinGlobal(statement.Expression.Text)
 				if isGlobal {
+					env[varResultName] = global.Type
 					env[statement.Name] = global.Type
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: statement.Name, Value: global.Value, Span: toIRSpan(path, statement.Span)})
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: varResultName, Value: global.Value, Span: toIRSpan(path, statement.Span)})
 					return nil
 				}
 				return fmt.Errorf("unknown identifier %q", statement.Expression.Text)
@@ -227,10 +241,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpConst,
 					Type:   ir.TypeUnknown,
-					Result: statement.Name,
+					Result: varResultName,
 					Value:  "null",
 					Span:   toIRSpan(path, statement.Span),
 				})
+				env[varResultName] = ir.TypeUnknown
 				env[statement.Name] = ir.TypeUnknown
 				return nil
 			}
@@ -238,10 +253,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpConst,
 					Type:   ir.TypeUnknown,
-					Result: statement.Name,
+					Result: varResultName,
 					Value:  "undefined",
 					Span:   toIRSpan(path, statement.Span),
 				})
+				env[varResultName] = ir.TypeUnknown
 				env[statement.Name] = ir.TypeUnknown
 				return nil
 			}
@@ -250,11 +266,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				return err
 			}
 			if valType == ir.TypeUnknown {
-				if value != statement.Name {
+				if value != varResultName {
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpAssign,
 						Type:   ir.TypeUnknown,
-						Result: statement.Name,
+						Result: varResultName,
 						Args:   []string{value},
 						Span:   toIRSpan(path, statement.Span),
 					})
@@ -263,11 +279,12 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpBoxUnknown,
 					Type:   ir.TypeUnknown,
-					Result: statement.Name,
+					Result: varResultName,
 					Args:   []string{value},
 					Span:   toIRSpan(path, statement.Span),
 				})
 			}
+			env[varResultName] = ir.TypeUnknown
 			env[statement.Name] = ir.TypeUnknown
 			return nil
 		}
@@ -293,16 +310,19 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
 				Type:   declaredType,
-				Result: statement.Name,
+				Result: varResultName,
 				Value:  defaultVal,
 				Span:   toIRSpan(path, statement.Span),
 			})
+			env[varResultName] = declaredType
 			env[statement.Name] = declaredType
 			return nil
 		}
 		if statement.Expression != nil && (statement.Expression.Kind == "array" || (statement.Expression.Kind == "new" && callName(statement.Expression.Left) == "Array")) && statement.Type != "" {
 			if toIRType(statement.Type) == ir.TypeUnknownArray {
 				statement.Expression.InferredType = "unknown[]"
+			} else if _, isTup := tupleFields(statement.Type); isTup {
+				statement.Expression.InferredType = statement.Type
 			} else if strings.HasSuffix(statement.Type, "[]") || statement.Expression.InferredType == "" || statement.Expression.InferredType == "any[]" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]" {
 				statement.Expression.InferredType = statement.Type
 			}
@@ -311,6 +331,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			statement.Expression.InferredType = statement.Type
 		}
 		if statement.Expression != nil && (statement.Expression.Kind == "function" || statement.Expression.Function != nil || strings.Contains(statement.Type, "=>") || strings.Contains(statement.InferredType, "=>")) {
+			env[varResultName] = ir.TypeClosure
 			env[statement.Name] = ir.TypeClosure
 			fnSig := statement.Type
 			if fnSig == "" || fnSig == "closure" {
@@ -318,18 +339,23 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 			if strings.Contains(fnSig, "=>") {
 				retStr := extractTopLevelReturnType(fnSig)
+				env[varResultName+".retType"] = toIRType(retStr)
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
-		value, valType, err := lowerExpression(path, statement.Expression, statement.Name, function, env, counter, shapes, signatures)
+		if statement.Type != "" {
+			env["__decl_str."+varResultName] = ir.Type(statement.Type)
+			env["__decl_str."+statement.Name] = ir.Type(statement.Type)
+		}
+		value, valType, err := lowerExpression(path, statement.Expression, varResultName, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
 		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown && !isOptionalChainExpr(statement.Expression) {
-			if value == statement.Name {
+			if value == varResultName {
 				tempVal := nextTemp(counter)
 				for i := len(function.Body) - 1; i >= 0; i-- {
-					if function.Body[i].Result == statement.Name {
+					if function.Body[i].Result == varResultName {
 						function.Body[i].Result = tempVal
 						break
 					}
@@ -339,7 +365,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpCheckedCast,
 				Type:   declaredType,
-				Result: statement.Name,
+				Result: varResultName,
 				Args:   []string{value},
 				Span:   toIRSpan(path, statement.Span),
 			})
@@ -351,6 +377,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				typ = declaredType
 			}
 		}
+		env[varResultName] = typ
 		env[statement.Name] = typ
 		if typ == ir.TypeClosure {
 			fnSig := statement.Type
@@ -359,6 +386,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 			if strings.Contains(fnSig, "=>") {
 				retStr := extractTopLevelReturnType(fnSig)
+				env[varResultName+".retType"] = toIRType(retStr)
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
@@ -523,8 +551,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: typ, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 		}
 	case "block":
+		blockEnv := maps.Clone(env)
 		for _, s := range statement.Body {
-			if err := lowerStatement(path, s, function, env, counter, shapes, signatures); err != nil {
+			if err := lowerStatement(path, s, function, blockEnv, counter, shapes, signatures); err != nil {
 				return err
 			}
 		}
@@ -543,7 +572,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 	case "assign":
-		varType, ok := env[statement.Name]
+		targetVarName := statement.Name
+		if mangled, hasMangled := env["__ident."+statement.Name]; hasMangled {
+			targetVarName = string(mangled)
+		}
+		varType, ok := env[targetVarName]
 		if !ok {
 			if topVar, isTop := topLevelVars[statement.Name]; isTop {
 				vType := topVar.Type
@@ -554,7 +587,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				if varType == "" {
 					varType = ir.TypeNumber
 				}
-				env[statement.Name] = varType
+				env[targetVarName] = varType
 			} else {
 				return fmt.Errorf("assignment to unknown variable %q", statement.Name)
 			}
@@ -589,7 +622,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpAssign,
 				Type:   varType,
-				Result: statement.Name,
+				Result: targetVarName,
 				Args:   []string{tmp},
 				Span:   toIRSpan(path, statement.Span),
 			})
@@ -605,7 +638,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
-		storageType := env["__storage_type."+statement.Name]
+		storageType := env["__storage_type."+targetVarName]
+		if storageType == "" {
+			storageType = env["__storage_type."+statement.Name]
+		}
 		if storageType == "" {
 			if topVar, isTop := topLevelVars[statement.Name]; isTop {
 				vType := topVar.Type
@@ -619,7 +655,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpBoxUnknown,
 				Type:   ir.TypeUnknown,
-				Result: statement.Name,
+				Result: targetVarName,
 				Args:   []string{value},
 				Span:   toIRSpan(path, statement.Span),
 			})
@@ -640,11 +676,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				value = unboxed
 			} else if isPointerLikeType(varType) && (valType == ir.TypeVoid || valType == ir.TypePointer) {
 				// Assigning undefined or null to a pointer-like variable
+			} else if strings.HasPrefix(statement.Name, "__destruct_") || strings.HasPrefix(targetVarName, "__destruct_") {
+				// Destructuring temporary assignment under out-of-bounds guard
 			} else {
 				return fmt.Errorf("assignment type mismatch for %q: %s := %s", statement.Name, varType, valType)
 			}
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: varType, Result: statement.Name, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: varType, Result: targetVarName, Args: []string{value}, Span: toIRSpan(path, statement.Span)})
 	case "while":
 		return lowerWhile(path, statement, function, env, counter, shapes, signatures)
 	case "if":
@@ -762,6 +800,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		} else {
 			return fmt.Errorf("array index_set requires an array, got %s", arrType)
 		}
+		if statement.Expression != nil && (statement.Expression.InferredType == "" || statement.Expression.InferredType == "never[]" || statement.Expression.InferredType == "unknown[]") && expectedElemType != "" {
+			statement.Expression.InferredType = string(expectedElemType)
+		}
 		val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -795,7 +836,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			valType = ir.TypeUnknown
 		}
 		if expectedElemType != "" && valType != expectedElemType && valType != ir.TypeUnknown && expectedElemType != ir.TypeUnknown {
-			if !strings.HasSuffix(string(expectedElemType), "[]") || (valType != "never[]" && valType != "object:never[]" && valType != ir.TypeObject && valType != "never") {
+			if !strings.HasSuffix(string(expectedElemType), "[]") || (valType != "never[]" && valType != "object:never[]" && valType != ir.TypeObject && valType != "never" && valType != "unknown[]") {
 				return fmt.Errorf("array index_set type mismatch: %s cannot be assigned to %s", valType, arrType)
 			}
 		}
