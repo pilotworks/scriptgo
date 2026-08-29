@@ -234,6 +234,9 @@ func builtinModule(name string) (BuiltinModule, bool) {
 	defer stdlibMu.RUnlock()
 
 	canonical := strings.TrimPrefix(name, "node:")
+	if canonical == "stream/web" {
+		canonical = "webstreams"
+	}
 	module, ok := builtinModules[canonical]
 	return module, ok
 }

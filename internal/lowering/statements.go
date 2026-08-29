@@ -121,6 +121,8 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 
 func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	switch statement.Kind {
+	case "empty":
+		return nil
 	case "variable", "using", "await_using":
 		varResultName := statement.Name
 		if _, isShadowed := env[statement.Name]; isShadowed {

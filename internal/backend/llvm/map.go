@@ -44,6 +44,9 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		valType := e.types[origVal]
 		keyArg := e.resolveArg(out, origKey)
 		valArg := e.resolveArg(out, origVal)
+		if valType != ir.TypeNumber && valType != ir.TypeString {
+			valArg = e.ensurePointerArg(out, origVal)
+		}
 
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

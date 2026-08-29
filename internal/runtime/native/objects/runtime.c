@@ -281,6 +281,35 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
     return 0;
 }
 
+int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value) {
+    if (handle == NULL || index < 0 || index >= 64) {
+        return 0;
+    }
+    scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->field_count) {
+        o->field_count = index + 1;
+    }
+    o->fields[index] = (uintptr_t)value;
+    return 0;
+}
+
+int scriptgo_object_bigint_get(void *handle, int64_t index, int64_t *out_value) {
+    if (out_value == NULL) {
+        return 0;
+    }
+    if (handle == NULL || index < 0 || index >= 64) {
+        *out_value = 0;
+        return 0;
+    }
+    scriptgo_object *o = (scriptgo_object *)handle;
+    if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
+        *out_value = 0;
+        return 0;
+    }
+    *out_value = (int64_t)o->fields[index];
+    return 0;
+}
+
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     if (handle == NULL || index < 0 || index >= 64) {
         return 0;
@@ -404,7 +433,9 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
         *out_result = 0;
         return 0;
     }
-    if (strcmp(obj->type_name, class_name) == 0) {
+    size_t cn_len = strlen(class_name);
+    if (strncmp(obj->type_name, class_name, cn_len) == 0 &&
+        (obj->type_name[cn_len] == '\0' || (obj->type_name[cn_len] == '_' && obj->type_name[cn_len+1] == '_'))) {
         *out_result = 1;
         return 0;
     }

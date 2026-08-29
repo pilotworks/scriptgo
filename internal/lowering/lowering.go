@@ -104,7 +104,10 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "Error", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "TypeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "RangeError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "ReferenceError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "URIError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "EvalError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "SuppressedError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "error", Type: ir.TypeString}, {Name: "suppressed", Type: ir.TypeString}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
 		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}, {Name: "lastIndex", Type: ir.TypeNumber}}},
@@ -555,6 +558,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 					function, err := lowerFunction(fileName, methodStmt, shapes, signatures)
 					if err != nil {
+						fmt.Printf("DEBUG method error: %s: %v\n", mangled, err)
 						return fmt.Errorf("lower class method %q: %w", mangled, sourceError(fileName, method.Span, err))
 					}
 					module.Functions = append(module.Functions, function)

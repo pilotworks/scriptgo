@@ -103,6 +103,8 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolI32, valArg))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bool_set(ptr %s, i64 %d, i32 %%%s)\n", status, ptrObj, instruction.FieldIndex, boolI32))
+	case actualType == ir.TypeBigInt:
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bigint_set(ptr %s, i64 %d, i64 %%%s)\n", status, ptrObj, instruction.FieldIndex, valArg))
 	case actualType == ir.TypeUnknown:
 		tagVar := fmt.Sprintf("tag.%d", e.loadCounter)
 		payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
@@ -231,6 +233,24 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 			boolI32 := instruction.Result + ".i32"
 			out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%__slot_i32\n", boolI32))
 			out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, boolI32))
+		}
+	case instruction.Type == ir.TypeBigInt || actualFieldType == ir.TypeBigInt:
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		slotBigInt := fmt.Sprintf("slot.bigint.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i64\n", slotBigInt))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_bigint_get(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, slotBigInt))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		if instruction.Type == ir.TypeUnknown {
+			biLoaded := fmt.Sprintf("bi.loaded.%d", e.loadCounter)
+			b0 := fmt.Sprintf("box.b0.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", biLoaded, slotBigInt))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } zeroinitializer, i32 8, 0\n", b0))
+			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, b0, biLoaded))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", instruction.Result, slotBigInt))
 		}
 	default:
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

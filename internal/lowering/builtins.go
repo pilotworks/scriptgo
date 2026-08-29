@@ -93,6 +93,7 @@ var builtinGlobals = map[string]BuiltinGlobal{
 	"Symbol.toPrimitive":        {Category: CategoryECMAScript, Name: "Symbol.toPrimitive", Type: ir.TypeSymbol, Value: "Symbol.toPrimitive"},
 	"Symbol.toStringTag":        {Category: CategoryECMAScript, Name: "Symbol.toStringTag", Type: ir.TypeSymbol, Value: "Symbol.toStringTag"},
 	"Symbol.unscopables":        {Category: CategoryECMAScript, Name: "Symbol.unscopables", Type: ir.TypeSymbol, Value: "Symbol.unscopables"},
+	"Error.stackTraceLimit":     {Category: CategoryNodeGlobal, Name: "Error.stackTraceLimit", Type: ir.TypeNumber, Value: "10"},
 }
 
 func lowerMathMinMax(callee string) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
@@ -837,6 +838,28 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	registerArrayBuiltins(m)
 	registerReflectIntrinsics(m)
 	registerIteratorBuiltins(m)
+
+	m["Error.captureStackTrace"] = BuiltinIntrinsic{
+		Category: CategoryNodeGlobal,
+		Name:     "Error.captureStackTrace",
+		MinArgs:  1,
+		MaxArgs:  2,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeVoid,
+				Result: result,
+				Value:  "",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeVoid, nil
+		},
+	}
+	m["__Error.captureStackTrace"] = m["Error.captureStackTrace"]
 
 	return m
 }

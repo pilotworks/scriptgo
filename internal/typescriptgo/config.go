@@ -52,11 +52,19 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
+		if name == "webstreams" {
+			vStreamWeb := filepath.Join(cwd, "node_modules", "stream", "web", "index.ts")
+			virtualFiles[vStreamWeb] = module.Source
+			builtinPaths[vStreamWeb] = "stream/web"
+		}
 	}
 
 	var nodeTypesDts strings.Builder
 	for name := range builtinModules {
 		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
+		if name == "webstreams" {
+			nodeTypesDts.WriteString("declare module \"node:stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\n")
+		}
 	}
 	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
 	virtualFiles[nodeTypesPath] = nodeTypesDts.String()

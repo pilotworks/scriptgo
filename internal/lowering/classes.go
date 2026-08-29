@@ -31,15 +31,29 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 		var visitStmt func(stmt typescriptgo.SyntaxStatement)
 		visitStmt = func(stmt typescriptgo.SyntaxStatement) {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
-				if existing, exists := hierarchy[stmt.Class.Name]; exists {
-					if stmt.Kind == "interface" {
-						existing.Fields = append(existing.Fields, stmt.Class.Fields...)
-						hierarchy[stmt.Class.Name] = existing
+				if existingSyntax, exists := syntax[stmt.Class.Name]; exists {
+					if stmt.Kind == "interface" || stmt.Kind == "type_alias" {
 						return
 					}
-					if len(existing.Fields) > 0 && len(stmt.Class.Fields) == 0 {
-						return
+					mergedMethods := make([]typescriptgo.SyntaxMethod, 0, len(existingSyntax.Methods)+len(stmt.Class.Methods))
+					methodSeen := map[string]int{}
+					for _, m := range existingSyntax.Methods {
+						key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
+						methodSeen[key] = len(mergedMethods)
+						mergedMethods = append(mergedMethods, m)
 					}
+					for _, m := range stmt.Class.Methods {
+						key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
+						if idx, found := methodSeen[key]; found {
+							if mergedMethods[idx].Body == nil && m.Body != nil {
+								mergedMethods[idx] = m
+							}
+						} else {
+							methodSeen[key] = len(mergedMethods)
+							mergedMethods = append(mergedMethods, m)
+						}
+					}
+					stmt.Class.Methods = mergedMethods
 				}
 				syntax[stmt.Class.Name] = *stmt.Class
 				meta := ClassMeta{
@@ -77,6 +91,14 @@ func isSubtype(subType, superType string) bool {
 	sub := strings.TrimPrefix(subType, "object:")
 	super := strings.TrimPrefix(superType, "object:")
 	if sub == super {
+		return true
+	}
+	subNorm := strings.ReplaceAll(strings.ReplaceAll(sub, "<", "_"), ">", "")
+	superNorm := strings.ReplaceAll(strings.ReplaceAll(super, "<", "_"), ">", "")
+	if subNorm == superNorm {
+		return true
+	}
+	if (strings.HasPrefix(subNorm, "Promise_") || subNorm == "Promise") && (strings.HasPrefix(superNorm, "Promise_") || superNorm == "Promise") {
 		return true
 	}
 	if sub == "__shape_empty" && (strings.HasPrefix(super, "Record") || super == "Object" || super == "object" || strings.HasPrefix(super, "__shape_")) {
@@ -129,6 +151,9 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 	}
 	for _, m := range stmtClass.Methods {
 		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
+		if existing, ok := methodMap[key]; ok && existing.Body != nil && m.Body == nil {
+			continue
+		}
 		methodMap[key] = m
 	}
 	var result []typescriptgo.SyntaxMethod
@@ -542,7 +567,11 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 		return ""
 	}
 	chain := []string{className}
-	curr := className
+	cleanBase := strings.Split(className, "__")[0]
+	if cleanBase != className {
+		chain = append(chain, cleanBase)
+	}
+	curr := cleanBase
 	for {
 		meta, ok := hierarchy[curr]
 		if ok {

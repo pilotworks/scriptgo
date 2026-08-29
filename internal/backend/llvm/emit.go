@@ -223,6 +223,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_string_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_bool_set(ptr, i64, i32)\n")
 	out.WriteString("declare i32 @scriptgo_object_bool_get(ptr, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_bigint_set(ptr, i64, i64)\n")
+	out.WriteString("declare i32 @scriptgo_object_bigint_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_set(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_ptr_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_unknown_set(ptr, i64, i32, i64)\n")

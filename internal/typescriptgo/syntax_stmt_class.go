@@ -337,6 +337,9 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				for _, s := range b.Statements() {
 					appendSyntaxStatement(&body, s, chk)
 				}
+				if len(body) == 0 {
+					body = append(body, SyntaxStatement{Span: sourceSpan(member), Kind: "empty"})
+				}
 			}
 			mType := syntaxType(member.Type())
 			inferredMType := resolveFunctionReturnType(chk, member)
@@ -605,6 +608,12 @@ func syntaxMemberName(nameNode *ast.Node) string {
 	case ast.KindIdentifier, ast.KindPrivateIdentifier, ast.KindStringLiteral, ast.KindNumericLiteral:
 		return nameNode.Text()
 	default:
+		if nameNode.Kind == ast.KindReturnKeyword {
+			return "return"
+		}
+		if nameNode.Text() != "" {
+			return nameNode.Text()
+		}
 		return ""
 	}
 }

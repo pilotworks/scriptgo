@@ -999,6 +999,14 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		argTyp := e.types[instruction.Args[0]]
 		if argTyp == ir.TypeNumber {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+		} else if argTyp == ir.TypeBool {
+			bVar := fmt.Sprintf("b.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i64\n", bVar, instruction.Args[0]))
+			ptrName := fmt.Sprintf("pbox.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, bVar))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, ptrName))
 		} else if argTyp == ir.TypeUnknown {
 			payloadName := fmt.Sprintf("%s.payload", instruction.Args[0])
 			ptrName := fmt.Sprintf("%s.ptr", instruction.Args[0])
@@ -1178,7 +1186,26 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		if len(instruction.Args) > 0 {
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+			argTyp := e.types[instruction.Args[0]]
+			if argTyp == ir.TypeNumber {
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_number(ptr %%%s, double %%%s)\n", status2, pVal, instruction.Args[0]))
+			} else if argTyp == ir.TypeBool {
+				bVar := fmt.Sprintf("b.%d", e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i64\n", bVar, instruction.Args[0]))
+				ptrName := fmt.Sprintf("pbox.%d", e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, bVar))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, ptrName))
+			} else if argTyp == ir.TypeUnknown {
+				payloadName := fmt.Sprintf("%s.payload", instruction.Args[0])
+				ptrName := fmt.Sprintf("%s.ptr", instruction.Args[0])
+				out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, instruction.Args[0]))
+				out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, ptrName))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, instruction.Args[0]))
+			}
 		} else {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr null)\n", status2, pVal))
 		}

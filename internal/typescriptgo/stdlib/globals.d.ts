@@ -1,3 +1,13 @@
+type BufferSource = ArrayBufferView | ArrayBuffer;
+
+declare class Blob {
+    size: number;
+    type: string;
+    constructor(blobParts?: unknown[], options?: unknown);
+    arrayBuffer(): Promise<ArrayBuffer>;
+    text(): Promise<string>;
+}
+
 interface ProcessEnv {
     [key: string]: string;
 }
@@ -1161,4 +1171,10 @@ interface FinalizationRegistryConstructor {
 }
 
 declare var FinalizationRegistry: FinalizationRegistryConstructor;
+
+interface ErrorConstructor {
+    captureStackTrace(targetObject: object, constructorOpt?: Function): void;
+    stackTraceLimit: number;
+}
+
 

@@ -552,7 +552,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		return result, objType, nil
 	}
-	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "SyntaxError" {
+	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "ReferenceError" || className == "SyntaxError" || className == "URIError" || className == "EvalError" {
 		msgVal := nextTemp(counter)
 		if len(expression.Arguments) > 0 {
 			mv, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
@@ -580,9 +580,24 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: className + ": " + path, Span: toIRSpan(path, expression.Span),
 		})
 		causeVal := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span),
-		})
+		causeFound := false
+		if len(expression.Arguments) > 1 && expression.Arguments[1].Kind == "object_literal" {
+			for _, prop := range expression.Arguments[1].Arguments {
+				if prop.Text == "cause" && prop.Left != nil {
+					cv, _, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
+					if err == nil {
+						causeVal = cv
+						causeFound = true
+						break
+					}
+				}
+			}
+		}
+		if !causeFound {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span),
+			})
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{result, stackVal}, Span: toIRSpan(path, expression.Span),
 		})
