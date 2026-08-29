@@ -362,10 +362,13 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", instruction.Result, elemLLVMType, resSlot)
 		return nil
 	case "__array.slice":
-		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || (!strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray && instruction.Type != ir.TypeBoolArray && instruction.Type != ir.TypeBigIntArray && instruction.Type != ir.TypeUnknownArray) {
+		if (len(instruction.Args) < 1 || len(instruction.Args) > 3) || (!strings.HasSuffix(string(instruction.Type), "[]") && instruction.Type != ir.TypeNumberArray && instruction.Type != ir.TypeStringArray && instruction.Type != ir.TypeBoolArray && instruction.Type != ir.TypeBigIntArray && instruction.Type != ir.TypeUnknownArray) {
 			return fmt.Errorf("array.slice has invalid signature")
 		}
-		startArg := "%" + instruction.Args[1]
+		startArg := "0.0"
+		if len(instruction.Args) >= 2 {
+			startArg = "%" + instruction.Args[1]
+		}
 		endArg := "-1.0"
 		if len(instruction.Args) == 3 {
 			endArg = "%" + instruction.Args[2]

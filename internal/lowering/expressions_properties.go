@@ -46,6 +46,21 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				})
 				return result, valType, nil
 			}
+			if len(propertyPath) == 2 {
+				if sig, ok := signatures[expression.Text]; ok {
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpClosure,
+						Type:   ir.TypeClosure,
+						Result: result,
+						Callee: sig.Name,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeClosure, nil
+				}
+			}
 		}
 	}
 

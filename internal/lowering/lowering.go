@@ -68,7 +68,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		var collectTopLevel func(s typescriptgo.SyntaxStatement)
 		collectTopLevel = func(s typescriptgo.SyntaxStatement) {
 			if (s.Kind == "variable" || s.Kind == "using" || s.Kind == "await_using") && s.Name != "" {
-				topLevelVars[s.Name] = s
+				if s.Expression != nil || topLevelVars[s.Name].Expression == nil {
+					topLevelVars[s.Name] = s
+				}
 			} else if s.Kind == "block" || s.Kind == "namespace" {
 				for _, sub := range s.Body {
 					collectTopLevel(sub)

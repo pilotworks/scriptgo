@@ -460,67 +460,79 @@ export class FileHandle {
         this.fd = fd;
     }
 
-    async read(buffer: Buffer, offset: number = 0, length: number = 0, position: number = -1): Promise<number> {
-        return readSync(this.fd, buffer, offset, length, position);
+    stat(): Promise<Stats> {
+        return Promise.resolve(fstatSync(this.fd));
     }
 
-    async write(data: string, offset: number = 0, length: number = -1): Promise<number> {
-        return writeSync(this.fd, data, offset, length);
+    sync(): Promise<void> {
+        fsyncSync(this.fd);
+        return Promise.resolve(undefined);
     }
 
-    async readFile(encoding: string = "utf8"): Promise<string> {
+    datasync(): Promise<void> {
+        fdatasyncSync(this.fd);
+        return Promise.resolve(undefined);
+    }
+
+    truncate(len: number = 0): Promise<void> {
+        ftruncateSync(this.fd, len);
+        return Promise.resolve(undefined);
+    }
+
+    read(buffer: Buffer, offset: number = 0, length: number = -1, position: number = -1): Promise<number> {
+        return Promise.resolve(readSync(this.fd, buffer, offset, length, position));
+    }
+
+    write(data: string, offset: number = 0, length: number = -1): Promise<number> {
+        return Promise.resolve(writeSync(this.fd, data, offset, length));
+    }
+
+    readFile(encoding: string = "utf8"): Promise<string> {
         const stat = fstatSync(this.fd);
+        if (stat.size <= 0) {
+            return Promise.resolve("");
+        }
         const buf = Buffer.alloc(stat.size);
         readSync(this.fd, buf, 0, stat.size, 0);
-        return buf.toString();
+        return Promise.resolve(buf.toString());
     }
 
-    async writeFile(data: string): Promise<void> {
+    writeFile(data: string): Promise<void> {
         writeSync(this.fd, data);
+        return Promise.resolve(undefined);
     }
 
-    async stat(): Promise<Stats> {
-        return fstatSync(this.fd);
-    }
-
-    async truncate(len: number = 0): Promise<void> {
-        ftruncateSync(this.fd, len);
-    }
-
-    async sync(): Promise<void> {
-        fsyncSync(this.fd);
-    }
-
-    async datasync(): Promise<void> {
-        fdatasyncSync(this.fd);
-    }
-
-    async chmod(mode: number): Promise<void> {
+    chmod(mode: number): Promise<void> {
         fchmodSync(this.fd, mode);
+        return Promise.resolve(undefined);
     }
 
-    async chown(uid: number, gid: number): Promise<void> {
+    chown(uid: number, gid: number): Promise<void> {
         fchownSync(this.fd, uid, gid);
+        return Promise.resolve(undefined);
     }
 
-    async utimes(atime: number, mtime: number): Promise<void> {
+    utimes(atime: number, mtime: number): Promise<void> {
         futimesSync(this.fd, atime, mtime);
+        return Promise.resolve(undefined);
     }
 
-    async appendFile(data: string): Promise<void> {
+    appendFile(data: string): Promise<void> {
         writeSync(this.fd, data);
+        return Promise.resolve(undefined);
     }
 
-    async readv(buffers: Buffer[], position: number = -1): Promise<number> {
-        return readvSync(this.fd, buffers, position);
+    readv(buffers: Buffer[], position: number = -1): Promise<number> {
+        return Promise.resolve(readvSync(this.fd, buffers, position));
     }
 
-    async writev(buffers: Buffer[], position: number = -1): Promise<number> {
-        return writevSync(this.fd, buffers, position);
+    writev(buffers: Buffer[], position: number = -1): Promise<number> {
+        return Promise.resolve(writevSync(this.fd, buffers, position));
     }
 
-    async close(): Promise<void> {
+    close(): Promise<void> {
         closeSync(this.fd);
+        return Promise.resolve(undefined);
     }
 }
 
@@ -529,121 +541,140 @@ export class FSPromises {
 
     constructor() {}
 
-    async readFile(path: string, encoding: string = "utf8"): Promise<string> {
-        return readFileSync(path, encoding);
+    readFile(path: string, encoding: string = "utf8"): Promise<string> {
+        return Promise.resolve(readFileSync(path, encoding));
     }
 
-    async writeFile(path: string, data: string): Promise<void> {
+    writeFile(path: string, data: string): Promise<void> {
         writeFileSync(path, data);
+        return Promise.resolve(undefined);
     }
 
-    async stat(path: string): Promise<Stats> {
-        return statSync(path);
+    stat(path: string): Promise<Stats> {
+        return Promise.resolve(statSync(path));
     }
 
-    async lstat(path: string): Promise<Stats> {
-        return lstatSync(path);
+    lstat(path: string): Promise<Stats> {
+        return Promise.resolve(lstatSync(path));
     }
 
-    async statfs(path: string): Promise<StatFs> {
-        return statfsSync(path);
+    statfs(path: string): Promise<StatFs> {
+        return Promise.resolve(statfsSync(path));
     }
 
-    async readdir(path: string): Promise<string[]> {
-        return readdirSync(path);
+    readdir(path: string): Promise<string[]> {
+        return Promise.resolve(readdirSync(path));
     }
 
-    async mkdir(path: string, options: MkdirOptions = defaultMkdirOpts): Promise<void> {
+    mkdir(path: string, options: MkdirOptions = defaultMkdirOpts): Promise<void> {
         mkdirSync(path, options);
+        return Promise.resolve(undefined);
     }
 
-    async unlink(path: string): Promise<void> {
+    unlink(path: string): Promise<void> {
         unlinkSync(path);
+        return Promise.resolve(undefined);
     }
 
-    async copyFile(src: string, dest: string): Promise<void> {
+    copyFile(src: string, dest: string): Promise<void> {
         copyFileSync(src, dest);
+        return Promise.resolve(undefined);
     }
 
-    async cp(src: string, dest: string, options: CopyOptions = {}): Promise<void> {
+    cp(src: string, dest: string, options: CopyOptions = {}): Promise<void> {
         cpSync(src, dest, options);
+        return Promise.resolve(undefined);
     }
 
-    async rename(oldPath: string, newPath: string): Promise<void> {
+    rename(oldPath: string, newPath: string): Promise<void> {
         renameSync(oldPath, newPath);
+        return Promise.resolve(undefined);
     }
 
-    async appendFile(path: string, data: string): Promise<void> {
+    appendFile(path: string, data: string): Promise<void> {
         appendFileSync(path, data);
+        return Promise.resolve(undefined);
     }
 
-    async rm(path: string, options: RmOptions = defaultRmOpts): Promise<void> {
+    rm(path: string, options: RmOptions = defaultRmOpts): Promise<void> {
         rmSync(path, options);
+        return Promise.resolve(undefined);
     }
 
-    async rmdir(path: string): Promise<void> {
+    rmdir(path: string): Promise<void> {
         rmdirSync(path);
+        return Promise.resolve(undefined);
     }
 
-    async access(path: string, mode: number = constants.F_OK): Promise<void> {
+    access(path: string, mode: number = constants.F_OK): Promise<void> {
         accessSync(path, mode);
+        return Promise.resolve(undefined);
     }
 
-    async chmod(path: string, mode: number): Promise<void> {
+    chmod(path: string, mode: number): Promise<void> {
         chmodSync(path, mode);
+        return Promise.resolve(undefined);
     }
 
-    async lchmod(path: string, mode: number): Promise<void> {
+    lchmod(path: string, mode: number): Promise<void> {
         lchmodSync(path, mode);
+        return Promise.resolve(undefined);
     }
 
-    async chown(path: string, uid: number, gid: number): Promise<void> {
+    chown(path: string, uid: number, gid: number): Promise<void> {
         chownSync(path, uid, gid);
+        return Promise.resolve(undefined);
     }
 
-    async lchown(path: string, uid: number, gid: number): Promise<void> {
+    lchown(path: string, uid: number, gid: number): Promise<void> {
         lchownSync(path, uid, gid);
+        return Promise.resolve(undefined);
     }
 
-    async link(existingPath: string, newPath: string): Promise<void> {
+    link(existingPath: string, newPath: string): Promise<void> {
         linkSync(existingPath, newPath);
+        return Promise.resolve(undefined);
     }
 
-    async symlink(target: string, path: string, type?: string): Promise<void> {
+    symlink(target: string, path: string, type?: string): Promise<void> {
         symlinkSync(target, path, type);
+        return Promise.resolve(undefined);
     }
 
-    async readlink(path: string): Promise<string> {
-        return readlinkSync(path);
+    readlink(path: string): Promise<string> {
+        return Promise.resolve(readlinkSync(path));
     }
 
-    async utimes(path: string, atime: number, mtime: number): Promise<void> {
+    utimes(path: string, atime: number, mtime: number): Promise<void> {
         utimesSync(path, atime, mtime);
+        return Promise.resolve(undefined);
     }
 
-    async lutimes(path: string, atime: number, mtime: number): Promise<void> {
+    lutimes(path: string, atime: number, mtime: number): Promise<void> {
         lutimesSync(path, atime, mtime);
+        return Promise.resolve(undefined);
     }
 
-    async realpath(path: string): Promise<string> {
-        return realpathSync(path);
+    realpath(path: string): Promise<string> {
+        return Promise.resolve(realpathSync(path));
     }
 
-    async truncate(path: string, len: number = 0): Promise<void> {
+    truncate(path: string, len: number = 0): Promise<void> {
         truncateSync(path, len);
+        return Promise.resolve(undefined);
     }
 
-    async mkdtemp(prefix: string): Promise<string> {
-        return mkdtempSync(prefix);
+    mkdtemp(prefix: string): Promise<string> {
+        return Promise.resolve(mkdtempSync(prefix));
     }
 
-    async open(path: string, flags: string = "r", mode: number = 0o666): Promise<FileHandle> {
+    open(path: string, flags: string = "r", mode: number = 0o666): Promise<FileHandle> {
         const fd = openSync(path, flags, mode);
-        return new FileHandle(fd);
+        return Promise.resolve(new FileHandle(fd));
     }
 
-    async opendir(path: string): Promise<Dir> {
-        return opendirSync(path);
+    opendir(path: string): Promise<Dir> {
+        return Promise.resolve(opendirSync(path));
     }
 }
 

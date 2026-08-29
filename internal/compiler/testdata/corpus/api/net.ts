@@ -220,3 +220,8 @@ console.log(getDefaultAutoSelectFamily());
 // @expect: 250
 setDefaultAutoSelectFamilyAttemptTimeout(250);
 console.log(getDefaultAutoSelectFamilyAttemptTimeout());
+
+// @api: net.Server.[Symbol.asyncDispose]
+// @expect: true
+const srvAsync = createServer();
+console.log(srvAsync !== null);

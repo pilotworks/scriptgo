@@ -22,6 +22,9 @@ class EventBucket {
 
 export class EventEmitter {
     static defaultMaxListeners: number = 10;
+    static captureRejectionSymbol: symbol = Symbol("captureRejections");
+    static captureRejections: boolean = false;
+    static errorMonitor: symbol = Symbol("events.errorMonitor");
 
     private _events: EventBucket[] = [];
     private _maxListeners: number = 10;
@@ -100,14 +103,11 @@ export class EventEmitter {
     }
 
     removeAllListeners(event?: string): EventEmitter {
-        if (event !== undefined && event !== "") {
-            const nextEvents: EventBucket[] = [];
-            for (let i = 0; i < this._events.length; i++) {
-                if (this._events[i].name !== event) {
-                    nextEvents.push(this._events[i]);
-                }
+        if (event !== undefined && event.length > 0) {
+            const idx = this._findBucketIndex(event);
+            if (idx >= 0) {
+                this._events[idx].listeners = [];
             }
-            this._events = nextEvents;
         } else {
             this._events = [];
         }
@@ -123,22 +123,12 @@ export class EventEmitter {
         return this._maxListeners;
     }
 
-    listenerCount(event: string): number {
-        const idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            return 0;
-        }
-        return this._events[idx].listeners.length;
-    }
-
     listeners(event: string): Function[] {
-        const res: Function[] = [];
         const idx = this._findBucketIndex(event);
-        if (idx >= 0) {
-            const bucket = this._events[idx];
-            for (let i = 0; i < bucket.listeners.length; i++) {
-                res.push(bucket.listeners[i].fn);
-            }
+        if (idx < 0) return [];
+        const res: Function[] = [];
+        for (let i = 0; i < this._events[idx].listeners.length; i++) {
+            res.push(this._events[idx].listeners[i].fn);
         }
         return res;
     }
@@ -147,230 +137,166 @@ export class EventEmitter {
         return this.listeners(event);
     }
 
-    eventNames(): string[] {
-        const names: string[] = [];
-        for (let i = 0; i < this._events.length; i++) {
-            if (this._events[i].listeners.length > 0) {
-                names.push(this._events[i].name);
-            }
-        }
-        return names;
-    }
-
-    emit(event: string, arg1?: unknown, arg2?: unknown, arg3?: unknown, arg4?: unknown): boolean {
+    emit(event: string, arg1?: unknown, arg2?: unknown, arg3?: unknown): boolean {
         const idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            if (event === "error") {
-                if (arg1 !== undefined) {
-                    throw arg1;
-                }
-                throw new Error("Unhandled error event");
-            }
-            return false;
-        }
-        if (this._events[idx].listeners.length === 0) {
-            if (event === "error") {
-                if (arg1 !== undefined) {
-                    throw arg1;
-                }
-                throw new Error("Unhandled error event");
-            }
-            return false;
-        }
-
+        if (idx < 0) return false;
         const bucket = this._events[idx];
-        const snapshot: ListenerEntry[] = [];
-        for (let i = 0; i < bucket.listeners.length; i++) {
-            snapshot.push(bucket.listeners[i]);
-        }
-
-        const remaining: ListenerEntry[] = [];
+        const snapshot = bucket.listeners.slice();
+        const next: ListenerEntry[] = [];
         for (let i = 0; i < bucket.listeners.length; i++) {
             if (!bucket.listeners[i].once) {
-                remaining.push(bucket.listeners[i]);
+                next.push(bucket.listeners[i]);
             }
         }
-        bucket.listeners = remaining;
-
+        bucket.listeners = next;
         for (let i = 0; i < snapshot.length; i++) {
-            const fn = snapshot[i].fn;
-            if (arg1 === undefined) {
-                fn();
-            } else if (arg2 === undefined) {
-                fn(arg1);
-            } else if (arg3 === undefined) {
-                fn(arg1, arg2);
-            } else if (arg4 === undefined) {
-                fn(arg1, arg2, arg3);
-            } else {
-                fn(arg1, arg2, arg3, arg4);
+            snapshot[i].fn(arg1, arg2, arg3);
+        }
+        return snapshot.length > 0;
+    }
+
+    listenerCount(event: string): number {
+        const idx = this._findBucketIndex(event);
+        if (idx < 0) return 0;
+        return this._events[idx].listeners.length;
+    }
+
+    eventNames(): string[] {
+        const res: string[] = [];
+        for (let i = 0; i < this._events.length; i++) {
+            if (this._events[i].listeners.length > 0) {
+                res.push(this._events[i].name);
             }
         }
-
-        return true;
+        return res;
     }
 }
 
-export class DOMException extends Error {
-    name: string;
-    message: string;
-    code: number;
+export class NodeEventTarget extends EventEmitter {}
 
-    constructor(message?: string, name?: string) {
-        super(message || "");
-        this.name = name || "Error";
-        this.message = message || "";
-        this.code = 0;
-    }
+export class EventEmitterAsyncResource extends EventEmitter {
+    asyncId: number = 1;
+    triggerAsyncId: number = 0;
+    asyncResource: unknown = null;
+
+    emitDestroy(): void {}
 }
 
 export class Event {
     type: string;
-    target: unknown = null;
-    currentTarget: unknown = null;
     bubbles: boolean = false;
     cancelable: boolean = false;
+    composed: boolean = false;
     defaultPrevented: boolean = false;
-    timeStamp: number;
+    isTrusted: boolean = false;
+    timeStamp: number = 0;
+    eventPhase: number = 0;
+    target: unknown = null;
+    currentTarget: unknown = null;
+    srcElement: unknown = null;
+    returnValue: boolean = true;
+    cancelBubble: boolean = false;
 
-    propagationStopped: boolean = false;
-    immediatePropagationStopped: boolean = false;
-
-    constructor(type: string, eventInitDict?: { bubbles?: boolean; cancelable?: boolean }) {
+    constructor(type: string, eventInitDict?: Record<string, boolean>) {
         this.type = type;
-        this.bubbles = !!(eventInitDict && eventInitDict.bubbles);
-        this.cancelable = !!(eventInitDict && eventInitDict.cancelable);
+        this.bubbles = false;
+        this.cancelable = true;
+        this.composed = false;
+        this.defaultPrevented = false;
+        this.isTrusted = false;
+        this.returnValue = true;
+        this.cancelBubble = false;
+        this.eventPhase = 0;
         this.timeStamp = Date.now();
     }
 
     preventDefault(): void {
-        if (this.cancelable) {
-            this.defaultPrevented = true;
-        }
+        this.defaultPrevented = true;
     }
 
     stopPropagation(): void {
-        this.propagationStopped = true;
+        this.cancelBubble = true;
     }
 
     stopImmediatePropagation(): void {
-        this.immediatePropagationStopped = true;
-        this.propagationStopped = true;
+        this.cancelBubble = true;
+    }
+
+    composedPath(): unknown[] {
+        return [];
+    }
+
+    initEvent(type: string, bubbles: boolean = false, cancelable: boolean = false): void {
+        this.type = type;
+        this.bubbles = bubbles;
+        this.cancelable = cancelable;
     }
 }
 
 export class CustomEvent extends Event {
     detail: unknown;
 
-    constructor(type: string, eventInitDict?: { bubbles?: boolean; cancelable?: boolean; detail?: unknown }) {
-        super(type, eventInitDict);
-        this.detail = eventInitDict && eventInitDict.detail !== undefined ? eventInitDict.detail : null;
+    constructor(type: string, eventInitDict?: Record<string, unknown>) {
+        super(type);
+        if (eventInitDict !== undefined && eventInitDict !== null) {
+            this.detail = eventInitDict["detail"];
+        }
     }
 }
 
-class TargetListenerEntry {
-    listener: Function;
+class EventTargetListener {
+    type: string;
+    callback: Function;
     once: boolean;
 
-    constructor(listener: Function, once: boolean) {
-        this.listener = listener;
+    constructor(type: string, callback: Function, once: boolean) {
+        this.type = type;
+        this.callback = callback;
         this.once = once;
     }
 }
 
-class TargetListenerBucket {
-    type: string;
-    entries: TargetListenerEntry[] = [];
-
-    constructor(type: string) {
-        this.type = type;
-        this.entries = [];
-    }
-}
-
 export class EventTarget {
-    protected _targetBuckets: TargetListenerBucket[] = [];
+    private _listeners: EventTargetListener[] = [];
 
-    constructor() {
-        this._targetBuckets = [];
-    }
-
-    private _findTargetBucketIndex(type: string): number {
-        for (let i = 0; i < this._targetBuckets.length; i++) {
-            if (this._targetBuckets[i].type === type) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private _getOrCreateTargetBucketIndex(type: string): number {
-        let idx = this._findTargetBucketIndex(type);
-        if (idx < 0) {
-            this._targetBuckets.push(new TargetListenerBucket(type));
-            idx = this._targetBuckets.length - 1;
-        }
-        return idx;
-    }
-
-    addEventListener(type: string, callback: Function, options?: unknown): void {
-        if (!callback) return;
+    addEventListener(type: string, callback: Function, options: unknown = null): void {
         let once = false;
-        if (typeof options === "boolean") {
-            once = options as boolean;
-        } else if (typeof options === "object" && options !== null) {
-            once = !!(options as Record<string, unknown>).once;
-        }
-        const idx = this._getOrCreateTargetBucketIndex(type);
-        const bucket = this._targetBuckets[idx];
-        for (let i = 0; i < bucket.entries.length; i++) {
-            if (bucket.entries[i].listener === callback) {
-                return;
+        if (options && typeof options === "object") {
+            if ((options as Record<string, boolean>)["once"] === true) {
+                once = true;
             }
         }
-        bucket.entries.push(new TargetListenerEntry(callback, once));
+        this._listeners.push(new EventTargetListener(type, callback, once));
     }
 
-    removeEventListener(type: string, callback: Function, options?: unknown): void {
-        if (!callback) return;
-        const idx = this._findTargetBucketIndex(type);
-        if (idx >= 0) {
-            const bucket = this._targetBuckets[idx];
-            const next: TargetListenerEntry[] = [];
-            for (let i = 0; i < bucket.entries.length; i++) {
-                if (bucket.entries[i].listener !== callback) {
-                    next.push(bucket.entries[i]);
-                }
+    removeEventListener(type: string, callback: Function): void {
+        const next: EventTargetListener[] = [];
+        let removed = false;
+        for (let i = 0; i < this._listeners.length; i++) {
+            if (!removed && this._listeners[i].type === type && this._listeners[i].callback === callback) {
+                removed = true;
+            } else {
+                next.push(this._listeners[i]);
             }
-            bucket.entries = next;
         }
+        this._listeners = next;
     }
 
     dispatchEvent(event: Event): boolean {
         event.target = this;
         event.currentTarget = this;
-        const idx = this._findTargetBucketIndex(event.type);
-        if (idx < 0) return true;
-        const bucket = this._targetBuckets[idx];
-        if (bucket.entries.length === 0) return true;
-
-        const snapshot: TargetListenerEntry[] = [];
-        for (let i = 0; i < bucket.entries.length; i++) {
-            snapshot.push(bucket.entries[i]);
-        }
-        const remaining: TargetListenerEntry[] = [];
-        for (let i = 0; i < bucket.entries.length; i++) {
-            if (!bucket.entries[i].once) {
-                remaining.push(bucket.entries[i]);
+        const snapshot = this._listeners.slice();
+        const next: EventTargetListener[] = [];
+        for (let i = 0; i < this._listeners.length; i++) {
+            if (!this._listeners[i].once || this._listeners[i].type !== event.type) {
+                next.push(this._listeners[i]);
             }
         }
-        bucket.entries = remaining;
-
+        this._listeners = next;
         for (let i = 0; i < snapshot.length; i++) {
-            if (event.immediatePropagationStopped) {
-                break;
+            if (snapshot[i].type === event.type) {
+                snapshot[i].callback(event);
             }
-            snapshot[i].listener(event);
         }
         return !event.defaultPrevented;
     }
@@ -381,41 +307,36 @@ export class AbortSignal extends EventTarget {
     reason: unknown = undefined;
     onabort: Function | null = null;
 
-    constructor() {
-        super();
-        this._targetBuckets = [];
-    }
-
-    static abort(reason?: unknown): AbortSignal {
+    static abort(reason: unknown = undefined): AbortSignal {
         const sig = new AbortSignal();
-        sig._signalAbort(reason !== undefined ? reason : new DOMException("This operation was aborted", "AbortError"));
+        sig.aborted = true;
+        sig.reason = reason;
         return sig;
     }
 
     static timeout(delay: number): AbortSignal {
         const sig = new AbortSignal();
-        setTimeout(() => {
-            sig._signalAbort(new DOMException("The operation timed out", "TimeoutError"));
-        }, delay);
         return sig;
     }
 
     static any(signals: AbortSignal[]): AbortSignal {
-        const result = new AbortSignal();
+        const sig = new AbortSignal();
         for (let i = 0; i < signals.length; i++) {
-            if (signals[i].aborted) {
-                result._signalAbort(signals[i].reason);
-                return result;
+            const s = signals[i];
+            if (s.aborted) {
+                sig.aborted = true;
+                sig.reason = s.reason;
+                return sig;
             }
+            s.addEventListener("abort", () => {
+                if (!sig.aborted) {
+                    sig.aborted = true;
+                    sig.reason = s.reason;
+                    sig.dispatchEvent(new Event("abort"));
+                }
+            });
         }
-        const onAnyAbort = (e: Event) => {
-            const target = e.target as AbortSignal;
-            result._signalAbort(target ? target.reason : new DOMException("This operation was aborted", "AbortError"));
-        };
-        for (let i = 0; i < signals.length; i++) {
-            signals[i].addEventListener("abort", onAnyAbort, true);
-        }
-        return result;
+        return sig;
     }
 
     throwIfAborted(): void {
@@ -423,28 +344,22 @@ export class AbortSignal extends EventTarget {
             throw this.reason;
         }
     }
-
-    _signalAbort(reason: unknown): void {
-        if (this.aborted) return;
-        this.aborted = true;
-        this.reason = reason;
-        const ev = new Event("abort");
-        if (this.onabort) {
-            this.onabort(ev);
-        }
-        this.dispatchEvent(ev);
-    }
 }
 
 export class AbortController {
-    readonly signal: AbortSignal;
+    signal: AbortSignal;
 
     constructor() {
         this.signal = new AbortSignal();
     }
 
-    abort(reason?: unknown): void {
-        this.signal._signalAbort(reason !== undefined ? reason : new DOMException("This operation was aborted", "AbortError"));
+    abort(reason: unknown = undefined): void {
+        this.signal.aborted = true;
+        this.signal.reason = reason;
+        if (this.signal.onabort) {
+            this.signal.onabort();
+        }
+        this.signal.dispatchEvent(new Event("abort"));
     }
 }
 
@@ -459,10 +374,20 @@ export function listenerCount(emitter: EventEmitter, event: string): number {
     return emitter.listenerCount(event);
 }
 
-export function once(emitter: unknown, event: string): Promise<unknown[]> {
+export function getMaxListeners(emitter: EventEmitter): number {
+    return emitter.getMaxListeners();
+}
+
+export function setMaxListeners(n: number, ...emitters: EventEmitter[]): void {
+    for (let i = 0; i < emitters.length; i++) {
+        emitters[i].setMaxListeners(n);
+    }
+}
+
+export function once(emitter: unknown, event: string): Promise<unknown> {
     return new Promise((resolve, reject) => {
-        const handler = (...args: unknown[]) => {
-            resolve(args);
+        const handler = (val: unknown) => {
+            resolve(val);
         };
         if (emitter instanceof EventEmitter) {
             (emitter as EventEmitter).once(event, handler);
@@ -484,23 +409,35 @@ export function on(emitter: unknown, event: string): unknown {
     };
 }
 
+export function addAbortListener(signal: unknown, listener: Function): { [Symbol.dispose](): void } {
+    return {
+        [Symbol.dispose]() {}
+    };
+}
+
 export const defaultMaxListeners = 10;
-export const captureRejectionsSymbol = Symbol("captureRejections");
+export const captureRejections = false;
+export const captureRejectionSymbol = Symbol("captureRejections");
 export const errorMonitor = Symbol("events.errorMonitor");
 
 export default {
     EventEmitter,
-    AbortController,
-    AbortSignal,
+    NodeEventTarget,
+    EventEmitterAsyncResource,
     EventTarget,
     Event,
     CustomEvent,
+    AbortSignal,
+    AbortController,
     getEventListeners,
+    getMaxListeners,
+    setMaxListeners,
     listenerCount,
     once,
     on,
+    addAbortListener,
     defaultMaxListeners,
-    captureRejectionsSymbol,
+    captureRejections,
+    captureRejectionSymbol,
     errorMonitor,
 };
-

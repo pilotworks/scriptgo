@@ -94,7 +94,7 @@ export function resolve(...paths: string[]): string {
     for (let i = paths.length - 1; i >= 0 && !resolvedAbsolute; i--) {
         const path = paths[i];
         if (path.length === 0) continue;
-        resolved = path + "/" + resolved;
+        resolved = resolved.length === 0 ? path : path + "/" + resolved;
         resolvedAbsolute = isAbsolute(path);
     }
 
@@ -128,6 +128,65 @@ export function relative(from: string, to: string): string {
     return result.join("/");
 }
 
+export class ParsedPath {
+    root: string;
+    dir: string;
+    base: string;
+    ext: string;
+    name: string;
+
+    constructor(root: string, dir: string, base: string, ext: string, name: string) {
+        this.root = root;
+        this.dir = dir;
+        this.base = base;
+        this.ext = ext;
+        this.name = name;
+    }
+}
+
+export interface FormatInputPathObject {
+    root?: string;
+    dir?: string;
+    base?: string;
+    ext?: string;
+    name?: string;
+}
+
+export function parse(path: string): ParsedPath {
+    const isAbs = isAbsolute(path);
+    const root = isAbs ? "/" : "";
+    const dir = dirname(path);
+    const base = basename(path);
+    const ext = extname(path);
+    const name = ext.length > 0 ? base.slice(0, base.length - ext.length) : base;
+    return new ParsedPath(root, dir, base, ext, name);
+}
+
+export function format(pathObject: FormatInputPathObject): string {
+    const dir = pathObject.dir || pathObject.root || "";
+    const base = pathObject.base || ((pathObject.name || "") + (pathObject.ext || ""));
+    if (dir.length === 0) {
+        return base;
+    }
+    if (dir.endsWith("/")) {
+        return dir + base;
+    }
+    return dir + "/" + base;
+}
+
+export function toNamespacedPath(path: string): string {
+    return path;
+}
+
+export function matchesGlob(path: string, pattern: string): boolean {
+    if (pattern === "*") return true;
+    if (pattern.startsWith("*.")) {
+        const ext = pattern.slice(1);
+        return path.endsWith(ext);
+    }
+    return path === pattern;
+}
+
 export const posix = {
     join,
     dirname,
@@ -137,6 +196,10 @@ export const posix = {
     normalize,
     resolve,
     relative,
+    parse,
+    format,
+    toNamespacedPath,
+    matchesGlob,
     sep: "/",
     delimiter: ":",
 };
@@ -150,6 +213,10 @@ export const win32 = {
     normalize,
     resolve,
     relative,
+    parse,
+    format,
+    toNamespacedPath,
+    matchesGlob,
     sep: "\\",
     delimiter: ";",
 };
@@ -163,6 +230,10 @@ export default {
     normalize,
     resolve,
     relative,
+    parse,
+    format,
+    toNamespacedPath,
+    matchesGlob,
     sep,
     delimiter,
     posix,

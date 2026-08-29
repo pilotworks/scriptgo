@@ -24,7 +24,7 @@ int scriptgo_fs_read_file_sync(const char *path, char **out_content) {
     size_t read_bytes;
 
     if (path == NULL || out_content == NULL) {
-        return fs_fail("scriptgo fs invalid arguments");
+        return fs_fail("scriptgo fs read_file_sync invalid arguments");
     }
     f = fopen(path, "rb");
     if (f == NULL) {
@@ -59,7 +59,7 @@ int scriptgo_fs_write_file_sync(const char *path, const char *content) {
     size_t len;
 
     if (path == NULL || content == NULL) {
-        return fs_fail("scriptgo fs invalid arguments");
+        return fs_fail("scriptgo fs write_file_sync invalid arguments");
     }
     f = fopen(path, "wb");
     if (f == NULL) {
@@ -79,7 +79,7 @@ int scriptgo_fs_write_file_sync(const char *path, const char *content) {
 int scriptgo_fs_exists_sync(const char *path, double *out_bool) {
     FILE *f;
     if (path == NULL || out_bool == NULL) {
-        return fs_fail("scriptgo fs invalid arguments");
+        return fs_fail("scriptgo fs exists_sync invalid arguments");
     }
     f = fopen(path, "rb");
     if (f != NULL) {
@@ -98,7 +98,7 @@ int scriptgo_fs_exists_sync(const char *path, double *out_bool) {
 
 int scriptgo_fs_unlink_sync(const char *path) {
     if (path == NULL) {
-        return fs_fail("scriptgo fs invalid arguments");
+        return fs_fail("scriptgo fs unlink_sync invalid arguments");
     }
     remove(path);
     return 0;
