@@ -892,17 +892,52 @@ func lowerCallExpression(
 
 	target, ok := signatures[callee]
 	if !ok {
+		if strings.HasPrefix(callee, "fs.promises.") {
+			method := strings.TrimPrefix(callee, "fs.promises.")
+			if sig, ok2 := signatures["FSPromises."+method]; ok2 {
+				target = sig
+				ok = true
+			} else if sig, ok2 := signatures["FSPromises_"+method]; ok2 {
+				target = sig
+				ok = true
+			}
+		} else if strings.HasPrefix(callee, "promises.") {
+			method := strings.TrimPrefix(callee, "promises.")
+			if sig, ok2 := signatures["FSPromises."+method]; ok2 {
+				target = sig
+				ok = true
+			} else if sig, ok2 := signatures["FSPromises_"+method]; ok2 {
+				target = sig
+				ok = true
+			}
+		}
+	}
+	if !ok {
 		return "", "", fmt.Errorf("unknown function %q", callee)
 	}
 
 	callee = target.Name
 	args := make([]string, 0, len(expression.Arguments))
+	paramOffset := 0
+	if len(target.Parameters) > 0 && target.Parameters[0].Name == "this" {
+		dummyThis := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpConst,
+			Type:   target.Parameters[0].Type,
+			Result: dummyThis,
+			Value:  "0",
+			Span:   toIRSpan(path, expression.Span),
+		})
+		args = append(args, dummyThis)
+		paramOffset = 1
+	}
 	for aIdx, argument := range expression.Arguments {
-		if (argument.Kind == "object_literal" || argument.Kind == "object") && (argument.InferredType == "" || strings.HasPrefix(argument.InferredType, "{")) && aIdx < len(target.Parameters) {
-			paramType := string(target.Parameters[aIdx].Type)
+		pIdx := aIdx + paramOffset
+		if (argument.Kind == "object_literal" || argument.Kind == "object") && (argument.InferredType == "" || strings.HasPrefix(argument.InferredType, "{")) && pIdx < len(target.Parameters) {
+			paramType := string(target.Parameters[pIdx].Type)
 			argument.InferredType = strings.TrimPrefix(paramType, "object:")
-		} else if argument.Kind == "array" && aIdx < len(target.Parameters) {
-			paramType := target.Parameters[aIdx].Type
+		} else if argument.Kind == "array" && pIdx < len(target.Parameters) {
+			paramType := target.Parameters[pIdx].Type
 			shapeName := strings.TrimPrefix(string(paramType), "object:")
 			if shape, ok := shapes[shapeName]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
 				argument.InferredType = string(paramType)

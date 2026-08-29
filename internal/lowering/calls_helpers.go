@@ -17,11 +17,15 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 	if expression.Kind == "as" {
 		return callName(expression.Left)
 	}
-	if (expression.Kind == "property" || expression.Kind == "optional_property") && expression.Left != nil && expression.Left.Kind == "identifier" {
-		return expression.Left.Text + "." + expression.Text
+	if expression.Kind == "property" || expression.Kind == "optional_property" {
+		leftName := callName(expression.Left)
+		if leftName != "" {
+			return leftName + "." + expression.Text
+		}
 	}
 	return ""
 }
+
 
 func isStringMethod(name string) bool {
 	switch name {

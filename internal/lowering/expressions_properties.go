@@ -10,8 +10,8 @@ import (
 )
 
 func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+	// 1. Check built-in global constants (e.g. Math.PI, Number.MAX_VALUE, Symbol.iterator)
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
-		// 1. Check built-in global constants (e.g. Math.PI, Number.MAX_VALUE)
 		propKey := expression.Left.Text + "." + expression.Text
 		if global, ok := builtinGlobal(propKey); ok {
 			if result == "" {
@@ -26,6 +26,31 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			})
 			return result, global.Type, nil
 		}
+	}
+
+	// 2. Check AST-level module and top-level constants (e.g. fs.constants.F_OK, os.EOL, buffer.constants.MAX_LENGTH)
+	propertyPath := extractPropertyPath(expression)
+	if len(propertyPath) >= 2 {
+		firstIdent := propertyPath[0]
+		if _, inEnv := env[firstIdent]; !inEnv {
+			if val, valType, ok := resolveASTConstantPath(propertyPath); ok {
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   valType,
+					Result: result,
+					Value:  val,
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, valType, nil
+			}
+		}
+	}
+
+	if expression.Left != nil && expression.Left.Kind == "identifier" {
+		propKey := expression.Left.Text + "." + expression.Text
 
 		if propKey == "process.argv" {
 			if result == "" {
