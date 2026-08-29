@@ -76,6 +76,13 @@ func validateOptions(options BuildOptions) error {
 			return fmt.Errorf("unsupported optimization level %q; supported: 0, 1, 2, 3, s, z, fast", options.OptLevel)
 		}
 	}
+	if options.LTO != "" {
+		switch options.LTO {
+		case "thin", "full", "none", "auto", "yes", "true":
+		default:
+			return fmt.Errorf("unsupported lto %q; supported: thin, full, none", options.LTO)
+		}
+	}
 	return nil
 }
 
@@ -250,6 +257,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	} else {
 		args = append(args, "-O2")
 	}
+	if options.LTO == "thin" {
+		args = append(args, "-flto=thin")
+	} else if options.LTO == "full" || options.LTO == "yes" || options.LTO == "true" {
+		args = append(args, "-flto")
+	}
 	if options.Target != "native" {
 		args = append(args, "--target="+options.Target)
 	}
@@ -397,6 +409,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
 	h.Write([]byte("sections-v1"))
+	if options.LTO != "" && options.LTO != "none" {
+		h.Write([]byte("lto:" + options.LTO))
+	}
 	if options.Debug {
 		h.Write([]byte("debug"))
 	}
@@ -428,6 +443,11 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 		buildArgs = append(buildArgs, "-O0", "-g")
 	} else {
 		buildArgs = append(buildArgs, "-O2")
+	}
+	if options.LTO == "thin" {
+		buildArgs = append(buildArgs, "-flto=thin")
+	} else if options.LTO == "full" || options.LTO == "yes" || options.LTO == "true" {
+		buildArgs = append(buildArgs, "-flto")
 	}
 	if options.Target != "native" {
 		buildArgs = append(buildArgs, "--target="+options.Target)

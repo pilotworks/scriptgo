@@ -17,6 +17,7 @@ type BuildOptions struct {
 	Target           string
 	Debug            bool
 	OptLevel         string
+	LTO              string
 	Sanitizers       []string
 	WarnRuntimeCasts bool
 	StrictCasts      bool
@@ -50,6 +51,11 @@ func (options BuildOptions) normalized() BuildOptions {
 			options.OptLevel = envOpt
 		} else {
 			options.OptLevel = "2"
+		}
+	}
+	if options.LTO == "" {
+		if envLTO := os.Getenv("SCRIPTGO_LTO"); envLTO != "" {
+			options.LTO = envLTO
 		}
 	}
 	return options

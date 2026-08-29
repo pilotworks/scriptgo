@@ -99,10 +99,6 @@ func arrayElementSizeForTarget(arrayType ir.Type, ptrSize int64) (int64, error) 
 	}
 }
 
-func arrayElementSize(arrayType ir.Type) (int64, error) {
-	return arrayElementSizeForTarget(arrayType, 8)
-}
-
 func llvmNumber(value float64) string {
 	if math.IsNaN(value) {
 		return "0x7FF8000000000000"

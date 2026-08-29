@@ -86,3 +86,36 @@ func TestBuildDeadCodeElimination(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildWithLTO(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	code := `
+const pt = { x: 10, y: 20 };
+console.log(pt.x + pt.y);
+`
+	if err := os.WriteFile(entry, []byte(code), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, ltoMode := range []string{"thin", "full"} {
+		output := filepath.Join(dir, "main_"+ltoMode)
+		options := BuildOptions{
+			LTO:      ltoMode,
+			OptLevel: "2",
+		}
+		if err := BuildWithOptions(entry, output, options); err != nil {
+			t.Fatalf("BuildWithOptions with LTO=%s failed: %v", ltoMode, err)
+		}
+		result, err := exec.Command(output).CombinedOutput()
+		if err != nil {
+			t.Fatalf("executable (LTO=%s) failed: %v\n%s", ltoMode, err, result)
+		}
+		if string(result) != "30\n" {
+			t.Fatalf("executable output = %q, want %q", result, "30\n")
+		}
+	}
+}
