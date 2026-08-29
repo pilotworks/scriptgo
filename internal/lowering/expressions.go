@@ -1127,6 +1127,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			initVal = "false"
 		} else if trueType == ir.TypeString {
 			initVal = ""
+		} else if trueType == ir.TypeUnknown {
+			initVal = "undefined"
 		} else if strings.HasPrefix(string(trueType), "object:") || trueType == ir.TypePointer {
 			initVal = "null"
 		}

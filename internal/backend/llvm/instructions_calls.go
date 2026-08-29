@@ -752,10 +752,10 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		returnType = "zeroext i1"
 	}
 	if returnType == "void" {
-		out.WriteString(fmt.Sprintf("  call void @%s(", instruction.Callee))
+		out.WriteString(fmt.Sprintf("  call void @%s(", mangleFunctionName(instruction.Callee)))
 	} else {
 		e.types[instruction.Result] = callee.ReturnType
-		out.WriteString(fmt.Sprintf("  %%%s = call %s @%s(", instruction.Result, returnType, instruction.Callee))
+		out.WriteString(fmt.Sprintf("  %%%s = call %s @%s(", instruction.Result, returnType, mangleFunctionName(instruction.Callee)))
 	}
 	out.WriteString(strings.Join(callArgs, ", "))
 	out.WriteString(")\n")
@@ -820,7 +820,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr @%s, ptr %s, ptr %%%s)\n", status, instruction.Callee, envPtr, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr @%s, ptr %s, ptr %%%s)\n", status, mangleFunctionName(instruction.Callee), envPtr, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	for _, g := range e.module.Globals {

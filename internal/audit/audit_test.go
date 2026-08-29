@@ -81,7 +81,13 @@ func TestAuditCompletedModules(t *testing.T) {
 		t.Fatalf("ScanCorpusAPIs failed: %v", err)
 	}
 
-	modules := []string{"console", "stream", "timers", "buffer", "assert", "util", "https", "child_process", "dgram", "http", "readline", "tty", "single-executable-applications", "wasi", "permissions", "repl", "tracing", "module", "modules"}
+	modules := []string{
+		"console", "stream", "timers", "buffer", "assert", "util", "https",
+		"child_process", "dgram", "http", "readline", "tty",
+		"single-executable-applications", "wasi", "permissions",
+		"repl", "tracing", "module", "modules",
+		"zlib", "tls", "inspector", "vm", "v8", "sqlite", "test",
+	}
 	for _, modName := range modules {
 		doc, err := spec.LoadModuleSpec(specCacheDir, modName)
 		if err != nil {

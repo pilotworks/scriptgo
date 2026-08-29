@@ -268,6 +268,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			if valType == ir.TypeUnknown {
 				if value != varResultName {
 					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   ir.TypeUnknown,
+						Result: varResultName,
+						Value:  "undefined",
+						Span:   toIRSpan(path, statement.Span),
+					})
+					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpAssign,
 						Type:   ir.TypeUnknown,
 						Result: varResultName,
@@ -1054,7 +1061,15 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Type: ir.TypeVoid,
 			Span: toIRSpan(path, statement.Span),
 		})
-	case "module", "enum", "import_alias", "export_alias":
+	case "import_alias":
+		if statement.Name != "" && statement.Type != "" {
+			env["__ident."+statement.Name] = ir.Type(statement.Type)
+			if origType, ok := env[statement.Type]; ok {
+				env[statement.Name] = origType
+			}
+		}
+		return nil
+	case "export_alias", "module", "enum":
 		return nil
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)

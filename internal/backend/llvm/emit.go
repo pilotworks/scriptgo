@@ -680,6 +680,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		"malloc": true, "setjmp": true, "tan": true, "atan": true, "atan2": true, "hypot": true, "drand48": true,
 		"scriptgo_math_round": true, "scriptgo_math_pow": true, "scriptgo_bigint_pow": true,
 	}
+
 	for _, ext := range module.Externs {
 		if alreadyDeclared[ext.Name] || strings.HasPrefix(ext.Name, "llvm.") {
 			continue
@@ -697,7 +698,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 			}
 			paramTypes = append(paramTypes, pType)
 		}
-		out.WriteString(fmt.Sprintf("declare %s @%s(%s)\n", retType, ext.Name, strings.Join(paramTypes, ", ")))
+		out.WriteString(fmt.Sprintf("declare %s @%s(%s)\n", retType, mangleFunctionName(ext.Name), strings.Join(paramTypes, ", ")))
 	}
 	out.WriteString("\n")
 
@@ -760,6 +761,15 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	return out.String(), nil
 }
 
+func mangleFunctionName(name string) string {
+	switch name {
+	case "close", "open", "read", "write", "exit", "abort", "link", "unlink", "remove", "rename", "stat", "pipe", "fork", "kill", "signal", "listen", "connect", "bind", "accept", "send", "recv", "select", "poll", "system", "pause", "sleep", "alarm":
+		return name + "$user"
+	default:
+		return name
+	}
+}
+
 func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module, options Options) (string, error) {
 	isClosure := strings.HasPrefix(function.Name, "__closure_")
 	returnType := llvmType(function.ReturnType)
@@ -773,7 +783,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	if name == "main" {
 		out.WriteString("define i32 @main(i32 %argc, ptr %argv)")
 	} else {
-		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, name))
+		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
 		for index, parameter := range function.Parameters {
 			if index > 0 {
 				out.WriteString(", ")
