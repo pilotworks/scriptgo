@@ -11,6 +11,12 @@ import (
 )
 
 func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+	savedUsingScopes := usingScopeStack
+	usingScopeStack = nil
+	defer func() {
+		usingScopeStack = savedUsingScopes
+	}()
+
 	retType := statement.Type
 	if retType == "" && statement.InferredType != "" {
 		retType = statement.InferredType

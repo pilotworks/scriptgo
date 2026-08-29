@@ -51,6 +51,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	activeReturnFinallyStack = nil
 	activeThrowFinallyStack = nil
 	loopFinallyScopeStack = nil
+	usingScopeStack = nil
 	clearMetadataRegistry()
 	ClearDiagnostics()
 	var err error

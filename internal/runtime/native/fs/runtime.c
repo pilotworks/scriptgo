@@ -415,12 +415,16 @@ typedef struct {
     unsigned char *data;
 } scriptgo_fs_buffer_view_header;
 
+int scriptgo_gc_is_registered(void *ptr);
+
 static unsigned char *fs_extract_buffer_data(void *handle, size_t *out_cap) {
     if (handle == NULL) return NULL;
-    scriptgo_fs_buffer_view_header *bv = (scriptgo_fs_buffer_view_header *)handle;
-    if (bv->magic == 0x42554646 || bv->magic == 0x54415252) { // "BUFF" or "TARR"
-        if (out_cap != NULL) *out_cap = (size_t)bv->length;
-        return bv->data;
+    if (scriptgo_gc_is_registered(handle)) {
+        scriptgo_fs_buffer_view_header *bv = (scriptgo_fs_buffer_view_header *)handle;
+        if (bv->magic == 0x42554646 || bv->magic == 0x54415252) { // "BUFF" or "TARR"
+            if (out_cap != NULL) *out_cap = (size_t)bv->length;
+            return bv->data;
+        }
     }
     if (out_cap != NULL) *out_cap = strlen((const char *)handle);
     return (unsigned char *)handle;

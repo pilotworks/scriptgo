@@ -157,6 +157,8 @@ static int64_t typedarray_element_size(scriptgo_typedarray_kind kind) {
     }
 }
 
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
+
 int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, int64_t byte_offset, void **out_array) {
     if (out_array == NULL || length < 0 || byte_offset < 0) {
         return typedarray_fail("scriptgo TypedArray allocation failed");
@@ -186,6 +188,7 @@ int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, i
     ta->element_size = elem_size;
     ta->buffer = buf;
     ta->data = buf->data != NULL ? (buf->data + byte_offset) : NULL;
+    scriptgo_gc_register(ta, 6, 0);
     *out_array = ta;
     return 0;
 }
