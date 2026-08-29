@@ -259,6 +259,7 @@ func registerBufferIntrinsics(m map[string]BuiltinIntrinsic) {
 	m["__scriptgo.bufferAlloc"] = m["Buffer.alloc"]
 	m["__scriptgo.bufferAllocUnsafe"] = m["Buffer.allocUnsafe"]
 	m["__scriptgo.bufferFromString"] = m["Buffer.from"]
+	m["__scriptgo.bufferFromArray"] = m["Buffer.from"]
 	m["__scriptgo.bufferConcat"] = m["Buffer.concat"]
 	m["__scriptgo.bufferIsBuffer"] = m["Buffer.isBuffer"]
 	m["__scriptgo.bufferByteLength"] = m["Buffer.byteLength"]

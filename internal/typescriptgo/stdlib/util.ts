@@ -1,7 +1,7 @@
 // ScriptGo Standard Library: node:util
 
 export class MIMEParams {
-    private _map: Map<string, string> = new Map();
+    private _entries: Array<[string, string]> = [];
 
     constructor(init?: string) {
         if (init) {
@@ -13,49 +13,80 @@ export class MIMEParams {
                 if (eqIdx >= 0) {
                     const key = part.slice(0, eqIdx).trim().toLowerCase();
                     const val = part.slice(eqIdx + 1).trim();
-                    this._map.set(key, val);
+                    this.set(key, val);
                 }
             }
         }
     }
 
     get(name: string): string | null {
-        const val = this._map.get(name.toLowerCase());
-        return val !== undefined ? val : null;
+        const k = name.toLowerCase();
+        for (let i = 0; i < this._entries.length; i++) {
+            if (this._entries[i][0] === k) {
+                return this._entries[i][1];
+            }
+        }
+        return null;
     }
 
     set(name: string, value: string): void {
-        this._map.set(name.toLowerCase(), value);
+        const k = name.toLowerCase();
+        for (let i = 0; i < this._entries.length; i++) {
+            if (this._entries[i][0] === k) {
+                this._entries[i][1] = value;
+                return;
+            }
+        }
+        this._entries.push([k, value]);
     }
 
     has(name: string): boolean {
-        return this._map.has(name.toLowerCase());
+        const k = name.toLowerCase();
+        for (let i = 0; i < this._entries.length; i++) {
+            if (this._entries[i][0] === k) {
+                return true;
+            }
+        }
+        return false;
     }
 
     delete(name: string): void {
-        this._map.delete(name.toLowerCase());
+        const k = name.toLowerCase();
+        const next: Array<[string, string]> = [];
+        for (let i = 0; i < this._entries.length; i++) {
+            if (this._entries[i][0] !== k) {
+                next.push(this._entries[i]);
+            }
+        }
+        this._entries = next;
     }
 
     keys(): string[] {
         const keys: string[] = [];
-        this._map.forEach((_, k) => keys.push(k));
+        for (let i = 0; i < this._entries.length; i++) {
+            keys.push(this._entries[i][0]);
+        }
         return keys;
     }
 
     values(): string[] {
         const vals: string[] = [];
-        this._map.forEach((v) => vals.push(v));
+        for (let i = 0; i < this._entries.length; i++) {
+            vals.push(this._entries[i][1]);
+        }
         return vals;
     }
 
     entries(): Array<[string, string]> {
-        const result: Array<[string, string]> = [];
-        this._map.forEach((v, k) => result.push([k, v]));
-        return result;
+        return this._entries;
     }
 
-    [Symbol.iterator](): Iterator<[string, string]> {
-        return this.entries()[Symbol.iterator]();
+    [Symbol.iterator](): unknown {
+        return {
+            next: () => {
+                return { done: true, value: null };
+            }
+        };
     }
 }
 
@@ -157,7 +188,7 @@ export function isPrimitive(object: unknown): boolean {
 }
 
 export function isBuffer(object: unknown): boolean {
-    return object !== null && typeof object === "object" && object instanceof Uint8Array;
+    return Buffer.isBuffer(object);
 }
 
 export function isDeepStrictEqual(val1: unknown, val2: unknown): boolean {
@@ -262,8 +293,12 @@ export function format(formatStr?: unknown, ...args: unknown[]): string {
     return res;
 }
 
-export function formatWithOptions(inspectOptions: unknown, formatStr?: unknown, ...args: unknown[]): string {
-    return format(formatStr, args[0], args[1], args[2]);
+export function formatWithOptions(inspectOptions: unknown, formatStr?: unknown, a1?: unknown, a2?: unknown, a3?: unknown, a4?: unknown): string {
+    if (a4 !== undefined) return format(formatStr, a1, a2, a3, a4);
+    if (a3 !== undefined) return format(formatStr, a1, a2, a3);
+    if (a2 !== undefined) return format(formatStr, a1, a2);
+    if (a1 !== undefined) return format(formatStr, a1);
+    return format(formatStr);
 }
 
 export function promisify(original: Function): Function {
@@ -483,6 +518,33 @@ export function parseEnv(content: string): Map<string, string> {
         }
     }
     return result;
+}
+
+export class TextDecoder {
+    encoding: string = "utf-8";
+    fatal: boolean = false;
+    ignoreBOM: boolean = false;
+    constructor(label: string = "utf-8", options?: { fatal?: boolean; ignoreBOM?: boolean }) {
+        this.encoding = label;
+        if (options) {
+            if (options.fatal) this.fatal = options.fatal;
+            if (options.ignoreBOM) this.ignoreBOM = options.ignoreBOM;
+        }
+    }
+    decode(input?: Uint8Array): string {
+        if (!input) return "";
+        return input.toString();
+    }
+}
+
+export class TextEncoder {
+    readonly encoding: string = "utf-8";
+    encode(input: string = ""): Uint8Array {
+        return new Uint8Array(input.length);
+    }
+    encodeInto(source: string, destination: Uint8Array): { read: number; written: number } {
+        return { read: source.length, written: source.length };
+    }
 }
 
 export default {

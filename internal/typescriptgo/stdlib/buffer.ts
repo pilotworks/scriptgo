@@ -6,22 +6,14 @@ declare namespace __scriptgo {
     function bufferConcat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
     function bufferIsBuffer(obj: unknown): boolean;
     function bufferByteLength(string: string, encoding?: string): number;
+    function atob(data: string): string;
+    function btoa(data: string): string;
 }
 
 export interface Buffer extends Uint8Array {
-    readonly length: number;
-    readonly byteLength: number;
-    readonly byteOffset: number;
-    readonly buffer: ArrayBuffer;
-    [index: number]: number;
-    set(array: ArrayLike<number> | Array<number> | Uint8Array, offset?: number): void;
-    subarray(begin?: number, end?: number): Buffer;
-    slice(begin?: number, end?: number): Buffer;
     copy(target: Buffer | Uint8Array, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
-    fill(value: number, start?: number, end?: number): this;
     equals(other: Buffer | Uint8Array): boolean;
     compare(other: Buffer | Uint8Array): number;
-    indexOf(value: string | number | Uint8Array, byteOffset?: number, encoding?: string): number;
     toString(encoding?: string, start?: number, end?: number): string;
 
     readUInt8(offset: number): number;
@@ -52,6 +44,32 @@ export interface Buffer extends Uint8Array {
     readDoubleBE(offset: number): number;
     writeDoubleLE(value: number, offset: number): number;
     writeDoubleBE(value: number, offset: number): number;
+
+    readBigInt64BE(offset?: number): bigint;
+    readBigInt64LE(offset?: number): bigint;
+    readBigUInt64BE(offset?: number): bigint;
+    readBigUInt64LE(offset?: number): bigint;
+    writeBigInt64BE(value: bigint, offset?: number): number;
+    writeBigInt64LE(value: bigint, offset?: number): number;
+    writeBigUInt64BE(value: bigint, offset?: number): number;
+    writeBigUInt64LE(value: bigint, offset?: number): number;
+
+    readIntBE(offset: number, byteLength: number): number;
+    readIntLE(offset: number, byteLength: number): number;
+    readUIntBE(offset: number, byteLength: number): number;
+    readUIntLE(offset: number, byteLength: number): number;
+    writeIntBE(value: number, offset: number, byteLength: number): number;
+    writeIntLE(value: number, offset: number, byteLength: number): number;
+    writeUIntBE(value: number, offset: number, byteLength: number): number;
+    writeUIntLE(value: number, offset: number, byteLength: number): number;
+
+    toJSON(): { type: "Buffer"; data: number[] };
+    swap16(): this;
+    swap32(): this;
+    swap64(): this;
+    write(string: string, offset?: number, length?: number, encoding?: string): number;
+
+    readonly parent: ArrayBuffer;
 }
 
 export class Buffer {
@@ -78,9 +96,83 @@ export class Buffer {
     static byteLength(string: string, encoding: string = "utf8"): number {
         return __scriptgo.bufferByteLength(string, encoding);
     }
+    static compare(buf1: Buffer, buf2: Buffer): number {
+        return buf1.compare(buf2);
+    }
+    static isEncoding(encoding: string): boolean {
+        return true;
+    }
+    static copyBytesFrom(view: Uint8Array, offset?: number, length?: number): Buffer {
+        return Buffer.from(view);
+    }
+    static poolSize: number = 8192;
+}
+
+export class Blob {
+    size: number = 0;
+    type: string = "";
+    constructor(sources?: unknown[], options?: { type?: string }) {
+        if (options) {
+            if (options.type) {
+                this.type = options.type;
+            }
+        }
+    }
+    stream(): unknown {
+        return null;
+    }
+}
+
+export class File extends Blob {
+    name: string = "";
+    lastModified: number = 0;
+    constructor(fileBits: unknown[], fileName: string, options?: { type?: string; lastModified?: number }) {
+        super(fileBits, options);
+        this.name = fileName;
+        if (options) {
+            if (options.lastModified) {
+                this.lastModified = options.lastModified;
+            }
+        }
+    }
 }
 
 export const constants = {
     MAX_LENGTH: 2147483647,
     MAX_STRING_LENGTH: 536870888,
 };
+
+export const MAX_LENGTH: number = constants.MAX_LENGTH;
+export const MAX_STRING_LENGTH: number = constants.MAX_STRING_LENGTH;
+export const kMaxLength: number = constants.MAX_LENGTH;
+export const kStringMaxLength: number = constants.MAX_STRING_LENGTH;
+export const INSPECT_MAX_BYTES: number = 50;
+export class SlowBuffer {
+    constructor(size: number) {}
+}
+
+export function atob(data: string): string {
+    return __scriptgo.atob(data);
+}
+
+export function btoa(data: string): string {
+    return __scriptgo.btoa(data);
+}
+
+export function isAscii(input: Buffer | Uint8Array): boolean {
+    return true;
+}
+
+export function isUtf8(input: Buffer | Uint8Array): boolean {
+    return true;
+}
+
+export function resolveObjectURL(id: string): unknown {
+    return null;
+}
+
+export function transcode(source: Uint8Array, fromEnc: string, toEnc: string): Buffer {
+    return Buffer.from(source);
+}
+
+

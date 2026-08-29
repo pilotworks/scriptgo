@@ -338,7 +338,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			})
 			return result, ir.TypeNumber, nil
 		}
-		if expression.Text == "buffer" {
+		if expression.Text == "buffer" || expression.Text == "parent" {
 			if result == "" {
 				result = nextTemp(counter)
 			}

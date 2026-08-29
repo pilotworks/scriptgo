@@ -458,7 +458,65 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			}
 		}
 		return SyntaxStatement{Span: span, Kind: "enum", Name: enumObj.Name, Enum: enumObj}, true
-	case ast.KindImportDeclaration, ast.KindExportDeclaration, ast.KindExportAssignment:
+	case ast.KindImportDeclaration:
+		var aliases []SyntaxStatement
+		if imp := node.AsImportDeclaration(); imp != nil && imp.ImportClause != nil {
+			if clause := imp.ImportClause.AsImportClause(); clause != nil && clause.NamedBindings != nil && clause.NamedBindings.Kind == ast.KindNamedImports {
+				if namedImports := clause.NamedBindings.AsNamedImports(); namedImports != nil && namedImports.Elements != nil {
+					for _, elem := range namedImports.Elements.Nodes {
+						if spec := elem.AsImportSpecifier(); spec != nil {
+							localName := spec.Name().Text()
+							origName := localName
+							if spec.PropertyName != nil {
+								origName = spec.PropertyName.Text()
+							}
+							if origName != localName {
+								aliases = append(aliases, SyntaxStatement{
+									Span: span,
+									Kind: "import_alias",
+									Name: localName,
+									Type: origName,
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+		if len(aliases) > 0 {
+			return SyntaxStatement{Span: span, Kind: "block", Body: aliases}, true
+		}
+		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
+
+	case ast.KindExportDeclaration:
+		var aliases []SyntaxStatement
+		if exp := node.AsExportDeclaration(); exp != nil && exp.ExportClause != nil && exp.ExportClause.Kind == ast.KindNamedExports {
+			if namedExports := exp.ExportClause.AsNamedExports(); namedExports != nil && namedExports.Elements != nil {
+				for _, elem := range namedExports.Elements.Nodes {
+					if spec := elem.AsExportSpecifier(); spec != nil {
+						exportName := spec.Name().Text()
+						origName := exportName
+						if spec.PropertyName != nil {
+							origName = spec.PropertyName.Text()
+						}
+						if origName != exportName {
+							aliases = append(aliases, SyntaxStatement{
+								Span: span,
+								Kind: "export_alias",
+								Name: exportName,
+								Type: origName,
+							})
+						}
+					}
+				}
+			}
+		}
+		if len(aliases) > 0 {
+			return SyntaxStatement{Span: span, Kind: "block", Body: aliases}, true
+		}
+		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
+
+	case ast.KindExportAssignment:
 		return SyntaxStatement{Span: span, Kind: "module", Type: node.Kind.String()}, true
 	case ast.KindModuleDeclaration:
 		modDecl := node.AsModuleDeclaration()
@@ -682,4 +740,5 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}
+	return SyntaxStatement{}, false
 }

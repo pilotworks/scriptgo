@@ -18,7 +18,7 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") && expression.Left.Left != nil {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index") && expression.Left.Left != nil {
 		isModuleNamespace := false
 		if expression.Left.Left.Kind == "identifier" {
 			qualifier := expression.Left.Left.Text
@@ -32,6 +32,15 @@ func lowerCallExpression(
 		}
 		if !isModuleNamespace {
 			methodName := expression.Left.Text
+			if (expression.Left.Kind == "index" || expression.Left.Kind == "optional_index") && expression.Left.Right != nil {
+				if expression.Left.Right.Kind == "property" && expression.Left.Right.Left != nil && expression.Left.Right.Left.Text == "Symbol" {
+					methodName = "Symbol." + expression.Left.Right.Text
+				} else if expression.Left.Right.Kind == "string" {
+					methodName = expression.Left.Right.Text
+				} else if expression.Left.Right.Kind == "identifier" {
+					methodName = expression.Left.Right.Text
+				}
+			}
 			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 			if err == nil {
 			if methodName == "then" || methodName == "catch" {

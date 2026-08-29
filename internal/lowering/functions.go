@@ -267,6 +267,28 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 			}
 		}
 	}
+	for _, file := range program.Files {
+		var resolveAliases func(s typescriptgo.SyntaxStatement)
+		resolveAliases = func(s typescriptgo.SyntaxStatement) {
+			if s.Kind == "block" || s.Kind == "namespace" {
+				for _, sub := range s.Body {
+					resolveAliases(sub)
+				}
+				return
+			}
+			if s.Kind == "import_alias" || s.Kind == "export_alias" {
+				if targetFn, ok := index[s.Type]; ok {
+					index[s.Name] = targetFn
+					if defaultParamsIndex[s.Type] != nil {
+						defaultParamsIndex[s.Name] = defaultParamsIndex[s.Type]
+					}
+				}
+			}
+		}
+		for _, statement := range file.Syntax.Statements {
+			resolveAliases(statement)
+		}
+	}
 	dispatchers := synthesizePolymorphicDispatchers(hierarchy, index)
 	for _, df := range dispatchers {
 		index[df.Name] = df

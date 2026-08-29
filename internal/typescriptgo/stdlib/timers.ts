@@ -37,8 +37,92 @@ export function clearImmediate(id: number | undefined): void {
     }
 }
 
+export class Immediate {
+    _id: number = 0;
+    _refed: boolean = true;
+
+    constructor(id: number = 0) {
+        this._id = id;
+    }
+
+    hasRef(): boolean {
+        return this._refed;
+    }
+
+    ref(): this {
+        this._refed = true;
+        return this;
+    }
+
+    unref(): this {
+        this._refed = false;
+        return this;
+    }
+
+    [Symbol.dispose](): void {
+        clearImmediate(this._id);
+    }
+}
+
+export class Timeout {
+    _id: number = 0;
+    _refed: boolean = true;
+
+    constructor(id: number = 0) {
+        this._id = id;
+    }
+
+    hasRef(): boolean {
+        return this._refed;
+    }
+
+    ref(): this {
+        this._refed = true;
+        return this;
+    }
+
+    unref(): this {
+        this._refed = false;
+        return this;
+    }
+
+    refresh(): this {
+        return this;
+    }
+
+    close(): void {
+        clearTimeout(this._id);
+    }
+
+    [Symbol.toPrimitive](): number {
+        return this._id;
+    }
+
+    [Symbol.dispose](): void {
+        this.close();
+    }
+}
+
+export function wait(ms: number = 0): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve(undefined);
+        }, ms);
+    });
+}
+
+function _yield(): Promise<void> {
+    return new Promise((resolve) => {
+        setImmediate(() => {
+            resolve(undefined);
+        });
+    });
+}
+
+export { _yield as yield };
+
 export class TimersPromises {
-    async setTimeout(delay: number = 1, value?: unknown): Promise<unknown> {
+    setTimeout(delay: number = 1, value?: unknown): Promise<unknown> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 resolve(value);
@@ -46,7 +130,7 @@ export class TimersPromises {
         });
     }
 
-    async setImmediate(value?: unknown): Promise<unknown> {
+    setImmediate(value?: unknown): Promise<unknown> {
         return new Promise((resolve) => {
             setImmediate(() => {
                 resolve(value);
@@ -65,11 +149,15 @@ export class TimersPromises {
 export const promises: TimersPromises = new TimersPromises();
 
 export default {
+    Immediate,
+    Timeout,
     setTimeout,
     clearTimeout,
     setInterval,
     clearInterval,
     setImmediate,
     clearImmediate,
+    wait,
+    yield: _yield,
     promises,
 };

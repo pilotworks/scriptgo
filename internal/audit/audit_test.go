@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pilotworks/scriptgo/internal/audit"
+	"github.com/pilotworks/scriptgo/internal/spec"
 )
 
 func TestScanCorpusAPIs(t *testing.T) {
@@ -70,7 +71,26 @@ func TestScanTypesNode(t *testing.T) {
 	t.Logf("Found %d @types/node items across %d unique keys and %d modules",
 		len(typesCatalog.AllItems), len(typesCatalog.ItemsByKey), len(typesCatalog.ItemsByModule))
 
-	if unescapeItem, ok := typesCatalog.ItemsByKey["querystring.unescape"]; ok {
-		t.Logf("querystring.unescape in @types/node: %+v", unescapeItem)
+}
+
+func TestAuditUtil(t *testing.T) {
+	specCacheDir := filepath.Join("..", "..", "testdata", "specs", "nodejs-v22")
+	corpusRoot := filepath.Join("..", "compiler", "testdata", "corpus")
+	doc, err := spec.LoadModuleSpec(specCacheDir, "util")
+	if err != nil {
+		t.Fatalf("LoadModuleSpec failed: %v", err)
+	}
+	corpus, err := audit.ScanCorpusAPIs(corpusRoot)
+	if err != nil {
+		t.Fatalf("ScanCorpusAPIs failed: %v", err)
+	}
+	report := audit.AuditModule("util", doc, corpus, nil, nil)
+	t.Logf("Util Total: %d, Verified: %d, Missing: %d", report.TotalOfficial, report.VerifiedCount, report.MissingCount)
+	for _, res := range report.Results {
+		t.Logf("Result: key=%s status=%v", res.CanonicalAPI.NormalizedKey, res.Status)
 	}
 }
+
+
+
+

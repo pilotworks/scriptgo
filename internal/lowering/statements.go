@@ -1054,7 +1054,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Type: ir.TypeVoid,
 			Span: toIRSpan(path, statement.Span),
 		})
-	case "module", "enum":
+	case "module", "enum", "import_alias", "export_alias":
 		return nil
 	default:
 		return fmt.Errorf("unsupported statement %q", statement.Kind)

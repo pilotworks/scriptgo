@@ -307,6 +307,12 @@ interface Uint8Array {
     subarray(begin?: number, end?: number): Uint8Array;
     slice(begin?: number, end?: number): Uint8Array;
     fill(value: number, start?: number, end?: number): this;
+    includes(searchElement: number | string | Uint8Array, fromIndex?: number): boolean;
+    indexOf(searchElement: number | string | Uint8Array, fromIndex?: number): number;
+    lastIndexOf(searchElement: number | string | Uint8Array, fromIndex?: number): number;
+    entries(): IterableIterator<[number, number]>;
+    keys(): IterableIterator<number>;
+    values(): IterableIterator<number>;
 }
 
 interface Uint8ArrayConstructor {

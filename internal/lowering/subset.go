@@ -124,7 +124,7 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 			return err
 		}
 		return validateExpression(fileName, statement.Expression)
-	case "module", "enum", "interface", "type_alias":
+	case "module", "enum", "interface", "type_alias", "import_alias", "export_alias":
 		return nil
 	case "class":
 		if statement.Class != nil && len(statement.Class.TypeParameters) > 0 {

@@ -1574,6 +1574,22 @@ export function destroy(stream: unknown, err?: unknown): void {
     }
 }
 
+export function from(src: unknown): Duplex {
+    return Duplex.from(src);
+}
+
+export function fromWeb(readableStream: unknown, options?: unknown): Readable {
+    return Readable.fromWeb(readableStream, options);
+}
+
+export function toWeb(streamReadable: unknown, options?: unknown): unknown {
+    return Readable.toWeb(streamReadable, options);
+}
+
+export function isDisturbed(stream: unknown): boolean {
+    return Readable.isDisturbed(stream);
+}
+
 export const promises: StreamPromises = new StreamPromises();
 export const consumers: StreamConsumers = new StreamConsumers();
 
@@ -1588,8 +1604,13 @@ export default {
     finished,
     destroy,
     compose,
+    from,
+    fromWeb,
+    toWeb,
+    isDisturbed,
     getDefaultHighWaterMark,
     setDefaultHighWaterMark,
     promises,
     consumers,
 };
+

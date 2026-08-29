@@ -736,3 +736,160 @@ int scriptgo_buffer_write_double(void *handle, double val, double offset, int is
     if (out_written) *out_written = (double)(off + 8);
     return 0;
 }
+
+int scriptgo_buffer_read_bigint64(void *handle, double offset, int is_le, int64_t *out_val) {
+    if (out_val == NULL) return buffer_fail("Buffer.readBigInt64: null output");
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    int64_t off = (int64_t)offset;
+    if (bv == NULL || bv->data == NULL || off < 0 || off + 8 > bv->length) {
+        return buffer_fail("Buffer.readBigInt64: out of range");
+    }
+    uint64_t raw;
+    memcpy(&raw, bv->data + off, 8);
+    *out_val = (int64_t)b_swap64_if_be(raw, is_le);
+    return 0;
+}
+
+int scriptgo_buffer_write_bigint64(void *handle, int64_t val, double offset, int is_le, double *out_written) {
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    int64_t off = (int64_t)offset;
+    if (bv == NULL || bv->data == NULL || off < 0 || off + 8 > bv->length) {
+        return buffer_fail("Buffer.writeBigInt64: out of range");
+    }
+    uint64_t raw = b_swap64_if_be((uint64_t)val, is_le);
+    memcpy(bv->data + off, &raw, 8);
+    if (out_written) *out_written = (double)(off + 8);
+    return 0;
+}
+
+int scriptgo_buffer_read_int(void *handle, double offset, double byte_length, int is_le, int is_signed, double *out_val) {
+    if (out_val == NULL) return buffer_fail("Buffer.readInt: null output");
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    int64_t off = (int64_t)offset;
+    int64_t blen = (int64_t)byte_length;
+    if (bv == NULL || bv->data == NULL || off < 0 || blen < 1 || blen > 6 || off + blen > bv->length) {
+        return buffer_fail("Buffer.readInt: out of range");
+    }
+    int64_t val = 0;
+    if (is_le) {
+        for (int64_t i = blen - 1; i >= 0; i--) {
+            val = (val << 8) | bv->data[off + i];
+        }
+    } else {
+        for (int64_t i = 0; i < blen; i++) {
+            val = (val << 8) | bv->data[off + i];
+        }
+    }
+    if (is_signed) {
+        int64_t sign_bit = (int64_t)1 << (blen * 8 - 1);
+        if (val & sign_bit) {
+            val -= (int64_t)1 << (blen * 8);
+        }
+    }
+    *out_val = (double)val;
+    return 0;
+}
+
+int scriptgo_buffer_write_int(void *handle, double val, double offset, double byte_length, int is_le, int is_signed, double *out_written) {
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    int64_t off = (int64_t)offset;
+    int64_t blen = (int64_t)byte_length;
+    if (bv == NULL || bv->data == NULL || off < 0 || blen < 1 || blen > 6 || off + blen > bv->length) {
+        return buffer_fail("Buffer.writeInt: out of range");
+    }
+    int64_t v = (int64_t)val;
+    if (is_le) {
+        for (int64_t i = 0; i < blen; i++) {
+            bv->data[off + i] = (uint8_t)(v & 0xFF);
+            v >>= 8;
+        }
+    } else {
+        for (int64_t i = blen - 1; i >= 0; i--) {
+            bv->data[off + i] = (uint8_t)(v & 0xFF);
+            v >>= 8;
+        }
+    }
+    if (out_written) *out_written = (double)(off + blen);
+    return 0;
+}
+
+int scriptgo_buffer_swap(void *handle, int width, void **out_buf) {
+    if (out_buf == NULL) return buffer_fail("Buffer.swap: null output");
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    if (bv == NULL || bv->data == NULL) {
+        return buffer_fail("Buffer.swap: null buffer");
+    }
+    if (bv->length % width != 0) {
+        return buffer_fail("Buffer.swap: size must be multiple of width");
+    }
+    for (int64_t i = 0; i < bv->length; i += width) {
+        for (int j = 0; j < width / 2; j++) {
+            uint8_t tmp = bv->data[i + j];
+            bv->data[i + j] = bv->data[i + width - 1 - j];
+            bv->data[i + width - 1 - j] = tmp;
+        }
+    }
+    *out_buf = handle;
+    return 0;
+}
+
+int scriptgo_buffer_last_index_of(void *handle, const char *val_str, double val_num, int is_str, double byte_offset, int has_offset, double *out_idx) {
+    if (out_idx == NULL) return buffer_fail("Buffer.lastIndexOf: null output");
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    if (bv == NULL || bv->data == NULL) {
+        *out_idx = -1;
+        return 0;
+    }
+    int64_t start = bv->length - 1;
+    if (has_offset) {
+        start = (int64_t)byte_offset;
+        if (start >= bv->length) start = bv->length - 1;
+    }
+    if (is_str && val_str != NULL) {
+        int64_t vlen = (int64_t)strlen(val_str);
+        if (vlen == 0) {
+            *out_idx = start < bv->length ? (double)start : (double)bv->length;
+            return 0;
+        }
+        for (int64_t i = start; i >= 0; i--) {
+            if (i + vlen <= bv->length && memcmp(bv->data + i, val_str, vlen) == 0) {
+                *out_idx = (double)i;
+                return 0;
+            }
+        }
+    } else {
+        uint8_t byte_val = (uint8_t)((uint32_t)val_num & 0xFF);
+        for (int64_t i = start; i >= 0; i--) {
+            if (bv->data[i] == byte_val) {
+                *out_idx = (double)i;
+                return 0;
+            }
+        }
+    }
+    *out_idx = -1;
+    return 0;
+}
+
+int scriptgo_buffer_includes(void *handle, const char *val_str, double val_num, int is_str, double byte_offset, int has_offset, int32_t *out_inc) {
+    if (out_inc == NULL) return buffer_fail("Buffer.includes: null output");
+    double idx = -1;
+    scriptgo_buffer_index_of(handle, val_str, val_num, is_str, byte_offset, has_offset, &idx);
+    *out_inc = (idx >= 0) ? 1 : 0;
+    return 0;
+}
+
+int scriptgo_buffer_write(void *handle, const char *str, double offset, double length, const char *encoding_str, double *out_written) {
+    if (out_written) *out_written = 0;
+    scriptgo_buffer_view *bv = (scriptgo_buffer_view *)handle;
+    if (bv == NULL || bv->data == NULL || str == NULL) return 0;
+    int64_t off = (int64_t)offset;
+    if (off < 0 || off >= bv->length) return 0;
+    int64_t max_len = bv->length - off;
+    int64_t slen = (int64_t)strlen(str);
+    if (length > 0 && length < slen) slen = (int64_t)length;
+    if (slen > max_len) slen = max_len;
+    memcpy(bv->data + off, str, slen);
+    if (out_written) *out_written = (double)slen;
+    return 0;
+}
+

@@ -701,8 +701,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	}
 
 	// Web-compatible & Timer globals (Category 2: WebCompat & NodeGlobal)
-	register([]string{"btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
-	register([]string{"atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"btoa", "__scriptgo.btoa", "buffer.btoa"}, CategoryWebCompat, "__web.btoa", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"atob", "__scriptgo.atob", "buffer.atob"}, CategoryWebCompat, "__web.atob", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	register([]string{"performance.now"}, CategoryWebCompat, "__performance.now", nil, ir.TypeNumber, 0, 0)
 	register([]string{"queueMicrotask"}, CategoryWebCompat, "__async.queueMicrotask", []ir.Type{ir.TypeClosure}, ir.TypeVoid, 1, 1)
 	register([]string{"Promise.resolve"}, CategoryECMAScript, "__async.promise_resolve", []ir.Type{ir.TypeNumber}, ir.Type("object:Promise"), 1, 1)

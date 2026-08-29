@@ -56,6 +56,7 @@ console.log("strictEqual passed");
 notStrictEqual(1, "1");
 console.log("notStrictEqual passed");
 
+// @api: assert.deepEqual(actual, expected[, message])
 // @expect: deepEqual passed
 deepEqual([1, 2], [1, 2]);
 console.log("deepEqual passed");

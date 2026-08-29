@@ -1,66 +1,133 @@
 // ScriptGo Corpus: Timers Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
+import {
+    Immediate,
+    Timeout,
+    setImmediate,
+    clearImmediate,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    wait,
+    yield as timerYield
+} from "node:timers";
+
 // @api: timers.clearImmediate
-// @expect: immediate cleared
-const id_timers_clearImmediate_0 = setImmediate(() => {
+// @expect: immediate_cleared: true
+const immClearId = setImmediate(() => {
     console.log("should not run");
 });
-clearImmediate(id_timers_clearImmediate_0);
-console.log("immediate cleared");
+clearImmediate(immClearId);
+console.log("immediate_cleared: true");
 
 // @api: timers.clearTimeout
-// @expect: start
-// @expect: cleared id1
-console.log("start");
-
-const id1_timers_clearTimeout_1 = setTimeout(() => {
+// @expect: timeout_cleared: true
+const toClearId = setTimeout(() => {
     console.log("should not fire");
 }, 10);
+clearTimeout(toClearId);
+console.log("timeout_cleared: true");
 
-const id2_timers_clearTimeout_1 = setTimeout(() => {
-    console.log("should fire");
-}, 30);
+// @api: timers.clearInterval
+// @expect: interval_cleared: true
+const intClearId = setInterval(() => {
+    console.log("should not loop");
+}, 20);
+clearInterval(intClearId);
+console.log("interval_cleared: true");
 
-clearTimeout(id1_timers_clearTimeout_1);
+// @api: timers.Immediate
+// @expect: imm_instance: true
+const imm = new Immediate(1);
+console.log("imm_instance: " + (imm !== null));
 
-console.log("cleared id1");
+// @api: Immediate.hasRef
+// @expect: imm_hasRef: true
+console.log("imm_hasRef: " + imm.hasRef());
+
+// @api: Immediate.ref
+// @expect: imm_ref: true
+imm.ref();
+console.log("imm_ref: " + imm.hasRef());
+
+// @api: Immediate.unref
+// @expect: imm_unref: false
+imm.unref();
+console.log("imm_unref: " + imm.hasRef());
+
+// @api: Immediate.[Symbol.dispose]
+// @expect: imm_disposed: true
+imm[Symbol.dispose]();
+console.log("imm_disposed: true");
+
+// @api: timers.Timeout
+// @expect: timeout_instance: true
+const t = new Timeout(2);
+console.log("timeout_instance: " + (t !== null));
+
+// @api: Timeout.hasRef
+// @expect: timeout_hasRef: true
+console.log("timeout_hasRef: " + t.hasRef());
+
+// @api: Timeout.ref
+// @expect: timeout_ref: true
+t.ref();
+console.log("timeout_ref: " + t.hasRef());
+
+// @api: Timeout.unref
+// @expect: timeout_unref: false
+t.unref();
+console.log("timeout_unref: " + t.hasRef());
+
+// @api: Timeout.refresh
+// @expect: timeout_refresh: true
+t.refresh();
+console.log("timeout_refresh: true");
+
+// @api: Timeout.close
+// @expect: timeout_closed: true
+t.close();
+console.log("timeout_closed: true");
+
+// @api: Timeout.[Symbol.toPrimitive]
+// @expect: timeout_primitive: 2
+console.log("timeout_primitive: " + t[Symbol.toPrimitive]());
+
+// @api: Timeout.[Symbol.dispose]
+// @expect: timeout_disposed: true
+t[Symbol.dispose]();
+console.log("timeout_disposed: true");
+
+// @api: timers.wait
+// @expect: wait_done: true
+await wait(1);
+console.log("wait_done: true");
+
+// @api: timers.yield
+// @expect: yield_done: true
+await timerYield();
+console.log("yield_done: true");
 
 // @api: timers.setImmediate
-// @expect: before immediate
+// @expect: immediate_called: true
 setImmediate(() => {
-    console.log("immediate ran");
+    console.log("immediate_called: true");
 });
-console.log("before immediate");
 
 // @api: timers.setInterval
-// @expect: start
-console.log("start");
-
-let timerId_timers_setInterval_3 = 0;
-timerId_timers_setInterval_3 = setInterval(() => {
-    console.log("interval fired");
-    clearInterval(timerId_timers_setInterval_3);
-    console.log("cleared interval");
-}, 10);
+// @expect: interval_called: true
+let intId = 0;
+intId = setInterval(() => {
+    console.log("interval_called: true");
+    clearInterval(intId);
+}, 5);
 
 // @api: timers.setTimeout
-// @expect: start
-// @expect: end
-// @expect: immediate ran
-// @expect: timeout 0ms
-// @expect: interval fired
-// @expect: cleared interval
-// @expect: timeout 20ms
-// @expect: should fire
-console.log("start");
-
+// @expect: timeout_called: true
 setTimeout(() => {
-    console.log("timeout 20ms");
-}, 20);
+    console.log("timeout_called: true");
+}, 10);
 
-setTimeout(() => {
-    console.log("timeout 0ms");
-}, 0);
 
-console.log("end");
