@@ -566,8 +566,24 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				rightType = ir.TypeUnknown
 			}
 		} else if (expression.Operator == "||" || expression.Operator == "&&") && isPointerLikeType(leftType) {
-			if rightType == "never[]" || rightType == "unknown[]" || isPointerLikeType(rightType) {
+			if rightType == "never[]" || rightType == "unknown[]" {
 				rightType = leftType
+			} else if isPointerLikeType(rightType) {
+				if leftType != rightType && !isSubtype(string(rightType), string(leftType)) && !isSubtype(string(leftType), string(rightType)) {
+					boxedLeft := nextTemp(counter)
+					env[boxedLeft] = ir.TypeUnknown
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxedLeft, Args: []string{left}, Span: toIRSpan(path, expression.Span)})
+					left = boxedLeft
+					leftType = ir.TypeUnknown
+
+					boxedRight := nextTemp(counter)
+					env[boxedRight] = ir.TypeUnknown
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxedRight, Args: []string{right}, Span: toIRSpan(path, expression.Span)})
+					right = boxedRight
+					rightType = ir.TypeUnknown
+				} else if isSubtype(string(rightType), string(leftType)) {
+					rightType = leftType
+				}
 			} else if rightType == ir.TypeBool {
 				boolTemp := nextTemp(counter)
 				nullConst := nextTemp(counter)
@@ -660,12 +676,31 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			if result == "" {
 				result = nextTemp(counter)
 			}
-			if expression.Operator == "||" {
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftType, Result: result, Args: []string{cond, left, right}, Span: toIRSpan(path, expression.Span)})
-			} else {
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: leftType, Result: result, Args: []string{cond, right, left}, Span: toIRSpan(path, expression.Span)})
+			selType := leftType
+			selLeft := left
+			selRight := right
+			if leftType != rightType {
+				if leftType != ir.TypeUnknown {
+					bLeft := nextTemp(counter)
+					env[bLeft] = ir.TypeUnknown
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: bLeft, Args: []string{left}, Span: toIRSpan(path, expression.Span)})
+					selLeft = bLeft
+				}
+				if rightType != ir.TypeUnknown {
+					bRight := nextTemp(counter)
+					env[bRight] = ir.TypeUnknown
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: bRight, Args: []string{right}, Span: toIRSpan(path, expression.Span)})
+					selRight = bRight
+				}
+				selType = ir.TypeUnknown
 			}
-			return result, leftType, nil
+			env[result] = selType
+			if expression.Operator == "||" {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: selType, Result: result, Args: []string{cond, selLeft, selRight}, Span: toIRSpan(path, expression.Span)})
+			} else {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: selType, Result: result, Args: []string{cond, selRight, selLeft}, Span: toIRSpan(path, expression.Span)})
+			}
+			return result, selType, nil
 		}
 		if leftType == ir.TypeString && expression.Operator == "+" {
 			// continue to binary +

@@ -79,6 +79,9 @@ func isSubtype(subType, superType string) bool {
 	if sub == super {
 		return true
 	}
+	if sub == "__shape_empty" && (strings.HasPrefix(super, "Record") || super == "Object" || super == "object" || strings.HasPrefix(super, "__shape_")) {
+		return true
+	}
 	meta, ok := classHierarchy[sub]
 	if !ok {
 		return false
