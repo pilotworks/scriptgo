@@ -298,7 +298,13 @@ int scriptgo_fetch_sync(const char *url, const char *method, void *headers_handl
     strcat(cmd, " '");
     strcat(cmd, url);
     strcat(cmd, "'");
-
+#if defined(__wasi__)
+    free(cmd);
+    *out_status = 0.0;
+    *out_status_text = strdup("fetch is not supported on WebAssembly/WASI");
+    *out_body = strdup("");
+    return 0;
+#else
     FILE *fp = popen(cmd, "r");
     free(cmd);
 
@@ -392,6 +398,7 @@ int scriptgo_fetch_sync(const char *url, const char *method, void *headers_handl
     *out_status_text = strdup("OK");
     *out_body = buf;
     return 0;
+#endif
 }
 
 static double g_stream_default_hwm = 65536.0;

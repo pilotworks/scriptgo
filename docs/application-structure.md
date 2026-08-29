@@ -28,47 +28,28 @@ This is the structure currently present in the repository:
 .
 ├── AGENTS.md
 ├── README.md
+├── CHANGELOG.md
 ├── go.mod                       # Root module: github.com/pilotworks/scriptgo
 ├── go.sum
-├── go.work                      # Workspace including the local adapter module
+├── go.work                      # Workspace including local adapter module
 ├── go.work.sum
 ├── cmd/
-│   └── scriptgo/
-│       └── main.go              # CLI entry point and -o output flag
+│   ├── scriptgo/                # CLI entry point (run, build, check, emit, version)
+│   └── parity/                  # Node.js parity oracle & official API coverage audit
 ├── internal/
-│   ├── compiler/
-│   │   ├── compiler.go          # Pipeline orchestration and build modes
-│   │   └── compiler_test.go     # Compiler-level behavior tests
-│   ├── frontend/
-│   │   └── source.go            # Program validation and frontend normalization
-│   ├── lowering/
-│   │   ├── lowering.go          # Checked TypeScript subset -> typed IR
-│   │   └── lowering_test.go     # Lowering and subset tests
-│   ├── ir/
-│   │   └── ir.go                # Initial typed IR data contract
+│   ├── compiler/                # Pipeline orchestration, toolchain resolution (Clang/Zig), WASM & native builds
+│   ├── frontend/                # Program validation, TypeScript adapter integration, AST normalization
+│   ├── lowering/                # Checked TypeScript -> typed IR lowering, expressions, control flow, functions
+│   ├── ir/                      # Backend-independent typed IR data model, instructions, verifier
 │   ├── backend/
-│   │   └── llvm/
-│   │       ├── emit.go           # Typed IR -> LLVM IR
-│   │       └── emit_test.go      # LLVM emission tests
-│   ├── runtime/
-│   │   ├── README.md             # Runtime ownership and package boundaries
-│   │   ├── runtime.go            # Embeds native runtime assets for linking
-│   │   ├── abi/README.md         # Current ABI contract
-│   │   ├── native/
-│   │   │   ├── README.md         # Native implementation rules
-│   │   │   └── arrays/runtime.c  # Generic element-layout array operations
-│   │   └── values/README.md      # Managed-value policies and shared contracts
-│   └── typescriptgo/
-│       ├── go.mod               # Separate adapter module
-│       ├── go.sum
-│       └── parse.go             # Small wrapper around TypeScript-Go parsing
-├── examples/
-│   └── hello.ts                 # Minimal CLI input fixture
-└── docs/
-    ├── application-structure.md
-    ├── roadmap.md
-    ├── stdlib.md
-    └── typescript-to-native.md
+│   │   └── llvm/                # Typed IR -> LLVM IR code generator, target metadata, pointer sizing
+│   ├── runtime/                 # Embedded C runtime sources linked with LLVM artifacts
+│   │   ├── abi/                 # Native runtime ABI specifications and types
+│   │   └── native/              # C runtime modules (arrays, async, closures, fs, http, net, os, web, websocket, wasi...)
+│   ├── spec/                    # Node.js API specification definitions and signatures
+│   └── typescriptgo/            # Pinned TypeScript-Go frontend adapter
+├── examples/                    # Showcase TypeScript sample programs
+└── docs/                        # Complete architectural and parity documentation
 ```
 
 ### Current execution path
@@ -82,7 +63,7 @@ cmd/scriptgo/main.go
         -> internal/ir.Module
         -> internal/lowering.Lower
         -> internal/backend/llvm.Emit -> Clang / zig cc
-    -> stdout or native binary output
+    -> stdout, native binary output (Mach-O, ELF, PE), or WebAssembly (.wasm)
 ```
 
 The current implementation checks the reachable local module graph, lowers the

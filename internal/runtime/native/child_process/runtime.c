@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include <sys/types.h>
 #include <stdint.h>
 #include <errno.h>
+
+#if !defined(__wasi__)
+#include <sys/wait.h>
+#include <sys/types.h>
+#endif
 
 int scriptgo_runtime_set_error(const char *message);
 
@@ -44,6 +47,31 @@ static char *read_all_fd(int fd) {
     return buf;
 }
 
+#if defined(__wasi__)
+int scriptgo_child_process_exec_sync(const char *command, const char *cwd, const char *input,
+                                     char **out_stdout, char **out_stderr, double *out_status) {
+    if (out_stdout) *out_stdout = strdup("");
+    if (out_stderr) *out_stderr = strdup("child_process is not supported on WebAssembly/WASI");
+    if (out_status) *out_status = 1.0;
+    return cp_fail("child_process is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_child_process_spawn_sync(const char *command, void *args_handle, const char *cwd,
+                                      const char *input, char **out_stdout, char **out_stderr, double *out_status) {
+    if (out_stdout) *out_stdout = strdup("");
+    if (out_stderr) *out_stderr = strdup("child_process is not supported on WebAssembly/WASI");
+    if (out_status) *out_status = 1.0;
+    return cp_fail("child_process is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_child_process_exec_file_sync(const char *command, void *args_handle, const char *cwd,
+                                          const char *input, char **out_stdout, char **out_stderr, double *out_status) {
+    if (out_stdout) *out_stdout = strdup("");
+    if (out_stderr) *out_stderr = strdup("child_process is not supported on WebAssembly/WASI");
+    if (out_status) *out_status = 1.0;
+    return cp_fail("child_process is not supported on WebAssembly/WASI");
+}
+#else
 int scriptgo_child_process_exec_sync(const char *command, const char *cwd, const char *input,
                                      char **out_stdout, char **out_stderr, double *out_status) {
     if (command == NULL || out_stdout == NULL || out_stderr == NULL || out_status == NULL) {
@@ -214,3 +242,4 @@ int scriptgo_child_process_spawn_sync(const char *command, void *args_handle, co
     }
     return 0;
 }
+#endif

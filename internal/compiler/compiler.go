@@ -199,9 +199,9 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime file: %w", err)
 		}
-		args = []string{"-x", "ir", temporaryPath, "-x", "c", runtimePath}
+		args = []string{temporaryPath, "-x", "c", runtimePath, "-x", "none"}
 	} else {
-		args = []string{"-x", "ir", temporaryPath, "-x", "none", runtimeObj}
+		args = []string{temporaryPath, runtimeObj}
 	}
 
 	// Process FFI manifests and extra native sources
@@ -315,6 +315,11 @@ func resolveCCWithLookup(cc string, lookPath func(string) (string, error)) ([]st
 		}
 		if bin, err := lookPath("zig"); err == nil {
 			return append([]string{bin, "cc"}, parts[1:]...), nil
+		}
+	}
+	if parts[0] == "zig" && len(parts) == 1 {
+		if bin, err := lookPath("zig"); err == nil {
+			return []string{bin, "cc"}, nil
 		}
 	}
 	bin, err := lookPath(parts[0])

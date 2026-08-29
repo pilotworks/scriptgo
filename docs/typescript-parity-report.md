@@ -2,9 +2,9 @@
 
 > **Report Date**: August 29, 2026  
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
-> **Target Platforms**: macOS (ARM64 / Apple Silicon) & Linux x86_64 / ARM64  
+> **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
-> **Machine Code Backend**: LLVM IR + Clang Toolchain  
+> **Machine Code Backend**: LLVM IR + Clang / Zig CC Toolchain  
 
 ---
 

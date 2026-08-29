@@ -792,7 +792,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 		sizeVal := fmt.Sprintf("%s.size", envAlloc)
 		out.WriteString(fmt.Sprintf("  %%%s = getelementptr %s, ptr null, i32 1\n", sizePtr, structType))
 		out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", sizeVal, sizePtr))
-		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %%%s)\n", envAlloc, sizeVal))
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %%%s)\n", envAlloc, sizeVal))
 		for i, arg := range instruction.Args {
 			typ, okTyp := e.types[arg]
 			if !okTyp {
@@ -809,7 +809,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 				if typ == ir.TypeUnknown {
 					allocSize = 16
 				}
-				out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %d)\n", cellAlloc, allocSize))
+				out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellAlloc, allocSize))
 				argVal := e.resolveArg(out, arg)
 				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellAlloc))
 				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellAlloc, fieldPtr))

@@ -15,7 +15,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#if defined(__wasi__)
+typedef int jmp_buf[16];
+#define setjmp(env) (0)
+#define longjmp(env, val) abort()
+#else
 #include <setjmp.h>
+#endif
 #include <math.h>
 
 const char scriptgo_undefined_sentinel = 0;

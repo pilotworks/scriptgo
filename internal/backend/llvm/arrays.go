@@ -54,7 +54,7 @@ func (e *functionEmitter) emitArray(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		e.varSlots[instruction.Result] = slot
 	}
-	elementSize, err := arrayElementSize(instruction.Type)
+	elementSize, err := arrayElementSizeForTarget(instruction.Type, e.pointerSize())
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 	case "__array.new_length":
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		elementSize, err := arrayElementSize(instruction.Type)
+		elementSize, err := arrayElementSizeForTarget(instruction.Type, e.pointerSize())
 		if err != nil {
 			return err
 		}

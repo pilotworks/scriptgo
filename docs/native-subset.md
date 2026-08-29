@@ -21,15 +21,15 @@ The native subset table below is therefore a Static eligibility table. A
 construct listed as rejected is not automatically Dynamic; it becomes Dynamic
 only when the dynamic runtime explicitly supports it.
 
-| Area | Supported | Rejected for the MVP |
+| Area | Supported in Static Mode | Rejected in Static Mode (`SGxxxx`) |
 | --- | --- | --- |
-| Files | Closed local `.ts` module graph | npm/package graphs, `.js` execution, dynamic imports |
-| Statements | Variables, expressions, functions, blocks, `if`/`else`, loops, `break`/`continue`, `return`, `throw`, `try`/`catch`/`finally`, and module declarations | Enums, async/generator control flow, dynamic imports |
-| Values | Typed primitive literals/identifiers, `null`/`undefined` in supported nullish expressions, promoted globals, dense primitive arrays, and static objects | Unresolved `any`/`unknown`, prototypes, sparse/dynamic objects, and function values |
-| Operators | Numeric and boolean arithmetic/comparison, logical operators, unary operators, conditional expressions, string `+`, nullish access, and supported array/object mutation | Operators requiring unproven JavaScript coercion or unsupported runtime values |
-| Calls | User functions, typed string/array methods, `console` methods, promoted `Math`/Web/Node intrinsics, and registered built-in modules | Dynamic call targets, constructors outside static classes, and unlisted Node APIs |
-| Classes | Static shapes with typed fields, literal initializers, supported methods, constructors, zero-argument `new`, and field mutation | Inheritance, dynamic property/prototype behavior, and unresolved layouts |
-| Functions | Synchronous typed functions, parameters, return values, rest/default parameters, and structured control flow | Async/generator functions, overload-only declarations, closures, and unresolved function values |
+| **Files** | Closed local `.ts` module graph, all 63 Node.js standard modules (`node:*`), canonical module aliases | npm/package graphs without static types, unbundled `.js` execution |
+| **Statements** | Variables (`let`, `const`, `var`), expressions, functions, blocks, `if`/`else`, `switch`/`case` (with fallthrough), `while`, `do..while`, `for`, `for..of`, `for..in`, `for await..of`, Labeled statements (`break label`, `continue label`), `return`, `throw`, `try`/`catch`/`finally`, Explicit Resource Management (`using` & `await using`), Destructuring, Spread/Rest, Enums (numeric, string, const enums), Generators (`yield`, `yield*`), Async Generators | Dynamic imports without static specifiers |
+| **Values** | `number` (IEEE-754), `bigint` (64-bit), `string` (UTF-8), `boolean`, `symbol` (with Registry `Symbol.for`, `Symbol.keyFor`), `null`/`undefined`, `unknown` (with boxed tagged representation & control-flow narrowing), Tuples, Monomorphized Generics, Multivariant Unions (`T \| null \| undefined`), TypedArrays & `DataView`, `Map` & `Set` (including all 7 ES2024 Set methods), `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, Dense & Generic Arrays, Object records | Unresolved `any` without type narrowing (`SG1001`), untyped prototype mutation |
+| **Operators** | Numeric, bitwise & boolean operators, BigInt arithmetic, strict/abstract equality, relational comparisons, logical operators, unary operators, ternary expressions, string concat/interpolation, optional chaining (`?.`, `fn?.()`), nullish coalescing (`??`), spread/rest, bitwise atomics | Dynamic unproven runtime coercion |
+| **Calls** | User functions, arrow functions, lexical closures, currying, higher-order methods (`map`, `filter`, `forEach`, `reduce`, `find`, `some`, `every`), polymorphic methods, `console`, `Math`, WHATWG Web globals (`fetch`, `Headers`, `Request`, `Response`, `WebSocket`, `URL`, `TextEncoder`, `AbortController`), and all 63 Node standard library modules | Dynamic call targets with untyped dispatch |
+| **Classes** | Constructors, properties, static fields/methods, Class Static Blocks (`static { ... }`), Getters/Setters, Inheritance (`extends`, `super`), Polymorphic VTables, `instanceof`, `new` expressions | Dynamic monkey-patching of class prototypes at runtime |
+| **Functions** | Synchronous typed functions, `async`/`await` functions, generator functions (`function*`), async generators, lexical closures with environment captures, default/optional/rest parameters, method overloading | Overload implementations without unified signature |
 
 Unsupported constructs are rejected before IR verification or native backend
 generation. Static subset diagnostics use the `SGxxxx` catalog in
@@ -37,17 +37,6 @@ generation. Static subset diagnostics use the `SGxxxx` catalog in
 source file, source span, and unsupported feature. For example, `any` is not a
 native layout and must produce `SG1001` in Static mode rather than being
 silently treated as a pointer or boxed C value.
-
-The rejected column describes the current MVP, not a permanent language ban.
-The table is intentionally conservative about JavaScript edge cases: a syntax
-construct can be accepted only where its checked types, runtime representation,
-interpreter behavior, and LLVM behavior agree.
-Features such as `null`/`undefined`, narrowed unions, monomorphized generics,
-`Date`, `Map`, `Set`, and additional standard-library APIs can become Static
-when their representation, JavaScript behavior, target support, and parity
-tests are defined. Features requiring dynamic property/prototype behavior,
-unresolved function dispatch, or JavaScript package execution remain Dynamic
-or Unsupported according to the selected mode.
 
 ## Builtin Semantics
 

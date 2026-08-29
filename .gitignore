@@ -6,6 +6,7 @@
 /dist/
 *.out
 *.ll
+*.wasm
 
 # Node / Frontend tooling
 node_modules/

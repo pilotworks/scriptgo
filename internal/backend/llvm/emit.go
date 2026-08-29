@@ -683,7 +683,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_process_pid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_ppid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_version(ptr)\n\n")
-	out.WriteString("declare ptr @malloc(i64)\n\n")
+	out.WriteString("declare ptr @scriptgo_closure_alloc(i64)\n\n")
 
 	alreadyDeclared := map[string]bool{
 		"malloc": true, "setjmp": true, "tan": true, "atan": true, "atan2": true, "hypot": true, "drand48": true,
@@ -824,6 +824,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		debug:           debug,
 		module:          module,
 		compilerVersion: verStr,
+		target:          options.Target,
 		types:           make(map[string]ir.Type, len(function.Parameters)+len(module.Globals)),
 		varSlots:        make(map[string]string),
 		localSSAs:       make(map[string]bool),
@@ -892,7 +893,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 				break
 			}
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = call ptr @malloc(i64 %d)\n", cellSlot, allocSize))
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellSlot, allocSize))
 		emitter.sharedEnvCells[capName] = cellSlot
 		for _, param := range function.Parameters {
 			if param.Name == capName {

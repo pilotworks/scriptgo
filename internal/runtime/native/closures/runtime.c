@@ -33,6 +33,11 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     return 0;
 }
 
+void *scriptgo_closure_alloc(int64_t size) {
+    if (size <= 0) size = 8;
+    return malloc((size_t)size);
+}
+
 int scriptgo_closure_equals(void *h1, void *h2) {
     if (h1 == h2) return 1;
     if (h1 == NULL || h2 == NULL || h1 == &scriptgo_undefined_sentinel || h2 == &scriptgo_undefined_sentinel) return 0;
@@ -442,8 +447,8 @@ int scriptgo_array_for_each_number(void *handle, void *closure_handle) {
         union { double d; int64_t i; } u_item, u_idx;
         u_item.d = item;
         u_idx.d = (double)i;
-        void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
-            (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        scriptgo_boxed_unknown_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (scriptgo_boxed_unknown_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
         fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
     }
     return 0;
@@ -459,8 +464,8 @@ int scriptgo_array_for_each_string(void *handle, void *closure_handle) {
         char *item = *(char **)(array->data + (size_t)i * sizeof(char *));
         union { double d; int64_t i; } u_idx;
         u_idx.d = (double)i;
-        void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
-            (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+        scriptgo_boxed_unknown_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+            (scriptgo_boxed_unknown_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
         fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
     }
     return 0;
@@ -475,8 +480,8 @@ int scriptgo_array_for_each_ptr(void *handle, void *closure_handle) {
     if (array->element_size != sizeof(void *) && array->element_size != 16) {
         return scriptgo_runtime_set_error("scriptgo array forEach failed");
     }
-    void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
-        (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+    scriptgo_boxed_unknown_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+        (scriptgo_boxed_unknown_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
     if (array->element_size == 16) {
         typedef struct { int32_t tag; int32_t pad; int64_t raw; } boxed_val;
         for (int64_t i = 0; i < array->length; i++) {

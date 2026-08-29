@@ -43,10 +43,15 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: true
 
-      - name: Setup Node.js (for Parity Oracle)
+      - name: Setup Node.js (for Parity Oracle & WASI execution)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Setup Zig (for WebAssembly / WASI & Cross-Compilation)
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
 
       - name: Setup Clang Runtime
         if: runner.os == 'Linux'

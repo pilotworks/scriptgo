@@ -19,6 +19,7 @@ type functionEmitter struct {
 	debug           *debugInfo
 	module          ir.Module
 	compilerVersion string
+	target          string
 
 	types              map[string]ir.Type
 	varSlots           map[string]string
@@ -36,6 +37,14 @@ type functionEmitter struct {
 	tempCounter        int
 	terminated         bool
 	localSSAs          map[string]bool
+}
+
+func (e *functionEmitter) pointerSize() int64 {
+	t := strings.ToLower(e.target)
+	if strings.HasPrefix(t, "wasm32") || strings.Contains(t, "i386") || strings.Contains(t, "armv7") {
+		return 4
+	}
+	return 8
 }
 
 func (e *functionEmitter) dbg(span ir.SourceSpan) string {

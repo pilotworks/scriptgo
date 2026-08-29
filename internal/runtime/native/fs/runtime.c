@@ -303,9 +303,11 @@ int scriptgo_fs_chmod_sync(const char *path, double mode) {
     if (path == NULL) {
         return fs_fail("scriptgo fs chmod invalid arguments");
     }
+#if !defined(__wasi__)
     if (chmod(path, (mode_t)mode) != 0) {
         return fs_fail("scriptgo fs chmod failed");
     }
+#endif
     return 0;
 }
 
@@ -313,12 +315,17 @@ int scriptgo_fs_realpath_sync(const char *path, char **out_path) {
     if (path == NULL || out_path == NULL) {
         return fs_fail("scriptgo fs realpath invalid arguments");
     }
+#if defined(__wasi__)
+    *out_path = strdup(path);
+    return 0;
+#else
     char *res = realpath(path, NULL);
     if (res == NULL) {
         return fs_fail("scriptgo fs realpath failed");
     }
     *out_path = res;
     return 0;
+#endif
 }
 
 int scriptgo_fs_truncate_sync(const char *path, double len) {
@@ -335,6 +342,15 @@ int scriptgo_fs_mkdtemp_sync(const char *prefix, char **out_path) {
     if (prefix == NULL || out_path == NULL) {
         return fs_fail("scriptgo fs mkdtemp invalid arguments");
     }
+#if defined(__wasi__)
+    size_t plen = strlen(prefix);
+    char *template_str = (char *)malloc(plen + 8);
+    if (template_str == NULL) return fs_fail("scriptgo fs mkdtemp memory allocation failed");
+    snprintf(template_str, plen + 8, "%s_tmpdir", prefix);
+    mkdir(template_str, 0700);
+    *out_path = template_str;
+    return 0;
+#else
     size_t plen = strlen(prefix);
     char *template_str = (char *)malloc(plen + 7);
     if (template_str == NULL) {
@@ -348,6 +364,7 @@ int scriptgo_fs_mkdtemp_sync(const char *prefix, char **out_path) {
     }
     *out_path = res;
     return 0;
+#endif
 }
 
 static int parse_open_flags(const char *flags) {
@@ -539,35 +556,43 @@ int scriptgo_fs_statfs_sync(const char *path, double *out_bsize, double *out_blo
 
 int scriptgo_fs_chown_sync(const char *path, double uid, double gid) {
     if (path == NULL) return fs_fail("scriptgo fs chown invalid arguments");
+#if !defined(__wasi__)
     if (chown(path, (uid_t)(int)uid, (gid_t)(int)gid) != 0) {
         return fs_fail("scriptgo fs chown failed");
     }
+#endif
     return 0;
 }
 
 int scriptgo_fs_lchown_sync(const char *path, double uid, double gid) {
     if (path == NULL) return fs_fail("scriptgo fs lchown invalid arguments");
+#if !defined(__wasi__)
     if (lchown(path, (uid_t)(int)uid, (gid_t)(int)gid) != 0) {
         return fs_fail("scriptgo fs lchown failed");
     }
+#endif
     return 0;
 }
 
 int scriptgo_fs_fchown_sync(double fd, double uid, double gid) {
     int ifd = (int)fd;
     if (ifd < 0) return fs_fail("scriptgo fs fchown invalid arguments");
+#if !defined(__wasi__)
     if (fchown(ifd, (uid_t)(int)uid, (gid_t)(int)gid) != 0) {
         return fs_fail("scriptgo fs fchown failed");
     }
+#endif
     return 0;
 }
 
 int scriptgo_fs_fchmod_sync(double fd, double mode) {
     int ifd = (int)fd;
     if (ifd < 0) return fs_fail("scriptgo fs fchmod invalid arguments");
+#if !defined(__wasi__)
     if (fchmod(ifd, (mode_t)mode) != 0) {
         return fs_fail("scriptgo fs fchmod failed");
     }
+#endif
     return 0;
 }
 
@@ -634,8 +659,9 @@ int scriptgo_fs_lutimes_sync(const char *path, double atime, double mtime) {
 
 int scriptgo_fs_futimes_sync(double fd, double atime, double mtime) {
     int ifd = (int)fd;
-    struct timeval tv[2];
     if (ifd < 0) return fs_fail("scriptgo fs futimes invalid arguments");
+#if !defined(__wasi__)
+    struct timeval tv[2];
     tv[0].tv_sec = (time_t)atime;
     tv[0].tv_usec = (suseconds_t)((atime - (time_t)atime) * 1000000.0);
     tv[1].tv_sec = (time_t)mtime;
@@ -643,6 +669,7 @@ int scriptgo_fs_futimes_sync(double fd, double atime, double mtime) {
     if (futimes(ifd, tv) != 0) {
         return fs_fail("scriptgo fs futimes failed");
     }
+#endif
     return 0;
 }
 

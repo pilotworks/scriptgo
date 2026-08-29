@@ -77,23 +77,30 @@ func arrayElementType(arrayType ir.Type) ir.Type {
 	return ir.TypeNumber
 }
 
-func arrayElementSize(arrayType ir.Type) (int64, error) {
+func arrayElementSizeForTarget(arrayType ir.Type, ptrSize int64) (int64, error) {
+	if ptrSize <= 0 {
+		ptrSize = 8
+	}
 	elem := arrayElementType(arrayType)
 	switch elem {
 	case ir.TypeBool:
 		return 1, nil
 	case ir.TypeNumber:
 		return 8, nil
-	case ir.TypeString, ir.TypeObject:
-		return 8, nil
+	case ir.TypeString, ir.TypeObject, ir.TypeClosure:
+		return ptrSize, nil
 	case ir.TypeUnknown:
 		return 16, nil
 	default:
 		if strings.HasPrefix(string(elem), "object:") || strings.HasSuffix(string(elem), "[]") {
-			return 8, nil
+			return ptrSize, nil
 		}
-		return 8, nil
+		return ptrSize, nil
 	}
+}
+
+func arrayElementSize(arrayType ir.Type) (int64, error) {
+	return arrayElementSizeForTarget(arrayType, 8)
 }
 
 func llvmNumber(value float64) string {

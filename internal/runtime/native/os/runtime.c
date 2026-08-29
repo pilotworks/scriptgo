@@ -23,7 +23,9 @@ int scriptgo_os_platform(char **out_str) {
     if (out_str == NULL) {
         return os_fail("scriptgo os invalid argument");
     }
-#if defined(__APPLE__)
+#if defined(__wasi__)
+    *out_str = strdup("wasi");
+#elif defined(__APPLE__)
     *out_str = strdup("darwin");
 #elif defined(__linux__)
     *out_str = strdup("linux");
@@ -39,7 +41,9 @@ int scriptgo_os_arch(char **out_str) {
     if (out_str == NULL) {
         return os_fail("scriptgo os invalid argument");
     }
-#if defined(__arm64__) || defined(__aarch64__)
+#if defined(__wasi__) || defined(__wasm32__) || defined(__wasm__)
+    *out_str = strdup("wasm32");
+#elif defined(__arm64__) || defined(__aarch64__)
     *out_str = strdup("arm64");
 #elif defined(__x86_64__) || defined(__amd64__)
     *out_str = strdup("x64");
@@ -62,12 +66,14 @@ int scriptgo_os_homedir(char **out_str) {
         *out_str = strdup(home);
         return 0;
     }
+#if !defined(__wasi__)
     struct passwd *pw = getpwuid(getuid());
     if (pw != NULL && pw->pw_dir != NULL) {
         *out_str = strdup(pw->pw_dir);
         return 0;
     }
-    *out_str = strdup("");
+#endif
+    *out_str = strdup("/home");
     return 0;
 }
 
