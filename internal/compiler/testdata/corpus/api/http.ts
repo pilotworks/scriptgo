@@ -218,13 +218,13 @@ console.log(ag.maxTotalSockets > 0);
 // @expect: true
 console.log(inc2.connection === null);
 
-// @api: message.destroy
+// @api: http.IncomingMessage.destroy
 // @expect: true
 const incWithSock = new IncomingMessage(conn);
 incWithSock.destroy();
 console.log(incWithSock.aborted);
 
-// @api: message.setTimeout
+// @api: http.IncomingMessage.setTimeout
 // @expect: msg-timeout-set
 incWithSock.setTimeout(5000, () => {});
 console.log("msg-timeout-set");
@@ -353,89 +353,89 @@ console.log(inc2.rawTrailers.length);
 // @expect: true
 console.log(resp1.req !== null);
 
-// @api: request.abort
+// @api: http.ClientRequest.abort
 // @expect: true
 const reqAbort = new ClientRequest("http://localhost/test");
 reqAbort.on("error", () => {});
 reqAbort.abort();
 console.log(reqAbort !== null);
 
-// @api: request.cork
+// @api: http.ClientRequest.cork
 // @expect: 1
 reqAbort.cork();
 console.log(reqAbort.writableCorked);
 
-// @api: request.destroy
+// @api: http.ClientRequest.destroy
 // @expect: true
 reqAbort.destroy();
 console.log(reqAbort !== null);
 
-// @api: request.end
+// @api: http.ClientRequest.end
 // @expect: true
 const reqEnd = new ClientRequest("http://localhost/test");
 reqEnd.on("error", () => {});
 reqEnd.end();
 console.log(reqEnd !== null);
 
-// @api: request.flushHeaders
+// @api: http.ClientRequest.flushHeaders
 // @expect: true
 reqEnd.flushHeaders();
 console.log(reqEnd.headersSent);
 
-// @api: request.getHeader
+// @api: http.ClientRequest.getHeader
 // @expect: v1
 const reqHeaders = new ClientRequest("http://localhost/test");
 reqHeaders.on("error", () => {});
 reqHeaders.setHeader("k1", "v1");
 console.log(reqHeaders.getHeader("k1"));
 
-// @api: request.getHeaderNames
+// @api: http.ClientRequest.getHeaderNames
 // @expect: true
 console.log(reqHeaders.hasHeader("k1"));
 
-// @api: request.getHeaders
+// @api: http.ClientRequest.getHeaders
 // @expect: v1
 console.log(reqHeaders.getHeader("k1"));
 
-// @api: request.getRawHeaderNames
+// @api: http.ClientRequest.getRawHeaderNames
 // @expect: true
 console.log(reqHeaders.hasHeader("k1"));
 
-// @api: request.hasHeader
+// @api: http.ClientRequest.hasHeader
 // @expect: true
 console.log(reqHeaders.hasHeader("k1"));
 
-// @api: request.removeHeader
+// @api: http.ClientRequest.removeHeader
 // @expect: false
 reqHeaders.removeHeader("k1");
 console.log(reqHeaders.hasHeader("k1"));
 
-// @api: request.setHeader
+// @api: http.ClientRequest.setHeader
 // @expect: custom-val
 reqHeaders.setHeader("X-Custom", "custom-val");
 console.log(reqHeaders.getHeader("x-custom"));
 
-// @api: request.setNoDelay
+// @api: http.ClientRequest.setNoDelay
 // @expect: nodelay-ok
 reqEnd.setNoDelay(true);
 console.log("nodelay-ok");
 
-// @api: request.setSocketKeepAlive
+// @api: http.ClientRequest.setSocketKeepAlive
 // @expect: keepalive-ok
 reqEnd.setSocketKeepAlive(true, 1000);
 console.log("keepalive-ok");
 
-// @api: request.setTimeout
+// @api: http.ClientRequest.setTimeout
 // @expect: req-timeout-ok
 reqEnd.setTimeout(3000);
 console.log("req-timeout-ok");
 
-// @api: request.uncork
+// @api: http.ClientRequest.uncork
 // @expect: 0
 reqAbort.uncork();
 console.log(reqAbort.writableCorked);
 
-// @api: request.write
+// @api: http.ClientRequest.write
 // @expect: true
 const reqWrite = new ClientRequest("http://localhost/test");
 reqWrite.on("error", () => {});
@@ -449,80 +449,80 @@ console.log(srv1.requestTimeout);
 // @expect: true
 console.log(typeof ag.requests === "object");
 
-// @api: response.addTrailers
+// @api: http.ServerResponse.addTrailers
 // @expect: resp-trailers
 resp1.addTrailers({ "x-t": "1" });
 console.log("resp-trailers");
 
-// @api: response.cork
+// @api: http.ServerResponse.cork
 // @expect: 1
 resp1.cork();
 console.log(resp1.writableCorked);
 
-// @api: response.end
+// @api: http.ServerResponse.end
 // @expect: true
 resp1.end();
 console.log(resp1.writableEnded);
 
-// @api: response.flushHeaders
+// @api: http.ServerResponse.flushHeaders
 // @expect: true
 resp1.flushHeaders();
 console.log(resp1.headersSent);
 
-// @api: response.getHeader
+// @api: http.ServerResponse.getHeader
 // @expect: text/plain
 const respHeaders = new ServerResponse(inc2);
 respHeaders.setHeader("Content-Type", "text/plain");
 console.log(respHeaders.getHeader("content-type"));
 
-// @api: response.getHeaderNames
+// @api: http.ServerResponse.getHeaderNames
 // @expect: content-type
 console.log(respHeaders.getHeaderNames().join(","));
 
-// @api: response.getHeaders
+// @api: http.ServerResponse.getHeaders
 // @expect: text/plain
 console.log(respHeaders.getHeader("content-type"));
 
-// @api: response.hasHeader
+// @api: http.ServerResponse.hasHeader
 // @expect: true
 console.log(respHeaders.hasHeader("content-type"));
 
-// @api: response.removeHeader
+// @api: http.ServerResponse.removeHeader
 // @expect: false
 respHeaders.removeHeader("content-type");
 console.log(respHeaders.hasHeader("content-type"));
 
-// @api: response.setHeader
+// @api: http.ServerResponse.setHeader
 // @expect: val
 respHeaders.setHeader("k", "val");
 console.log(respHeaders.getHeader("k"));
 
-// @api: response.setTimeout
+// @api: http.ServerResponse.setTimeout
 // @expect: resp-timeout-ok
 resp1.setTimeout(2000);
 console.log("resp-timeout-ok");
 
-// @api: response.uncork
+// @api: http.ServerResponse.uncork
 // @expect: 0
 resp1.uncork();
 console.log(resp1.writableCorked);
 
-// @api: response.write
+// @api: http.ServerResponse.write
 // @expect: true
 const respWrite = new ServerResponse(inc2);
 console.log(respWrite.write("body"));
 
-// @api: response.writeContinue
+// @api: http.ServerResponse.writeContinue
 // @expect: continue-ok
 resp1.writeContinue();
 console.log("continue-ok");
 
-// @api: response.writeEarlyHints
+// @api: http.ServerResponse.writeEarlyHints
 // @expect: early-hints-ok
 resp1.writeEarlyHints({ link: "</style.css>; rel=preload" }, () => {});
 console.log("early-hints-ok");
 
-// @api: response.writeHead
+// @api: http.ServerResponse.writeHead
 // @expect: 404
 // @expect: Not Found
 const respWriteHead = new ServerResponse(inc2);
@@ -530,7 +530,7 @@ respWriteHead.writeHead(404, "Not Found");
 console.log(respWriteHead.statusCode);
 console.log(respWriteHead.statusMessage);
 
-// @api: response.writeProcessing
+// @api: http.ServerResponse.writeProcessing
 // @expect: processing-ok
 resp1.writeProcessing();
 console.log("processing-ok");
@@ -569,10 +569,15 @@ console.log(srvListen.listening);
 srvListen.setTimeout(15000);
 console.log(srvListen.timeout);
 
-// @api: server[Symbol.asyncDispose]
+// @api: http.Server.[Symbol.asyncDispose]
 // @expect: disposed
-srvListen.close();
+await srvListen[Symbol.asyncDispose]();
 console.log("disposed");
+
+// @api: http.WebSocket
+// @expect: ws_ok: true
+const ws = new http.WebSocket();
+console.log("ws_ok: " + (ws !== null));
 
 // @api: socket
 // @expect: true

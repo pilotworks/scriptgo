@@ -122,12 +122,13 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		module.Shapes = append(module.Shapes, s)
 	}
 	for _, file := range program.Files {
-		for _, statement := range file.Syntax.Statements {
+		var collectShapes func(fileName string, statement typescriptgo.SyntaxStatement)
+		collectShapes = func(fileName string, statement typescriptgo.SyntaxStatement) {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				if statement.Kind == "type_alias" && len(statement.Class.Fields) == 0 {
-					continue
+					return
 				}
-				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(file.FileName, statement.Class.Span)}
+				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(fileName, statement.Class.Span)}
 				allFields := getInheritedFields(statement.Class.Name, hierarchy)
 				if len(allFields) == 0 {
 					allFields = statement.Class.Fields
@@ -145,10 +146,10 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					if fTypeStr == "" {
 						fTypeStr = field.InferredType
 					}
-					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(fTypeStr), Value: val, Span: toIRSpan(file.FileName, field.Span)})
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(fTypeStr), Value: val, Span: toIRSpan(fileName, field.Span)})
 				}
 				if len(shape.Fields) == 0 && statement.Kind == "class" {
-					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(file.FileName, statement.Class.Span)})
+					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(fileName, statement.Class.Span)})
 				}
 				if statement.Kind == "interface" {
 					if _, exists := shapes[shape.Name]; exists {
@@ -159,7 +160,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 								break
 							}
 						}
-						continue
+						return
 					}
 				}
 				shapes[shape.Name] = shape
@@ -170,7 +171,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				module.Shapes = append(module.Shapes, shape)
 			} else if statement.Kind == "enum" && statement.Enum != nil {
-				shape := ir.ObjectShape{Name: statement.Enum.Name, Span: toIRSpan(file.FileName, statement.Enum.Span)}
+				shape := ir.ObjectShape{Name: statement.Enum.Name, Span: toIRSpan(fileName, statement.Enum.Span)}
 				for _, member := range statement.Enum.Members {
 					typ := ir.TypeNumber
 					if member.Initializer != nil && member.Initializer.Kind == "string" {
@@ -180,12 +181,23 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						Name:  member.Name,
 						Type:  typ,
 						Value: member.Value,
-						Span:  toIRSpan(file.FileName, member.Span),
+						Span:  toIRSpan(fileName, member.Span),
 					})
 				}
 				shapes[shape.Name] = shape
 				module.Shapes = append(module.Shapes, shape)
+			} else if statement.Kind == "namespace" || statement.Kind == "block" {
+				for _, sub := range statement.Body {
+					collectShapes(fileName, sub)
+				}
 			}
+		}
+		for _, statement := range file.Syntax.Statements {
+			collectShapes(file.FileName, statement)
+		}
+	}
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
 			if fields, ok := tupleFields(statement.Type); ok {
 				shapeName := anonymousShapeName(fields)
 				if _, exists := shapes[shapeName]; !exists {
@@ -453,36 +465,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				signatures[function.Name] = function
 				continue
 			}
-			if statement.Kind == "namespace" {
-				for _, subStmt := range statement.Body {
-					if subStmt.Kind == "declare_function" || subStmt.Kind == "interface" || subStmt.Kind == "type_alias" || subStmt.Kind == "module" || subStmt.Kind == "enum" {
-						continue
-					}
-					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
-						if len(subStmt.TypeParameters) > 0 {
-							continue
-						}
-						fnCopy := subStmt
-						fnCopy.Name = statement.Name + "." + subStmt.Name
-						function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
-						if err != nil {
-							return ir.Module{}, fmt.Errorf("lower namespace function %q: %w", fnCopy.Name, sourceError(file.FileName, fnCopy.Span, err))
-						}
-						module.Functions = append(module.Functions, function)
-					} else {
-						if err := lowerStatement(file.FileName, subStmt, &main, env, &counter, shapes, signatures); err != nil {
-							return ir.Module{}, fmt.Errorf("lower namespace statement: %w", sourceError(file.FileName, subStmt.Span, err))
-						}
-					}
-				}
-				continue
-			}
-			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" || statement.IsGenerator {
-				continue
-			}
-			if statement.Kind == "class" && statement.Class != nil {
-				if len(statement.Class.TypeParameters) > 0 {
-					continue
+			lowerClassStatement := func(fileName string, statement typescriptgo.SyntaxStatement) error {
+				if statement.Class == nil || len(statement.Class.TypeParameters) > 0 {
+					return nil
 				}
 				var fieldInits []typescriptgo.SyntaxStatement
 				for _, f := range statement.Class.Fields {
@@ -523,9 +508,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						}, statement.Class.Constructor.Parameters...),
 						Body: ctorBody,
 					}
-					function, err := lowerFunction(file.FileName, ctorStmt, shapes, signatures)
+					function, err := lowerFunction(fileName, ctorStmt, shapes, signatures)
 					if err != nil {
-						return ir.Module{}, fmt.Errorf("lower class constructor %q: %w", ctorMangled, sourceError(file.FileName, statement.Class.Constructor.Span, err))
+						return fmt.Errorf("lower class constructor %q: %w", ctorMangled, sourceError(fileName, statement.Class.Constructor.Span, err))
 					}
 					module.Functions = append(module.Functions, function)
 					signatures[ctorMangled] = function
@@ -568,9 +553,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						Parameters: params,
 						Body:       method.Body,
 					}
-					function, err := lowerFunction(file.FileName, methodStmt, shapes, signatures)
+					function, err := lowerFunction(fileName, methodStmt, shapes, signatures)
 					if err != nil {
-						return ir.Module{}, fmt.Errorf("lower class method %q: %w", mangled, sourceError(file.FileName, method.Span, err))
+						return fmt.Errorf("lower class method %q: %w", mangled, sourceError(fileName, method.Span, err))
 					}
 					module.Functions = append(module.Functions, function)
 					signatures[mangled] = function
@@ -587,15 +572,15 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 							f := elem.Field
 							if f != nil && f.IsStatic && f.Initializer != nil {
 								staticVar := statement.Class.Name + "_" + f.Name
-								_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
+								_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
 								if err == nil {
 									env[staticVar] = valType
 								}
 							}
 						case typescriptgo.StaticElementBlock:
 							for _, stmt := range elem.Statements {
-								if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
-									return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+								if err := lowerStatement(fileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
+									return fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(fileName, stmt.Span, err))
 								}
 							}
 						}
@@ -604,7 +589,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					for _, f := range statement.Class.Fields {
 						if f.IsStatic && f.Initializer != nil {
 							staticVar := statement.Class.Name + "_" + f.Name
-							_, valType, err := lowerExpression(file.FileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
+							_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
 							if err == nil {
 								env[staticVar] = valType
 							}
@@ -612,14 +597,52 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 					for _, block := range statement.Class.StaticBlocks {
 						for _, stmt := range block {
-							if err := lowerStatement(file.FileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
-								return ir.Module{}, fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(file.FileName, stmt.Span, err))
+							if err := lowerStatement(fileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
+								return fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(fileName, stmt.Span, err))
 							}
 						}
 					}
 				}
-				if err := lowerClassDecorators(file.FileName, statement.Class, &main, env, &counter, shapes, signatures); err != nil {
-					return ir.Module{}, fmt.Errorf("lower class %s decorators: %w", statement.Class.Name, err)
+				if err := lowerClassDecorators(fileName, statement.Class, &main, env, &counter, shapes, signatures); err != nil {
+					return fmt.Errorf("lower class %s decorators: %w", statement.Class.Name, err)
+				}
+				return nil
+			}
+
+			if statement.Kind == "namespace" {
+				for _, subStmt := range statement.Body {
+					if subStmt.Kind == "declare_function" || subStmt.Kind == "interface" || subStmt.Kind == "type_alias" || subStmt.Kind == "module" || subStmt.Kind == "enum" {
+						continue
+					}
+					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
+						if len(subStmt.TypeParameters) > 0 {
+							continue
+						}
+						fnCopy := subStmt
+						fnCopy.Name = statement.Name + "." + subStmt.Name
+						function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
+						if err != nil {
+							return ir.Module{}, fmt.Errorf("lower namespace function %q: %w", fnCopy.Name, sourceError(file.FileName, fnCopy.Span, err))
+						}
+						module.Functions = append(module.Functions, function)
+					} else if subStmt.Kind == "class" && subStmt.Class != nil {
+						if err := lowerClassStatement(file.FileName, subStmt); err != nil {
+							return ir.Module{}, err
+						}
+					} else {
+						if err := lowerStatement(file.FileName, subStmt, &main, env, &counter, shapes, signatures); err != nil {
+							return ir.Module{}, fmt.Errorf("lower namespace statement: %w", sourceError(file.FileName, subStmt.Span, err))
+						}
+					}
+				}
+				continue
+			}
+			if statement.Kind == "module" || statement.Kind == "enum" || statement.Kind == "interface" || statement.Kind == "type_alias" || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" || statement.IsGenerator {
+				continue
+			}
+			if statement.Kind == "class" && statement.Class != nil {
+				if err := lowerClassStatement(file.FileName, statement); err != nil {
+					return ir.Module{}, err
 				}
 				continue
 			}

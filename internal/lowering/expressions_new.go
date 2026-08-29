@@ -472,7 +472,33 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeTextDecoder, nil
 	}
 
-	shape, ok := shapes[className]
+	var shape ir.ObjectShape
+	var ok bool
+	if strings.Contains(function.Name, ".") {
+		ns := function.Name[:strings.LastIndex(function.Name, ".")]
+		if s, exists := shapes[ns+"."+className]; exists {
+			shape = s
+			ok = true
+			className = ns + "." + className
+		}
+	}
+	if !ok {
+		if s, exists := shapes[className]; exists {
+			shape = s
+			ok = true
+		}
+	}
+	if !ok && expression.InferredType != "" {
+		inferred := strings.TrimPrefix(expression.InferredType, "object:")
+		if idx := strings.Index(inferred, "<"); idx != -1 {
+			inferred = inferred[:idx]
+		}
+		if s, exists := shapes[inferred]; exists {
+			shape = s
+			ok = true
+			className = inferred
+		}
+	}
 	if !ok {
 		if idx := strings.LastIndex(className, "."); idx != -1 {
 			shortName := className[idx+1:]
@@ -481,14 +507,6 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 				ok = true
 				className = shortName
 			}
-		}
-	}
-	if !ok && expression.InferredType != "" {
-		inferred := strings.TrimPrefix(expression.InferredType, "object:")
-		if s, exists := shapes[inferred]; exists {
-			shape = s
-			ok = true
-			className = inferred
 		}
 	}
 	if !ok {

@@ -479,4 +479,3 @@ func (e *functionEmitter) emitBufferWriteStr(out *strings.Builder, instruction i
 	fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 	return nil
 }
-

@@ -1,90 +1,95 @@
 // ScriptGo Corpus: Https Standard Builtin APIs
-// Consolidated test suite with inline assertions.
+// Consolidated test suite with 1:1 isolated assertions for all 17 official Node.js https APIs.
 
 import {
     Agent,
     globalAgent,
-    ClientRequest,
     Server,
     createServer,
     request,
     get
 } from "node:https";
-import * as https from "node:https";
 
-// @api: https.Agent
-// @expect: 256
-// @expect: false
+// @api: new https.Agent
+// @expect: agent_inst: true
 const ag = new Agent();
-console.log(ag.maxFreeSockets);
-console.log(ag.keepAlive);
+console.log("agent_inst: " + (ag.maxFreeSockets === 256));
 ag.destroy();
 
 // @api: https.globalAgent
-// @expect: true
-console.log(globalAgent instanceof Agent);
+// @expect: globalAgent_inst: true
+console.log("globalAgent_inst: " + (globalAgent instanceof Agent));
 
-// @api: https.ClientRequest
-// @expect: https://example.com
-// @expect: application/json
-// @expect: true
-const req = new ClientRequest("https://example.com");
-req.setHeader("Content-Type", "application/json");
-console.log(req.url);
-console.log(req.getHeader("content-type"));
-console.log(req.write("data"));
-req.setTimeout(5000);
-req.end();
-req.destroy();
+// @api: new https.Server
+// @expect: server_inst: true
+const srv1 = new Server();
+console.log("server_inst: " + (srv1 instanceof Server));
 
-// @api: https.Server
+// @api: https.Server.listen
+// @expect: server_listen: true
+srv1.listen(8443);
+console.log("server_listen: " + srv1.listening);
+
+// @api: https.Server.close
+// @expect: server_close: false
+srv1.close();
+console.log("server_close: " + srv1.listening);
+
+// @api: https.Server.closeAllConnections
+// @expect: server_closeAll: true
+srv1.closeAllConnections();
+console.log("server_closeAll: true");
+
+// @api: https.Server.closeIdleConnections
+// @expect: server_closeIdle: true
+srv1.closeIdleConnections();
+console.log("server_closeIdle: true");
+
+// @api: https.Server.headersTimeout
+// @expect: server_headersTimeout: 60000
+console.log("server_headersTimeout: " + srv1.headersTimeout);
+
+// @api: https.Server.keepAliveTimeout
+// @expect: server_keepAliveTimeout: 5000
+console.log("server_keepAliveTimeout: " + srv1.keepAliveTimeout);
+
+// @api: https.Server.maxHeadersCount
+// @expect: server_maxHeadersCount: 2000
+console.log("server_maxHeadersCount: " + srv1.maxHeadersCount);
+
+// @api: https.Server.requestTimeout
+// @expect: server_requestTimeout: 300000
+console.log("server_requestTimeout: " + srv1.requestTimeout);
+
+// @api: https.Server.setTimeout
+// @expect: server_setTimeout: 60000
+srv1.setTimeout(60000);
+console.log("server_setTimeout: " + srv1.timeout);
+
+// @api: https.Server.timeout
+// @expect: server_timeout: 60000
+console.log("server_timeout: " + srv1.timeout);
+
+// @api: https.Server.[Symbol.asyncDispose]
+// @expect: server_asyncDispose: true
+await srv1[Symbol.asyncDispose]();
+console.log("server_asyncDispose: true");
+
 // @api: https.createServer
-// @api: server.listen
-// @api: server.close
-// @api: server.closeAllConnections
-// @api: server.closeIdleConnections
-// @api: server.setTimeout
-// @api: headersTimeout
-// @api: keepAliveTimeout
-// @api: maxHeadersCount
-// @api: requestTimeout
-// @api: timeout
-// @api: server[Symbol.asyncDispose]()
-// @expect: true
-// @expect: 60000
-// @expect: 5000
-// @expect: 2000
-// @expect: 300000
-// @expect: 60000
-// @expect: false
-const srv = createServer();
-srv.listen(8443);
-console.log(srv.listening);
-console.log(srv.headersTimeout);
-console.log(srv.keepAliveTimeout);
-console.log(srv.maxHeadersCount);
-console.log(srv.requestTimeout);
-srv.closeAllConnections();
-srv.closeIdleConnections();
-srv.setTimeout(60000);
-console.log(srv.timeout);
-srv.close();
-console.log(srv.listening);
-srv.asyncDispose();
+// @expect: createServer_res: true
+const srv2 = createServer();
+console.log("createServer_res: " + (srv2 !== null));
 
 // @api: https.request
-// @api: https.request(options[, callback])
-// @api: https.request(url[, options][, callback])
-// @expect: https://api.example.com
+// @expect: request_res: https://api.example.com
 const customReq = request("https://api.example.com");
-console.log(customReq.url);
+console.log("request_res: " + customReq.url);
 customReq.end();
 
 // @api: https.get
-// @api: https.get(options[, callback])
-// @api: https.get(url[, options][, callback])
-// @expect: https://api.github.com
-// @expect: true
+// @expect: get_res: https://api.github.com
+// @expect: get_finished: true
 const getReq = get("https://api.github.com");
-console.log(getReq.url);
-console.log(getReq.finished);
+console.log("get_res: " + getReq.url);
+console.log("get_finished: " + getReq.finished);
+

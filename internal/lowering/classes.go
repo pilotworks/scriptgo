@@ -28,16 +28,17 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	hierarchy := map[string]ClassMeta{}
 	syntax := map[string]typescriptgo.SyntaxClass{}
 	for _, file := range program.Files {
-		for _, stmt := range file.Syntax.Statements {
+		var visitStmt func(stmt typescriptgo.SyntaxStatement)
+		visitStmt = func(stmt typescriptgo.SyntaxStatement) {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
 				if existing, exists := hierarchy[stmt.Class.Name]; exists {
 					if stmt.Kind == "interface" {
 						existing.Fields = append(existing.Fields, stmt.Class.Fields...)
 						hierarchy[stmt.Class.Name] = existing
-						continue
+						return
 					}
 					if len(existing.Fields) > 0 && len(stmt.Class.Fields) == 0 {
-						continue
+						return
 					}
 				}
 				syntax[stmt.Class.Name] = *stmt.Class
@@ -57,7 +58,14 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 					}
 				}
 				hierarchy[stmt.Class.Name] = meta
+			} else if stmt.Kind == "namespace" || stmt.Kind == "block" {
+				for _, sub := range stmt.Body {
+					visitStmt(sub)
+				}
 			}
+		}
+		for _, stmt := range file.Syntax.Statements {
+			visitStmt(stmt)
 		}
 	}
 	classHierarchy = hierarchy

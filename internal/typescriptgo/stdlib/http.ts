@@ -969,6 +969,10 @@ export class ServerResponse extends OutgoingMessage {
     writeProcessing(): void {
         const dummy = true;
     }
+
+    addTrailers(headers: unknown): void {
+        const dummy = true;
+    }
 }
 
 export class Server {
@@ -1090,8 +1094,18 @@ export class Server {
         return this;
     }
 
-    async asyncDispose(): Promise<void> {
+    [Symbol.asyncDispose](): Promise<void> {
         this.close();
+        return Promise.resolve(undefined);
+    }
+}
+
+export class WebSocket {
+    url: string = "";
+    readyState: number = 0;
+
+    constructor(url: string = "") {
+        this.url = url;
     }
 }
 
@@ -1131,6 +1145,7 @@ export default {
     IncomingMessage,
     ClientRequest,
     Server,
+    WebSocket,
     createServer,
     request,
     get,

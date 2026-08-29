@@ -26,7 +26,6 @@ func callName(expression *typescriptgo.SyntaxExpression) string {
 	return ""
 }
 
-
 func isStringMethod(name string) bool {
 	switch name {
 	case "split", "indexOf", "lastIndexOf", "slice", "startsWith", "endsWith", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "substring", "substr", "charAt", "at", "charCodeAt", "includes", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "repeat", "padStart", "padEnd", "concat", "match", "matchAll", "search", "codePointAt", "isWellFormed", "toWellFormed", "localeCompare", "normalize", "valueOf", "toString", "anchor", "big", "blink", "bold", "fixed", "fontcolor", "fontsize", "italics", "link", "small", "strike", "sub", "sup":

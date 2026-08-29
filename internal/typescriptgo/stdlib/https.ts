@@ -307,8 +307,9 @@ export class Server {
         return this;
     }
 
-    async asyncDispose(): Promise<void> {
+    [Symbol.asyncDispose](): Promise<void> {
         this.close();
+        return Promise.resolve(undefined);
     }
 }
 

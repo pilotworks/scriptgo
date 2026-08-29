@@ -533,6 +533,17 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 							conv.Class.Name = name + "." + conv.Class.Name
 							conv.Name = conv.Class.Name
 						}
+						if (conv.Kind == "function" || conv.Kind == "async_function") && conv.Type != "" && !strings.Contains(conv.Type, ".") {
+							for _, other := range modBlock.Statements.Nodes {
+								if other.Kind == ast.KindClassDeclaration {
+									cDecl := other.AsClassDeclaration()
+									if cDecl != nil && cDecl.Name() != nil && cDecl.Name().Text() == conv.Type {
+										conv.Type = name + "." + conv.Type
+										break
+									}
+								}
+							}
+						}
 						bodyStmts = append(bodyStmts, conv)
 					}
 				}

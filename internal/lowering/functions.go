@@ -128,6 +128,112 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				}
 				functionsByFile[fileName] = append(functionsByFile[fileName], function)
 			} else if statement.Kind == "namespace" {
+				indexClass := func(classStmt typescriptgo.SyntaxStatement) {
+					if classStmt.Class == nil {
+						return
+					}
+					// 1. Index constructor
+					if classStmt.Class.Constructor != nil {
+						ctorMangled := classStmt.Class.Name + "_constructor"
+						ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid}
+						ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + classStmt.Class.Name)})
+						if classStmt.Class.Constructor != nil {
+							for pIdx, parameter := range classStmt.Class.Constructor.Parameters {
+								typ := toIRType(parameter.Type)
+								if parameter.Initializer != nil {
+									if defaultParamsIndex[ctorMangled] == nil {
+										defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
+								} else if parameter.Optional {
+									if defaultParamsIndex[ctorMangled] == nil {
+										defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								}
+								ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+							}
+						}
+						index[ctorMangled] = ctorFn
+						functionsByFile[fileName] = append(functionsByFile[fileName], ctorFn)
+					}
+
+					// 2. Index all methods (including inherited)
+					allMethods := getInheritedMethods(classStmt.Class.Name, hierarchy)
+					for _, method := range allMethods {
+						var mangled string
+						var function ir.Function
+						if method.IsStatic {
+							mangled = classStmt.Class.Name + "_static_" + method.Name
+							function = ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
+							if function.ReturnType == "" {
+								function.ReturnType = ir.TypeVoid
+							}
+							for pIdx, parameter := range method.Parameters {
+								typ := toIRType(parameter.Type)
+								if parameter.Initializer != nil {
+									if defaultParamsIndex[mangled] == nil {
+										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[mangled][pIdx] = parameter.Initializer
+								} else if parameter.Optional {
+									if defaultParamsIndex[mangled] == nil {
+										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[mangled][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								}
+								function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+							}
+							index[mangled] = function
+							index[classStmt.Class.Name+"."+method.Name] = function
+						} else if method.Kind == "get" {
+							mangled = classStmt.Class.Name + "_get_" + method.Name
+							function = ir.Function{Name: mangled, ReturnType: toIRType(method.Type)}
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + classStmt.Class.Name)})
+						} else if method.Kind == "set" {
+							mangled = classStmt.Class.Name + "_set_" + method.Name
+							function = ir.Function{Name: mangled, ReturnType: ir.TypeVoid}
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + classStmt.Class.Name)})
+							if len(method.Parameters) > 0 {
+								function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRType(method.Parameters[0].Type)})
+							}
+						} else {
+							mangled = classStmt.Class.Name + "_" + method.Name
+							retType := toIRType(method.Type)
+							if method.Type == "this" || retType == "this" || retType == "object:this" {
+								retType = ir.Type("object:" + classStmt.Class.Name)
+							}
+							function = ir.Function{Name: mangled, ReturnType: retType}
+							if function.ReturnType == "" {
+								function.ReturnType = ir.TypeVoid
+							}
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + classStmt.Class.Name)})
+							for pIdx, parameter := range method.Parameters {
+								typ := toIRType(parameter.Type)
+								if parameter.Initializer != nil {
+									if defaultParamsIndex[mangled] == nil {
+										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
+								} else if parameter.Optional {
+									if defaultParamsIndex[mangled] == nil {
+										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									}
+									defaultParamsIndex[mangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								}
+								if parameter.Rest {
+									restParamsIndex[mangled] = true
+								}
+								function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+							}
+						}
+						if !method.IsAbstract {
+							index[mangled] = function
+							functionsByFile[fileName] = append(functionsByFile[fileName], function)
+						}
+					}
+				}
+
 				for _, subStmt := range statement.Body {
 					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
 						retType := subStmt.Type
@@ -148,6 +254,8 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 						}
 						index[fullName] = function
 						functionsByFile[fileName] = append(functionsByFile[fileName], function)
+					} else if subStmt.Kind == "class" && subStmt.Class != nil {
+						indexClass(subStmt)
 					}
 				}
 			} else if statement.Kind == "class" && statement.Class != nil {
