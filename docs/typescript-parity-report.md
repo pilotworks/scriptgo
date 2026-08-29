@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **363** | **363 / 363 Passed** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 352 | 352 PASS (direct binary compilation) | 100.0% |
+| **Total Corpus Test Cases** | **386** | **386 / 386 Passed** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 375 | 375 PASS (direct binary compilation) | 100.0% |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Total Test Suite Runtime** | ~2m40s (macOS / Linux) | Verified across macOS & Linux | - |
 
@@ -36,7 +36,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `bigint` (64-bit Signed Integer) | ✅ Full | Supports `100n` literal, arithmetic/bitwise operations, `BigInt(...)`, `bigint[]` arrays, `.toString()`. |
 | `string` (UTF-8 Character String) | ✅ Full | Immutable, automatic memory management, supports slice/concat/template literals. |
 | `boolean` (`true`, `false`) | ✅ Full | Maps to 1-bit boolean in IR/LLVM (`i1`). |
-| `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`). |
+| `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`, `Symbol.dispose`, `Symbol.asyncDispose`). |
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
 | `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism (16-byte tagged value), supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
 | `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
@@ -47,8 +47,11 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays, SharedArrayBuffer & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`..`BigUint64Array`), `SharedArrayBuffer`, `Atomics` (all 12 atomic arithmetic, bitwise, load/store, exchange, compareExchange, isLockFree, wait, and notify methods), `DataView` with binary access (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
 | `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
-| `Map<K, V> & Set<T>` | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and Node.js-compatible string formatting. |
+| `Map<K, V> & Set<T>` (ES2024) | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and all 7 **ES2024 Set Methods**: `union()`, `intersection()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`. |
 | `Intl (Internationalization)` | ✅ Full | Complete support for `Intl.NumberFormat`, `DateTimeFormat`, `Collator`, `Segmenter`, `DisplayNames`, `ListFormat`, `RelativeTimeFormat`, `PluralRules`, and `Intl.getCanonicalLocales`. |
+| `Explicit Resource Management (TS 5.2 / ES2024)` | ✅ Full | Cú pháp `using` và `await using` variable declarations tự động gọi `[Symbol.dispose]()` / `[Symbol.asyncDispose]()` theo đúng thứ tự LIFO khi rời khỏi lexical block scope và early return. |
+| `WebSocket (Web Standards / WinterCG)` | ✅ Full | Global và `node:http` `WebSocket` client/server constructor, state constants (`CONNECTING`, `OPEN`, `CLOSING`, `CLOSED`), `send`, `close`, `addEventListener`, `removeEventListener`, `dispatchEvent`. |
+| `Streaming Fetch & WHATWG Streams` | ✅ Full | `Response.body` tích hợp `ReadableStream` reader, stream locking, byte stream piping (`pipeThrough`), and `TransformStream`. |
 
 ---
 

@@ -527,6 +527,114 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
 
+	case "__set.union":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.union requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_union(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.intersection":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.intersection requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_intersection(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.difference":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.difference requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_difference(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.symmetricDifference":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.symmetricDifference requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_symmetric_difference(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__set.isSubsetOf":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.isSubsetOf requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_subset_of(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		return nil
+
+	case "__set.isSupersetOf":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.isSupersetOf requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_superset_of(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		return nil
+
+	case "__set.isDisjointFrom":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("set.isDisjointFrom requires 2 arguments")
+		}
+		setA := e.ensurePointerArg(out, instruction.Args[0])
+		setB := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_disjoint_from(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		return nil
+
 	default:
 		return fmt.Errorf("unsupported Set intrinsic %q", instruction.Callee)
 	}

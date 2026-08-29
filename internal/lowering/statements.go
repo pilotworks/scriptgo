@@ -399,6 +399,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				env[statement.Name+".retType"] = toIRType(retStr)
 			}
 		}
+		if statement.Kind == "using" {
+			recordUsingResource(varResultName, typ, false, statement.Span)
+		} else if statement.Kind == "await_using" {
+			recordUsingResource(varResultName, typ, true, statement.Span)
+		}
 		return nil
 	case "expression":
 		if statement.Expression == nil {
@@ -547,6 +552,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			})
 			value = savedVal
 		}
+		emitAllActiveUsingScopes(path, function, counter, shapes, signatures)
 		bodyLenBeforeFinally := len(function.Body)
 		if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
 			return err
@@ -561,11 +567,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 	case "block":
 		blockEnv := maps.Clone(env)
+		pushUsingScope()
 		for _, s := range statement.Body {
 			if err := lowerStatement(path, s, function, blockEnv, counter, shapes, signatures); err != nil {
 				return err
 			}
 		}
+		popAndEmitUsingScope(path, function, counter, shapes, signatures)
 	case "namespace":
 		for _, s := range statement.Body {
 			if s.Kind == "variable" || s.Kind == "using" || s.Kind == "await_using" {

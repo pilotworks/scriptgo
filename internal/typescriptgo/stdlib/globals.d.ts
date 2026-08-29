@@ -641,6 +641,13 @@ interface Set<T = unknown> {
     keys(): T[];
     values(): T[];
     entries(): [T, T][];
+    union<U = T>(other: Set<U>): Set<T | U>;
+    intersection<U = T>(other: Set<U>): Set<T & U>;
+    difference<U = T>(other: Set<U>): Set<T>;
+    symmetricDifference<U = T>(other: Set<U>): Set<T | U>;
+    isSubsetOf(other: Set<unknown>): boolean;
+    isSupersetOf(other: Set<unknown>): boolean;
+    isDisjointFrom(other: Set<unknown>): boolean;
 }
 
 interface SetConstructor {
@@ -858,6 +865,7 @@ interface Response {
     readonly statusText: string;
     readonly headers: Headers;
     readonly url: string;
+    readonly body: ReadableStream | null;
     text(): Promise<string>;
     json<T = unknown>(): Promise<T>;
     arrayBuffer(): Promise<ArrayBuffer>;
@@ -960,11 +968,23 @@ interface IteratorConstructor {
 
 declare var Iterator: IteratorConstructor;
 
-interface WebSocket {
+interface WebSocket extends EventTarget {
+    readonly CONNECTING: 0;
+    readonly OPEN: 1;
+    readonly CLOSING: 2;
+    readonly CLOSED: 3;
     readonly url: string;
     readonly readyState: number;
+    readonly protocol: string;
+    readonly extensions: string;
+    readonly bufferedAmount: number;
+    binaryType: string;
+    onopen: ((event: unknown) => void) | null;
+    onmessage: ((event: unknown) => void) | null;
+    onerror: ((event: unknown) => void) | null;
+    onclose: ((event: unknown) => void) | null;
     close(code?: number, reason?: string): void;
-    send(data: string): void;
+    send(data: unknown): void;
 }
 
 interface WebSocketConstructor {

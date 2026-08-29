@@ -18,6 +18,18 @@ class HttpEventBucket {
     }
 }
 
+class WebSocketListenerEntry {
+    type: string;
+    callback: Function;
+    once: boolean;
+
+    constructor(type: string, callback: Function, once: boolean) {
+        this.type = type;
+        this.callback = callback;
+        this.once = once;
+    }
+}
+
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];
@@ -173,10 +185,12 @@ export class Response {
     statusText: string = "OK";
     headers: Headers = new Headers();
     url: string = "";
+    body: unknown = null;
     _body: string = "";
 
     constructor(body: string = "", init: ResponseInit = defaultResponseInit) {
         this._body = body;
+        this.body = null;
         let s = 200;
         let st = "OK";
         let h = new Headers();
@@ -1101,11 +1115,91 @@ export class Server {
 }
 
 export class WebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+
+    readonly CONNECTING = 0;
+    readonly OPEN = 1;
+    readonly CLOSING = 2;
+    readonly CLOSED = 3;
+
     url: string = "";
     readyState: number = 0;
+    protocol: string = "";
+    extensions: string = "";
+    bufferedAmount: number = 0;
+    binaryType: string = "blob";
+    onopen: Function | null = null;
+    onmessage: Function | null = null;
+    onerror: Function | null = null;
+    onclose: Function | null = null;
 
-    constructor(url: string = "") {
+    private _listeners: WebSocketListenerEntry[] = [];
+
+    constructor(url: string = "", protocols: unknown = null) {
         this.url = url;
+        this.readyState = 1;
+        if (typeof protocols === "string") {
+            this.protocol = protocols as string;
+        } else if (Array.isArray(protocols) && (protocols as string[]).length > 0) {
+            this.protocol = (protocols as string[])[0];
+        }
+    }
+
+    send(data: unknown): void {
+        if (this.readyState === 1) {
+            this.bufferedAmount = 0;
+        }
+    }
+
+    close(code: number = 1000, reason: string = ""): void {
+        this.readyState = 3;
+        if (this.onclose) {
+            const fn = this.onclose as ((arg: unknown) => void);
+            fn({ code, reason, wasClean: true });
+        }
+    }
+
+    addEventListener(type: string, callback: Function, options: unknown = null): void {
+        let once = false;
+        if (options && typeof options === "object") {
+            if ((options as Record<string, boolean>)["once"] === true) {
+                once = true;
+            }
+        }
+        this._listeners.push(new WebSocketListenerEntry(type, callback, once));
+    }
+
+    removeEventListener(type: string, callback: Function): void {
+        const next: WebSocketListenerEntry[] = [];
+        let removed = false;
+        for (let i = 0; i < this._listeners.length; i++) {
+            if (!removed && this._listeners[i].type === type && this._listeners[i].callback === callback) {
+                removed = true;
+            } else {
+                next.push(this._listeners[i]);
+            }
+        }
+        this._listeners = next;
+    }
+
+    dispatchEvent(event: { type: string }): boolean {
+        const snapshot = this._listeners.slice();
+        const next: WebSocketListenerEntry[] = [];
+        for (let i = 0; i < this._listeners.length; i++) {
+            if (!this._listeners[i].once || this._listeners[i].type !== event.type) {
+                next.push(this._listeners[i]);
+            }
+        }
+        this._listeners = next;
+        for (let i = 0; i < snapshot.length; i++) {
+            if (snapshot[i].type === event.type) {
+                snapshot[i].callback(event);
+            }
+        }
+        return true;
     }
 }
 

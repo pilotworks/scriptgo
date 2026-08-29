@@ -456,3 +456,140 @@ int scriptgo_set_entries(void *handle, void **out_array) {
     return 0;
 }
 
+static int set_add_entry_copy(scriptgo_set_native *dst, const scriptgo_set_native_entry *e) {
+    if (dst == NULL || e == NULL || e->key_str == NULL) return 0;
+    int64_t idx = set_find_entry(dst, e->key_str);
+    if (idx >= 0) return 0;
+    if (set_ensure_capacity(dst) != 0) return -1;
+    dst->entries[dst->size].key_str = strdup(e->key_str);
+    dst->entries[dst->size].val_type = e->val_type;
+    dst->entries[dst->size].num_val = e->num_val;
+    dst->entries[dst->size].str_val = e->str_val ? strdup(e->str_val) : NULL;
+    dst->entries[dst->size].ptr_val = e->ptr_val;
+    dst->size++;
+    return 0;
+}
+
+int scriptgo_set_union(void *handle_a, void *handle_b, void **out_set) {
+    if (out_set == NULL) return set_fail("scriptgo_set_union: null output");
+    if (scriptgo_set_new(out_set) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sa->size; i++) {
+            set_add_entry_copy(dst, &sa->entries[i]);
+        }
+    }
+    if (sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sb->size; i++) {
+            set_add_entry_copy(dst, &sb->entries[i]);
+        }
+    }
+    return 0;
+}
+
+int scriptgo_set_intersection(void *handle_a, void *handle_b, void **out_set) {
+    if (out_set == NULL) return set_fail("scriptgo_set_intersection: null output");
+    if (scriptgo_set_new(out_set) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET && sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sa->size; i++) {
+            if (set_find_entry(sb, sa->entries[i].key_str) >= 0) {
+                set_add_entry_copy(dst, &sa->entries[i]);
+            }
+        }
+    }
+    return 0;
+}
+
+int scriptgo_set_difference(void *handle_a, void *handle_b, void **out_set) {
+    if (out_set == NULL) return set_fail("scriptgo_set_difference: null output");
+    if (scriptgo_set_new(out_set) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sa->size; i++) {
+            if (sb == NULL || sb->magic != SCRIPTGO_MAGIC_SET || set_find_entry(sb, sa->entries[i].key_str) < 0) {
+                set_add_entry_copy(dst, &sa->entries[i]);
+            }
+        }
+    }
+    return 0;
+}
+
+int scriptgo_set_symmetric_difference(void *handle_a, void *handle_b, void **out_set) {
+    if (out_set == NULL) return set_fail("scriptgo_set_symmetric_difference: null output");
+    if (scriptgo_set_new(out_set) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sa->size; i++) {
+            if (sb == NULL || sb->magic != SCRIPTGO_MAGIC_SET || set_find_entry(sb, sa->entries[i].key_str) < 0) {
+                set_add_entry_copy(dst, &sa->entries[i]);
+            }
+        }
+    }
+    if (sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET) {
+        for (int64_t i = 0; i < sb->size; i++) {
+            if (sa == NULL || sa->magic != SCRIPTGO_MAGIC_SET || set_find_entry(sa, sb->entries[i].key_str) < 0) {
+                set_add_entry_copy(dst, &sb->entries[i]);
+            }
+        }
+    }
+    return 0;
+}
+
+int scriptgo_set_is_subset_of(void *handle_a, void *handle_b, int32_t *out_bool) {
+    if (out_bool == NULL) return set_fail("scriptgo_set_is_subset_of: null output");
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa == NULL || sa->magic != SCRIPTGO_MAGIC_SET) {
+        *out_bool = 1;
+        return 0;
+    }
+    if (sb == NULL || sb->magic != SCRIPTGO_MAGIC_SET) {
+        *out_bool = (sa->size == 0) ? 1 : 0;
+        return 0;
+    }
+    if (sa->size > sb->size) {
+        *out_bool = 0;
+        return 0;
+    }
+    for (int64_t i = 0; i < sa->size; i++) {
+        if (set_find_entry(sb, sa->entries[i].key_str) < 0) {
+            *out_bool = 0;
+            return 0;
+        }
+    }
+    *out_bool = 1;
+    return 0;
+}
+
+int scriptgo_set_is_superset_of(void *handle_a, void *handle_b, int32_t *out_bool) {
+    return scriptgo_set_is_subset_of(handle_b, handle_a, out_bool);
+}
+
+int scriptgo_set_is_disjoint_from(void *handle_a, void *handle_b, int32_t *out_bool) {
+    if (out_bool == NULL) return set_fail("scriptgo_set_is_disjoint_from: null output");
+    scriptgo_set_native *sa = handle_a;
+    scriptgo_set_native *sb = handle_b;
+    if (sa == NULL || sa->magic != SCRIPTGO_MAGIC_SET || sb == NULL || sb->magic != SCRIPTGO_MAGIC_SET) {
+        *out_bool = 1;
+        return 0;
+    }
+    for (int64_t i = 0; i < sa->size; i++) {
+        if (set_find_entry(sb, sa->entries[i].key_str) >= 0) {
+            *out_bool = 0;
+            return 0;
+        }
+    }
+    *out_bool = 1;
+    return 0;
+}
+
+

@@ -26,3 +26,54 @@ s_set_forEach_3.forEach((val: number) => {
 // @expect: true
 // @expect: false
 const s_set_has_4 = new Set<number>(); s_set_has_4.add(10); console.log(s_set_has_4.has(10)); console.log(s_set_has_4.has(20));
+
+// @api: set.union
+// @expect: 3
+const setA = new Set<number>(); setA.add(1); setA.add(2);
+const setB = new Set<number>(); setB.add(2); setB.add(3);
+const setUnion = setA.union(setB);
+console.log(setUnion.size);
+
+// @api: set.intersection
+// @expect: 1
+// @expect: true
+const setInter = setA.intersection(setB);
+console.log(setInter.size);
+console.log(setInter.has(2));
+
+// @api: set.difference
+// @expect: 1
+// @expect: true
+const setDiff = setA.difference(setB);
+console.log(setDiff.size);
+console.log(setDiff.has(1));
+
+// @api: set.symmetricDifference
+// @expect: 2
+// @expect: true
+// @expect: true
+const setSymDiff = setA.symmetricDifference(setB);
+console.log(setSymDiff.size);
+console.log(setSymDiff.has(1));
+console.log(setSymDiff.has(3));
+
+// @api: set.isSubsetOf
+// @expect: true
+// @expect: false
+const setSub = new Set<number>(); setSub.add(1);
+console.log(setSub.isSubsetOf(setA));
+console.log(setA.isSubsetOf(setSub));
+
+// @api: set.isSupersetOf
+// @expect: true
+// @expect: false
+console.log(setA.isSupersetOf(setSub));
+console.log(setSub.isSupersetOf(setA));
+
+// @api: set.isDisjointFrom
+// @expect: true
+// @expect: false
+const setDisj = new Set<number>(); setDisj.add(99);
+console.log(setA.isDisjointFrom(setDisj));
+console.log(setA.isDisjointFrom(setB));
+

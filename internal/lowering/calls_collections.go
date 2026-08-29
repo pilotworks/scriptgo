@@ -506,6 +506,48 @@ func lowerMapSetReceiverMethod(
 			})
 			return result, retType, true, nil
 
+		case "union", "intersection", "difference", "symmetricDifference":
+			if len(expression.Arguments) < 1 {
+				return "", "", true, fmt.Errorf("Set.%s requires other Set argument", methodName)
+			}
+			otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeSet,
+				Result: result,
+				Callee: "__set." + methodName,
+				Args:   []string{receiver, otherVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeSet, true, nil
+
+		case "isSubsetOf", "isSupersetOf", "isDisjointFrom":
+			if len(expression.Arguments) < 1 {
+				return "", "", true, fmt.Errorf("Set.%s requires other Set argument", methodName)
+			}
+			otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeBool,
+				Result: result,
+				Callee: "__set." + methodName,
+				Args:   []string{receiver, otherVal},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, true, nil
+
 		case "forEach":
 			if len(expression.Arguments) < 1 {
 				return "", "", true, fmt.Errorf("Set.forEach requires callback argument")
