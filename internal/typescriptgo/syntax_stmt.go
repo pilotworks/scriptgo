@@ -751,5 +751,4 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 	default:
 		return SyntaxStatement{Span: span, Kind: "unsupported", Type: node.Kind.String()}, true
 	}
-	return SyntaxStatement{}, false
 }

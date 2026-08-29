@@ -1056,33 +1056,21 @@ interface DOMExceptionConstructor {
 
 declare var DOMException: DOMExceptionConstructor;
 
-interface AbortSignal extends EventTarget {
+declare class AbortSignal extends EventTarget {
     readonly aborted: boolean;
     readonly reason: unknown;
     onabort: ((this: AbortSignal, ev: Event) => unknown) | null;
     throwIfAborted(): void;
+    static abort(reason?: unknown): AbortSignal;
+    static timeout(milliseconds: number): AbortSignal;
+    static any(signals: AbortSignal[]): AbortSignal;
 }
 
-interface AbortSignalConstructor {
-    readonly prototype: AbortSignal;
-    abort(reason?: unknown): AbortSignal;
-    timeout(milliseconds: number): AbortSignal;
-    any(signals: AbortSignal[]): AbortSignal;
-}
-
-declare var AbortSignal: AbortSignalConstructor;
-
-interface AbortController {
+declare class AbortController {
     readonly signal: AbortSignal;
+    constructor();
     abort(reason?: unknown): void;
 }
-
-interface AbortControllerConstructor {
-    new(): AbortController;
-    readonly prototype: AbortController;
-}
-
-declare var AbortController: AbortControllerConstructor;
 
 interface StringDecoder {
     encoding: string;
@@ -1176,5 +1164,473 @@ interface ErrorConstructor {
     captureStackTrace(targetObject: object, constructorOpt?: Function): void;
     stackTraceLimit: number;
 }
+
+interface File extends Blob {
+    readonly name: string;
+    readonly lastModified: number;
+}
+
+interface FileConstructor {
+    new(fileBits: unknown[], fileName: string, options?: unknown): File;
+    readonly prototype: File;
+}
+
+declare var File: FileConstructor;
+
+interface FormData {
+    append(name: string, value: unknown, fileName?: string): void;
+    delete(name: string): void;
+    get(name: string): unknown;
+    getAll(name: string): unknown[];
+    has(name: string): boolean;
+    set(name: string, value: unknown, fileName?: string): void;
+}
+
+interface FormDataConstructor {
+    new(): FormData;
+    readonly prototype: FormData;
+}
+
+declare var FormData: FormDataConstructor;
+
+interface MessagePort extends EventTarget {
+    postMessage(message: unknown, transfer?: unknown[]): void;
+    start(): void;
+    close(): void;
+}
+
+interface MessagePortConstructor {
+    readonly prototype: MessagePort;
+}
+
+declare var MessagePort: MessagePortConstructor;
+
+interface MessageChannel {
+    readonly port1: MessagePort;
+    readonly port2: MessagePort;
+}
+
+interface MessageChannelConstructor {
+    new(): MessageChannel;
+    readonly prototype: MessageChannel;
+}
+
+declare var MessageChannel: MessageChannelConstructor;
+
+interface MessageEvent extends Event {
+    readonly data: unknown;
+    readonly origin: string;
+    readonly lastEventId: string;
+    readonly source: unknown;
+    readonly ports: MessagePort[];
+}
+
+interface MessageEventConstructor {
+    new(type: string, eventInitDict?: unknown): MessageEvent;
+    readonly prototype: MessageEvent;
+}
+
+declare var MessageEvent: MessageEventConstructor;
+
+interface BroadcastChannel extends EventTarget {
+    readonly name: string;
+    postMessage(message: unknown): void;
+    close(): void;
+}
+
+interface BroadcastChannelConstructor {
+    new(name: string): BroadcastChannel;
+    readonly prototype: BroadcastChannel;
+}
+
+declare var BroadcastChannel: BroadcastChannelConstructor;
+
+interface ByteLengthQueuingStrategy {
+    readonly highWaterMark: number;
+    size(chunk: unknown): number;
+}
+
+interface ByteLengthQueuingStrategyConstructor {
+    new(options: { highWaterMark: number }): ByteLengthQueuingStrategy;
+    readonly prototype: ByteLengthQueuingStrategy;
+}
+
+declare var ByteLengthQueuingStrategy: ByteLengthQueuingStrategyConstructor;
+
+interface CountQueuingStrategy {
+    readonly highWaterMark: number;
+    size(chunk: unknown): number;
+}
+
+interface CountQueuingStrategyConstructor {
+    new(options: { highWaterMark: number }): CountQueuingStrategy;
+    readonly prototype: CountQueuingStrategy;
+}
+
+declare var CountQueuingStrategy: CountQueuingStrategyConstructor;
+
+interface CompressionStream {
+    readonly readable: ReadableStream;
+    readonly writable: WritableStream;
+}
+
+interface CompressionStreamConstructor {
+    new(format: string): CompressionStream;
+    readonly prototype: CompressionStream;
+}
+
+declare var CompressionStream: CompressionStreamConstructor;
+
+interface DecompressionStream {
+    readonly readable: ReadableStream;
+    readonly writable: WritableStream;
+}
+
+interface DecompressionStreamConstructor {
+    new(format: string): DecompressionStream;
+    readonly prototype: DecompressionStream;
+}
+
+declare var DecompressionStream: DecompressionStreamConstructor;
+
+interface TextEncoderStream {
+    readonly encoding: string;
+    readonly readable: ReadableStream;
+    readonly writable: WritableStream;
+}
+
+interface TextEncoderStreamConstructor {
+    new(): TextEncoderStream;
+    readonly prototype: TextEncoderStream;
+}
+
+declare var TextEncoderStream: TextEncoderStreamConstructor;
+
+interface TextDecoderStream {
+    readonly encoding: string;
+    readonly fatal: boolean;
+    readonly ignoreBOM: boolean;
+    readonly readable: ReadableStream;
+    readonly writable: WritableStream;
+}
+
+interface TextDecoderStreamConstructor {
+    new(label?: string, options?: unknown): TextDecoderStream;
+    readonly prototype: TextDecoderStream;
+}
+
+declare var TextDecoderStream: TextDecoderStreamConstructor;
+
+interface TransformStream {
+    readonly readable: ReadableStream;
+    readonly writable: WritableStream;
+}
+
+interface TransformStreamConstructor {
+    new(transformer?: unknown, writableStrategy?: unknown, readableStrategy?: unknown): TransformStream;
+    readonly prototype: TransformStream;
+}
+
+declare var TransformStream: TransformStreamConstructor;
+
+interface TransformStreamDefaultController {
+    readonly desiredSize: number | null;
+    enqueue(chunk?: unknown): void;
+    error(reason?: unknown): void;
+    terminate(): void;
+}
+
+interface TransformStreamDefaultControllerConstructor {
+    readonly prototype: TransformStreamDefaultController;
+}
+
+declare var TransformStreamDefaultController: TransformStreamDefaultControllerConstructor;
+
+interface ReadableByteStreamController {
+    readonly byobRequest: unknown;
+    readonly desiredSize: number | null;
+    close(): void;
+    enqueue(chunk: ArrayBufferView): void;
+    error(e?: unknown): void;
+}
+
+interface ReadableByteStreamControllerConstructor {
+    readonly prototype: ReadableByteStreamController;
+}
+
+declare var ReadableByteStreamController: ReadableByteStreamControllerConstructor;
+
+interface ReadableStreamBYOBReader {
+    readonly closed: Promise<void>;
+    read(view: ArrayBufferView): Promise<{ done: boolean; value: ArrayBufferView | undefined }>;
+    releaseLock(): void;
+    cancel(reason?: unknown): Promise<void>;
+}
+
+interface ReadableStreamBYOBReaderConstructor {
+    new(stream?: ReadableStream): ReadableStreamBYOBReader;
+    readonly prototype: ReadableStreamBYOBReader;
+}
+
+declare var ReadableStreamBYOBReader: ReadableStreamBYOBReaderConstructor;
+
+interface ReadableStreamBYOBRequest {
+    readonly view: ArrayBufferView | null;
+    respond(bytesWritten: number): void;
+    respondWithNewView(view: ArrayBufferView): void;
+}
+
+interface ReadableStreamBYOBRequestConstructor {
+    readonly prototype: ReadableStreamBYOBRequest;
+}
+
+declare var ReadableStreamBYOBRequest: ReadableStreamBYOBRequestConstructor;
+
+interface ReadableStreamDefaultController {
+    readonly desiredSize: number | null;
+    close(): void;
+    enqueue(chunk?: unknown): void;
+    error(e?: unknown): void;
+}
+
+interface ReadableStreamDefaultControllerConstructor {
+    readonly prototype: ReadableStreamDefaultController;
+}
+
+declare var ReadableStreamDefaultController: ReadableStreamDefaultControllerConstructor;
+
+interface ReadableStreamDefaultReader {
+    readonly closed: Promise<void>;
+    read(): Promise<{ done: boolean; value: unknown }>;
+    releaseLock(): void;
+    cancel(reason?: unknown): Promise<void>;
+}
+
+interface ReadableStreamDefaultReaderConstructor {
+    new(stream?: ReadableStream): ReadableStreamDefaultReader;
+    readonly prototype: ReadableStreamDefaultReader;
+}
+
+declare var ReadableStreamDefaultReader: ReadableStreamDefaultReaderConstructor;
+
+interface WritableStreamDefaultController {
+    readonly signal: AbortSignal;
+    error(e?: unknown): void;
+}
+
+interface WritableStreamDefaultControllerConstructor {
+    readonly prototype: WritableStreamDefaultController;
+}
+
+declare var WritableStreamDefaultController: WritableStreamDefaultControllerConstructor;
+
+interface WritableStreamDefaultWriter {
+    readonly closed: Promise<void>;
+    readonly ready: Promise<void>;
+    readonly desiredSize: number | null;
+    abort(reason?: unknown): Promise<void>;
+    close(): Promise<void>;
+    releaseLock(): void;
+    write(chunk?: unknown): Promise<void>;
+}
+
+interface WritableStreamDefaultWriterConstructor {
+    new(stream?: WritableStream): WritableStreamDefaultWriter;
+    readonly prototype: WritableStreamDefaultWriter;
+}
+
+declare var WritableStreamDefaultWriter: WritableStreamDefaultWriterConstructor;
+
+interface EventSource extends EventTarget {
+    readonly url: string;
+    readonly readyState: number;
+    close(): void;
+}
+
+interface EventSourceConstructor {
+    new(url: string, eventSourceInitDict?: unknown): EventSource;
+    readonly prototype: EventSource;
+    readonly CONNECTING: number;
+    readonly OPEN: number;
+    readonly CLOSED: number;
+}
+
+declare var EventSource: EventSourceConstructor;
+
+interface Navigator {
+    readonly userAgent: string;
+    readonly language: string;
+    readonly languages: string[];
+    readonly onLine: boolean;
+    readonly hardwareConcurrency: number;
+}
+
+interface NavigatorConstructor {
+    readonly prototype: Navigator;
+}
+
+declare var Navigator: NavigatorConstructor;
+declare var navigator: Navigator;
+
+interface Storage {
+    readonly length: number;
+    clear(): void;
+    getItem(key: string): string | null;
+    key(index: number): string | null;
+    removeItem(key: string): void;
+    setItem(key: string, value: string): void;
+}
+
+interface StorageConstructor {
+    readonly prototype: Storage;
+}
+
+declare var Storage: StorageConstructor;
+
+interface WebAssembly {
+    validate(bytes: BufferSource): boolean;
+    compile(bytes: BufferSource): Promise<unknown>;
+    instantiate(bytes: BufferSource, importObject?: unknown): Promise<unknown>;
+}
+
+declare var WebAssembly: WebAssembly;
+
+interface PerformanceEntry {
+    readonly name: string;
+    readonly entryType: string;
+    readonly startTime: number;
+    readonly duration: number;
+    toJSON(): unknown;
+}
+
+interface PerformanceEntryConstructor {
+    readonly prototype: PerformanceEntry;
+}
+
+declare var PerformanceEntry: PerformanceEntryConstructor;
+
+interface PerformanceMark extends PerformanceEntry {
+    readonly detail: unknown;
+}
+
+interface PerformanceMarkConstructor {
+    new(name: string, markOptions?: unknown): PerformanceMark;
+    readonly prototype: PerformanceMark;
+}
+
+declare var PerformanceMark: PerformanceMarkConstructor;
+
+interface PerformanceMeasure extends PerformanceEntry {
+    readonly detail: unknown;
+}
+
+interface PerformanceMeasureConstructor {
+    readonly prototype: PerformanceMeasure;
+}
+
+declare var PerformanceMeasure: PerformanceMeasureConstructor;
+
+interface PerformanceObserverEntryList {
+    getEntries(): PerformanceEntry[];
+    getEntriesByType(type: string): PerformanceEntry[];
+    getEntriesByName(name: string, type?: string): PerformanceEntry[];
+}
+
+interface PerformanceObserverEntryListConstructor {
+    readonly prototype: PerformanceObserverEntryList;
+}
+
+declare var PerformanceObserverEntryList: PerformanceObserverEntryListConstructor;
+
+interface PerformanceObserver {
+    observe(options: unknown): void;
+    disconnect(): void;
+    takeRecords(): PerformanceEntry[];
+}
+
+interface PerformanceObserverConstructor {
+    new(callback: (list: PerformanceObserverEntryList, observer: PerformanceObserver) => void): PerformanceObserver;
+    readonly prototype: PerformanceObserver;
+    readonly supportedEntryTypes: readonly string[];
+}
+
+declare var PerformanceObserver: PerformanceObserverConstructor;
+
+interface PerformanceResourceTiming extends PerformanceEntry {
+    readonly initiatorType: string;
+    readonly nextHopProtocol: string;
+    readonly workerStart: number;
+    readonly redirectStart: number;
+    readonly redirectEnd: number;
+    readonly fetchStart: number;
+    readonly domainLookupStart: number;
+    readonly domainLookupEnd: number;
+    readonly connectStart: number;
+    readonly connectEnd: number;
+    readonly secureConnectionStart: number;
+    readonly requestStart: number;
+    readonly responseStart: number;
+    readonly responseEnd: number;
+    readonly transferSize: number;
+    readonly encodedBodySize: number;
+    readonly decodedBodySize: number;
+    readonly serverTiming: unknown[];
+}
+
+interface PerformanceResourceTimingConstructor {
+    readonly prototype: PerformanceResourceTiming;
+}
+
+declare var PerformanceResourceTiming: PerformanceResourceTimingConstructor;
+
+interface CryptoKey {
+    readonly type: string;
+    readonly extractable: boolean;
+    readonly algorithm: unknown;
+    readonly usages: string[];
+}
+
+interface CryptoKeyConstructor {
+    readonly prototype: CryptoKey;
+}
+
+declare var CryptoKey: CryptoKeyConstructor;
+
+interface SubtleCrypto {
+    encrypt(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer>;
+    decrypt(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer>;
+    sign(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer>;
+    verify(algorithm: unknown, key: CryptoKey, signature: BufferSource, data: BufferSource): Promise<boolean>;
+    digest(algorithm: unknown, data: BufferSource): Promise<ArrayBuffer>;
+    generateKey(algorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey | unknown>;
+    deriveKey(algorithm: unknown, baseKey: CryptoKey, derivedKeyType: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey>;
+    deriveBits(algorithm: unknown, baseKey: CryptoKey, length: number): Promise<ArrayBuffer>;
+    importKey(format: string, keyData: unknown, algorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey>;
+    exportKey(format: string, key: CryptoKey): Promise<unknown>;
+    wrapKey(format: string, key: CryptoKey, wrappingKey: CryptoKey, wrapAlgorithm: unknown): Promise<ArrayBuffer>;
+    unwrapKey(format: string, wrappedKey: BufferSource, unwrappingKey: CryptoKey, unwrapAlgorithm: unknown, unwrappedKeyAlgorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey>;
+}
+
+interface SubtleCryptoConstructor {
+    readonly prototype: SubtleCrypto;
+}
+
+declare var SubtleCrypto: SubtleCryptoConstructor;
+
+interface Crypto {
+    readonly subtle: SubtleCrypto;
+    getRandomValues<T extends ArrayBufferView | null>(array: T): T;
+    randomUUID(): string;
+}
+
+interface CryptoConstructor {
+    readonly prototype: Crypto;
+}
+
+declare var Crypto: CryptoConstructor;
+declare var crypto: Crypto;
+
+declare function fetch(input: unknown, init?: unknown): Promise<Response>;
+declare function require(id: string): unknown;
 
 

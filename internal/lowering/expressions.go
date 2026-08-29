@@ -936,8 +936,29 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "typeof":
 		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
-			if expression.Left != nil && expression.Left.Kind == "identifier" && expression.Left.Text == "undefined" {
-				valType = ir.TypeVoid
+			if expression.Left != nil && expression.Left.Kind == "identifier" {
+				name := expression.Left.Text
+				if name == "undefined" {
+					valType = ir.TypeVoid
+				} else if isGlobalConstructor(name) {
+					typeStr := "function"
+					if name == "WebAssembly" || name == "crypto" || name == "performance" || name == "navigator" {
+						typeStr = "object"
+					}
+					if result == "" {
+						result = nextTemp(counter)
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpConst,
+						Type:   ir.TypeString,
+						Result: result,
+						Value:  typeStr,
+						Span:   toIRSpan(path, expression.Span),
+					})
+					return result, ir.TypeString, nil
+				} else {
+					valType = ir.TypeVoid
+				}
 			} else {
 				return "", "", err
 			}

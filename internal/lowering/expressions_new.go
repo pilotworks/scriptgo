@@ -950,3 +950,29 @@ func isTypedArrayClassName(name string) bool {
 		return false
 	}
 }
+
+func isGlobalConstructor(name string) bool {
+	switch name {
+	case "Blob", "Buffer", "ByteLengthQueuingStrategy", "BroadcastChannel",
+		"CompressionStream", "CountQueuingStrategy", "Crypto", "CryptoKey",
+		"CustomEvent", "DecompressionStream", "Event", "EventSource",
+		"EventTarget", "File", "FormData", "Headers", "MessageChannel",
+		"MessageEvent", "MessagePort", "Navigator", "PerformanceEntry",
+		"PerformanceMark", "PerformanceMeasure", "PerformanceObserver",
+		"PerformanceObserverEntryList", "PerformanceResourceTiming",
+		"ReadableByteStreamController", "ReadableStream", "ReadableStreamBYOBReader",
+		"ReadableStreamBYOBRequest", "ReadableStreamDefaultController",
+		"ReadableStreamDefaultReader", "Response", "Request", "Storage",
+		"SubtleCrypto", "DOMException", "TextDecoder", "TextDecoderStream",
+		"TextEncoder", "TextEncoderStream", "TransformStream",
+		"TransformStreamDefaultController", "URL", "URLSearchParams",
+		"WebAssembly", "WebSocket", "WritableStream",
+		"WritableStreamDefaultController", "WritableStreamDefaultWriter",
+		"AbortController", "AbortSignal", "Console", "performance", "crypto",
+		"require", "atob", "btoa", "clearImmediate", "clearInterval", "clearTimeout",
+		"queueMicrotask", "setImmediate", "setInterval", "setTimeout", "structuredClone":
+		return true
+	default:
+		return false
+	}
+}

@@ -78,9 +78,6 @@ func lowerCallExpression(
 				if res, typ, handled, err := lowerDateReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 					return res, typ, err
 				}
-				if res, typ, handled, err := lowerIntlReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
-					return res, typ, err
-				}
 				if receiverType == ir.TypeBigInt && (methodName == "toString" || methodName == "toLocaleString") {
 					if result == "" {
 						result = nextTemp(counter)
