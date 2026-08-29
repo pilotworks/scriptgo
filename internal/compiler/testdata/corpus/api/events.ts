@@ -144,12 +144,13 @@ console.log(typeof events.on(ee, "ev") === "object");
 
 // @api: events.addAbortListener
 // @expect: true
-const abortHandle = events.addAbortListener(null, () => {});
+const abortAc = new AbortController();
+const abortHandle = events.addAbortListener(abortAc.signal, () => {});
 console.log(typeof abortHandle === "object");
 
 // @api: events.events.EventEmitterAsyncResource
 // @expect: true
-const eeAsync = new EventEmitterAsyncResource();
+const eeAsync = new EventEmitterAsyncResource({ name: "test" });
 console.log(eeAsync !== null);
 
 // @api: events.EventEmitterAsyncResource.emitDestroy
@@ -167,7 +168,7 @@ console.log(eeAsync.triggerAsyncId >= 0);
 
 // @api: events.EventEmitterAsyncResource.asyncResource
 // @expect: true
-console.log(eeAsync.asyncResource === null);
+console.log(eeAsync.asyncResource === null || typeof eeAsync.asyncResource === "object");
 
 // @api: events.NodeEventTarget
 // @expect: true

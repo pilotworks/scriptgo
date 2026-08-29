@@ -6,6 +6,12 @@
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
 
+extern const char scriptgo_undefined_sentinel;
+
+static inline int is_invalid_object_handle(void *handle) {
+    return handle == NULL || handle == (void *)&scriptgo_undefined_sentinel;
+}
+
 typedef struct {
     uint64_t magic;
     int64_t field_count;
@@ -53,7 +59,7 @@ int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
         *out_result = 1;
         return 0;
     }
-    if (a == NULL || b == NULL) {
+    if (is_invalid_object_handle(a) || is_invalid_object_handle(b)) {
         *out_result = 0;
         return 0;
     }
@@ -183,7 +189,7 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -198,7 +204,7 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         *out_value = NAN;
         return 0;
     }
@@ -212,7 +218,7 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
 }
 
 int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -227,7 +233,7 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
     if (out_value == NULL) {
         return 0;
     }
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         *out_value = NULL;
         return 0;
     }
@@ -246,7 +252,7 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
 }
 
 int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -261,7 +267,7 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         *out_value = 0;
         return 0;
     }
@@ -282,7 +288,7 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
 }
 
 int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -297,7 +303,7 @@ int scriptgo_object_bigint_get(void *handle, int64_t index, int64_t *out_value) 
     if (out_value == NULL) {
         return 0;
     }
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         *out_value = 0;
         return 0;
     }
@@ -311,7 +317,7 @@ int scriptgo_object_bigint_get(void *handle, int64_t index, int64_t *out_value) 
 }
 
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -322,13 +328,11 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     return 0;
 }
 
-extern const char scriptgo_undefined_sentinel;
-
 int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
         return 0;
     }
@@ -347,7 +351,7 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
 }
 
 int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint64_t payload) {
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -372,10 +376,13 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
     }
     *out_tag = 0;
     *out_payload = 0;
-    if (handle == NULL || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
+        return 0;
+    }
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
         *out_tag = 0;
@@ -401,7 +408,7 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
 }
 
 int scriptgo_object_type_set(void *handle, const char *type_name) {
-    if (handle == NULL) {
+    if (is_invalid_object_handle(handle)) {
         return object_fail("scriptgo object type set failed");
     }
     ((scriptgo_object *)handle)->type_name = type_name;
@@ -409,7 +416,7 @@ int scriptgo_object_type_set(void *handle, const char *type_name) {
 }
 
 int scriptgo_object_type_get(void *handle, const char **out_type) {
-    if (handle == NULL || out_type == NULL) {
+    if (is_invalid_object_handle(handle) || out_type == NULL) {
         return object_fail("scriptgo object type get failed");
     }
     *out_type = ((scriptgo_object *)handle)->type_name;
@@ -420,7 +427,7 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
     if (out_result == NULL) {
         return object_fail("scriptgo instanceof null output");
     }
-    if (handle == NULL || class_name == NULL) {
+    if (is_invalid_object_handle(handle) || class_name == NULL) {
         *out_result = 0;
         return 0;
     }
@@ -453,7 +460,7 @@ int scriptgo_object_keys(void *handle, void **out_array) {
 }
 
 int scriptgo_object_release(void *handle) {
-    if (handle == NULL) {
+    if (is_invalid_object_handle(handle)) {
         return 0;
     }
     scriptgo_object *object = handle;

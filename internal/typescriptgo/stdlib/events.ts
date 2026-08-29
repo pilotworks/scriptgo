@@ -179,6 +179,10 @@ export class EventEmitterAsyncResource extends EventEmitter {
     triggerAsyncId: number = 0;
     asyncResource: unknown = null;
 
+    constructor(options?: unknown) {
+        super();
+    }
+
     emitDestroy(): void {}
 }
 

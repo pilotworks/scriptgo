@@ -1012,13 +1012,21 @@ interface Event {
     readonly type: string;
     readonly target: unknown;
     readonly currentTarget: unknown;
+    readonly srcElement: unknown;
     readonly bubbles: boolean;
     readonly cancelable: boolean;
+    readonly composed: boolean;
     readonly defaultPrevented: boolean;
+    readonly isTrusted: boolean;
     readonly timeStamp: number;
+    readonly eventPhase: number;
+    readonly returnValue: boolean;
+    readonly cancelBubble: boolean;
     preventDefault(): void;
     stopPropagation(): void;
     stopImmediatePropagation(): void;
+    composedPath(): unknown[];
+    initEvent(type: string, bubbles?: boolean, cancelable?: boolean): void;
 }
 
 interface EventConstructor {

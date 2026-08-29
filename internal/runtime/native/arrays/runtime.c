@@ -67,6 +67,7 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
 }
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+extern const char scriptgo_undefined_sentinel;
 typedef struct {
     uint64_t magic;
     int64_t field_count;
@@ -75,7 +76,7 @@ typedef struct {
 } scriptgo_runtime_object_header;
 
 int scriptgo_array_get(void *handle, double index, void *out_value) {
-    if (handle == NULL || out_value == NULL) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_value == NULL) {
         return fail("scriptgo array access failed");
     }
     if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
@@ -154,7 +155,7 @@ int scriptgo_array_set(void *handle, double index, const void *value) {
     scriptgo_array *array = handle;
     size_t offset;
     int64_t idx;
-    if (array == NULL || value == NULL || array->element_size <= 0) {
+    if (array == NULL || handle == (void *)&scriptgo_undefined_sentinel || value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
     if (index != index || index < 0 || index != (double)(int64_t)index) {
@@ -172,7 +173,7 @@ int scriptgo_array_set(void *handle, double index, const void *value) {
 }
 
 int scriptgo_array_length(void *handle, int64_t *out_length) {
-    if (handle == NULL || out_length == NULL) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_length == NULL) {
         return fail("scriptgo array access failed");
     }
     if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
@@ -250,7 +251,7 @@ int scriptgo_array_pop(void *handle, void *out_value) {
 }
 
 int scriptgo_array_slice_with_size(void *handle, double start_val, double end_val, int64_t target_element_size, void **out_array) {
-    if (handle == NULL || out_array == NULL) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_array == NULL) {
         return fail("scriptgo array access failed");
     }
     int64_t length, start, end, new_len, element_size;
@@ -691,7 +692,7 @@ int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigne
 int scriptgo_string_from_number(double value, char **out_value);
 
 int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str) {
-    if (handle == NULL || out_str == NULL) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_str == NULL) {
         return fail("scriptgo array access failed");
     }
     if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
