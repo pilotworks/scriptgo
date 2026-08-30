@@ -976,7 +976,53 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 	}
 	out.WriteString("}\n\n")
-	return out.String(), nil
+	return hoistAllocas(out.String()), nil
+}
+
+func hoistAllocas(fnCode string) string {
+	lines := strings.Split(fnCode, "\n")
+	if len(lines) < 2 {
+		return fnCode
+	}
+	var header string
+	var allocas []string
+	seenSlots := make(map[string]bool)
+	var bodyLines []string
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if i == 0 {
+			header = line
+			continue
+		}
+		if trimmed == "}" || (i == len(lines)-1 && trimmed == "") {
+			continue
+		}
+		if strings.Contains(trimmed, " = alloca ") {
+			parts := strings.SplitN(trimmed, "=", 2)
+			slotName := strings.TrimSpace(parts[0])
+			if !seenSlots[slotName] {
+				seenSlots[slotName] = true
+				allocas = append(allocas, "  "+trimmed)
+			}
+			continue
+		}
+		bodyLines = append(bodyLines, line)
+	}
+
+	var res strings.Builder
+	res.WriteString(header)
+	res.WriteString("\n")
+	for _, a := range allocas {
+		res.WriteString(a)
+		res.WriteString("\n")
+	}
+	for _, b := range bodyLines {
+		res.WriteString(b)
+		res.WriteString("\n")
+	}
+	res.WriteString("}\n\n")
+	return res.String()
 }
 
 func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {

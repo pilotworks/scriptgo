@@ -60,8 +60,11 @@ func arrayElementType(arrayType ir.Type) ir.Type {
 		if elem == "boolean" {
 			return ir.TypeBool
 		}
-		if elem == "void" || elem == "undefined" || elem == "unknown" || elem == "never" || elem == "object:never" || strings.HasPrefix(elem, "never") || strings.HasPrefix(elem, "object:never") {
+		if elem == "void" || elem == "undefined" || elem == "unknown" {
 			return ir.TypeUnknown
+		}
+		if elem == "never" || elem == "object:never" || strings.HasPrefix(elem, "never") || strings.HasPrefix(elem, "object:never") {
+			return ir.TypeObject
 		}
 		return ir.Type(elem)
 	}

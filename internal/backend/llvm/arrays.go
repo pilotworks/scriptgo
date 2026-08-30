@@ -464,15 +464,86 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if len(instruction.Args) != 2 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("array.unshift has invalid signature")
 		}
+		arrArg := e.resolveArg(out, instruction.Args[0])
+		elemType := arrayElementType(arrayType)
+		arg1 := e.resolveArg(out, instruction.Args[1])
+		arg1Type := e.types[arg1]
+		if arg1Type == "" {
+			arg1Type = e.types[instruction.Args[1]]
+		}
+		if arg1Type == "" {
+			for _, g := range e.module.Globals {
+				if g.Name == instruction.Args[1] {
+					arg1Type = g.Type
+					break
+				}
+			}
+		}
+		if arg1Type == ir.TypeUnknown && elemType != ir.TypeUnknown {
+			e.tempCounter++
+			payloadName := fmt.Sprintf("unshift.unbox.payload.%d", e.tempCounter)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arg1)
+			paramType := llvmType(elemType)
+			switch paramType {
+			case "double":
+				e.tempCounter++
+				valName := fmt.Sprintf("unshift.unbox.dbl.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", valName, payloadName)
+				arg1 = valName
+			case "i1":
+				e.tempCounter++
+				valName := fmt.Sprintf("unshift.unbox.bool.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", valName, payloadName)
+				arg1 = valName
+			case "i64":
+				arg1 = payloadName
+			default:
+				e.tempCounter++
+				valName := fmt.Sprintf("unshift.unbox.ptr.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to %s\n", valName, payloadName, paramType)
+				arg1 = valName
+			}
+		} else if elemType == ir.TypeUnknown && arg1Type != ir.TypeUnknown {
+			e.tempCounter++
+			boxedName := fmt.Sprintf("unshift.box.%d", e.tempCounter)
+			var tag int
+			switch arg1Type {
+			case ir.TypeNumber:
+				tag = 3
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			case ir.TypeString:
+				tag = 4
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			case ir.TypeBool:
+				tag = 2
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			default:
+				tag = 5
+				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
+				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+			}
+			arg1 = boxedName
+		}
 		elemLLVMType := arrayElementLLVMType(arrayType)
 		valSlot := fmt.Sprintf("%s.unshift.val.%d", instruction.Args[0], e.runtimeStatus)
 		fmt.Fprintf(out, "  %%%s = alloca %s\n", valSlot, elemLLVMType)
-		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", elemLLVMType, instruction.Args[1], valSlot)
+		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", elemLLVMType, arg1, valSlot)
 		resSlot := instruction.Result + ".slot"
 		fmt.Fprintf(out, "  %%%s = alloca double\n", resSlot)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_unshift(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], valSlot, resSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_unshift(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, arrArg, valSlot, resSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, resSlot)
 		return nil

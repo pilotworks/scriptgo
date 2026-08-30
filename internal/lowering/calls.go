@@ -201,6 +201,9 @@ func lowerCallExpression(
 								paramType := string(target.Parameters[pIdx].Type)
 								argument.InferredType = strings.TrimPrefix(paramType, "object:")
 							}
+							if argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && pIdx < len(target.Parameters) && strings.HasSuffix(string(target.Parameters[pIdx].Type), "[]") {
+								argument.InferredType = string(target.Parameters[pIdx].Type)
+							}
 							argVal, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 							if err != nil {
 								return "", "", err

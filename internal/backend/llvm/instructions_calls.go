@@ -954,7 +954,11 @@ prepareArgs:
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = phi %s [ %s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, retType, defaultVal, nullBlock, callRes, callBlock))
 	} else {
-		out.WriteString(fmt.Sprintf("  call void %s%s(%s)\n", fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		if fnSig != "" || strings.HasPrefix(fnTarget, "@__closure_") {
+			out.WriteString(fmt.Sprintf("  call { i32, i32, i64 } %s%s(%s)\n", fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		} else {
+			out.WriteString(fmt.Sprintf("  call void %s(%s)\n", fnTarget, strings.Join(callArgs, ", ")))
+		}
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
 		out.WriteString(fmt.Sprintf("%s:\n", contBlock))
 	}

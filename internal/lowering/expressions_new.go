@@ -694,15 +694,20 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		}
 	}
 
-	// Call constructor if present
 	if ctor, ctorName, found := findConstructorInHierarchy(className, signatures, classHierarchy); found {
 		args := []string{result}
 		for i, arg := range expression.Arguments {
+			paramIdx := i + 1
+			if paramIdx < len(ctor.Parameters) {
+				paramType := ctor.Parameters[paramIdx].Type
+				if arg.Kind == "array" && (arg.InferredType == "" || arg.InferredType == "never[]" || arg.InferredType == "unknown[]") && strings.HasSuffix(string(paramType), "[]") {
+					arg.InferredType = string(paramType)
+				}
+			}
 			argVal, argType, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", err
 			}
-			paramIdx := i + 1
 			if paramIdx < len(ctor.Parameters) {
 				paramType := ctor.Parameters[paramIdx].Type
 				if strings.HasPrefix(string(paramType), "object:") && strings.HasPrefix(string(argType), "object:") && paramType != argType {
