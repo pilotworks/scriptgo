@@ -62,3 +62,22 @@ func TestVerifyUnknownArg(t *testing.T) {
 		t.Fatal("expected error for unknown arg, got nil")
 	}
 }
+
+func TestVerifyAllowsBufferInUint8ArrayArray(t *testing.T) {
+	module := Module{
+		Functions: []Function{
+			{
+				Name:       "main",
+				ReturnType: TypeVoid,
+				Body: []Instruction{
+					{Op: OpCall, Type: TypeBuffer, Result: "buffer", Callee: "__buffer.alloc"},
+					{Op: OpArray, Type: TypeUint8Array + "[]", Result: "parts", Args: []string{"buffer"}},
+					{Op: OpReturn, Type: TypeVoid},
+				},
+			},
+		},
+	}
+	if err := module.Verify(); err != nil {
+		t.Fatalf("expected Buffer to satisfy Uint8Array array element type, got: %v", err)
+	}
+}

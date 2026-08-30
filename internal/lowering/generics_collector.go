@@ -42,6 +42,12 @@ func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, e
 	for _, s := range stmt.Else {
 		scanAndSpecializeStmt(s, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
 	}
+	for _, c := range stmt.Cases {
+		scanAndSpecializeExpr(c.Expression, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
+		for _, s := range c.Statements {
+			scanAndSpecializeStmt(s, fileName, env, funcTypes, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod)
+		}
+	}
 	if stmt.Class != nil {
 		if stmt.Class.Extends != "" {
 			scanTypeForGenerics(stmt.Class.Extends, fileName, genericClasses, reqCls)

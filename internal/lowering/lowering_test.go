@@ -88,6 +88,30 @@ func TestLowerHelloProgram(t *testing.T) {
 	}
 }
 
+func TestLowerResolvesNamedImportAlias(t *testing.T) {
+	dir := t.TempDir()
+	dependency := filepath.Join(dir, "dependency.ts")
+	entry := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(dependency, []byte("export function original(value: string): string { return value; }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	source := "import { original as alias } from './dependency';\nconsole.log(alias('ok'));\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v, want named import alias to resolve", err)
+	}
+	if err := module.Verify(); err != nil {
+		t.Fatalf("Verify error = %v", err)
+	}
+}
+
 func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	program := frontend.Program{
@@ -209,6 +233,21 @@ func TestLowerAllowsUnionParameters(t *testing.T) {
 	}
 	if len(irModule.Functions) == 0 {
 		t.Fatalf("expected lowered functions")
+	}
+}
+
+func TestLowerNarrowsMixedUnionParameterInElseBranch(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "type Input = string | Uint8Array; function size(value: Input): number { if (typeof value === 'string') { return value.length; } return value.length; }\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Lower(program); err != nil {
+		t.Fatalf("Lower error = %v, want mixed union narrowing to reach Uint8Array", err)
 	}
 }
 

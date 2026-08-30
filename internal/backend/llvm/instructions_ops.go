@@ -794,7 +794,15 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, rawPayload))
 	}
 	if slot, ok := e.varSlots[instruction.Result]; ok {
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(instruction.Type), instruction.Result, slot))
+		// A self-cast consumes a boxed slot and leaves the known value in SSA.
+		// Do not overwrite that boxed slot with a differently sized value.
+		if instruction.Result != instruction.Args[0] {
+			out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmType(instruction.Type), instruction.Result, slot))
+		}
+	}
+	if instruction.Result == instruction.Args[0] {
+		// Subsequent uses should read the cast result, not reload the old box.
+		delete(e.varSlots, instruction.Result)
 	}
 	return nil
 }

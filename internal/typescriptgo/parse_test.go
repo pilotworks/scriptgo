@@ -258,6 +258,26 @@ func TestCheckResolvesNodePrefixedNamedImports(t *testing.T) {
 	}
 }
 
+func TestCheckResolvesNodeStreamConsumers(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := "import { text } from 'node:stream/consumers';\nconsole.log(typeof text);\n"
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for node:stream/consumers: %+v", result.Diagnostics)
+	}
+	entryFile := result.Files[len(result.Files)-1]
+	if len(entryFile.Imports) != 1 || !entryFile.Imports[0].Builtin || entryFile.Imports[0].Specifier != "node:stream/consumers" || !strings.HasSuffix(entryFile.Imports[0].ResolvedFileName, filepath.Join("stream", "consumers", "index.ts")) {
+		t.Fatalf("stream consumers import = %+v, want builtin stream/consumers", entryFile.Imports)
+	}
+}
+
 func TestCheckExtractsUnionTypes(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	source := "const a: string | number = 'hello';\nconst b: number | null = null;\nconst c: string | undefined = undefined;\n"

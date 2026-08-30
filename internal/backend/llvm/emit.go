@@ -229,6 +229,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_ptr_get(ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_unknown_set(ptr, i64, i32, i64)\n")
 	out.WriteString("declare i32 @scriptgo_object_unknown_get(ptr, i64, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_unknown_number_property(i32, i64, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_get(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_instanceof(ptr, ptr, ptr)\n")
@@ -244,7 +245,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_json_stringify_number_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_string_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_unknown(i32, i32, i64, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_json_parse_string(ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_json_parse_unknown(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_string_concat(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_length(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_index_of(ptr, ptr, double, ptr)\n")
@@ -358,12 +359,18 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_child_process_spawn_sync(ptr, ptr, ptr, ptr, ptr, ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_crypto_random_uuid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_hash_digest(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_crypto_hash_digest_buffer(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_random_bytes(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_random_int(double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_random_fill(ptr, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_timing_safe_equal(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_hmac_digest(ptr, ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_crypto_hmac_digest_buffer(ptr, ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_crypto_pbkdf2_sync(ptr, ptr, double, double, ptr, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_crypto_hkdf_sync(ptr, ptr, ptr, ptr, double, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_crypto_scrypt_sync(ptr, ptr, double, ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_zlib_transform_string(ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_zlib_transform_buffer(ptr, double, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_date_now(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_date_to_iso_string(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_date_to_string(double, ptr)\n")
@@ -470,12 +477,22 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_is_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_queue_microtask(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_create(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolver_create(ptr, i32, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_construct(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_number(ptr, double)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_bool(ptr, i32)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_bigint(ptr, i64)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_boxed(ptr, i32, i64)\n")
 	out.WriteString("declare i32 @scriptgo_promise_reject(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_reject_boxed(ptr, i32, i64)\n")
 	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_ptr(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_await_bool(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_await_bigint(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_await_boxed(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_await_unknown(i32, i64, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_event_loop_run()\n")
 	out.WriteString("declare i32 @scriptgo_timer_set_timeout(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_timer_clear_timeout(double)\n")
@@ -502,11 +519,13 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_typedarray_slice(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_typedarray_from_array(i64, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_typedarray_set_array(ptr, ptr, double)\n")
+	out.WriteString("declare i32 @scriptgo_typedarray_set_js_array(ptr, ptr, double)\n")
 	out.WriteString("declare i32 @scriptgo_typedarray_fill(ptr, double, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_typedarray_to_string(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_buffer_alloc(double, ptr, double, i32, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_buffer_from_string(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_buffer_from_array(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_buffer_from_arraybuffer(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_buffer_concat(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_buffer_is_buffer(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_buffer_byte_length(ptr, ptr, ptr)\n")
@@ -569,12 +588,14 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_map_new_entries(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_string_number(ptr, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_string_string(ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_map_set_string_bigint(ptr, ptr, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_string_ptr(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_number_number(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_number_string(ptr, double, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_set_number_ptr(ptr, double, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_get_number(ptr, ptr, double, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_get_string(ptr, ptr, double, i32, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_map_get_bigint(ptr, ptr, double, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_get_ptr(ptr, ptr, double, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_has(ptr, ptr, double, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_map_delete(ptr, ptr, double, i32, ptr)\n")
@@ -629,8 +650,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_weakref_new(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_weakref_deref(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_weakmap_new(ptr)\n")
-	out.WriteString("declare i32 @scriptgo_weakmap_set(ptr, ptr, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_weakmap_get(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_set(ptr, ptr, ptr, i32)\n")
+	out.WriteString("declare i32 @scriptgo_weakmap_get(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_weakmap_has(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_weakmap_delete(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_weakset_new(ptr)\n")
@@ -1062,7 +1083,15 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 	for name, count := range counts {
 		if count > 1 {
 			if typ, ok := types[name]; ok {
-				slotted[name] = typ
+				// A variable that is assigned both a boxed value and a known
+				// value must keep boxed storage until the checked cast runs.
+				// Using the last (known) type here can allocate only 8 bytes for
+				// a 16-byte unknown value and corrupt the stack.
+				if typeSets[name][ir.TypeUnknown] {
+					slotted[name] = ir.TypeUnknown
+				} else {
+					slotted[name] = typ
+				}
 			}
 		}
 	}

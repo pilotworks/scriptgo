@@ -65,8 +65,23 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
 	case ast.KindSuperKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
-	case ast.KindParenthesizedExpression, ast.KindNonNullExpression, ast.KindSatisfiesExpression:
+	case ast.KindParenthesizedExpression, ast.KindSatisfiesExpression:
 		return syntaxExpression(node.Expression(), chk)
+	case ast.KindNonNullExpression:
+		// Keep the assertion boundary visible to lowering. The checker narrows
+		// `T | null | undefined` to T here, but flattening it into the inner
+		// expression would make APIs such as Map.get use their nullable ABI.
+		inner := syntaxExpression(node.Expression(), chk)
+		inferred := resolveInferredType(chk, node)
+		if inferred == "" && inner != nil {
+			inferred = inner.InferredType
+		}
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "non_null",
+			Left:         inner,
+			InferredType: inferred,
+		}
 	case ast.KindVoidExpression:
 		voidExpr := node.AsVoidExpression()
 		inner := syntaxExpression(voidExpr.Expression, chk)

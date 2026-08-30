@@ -468,6 +468,13 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			return nil
 		}
 		return nil
+	case "non_null":
+		// Non-null assertions are erased by JavaScript, but the operand still
+		// needs normal subset validation and lowering-time type narrowing.
+		if expression.Left != nil {
+			return validateExpression(fileName, expression.Left)
+		}
+		return nil
 	case "identifier":
 		return nil
 	case "number", "bigint", "regex", "string", "bool", "null", "undefined":
@@ -521,7 +528,7 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
 			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
 		}
-		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal" || expression.Left.Kind == "as") {
+		if expression.Left != nil && (expression.Left.Kind == "identifier" || expression.Left.Kind == "string" || expression.Left.Kind == "call" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "object_literal" || expression.Left.Kind == "as" || expression.Left.Kind == "non_null") {
 			return validateExpression(fileName, expression.Left)
 		}
 		return subsetError(fileName, expression.Span, CodeStructuralFlow, "nested property access")

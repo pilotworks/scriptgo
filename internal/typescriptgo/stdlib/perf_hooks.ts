@@ -12,6 +12,15 @@ export class PerformanceEntry {
         this.startTime = startTime;
         this.duration = duration;
     }
+
+    toJSON(): Record<string, unknown> {
+        return {
+            name: this.name,
+            entryType: this.entryType,
+            startTime: this.startTime,
+            duration: this.duration,
+        };
+    }
 }
 
 export class PerformanceMark extends PerformanceEntry {
@@ -19,7 +28,7 @@ export class PerformanceMark extends PerformanceEntry {
 
     constructor(name: string, options?: { detail?: unknown; startTime?: number }) {
         super(name, "mark", options?.startTime || 0, 0);
-        this.detail = options?.detail || null;
+        this.detail = options && options.detail !== undefined ? options.detail : null;
     }
 }
 
@@ -28,7 +37,7 @@ export class PerformanceMeasure extends PerformanceEntry {
 
     constructor(name: string, options?: { detail?: unknown; startTime?: number; duration?: number }) {
         super(name, "measure", options?.startTime || 0, options?.duration || 0);
-        this.detail = options?.detail || null;
+        this.detail = options && options.detail !== undefined ? options.detail : null;
     }
 }
 
@@ -102,8 +111,27 @@ export class PerformanceResourceTiming extends PerformanceEntry {
         this.decodedBodySize = 0;
     }
 
-    toJSON(): unknown {
-        return {};
+    toJSON(): Record<string, unknown> {
+        return {
+            name: this.name,
+            entryType: this.entryType,
+            startTime: this.startTime,
+            duration: this.duration,
+            workerStart: this.workerStart,
+            redirectStart: this.redirectStart,
+            redirectEnd: this.redirectEnd,
+            fetchStart: this.fetchStart,
+            domainLookupStart: this.domainLookupStart,
+            domainLookupEnd: this.domainLookupEnd,
+            connectStart: this.connectStart,
+            connectEnd: this.connectEnd,
+            secureConnectionStart: this.secureConnectionStart,
+            requestStart: this.requestStart,
+            responseEnd: this.responseEnd,
+            transferSize: this.transferSize,
+            encodedBodySize: this.encodedBodySize,
+            decodedBodySize: this.decodedBodySize,
+        };
     }
 }
 
@@ -115,7 +143,7 @@ export class PerformanceObserverEntryList {
     }
 
     getEntries(): PerformanceEntry[] {
-        return this._entries;
+        return this._entries.slice();
     }
 
     getEntriesByType(type: string): PerformanceEntry[] {
@@ -139,20 +167,88 @@ export class PerformanceObserverEntryList {
     }
 }
 
+export interface PerformanceObserverOptions {
+    entryTypes?: string[];
+    type?: string;
+    buffered?: boolean;
+}
+
 export class PerformanceObserver {
     static supportedEntryTypes: string[] = ["mark", "measure", "node", "resource"];
     private _callback: (list: PerformanceObserverEntryList, observer: PerformanceObserver) => void;
+    private _entries: PerformanceEntry[] = [];
+    private _entryTypes: string[] = [];
+    private _observing: boolean = false;
 
     constructor(callback: (list: PerformanceObserverEntryList, observer: PerformanceObserver) => void) {
         this._callback = callback;
+        this._entries = [];
+        this._entryTypes = [];
+        this._observing = false;
     }
 
-    observe(options: { entryTypes?: string[]; type?: string; buffered?: boolean }): void {}
+    observe(options: PerformanceObserverOptions): void {
+        this._entryTypes = options.entryTypes ? options.entryTypes.slice() : (options.type ? [options.type] : []);
+        this._observing = true;
+        performanceObservers.push(this);
+        if (options.buffered) {
+            const buffered: PerformanceEntry[] = [];
+            for (const entry of performanceEntries) {
+                if (this._accepts(entry)) {
+                    buffered.push(entry);
+                }
+            }
+            if (buffered.length > 0) {
+                for (const entry of buffered) {
+                    this._entries.push(entry);
+                }
+                this._flush();
+            }
+        }
+    }
 
-    disconnect(): void {}
+    disconnect(): void {
+        this._observing = false;
+        const idx = performanceObservers.indexOf(this);
+        if (idx !== -1) {
+            performanceObservers.splice(idx, 1);
+        }
+    }
 
     takeRecords(): PerformanceEntry[] {
-        return [];
+        const result = this._entries.slice();
+        this._entries = [];
+        return result;
+    }
+
+    _accepts(entry: PerformanceEntry): boolean {
+        return this._entryTypes.length === 0 || this._entryTypes.indexOf(entry.entryType) !== -1;
+    }
+
+    _enqueue(entry: PerformanceEntry): void {
+        if (!this._observing || !this._accepts(entry)) {
+            return;
+        }
+        this._entries.push(entry);
+        this._flush();
+    }
+
+    _flush(): void {
+        if (this._entries.length === 0) {
+            return;
+        }
+        const records = this.takeRecords();
+        this._callback(new PerformanceObserverEntryList(records), this);
+    }
+}
+
+const performanceEntries: PerformanceEntry[] = [];
+const performanceObservers: PerformanceObserver[] = [];
+
+function addPerformanceEntry(entry: PerformanceEntry): void {
+    performanceEntries.push(entry);
+    for (const observer of performanceObservers.slice()) {
+        observer._enqueue(entry);
     }
 }
 
@@ -169,6 +265,7 @@ export class Histogram {
     exceedsBigInt: bigint = 0n;
     percentiles: Map<number, number> = new Map();
     percentilesBigInt: Map<bigint, bigint> = new Map();
+    private _samples: number[] = [];
 
     reset(): void {
         this.count = 0;
@@ -177,38 +274,80 @@ export class Histogram {
         this.mean = 0;
         this.stddev = 0;
         this.exceeds = 0;
+        this.minBigInt = 0n;
+        this.maxBigInt = 0n;
+        this.countBigInt = 0n;
+        this.exceedsBigInt = 0n;
+        this.percentiles.clear();
+        this.percentilesBigInt.clear();
+        this._samples = [];
     }
 
     percentile(percentile: number): number {
-        return 0;
+        if (this._samples.length === 0) {
+            return 0;
+        }
+        const sorted = this._samples.slice().sort((a, b) => a - b);
+        const p = Math.max(0, Math.min(100, percentile));
+        const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+        return sorted[index];
     }
 
     percentileBigInt(percentile: bigint): bigint {
-        return 0n;
+        return BigInt(this.percentile(Number(percentile)));
+    }
+
+    _record(value: number): void {
+        if (value < 0 || value !== value) {
+            return;
+        }
+        this._samples.push(value);
+        this.count++;
+        this.countBigInt = BigInt(this.count);
+        if (this.count === 1 || value < this.min) this.min = value;
+        if (this.count === 1 || value > this.max) this.max = value;
+        this.minBigInt = BigInt(this.min);
+        this.maxBigInt = BigInt(this.max);
+        let sum = 0;
+        for (const sample of this._samples) sum += sample;
+        this.mean = sum / this._samples.length;
+        let variance = 0;
+        for (const sample of this._samples) variance += (sample - this.mean) * (sample - this.mean);
+        this.stddev = Math.sqrt(variance / this._samples.length);
+        this.percentiles.set(50, this.percentile(50));
+        this.percentiles.set(99, this.percentile(99));
+        this.percentilesBigInt.set(50n, BigInt(this.percentile(50)));
+        this.percentilesBigInt.set(99n, BigInt(this.percentile(99)));
     }
 }
 
 export class IntervalHistogram extends Histogram {
+    private _enabled: boolean = false;
+
     enable(): boolean {
+        this._enabled = true;
         return true;
     }
 
     disable(): boolean {
+        this._enabled = false;
         return true;
     }
 }
 
 export class RecordableHistogram extends Histogram {
     record(val: number | bigint): void {
-        this.count++;
+        this._record(typeof val === "bigint" ? Number(val) : val);
     }
 
     recordDelta(): void {
-        this.count++;
+        this._record(Date.now());
     }
 
     add(other: RecordableHistogram): void {
-        this.count += other.count;
+        for (let i = 0; i < other.count; i++) {
+            this._record(other.mean);
+        }
     }
 }
 
@@ -225,32 +364,83 @@ export class Performance {
     timeOrigin: number = 0;
 
     now(): number {
-        return 0;
+        return Date.now() - this.timeOrigin;
     }
 
     mark(name: string, options?: { detail?: unknown; startTime?: number }): PerformanceMark {
-        return new PerformanceMark(name, options);
+        const mark = new PerformanceMark(name, options);
+        addPerformanceEntry(mark);
+        return mark;
     }
 
     measure(name: string, startMarkOrOptions?: unknown, endMark?: string): PerformanceMeasure {
-        return new PerformanceMeasure(name);
+        let startTime = 0;
+        let duration = this.now();
+        if (typeof startMarkOrOptions === "string") {
+            const start = this.getEntriesByName(startMarkOrOptions, "mark");
+            if (start.length > 0) startTime = start[0].startTime;
+            if (endMark !== undefined) {
+                const end = this.getEntriesByName(endMark, "mark");
+                if (end.length > 0) duration = end[0].startTime - startTime;
+            } else {
+                duration = this.now() - startTime;
+            }
+        } else if (startMarkOrOptions && typeof startMarkOrOptions === "object") {
+            const options = startMarkOrOptions as { start?: string; end?: string; detail?: unknown };
+            if (options.start) {
+                const start = this.getEntriesByName(options.start, "mark");
+                if (start.length > 0) startTime = start[0].startTime;
+            }
+            if (options.end) {
+                const end = this.getEntriesByName(options.end, "mark");
+                if (end.length > 0) duration = end[0].startTime - startTime;
+            } else {
+                duration = this.now() - startTime;
+            }
+        }
+        const measure = new PerformanceMeasure(name, { startTime, duration });
+        addPerformanceEntry(measure);
+        return measure;
     }
 
-    clearMarks(name?: string): void {}
-    clearMeasures(name?: string): void {}
-    clearResourceTimings(): void {}
+    clearMarks(name?: string): void {
+        clearPerformanceEntries("mark", name);
+    }
+    clearMeasures(name?: string): void {
+        clearPerformanceEntries("measure", name);
+    }
+    clearResourceTimings(): void {
+        clearPerformanceEntries("resource");
+    }
     getEntries(): PerformanceEntry[] {
-        return [];
+        return performanceEntries.slice();
     }
     getEntriesByName(name: string, type?: string): PerformanceEntry[] {
-        return [];
+        const result: PerformanceEntry[] = [];
+        for (const entry of performanceEntries) {
+            if (entry.name === name && (!type || entry.entryType === type)) result.push(entry);
+        }
+        return result;
     }
     getEntriesByType(type: string): PerformanceEntry[] {
-        return [];
+        const result: PerformanceEntry[] = [];
+        for (const entry of performanceEntries) {
+            if (entry.entryType === type) result.push(entry);
+        }
+        return result;
+    }
+}
+
+function clearPerformanceEntries(type: string, name?: string): void {
+    for (let i = performanceEntries.length - 1; i >= 0; i--) {
+        if (performanceEntries[i].entryType === type && (name === undefined || performanceEntries[i].name === name)) {
+            performanceEntries.splice(i, 1);
+        }
     }
 }
 
 export const performance: Performance = new Performance();
+performance.timeOrigin = Date.now();
 
 export default {
     PerformanceEntry,

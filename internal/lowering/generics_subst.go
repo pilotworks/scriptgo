@@ -254,6 +254,12 @@ func cloneStatement(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatem
 	res.Body = append([]typescriptgo.SyntaxStatement(nil), stmt.Body...)
 	res.Then = append([]typescriptgo.SyntaxStatement(nil), stmt.Then...)
 	res.Else = append([]typescriptgo.SyntaxStatement(nil), stmt.Else...)
+	res.Cases = make([]typescriptgo.SyntaxSwitchCase, len(stmt.Cases))
+	for i, c := range stmt.Cases {
+		res.Cases[i] = c
+		res.Cases[i].Expression = cloneExpr(c.Expression)
+		res.Cases[i].Statements = append([]typescriptgo.SyntaxStatement(nil), c.Statements...)
+	}
 	res.Catch = append([]typescriptgo.SyntaxStatement(nil), stmt.Catch...)
 	res.Finally = append([]typescriptgo.SyntaxStatement(nil), stmt.Finally...)
 	if stmt.Class != nil {
@@ -345,6 +351,12 @@ func cloneAndSubstituteStmt(stmt typescriptgo.SyntaxStatement, subst map[string]
 	}
 	for i := range res.Else {
 		res.Else[i] = cloneAndSubstituteStmt(res.Else[i], subst)
+	}
+	for i := range res.Cases {
+		res.Cases[i].Expression = cloneAndSubstituteExpr(res.Cases[i].Expression, subst)
+		for j := range res.Cases[i].Statements {
+			res.Cases[i].Statements[j] = cloneAndSubstituteStmt(res.Cases[i].Statements[j], subst)
+		}
 	}
 	for i := range res.Catch {
 		res.Catch[i] = cloneAndSubstituteStmt(res.Catch[i], subst)

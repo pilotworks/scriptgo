@@ -24,22 +24,41 @@ func lowerPromiseStaticCall(
 		if err != nil {
 			return "", "", true, err
 		}
+		callbackType := ir.TypeVoid
+		if retType, ok := env[fnVal+".retType"]; ok && retType != "" {
+			callbackType = retType
+		} else if signature, ok := signatures[fnVal]; ok && signature.ReturnType != "" {
+			callbackType = signature.ReturnType
+		}
+		callbackResult := ""
+		if callbackType != ir.TypeVoid {
+			callbackResult = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpClosureCall,
+			Type:   callbackType,
+			Result: callbackResult,
+			Callee: fnVal,
+			Args:   nil,
+			Span:   toIRSpan(path, expression.Arguments[0].Span),
+		})
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		promType := ir.Type("object:Promise<unknown>")
-		if expression.InferredType != "" && strings.HasPrefix(expression.InferredType, "Promise<") && strings.HasSuffix(expression.InferredType, ">") {
-			inner := strings.TrimSuffix(strings.TrimPrefix(expression.InferredType, "Promise<"), ">")
-			promType = ir.Type("object:Promise<" + string(toIRType(inner)) + ">")
-		} else if strings.Contains(expression.InferredType, "number") {
-			promType = ir.Type("object:Promise<number>")
+		promType := toIRType(expression.InferredType)
+		if !strings.HasPrefix(string(promType), "object:Promise") {
+			promType = toIRType("Promise<" + string(callbackType) + ">")
+		}
+		resolveArgs := []string{}
+		if callbackResult != "" {
+			resolveArgs = append(resolveArgs, callbackResult)
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   promType,
 			Result: result,
-			Callee: "__async.promise_try",
-			Args:   []string{fnVal},
+			Callee: "__async.promise_resolve",
+			Args:   resolveArgs,
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, promType, true, nil
@@ -461,17 +480,45 @@ func lowerPromiseStaticCall(
 		}
 	}
 	if callee == "Promise.withResolvers" {
+		promiseType := ir.Type("object:Promise")
+		inferred := strings.TrimPrefix(expression.InferredType, "object:")
+		if strings.HasPrefix(inferred, "PromiseWithResolvers<") && strings.HasSuffix(inferred, ">") {
+			inner := strings.TrimSuffix(strings.TrimPrefix(inferred, "PromiseWithResolvers<"), ">")
+			if resolved := toIRType("Promise<" + inner + ">"); resolved != "" {
+				promiseType = resolved
+			}
+		}
 		promRes := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
-			Type:   ir.Type("object:Promise"),
+			Type:   promiseType,
 			Result: promRes,
 			Callee: "__async.promise_create",
 			Args:   nil,
 			Span:   toIRSpan(path, expression.Span),
 		})
+		resolveRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeClosure,
+			Result: resolveRes,
+			Value:  "resolve",
+			Callee: "__async.promise_resolver",
+			Args:   []string{promRes},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		rejectRes := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCall,
+			Type:   ir.TypeClosure,
+			Result: rejectRes,
+			Value:  "reject",
+			Callee: "__async.promise_resolver",
+			Args:   []string{promRes},
+			Span:   toIRSpan(path, expression.Span),
+		})
 		fields := []ir.Field{
-			{Name: "promise", Type: ir.Type("object:Promise"), Span: toIRSpan(path, expression.Span)},
+			{Name: "promise", Type: promiseType, Span: toIRSpan(path, expression.Span)},
 			{Name: "resolve", Type: ir.TypeClosure, Span: toIRSpan(path, expression.Span)},
 			{Name: "reject", Type: ir.TypeClosure, Span: toIRSpan(path, expression.Span)},
 		}
@@ -504,6 +551,26 @@ func lowerPromiseStaticCall(
 			Args:       []string{resObj, promRes},
 			Span:       toIRSpan(path, expression.Span),
 		})
+		function.Body = append(function.Body,
+			ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      "resolve",
+				FieldIndex: 1,
+				Args:       []string{resObj, resolveRes},
+				Span:       toIRSpan(path, expression.Span),
+			},
+			ir.Instruction{
+				Op:         ir.OpFieldSet,
+				Type:       ir.TypeVoid,
+				Callee:     shapeName,
+				Field:      "reject",
+				FieldIndex: 2,
+				Args:       []string{resObj, rejectRes},
+				Span:       toIRSpan(path, expression.Span),
+			},
+		)
 		return resObj, ir.Type("object:" + shapeName), true, nil
 	}
 	return "", "", false, nil

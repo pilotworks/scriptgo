@@ -7,6 +7,64 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+func weakValueTag(valueType ir.Type) int {
+	switch valueType {
+	case ir.TypeVoid:
+		return 0 // SCRIPTGO_TAG_UNDEFINED
+	case ir.TypePointer:
+		return 1 // SCRIPTGO_TAG_NULL
+	case ir.TypeBool:
+		return 2 // SCRIPTGO_TAG_BOOLEAN
+	case ir.TypeNumber:
+		return 3 // SCRIPTGO_TAG_NUMBER
+	case ir.TypeString:
+		return 4 // SCRIPTGO_TAG_STRING
+	case ir.TypeBigInt:
+		return 8 // SCRIPTGO_TAG_BIGINT
+	case ir.TypeSymbol:
+		return 9 // SCRIPTGO_TAG_SYMBOL
+	default:
+		if strings.HasSuffix(string(valueType), "[]") {
+			return 6 // SCRIPTGO_TAG_ARRAY
+		}
+		if valueType == ir.TypeClosure {
+			return 7 // SCRIPTGO_TAG_FUNCTION
+		}
+		return 5 // SCRIPTGO_TAG_OBJECT
+	}
+}
+
+func weakMapValueType(handleType ir.Type) ir.Type {
+	t := strings.TrimPrefix(string(handleType), "object:")
+	if !strings.HasPrefix(t, "WeakMap<") || !strings.HasSuffix(t, ">") {
+		return ir.TypeUnknown
+	}
+	inner := t[len("WeakMap<") : len(t)-1]
+	depth := 0
+	start := 0
+	parts := make([]string, 0, 2)
+	for i, r := range inner {
+		switch r {
+		case '<', '{', '[', '(':
+			depth++
+		case '>', '}', ']', ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(inner[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, strings.TrimSpace(inner[start:]))
+	if len(parts) != 2 || parts[1] == "" {
+		return ir.TypeUnknown
+	}
+	return ir.Type(parts[1])
+}
+
 func emitGcIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	status := instruction.Result + ".status"
 	slot := instruction.Result + ".slot"
@@ -57,7 +115,9 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 	case "__weakmap.set":
 		valArg := instruction.Args[2]
 		valType := e.types[valArg]
+		valArg = e.resolveArg(out, valArg)
 		var ptrVal string
+		tagVal := fmt.Sprintf("%d", weakValueTag(valType))
 		if valType == ir.TypeNumber {
 			i64Val := fmt.Sprintf("%s.i64.%d", valArg, e.loadCounter)
 			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
@@ -77,21 +137,33 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 		} else if valType == ir.TypeUnknown {
 			rawVal := fmt.Sprintf("%s.raw.%d", valArg, e.loadCounter)
 			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
+			tagVal = fmt.Sprintf("%s.tag.%d", valArg, e.loadCounter)
 			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", rawVal, valArg)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, rawVal)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVal, valArg)
+		} else if valType == ir.TypeVoid {
+			ptrVal = "null"
 		} else {
 			ptrVal = valArg
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], ptrVal)
+		ptrOperand := "null"
+		if ptrVal != "null" {
+			ptrOperand = "%" + ptrVal
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_set(ptr %%%s, ptr %%%s, ptr %s, i32 %s)\n", status, instruction.Args[0], instruction.Args[1], ptrOperand, tagVal)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 
 	case "__weakmap.get":
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot)
+		tagSlot := slot + ".tag"
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", tagSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_weakmap_get(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot, tagSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		resPtr := fmt.Sprintf("%s.rawptr", instruction.Result)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", resPtr, slot)
+		resTag := fmt.Sprintf("%s.tag", instruction.Result)
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", resTag, tagSlot)
 		if instruction.Type == ir.TypeNumber {
 			i64Val := fmt.Sprintf("%s.i64", instruction.Result)
 			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", i64Val, resPtr)
@@ -102,6 +174,14 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 			fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", instruction.Result, i64Val)
 		} else if instruction.Type == ir.TypeBigInt {
 			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", instruction.Result, resPtr)
+		} else if instruction.Type == ir.TypeUnknown {
+			payload := fmt.Sprintf("%s.payload", instruction.Result)
+			box0 := fmt.Sprintf("%s.box0", instruction.Result)
+			box1 := fmt.Sprintf("%s.box1", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, resPtr)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } undef, i32 %%%s, 0\n", box0, resTag)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", box1, box0)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, box1, payload)
 		} else {
 			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, resPtr)
 		}

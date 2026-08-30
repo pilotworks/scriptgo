@@ -18,6 +18,18 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
+	// A non-null assertion is erased at runtime. Remove it at the call
+	// boundary so `options.encode!()` follows the same closure/method path as
+	// the unasserted expression while retaining the narrowed checker type.
+	if expression.Left != nil && expression.Left.Kind == "non_null" && expression.Left.Left != nil {
+		inner := *expression.Left.Left
+		if expression.Left.InferredType != "" {
+			inner.InferredType = expression.Left.InferredType
+		}
+		withoutAssertion := *expression
+		withoutAssertion.Left = &inner
+		return lowerCallExpression(path, &withoutAssertion, result, function, env, counter, shapes, signatures)
+	}
 	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index") && expression.Left.Left != nil {
 		isModuleNamespace := false
 		if expression.Left.Left.Kind == "identifier" {
@@ -353,14 +365,42 @@ func lowerCallExpression(
 						if retType == "" {
 							retType = ir.TypeVoid
 						}
+						// A single IR function represents an overloaded implementation,
+						// so its ABI may be `unknown` even when TypeScript selected a
+						// concrete overload for this call. Keep the call ABI intact and
+						// narrow the boxed result at the call boundary.
+						selectedType := ir.Type("")
+						if expression.InferredType != "" && expression.InferredType != "this" && expression.InferredType != "object:this" {
+							inferred := toIRType(expression.InferredType)
+							if inferred != "" && inferred != ir.TypeUnknown && inferred != retType {
+								selectedType = inferred
+							}
+						}
+						callResult := result
+						if selectedType != "" {
+							callResult = nextTemp(counter)
+						}
 						function.Body = append(function.Body, ir.Instruction{
 							Op:     ir.OpCall,
 							Type:   retType,
-							Result: result,
+							Result: callResult,
 							Callee: mangled,
 							Args:   args,
 							Span:   toIRSpan(path, expression.Span),
 						})
+						if selectedType != "" {
+							if result == "" {
+								result = nextTemp(counter)
+							}
+							function.Body = append(function.Body, ir.Instruction{
+								Op:     ir.OpCheckedCast,
+								Type:   selectedType,
+								Result: result,
+								Args:   []string{callResult},
+								Span:   toIRSpan(path, expression.Span),
+							})
+							return result, selectedType, nil
+						}
 						return result, retType, nil
 					}
 					if methodName == "hasOwnProperty" || methodName == "propertyIsEnumerable" {
@@ -794,6 +834,9 @@ func lowerCallExpression(
 	}
 
 	callee := callName(expression.Left)
+	if aliased, ok := env["__ident."+callee]; ok && aliased != "" {
+		callee = string(aliased)
+	}
 	if callee == "gc" {
 		if result == "" {
 			result = nextTemp(counter)

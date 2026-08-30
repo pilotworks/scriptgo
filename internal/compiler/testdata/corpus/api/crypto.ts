@@ -186,6 +186,19 @@ const hmac = createHmac("sha256", "secret");
 hmac.update("hello");
 console.log("cr_hmac: " + hmac.digest().length);
 
+// @api: Hash.digest
+// @api: Hmac.digest
+// @expect: cr_hash_bytes: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad 9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab
+const hashBytes = createHash("sha256").update("abc").digest();
+const hmacBytes = createHmac("sha256", "key").update("abc").digest();
+console.log("cr_hash_bytes: " + hashBytes.toString("hex") + " " + hmacBytes.toString("hex"));
+
+// @expect: cr_hash_binary: 47ffa3ea45a70b8a41c2c0825df323c00a8b7a01c1ea06083cc41dddcc001123 963d16d355f11798a5434eaadf01feab4e09e8b31ddbdbc85a4c9a05f8dfb0b5
+const binaryHashInput = Buffer.from([0, 255, 1]);
+const binaryHash = createHash("sha256").update(binaryHashInput).digest("hex");
+const binaryHmac = createHmac("sha256", Buffer.from([255, 0])).update(binaryHashInput).digest("hex");
+console.log("cr_hash_binary: " + binaryHash + " " + binaryHmac);
+
 // @api: crypto.crypto.KeyObject
 // @api: crypto.KeyObject
 // @api: new crypto.KeyObject
@@ -305,11 +318,11 @@ console.log("cr_props: " + constants.RSA_PKCS1_PADDING + " " + fips + " " + (typ
 // @api: crypto.setEngine
 // @api: crypto.setFips
 // @api: crypto.timingSafeEqual
-// @expect: cr_sync: true secret public 3 32 32 16 true
+// @expect: cr_sync: true secret public true 32 32 16 true
 const primeOk = checkPrimeSync(3);
 const genKey = generateKeySync("hmac", {});
 const keyPair = generateKeyPairSync("rsa", {});
-const pSync = generatePrimeSync(32);
+const pSync = generatePrimeSync(16);
 getCipherInfo("aes-256-gcm");
 getCiphers();
 getCurves();
@@ -318,6 +331,7 @@ getHashes();
 getRandomValues(new Uint8Array(4));
 const hkdfRes = hkdfSync("sha256", "ikm", "salt", "info", 32);
 const pbkdf2Res = pbkdf2Sync("pass", "salt", 100, 32, "sha256");
+const scryptRes = scryptSync("pass", "salt", 32);
 privateDecrypt(privKey, Buffer.alloc(0));
 privateEncrypt(privKey, Buffer.alloc(0));
 publicDecrypt(pubKey, Buffer.alloc(0));
@@ -331,7 +345,11 @@ secureHeapUsed();
 setEngine("engine");
 setFips(false);
 const eq = timingSafeEqual(Buffer.alloc(4), Buffer.alloc(4));
-console.log("cr_sync: " + primeOk + " " + genKey.type + " " + keyPair.publicKey.type + " " + pSync + " " + hkdfRes.byteLength + " " + pbkdf2Res.length + " " + rb.length + " " + eq);
+console.log("cr_sync: " + primeOk + " " + genKey.type + " " + keyPair.publicKey.type + " " + checkPrimeSync(pSync) + " " + hkdfRes.byteLength + " " + pbkdf2Res.length + " " + rb.length + " " + eq);
+// @expect: cr_scrypt: 4cac4540992d51feeaefe4668bbfed7222f02b445aaffbbe60cfec110fb2735c
+console.log("cr_scrypt: " + scryptRes.toString("hex"));
+// @expect: cr_hkdf: fe8f9615d2374c0d17f77d1aeaf408c2e75fe0466073d0def23c733e2f862dfd
+console.log("cr_hkdf: " + Buffer.from(hkdfRes).toString("hex"));
 
 // @api: crypto.checkPrime
 // @api: crypto.generateKey

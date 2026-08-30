@@ -145,7 +145,11 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 }
 
 func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
-	if instruction.Result != "" && instruction.Type != "" {
+	// A checked cast may intentionally read and overwrite the same local. Keep
+	// the source storage type until its argument has been resolved; otherwise
+	// assigning the destination type first turns a boxed value into a raw ptr.
+	selfCheckedCast := instruction.Op == ir.OpCheckedCast && len(instruction.Args) == 1 && instruction.Result != "" && instruction.Result == instruction.Args[0]
+	if instruction.Result != "" && instruction.Type != "" && !selfCheckedCast {
 		e.types[instruction.Result] = instruction.Type
 	}
 	switch instruction.Op {
@@ -167,7 +171,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 	targetResult := inst.Result
 	isGlobalResult := false
 	var globalResultType ir.Type
-	if _, ok := e.varSlots[inst.Result]; ok {
+	if _, ok := e.varSlots[inst.Result]; ok && !selfCheckedCast {
 		inst.Result = fmt.Sprintf("%s.val.%d", inst.Result, e.loadCounter)
 		e.loadCounter++
 	} else if e.function.Name != "main" && (e.isParam(inst.Result) || (e.localSSAs != nil && e.localSSAs[inst.Result])) {

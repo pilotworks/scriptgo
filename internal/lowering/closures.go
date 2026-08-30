@@ -413,23 +413,7 @@ func lowerClosureExpression(
 		}
 		if !returned {
 			if strings.HasPrefix(string(targetFn.ReturnType), "object:Promise") {
-				prom := nextTemp(&closureBodyCounter)
-				zeroVal := nextTemp(&closureBodyCounter)
-				targetFn.Body = append(targetFn.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   ir.TypeNumber,
-					Result: zeroVal,
-					Value:  "0",
-					Span:   targetFn.Span,
-				})
-				targetFn.Body = append(targetFn.Body, ir.Instruction{
-					Op:     ir.OpCall,
-					Type:   ir.Type("object:Promise"),
-					Result: prom,
-					Callee: "__async.promise_resolve",
-					Args:   []string{zeroVal},
-					Span:   targetFn.Span,
-				})
+				prom := appendResolvedPromiseUndefined(&targetFn, &closureBodyCounter, targetFn.Span)
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Args: []string{prom}, Span: targetFn.Span})
 			} else if targetFn.ReturnType != ir.TypeVoid {
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Span: targetFn.Span})

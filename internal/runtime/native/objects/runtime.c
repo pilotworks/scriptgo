@@ -5,6 +5,13 @@
 #include <string.h>
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
+#define SCRIPTGO_MAGIC_DATAVIEW 0x44564957U
+#define SCRIPTGO_MAGIC_BUFFER 0x42554646U
+#define SCRIPTGO_ARRAYBUFFER_GC_TAG 10
+
+extern int scriptgo_gc_get_tag(void *ptr);
+extern int scriptgo_gc_is_registered(void *ptr);
 
 extern const char scriptgo_undefined_sentinel;
 
@@ -19,9 +26,114 @@ typedef struct {
     uintptr_t fields[];
 } scriptgo_object;
 
+typedef struct {
+    uint32_t magic;
+    void *buffer;
+    int64_t byte_offset;
+    int64_t byte_length;
+} scriptgo_object_data_view;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t kind;
+    int64_t length;
+    int64_t byte_offset;
+    int64_t element_size;
+    void *buffer;
+    unsigned char *data;
+} scriptgo_typed_array_view;
+
+#define SCRIPTGO_OBJECT_TAG_STRING 4U
+#define SCRIPTGO_OBJECT_TAG_OBJECT 5U
+#define SCRIPTGO_OBJECT_TAG_ARRAY  6U
+
 int scriptgo_runtime_set_error(const char *message);
 
 static int object_fail(const char *message) { return scriptgo_runtime_set_error(message); }
+
+static int object_field_index(const scriptgo_object *object, const char *property) {
+    const char *cursor;
+    int index = 0;
+    size_t property_len;
+
+    if (object == NULL || object->type_name == NULL || property == NULL) {
+        return -1;
+    }
+    property_len = strlen(property);
+    cursor = object->type_name;
+    while (*cursor != '\0') {
+        const char *field_start;
+        const char *field_end;
+        size_t field_len;
+
+        if (*cursor == ':') {
+            cursor++;
+        }
+        field_start = cursor;
+        field_end = strchr(field_start, ':');
+        if (field_end == NULL) {
+            field_end = field_start + strlen(field_start);
+        }
+        field_len = (size_t)(field_end - field_start);
+        if (field_len == property_len && strncmp(field_start, property, field_len) == 0) {
+            return index;
+        }
+        if (*field_end == '\0') {
+            break;
+        }
+        cursor = field_end + 1;
+        index++;
+    }
+    return -1;
+}
+
+int scriptgo_unknown_number_property(uint32_t tag, uint64_t payload, const char *property, double *out_value) {
+    if (property == NULL || out_value == NULL) {
+        return object_fail("scriptgo unknown property invalid arguments");
+    }
+    *out_value = NAN;
+    if (tag == SCRIPTGO_OBJECT_TAG_STRING) {
+        if (strcmp(property, "length") == 0) {
+            const char *value = (const char *)(uintptr_t)payload;
+            *out_value = value == NULL ? 0.0 : (double)strlen(value);
+        }
+        return 0;
+    }
+    if ((tag != SCRIPTGO_OBJECT_TAG_OBJECT && tag != SCRIPTGO_OBJECT_TAG_ARRAY) || payload == 0) {
+        return 0;
+    }
+    void *handle = (void *)(uintptr_t)payload;
+    if (!scriptgo_gc_is_registered(handle)) {
+        return 0;
+    }
+    uint32_t magic = *(uint32_t *)handle;
+    if (magic == SCRIPTGO_MAGIC_TYPEDARRAY) {
+        scriptgo_typed_array_view *view = (scriptgo_typed_array_view *)handle;
+        if (strcmp(property, "length") == 0) {
+            *out_value = (double)view->length;
+        } else if (strcmp(property, "byteLength") == 0) {
+            *out_value = (double)(view->length * view->element_size);
+        } else if (strcmp(property, "byteOffset") == 0) {
+            *out_value = (double)view->byte_offset;
+        } else if (strcmp(property, "BYTES_PER_ELEMENT") == 0) {
+            *out_value = (double)view->element_size;
+        }
+    } else if (magic == SCRIPTGO_MAGIC_DATAVIEW) {
+        scriptgo_object_data_view *view = (scriptgo_object_data_view *)handle;
+        if (strcmp(property, "byteLength") == 0) {
+            *out_value = (double)view->byte_length;
+        } else if (strcmp(property, "byteOffset") == 0) {
+            *out_value = (double)view->byte_offset;
+        }
+    } else if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
+        scriptgo_object *object = (scriptgo_object *)handle;
+        int index = object_field_index(object, property);
+        if (index >= 0 && index < object->field_count) {
+            memcpy(out_value, &object->fields[index], sizeof(*out_value));
+        }
+    }
+    return 0;
+}
 
 int scriptgo_object_is_number(double a, double b, int32_t *out_result) {
     if (out_result == NULL) {
@@ -434,6 +546,37 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
     if (!scriptgo_gc_is_registered(handle)) {
         *out_result = 0;
         return 0;
+    }
+    // Typed arrays and buffers have their own native header rather than a
+    // scriptgo_object type name. Their GC tag still lets instanceof preserve
+    // the JavaScript built-in identity without dereferencing an object layout.
+    int gc_tag = scriptgo_gc_get_tag(handle);
+    if (gc_tag == SCRIPTGO_ARRAYBUFFER_GC_TAG) {
+        *out_result = strcmp(class_name, "ArrayBuffer") == 0 ? 1 : 0;
+        return 0;
+    }
+    if (gc_tag == 6 && class_name != NULL) {
+        uint32_t magic = *(const uint32_t *)handle;
+        if (magic == SCRIPTGO_MAGIC_TYPEDARRAY || magic == SCRIPTGO_MAGIC_BUFFER) {
+            if (strcmp(class_name, "Buffer") == 0 ||
+                strcmp(class_name, "Uint8Array") == 0 ||
+                strcmp(class_name, "Int8Array") == 0 ||
+                strcmp(class_name, "Uint8ClampedArray") == 0 ||
+                strcmp(class_name, "Int16Array") == 0 ||
+                strcmp(class_name, "Uint16Array") == 0 ||
+                strcmp(class_name, "Int32Array") == 0 ||
+                strcmp(class_name, "Uint32Array") == 0 ||
+                strcmp(class_name, "Float32Array") == 0 ||
+                strcmp(class_name, "Float64Array") == 0 ||
+                strcmp(class_name, "BigInt64Array") == 0 ||
+                strcmp(class_name, "BigUint64Array") == 0) {
+                *out_result = 1;
+                return 0;
+            }
+        } else if (magic == SCRIPTGO_MAGIC_DATAVIEW && strcmp(class_name, "DataView") == 0) {
+            *out_result = 1;
+            return 0;
+        }
     }
     scriptgo_object *obj = (scriptgo_object *)handle;
     if (obj->magic != SCRIPTGO_OBJECT_MAGIC || obj->type_name == NULL) {

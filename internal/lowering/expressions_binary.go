@@ -15,7 +15,10 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if err != nil {
 			return "", "", err
 		}
-		if leftTyp == ir.TypeBool {
+		// Logical operators return one of their operands. The boolean-only
+		// short-circuit path is valid only when the whole expression is known to
+		// be boolean; otherwise `true && value` must preserve `value`'s type.
+		if leftTyp == ir.TypeBool && logicalResultIsBool(expression) {
 			res := result
 			if res == "" {
 				res = nextTemp(counter)
@@ -64,7 +67,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if err != nil {
 			return "", "", err
 		}
-		if leftTyp == ir.TypeBool {
+		if leftTyp == ir.TypeBool && logicalResultIsBool(expression) {
 			res := result
 			if res == "" {
 				res = nextTemp(counter)
@@ -728,6 +731,25 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 	}
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: leftType, Result: result, Operator: expression.Operator, Args: []string{left, right}, Span: toIRSpan(path, expression.Span)})
 	return result, leftType, nil
+}
+
+func logicalResultIsBool(expression *typescriptgo.SyntaxExpression) bool {
+	if expression == nil {
+		return false
+	}
+	if expression.InferredType != "" {
+		return toIRType(expression.InferredType) == ir.TypeBool
+	}
+	if expression.Right == nil {
+		return false
+	}
+	if expression.Right.Kind == "bool" {
+		return true
+	}
+	if expression.Right.Kind == "binary" && isComparison(expression.Right.Operator) {
+		return true
+	}
+	return false
 }
 
 func isPointerLikeType(typ ir.Type) bool {

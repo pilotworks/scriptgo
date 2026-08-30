@@ -67,6 +67,13 @@ console.log("copyBytesFrom_res: " + bCopyBytes.length);
 const bFrom = Buffer.from("hello");
 console.log("from_res: " + bFrom.toString());
 
+// @api: Buffer.from
+// @expect: from_arraybuffer_res: 7,8,9
+const backing = new ArrayBuffer(3);
+new Uint8Array(backing).set([7, 8, 9]);
+const bFromArrayBuffer = Buffer.from(backing);
+console.log("from_arraybuffer_res: " + bFromArrayBuffer.readUInt8(0) + "," + bFromArrayBuffer.readUInt8(1) + "," + bFromArrayBuffer.readUInt8(2));
+
 // @api: Buffer.isBuffer
 // @expect: isBuffer_res: true
 console.log("isBuffer_res: " + Buffer.isBuffer(bFrom));
@@ -452,7 +459,7 @@ const blob = new Blob(["hello"], { type: "text/plain" });
 console.log("blob_instance: " + (blob !== null));
 
 // @api: Blob.size
-// @expect: blob_size: 0
+// @expect: blob_size: 5
 console.log("blob_size: " + blob.size);
 
 // @api: Blob.type
@@ -460,16 +467,15 @@ console.log("blob_size: " + blob.size);
 console.log("blob_type: " + blob.type);
 
 // @api: Blob.arrayBuffer
-// @expect: blob_ab: true
-console.log("blob_ab: true");
-
 // @api: Blob.slice
-// @expect: blob_slice: true
-console.log("blob_slice: true");
-
 // @api: Blob.text
-// @expect: blob_text: true
-console.log("blob_text: true");
+// @expect: blob_async: 5 ell hello
+const runBlobAsync = async () => {
+    const blobBuffer = await blob.arrayBuffer();
+    const blobSlice = blob.slice(1, 4);
+    console.log("blob_async: " + blobBuffer.byteLength + " " + await blobSlice.text() + " " + await blob.text());
+};
+runBlobAsync();
 
 // @api: Blob.bytes
 // @expect: blob_bytes: true
@@ -540,7 +546,5 @@ console.log("maxLength_res: " + MAX_LENGTH);
 // @api: buffer.MAX_STRING_LENGTH
 // @expect: maxStringLength_res: 536870888
 console.log("maxStringLength_res: " + MAX_STRING_LENGTH);
-
-
 
 

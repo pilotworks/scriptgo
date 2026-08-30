@@ -70,7 +70,7 @@ func lowerTypedArrayReceiverMethod(
 		return result, receiverType, true, nil
 	}
 	if methodName == "set" && len(expression.Arguments) > 0 {
-		srcVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		srcVal, srcType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
 		}
@@ -85,10 +85,14 @@ func lowerTypedArrayReceiverMethod(
 			}
 			offsetVal = off
 		}
+		callee := "__typedarray.set"
+		if expression.Arguments[0].Kind == "array" || srcType == ir.TypeNumberArray || strings.HasSuffix(string(srcType), "[]") {
+			callee = "__typedarray.set_array"
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   ir.TypeVoid,
-			Callee: "__typedarray.set",
+			Callee: callee,
 			Args:   []string{receiver, srcVal, offsetVal},
 			Span:   toIRSpan(path, expression.Span),
 		})
@@ -244,10 +248,44 @@ func lowerArrayReceiverMethod(
 	}
 	args := []string{receiver}
 	elemType := arrayElementType(receiverType)
-	for _, argument := range expression.Arguments {
-		if (methodName == "push" || methodName == "unshift") && argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && elemType != "" {
-			argument.InferredType = string(elemType)
+	// The native array ABI appends/prepends one value per call. Expand the
+	// variadic JavaScript push/unshift operation here while preserving argument
+	// evaluation order and returning the length from the final operation.
+	if methodName == "push" || methodName == "unshift" {
+		if len(expression.Arguments) == 0 {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeNumber, Result: result,
+				Callee: "__array.length", Args: []string{receiver},
+				Span: toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeNumber, true, nil
 		}
+		lastResult := ""
+		for index, argument := range expression.Arguments {
+			if argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && elemType != "" {
+				argument.InferredType = string(elemType)
+			}
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			callResult := nextTemp(counter)
+			if index == len(expression.Arguments)-1 && result != "" {
+				callResult = result
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeNumber, Result: callResult,
+				Callee: "__array." + methodName, Args: []string{receiver, value},
+				Span: toIRSpan(path, expression.Span),
+			})
+			lastResult = callResult
+		}
+		return lastResult, ir.TypeNumber, true, nil
+	}
+	for _, argument := range expression.Arguments {
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err

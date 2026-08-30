@@ -559,7 +559,7 @@ static void sha512_final(unsigned char digest[64], SHA512_CTX *ctx) {
 // Generic Hash Digest Function
 // -------------------------------------------------------------
 static int compute_raw_hash(const char *algo, const unsigned char *data, size_t len, unsigned char *out_hash, size_t *out_len) {
-    if (strcasecmp(algo, "sha256") == 0) {
+    if (strcasecmp(algo, "sha256") == 0 || strcasecmp(algo, "sha-256") == 0) {
         SHA256_CTX ctx;
         sha256_init(&ctx);
         sha256_update(&ctx, data, len);
@@ -567,7 +567,7 @@ static int compute_raw_hash(const char *algo, const unsigned char *data, size_t 
         *out_len = 32;
         return 0;
     }
-    if (strcasecmp(algo, "sha512") == 0) {
+    if (strcasecmp(algo, "sha512") == 0 || strcasecmp(algo, "sha-512") == 0) {
         SHA512_CTX ctx;
         sha512_init(&ctx);
         sha512_update(&ctx, data, len);
@@ -575,7 +575,7 @@ static int compute_raw_hash(const char *algo, const unsigned char *data, size_t 
         *out_len = 64;
         return 0;
     }
-    if (strcasecmp(algo, "sha1") == 0) {
+    if (strcasecmp(algo, "sha1") == 0 || strcasecmp(algo, "sha-1") == 0) {
         SHA1_CTX ctx;
         sha1_init(&ctx);
         sha1_update(&ctx, data, len);
@@ -611,12 +611,31 @@ int scriptgo_crypto_hash_digest(const char *algo, const char *data, const char *
     return 0;
 }
 
+int scriptgo_crypto_hash_digest_buffer(const char *algo, void *data_handle, const char *encoding, char **out_digest) {
+    if (algo == NULL || data_handle == NULL || out_digest == NULL) {
+        return crypto_fail("crypto.createHash: invalid arguments");
+    }
+    scriptgo_crypto_buffer_view *view = (scriptgo_crypto_buffer_view *)data_handle;
+    if (view->length < 0 || (view->length > 0 && view->data == NULL)) {
+        return crypto_fail("crypto.createHash: invalid input buffer");
+    }
+    unsigned char hash[64];
+    size_t hash_len = 0;
+    if (compute_raw_hash(algo, view->data, (size_t)view->length, hash, &hash_len) != 0) {
+        return crypto_fail("crypto.createHash: unsupported digest algorithm");
+    }
+    char *res = format_digest_output(hash, hash_len, encoding);
+    if (res == NULL) return crypto_fail("crypto.createHash: format output failed");
+    *out_digest = res;
+    return 0;
+}
+
 // -------------------------------------------------------------
 // HMAC Implementation
 // -------------------------------------------------------------
 static int compute_raw_hmac(const char *algo, const unsigned char *key, size_t key_len, const unsigned char *data, size_t data_len, unsigned char *out_hmac, size_t *out_len) {
     size_t block_size = 64;
-    if (strcasecmp(algo, "sha512") == 0) {
+    if (strcasecmp(algo, "sha512") == 0 || strcasecmp(algo, "sha-512") == 0) {
         block_size = 128;
     }
     unsigned char k_pad[128];
@@ -683,6 +702,27 @@ int scriptgo_crypto_hmac_digest(const char *algo, const char *key, const char *d
     return 0;
 }
 
+int scriptgo_crypto_hmac_digest_buffer(const char *algo, void *key_handle, void *data_handle, const char *encoding, char **out_digest) {
+    if (algo == NULL || key_handle == NULL || data_handle == NULL || out_digest == NULL) {
+        return crypto_fail("crypto.createHmac: invalid arguments");
+    }
+    scriptgo_crypto_buffer_view *key = (scriptgo_crypto_buffer_view *)key_handle;
+    scriptgo_crypto_buffer_view *data = (scriptgo_crypto_buffer_view *)data_handle;
+    if (key->length < 0 || data->length < 0 ||
+        (key->length > 0 && key->data == NULL) || (data->length > 0 && data->data == NULL)) {
+        return crypto_fail("crypto.createHmac: invalid input buffer");
+    }
+    unsigned char hmac[64];
+    size_t hmac_len = 0;
+    if (compute_raw_hmac(algo, key->data, (size_t)key->length, data->data, (size_t)data->length, hmac, &hmac_len) != 0) {
+        return crypto_fail("crypto.createHmac: computation failed");
+    }
+    char *res = format_digest_output(hmac, hmac_len, encoding);
+    if (res == NULL) return crypto_fail("crypto.createHmac: format output failed");
+    *out_digest = res;
+    return 0;
+}
+
 // -------------------------------------------------------------
 // PBKDF2 Implementation
 // -------------------------------------------------------------
@@ -745,4 +785,189 @@ int scriptgo_crypto_pbkdf2_sync(const char *password, const char *salt, double i
     return 0;
 }
 
+typedef struct {
+    int64_t byte_length;
+    unsigned char *data;
+} scriptgo_crypto_array_buffer;
 
+int scriptgo_arraybuffer_new(int64_t byte_length, void **out_buffer);
+
+int scriptgo_crypto_hkdf_sync(const char *digest, const char *ikm, const char *salt, const char *info, double keylen, void **out_buffer) {
+    const char *algo = (digest != NULL && *digest != '\0') ? digest : "sha256";
+    size_t output_len = (size_t)keylen;
+    unsigned char hash_probe[64];
+    size_t hash_len = 0;
+    if (ikm == NULL || salt == NULL || info == NULL || out_buffer == NULL || keylen < 0 || keylen != keylen) {
+        return crypto_fail("crypto.hkdfSync: invalid arguments");
+    }
+    if (compute_raw_hash(algo, (const unsigned char *)"", 0, hash_probe, &hash_len) != 0 || hash_len == 0) {
+        return crypto_fail("crypto.hkdfSync: unsupported digest algorithm");
+    }
+    if (output_len > 255 * hash_len) {
+        return crypto_fail("crypto.hkdfSync: key length too large");
+    }
+    if (scriptgo_arraybuffer_new((int64_t)output_len, out_buffer) != 0) {
+        return crypto_fail("crypto.hkdfSync: buffer allocation failed");
+    }
+    scriptgo_crypto_array_buffer *buffer = (scriptgo_crypto_array_buffer *)*out_buffer;
+    unsigned char zero_salt[64];
+    unsigned char prk[64];
+    memset(zero_salt, 0, sizeof(zero_salt));
+    const unsigned char *salt_bytes = (const unsigned char *)salt;
+    size_t salt_len = strlen(salt);
+    if (salt_len == 0) { salt_bytes = zero_salt; salt_len = hash_len; }
+    if (compute_raw_hmac(algo, salt_bytes, salt_len, (const unsigned char *)ikm, strlen(ikm), prk, &hash_len) != 0) {
+        return crypto_fail("crypto.hkdfSync: extract failed");
+    }
+    unsigned char previous[64];
+    size_t previous_len = 0;
+    size_t produced = 0;
+    size_t info_len = strlen(info);
+    for (unsigned int block = 1; produced < output_len; block++) {
+        size_t input_len = previous_len + info_len + 1;
+        unsigned char *input = (unsigned char *)malloc(input_len);
+        if (input == NULL) return crypto_fail("crypto.hkdfSync: allocation failed");
+        memcpy(input, previous, previous_len);
+        memcpy(input + previous_len, info, info_len);
+        input[input_len - 1] = (unsigned char)block;
+        if (compute_raw_hmac(algo, prk, hash_len, input, input_len, previous, &previous_len) != 0) {
+            free(input);
+            return crypto_fail("crypto.hkdfSync: expand failed");
+        }
+        free(input);
+        size_t copy_len = output_len - produced < previous_len ? output_len - produced : previous_len;
+        if (copy_len > 0) memcpy(buffer->data + produced, previous, copy_len);
+        produced += copy_len;
+    }
+    return 0;
+}
+
+static int crypto_pbkdf2_raw(const char *algo, const unsigned char *password, size_t password_len,
+                             const unsigned char *salt, size_t salt_len, int iterations,
+                             unsigned char *derived, size_t derived_len) {
+    unsigned char probe[64];
+    size_t hash_len = 0;
+    if (iterations <= 0 || compute_raw_hash(algo, (const unsigned char *)"", 0, probe, &hash_len) != 0 || hash_len == 0) return -1;
+    size_t block_count = (derived_len + hash_len - 1) / hash_len;
+    unsigned char *u = malloc(hash_len);
+    unsigned char *f = malloc(hash_len);
+    unsigned char *salt_block = malloc(salt_len + 4);
+    if (u == NULL || f == NULL || salt_block == NULL) { free(u); free(f); free(salt_block); return -1; }
+    memcpy(salt_block, salt, salt_len);
+    for (size_t block = 1; block <= block_count; block++) {
+        salt_block[salt_len] = (unsigned char)((block >> 24) & 0xff);
+        salt_block[salt_len + 1] = (unsigned char)((block >> 16) & 0xff);
+        salt_block[salt_len + 2] = (unsigned char)((block >> 8) & 0xff);
+        salt_block[salt_len + 3] = (unsigned char)(block & 0xff);
+        size_t u_len = 0;
+        if (compute_raw_hmac(algo, password, password_len, salt_block, salt_len + 4, u, &u_len) != 0) { free(u); free(f); free(salt_block); return -1; }
+        memcpy(f, u, hash_len);
+        for (int iteration = 1; iteration < iterations; iteration++) {
+            if (compute_raw_hmac(algo, password, password_len, u, hash_len, u, &u_len) != 0) { free(u); free(f); free(salt_block); return -1; }
+            for (size_t i = 0; i < hash_len; i++) f[i] ^= u[i];
+        }
+        size_t offset = (block - 1) * hash_len;
+        size_t copy_len = derived_len - offset < hash_len ? derived_len - offset : hash_len;
+        memcpy(derived + offset, f, copy_len);
+    }
+    free(u); free(f); free(salt_block);
+    return 0;
+}
+
+static uint32_t crypto_load32(const unsigned char *p) {
+    return ((uint32_t)p[0]) | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void crypto_store32(unsigned char *p, uint32_t value) {
+    p[0] = (unsigned char)value;
+    p[1] = (unsigned char)(value >> 8);
+    p[2] = (unsigned char)(value >> 16);
+    p[3] = (unsigned char)(value >> 24);
+}
+
+static uint32_t crypto_rotl32(uint32_t value, int shift) {
+    return (value << shift) | (value >> (32 - shift));
+}
+
+static void crypto_salsa20_8(unsigned char block[64]) {
+    uint32_t x[16], original[16];
+    for (int i = 0; i < 16; i++) x[i] = original[i] = crypto_load32(block + i * 4);
+    for (int round = 0; round < 8; round += 2) {
+        x[4] ^= crypto_rotl32(x[0] + x[12], 7); x[8] ^= crypto_rotl32(x[4] + x[0], 9);
+        x[12] ^= crypto_rotl32(x[8] + x[4], 13); x[0] ^= crypto_rotl32(x[12] + x[8], 18);
+        x[9] ^= crypto_rotl32(x[5] + x[1], 7); x[13] ^= crypto_rotl32(x[9] + x[5], 9);
+        x[1] ^= crypto_rotl32(x[13] + x[9], 13); x[5] ^= crypto_rotl32(x[1] + x[13], 18);
+        x[14] ^= crypto_rotl32(x[10] + x[6], 7); x[2] ^= crypto_rotl32(x[14] + x[10], 9);
+        x[6] ^= crypto_rotl32(x[2] + x[14], 13); x[10] ^= crypto_rotl32(x[6] + x[2], 18);
+        x[3] ^= crypto_rotl32(x[15] + x[11], 7); x[7] ^= crypto_rotl32(x[3] + x[15], 9);
+        x[11] ^= crypto_rotl32(x[7] + x[3], 13); x[15] ^= crypto_rotl32(x[11] + x[7], 18);
+        x[1] ^= crypto_rotl32(x[0] + x[3], 7); x[2] ^= crypto_rotl32(x[1] + x[0], 9);
+        x[3] ^= crypto_rotl32(x[2] + x[1], 13); x[0] ^= crypto_rotl32(x[3] + x[2], 18);
+        x[6] ^= crypto_rotl32(x[5] + x[4], 7); x[7] ^= crypto_rotl32(x[6] + x[5], 9);
+        x[4] ^= crypto_rotl32(x[7] + x[6], 13); x[5] ^= crypto_rotl32(x[4] + x[7], 18);
+        x[11] ^= crypto_rotl32(x[10] + x[9], 7); x[8] ^= crypto_rotl32(x[11] + x[10], 9);
+        x[9] ^= crypto_rotl32(x[8] + x[11], 13); x[10] ^= crypto_rotl32(x[9] + x[8], 18);
+        x[12] ^= crypto_rotl32(x[15] + x[14], 7); x[13] ^= crypto_rotl32(x[12] + x[15], 9);
+        x[14] ^= crypto_rotl32(x[13] + x[12], 13); x[15] ^= crypto_rotl32(x[14] + x[13], 18);
+    }
+    for (int i = 0; i < 16; i++) crypto_store32(block + i * 4, x[i] + original[i]);
+}
+
+static void crypto_blockmix(const unsigned char *input, unsigned char *output, size_t r) {
+    size_t blocks = 2 * r;
+    unsigned char x[64];
+    unsigned char *y = malloc(blocks * 64);
+    if (y == NULL) return;
+    memcpy(x, input + (blocks - 1) * 64, 64);
+    for (size_t i = 0; i < blocks; i++) {
+        for (size_t j = 0; j < 64; j++) x[j] ^= input[i * 64 + j];
+        crypto_salsa20_8(x);
+        memcpy(y + i * 64, x, 64);
+    }
+    for (size_t i = 0; i < r; i++) memcpy(output + i * 64, y + (2 * i) * 64, 64);
+    for (size_t i = 0; i < r; i++) memcpy(output + (r + i) * 64, y + (2 * i + 1) * 64, 64);
+    free(y);
+}
+
+static uint64_t crypto_integerify(const unsigned char *block, size_t r) {
+    const unsigned char *last = block + (2 * r - 1) * 64;
+    uint64_t value = 0;
+    for (int i = 0; i < 8; i++) value |= ((uint64_t)last[i]) << (8 * i);
+    return value;
+}
+
+int scriptgo_crypto_scrypt_sync(const char *password, const char *salt, double keylen, void **out_buffer) {
+    const size_t n = 16384, r = 8, p = 1;
+    const size_t block_len = 128 * r;
+    size_t output_len = (size_t)keylen;
+    if (password == NULL || salt == NULL || out_buffer == NULL || keylen < 0 || keylen != keylen || output_len > 1024 * 1024) {
+        return crypto_fail("crypto.scryptSync: invalid arguments");
+    }
+    if (scriptgo_buffer_alloc((double)output_len, NULL, 0, 0, 0, out_buffer) != 0) return crypto_fail("crypto.scryptSync: buffer allocation failed");
+    scriptgo_crypto_buffer_view *result = (scriptgo_crypto_buffer_view *)*out_buffer;
+    size_t b_len = block_len * p;
+    unsigned char *b = malloc(b_len);
+    unsigned char *v = malloc(block_len * n);
+    unsigned char *x = malloc(block_len);
+    unsigned char *y = malloc(block_len);
+    if (b == NULL || v == NULL || x == NULL || y == NULL) { free(b); free(v); free(x); free(y); return crypto_fail("crypto.scryptSync: memory allocation failed"); }
+    if (crypto_pbkdf2_raw("sha256", (const unsigned char *)password, strlen(password), (const unsigned char *)salt, strlen(salt), 1, b, b_len) != 0) {
+        free(b); free(v); free(x); free(y); return crypto_fail("crypto.scryptSync: initial derivation failed");
+    }
+    for (size_t part = 0; part < p; part++) {
+        unsigned char *part_b = b + part * block_len;
+        memcpy(x, part_b, block_len);
+        for (size_t i = 0; i < n; i++) { memcpy(v + i * block_len, x, block_len); crypto_blockmix(x, y, r); unsigned char *tmp = x; x = y; y = tmp; }
+        for (size_t i = 0; i < n; i++) {
+            size_t j = (size_t)(crypto_integerify(x, r) & (n - 1));
+            for (size_t k = 0; k < block_len; k++) x[k] ^= v[j * block_len + k];
+            crypto_blockmix(x, y, r); unsigned char *tmp = x; x = y; y = tmp;
+        }
+        memcpy(part_b, x, block_len);
+    }
+    if (crypto_pbkdf2_raw("sha256", (const unsigned char *)password, strlen(password), b, b_len, 1, result->data, output_len) != 0) {
+        free(b); free(v); free(x); free(y); return crypto_fail("crypto.scryptSync: final derivation failed");
+    }
+    free(b); free(v); free(x); free(y);
+    return 0;
+}

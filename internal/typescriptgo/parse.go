@@ -279,7 +279,9 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 		if module, ok := builtinModule(specifier.Text()); ok {
 			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 			resolvedFileName := ""
-			if resolved != nil && resolved.ResolvedFileName != "" && !strings.HasSuffix(resolved.ResolvedFileName, ".d.ts") {
+			if module.Name == "stream_consumers" {
+				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "consumers", "index.ts")
+			} else if resolved != nil && resolved.ResolvedFileName != "" && !strings.HasSuffix(resolved.ResolvedFileName, ".d.ts") {
 				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
 			} else {
 				resolvedFileName = filepath.Clean(filepath.Join(cwd, "node_modules", module.Name, "index.ts"))

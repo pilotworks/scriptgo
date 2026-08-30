@@ -23,6 +23,13 @@ import {
     toWeb,
     isDisturbed
 } from "node:stream";
+import {
+    arrayBuffer as consumeArrayBuffer,
+    blob as consumeBlob,
+    buffer as consumeBuffer,
+    json as consumeJSON,
+    text as consumeText
+} from "node:stream/consumers";
 
 // @api: stream.getDefaultHighWaterMark
 // @expect: 65536
@@ -132,3 +139,27 @@ const rSig = new Readable({ read: () => {} });
 rSig.on("error", () => {});
 addAbortSignal({ aborted: true }, rSig);
 console.log("addAbortSignal_destroyed: " + (rSig.destroyed ? "true" : "false"));
+
+// @api: stream.consumers.buffer
+// @api: stream.consumers.text
+// @api: stream.consumers.json
+// @api: stream.consumers.arrayBuffer
+// @api: stream.consumers.blob
+// @expect: stream_consumer_buffer: abcd
+// @expect: stream_consumer_text: hello
+// @expect: stream_consumer_json: true
+// @expect: stream_consumer_arraybuffer: 3
+// @expect: stream_consumer_blob: 4 data
+const runStreamConsumers = async () => {
+    const consumedBuffer = await consumeBuffer(Readable.from(["ab", "cd"]));
+    console.log("stream_consumer_buffer: " + consumedBuffer.toString());
+    const consumedText = await consumeText(Readable.from(["hel", "lo"]));
+    console.log("stream_consumer_text: " + consumedText);
+    const consumedJSON = await consumeJSON(Readable.from(["{\"ok\":true}"])) as { ok: boolean };
+    console.log("stream_consumer_json: " + consumedJSON.ok);
+    const consumedArrayBuffer = await consumeArrayBuffer(Readable.from(["xyz"]));
+    console.log("stream_consumer_arraybuffer: " + consumedArrayBuffer.byteLength);
+    const consumedBlob = await consumeBlob(Readable.from(["data"]));
+    console.log("stream_consumer_blob: " + consumedBlob.size + " " + await consumedBlob.text());
+};
+runStreamConsumers();

@@ -628,6 +628,22 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__crypto.hashDigestBuffer":
+		if len(instruction.Args) < 2 || len(instruction.Args) > 3 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("crypto.hashDigestBuffer has invalid signature")
+		}
+		encodingArg := "null"
+		if len(instruction.Args) == 3 {
+			encodingArg = fmt.Sprintf("%%%s", instruction.Args[2])
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_hash_digest_buffer(ptr %%%s, ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], encodingArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	case "__crypto.randomBytes":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBuffer {
 			return fmt.Errorf("crypto.randomBytes has invalid signature")
@@ -701,6 +717,22 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__crypto.hmacDigestBuffer":
+		if len(instruction.Args) < 3 || len(instruction.Args) > 4 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("crypto.hmacDigestBuffer has invalid signature")
+		}
+		encodingArg := "null"
+		if len(instruction.Args) == 4 {
+			encodingArg = fmt.Sprintf("%%%s", instruction.Args[3])
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_hmac_digest_buffer(ptr %%%s, ptr %%%s, ptr %%%s, ptr %s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], encodingArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	case "__crypto.pbkdf2Sync":
 		if len(instruction.Args) < 4 || len(instruction.Args) > 5 || instruction.Type != ir.TypeBuffer {
 			return fmt.Errorf("crypto.pbkdf2Sync has invalid signature")
@@ -715,6 +747,30 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_pbkdf2_sync(ptr %%%s, ptr %%%s, double %%%s, double %%%s, ptr %s, ptr %%%s)\n",
 			status, instruction.Args[0], instruction.Args[1], instruction.Args[2], instruction.Args[3], digestArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__crypto.hkdfSync":
+		if len(instruction.Args) != 5 || instruction.Type != ir.TypeArrayBuffer {
+			return fmt.Errorf("crypto.hkdfSync has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_hkdf_sync(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], instruction.Args[3], instruction.Args[4], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__crypto.scryptSync":
+		if len(instruction.Args) != 3 || instruction.Type != ir.TypeBuffer {
+			return fmt.Errorf("crypto.scryptSync has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_scrypt_sync(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -1067,17 +1123,17 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
-	case "__json.parse_string":
-		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+	case "__json.parse_unknown":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeUnknown {
 			return fmt.Errorf("JSON.parse has invalid signature")
 		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_parse_string(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64 }\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_parse_unknown(ptr %%%s, ptr %%%s)\n", status, argVal, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", instruction.Result, slot)
 		return nil
 	default:
 		return fmt.Errorf("unknown JSON intrinsic %q", instruction.Callee)

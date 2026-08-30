@@ -69,6 +69,12 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]str
 	for i := range res.Else {
 		res.Else[i] = rewriteStatementTypes(res.Else[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}
+	for i := range res.Cases {
+		res.Cases[i].Expression = rewriteExpr(res.Cases[i].Expression, env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+		for j := range res.Cases[i].Statements {
+			res.Cases[i].Statements[j] = rewriteStatementTypes(res.Cases[i].Statements[j], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
+		}
+	}
 	for i := range res.Catch {
 		res.Catch[i] = rewriteStatementTypes(res.Catch[i], env, genericFuncs, genericClasses, genericMethods, reqFn, reqCls, reqMethod, fileName)
 	}

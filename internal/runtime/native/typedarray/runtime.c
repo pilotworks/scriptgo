@@ -8,6 +8,9 @@ int scriptgo_runtime_set_error(const char *message);
 
 #define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252 // "TARR"
 #define SCRIPTGO_MAGIC_DATAVIEW   0x44564957 // "DVIW"
+#define SCRIPTGO_ARRAYBUFFER_GC_TAG 10
+
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 
 typedef struct {
     int64_t byte_length;
@@ -79,6 +82,11 @@ int scriptgo_arraybuffer_new(int64_t byte_length, void **out_buffer) {
             free(buf);
             return typedarray_fail("scriptgo ArrayBuffer allocation failed");
         }
+    }
+    if (scriptgo_gc_register(buf, SCRIPTGO_ARRAYBUFFER_GC_TAG, 0) != 0) {
+        free(buf->data);
+        free(buf);
+        return -1;
     }
     *out_buffer = buf;
     return 0;
@@ -156,8 +164,6 @@ static int64_t typedarray_element_size(scriptgo_typedarray_kind kind) {
         return 1;
     }
 }
-
-int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 
 int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, int64_t byte_offset, void **out_array) {
     if (out_array == NULL || length < 0 || byte_offset < 0) {
@@ -467,6 +473,30 @@ int scriptgo_typedarray_set_array(void *target_handle, void *src_handle, double 
             scriptgo_typedarray_get(src, (double)i, &val);
             scriptgo_typedarray_set(target, (double)(offset + i), val);
         }
+    }
+    return 0;
+}
+
+int scriptgo_typedarray_set_js_array(void *target_handle, void *src_handle, double offset_d) {
+    scriptgo_typed_array *target = (scriptgo_typed_array *)target_handle;
+    if (target == NULL || src_handle == NULL) return typedarray_fail("scriptgo TypedArray set failed");
+    typedef struct {
+        int64_t length;
+        int64_t capacity;
+        int64_t element_size;
+        unsigned char *data;
+    } scriptgo_js_array;
+    scriptgo_js_array *src = (scriptgo_js_array *)src_handle;
+    int64_t offset = (int64_t)offset_d;
+    if (offset < 0 || offset + src->length > target->length) {
+        return typedarray_fail("scriptgo TypedArray set offset out of bounds");
+    }
+    for (int64_t i = 0; i < src->length; i++) {
+        double value = 0.0;
+        if (src->element_size == (int64_t)sizeof(double)) {
+            memcpy(&value, src->data + i * sizeof(double), sizeof(double));
+        }
+        if (scriptgo_typedarray_set(target, (double)(offset + i), value) != 0) return -1;
     }
     return 0;
 }

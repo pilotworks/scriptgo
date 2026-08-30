@@ -1,3 +1,5 @@
+import { Blob, Buffer } from "node:buffer";
+
 declare namespace __scriptgo {
     function streamGetDefaultHighWaterMark(objectMode: boolean): number;
     function streamSetDefaultHighWaterMark(objectMode: boolean, value: number): void;
@@ -1532,39 +1534,63 @@ export class StreamPromises {
 export class StreamConsumers {
     _tag: string = "consumers";
 
-    async buffer(stream: unknown): Promise<Uint8Array> {
-        let res = "";
-        if (stream instanceof Stream) {
-            const s = stream as Stream;
-            s.on("data", (chunk: unknown) => {
-                res = res + String(chunk);
-            });
+    private _readable(stream: Readable | WebReadableStream): Readable | null {
+        if (stream instanceof Readable) {
+            return stream;
         }
-        return Buffer.from(res);
+        if (stream instanceof WebReadableStream && stream._stream instanceof Readable) {
+            return stream._stream;
+        }
+        return null;
     }
 
-    async text(stream: unknown): Promise<string> {
-        let res = "";
-        if (stream instanceof Stream) {
-            const s = stream as Stream;
-            s.on("data", (chunk: unknown) => {
-                res = res + String(chunk);
-            });
+    private _chunkBuffer(chunk: unknown): Buffer {
+        if (typeof chunk === "string") {
+            return Buffer.from(chunk);
         }
-        return res;
+        if (Buffer.isBuffer(chunk)) {
+            return chunk;
+        }
+        if (chunk instanceof Uint8Array || chunk instanceof ArrayBuffer) {
+            return Buffer.from(chunk);
+        }
+        return Buffer.from(String(chunk));
     }
 
-    async json(stream: unknown): Promise<unknown> {
+    async buffer(stream: Readable | WebReadableStream): Promise<Buffer> {
+        const readable = this._readable(stream);
+        if (readable === null) {
+            return Buffer.alloc(0);
+        }
+
+        return new Promise<Buffer>((resolve, reject) => {
+            const chunks: Buffer[] = [];
+            readable.once("error", (err: Error) => reject(err));
+            readable.once("end", () => resolve(Buffer.concat(chunks)));
+            readable.on("data", (chunk: unknown) => {
+                chunks.push(this._chunkBuffer(chunk));
+            });
+        });
+    }
+
+    async text(stream: Readable | WebReadableStream): Promise<string> {
+        return (await this.buffer(stream)).toString();
+    }
+
+    async json(stream: Readable | WebReadableStream): Promise<unknown> {
         const t = await this.text(stream);
         return JSON.parse(t);
     }
 
-    async arrayBuffer(stream: unknown): Promise<ArrayBuffer> {
-        return new ArrayBuffer(0);
+    async arrayBuffer(stream: Readable | WebReadableStream): Promise<ArrayBuffer> {
+        const bytes = await this.buffer(stream);
+        const result = new ArrayBuffer(bytes.length);
+        new Uint8Array(result).set(bytes);
+        return result;
     }
 
-    async blob(stream: unknown): Promise<unknown> {
-        return this.buffer(stream);
+    async blob(stream: Readable | WebReadableStream): Promise<Blob> {
+        return new Blob([await this.buffer(stream)]);
     }
 }
 
@@ -1613,4 +1639,3 @@ export default {
     promises,
     consumers,
 };
-

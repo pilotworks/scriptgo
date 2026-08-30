@@ -522,13 +522,19 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 
 				// Lower methods, static methods, getters, setters
 				allMethods := getInheritedMethods(statement.Class.Name, hierarchy)
-				for _, method := range allMethods {
-					if method.IsAbstract || method.Body == nil {
-						continue
-					}
+					for _, method := range allMethods {
+						if method.IsAbstract || method.Body == nil {
+							continue
+						}
 					var mangled string
 					var params []typescriptgo.SyntaxParameter
-					retType := method.Type
+						retType := method.Type
+						// TypeScript's polymorphic `this` return type is the concrete
+						// class type at each method boundary. Keeping it as the literal
+						// `this` type makes the next chained call lose its receiver class.
+						if retType == "this" || retType == "object:this" {
+							retType = "object:" + statement.Class.Name
+						}
 					var cleanParams []typescriptgo.SyntaxParameter
 					for _, p := range method.Parameters {
 						if p.Name != "this" {

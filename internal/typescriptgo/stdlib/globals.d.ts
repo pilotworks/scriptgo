@@ -756,7 +756,7 @@ interface BufferConstructor {
     from(str: string, encoding?: string): Buffer;
     from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
     concat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
-    isBuffer(obj: unknown): boolean;
+    isBuffer(obj: unknown): obj is Buffer;
     byteLength(string: string, encoding?: string): number;
     readonly prototype: Buffer;
 }
@@ -1660,5 +1660,4 @@ declare var crypto: Crypto;
 
 declare function fetch(input: unknown, init?: unknown): Promise<Response>;
 declare function require(id: string): unknown;
-
 

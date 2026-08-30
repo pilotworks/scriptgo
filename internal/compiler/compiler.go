@@ -198,8 +198,9 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err := os.WriteFile(temporaryPath, []byte(output), 0o644); err != nil {
 		return fmt.Errorf("write temporary LLVM file: %w", err)
 	}
+	codecConfig := nativeCodecConfigForTarget(options.Target)
 	var args []string
-	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options)
+	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig)
 	if err != nil {
 		runtimePath := filepath.Join(temporaryDir, "runtime.c")
 		runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
@@ -207,9 +208,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 			return fmt.Errorf("write temporary runtime file: %w", err)
 		}
 		args = []string{temporaryPath, "-x", "c", runtimePath, "-x", "none"}
+		args = append(args, codecConfig.compileFlags...)
 	} else {
 		args = []string{temporaryPath, runtimeObj}
 	}
+	args = append(args, codecConfig.linkFlags...)
 
 	// Process FFI manifests and extra native sources
 	var extraLibs []string
@@ -386,7 +389,7 @@ func Check(entryPath string) error {
 
 var runtimeCacheMu sync.Mutex
 
-func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, error) {
+func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig nativeCodecConfig) (string, error) {
 	if len(ccParts) == 0 {
 		return "", fmt.Errorf("no C compiler specified")
 	}
@@ -409,6 +412,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
 	h.Write([]byte("sections-v1"))
+	h.Write([]byte(codecConfig.cacheKey()))
 	if options.LTO != "" && options.LTO != "none" {
 		h.Write([]byte("lto:" + options.LTO))
 	}
@@ -433,6 +437,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions) (string, er
 	defer os.Remove(tmpObjPath)
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
+	buildArgs = append(buildArgs, codecConfig.compileFlags...)
 	buildArgs = append(buildArgs, "-ffunction-sections", "-fdata-sections", "-c", tmpSrcPath, "-o", tmpObjPath)
 	if options.OptLevel != "" {
 		buildArgs = append(buildArgs, "-O"+options.OptLevel)

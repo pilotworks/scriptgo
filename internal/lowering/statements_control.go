@@ -1070,6 +1070,12 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		applyConditionNarrowing(expr.Right, thenEnv, elseEnv, baseEnv, shapes)
 		return
 	}
+	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==" || expr.Operator == "!==" || expr.Operator == "!=") {
+		if applyTypeofNarrowing(expr, thenEnv, elseEnv, baseEnv) {
+			// The remaining equality cases below handle nullish and discriminant
+			// narrowing; typeof has already populated both branches here.
+		}
+	}
 	if expr.Kind == "binary" && expr.Operator == "in" && expr.Left != nil && (expr.Left.Kind == "string" || expr.Left.Kind == "literal") && expr.Right != nil && expr.Right.Kind == "identifier" {
 		varName := expr.Right.Text
 		propName := strings.Trim(expr.Left.Text, "\"'`")
@@ -1091,24 +1097,32 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		}
 		return
 	}
-	if expr.Kind == "binary" && expr.Operator == "instanceof" && expr.Left != nil && expr.Left.Kind == "identifier" && expr.Right != nil && (expr.Right.Kind == "identifier" || expr.Right.Kind == "type") {
+	if expr.Kind == "binary" && expr.Operator == "instanceof" && expr.Left != nil && expr.Right != nil && (expr.Right.Kind == "identifier" || expr.Right.Kind == "type") {
 		varName := expr.Left.Text
 		className := expr.Right.Text
-		thenEnv[varName] = toIRType(className)
-		if currType, ok := baseEnv[varName]; ok {
-			cleanCurr := strings.TrimPrefix(string(currType), "object:")
-			if strings.Contains(cleanCurr, "|") {
-				var remaining []string
-				for _, part := range strings.Split(cleanCurr, "|") {
-					trimmed := strings.TrimSpace(part)
-					if trimmed != className && trimmed != "object:"+className {
-						remaining = append(remaining, trimmed)
+		if expr.Left.Kind == "identifier" {
+			thenEnv[varName] = toIRType(className)
+			if currType, ok := baseEnv[varName]; ok {
+				cleanCurr := strings.TrimPrefix(string(currType), "object:")
+				if strings.Contains(cleanCurr, "|") {
+					var remaining []string
+					for _, part := range strings.Split(cleanCurr, "|") {
+						trimmed := strings.TrimSpace(part)
+						if trimmed != className && trimmed != "object:"+className {
+							remaining = append(remaining, trimmed)
+						}
+					}
+					if len(remaining) > 0 {
+						elseEnv[varName] = toIRType(strings.Join(remaining, " | "))
 					}
 				}
-				if len(remaining) > 0 {
-					elseEnv[varName] = toIRType(strings.Join(remaining, " | "))
-				}
 			}
+			return
+		}
+		if propertyPath := extractPropertyPath(expr.Left); len(propertyPath) > 0 {
+			// TypeScript narrows dotted names (for example result.value) as
+			// well as identifiers. Keep that fact in the branch environment.
+			thenEnv[strings.Join(propertyPath, ".")] = toIRType(className)
 		}
 		return
 	}
@@ -1228,33 +1242,8 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 				}
 			}
 		}
-		if left != nil && left.Kind == "typeof" && left.Left != nil && left.Left.Kind == "identifier" && right != nil && (right.Kind == "string" || right.Kind == "literal") {
-			varName := left.Left.Text
-			valStr := strings.Trim(right.Text, "\"'`")
-			switch valStr {
-			case "number":
-				thenEnv[varName] = ir.TypeNumber
-			case "string":
-				thenEnv[varName] = ir.TypeString
-			case "boolean":
-				thenEnv[varName] = ir.TypeBool
-			case "bigint":
-				thenEnv[varName] = ir.TypeBigInt
-			}
-		} else if right != nil && right.Kind == "typeof" && right.Left != nil && right.Left.Kind == "identifier" && left != nil && (left.Kind == "string" || left.Kind == "literal") {
-			varName := right.Left.Text
-			valStr := strings.Trim(left.Text, "\"'`")
-			switch valStr {
-			case "number":
-				thenEnv[varName] = ir.TypeNumber
-			case "string":
-				thenEnv[varName] = ir.TypeString
-			case "boolean":
-				thenEnv[varName] = ir.TypeBool
-			case "bigint":
-				thenEnv[varName] = ir.TypeBigInt
-			}
-		}
+		// typeof narrowing is applied above so that both the true and false
+		// branches retain the useful remainder of a source-level union.
 		var propAccess *typescriptgo.SyntaxExpression
 		var literalVal *typescriptgo.SyntaxExpression
 		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {
@@ -1275,6 +1264,131 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			}
 		}
 	}
+}
+
+func applyTypeofNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseEnv, baseEnv map[string]ir.Type) bool {
+	if expr == nil || expr.Kind != "binary" {
+		return false
+	}
+	var operand, literal *typescriptgo.SyntaxExpression
+	if expr.Left != nil && expr.Left.Kind == "typeof" && expr.Left.Left != nil && expr.Left.Left.Kind == "identifier" && expr.Right != nil {
+		operand, literal = expr.Left.Left, expr.Right
+	} else if expr.Right != nil && expr.Right.Kind == "typeof" && expr.Right.Left != nil && expr.Right.Left.Kind == "identifier" && expr.Left != nil {
+		operand, literal = expr.Right.Left, expr.Left
+	} else {
+		return false
+	}
+	if literal.Kind != "string" && literal.Kind != "literal" {
+		return false
+	}
+	target := strings.Trim(literal.Text, "\"'`")
+	if target != "number" && target != "string" && target != "boolean" && target != "bigint" && target != "symbol" && target != "function" && target != "object" && target != "undefined" {
+		return false
+	}
+	name := operand.Text
+	decl := string(baseEnv["__decl_str."+name])
+	if decl == "" {
+		decl = string(baseEnv[name])
+	}
+	decl = expandAliasForNarrowing(decl, nil)
+	matched := typeofTargetIRType(target)
+	if matched == "" {
+		return false
+	}
+	keepMatch := expr.Operator == "==" || expr.Operator == "==="
+	if keepMatch {
+		thenEnv[name] = matched
+		if remainder := excludeTypeofFromUnion(decl, target); remainder != "" {
+			elseEnv[name] = remainder
+		}
+	} else {
+		if remainder := excludeTypeofFromUnion(decl, target); remainder != "" {
+			thenEnv[name] = remainder
+		}
+		elseEnv[name] = matched
+	}
+	return true
+}
+
+func typeofTargetIRType(target string) ir.Type {
+	switch target {
+	case "number":
+		return ir.TypeNumber
+	case "string":
+		return ir.TypeString
+	case "boolean":
+		return ir.TypeBool
+	case "bigint":
+		return ir.TypeBigInt
+	case "symbol":
+		return ir.TypeSymbol
+	case "function":
+		return ir.TypeClosure
+	case "object":
+		return ir.TypeObject
+	case "undefined":
+		return ir.TypeUnknown
+	default:
+		return ""
+	}
+}
+
+func expandAliasForNarrowing(value string, seen map[string]bool) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if seen == nil {
+		seen = map[string]bool{}
+	}
+	if seen[value] {
+		return value
+	}
+	if alias, ok := typeAliasesIndex[value]; ok && alias != value {
+		seen[value] = true
+		return expandAliasForNarrowing(alias, seen)
+	}
+	return value
+}
+
+func excludeTypeofFromUnion(decl, target string) ir.Type {
+	decl = expandAliasForNarrowing(decl, nil)
+	parts := splitTopLevelUnion(decl)
+	if len(parts) <= 1 {
+		return ""
+	}
+	remaining := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || typeMatchesTypeof(part, target) {
+			continue
+		}
+		remaining = append(remaining, part)
+	}
+	if len(remaining) == 0 {
+		return ir.TypeVoid
+	}
+	if len(remaining) == 1 {
+		return toIRType(remaining[0])
+	}
+	return toIRType(strings.Join(remaining, " | "))
+}
+
+func typeMatchesTypeof(typeName, target string) bool {
+	typeName = strings.TrimSpace(typeName)
+	if target == "string" {
+		return typeName == "string" || (strings.HasPrefix(typeName, "\"") && strings.HasSuffix(typeName, "\"")) || (strings.HasPrefix(typeName, "'") && strings.HasSuffix(typeName, "'"))
+	}
+	if target == "boolean" {
+		return typeName == "boolean" || typeName == "bool" || typeName == "true" || typeName == "false"
+	}
+	if target == "object" {
+		return typeName == "object" || strings.HasPrefix(typeName, "object:") || (!strings.ContainsAny(typeName, "|&") && toIRType(typeName) != ir.TypeString && toIRType(typeName) != ir.TypeNumber && toIRType(typeName) != ir.TypeBool && toIRType(typeName) != ir.TypeBigInt && toIRType(typeName) != ir.TypeSymbol && toIRType(typeName) != ir.TypeClosure)
+	}
+	if target == "function" {
+		return strings.Contains(typeName, "=>") || toIRType(typeName) == ir.TypeClosure
+	}
+	return typeName == target
 }
 
 func narrowUnionTypeString(declStr string, excludeKind string) ir.Type {

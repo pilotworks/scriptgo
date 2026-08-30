@@ -43,9 +43,14 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		keyType := e.types[origKey]
 		valType := e.types[origVal]
 		keyArg := e.resolveArg(out, origKey)
+		keyStrArg, _, _ := e.mapKeyArgs(out, keyArg, keyType)
 		valArg := e.resolveArg(out, origVal)
 		if valType != ir.TypeNumber && valType != ir.TypeString {
-			valArg = e.ensurePointerArg(out, origVal)
+			if valType == ir.TypeBigInt {
+				valArg = e.resolveArg(out, origVal)
+			} else {
+				valArg = e.ensurePointerArg(out, origVal)
+			}
 		}
 
 		slot := instruction.Result + ".slot"
@@ -60,6 +65,16 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_number_string(ptr %%%s, double %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
 			} else {
 				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_number_ptr(ptr %%%s, double %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
+			}
+		} else if keyType == ir.TypeBigInt {
+			if valType == ir.TypeNumber {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_number(ptr %%%s, ptr %s, double %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
+			} else if valType == ir.TypeString {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_string(ptr %%%s, ptr %s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
+			} else if valType == ir.TypeBigInt {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_bigint(ptr %%%s, ptr %s, i64 %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
+			} else {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_ptr(ptr %%%s, ptr %s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
 			}
 		} else {
 			if valType == ir.TypeNumber {
@@ -84,14 +99,8 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		keyArg := e.resolveArg(out, origKey)
 		retType := instruction.Type
 
-		keyIsStr := "1"
-		keyStrArg := fmt.Sprintf("%%%s", keyArg)
-		keyNumArg := "0.0"
-		if keyType == ir.TypeNumber {
-			keyIsStr = "0"
-			keyStrArg = "null"
-			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown {
+		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
+		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.get.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -115,6 +124,11 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_string(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		} else if retType == ir.TypeBigInt {
+			fmt.Fprintf(out, "  %%%s = alloca i64\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_bigint(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
 		} else if retType == ir.TypeUnknown {
 			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_ptr(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
@@ -141,14 +155,8 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		keyType := e.types[origKey]
 		keyArg := e.resolveArg(out, origKey)
 
-		keyIsStr := "1"
-		keyStrArg := fmt.Sprintf("%%%s", keyArg)
-		keyNumArg := "0.0"
-		if keyType == ir.TypeNumber {
-			keyIsStr = "0"
-			keyStrArg = "null"
-			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown {
+		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
+		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.has.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -177,14 +185,8 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		keyType := e.types[origKey]
 		keyArg := e.resolveArg(out, origKey)
 
-		keyIsStr := "1"
-		keyStrArg := fmt.Sprintf("%%%s", keyArg)
-		keyNumArg := "0.0"
-		if keyType == ir.TypeNumber {
-			keyIsStr = "0"
-			keyStrArg = "null"
-			keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		} else if keyType == ir.TypeUnknown {
+		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
+		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.del.unbox.payload.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
@@ -299,6 +301,36 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 	default:
 		return fmt.Errorf("unsupported Map intrinsic %q", instruction.Callee)
 	}
+}
+
+// mapKeyArgs normalizes map keys to the ABI accepted by the native map
+// runtime. BigInt keys use their decimal string representation so the full
+// signed 64-bit value remains exact instead of being narrowed to a double.
+func (e *functionEmitter) mapKeyArgs(out *strings.Builder, keyArg string, keyType ir.Type) (keyStrArg, keyNumArg, keyIsStr string) {
+	keyStrArg = fmt.Sprintf("%%%s", keyArg)
+	keyNumArg = "0.0"
+	keyIsStr = "1"
+	if keyType == ir.TypeNumber {
+		keyIsStr = "0"
+		keyStrArg = "null"
+		keyNumArg = fmt.Sprintf("%%%s", keyArg)
+		return
+	}
+	if keyType != ir.TypeBigInt {
+		return
+	}
+	slot := fmt.Sprintf("map.key.%d.slot", e.loadCounter)
+	e.loadCounter++
+	status := fmt.Sprintf("map.key.%d.status", e.loadCounter)
+	e.loadCounter++
+	value := fmt.Sprintf("map.key.%d", e.loadCounter)
+	e.loadCounter++
+	fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%%s)\n", status, keyArg, slot)
+	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+	fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", value, slot)
+	keyStrArg = fmt.Sprintf("%%%s", value)
+	return
 }
 
 func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.Instruction) error {

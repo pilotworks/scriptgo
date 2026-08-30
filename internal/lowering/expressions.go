@@ -803,7 +803,8 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					}
 				}
 			}
-			if (storageType == ir.TypeUnknown && rawEnvType != ir.TypeUnknown && rawEnvType != "") || (isOriginallyUnknown && typ != ir.TypeUnknown && typ != "") {
+			isNarrowedParameter := isParam && origParamType != "" && typ != "" && typ != ir.TypeUnknown && origParamType != typ
+			if (storageType == ir.TypeUnknown && rawEnvType != ir.TypeUnknown && rawEnvType != "") || (isOriginallyUnknown && typ != ir.TypeUnknown && typ != "") || isNarrowedParameter {
 				if result == "" {
 					result = nextTemp(counter)
 				}
@@ -912,6 +913,52 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				Span:   toIRSpan(path, expression.Span),
 			})
 			return result, ir.TypeUnknown, nil
+		}
+		srcVal := val
+		if valType != ir.TypeUnknown && !strings.HasPrefix(string(valType), "object:") && !strings.Contains(string(valType), "|") {
+			boxed := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpBoxUnknown,
+				Type:   ir.TypeUnknown,
+				Result: boxed,
+				Args:   []string{val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			srcVal = boxed
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpCheckedCast,
+			Type:   targetIRType,
+			Result: result,
+			Args:   []string{srcVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, targetIRType, nil
+	case "non_null":
+		if expression.Left == nil {
+			return "", "", fmt.Errorf("non-null expression is missing its operand")
+		}
+		targetIRType := nonNullishIRType(expression.InferredType)
+		if targetIRType == ir.TypeUnknown || targetIRType == "" {
+			targetIRType = nonNullishIRType(expression.Left.InferredType)
+		}
+		inner := expression.Left
+		// Feed the narrowed type into call/property lowering so the intrinsic
+		// selects a typed result ABI instead of first materializing a nullable box.
+		if targetIRType != ir.TypeUnknown && targetIRType != ir.TypeVoid {
+			copyExpr := *inner
+			copyExpr.InferredType = string(targetIRType)
+			inner = &copyExpr
+		}
+		val, valType, err := lowerExpression(path, inner, result, function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if targetIRType == ir.TypeUnknown || targetIRType == ir.TypeVoid || valType == targetIRType {
+			return val, valType, nil
+		}
+		if result == "" {
+			result = nextTemp(counter)
 		}
 		srcVal := val
 		if valType != ir.TypeUnknown && !strings.HasPrefix(string(valType), "object:") && !strings.Contains(string(valType), "|") {
@@ -1210,14 +1257,31 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			result = nextTemp(counter)
 		}
 		retType := typ
+		isPromise := false
 		if strings.HasPrefix(string(typ), "object:Promise_") {
+			isPromise = true
 			inner := strings.TrimPrefix(string(typ), "object:Promise_")
 			retType = toIRType(inner)
 		} else if strings.HasPrefix(string(typ), "object:Promise<") && strings.HasSuffix(string(typ), ">") {
+			isPromise = true
 			inner := strings.TrimSuffix(strings.TrimPrefix(string(typ), "object:Promise<"), ">")
 			retType = toIRType(inner)
-		} else if expression.InferredType != "" && !strings.Contains(expression.InferredType, "Promise") {
+		} else if typ == ir.TypeUnknown && expression.InferredType != "" && !strings.Contains(expression.InferredType, "Promise") {
 			retType = toIRType(expression.InferredType)
+		}
+		if !isPromise && typ != ir.TypeUnknown {
+			// JavaScript awaits ordinary values without entering the Promise runtime.
+			// Preserve the requested result name so variable declarations remain SSA-valid.
+			if result != val {
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCheckedCast,
+					Type:   retType,
+					Result: result,
+					Args:   []string{val},
+					Span:   toIRSpan(path, expression.Span),
+				})
+			}
+			return result, retType, nil
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,

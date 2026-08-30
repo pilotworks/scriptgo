@@ -156,8 +156,13 @@ console.log(sockAddr.address);
 // @api: socket.destroySoon
 // @api: socket.resetAndDestroy
 // @expect: true
+// @expect: true
+// @expect: 16
 // @expect: closed
 console.log(sock.write("hello network"));
+const netPayload: string | Uint8Array = new Uint8Array(3);
+console.log(sock.write(netPayload));
+console.log(sock.bytesWritten);
 sock.end();
 console.log(sock.readyState);
 sock.destroySoon();
@@ -177,7 +182,7 @@ sock.resetAndDestroy();
 // @expect: true
 // @expect: 1000
 // @expect: false
-// @expect: 8080
+// @expect: 9000
 // @expect: false
 const srv = createServer();
 srv.listen(9000);
@@ -204,10 +209,15 @@ srv.getConnections((err: unknown, count: number) => {
 // @expect: 8080
 // @expect: localhost
 // @expect: IPv4
+// @expect: 4321
+// @expect: example.test
 const clientSock = connect(8080, "localhost");
 console.log(clientSock.remotePort);
 console.log(clientSock.remoteAddress);
 console.log(clientSock.remoteFamily);
+const optionsSock = connect({ port: 4321, host: "example.test" });
+console.log(optionsSock.remotePort);
+console.log(optionsSock.remoteAddress);
 
 // @api: net.getDefaultAutoSelectFamily
 // @api: net.setDefaultAutoSelectFamily

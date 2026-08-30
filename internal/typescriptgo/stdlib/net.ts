@@ -83,9 +83,39 @@ export function isIP(input: string): number {
 
 export interface SocketAddressOptions {
     address?: string;
-    family?: string;
+    family?: "ipv4" | "ipv6";
     port?: number;
     flowlabel?: number;
+}
+
+export interface SocketOptions {
+    fd?: number;
+    allowHalfOpen?: boolean;
+    readable?: boolean;
+    writable?: boolean;
+}
+
+export interface SocketConnectOptions {
+    port?: number;
+    host?: string;
+    localAddress?: string;
+    localPort?: number;
+    family?: number;
+}
+
+export interface ServerOptions {
+    allowHalfOpen?: boolean;
+    pauseOnConnect?: boolean;
+    noDelay?: boolean;
+    keepAlive?: boolean;
+    keepAliveInitialDelay?: number;
+}
+
+export interface ListenOptions {
+    port?: number;
+    host?: string;
+    backlog?: number;
+    path?: string;
 }
 
 const defaultSocketAddressOptions: SocketAddressOptions = {
@@ -97,7 +127,7 @@ const defaultSocketAddressOptions: SocketAddressOptions = {
 
 export class SocketAddress {
     address: string = "127.0.0.1";
-    family: string = "ipv4";
+    family: "ipv4" | "ipv6" = "ipv4";
     port: number = 0;
     flowlabel: number = 0;
 
@@ -192,7 +222,7 @@ export class Socket {
 
     _buckets: NetEventBucket[] = [];
 
-    constructor(options: unknown = null) {
+    constructor(options: SocketOptions | null = null) {
         this.connecting = false;
         this.destroyed = false;
         this.pending = false;
@@ -239,7 +269,7 @@ export class Socket {
         return true;
     }
 
-    connect(optionsOrPort: unknown, hostOrListener: unknown = null, listener: unknown = null): Socket {
+    connect(optionsOrPort: number | string | SocketConnectOptions, hostOrListener: string | (() => void) | null = null, listener: (() => void) | null = null): Socket {
         this.connecting = false;
         this.readyState = "open";
         if (typeof optionsOrPort === "number") {
@@ -247,39 +277,44 @@ export class Socket {
             if (typeof hostOrListener === "string") {
                 this.remoteAddress = hostOrListener;
             }
-            if (typeof listener === "function") {
-                this.once("connect", listener);
-            } else if (typeof hostOrListener === "function") {
-                this.once("connect", hostOrListener);
-            }
+        } else if (typeof optionsOrPort === "string") {
+            this.remoteAddress = optionsOrPort;
+        } else {
+            if (optionsOrPort.port !== undefined) this.remotePort = optionsOrPort.port;
+            if (optionsOrPort.host !== undefined) this.remoteAddress = optionsOrPort.host;
+        }
+        if (listener !== null) {
+            this.once("connect", listener);
+        } else if (typeof hostOrListener === "function") {
+            this.once("connect", hostOrListener);
         }
         this.emit("connect");
         return this;
     }
 
-    write(data: unknown, encodingOrCb: unknown = null, callback: unknown = null): boolean {
+    write(data: string | Uint8Array, encodingOrCb: string | (() => void) | null = null, callback: (() => void) | null = null): boolean {
         if (this.destroyed) {
             return false;
         }
-        this.bytesWritten += 13;
+        this.bytesWritten += typeof data === "string" ? data.length : data.byteLength;
         if (typeof encodingOrCb === "function") {
             encodingOrCb();
-        } else if (typeof callback === "function") {
+        } else if (callback !== null) {
             callback();
         }
         return true;
     }
 
-    end(dataOrCb: unknown = null, encodingOrCb: unknown = null, callback: unknown = null): Socket {
+    end(dataOrCb: string | Uint8Array | (() => void) | null = null, encodingOrCb: string | (() => void) | null = null, callback: (() => void) | null = null): Socket {
         if (typeof dataOrCb === "function") {
             this.once("finish", dataOrCb);
-        } else if (dataOrCb !== null && dataOrCb !== undefined) {
+        } else if (dataOrCb !== null) {
             this.write(dataOrCb);
         }
         if (typeof encodingOrCb === "function") {
             this.once("finish", encodingOrCb);
         }
-        if (typeof callback === "function") {
+        if (callback !== null) {
             this.once("finish", callback);
         }
         this.readyState = "readOnly";
@@ -289,7 +324,7 @@ export class Socket {
         return this;
     }
 
-    destroy(error: unknown = null): Socket {
+    destroy(error: Error | null = null): Socket {
         if (!this.destroyed) {
             this.destroyed = true;
             this.readyState = "closed";
@@ -317,7 +352,7 @@ export class Socket {
         return this;
     }
 
-    setTimeout(timeout: number, callback: Function | null = null): Socket {
+    setTimeout(timeout: number, callback: (() => void) | null = null): Socket {
         this.timeout = timeout;
         if (callback !== null && callback !== undefined) {
             this.once("timeout", callback);
@@ -361,8 +396,9 @@ export class Server {
 
     _buckets: NetEventBucket[] = [];
     _connectionsCount: number = 0;
+    private _addressPort: number = 0;
 
-    constructor(optionsOrListener: unknown = null, listener: unknown = null) {
+    constructor(optionsOrListener: ServerOptions | (() => void) | null = null, listener: (() => void) | null = null) {
         if (typeof optionsOrListener === "function") {
             this.on("connection", optionsOrListener);
         } else if (typeof listener === "function") {
@@ -410,11 +446,16 @@ export class Server {
         return true;
     }
 
-    listen(portOrOptions: unknown = 0, hostOrCb: unknown = null, callback: unknown = null): Server {
+    listen(portOrOptions: number | string | ListenOptions = 0, hostOrCb: string | (() => void) | null = null, callback: (() => void) | null = null): Server {
         this.listening = true;
+        if (typeof portOrOptions === "number") {
+            this._addressPort = portOrOptions;
+        } else if (typeof portOrOptions === "object") {
+            this._addressPort = portOrOptions.port === undefined ? 0 : portOrOptions.port;
+        }
         if (typeof hostOrCb === "function") {
             this.once("listening", hostOrCb);
-        } else if (typeof callback === "function") {
+        } else if (callback !== null) {
             this.once("listening", callback);
         }
         this.emit("listening");
@@ -432,13 +473,13 @@ export class Server {
 
     address(): { port: number, family: string, address: string } {
         return {
-            port: 8080,
+            port: this._addressPort,
             family: "IPv4",
             address: "127.0.0.1",
         };
     }
 
-    getConnections(callback: (err: unknown, count: number) => void): void {
+    getConnections(callback: (err: Error | null, count: number) => void): void {
         callback(null, this._connectionsCount);
     }
 
@@ -456,17 +497,17 @@ export class Server {
     }
 }
 
-export function createServer(optionsOrListener: unknown = null, listener: unknown = null): Server {
+export function createServer(optionsOrListener: ServerOptions | (() => void) | null = null, listener: (() => void) | null = null): Server {
     return new Server(optionsOrListener, listener);
 }
 
-export function createConnection(optionsOrPort: unknown, hostOrListener: unknown = null, listener: unknown = null): Socket {
+export function createConnection(optionsOrPort: number | string | SocketConnectOptions, hostOrListener: string | (() => void) | null = null, listener: (() => void) | null = null): Socket {
     const socket = new Socket();
     socket.connect(optionsOrPort, hostOrListener, listener);
     return socket;
 }
 
-export function connect(optionsOrPort: unknown, hostOrListener: unknown = null, listener: unknown = null): Socket {
+export function connect(optionsOrPort: number | string | SocketConnectOptions, hostOrListener: string | (() => void) | null = null, listener: (() => void) | null = null): Socket {
     return createConnection(optionsOrPort, hostOrListener, listener);
 }
 

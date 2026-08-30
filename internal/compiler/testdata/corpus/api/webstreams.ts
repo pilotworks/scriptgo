@@ -45,7 +45,7 @@ reader.releaseLock();
 
 // @api: ReadableStream.values
 // @expect: ws_values: true
-const vals = rs.values();
+const vals = new ReadableStream().values();
 console.log("ws_values: " + (typeof vals === "object"));
 
 // @api: ReadableStream.pipeThrough
@@ -56,7 +56,7 @@ console.log("ws_values: " + (typeof vals === "object"));
 // @api: TransformStream.writable
 // @expect: ws_ts: true true
 const ts = new TransformStream();
-const piped = rs.pipeThrough(ts);
+const piped = new ReadableStream({ start: (controller) => controller.close() }).pipeThrough(ts);
 console.log("ws_ts: " + (piped instanceof ReadableStream) + " " + (ts.writable instanceof WritableStream));
 
 // @api: ReadableStream.tee
@@ -80,7 +80,7 @@ console.log("ws_ws_inst: " + (ws instanceof WritableStream) + " " + ws.locked);
 // @api: WritableStreamDefaultWriter.ready
 // @api: WritableStreamDefaultWriter.desiredSize
 // @api: WritableStreamDefaultWriter.releaseLock
-// @expect: ws_writer: true 0
+// @expect: ws_writer: true 1
 const writer = ws.getWriter();
 console.log("ws_writer: " + (writer instanceof WritableStreamDefaultWriter) + " " + writer.desiredSize);
 writer.releaseLock();
@@ -240,24 +240,30 @@ console.log("ws_from: " + (fromStream instanceof ReadableStream));
 // @api: webstreams.text
 // @expect: ws_async: true
 const runAsyncWebstreams = async () => {
-    await rs.cancel();
-    await rs.pipeTo(ws);
-    const r = rs.getReader();
+    const cancelStream = new ReadableStream();
+    await cancelStream.cancel();
+    const pipeSource = new ReadableStream({ start: (controller) => controller.close() });
+    const pipeTarget = new WritableStream();
+    await pipeSource.pipeTo(pipeTarget);
+    const readStream = new ReadableStream();
+    const r = readStream.getReader();
     await r.read();
     await r.cancel();
     const br = new ReadableStreamBYOBReader();
     await br.cancel();
-    await ws.abort();
-    await ws.close();
-    const w = ws.getWriter();
+    await new WritableStream().abort();
+    await new WritableStream().close();
+    const writeStream = new WritableStream();
+    const w = writeStream.getWriter();
     await w.write(1);
     await w.abort();
-    await w.close();
-    await arrayBuffer(rs);
-    await blob(rs);
-    await buffer(rs);
-    await json(rs);
-    await text(rs);
+    const closeWriter = new WritableStream().getWriter();
+    await closeWriter.close();
+    await arrayBuffer(new ReadableStream());
+    await blob(new ReadableStream());
+    await buffer(new ReadableStream());
+    await json(from(["1"]));
+    await text(new ReadableStream());
     console.log("ws_async: true");
 };
 runAsyncWebstreams();

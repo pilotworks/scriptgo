@@ -84,18 +84,18 @@ func normalizeInferredType(typeStr string) string {
 		if strings.Contains(typeStr, "|") {
 			parts := strings.Split(typeStr, "|")
 			var nonNullish []string
+			var normParts []string
 			for _, p := range parts {
 				pNorm := normalizeInferredType(p)
+				normParts = append(normParts, pNorm)
 				if pNorm != "undefined" && pNorm != "null" && pNorm != "void" {
 					nonNullish = append(nonNullish, pNorm)
 				}
 			}
-			if len(nonNullish) == 1 {
+			// Preserve nullish members. The lowering stage uses the full union to
+			// select tagged storage and must not turn `T | null` into plain `T`.
+			if len(nonNullish) == 1 && len(nonNullish) == len(parts) {
 				return nonNullish[0]
-			}
-			var normParts []string
-			for _, p := range parts {
-				normParts = append(normParts, normalizeInferredType(p))
 			}
 			return strings.Join(normParts, " | ")
 		}
@@ -147,6 +147,14 @@ func syntaxType(node *ast.Node) string {
 		return "never"
 	case ast.KindThisType, ast.KindThisKeyword:
 		return "this"
+	case ast.KindTypePredicate:
+		// A type predicate narrows its parameter for the checker, but its
+		// runtime value is still a boolean (asserts predicates return void).
+		predicate := node.AsTypePredicateNode()
+		if predicate != nil && predicate.AssertsModifier != nil {
+			return "void"
+		}
+		return "bool"
 	case ast.KindUnionType:
 		unionNode := node.AsUnionTypeNode()
 		if unionNode != nil && unionNode.Types != nil {

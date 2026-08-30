@@ -60,10 +60,38 @@ func toIRType(value string) ir.Type {
 	return toIRTypeInternal(value, nil)
 }
 
+// nonNullishIRType models TypeScript's non-null assertion: it removes only
+// null/undefined/void from a union and preserves the remaining type. This is
+// needed at dynamic API boundaries (for example Map.get(...)) where the
+// nullable return ABI must not be used after `!` has narrowed the value.
+func nonNullishIRType(value string) ir.Type {
+	parts := splitTopLevelUnion(strings.TrimSpace(value))
+	if len(parts) <= 1 {
+		return toIRType(value)
+	}
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" && part != "null" && part != "undefined" && part != "void" {
+			filtered = append(filtered, part)
+		}
+	}
+	if len(filtered) == 0 {
+		return ir.TypeVoid
+	}
+	return toIRType(strings.Join(filtered, " | "))
+}
+
 func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	value = strings.TrimSpace(value)
 	for strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")") && !strings.Contains(value, "=>") {
 		value = strings.TrimSpace(value[1 : len(value)-1])
+	}
+	// Generic instantiation rewrites concrete typed arrays to names such as
+	// `Uint8Array_ArrayBufferLike`. Preserve the runtime typed-array kind after
+	// that mangling so methods still use the typed-array ABI.
+	if typedArray, ok := mangledTypedArrayType(value); ok {
+		return typedArray
 	}
 	if visited != nil && visited[value] {
 		return ir.TypeObject
@@ -343,8 +371,46 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		if base == "WeakRef" {
 			return ir.Type("object:WeakRef")
 		}
+		// These utility types are compile-time transformations, not runtime
+		// objects. Reduce the common forms before mapping to the native IR.
+		typeArgs := splitTypeArguments(inner)
+		switch base {
+		case "NonNullable":
+			if len(typeArgs) == 1 {
+				return nonNullishIRType(typeArgs[0])
+			}
+		case "Exclude":
+			if len(typeArgs) == 2 {
+				parts := splitTopLevelUnion(typeArgs[0])
+				removed := strings.TrimSpace(typeArgs[1])
+				kept := make([]string, 0, len(parts))
+				for _, part := range parts {
+					if strings.TrimSpace(part) != removed {
+						kept = append(kept, strings.TrimSpace(part))
+					}
+				}
+				if len(kept) == 0 {
+					return ir.TypeVoid
+				}
+				return toIRType(strings.Join(kept, " | "))
+			}
+		case "Extract":
+			if len(typeArgs) == 2 {
+				parts := splitTopLevelUnion(typeArgs[0])
+				wanted := strings.TrimSpace(typeArgs[1])
+				kept := make([]string, 0, len(parts))
+				for _, part := range parts {
+					if strings.TrimSpace(part) == wanted {
+						kept = append(kept, strings.TrimSpace(part))
+					}
+				}
+				if len(kept) == 0 {
+					return ir.TypeVoid
+				}
+				return toIRType(strings.Join(kept, " | "))
+			}
+		}
 		if base == "IteratorResult" {
-			typeArgs := splitTypeArguments(inner)
 			elemType := "number"
 			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" && typeArgs[0] != "unknown" {
 				elemType = typeArgs[0]
@@ -379,7 +445,6 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		case "DataView":
 			return ir.TypeDataView
 		}
-		typeArgs := splitTypeArguments(inner)
 		return ir.Type("object:" + mangleGenericName(base, typeArgs))
 	}
 	if strings.HasPrefix(value, "object:") {
@@ -571,6 +636,28 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+func mangledTypedArrayType(value string) (ir.Type, bool) {
+	clean := strings.TrimPrefix(value, "object:")
+	for name, typ := range map[string]ir.Type{
+		"Int8Array":         ir.TypeInt8Array,
+		"Uint8Array":        ir.TypeUint8Array,
+		"Uint8ClampedArray": ir.TypeUint8ClampedArray,
+		"Int16Array":        ir.TypeInt16Array,
+		"Uint16Array":       ir.TypeUint16Array,
+		"Int32Array":        ir.TypeInt32Array,
+		"Uint32Array":       ir.TypeUint32Array,
+		"Float32Array":      ir.TypeFloat32Array,
+		"Float64Array":      ir.TypeFloat64Array,
+		"BigInt64Array":     ir.TypeBigInt64Array,
+		"BigUint64Array":    ir.TypeBigUint64Array,
+	} {
+		if clean == name || strings.HasPrefix(clean, name+"_") {
+			return typ, true
+		}
+	}
+	return "", false
 }
 
 func isValidFieldName(s string) bool {
@@ -982,6 +1069,17 @@ func isTypedArrayType(t ir.Type) bool {
 	default:
 		return false
 	}
+}
+
+// ArrayBufferView is a TypeScript union of typed arrays and DataView. The
+// frontend keeps that alias name when it cannot collapse the union; property
+// lowering still needs to route its shared view fields through the typed-array
+// ABI instead of treating the alias as an object shape.
+func isArrayBufferViewType(t ir.Type) bool {
+	if t == "ArrayBufferView" || t == "object:ArrayBufferView" {
+		return true
+	}
+	return isTypedArrayType(t) || t == ir.TypeDataView
 }
 
 func isMapType(t ir.Type) bool {

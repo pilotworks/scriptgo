@@ -37,12 +37,25 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			result = nextTemp(counter)
 		}
 		promType := ir.Type("object:Promise<unknown>")
+		if inferred := strings.TrimPrefix(expression.InferredType, "object:"); strings.HasPrefix(inferred, "Promise<") && strings.HasSuffix(inferred, ">") {
+			inner := strings.TrimSuffix(strings.TrimPrefix(inferred, "Promise<"), ">")
+			if resolved := toIRType(inner); resolved != "" {
+				promType = ir.Type("object:Promise<" + string(resolved) + ">")
+			}
+		}
+		if len(expression.Arguments) != 1 {
+			return "", "", fmt.Errorf("Promise constructor requires exactly one executor")
+		}
+		executor, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   promType,
 			Result: result,
-			Callee: "__async.promise_create",
-			Args:   []string{},
+			Callee: "__async.promise_construct",
+			Args:   []string{executor},
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, promType, nil
@@ -78,14 +91,21 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		// Preserve generic arguments on the handle so the backend can retain
+		// the value tag across the nullable WeakMap.get ABI.
+		resType := ir.Type("object:WeakMap")
+		inferred := strings.TrimPrefix(expression.InferredType, "object:")
+		if strings.HasPrefix(inferred, "WeakMap<") && strings.HasSuffix(inferred, ">") {
+			resType = ir.Type("object:" + inferred)
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
-			Type:   ir.Type("object:WeakMap"),
+			Type:   resType,
 			Result: result,
 			Callee: "__weakmap.new",
 			Span:   toIRSpan(path, expression.Span),
 		})
-		return result, ir.Type("object:WeakMap"), nil
+		return result, resType, nil
 	}
 	if className == "WeakSet" {
 		if result == "" {
@@ -796,7 +816,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 							Op:     ir.OpConst,
 							Type:   paramType,
 							Result: nullConst,
-							Value:  "null",
+							Value:  map[bool]string{true: "undefined", false: "null"}[arg.Kind == "undefined"],
 							Span:   toIRSpan(path, arg.Span),
 						})
 						argVal = nullConst
@@ -867,7 +887,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 							Op:     ir.OpConst,
 							Type:   paramType,
 							Result: nullConst,
-							Value:  "null",
+							Value:  map[bool]string{true: "undefined", false: "null"}[defExpr.Kind == "undefined"],
 							Span:   toIRSpan(path, defExpr.Span),
 						})
 						val = nullConst
@@ -890,7 +910,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 					} else if paramType == ir.TypeString {
 						defStr = ""
 					} else if isPointerLikeType(paramType) || strings.HasPrefix(string(paramType), "object:") {
-						defStr = "null"
+						defStr = "undefined"
 					}
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpConst,

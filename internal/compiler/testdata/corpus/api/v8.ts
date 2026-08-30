@@ -116,7 +116,7 @@ console.log("v8_ser_writeHeader: true");
 console.log("v8_ser_writeValue: " + ser.writeValue(123));
 
 // @api: v8.Serializer.releaseBuffer
-// @expect: v8_ser_releaseBuf: 0
+// @expect: v8_ser_releaseBuf: 16
 console.log("v8_ser_releaseBuf: " + ser.releaseBuffer().length);
 
 // @api: v8.Serializer.transferArrayBuffer
@@ -168,7 +168,7 @@ const deser = new Deserializer(new Uint8Array(0));
 console.log("v8_deser_inst: " + (deser instanceof Deserializer));
 
 // @api: v8.Deserializer.readHeader
-// @expect: v8_deser_readHeader: true
+// @expect: v8_deser_readHeader: false
 console.log("v8_deser_readHeader: " + deser.readHeader());
 
 // @api: v8.Deserializer.readValue
@@ -215,13 +215,13 @@ const defDeser = new DefaultDeserializer();
 console.log("v8_defDeser_inst: " + (defDeser instanceof DefaultDeserializer));
 
 // @api: v8.serialize
-// @expect: v8_serialize: 0
+// @expect: v8_serialize: true
 const serData = serialize({ a: 1 });
-console.log("v8_serialize: " + serData.length);
+console.log("v8_serialize: " + (serData.length > 0));
 
 // @api: v8.deserialize
-// @expect: v8_deserialize: undefined
-console.log("v8_deserialize: " + deserialize(serData));
+// @expect: v8_deserialize: object
+console.log("v8_deserialize: " + typeof deserialize(serData));
 
 // @api: v8.onInit
 // @expect: v8_onInit: true

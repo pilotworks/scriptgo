@@ -33,6 +33,7 @@ int scriptgo_weakref_deref(void *handle, void **out_target) {
 typedef struct {
     void *key;
     uintptr_t val;
+    uint32_t tag;
 } weakmap_entry;
 
 typedef struct {
@@ -55,12 +56,13 @@ int scriptgo_weakmap_new(void **out_map) {
     return 0;
 }
 
-int scriptgo_weakmap_set(void *handle, void *key, void *value) {
+int scriptgo_weakmap_set(void *handle, void *key, void *value, uint32_t tag) {
     if (handle == NULL || key == NULL) return weak_fail("scriptgo weakmap set failed: key must be an object");
     scriptgo_weakmap *m = (scriptgo_weakmap *)handle;
     for (int64_t i = 0; i < m->count; i++) {
         if (m->entries[i].key == key) {
             m->entries[i].val = (uintptr_t)value;
+            m->entries[i].tag = tag;
             return 0;
         }
     }
@@ -73,24 +75,28 @@ int scriptgo_weakmap_set(void *handle, void *key, void *value) {
     }
     m->entries[m->count].key = key;
     m->entries[m->count].val = (uintptr_t)value;
+    m->entries[m->count].tag = tag;
     m->count++;
     return 0;
 }
 
-int scriptgo_weakmap_get(void *handle, void *key, void **out_value) {
-    if (handle == NULL || out_value == NULL) return weak_fail("scriptgo weakmap get failed");
+int scriptgo_weakmap_get(void *handle, void *key, void **out_value, uint32_t *out_tag) {
+    if (handle == NULL || out_value == NULL || out_tag == NULL) return weak_fail("scriptgo weakmap get failed");
     if (key == NULL) {
         *out_value = NULL;
+        *out_tag = 0;
         return 0;
     }
     scriptgo_weakmap *m = (scriptgo_weakmap *)handle;
     for (int64_t i = 0; i < m->count; i++) {
         if (m->entries[i].key == key) {
             *out_value = (void *)m->entries[i].val;
+            *out_tag = m->entries[i].tag;
             return 0;
         }
     }
     *out_value = NULL;
+    *out_tag = 0;
     return 0;
 }
 

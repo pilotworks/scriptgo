@@ -217,6 +217,22 @@ int scriptgo_buffer_from_array(void *arr_handle, void **out_buf) {
     return scriptgo_buffer_alloc(0, NULL, 0, 0, 0, out_buf);
 }
 
+int scriptgo_buffer_from_arraybuffer(void *buffer_handle, void **out_buf) {
+    if (buffer_handle == NULL || out_buf == NULL) {
+        return buffer_fail("Buffer.from: invalid ArrayBuffer");
+    }
+    scriptgo_buffer_array_buffer *source = (scriptgo_buffer_array_buffer *)buffer_handle;
+    void *created = NULL;
+    if (scriptgo_typedarray_new(2, source->byte_length, NULL, 0, &created) != 0) return -1;
+    scriptgo_buffer_view *dst = (scriptgo_buffer_view *)created;
+    dst->magic = SCRIPTGO_MAGIC_BUFFER;
+    if (source->byte_length > 0 && source->data != NULL) {
+        memcpy(dst->data, source->data, (size_t)source->byte_length);
+    }
+    *out_buf = dst;
+    return 0;
+}
+
 int scriptgo_buffer_concat(void *list_handle, double total_length_opt, void **out_buf) {
     if (out_buf == NULL) return buffer_fail("Buffer.concat: null output");
     if (list_handle == NULL) return scriptgo_buffer_alloc(0, NULL, 0, 0, 0, out_buf);
@@ -892,4 +908,3 @@ int scriptgo_buffer_write(void *handle, const char *str, double offset, double l
     if (out_written) *out_written = (double)slen;
     return 0;
 }
-

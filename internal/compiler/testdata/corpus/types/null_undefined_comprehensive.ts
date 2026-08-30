@@ -21,7 +21,7 @@
 // @expect: false
 // @expect: x=10, y=20
 // @expect: x=10, y=20
-// @expect: x=NaN, y=NaN
+// @expect: x=null, y=null
 // @expect: x=5, y=50
 // @expect: null
 // @expect: undefined

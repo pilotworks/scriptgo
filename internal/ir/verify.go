@@ -57,6 +57,19 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 		}
 		known[captured.Name] = captured.Type
 	}
+	// Locals are storage locations rather than SSA definitions. Lowering may
+	// initialize one through an intrinsic-generated assignment, so seed them
+	// before walking instructions just like parameters and captured cells.
+	for _, local := range f.Locals {
+		if local.Name == "" {
+			return fmt.Errorf("invalid local variable")
+		}
+		localType := local.Type
+		if localType == "" {
+			localType = TypeUnknown
+		}
+		known[local.Name] = localType
+	}
 	terminated := false
 	for _, instruction := range f.Body {
 		if terminated {
@@ -118,9 +131,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				for _, argument := range instruction.Args {
 					elemType := elementType(instruction.Type)
 					argType := known[argument]
-					isObjArg := argType == TypeObject || strings.HasPrefix(string(argType), "object:")
-					isObjElem := elemType == TypeObject || strings.HasPrefix(string(elemType), "object:")
-					if argType != elemType && !(isObjArg && isObjElem) {
+					if !isAssignableTo(argType, elemType) {
 						return fmt.Errorf("array element %q has type %s, want %s", argument, argType, elemType)
 					}
 				}
@@ -450,6 +461,10 @@ func isAssignableTo(actual, expected Type) bool {
 		return true
 	}
 	if actual == TypeUnknown || expected == TypeUnknown {
+		return true
+	}
+	// Buffer implements Uint8Array's byte-view contract in the frontend and ABI.
+	if actual == TypeBuffer && expected == TypeUint8Array {
 		return true
 	}
 	if (actual == "never[]" || actual == "object:never[]" || actual == "any[]" || actual == "object:any[]") && strings.HasSuffix(string(expected), "[]") {

@@ -2,7 +2,8 @@ declare namespace __scriptgo {
     function bufferAlloc(size: number, fill?: string): Buffer;
     function bufferAllocUnsafe(size: number): Buffer;
     function bufferFromString(str: string, encoding?: string): Buffer;
-    function bufferFromArray(array: unknown): Buffer;
+    function bufferFromArray(array: ArrayLike<number> | Array<number> | Uint8Array): Buffer;
+    function bufferFromArrayBuffer(array: ArrayBuffer): Buffer;
     function bufferConcat(list: (Buffer | Uint8Array)[], totalLength?: number): Buffer;
     function bufferIsBuffer(obj: unknown): boolean;
     function bufferByteLength(string: string, encoding?: string): number;
@@ -81,16 +82,19 @@ export class Buffer {
     }
     static from(str: string, encoding?: string): Buffer;
     static from(array: ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer): Buffer;
-    static from(value: unknown, encoding: string = "utf8"): Buffer {
+    static from(value: string | ArrayLike<number> | Array<number> | Uint8Array | ArrayBuffer, encoding: string = "utf8"): Buffer {
         if (typeof value === "string") {
             return __scriptgo.bufferFromString(value, encoding);
         }
+        if (value instanceof ArrayBuffer) {
+            return __scriptgo.bufferFromArrayBuffer(value);
+        }
         return __scriptgo.bufferFromArray(value);
     }
-    static concat(list: Buffer[], totalLength: number = -1): Buffer {
+    static concat(list: (Buffer | Uint8Array)[], totalLength: number = -1): Buffer {
         return __scriptgo.bufferConcat(list, totalLength);
     }
-    static isBuffer(obj: unknown): boolean {
+    static isBuffer(obj: unknown): obj is Buffer {
         return __scriptgo.bufferIsBuffer(obj);
     }
     static byteLength(string: string, encoding: string = "utf8"): number {
@@ -108,16 +112,46 @@ export class Buffer {
     static poolSize: number = 8192;
 }
 
+type BlobPart = string | Buffer | Uint8Array | ArrayBuffer | Blob;
+
 export class Blob {
     size: number = 0;
     type: string = "";
-    constructor(sources?: unknown[], options?: { type?: string }) {
-        if (options) {
-            if (options.type) {
-                this.type = options.type;
+    private _bytes: Buffer = Buffer.alloc(0);
+
+    constructor(sources: BlobPart[] = [], options?: { type?: string }) {
+        const parts: Buffer[] = [];
+        for (let i = 0; i < sources.length; i++) {
+            const source = sources[i];
+            if (source instanceof Blob) {
+                parts.push(source._bytes);
+            } else if (typeof source === "string") {
+                parts.push(Buffer.from(source));
+            } else {
+                parts.push(Buffer.from(source));
             }
         }
+        this._bytes = Buffer.concat(parts);
+        this.size = this._bytes.length;
+        if (options && options.type) {
+            this.type = options.type.toLowerCase();
+        }
     }
+
+    async arrayBuffer(): Promise<ArrayBuffer> {
+        const result = new ArrayBuffer(this._bytes.length);
+        new Uint8Array(result).set(this._bytes);
+        return result;
+    }
+
+    slice(start: number = 0, end: number = this.size, contentType: string = ""): Blob {
+        return new Blob([this._bytes.slice(start, end)], { type: contentType });
+    }
+
+    async text(): Promise<string> {
+        return this._bytes.toString();
+    }
+
     stream(): unknown {
         return null;
     }
@@ -126,7 +160,7 @@ export class Blob {
 export class File extends Blob {
     name: string = "";
     lastModified: number = 0;
-    constructor(fileBits: unknown[], fileName: string, options?: { type?: string; lastModified?: number }) {
+    constructor(fileBits: BlobPart[], fileName: string, options?: { type?: string; lastModified?: number }) {
         super(fileBits, options);
         this.name = fileName;
         if (options) {
@@ -174,5 +208,3 @@ export function resolveObjectURL(id: string): unknown {
 export function transcode(source: Uint8Array, fromEnc: string, toEnc: string): Buffer {
     return Buffer.from(source);
 }
-
-

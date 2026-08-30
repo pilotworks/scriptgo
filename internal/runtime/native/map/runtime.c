@@ -7,6 +7,7 @@
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_map_set_string_string(void *handle, const char *key, const char *value, void **out_map);
 int scriptgo_map_set_string_number(void *handle, const char *key, double value, void **out_map);
+int scriptgo_map_set_string_bigint(void *handle, const char *key, int64_t value, void **out_map);
 int scriptgo_map_set_string_ptr(void *handle, const char *key, void *value, void **out_map);
 
 #define SCRIPTGO_MAGIC_MAP 0x4D415031 // "MAP1"
@@ -14,13 +15,15 @@ int scriptgo_map_set_string_ptr(void *handle, const char *key, void *value, void
 typedef enum {
     SCRIPTGO_MAP_VAL_NUMBER = 1,
     SCRIPTGO_MAP_VAL_STRING = 2,
-    SCRIPTGO_MAP_VAL_PTR = 3
+    SCRIPTGO_MAP_VAL_PTR = 3,
+    SCRIPTGO_MAP_VAL_BIGINT = 4
 } scriptgo_map_val_type;
 
 typedef struct {
     char *key_str;
     scriptgo_map_val_type val_type;
     double num_val;
+    int64_t bigint_val;
     char *str_val;
     void *ptr_val;
 } scriptgo_map_native_entry;
@@ -96,6 +99,8 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
                 scriptgo_map_set_string_number(m, e->key_str, e->num_val, &dummy);
             } else if (e->val_type == SCRIPTGO_MAP_VAL_STRING) {
                 scriptgo_map_set_string_string(m, e->key_str, e->str_val, &dummy);
+            } else if (e->val_type == SCRIPTGO_MAP_VAL_BIGINT) {
+                scriptgo_map_set_string_bigint(m, e->key_str, e->bigint_val, &dummy);
             } else {
                 scriptgo_map_set_string_ptr(m, e->key_str, e->ptr_val, &dummy);
             }
@@ -227,6 +232,25 @@ int scriptgo_map_set_string_string(void *handle, const char *key, const char *va
     return 0;
 }
 
+int scriptgo_map_set_string_bigint(void *handle, const char *key, int64_t value, void **out_map) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map set: invalid handle");
+    if (key == NULL) key = "";
+    int64_t idx = map_find_entry(m, key);
+    if (idx >= 0) {
+        m->entries[idx].val_type = SCRIPTGO_MAP_VAL_BIGINT;
+        m->entries[idx].bigint_val = value;
+    } else {
+        if (map_ensure_capacity(m) != 0) return -1;
+        m->entries[m->size].key_str = strdup(key);
+        m->entries[m->size].val_type = SCRIPTGO_MAP_VAL_BIGINT;
+        m->entries[m->size].bigint_val = value;
+        m->size++;
+    }
+    if (out_map != NULL) *out_map = m;
+    return 0;
+}
+
 int scriptgo_map_set_string_ptr(void *handle, const char *key, void *value, void **out_map) {
     scriptgo_map_native *m = handle;
     if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map set: invalid handle");
@@ -303,6 +327,26 @@ int scriptgo_map_get_string(void *handle, const char *key_str, double key_num, i
         *out_val = m->entries[idx].str_val;
     } else {
         *out_val = "";
+    }
+    return 0;
+}
+
+int scriptgo_map_get_bigint(void *handle, const char *key_str, double key_num, int32_t key_is_str, int64_t *out_val) {
+    scriptgo_map_native *m = handle;
+    if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) return map_fail("scriptgo map get: invalid handle");
+    if (out_val == NULL) return map_fail("scriptgo map get: null out_val");
+    char *alloc_key = NULL;
+    const char *lookup_key = key_str;
+    if (!key_is_str) {
+        alloc_key = num_to_str(key_num);
+        lookup_key = alloc_key;
+    }
+    int64_t idx = map_find_entry(m, lookup_key);
+    if (alloc_key != NULL) free(alloc_key);
+    if (idx >= 0 && m->entries[idx].val_type == SCRIPTGO_MAP_VAL_BIGINT) {
+        *out_val = m->entries[idx].bigint_val;
+    } else {
+        *out_val = 0;
     }
     return 0;
 }
@@ -415,6 +459,8 @@ int scriptgo_map_to_string(void *handle, char **out_str) {
             }
         } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING) {
             snprintf(val_buf, sizeof(val_buf), "'%s'", m->entries[i].str_val ? m->entries[i].str_val : "");
+        } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_BIGINT) {
+            snprintf(val_buf, sizeof(val_buf), "%lldn", (long long)m->entries[i].bigint_val);
         } else {
             snprintf(val_buf, sizeof(val_buf), "[object]");
         }
@@ -457,6 +503,9 @@ int scriptgo_map_for_each(void *handle, void *closure_handle) {
         } else if (entry->val_type == SCRIPTGO_MAP_VAL_STRING) {
             a1.tag = 4;
             a1.payload = (int64_t)(uintptr_t)(entry->str_val ? entry->str_val : "");
+        } else if (entry->val_type == SCRIPTGO_MAP_VAL_BIGINT) {
+            a1.tag = 8;
+            a1.payload = entry->bigint_val;
         } else {
             a1.tag = 5;
             a1.payload = (int64_t)(uintptr_t)entry->ptr_val;
@@ -554,4 +603,3 @@ int scriptgo_map_entries(void *handle, void **out_array) {
     }
     return 0;
 }
-

@@ -295,7 +295,10 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	if isTypedArrayType(objectType) {
+	// DataView shares the ArrayBufferView surface but has no `length` and uses
+	// dedicated byteLength/byteOffset accessors. Keep it out of the typed-array
+	// branch so its ABI receives a DataView handle, not a typed-array handle.
+	if isArrayBufferViewType(objectType) && objectType != ir.TypeDataView {
 		if expression.Text == "length" {
 			if result == "" {
 				result = nextTemp(counter)
@@ -816,6 +819,11 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			continue
 		}
 		fType := field.Type
+		if propertyPath := extractPropertyPath(expression); len(propertyPath) > 0 {
+			if narrowed, ok := env[strings.Join(propertyPath, ".")]; ok && narrowed != "" {
+				fType = narrowed
+			}
+		}
 		if (fType == ir.TypeVoid || fType == "") && expression.InferredType != "" {
 			inferred := toIRType(expression.InferredType)
 			if inferred != "" && inferred != ir.TypeUnknown && inferred != ir.TypeVoid {

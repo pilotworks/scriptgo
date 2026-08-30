@@ -183,6 +183,12 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 				boolF64 := instruction.Result + ".f64"
 				fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", boolF64, instruction.Args[0])
 				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, boolF64)
+			} else if argType == ir.TypeBigInt {
+				// BigInt values use a signed i64 ABI; Number(bigint) must
+				// explicitly convert that integer before any floating operation.
+				bigIntF64 := instruction.Result + ".f64"
+				fmt.Fprintf(out, "  %%%s = sitofp i64 %%%s to double\n", bigIntF64, instruction.Args[0])
+				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, bigIntF64)
 			} else {
 				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, instruction.Args[0])
 			}

@@ -118,27 +118,64 @@ export class GCProfiler {
 }
 
 export class Serializer {
+    private _encoded: string = "";
+    private _raw: number[] = [];
+    private _headerWritten: boolean = false;
+
     constructor() {}
 
-    writeHeader(): void {}
+    writeHeader(): void {
+        this._headerWritten = true;
+    }
 
     writeValue(value: unknown): boolean {
+        this._headerWritten = true;
+        if (value === undefined) {
+            this._encoded = "u";
+            return true;
+        }
+        const json = JSON.stringify(value);
+        this._encoded = "j" + json;
         return true;
     }
 
     releaseBuffer(): Uint8Array {
-        return new Uint8Array(0);
+        const encoder = new TextEncoder();
+        const payload = encoder.encode(this._encoded);
+        const lengthText = String(payload.length).padStart(8, "0");
+        const header = encoder.encode("SGV8" + lengthText);
+        const result = new Uint8Array(header.length + payload.length + this._raw.length);
+        result.set(header, 0);
+        result.set(payload, header.length);
+        result.set(this._raw, header.length + payload.length);
+        return result;
     }
 
     transferArrayBuffer(id: number, arrayBuffer: unknown): void {}
 
-    writeUint32(value: number): void {}
+    writeUint32(value: number): void {
+        const v = Math.trunc(value);
+        this._raw.push(v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff);
+    }
 
-    writeUint64(hi: number, lo: number): void {}
+    writeUint64(hi: number, lo: number): void {
+        this.writeUint32(lo);
+        this.writeUint32(hi);
+    }
 
-    writeDouble(value: number): void {}
+    writeDouble(value: number): void {
+        const numbers = new Float64Array([value]);
+        const bytes = new Uint8Array(numbers.buffer);
+        for (let i = 0; i < bytes.length; i++) {
+            this._raw.push(bytes[i]);
+        }
+    }
 
-    writeRawBytes(buffer: Uint8Array): void {}
+    writeRawBytes(buffer: Uint8Array): void {
+        for (let i = 0; i < buffer.length; i++) {
+            this._raw.push(buffer[i]);
+        }
+    }
 
     _writeHostObject(object: unknown): void {}
 
@@ -154,14 +191,47 @@ export class Serializer {
 }
 
 export class Deserializer {
-    constructor(buffer?: unknown) {}
+    private _buffer: Uint8Array;
+    private _payload: string = "";
+    private _cursor: number = 0;
+    private _headerRead: boolean = false;
+
+    constructor(buffer: Uint8Array = new Uint8Array(0)) {
+        this._buffer = buffer;
+    }
 
     readHeader(): boolean {
+        if (this._buffer.length < 12) {
+            return false;
+        }
+        const decoder = new TextDecoder();
+        const headerBytes = this._buffer.slice(0, 12);
+        const header = decoder.decode(headerBytes);
+        if (header.slice(0, 4) !== "SGV8") {
+            return false;
+        }
+        const payloadLength = Number(header.slice(4, 12));
+        if (!Number.isFinite(payloadLength) || payloadLength < 0 || 12 + payloadLength > this._buffer.length) {
+            return false;
+        }
+        const payloadBytes = this._buffer.slice(12, 12 + payloadLength);
+        this._payload = decoder.decode(payloadBytes);
+        this._cursor = 12 + payloadLength;
+        this._headerRead = true;
         return true;
     }
 
     readValue(): unknown {
-        return undefined;
+        if (!this._headerRead && !this.readHeader()) {
+            return undefined;
+        }
+        if (this._payload === "" || this._payload.charAt(0) === "u") {
+            return undefined;
+        }
+        if (this._payload.charAt(0) !== "j") {
+            return undefined;
+        }
+        return JSON.parse(this._payload.slice(1));
     }
 
     transferArrayBuffer(id: number, arrayBuffer: unknown): void {}
@@ -171,19 +241,40 @@ export class Deserializer {
     }
 
     readUint32(): number {
-        return 0;
+        if (this._cursor + 4 > this._buffer.length) {
+            return 0;
+        }
+        const b0 = this._buffer[this._cursor];
+        const b1 = this._buffer[this._cursor + 1];
+        const b2 = this._buffer[this._cursor + 2];
+        const b3 = this._buffer[this._cursor + 3];
+        this._cursor += 4;
+        return (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
     }
 
     readUint64(): number[] {
-        return [0, 0];
+        const lo = this.readUint32();
+        const hi = this.readUint32();
+        return [hi, lo];
     }
 
     readDouble(): number {
-        return 0.0;
+        if (this._cursor + 8 > this._buffer.length) {
+            return 0.0;
+        }
+        const bytes = this._buffer.slice(this._cursor, this._cursor + 8);
+        this._cursor += 8;
+        const numbers = new Float64Array(bytes.buffer);
+        return numbers[0];
     }
 
     readRawBytes(length: number): Uint8Array {
-        return new Uint8Array(length);
+        const size = Math.max(0, Math.trunc(length));
+        const result = new Uint8Array(size);
+        for (let i = 0; i < size && this._cursor < this._buffer.length; i++) {
+            result[i] = this._buffer[this._cursor++];
+        }
+        return result;
     }
 
     _readHostObject(): unknown {

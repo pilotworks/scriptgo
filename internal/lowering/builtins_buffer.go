@@ -141,12 +141,15 @@ func registerBufferIntrinsics(m map[string]BuiltinIntrinsic) {
 				return result, ir.TypeBuffer, nil
 			}
 
-			// Array or TypedArray or ArrayBuffer
+			callee := "__buffer.from_array"
+			if argType == ir.TypeArrayBuffer {
+				callee = "__buffer.from_arraybuffer"
+			}
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op:     ir.OpCall,
 				Type:   ir.TypeBuffer,
 				Result: result,
-				Callee: "__buffer.from_array",
+				Callee: callee,
 				Args:   []string{argVal},
 				Span:   toIRSpan(call.Path, call.Expression.Span),
 			})
@@ -260,6 +263,26 @@ func registerBufferIntrinsics(m map[string]BuiltinIntrinsic) {
 	m["__scriptgo.bufferAllocUnsafe"] = m["Buffer.allocUnsafe"]
 	m["__scriptgo.bufferFromString"] = m["Buffer.from"]
 	m["__scriptgo.bufferFromArray"] = m["Buffer.from"]
+	m["__scriptgo.bufferFromArrayBuffer"] = BuiltinIntrinsic{
+		Category: CategoryNodeGlobal,
+		Name:     "__scriptgo.bufferFromArrayBuffer",
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			argVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeBuffer, Result: result, Callee: "__buffer.from_arraybuffer", Args: []string{argVal}, Span: toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeBuffer, nil
+		},
+	}
 	m["__scriptgo.bufferConcat"] = m["Buffer.concat"]
 	m["__scriptgo.bufferIsBuffer"] = m["Buffer.isBuffer"]
 	m["__scriptgo.bufferByteLength"] = m["Buffer.byteLength"]

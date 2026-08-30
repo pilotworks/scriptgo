@@ -236,6 +236,8 @@ func builtinModule(name string) (BuiltinModule, bool) {
 	canonical := strings.TrimPrefix(name, "node:")
 	if canonical == "stream/web" {
 		canonical = "webstreams"
+	} else if canonical == "stream/consumers" {
+		canonical = "stream_consumers"
 	}
 	module, ok := builtinModules[canonical]
 	return module, ok

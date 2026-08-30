@@ -201,35 +201,136 @@ int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
     return 0;
 }
 
-int scriptgo_json_parse_string(const char *input, char **out_str) {
-    if (input == NULL || out_str == NULL) return json_fail("scriptgo json invalid argument");
-    while (*input == ' ' || *input == '\t' || *input == '\n' || *input == '\r') input++;
-    if (*input == '"') {
-        size_t len = strlen(input);
-        if (len >= 2 && input[len - 1] == '"') {
-            char *res = malloc(len - 1);
-            if (res == NULL) return json_fail("scriptgo json allocation failed");
-            size_t pos = 0;
-            for (size_t i = 1; i < len - 1; i++) {
-                if (input[i] == '\\' && i + 1 < len - 1) {
-                    i++;
-                    if (input[i] == 'n') res[pos++] = '\n';
-                    else if (input[i] == 'r') res[pos++] = '\r';
-                    else if (input[i] == 't') res[pos++] = '\t';
-                    else if (input[i] == '"') res[pos++] = '"';
-                    else if (input[i] == '\\') res[pos++] = '\\';
-                    else res[pos++] = input[i];
-                } else {
-                    res[pos++] = input[i];
-                }
-            }
-            res[pos] = '\0';
-            *out_str = res;
-            return 0;
+typedef struct {
+    uint32_t tag;
+    uint32_t padding;
+    uint64_t payload;
+} scriptgo_json_unknown;
+
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_set_tag(void *handle, int64_t tag);
+int scriptgo_array_push(void *handle, const void *value, double *out_length);
+int scriptgo_object_new(int64_t field_count, void **out_object);
+int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint64_t payload);
+
+static const char *json_skip_space(const char *cursor) {
+    while (cursor != NULL && (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r')) cursor++;
+    return cursor;
+}
+
+static int json_parse_value(const char **cursor, scriptgo_json_unknown *out);
+
+static int json_parse_string_value(const char **cursor, uint64_t *out_payload) {
+    const char *input = json_skip_space(*cursor);
+    size_t capacity = 32, length = 0;
+    char *result;
+    if (input == NULL || *input != '"' || out_payload == NULL) return json_fail("scriptgo json invalid string");
+    result = malloc(capacity);
+    if (result == NULL) return json_fail("scriptgo json allocation failed");
+    input++;
+    while (*input != '\0' && *input != '"') {
+        unsigned char value = (unsigned char)*input++;
+        if (value == '\\') {
+            value = (unsigned char)*input++;
+            if (value == 'n') value = '\n';
+            else if (value == 'r') value = '\r';
+            else if (value == 't') value = '\t';
+            else if (value == 'b') value = '\b';
+            else if (value == 'f') value = '\f';
+            else if (value == '"' || value == '\\' || value == '/') {}
+            else { free(result); return json_fail("scriptgo json invalid escape"); }
         }
+        if (length + 1 >= capacity) {
+            capacity *= 2;
+            char *grown = realloc(result, capacity);
+            if (grown == NULL) { free(result); return json_fail("scriptgo json allocation failed"); }
+            result = grown;
+        }
+        result[length++] = (char)value;
     }
-    *out_str = strdup(input);
-    return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    if (*input != '"') { free(result); return json_fail("scriptgo json unterminated string"); }
+    result[length] = '\0';
+    *cursor = input + 1;
+    *out_payload = (uint64_t)(uintptr_t)result;
+    return 0;
+}
+
+static int json_parse_value(const char **cursor, scriptgo_json_unknown *out) {
+    const char *input = json_skip_space(*cursor);
+    if (input == NULL || out == NULL) return json_fail("scriptgo json invalid value");
+    out->padding = 0;
+    if (strncmp(input, "null", 4) == 0) {
+        out->tag = 1; out->payload = 0; *cursor = input + 4; return 0;
+    }
+    if (strncmp(input, "true", 4) == 0) {
+        out->tag = 2; out->payload = 1; *cursor = input + 4; return 0;
+    }
+    if (strncmp(input, "false", 5) == 0) {
+        out->tag = 2; out->payload = 0; *cursor = input + 5; return 0;
+    }
+    if (*input == '"') {
+        out->tag = 4;
+        return json_parse_string_value(cursor, &out->payload);
+    }
+    if (*input == '[') {
+        void *array = NULL;
+        double length = 0;
+        if (scriptgo_array_new(0, (int64_t)sizeof(scriptgo_json_unknown), &array) != 0 || scriptgo_array_set_tag(array, 6) != 0) return -1;
+        input = json_skip_space(input + 1);
+        if (*input != ']') {
+            for (;;) {
+                scriptgo_json_unknown element;
+                if (json_parse_value(&input, &element) != 0 || scriptgo_array_push(array, &element, &length) != 0) return -1;
+                input = json_skip_space(input);
+                if (*input == ']') break;
+                if (*input != ',') return json_fail("scriptgo json invalid array");
+                input = json_skip_space(input + 1);
+            }
+        }
+        out->tag = 6; out->payload = (uint64_t)(uintptr_t)array; *cursor = input + 1; return 0;
+    }
+    if (*input == '{') {
+        void *object = NULL;
+        int64_t index = 0;
+        if (scriptgo_object_new(0, &object) != 0) return -1;
+        input = json_skip_space(input + 1);
+        if (*input != '}') {
+            for (;;) {
+                uint64_t key;
+                scriptgo_json_unknown value;
+                if (json_parse_string_value(&input, &key) != 0) return -1;
+                free((void *)(uintptr_t)key);
+                input = json_skip_space(input);
+                if (*input != ':') return json_fail("scriptgo json invalid object");
+                input = json_skip_space(input + 1);
+                if (json_parse_value(&input, &value) != 0 || scriptgo_object_unknown_set(object, index++, value.tag, value.payload) != 0) return -1;
+                input = json_skip_space(input);
+                if (*input == '}') break;
+                if (*input != ',') return json_fail("scriptgo json invalid object");
+                input = json_skip_space(input + 1);
+            }
+        }
+        out->tag = 5; out->payload = (uint64_t)(uintptr_t)object; *cursor = input + 1; return 0;
+    }
+    {
+        char *end = NULL;
+        double number = strtod(input, &end);
+        if (end == input) return json_fail("scriptgo json invalid value");
+        out->tag = 3;
+        memcpy(&out->payload, &number, sizeof(number));
+        *cursor = end;
+        return 0;
+    }
+}
+
+int scriptgo_json_parse_unknown(const char *input, scriptgo_json_unknown *out_value) {
+    const char *cursor;
+    if (input == NULL || out_value == NULL) return json_fail("scriptgo json invalid argument");
+    cursor = json_skip_space(input);
+    if (json_parse_value(&cursor, out_value) != 0) return -1;
+    cursor = json_skip_space(cursor);
+    if (*cursor != '\0') return json_fail("scriptgo json trailing data");
+    return 0;
 }
 
 int scriptgo_string_from_object(void *obj, char **out_str);
@@ -304,6 +405,9 @@ int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t pay
             return scriptgo_json_stringify_number_array(arr, out_str);
         }
     }
+    case 5: // Dynamic objects do not carry property names in the native ABI.
+        *out_str = strdup("{}");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
     default:
         if (payload == 0) {
             *out_str = strdup("null");
@@ -312,4 +416,3 @@ int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t pay
         return scriptgo_string_from_object((void *)(uintptr_t)payload, out_str);
     }
 }
-

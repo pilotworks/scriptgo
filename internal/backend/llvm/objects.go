@@ -390,6 +390,28 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__object.get_prop":
+		// Union values stay tagged until a narrowing operation selects a
+		// concrete representation. Numeric properties on those values need the
+		// runtime type tag, rather than the old placeholder number.
+		if len(instruction.Args) == 2 && instruction.Type == ir.TypeNumber {
+			objArg := e.resolveArg(out, instruction.Args[0])
+			if e.types[instruction.Args[0]] == ir.TypeUnknown || e.types[objArg] == ir.TypeUnknown {
+				propArg := e.resolveArg(out, instruction.Args[1])
+				tagName := fmt.Sprintf("unknown.prop.tag.%d", e.loadCounter)
+				payloadName := fmt.Sprintf("unknown.prop.payload.%d", e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagName, objArg)
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objArg)
+				slot := instruction.Result + ".slot"
+				status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+				e.runtimeStatus++
+				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+				out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_unknown_number_property(i32 %%%s, i64 %%%s, ptr %%%s, ptr %%%s)\n", status, tagName, payloadName, propArg, slot))
+				out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+				return nil
+			}
+		}
 		if strings.HasSuffix(string(instruction.Type), "[]") || instruction.Type == ir.TypeNumberArray || instruction.Type == ir.TypeStringArray {
 			e.types[instruction.Result] = instruction.Type
 			arrSlot := instruction.Result + ".arr.slot"

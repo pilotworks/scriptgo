@@ -1,5 +1,10 @@
 // Node.js Zlib module (node:zlib)
 
+declare namespace __scriptgo {
+    function zlibTransformString(data: string, mode: number): Uint8Array;
+    function zlibTransformBuffer(data: Uint8Array, mode: number): Uint8Array;
+}
+
 export const constants = {
     Z_NO_FLUSH: 0,
     Z_PARTIAL_FLUSH: 1,
@@ -54,23 +59,23 @@ export class ZlibBase {
         this.bytesWritten = 0;
     }
 
-    close(callback?: unknown): void {
+    close(callback?: ZlibCallback): void {
         if (typeof callback === "function") {
-            (callback as Function)();
+            callback(null, new Uint8Array(0));
         }
     }
 
-    flush(kind?: unknown, callback?: unknown): void {
+    flush(kind?: number | ZlibCallback, callback?: ZlibCallback): void {
         if (typeof kind === "function") {
-            (kind as Function)();
+            kind(null, new Uint8Array(0));
         } else if (typeof callback === "function") {
-            (callback as Function)();
+            callback(null, new Uint8Array(0));
         }
     }
 
-    params(level: number, strategy: number, callback?: unknown): void {
+    params(level: number, strategy: number, callback?: ZlibCallback): void {
         if (typeof callback === "function") {
-            (callback as Function)();
+            callback(null, new Uint8Array(0));
         }
     }
 
@@ -92,153 +97,208 @@ export class BrotliDecompress extends ZlibBase {}
 export class ZstdCompress extends ZlibBase {}
 export class ZstdDecompress extends ZlibBase {}
 
-export function createDeflate(options?: unknown): Deflate { return new Deflate(); }
-export function createDeflateRaw(options?: unknown): DeflateRaw { return new DeflateRaw(); }
-export function createGunzip(options?: unknown): Gunzip { return new Gunzip(); }
-export function createGzip(options?: unknown): Gzip { return new Gzip(); }
-export function createInflate(options?: unknown): Inflate { return new Inflate(); }
-export function createInflateRaw(options?: unknown): InflateRaw { return new InflateRaw(); }
-export function createUnzip(options?: unknown): Unzip { return new Unzip(); }
-export function createBrotliCompress(options?: unknown): BrotliCompress { return new BrotliCompress(); }
-export function createBrotliDecompress(options?: unknown): BrotliDecompress { return new BrotliDecompress(); }
-export function createZstdCompress(options?: unknown): ZstdCompress { return new ZstdCompress(); }
-export function createZstdDecompress(options?: unknown): ZstdDecompress { return new ZstdDecompress(); }
+export function createDeflate(options?: ZlibOptions): Deflate { return new Deflate(); }
+export function createDeflateRaw(options?: ZlibOptions): DeflateRaw { return new DeflateRaw(); }
+export function createGunzip(options?: ZlibOptions): Gunzip { return new Gunzip(); }
+export function createGzip(options?: ZlibOptions): Gzip { return new Gzip(); }
+export function createInflate(options?: ZlibOptions): Inflate { return new Inflate(); }
+export function createInflateRaw(options?: ZlibOptions): InflateRaw { return new InflateRaw(); }
+export function createUnzip(options?: ZlibOptions): Unzip { return new Unzip(); }
+export function createBrotliCompress(options?: BrotliOptions): BrotliCompress { return new BrotliCompress(); }
+export function createBrotliDecompress(options?: BrotliOptions): BrotliDecompress { return new BrotliDecompress(); }
+export function createZstdCompress(options?: ZstdOptions): ZstdCompress { return new ZstdCompress(); }
+export function createZstdDecompress(options?: ZstdOptions): ZstdDecompress { return new ZstdDecompress(); }
 
-function _mockBuffer(data: unknown): Uint8Array {
+export interface ZlibOptions {
+    flush?: number;
+    finishFlush?: number;
+    chunkSize?: number;
+    windowBits?: number;
+    level?: number;
+    memLevel?: number;
+    strategy?: number;
+    dictionary?: string | Uint8Array;
+    info?: boolean;
+    maxOutputLength?: number;
+}
+
+export interface BrotliOptions extends ZlibOptions {
+    params?: Record<number, number>;
+}
+
+export interface ZstdOptions extends ZlibOptions {
+    params?: Record<number, number>;
+}
+
+export type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
+
+type ZlibInput = string | Uint8Array;
+
+function _inputBytes(data: ZlibInput): Uint8Array {
     if (typeof data === "string") {
-        const str = data as string;
-        const res = new Uint8Array(str.length);
-        for (let i = 0; i < str.length; i++) {
-            res[i] = str.charCodeAt(i);
+        const result = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            result[i] = data.charCodeAt(i) & 0xFF;
         }
-        return res;
+        return result;
     }
-    return new Uint8Array(0);
+    return data;
 }
 
-export function deflate(buf: unknown, options?: unknown, callback?: unknown): void {
+function _transform(data: ZlibInput, mode: number): Uint8Array {
+    if (typeof data === "string") {
+        return __scriptgo.zlibTransformString(data, mode);
+    }
+    return __scriptgo.zlibTransformBuffer(data, mode);
+}
+
+function _crc32Bytes(data: Uint8Array, initial: number): number {
+    let crc = (initial ^ -1) >>> 0;
+    for (let i = 0; i < data.length; i++) {
+        crc = crc ^ data[i];
+        for (let bit = 0; bit < 8; bit++) {
+            const mask = -(crc & 1);
+            crc = (crc >>> 1) ^ (0xEDB88320 & mask);
+        }
+    }
+    return (crc ^ -1) >>> 0;
+}
+
+function _crc32Input(data: ZlibInput): Uint8Array {
+    if (typeof data === "string") {
+        const result = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            result[i] = data.charCodeAt(i) & 0xFF;
+        }
+        return result;
+    }
+    return data;
+}
+
+export function deflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 0));
     }
 }
 
-export function deflateSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function deflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 0);
 }
 
-export function deflateRaw(buf: unknown, options?: unknown, callback?: unknown): void {
+export function deflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 1));
     }
 }
 
-export function deflateRawSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function deflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 1);
 }
 
-export function gunzip(buf: unknown, options?: unknown, callback?: unknown): void {
+export function gunzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 5));
     }
 }
 
-export function gunzipSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function gunzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 5);
 }
 
-export function gzip(buf: unknown, options?: unknown, callback?: unknown): void {
+export function gzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 2));
     }
 }
 
-export function gzipSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function gzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 2);
 }
 
-export function inflate(buf: unknown, options?: unknown, callback?: unknown): void {
+export function inflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 3));
     }
 }
 
-export function inflateSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function inflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 3);
 }
 
-export function inflateRaw(buf: unknown, options?: unknown, callback?: unknown): void {
+export function inflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 4));
     }
 }
 
-export function inflateRawSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function inflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 4);
 }
 
-export function unzip(buf: unknown, options?: unknown, callback?: unknown): void {
+export function unzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 5));
     }
 }
 
-export function unzipSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function unzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 5);
 }
 
-export function brotliCompress(buf: unknown, options?: unknown, callback?: unknown): void {
+export function brotliCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 6));
     }
 }
 
-export function brotliCompressSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function brotliCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 6);
 }
 
-export function brotliDecompress(buf: unknown, options?: unknown, callback?: unknown): void {
+export function brotliDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 7));
     }
 }
 
-export function brotliDecompressSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function brotliDecompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 7);
 }
 
-export function zstdCompress(buf: unknown, options?: unknown, callback?: unknown): void {
+export function zstdCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 8));
     }
 }
 
-export function zstdCompressSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function zstdCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 8);
 }
 
-export function zstdDecompress(buf: unknown, options?: unknown, callback?: unknown): void {
+export function zstdDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        (cb as Function)(null, _mockBuffer(buf));
+        cb(null, _transform(buf, 9));
     }
 }
 
-export function zstdDecompressSync(buf: unknown, options?: unknown): Uint8Array {
-    return _mockBuffer(buf);
+export function zstdDecompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return _transform(buf, 9);
 }
 
-export function crc32(data: unknown, value?: number): number {
-    return 0;
+export function crc32(data: ZlibInput, value?: number): number {
+    const initial = value === undefined ? 0 : value;
+    return _crc32Bytes(_crc32Input(data), initial);
 }
 
 export default {

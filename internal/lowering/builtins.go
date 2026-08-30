@@ -319,7 +319,9 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"Number"}, CategoryECMAScript, "__number.new", nil, ir.TypeNumber, 0, 1)
 	register([]string{"String"}, CategoryECMAScript, "__string.new", nil, ir.TypeString, 0, 1)
 	register([]string{"Object"}, CategoryECMAScript, "__object.new", nil, ir.TypeObject, 0, 1)
-	register([]string{"JSON.parse"}, CategoryECMAScript, "__json.parse_string", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	// JSON.parse is a dynamic boundary: its result is any in TypeScript and
+	// must remain boxed until a checked use narrows it.
+	register([]string{"JSON.parse"}, CategoryECMAScript, "__json.parse_unknown", []ir.Type{ir.TypeString}, ir.TypeUnknown, 1, 1)
 	m["JSON.stringify"] = BuiltinIntrinsic{
 		Category: CategoryECMAScript,
 		Name:     "JSON.stringify",
@@ -812,12 +814,18 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 
 	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryNodeModule, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
 	register([]string{"crypto.hashDigest", "__scriptgo.hashDigest", "hashDigest"}, CategoryNodeModule, "__crypto.hashDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 2, 3)
+	register([]string{"crypto.hashDigestBuffer", "__scriptgo.hashDigestBuffer", "hashDigestBuffer"}, CategoryNodeModule, "__crypto.hashDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeString}, ir.TypeString, 2, 3)
 	register([]string{"crypto.randomBytes", "__scriptgo.randomBytes", "randomBytes"}, CategoryNodeModule, "__crypto.randomBytes", []ir.Type{ir.TypeNumber}, ir.TypeBuffer, 1, 1)
 	register([]string{"crypto.randomInt", "__scriptgo.randomInt", "randomInt"}, CategoryNodeModule, "__crypto.randomInt", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 2, 2)
 	register([]string{"crypto.randomFill", "__scriptgo.randomFill", "randomFill"}, CategoryNodeModule, "__crypto.randomFill", []ir.Type{ir.TypeBuffer, ir.TypeNumber, ir.TypeNumber}, ir.TypeBuffer, 1, 3)
 	register([]string{"crypto.timingSafeEqual", "__scriptgo.timingSafeEqual", "timingSafeEqual"}, CategoryNodeModule, "__crypto.timingSafeEqual", []ir.Type{ir.TypeBuffer, ir.TypeBuffer}, ir.TypeBool, 2, 2)
 	register([]string{"crypto.hmacDigest", "__scriptgo.hmacDigest", "hmacDigest"}, CategoryNodeModule, "__crypto.hmacDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 3, 4)
+	register([]string{"crypto.hmacDigestBuffer", "__scriptgo.hmacDigestBuffer", "hmacDigestBuffer"}, CategoryNodeModule, "__crypto.hmacDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeBuffer, ir.TypeString}, ir.TypeString, 3, 4)
 	register([]string{"crypto.pbkdf2Sync", "__scriptgo.pbkdf2Sync", "pbkdf2Sync"}, CategoryNodeModule, "__crypto.pbkdf2Sync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeNumber, ir.TypeNumber, ir.TypeString}, ir.TypeBuffer, 4, 5)
+	register([]string{"crypto.hkdfSync", "__scriptgo.hkdfSync", "hkdfSync"}, CategoryNodeModule, "__crypto.hkdfSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString, ir.TypeString, ir.TypeNumber}, ir.TypeArrayBuffer, 5, 5)
+	register([]string{"crypto.scryptSync", "__scriptgo.scryptSync", "scryptSync"}, CategoryNodeModule, "__crypto.scryptSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeNumber}, ir.TypeBuffer, 3, 3)
+	register([]string{"__scriptgo.zlibTransformString", "zlibTransformString"}, CategoryNodeModule, "__zlib.transform_string", []ir.Type{ir.TypeString, ir.TypeNumber}, ir.TypeUint8Array, 2, 2)
+	register([]string{"__scriptgo.zlibTransformBuffer", "zlibTransformBuffer"}, CategoryNodeModule, "__zlib.transform_buffer", []ir.Type{ir.TypeUint8Array, ir.TypeNumber}, ir.TypeUint8Array, 2, 2)
 	register([]string{"os.platform", "__scriptgo.platform", "platform"}, CategoryNodeModule, "__os.platform", nil, ir.TypeString, 0, 0)
 	register([]string{"os.arch", "__scriptgo.arch", "arch"}, CategoryNodeModule, "__os.arch", nil, ir.TypeString, 0, 0)
 	register([]string{"os.homedir", "__scriptgo.homedir", "homedir"}, CategoryNodeModule, "__os.homedir", nil, ir.TypeString, 0, 0)

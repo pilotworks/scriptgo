@@ -26,6 +26,9 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		function.ReturnType = ir.TypeVoid
 	}
 	env := map[string]ir.Type{}
+	if resolvedType, ok := asyncResolvedReturnType(retType); ok {
+		env[asyncResolvedReturnTypeEnvKey] = resolvedType
+	}
 	for _, parameter := range statement.Parameters {
 		pType := parameter.Type
 		if pType == "" && parameter.InferredType != "" {
@@ -50,6 +53,9 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		} else {
 			env[parameter.Name] = typ
 		}
+		// Keep the source-level declaration alongside the storage type. Mixed
+		// unions may use unknown storage until a control-flow guard narrows them.
+		env["__decl_str."+parameter.Name] = ir.Type(pType)
 		env["__param."+parameter.Name] = typ
 		fnSig := parameter.Type
 		if fnSig == "" || fnSig == "closure" {
@@ -74,23 +80,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		if function.ReturnType == ir.TypeVoid {
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: function.Span})
 		} else if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
-			prom := nextTemp(&counter)
-			zeroVal := nextTemp(&counter)
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeNumber,
-				Result: zeroVal,
-				Value:  "0",
-				Span:   function.Span,
-			})
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.Type("object:Promise"),
-				Result: prom,
-				Callee: "__async.promise_resolve",
-				Args:   []string{zeroVal},
-				Span:   function.Span,
-			})
+			prom := appendResolvedPromiseUndefined(&function, &counter, function.Span)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:   ir.OpReturn,
 				Type: function.ReturnType,
@@ -136,7 +126,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			*counter++
 			env["__ident."+statement.Name] = ir.Type(varResultName)
 		}
-		function.Locals = append(function.Locals, ir.Parameter{Name: varResultName})
+		localType := toIRType(statement.Type)
+		if localType == "" {
+			localType = toIRType(statement.InferredType)
+		}
+		if localType == "" {
+			localType = ir.TypeUnknown
+		}
+		function.Locals = append(function.Locals, ir.Parameter{Name: varResultName, Type: localType})
 		if statement.Expression == nil {
 			if statement.Kind == "using" || statement.Kind == "await_using" {
 				return fmt.Errorf("resource %q has no initializer", statement.Name)
@@ -362,12 +359,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			env["__decl_str."+varResultName] = ir.Type(statement.Type)
 			env["__decl_str."+statement.Name] = ir.Type(statement.Type)
 		}
+		// Intrinsics may honor the requested declaration name and emit an
+		// assignment while lowering (for example JSON.stringify). Predeclare a
+		// known inferred slot so that assignment validation sees the declaration.
+		if declaredType == "" {
+			// The checker may omit an expression's return type for a builtin
+			// call. Use boxed storage during lowering; the actual value type is
+			// installed immediately after the expression is lowered.
+			declaredType = ir.TypeUnknown
+		}
+		env[varResultName] = declaredType
+		env[statement.Name] = declaredType
+		env["__storage_type."+varResultName] = declaredType
 		value, valType, err := lowerExpression(path, statement.Expression, varResultName, function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
 		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown && !isOptionalChainExpr(statement.Expression) {
-			if value == varResultName {
+			if value == varResultName && statement.Expression.Kind != "conditional" {
 				tempVal := nextTemp(counter)
 				for i := len(function.Body) - 1; i >= 0; i-- {
 					if function.Body[i].Result == varResultName {
@@ -419,30 +428,42 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		return err
 	case "return":
 		if statement.Expression == nil {
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: toIRSpan(path, statement.Span)})
+			span := toIRSpan(path, statement.Span)
+			if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
+				// A bare return in an async function fulfills its promise with
+				// undefined; it does not return a void LLVM value directly.
+				promiseVal := appendResolvedPromiseUndefined(function, counter, span)
+				emitAllActiveUsingScopes(path, function, counter, shapes, signatures)
+				bodyLenBeforeFinally := len(function.Body)
+				if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
+					return err
+				}
+				if len(function.Body) == bodyLenBeforeFinally || function.Body[len(function.Body)-1].Op != ir.OpReturn {
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{promiseVal}, Span: span})
+				}
+				return nil
+			}
+			emitAllActiveUsingScopes(path, function, counter, shapes, signatures)
+			bodyLenBeforeFinally := len(function.Body)
+			if err := lowerActiveReturnFinally(path, function, env, counter, shapes, signatures); err != nil {
+				return err
+			}
+			if len(function.Body) == bodyLenBeforeFinally || function.Body[len(function.Body)-1].Op != ir.OpReturn {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: span})
+			}
 			return nil
 		}
 		if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && function.ReturnType != "" && function.ReturnType != ir.TypeVoid && function.ReturnType != ir.TypeUnknown {
 			res := nextTemp(counter)
 			if strings.HasPrefix(string(function.ReturnType), "object:Promise") {
-				prom := nextTemp(counter)
-				zeroVal := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   ir.TypeNumber,
-					Result: zeroVal,
-					Value:  "0",
-					Span:   toIRSpan(path, statement.Span),
-				})
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpCall,
-					Type:   ir.Type("object:Promise"),
-					Result: prom,
-					Callee: "__async.promise_resolve",
-					Args:   []string{zeroVal},
-					Span:   toIRSpan(path, statement.Span),
-				})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{prom}, Span: toIRSpan(path, statement.Span)})
+				span := toIRSpan(path, statement.Span)
+				prom := ""
+				if statement.Expression.Kind == "null" {
+					prom = appendResolvedPromiseNull(function, counter, span)
+				} else {
+					prom = appendResolvedPromiseUndefined(function, counter, span)
+				}
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{prom}, Span: span})
 				return nil
 			}
 			defaultVal := "0"
@@ -472,13 +493,21 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{res}, Span: toIRSpan(path, statement.Span)})
 			return nil
 		}
-		if statement.Expression != nil && statement.Expression.Kind == "object_literal" && function.ReturnType != "" && (statement.Expression.InferredType == "" || strings.HasPrefix(string(function.ReturnType), "object:")) && !strings.Contains(string(function.ReturnType), "|") {
-			cleanRet := strings.TrimPrefix(string(function.ReturnType), "object:")
+		returnExpression := statement.Expression
+		expectedReturnType := function.ReturnType
+		if resolvedType := env[asyncResolvedReturnTypeEnvKey]; resolvedType != "" {
+			expectedReturnType = resolvedType
+		}
+		if returnExpression.Kind == "object_literal" && strings.HasPrefix(string(expectedReturnType), "object:") && !strings.Contains(string(expectedReturnType), "|") {
+			cleanRet := strings.TrimPrefix(string(expectedReturnType), "object:")
 			if aliased, ok := typeAliasesIndex[cleanRet]; !ok || !strings.Contains(aliased, "|") {
-				statement.Expression.InferredType = string(function.ReturnType)
+				// Contextual typing is local to this lowering pass. The frontend AST
+				// can be reused by specializations and repeated Lower calls.
+				returnExpression = cloneAndSubstituteExpr(returnExpression, nil)
+				returnExpression.InferredType = string(expectedReturnType)
 			}
 		}
-		value, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		value, typ, err := lowerExpression(path, returnExpression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}

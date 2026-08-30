@@ -219,6 +219,18 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
+	case "__typedarray.set_array":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("typedarray.set_array requires 3 arguments")
+		}
+		ptrArg0 := e.ensurePointerArg(out, instruction.Args[0])
+		ptrArg1 := e.ensurePointerArg(out, instruction.Args[1])
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_set_js_array(ptr %%%s, ptr %%%s, double %%%s)\n", status, ptrArg0, ptrArg1, instruction.Args[2])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
 	case "__typedarray.new_array":
 		if len(instruction.Args) < 1 {
 			return fmt.Errorf("typedarray.new_array requires at least 1 argument")

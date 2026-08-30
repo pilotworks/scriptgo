@@ -49,6 +49,12 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 	virtualFiles := map[string]string{}
 	builtinPaths := map[string]string{}
 	for name, module := range builtinModules {
+		if name == "stream_consumers" {
+			virtualPath := filepath.Join(cwd, "node_modules", "stream", "consumers", "index.ts")
+			virtualFiles[virtualPath] = module.Source
+			builtinPaths[virtualPath] = "stream/consumers"
+			continue
+		}
 		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
@@ -61,6 +67,10 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 
 	var nodeTypesDts strings.Builder
 	for name := range builtinModules {
+		if name == "stream_consumers" {
+			nodeTypesDts.WriteString("declare module \"node:stream/consumers\" {\n    export * from \"stream/consumers\";\n    import d from \"stream/consumers\";\n    export default d;\n}\n")
+			continue
+		}
 		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
 		if name == "webstreams" {
 			nodeTypesDts.WriteString("declare module \"node:stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\n")
