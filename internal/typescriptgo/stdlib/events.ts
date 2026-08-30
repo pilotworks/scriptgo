@@ -216,6 +216,7 @@ export class Event {
 
     preventDefault(): void {
         this.defaultPrevented = true;
+        this.returnValue = false;
     }
 
     stopPropagation(): void {

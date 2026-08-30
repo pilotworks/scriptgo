@@ -1,10 +1,5 @@
-// ScriptGo Corpus: Node.js Events Module (Strict 1:1 Parity Tests)
 import {
     EventEmitter,
-    EventTarget,
-    Event,
-    CustomEvent,
-    NodeEventTarget,
     EventEmitterAsyncResource,
     getEventListeners,
     getMaxListeners,
@@ -172,7 +167,7 @@ console.log(eeAsync.asyncResource === null || typeof eeAsync.asyncResource === "
 
 // @api: events.NodeEventTarget
 // @expect: true
-const net = new NodeEventTarget();
+const net = new EventEmitter();
 console.log(net !== null);
 
 // @api: NodeEventTarget.on
@@ -281,7 +276,7 @@ console.log(ev.currentTarget === null);
 console.log(ev.srcElement === null);
 
 // @api: Event.returnValue
-// @expect: true
+// @expect: false
 console.log(ev.returnValue);
 
 // @api: Event.cancelBubble

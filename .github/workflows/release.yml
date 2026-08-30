@@ -47,7 +47,7 @@ jobs:
         run: go test -v -count=1 ./internal/typescriptgo/...
 
       - name: Gate 3 - Node.js Parity Benchmark
-        run: go run ./cmd/parity
+        run: go run ./cmd/parity -v
 
       - name: Gate 4 - Native Memory & Address Sanitizer Check
         env:

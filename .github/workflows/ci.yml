@@ -66,7 +66,7 @@ jobs:
         run: go test -v -count=1 ./... ./internal/typescriptgo/...
 
       - name: Run Node.js Parity Benchmark
-        run: go run ./cmd/parity
+        run: go run ./cmd/parity -v
 
   # ============================================================================
   # Sanitizers: AddressSanitizer & UndefinedBehaviorSanitizer (Parallel Job)
