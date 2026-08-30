@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: August 29, 2026  
+> **Report Date**: August 30, 2026
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -40,7 +40,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
 | `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism (16-byte tagged value), supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
 | `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
-| `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`). |
+| `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`), including tagged-value unboxing when heterogeneous tuple storage is destructured into a typed rest array. |
 | `Enum & Const Enum` | ✅ Full | Supports numeric enums, string enums, reverse mapping, and `const enum` member inlining directly into machine constants. |
 | `Union types` (`T \| U`) | ✅ Full | Flexible multi-variant primitive & object unions (e.g. `number \| string \| boolean \| null`), complete distribution with `undefined` and `null` (uninitialized defaults, variant transitions, and reassignments), flow-sensitive type narrowing (`!== undefined`, `!== null`, `typeof`, `instanceof`) unboxing directly into native CPU registers for zero-overhead arithmetic/loops, automatic boxing/unboxing, truthiness coercion, subtyping broadening across function calls, and control-flow type narrowing without manual `as` casts. |
 | `Generics & Const Type Parameters` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, type aliases, and `<const T>` type parameters. |
@@ -196,33 +196,34 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 340
-Native Backend Parity  : 327/340 (96.2%)
-Diagnostic Parity      : 11/340
-Overall Full Parity    : 338/340 (99.4%)
+Total Test Cases       : 386
+Native Backend Parity  : 375/386 (97.2%)
+Diagnostic Parity      : 11/386
+Overall Full Parity    : 386/386 (100.0%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100%** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 70 | **100%** | Standard APIs and built-ins: `abortcontroller`, `array`, `arraybuffer`, `assert`, `async`, `atomics`, `bigint`, `buffer`, `child_process`, `console`, `crypto`, `dataview`, `date`, `encoding`, `error`, `events`, `fetch`, `float64array`, `fs`, `headers`, `http`, `https`, `int32array`, `intl`, `iterator`, `iteratorobject`, `iteratorresult`, `json`, `map`, `math`, `net`, `now`, `number`, `object`, `os`, `path`, `perf_hooks`, `performance`, `process`, `promise`, `querystring`, `reflect`, `regexp`, `request`, `requestinit`, `response`, `responseinit`, `set`, `stream`, `string`, `string_decoder`, `suppressederror`, `symbol`, `syntaxerror`, `textdecodeoptions`, `textdecoder`, `textdecoderoptions`, `textencoder`, `textencoderencodeintoresult`, `timers`, `uint8array`, `url`, `urlsearchparams`, `util`, `weak_collections`, `weak_finalization`. |
-| **`async`** | 12 | **100%** | Top-level await, async pipelines, microtask sequencing, async generator iteration, parallel execution, error propagation. |
-| **`classes`** | 24 | **100%** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, Chain of Responsibility logger, Strategy sorter, Observer/Subject event pattern. |
-| **`control_flow`** | 22 | **100%** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
-| **`destructuring`** | 19 | **100%** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
+| **`api`** | 97 | **100%** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
+| **`api/fs`** | 5 | **100%** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
+| **`async`** | 13 | **100%** | Top-level await, async pipelines, microtask sequencing, async generator iteration, parallel execution, error propagation. |
+| **`classes`** | 25 | **100%** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
+| **`control_flow`** | 23 | **100%** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
+| **`destructuring`** | 20 | **100%** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
 | **`enums`** | 10 | **100%** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 21 | **100%** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
-| **`generics`** | 20 | **95.0%** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 15 | **100%** | Static tier features, syntax, async & generators, circular references, types, decorators. |
+| **`functions`** | 22 | **100%** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`generics`** | 20 | **100%** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
+| **`language`** | 19 | **100%** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/diagnostics`** | 5 | **100%** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100%** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100%** | Named/default exports/imports, initialization order, multi-level re-exports. |
-| **`operators`** | 23 | **95.7%** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
+| **`operators`** | 25 | **100%** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
 | **`scenarios`** | 15 | **100%** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
-| **`tuples`** | 17 | **100%** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), destructuring, readonly tuples, tuple variadic transformations. |
-| **`types`** | 13 | **100%** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
-| **`unions`** | 18 | **100%** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
+| **`tuples`** | 18 | **100%** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
+| **`types`** | 14 | **100%** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
+| **`unions`** | 19 | **100%** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 ---
 

@@ -115,6 +115,18 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	e.types[instruction.Result] = instruction.Type
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
+	if arrayType == ir.TypeUnknownArray && instruction.Type != ir.TypeUnknown {
+		unknownResult := instruction.Result + ".unknown"
+		slot := unknownResult + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get_unknown(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", unknownResult, slot))
+		e.types[unknownResult] = ir.TypeUnknown
+		cast := instruction
+		cast.Args = []string{unknownResult}
+		return e.emitCheckedCast(out, cast)
+	}
 	if instruction.Type == ir.TypeUnknown {
 		elemType := arrayElementType(arrayType)
 		if elemType != "" && elemType != ir.TypeUnknown {
