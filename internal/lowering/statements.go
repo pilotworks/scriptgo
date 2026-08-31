@@ -1043,6 +1043,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				// allowed array assignment
 			} else if valType == ir.TypePointer && (isPointerLikeType(shape.Fields[fIndex].Type) || shape.Fields[fIndex].Type == ir.TypePointer) {
 				// allowed null pointer assignment to pointer-like field
+			} else if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(shape.Fields[fIndex].Type), "object:") || shape.Fields[fIndex].Type == ir.TypeObject) {
+				// allowed object assignment
 			} else if isSubtype(string(valType), string(shape.Fields[fIndex].Type)) {
 				// allowed subtype/interface implementation assignment
 			} else if shape.Fields[fIndex].Type == ir.TypeUnknown {

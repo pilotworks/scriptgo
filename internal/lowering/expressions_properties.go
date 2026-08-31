@@ -654,7 +654,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	if typeAliasesIndex != nil && typeAliasesIndex[className] != "" && strings.Contains(typeAliasesIndex[className], "|") {
 		isUnionAlias = true
 	}
-	if !isUnionAlias && (className == "" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
+	if !isUnionAlias && (className == "" || className == "Record" || className == "closure" || strings.HasPrefix(className, "__closure_") || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
 		propNameConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,
@@ -702,10 +702,12 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			shape = ir.ObjectShape{Name: className, Fields: fields}
 			shapes[className] = shape
 			ok = true
-		} else if strings.Contains(className, "__") || strings.Contains(className, "_") {
-			baseName := strings.Split(className, "__")[0]
-			if !strings.Contains(className, "__") {
-				baseName = strings.Split(className, "_")[0]
+		} else if strings.Contains(className, "__") || strings.Contains(className, "_") || strings.Contains(className, "<") {
+			baseName := strings.Split(className, "<")[0]
+			if strings.Contains(baseName, "__") {
+				baseName = strings.Split(baseName, "__")[0]
+			} else if strings.Contains(baseName, "_") {
+				baseName = strings.Split(baseName, "_")[0]
 			}
 			if s, exists := shapes[baseName]; exists {
 				shape = s

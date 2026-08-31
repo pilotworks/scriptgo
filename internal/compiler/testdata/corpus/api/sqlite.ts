@@ -68,6 +68,10 @@ console.log("sql_db_exec: true");
 db.function("my_fn", () => 42);
 console.log("sql_db_fn: true");
 
+// @expect: sql_db_fn_val: 42
+const fnRow = db.prepare("SELECT my_fn() AS val;").get() as { val: number };
+console.log("sql_db_fn_val: " + fnRow.val);
+
 // @api: sqlite.StatementSync
 // @api: sqlite.sqlite.StatementSync
 // @api: new sqlite.StatementSync
@@ -79,22 +83,22 @@ console.log("sql_stmt_inst: " + (stmt instanceof StatementSync));
 
 // @api: StatementSync.all
 // @api: sqlite.StatementSync.all
-// @expect: sql_stmt_all: 0
+// @expect: sql_stmt_all: 1
 console.log("sql_stmt_all: " + stmt.all().length);
 
 // @api: StatementSync.columns
 // @api: sqlite.StatementSync.columns
-// @expect: sql_stmt_cols: 0
+// @expect: sql_stmt_cols: 1
 console.log("sql_stmt_cols: " + stmt.columns().length);
 
 // @api: StatementSync.get
 // @api: sqlite.StatementSync.get
-// @expect: sql_stmt_get: undefined
+// @expect: sql_stmt_get: [object Object]
 console.log("sql_stmt_get: " + stmt.get());
 
 // @api: StatementSync.iterate
 // @api: sqlite.StatementSync.iterate
-// @expect: sql_stmt_iter: 0
+// @expect: sql_stmt_iter: 1
 console.log("sql_stmt_iter: " + stmt.iterate().length);
 
 // @api: StatementSync.run

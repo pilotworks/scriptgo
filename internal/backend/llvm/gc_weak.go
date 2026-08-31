@@ -34,37 +34,6 @@ func weakValueTag(valueType ir.Type) int {
 	}
 }
 
-func weakMapValueType(handleType ir.Type) ir.Type {
-	t := strings.TrimPrefix(string(handleType), "object:")
-	if !strings.HasPrefix(t, "WeakMap<") || !strings.HasSuffix(t, ">") {
-		return ir.TypeUnknown
-	}
-	inner := t[len("WeakMap<") : len(t)-1]
-	depth := 0
-	start := 0
-	parts := make([]string, 0, 2)
-	for i, r := range inner {
-		switch r {
-		case '<', '{', '[', '(':
-			depth++
-		case '>', '}', ']', ')':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				parts = append(parts, strings.TrimSpace(inner[start:i]))
-				start = i + 1
-			}
-		}
-	}
-	parts = append(parts, strings.TrimSpace(inner[start:]))
-	if len(parts) != 2 || parts[1] == "" {
-		return ir.TypeUnknown
-	}
-	return ir.Type(parts[1])
-}
-
 func emitGcIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	status := instruction.Result + ".status"
 	slot := instruction.Result + ".slot"

@@ -91,4 +91,27 @@ var weakSource string
 //go:embed native/intl/runtime.c
 var intlSource string
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource)
+//go:embed native/sqlite/sqlite_types.h
+var sqliteTypesHeader string
+
+//go:embed native/sqlite/sqlite3.c
+var sqlite3Source string
+
+//go:embed native/sqlite/database.c
+var sqliteDbSource string
+
+//go:embed native/sqlite/statement.c
+var sqliteStmtSource string
+
+//go:embed native/sqlite/results.c
+var sqliteResultsSource string
+
+//go:embed native/sqlite/session.c
+var sqliteSessionSource string
+
+//go:embed native/sqlite/functions.c
+var sqliteFunctionsSource string
+
+var sqliteSource = "#define SQLITE_THREADSAFE 1\n#define SQLITE_ENABLE_JSON1 1\n#define SQLITE_ENABLE_SESSION 1\n#define SQLITE_ENABLE_PREUPDATE_HOOK 1\n#define SQLITE_ENABLE_COLUMN_METADATA 1\n#define SQLITE_OMIT_DEPRECATED 1\n" + sqlite3Source + "\n" + sqliteTypesHeader + "\n" + sqliteDbSource + "\n" + sqliteStmtSource + "\n" + sqliteResultsSource + "\n" + sqliteSessionSource + "\n" + sqliteFunctionsSource
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)

@@ -1292,6 +1292,14 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, retType, nil
+	case "spread":
+		if expression.Left != nil {
+			return lowerExpression(path, expression.Left, result, function, env, counter, shapes, signatures)
+		}
+		if expression.Right != nil {
+			return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
+		}
+		return "", "", fmt.Errorf("invalid spread expression")
 	case "yield", "yield_star":
 		if expression.Left != nil {
 			return lowerExpression(path, expression.Left, result, function, env, counter, shapes, signatures)

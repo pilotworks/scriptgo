@@ -1072,8 +1072,7 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 	}
 	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==" || expr.Operator == "!==" || expr.Operator == "!=") {
 		if applyTypeofNarrowing(expr, thenEnv, elseEnv, baseEnv) {
-			// The remaining equality cases below handle nullish and discriminant
-			// narrowing; typeof has already populated both branches here.
+			return
 		}
 	}
 	if expr.Kind == "binary" && expr.Operator == "in" && expr.Left != nil && (expr.Left.Kind == "string" || expr.Left.Kind == "literal") && expr.Right != nil && expr.Right.Kind == "identifier" {

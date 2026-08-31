@@ -690,6 +690,9 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	argType, hasType := e.types[arg]
 	if hasType && argType != ir.TypeUnknown {
 		if instruction.Result != arg {
+			if instruction.Type == ir.TypeVoid {
+				return nil
+			}
 			srcType := llvmType(argType)
 			dstType := llvmType(instruction.Type)
 			if srcType == dstType {

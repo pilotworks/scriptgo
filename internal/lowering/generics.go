@@ -502,8 +502,8 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			if stmt.Kind == "function" && len(stmt.TypeParameters) > 0 {
 				continue // Skip generic function template
 			}
-			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
-				continue // Skip generic class/interface/type_alias template
+			if (stmt.Kind == "class" || stmt.Kind == "type_alias") && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
+				continue // Skip generic class/type_alias template
 			}
 			if stmt.Kind == "variable" && stmt.Expression != nil && stmt.Expression.Kind == "arrow_function" && stmt.Expression.Function != nil && len(stmt.Expression.Function.TypeParameters) > 0 {
 				continue // Skip generic arrow function template

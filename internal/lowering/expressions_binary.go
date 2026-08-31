@@ -477,6 +477,27 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			})
 			return result, ir.TypeBool, nil
 		}
+		if isComparison(expression.Operator) && ((leftType == ir.TypeVoid && (rightType == ir.TypePointer || rightType == "ptr")) || (rightType == ir.TypeVoid && (leftType == ir.TypePointer || leftType == "ptr"))) {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			val := "false"
+			if expression.Operator == "!==" {
+				val = "true"
+			} else if expression.Operator == "!=" {
+				val = "false"
+			} else if expression.Operator == "==" {
+				val = "true"
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: result,
+				Value:  val,
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
 		if isComparison(expression.Operator) && (expression.Right != nil && (expression.Right.Kind == "null" || expression.Right.Kind == "undefined")) && isPointerLikeType(leftType) {
 			right = nextTemp(counter)
 			rightType = leftType
