@@ -49,17 +49,21 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 	virtualFiles := map[string]string{}
 	builtinPaths := map[string]string{}
 	for name, module := range builtinModules {
+		fileName := "index.ts"
+		if module.IsDeclaration {
+			fileName = "index.d.ts"
+		}
 		if name == "stream_consumers" {
-			virtualPath := filepath.Join(cwd, "node_modules", "stream", "consumers", "index.ts")
+			virtualPath := filepath.Join(cwd, "node_modules", "stream", "consumers", fileName)
 			virtualFiles[virtualPath] = module.Source
 			builtinPaths[virtualPath] = "stream/consumers"
 			continue
 		}
-		virtualPath := filepath.Join(cwd, "node_modules", name, "index.ts")
+		virtualPath := filepath.Join(cwd, "node_modules", name, fileName)
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
 		if name == "webstreams" {
-			vStreamWeb := filepath.Join(cwd, "node_modules", "stream", "web", "index.ts")
+			vStreamWeb := filepath.Join(cwd, "node_modules", "stream", "web", fileName)
 			virtualFiles[vStreamWeb] = module.Source
 			builtinPaths[vStreamWeb] = "stream/web"
 		}

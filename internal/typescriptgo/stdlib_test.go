@@ -16,7 +16,7 @@ func TestEmbeddedStdlibLoaded(t *testing.T) {
 		t.Fatal("expected embedded builtin modules, got 0")
 	}
 
-	expectedModules := []string{"console", "crypto", "fs", "os", "path", "process"}
+	expectedModules := []string{"console", "crypto", "fs", "os", "path", "process", "vm"}
 	for _, modName := range expectedModules {
 		mod, ok := builtinModule(modName)
 		if !ok {
@@ -53,7 +53,7 @@ func TestSeedVersionDeclarations(t *testing.T) {
 	}
 
 	// Verify required stdlib files exist
-	expectedFiles := []string{"globals.d.ts", "console.ts", "path.ts", "fs.ts", "os.ts", "crypto.ts", "process.ts", "net.ts", "http.ts", "stream.ts"}
+	expectedFiles := []string{"globals.d.ts", "console.ts", "path.ts", "fs.ts", "os.ts", "crypto.ts", "process.ts", "net.ts", "http.ts", "stream.ts", filepath.Join("vm", "index.d.ts")}
 	for _, expected := range expectedFiles {
 		filePath := filepath.Join(versionDir, expected)
 		if _, err := os.Stat(filePath); err != nil {

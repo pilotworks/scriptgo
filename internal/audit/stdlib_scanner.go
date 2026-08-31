@@ -56,6 +56,25 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
+			dirName := entry.Name()
+			relPath := filepath.Join(dirName, "index.ts")
+			contentBytes, err := fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
+			if err != nil {
+				relPath = filepath.Join(dirName, "index.d.ts")
+				contentBytes, err = fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
+			}
+			if err != nil {
+				relPath = filepath.Join(dirName, dirName+".ts")
+				contentBytes, err = fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
+			}
+			if err == nil {
+				filePath := filepath.Join("internal", "typescriptgo", "stdlib", relPath)
+				content := string(contentBytes)
+				syntaxFile, err := typescriptgo.ParseFileToSyntax(filePath, content)
+				if err == nil {
+					processSyntaxStatements(catalog, syntaxFile.Statements, dirName, filePath, content)
+				}
+			}
 			continue
 		}
 		fileName := entry.Name()

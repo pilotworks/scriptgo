@@ -17,9 +17,10 @@ const DefaultVersion = "v0.1.0"
 // BuiltinModule is the TypeScript source and version contract for a
 // scriptgo-provided module (Category 4: Node built-in modules).
 type BuiltinModule struct {
-	Name    string
-	Version string
-	Source  string
+	Name          string
+	Version       string
+	Source        string
+	IsDeclaration bool
 }
 
 //go:embed stdlib/*
@@ -50,6 +51,29 @@ func loadEmbeddedStdlib(version string) error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
+			dirName := entry.Name()
+			isDecl := false
+			indexPath := filepath.Join("stdlib", dirName, "index.ts")
+			content, err := embeddedStdlibFS.ReadFile(indexPath)
+			if err != nil {
+				indexPath = filepath.Join("stdlib", dirName, "index.d.ts")
+				content, err = embeddedStdlibFS.ReadFile(indexPath)
+				if err == nil {
+					isDecl = true
+				}
+			}
+			if err != nil {
+				indexPath = filepath.Join("stdlib", dirName, dirName+".ts")
+				content, err = embeddedStdlibFS.ReadFile(indexPath)
+			}
+			if err == nil {
+				newModules[dirName] = BuiltinModule{
+					Name:          dirName,
+					Version:       version,
+					Source:        string(content),
+					IsDeclaration: isDecl,
+				}
+			}
 			continue
 		}
 		name := entry.Name()
@@ -117,6 +141,29 @@ func LoadStdlibFromDir(dir string, version string) error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
+			dirName := entry.Name()
+			isDecl := false
+			indexPath := filepath.Join(cleanDir, dirName, "index.ts")
+			content, err := os.ReadFile(indexPath)
+			if err != nil {
+				indexPath = filepath.Join(cleanDir, dirName, "index.d.ts")
+				content, err = os.ReadFile(indexPath)
+				if err == nil {
+					isDecl = true
+				}
+			}
+			if err != nil {
+				indexPath = filepath.Join(cleanDir, dirName, dirName+".ts")
+				content, err = os.ReadFile(indexPath)
+			}
+			if err == nil {
+				newModules[dirName] = BuiltinModule{
+					Name:          dirName,
+					Version:       version,
+					Source:        string(content),
+					IsDeclaration: isDecl,
+				}
+			}
 			continue
 		}
 		name := entry.Name()
@@ -166,24 +213,24 @@ func SeedVersionDeclarations(version string, targetDir string) error {
 		return fmt.Errorf("create version directory %s: %w", targetDir, err)
 	}
 
-	entries, err := embeddedStdlibFS.ReadDir("stdlib")
-	if err != nil {
-		return fmt.Errorf("read embedded stdlib: %w", err)
-	}
-
-	for _, entry := range entries {
-		name := entry.Name()
-		content, err := embeddedStdlibFS.ReadFile(filepath.Join("stdlib", name))
+	return fs.WalkDir(embeddedStdlibFS, "stdlib", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel("stdlib", path)
+		if err != nil || rel == "." {
+			return nil
+		}
+		dstPath := filepath.Join(targetDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dstPath, 0o755)
+		}
+		content, err := embeddedStdlibFS.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("read embedded file %s: %w", name, err)
+			return fmt.Errorf("read embedded file %s: %w", path, err)
 		}
-		dstPath := filepath.Join(targetDir, name)
-		if err := os.WriteFile(dstPath, content, 0o644); err != nil {
-			return fmt.Errorf("write file %s: %w", dstPath, err)
-		}
-	}
-
-	return nil
+		return os.WriteFile(dstPath, content, 0o644)
+	})
 }
 
 // ResolveVersionDir returns the version directory containing .d.ts declarations,
