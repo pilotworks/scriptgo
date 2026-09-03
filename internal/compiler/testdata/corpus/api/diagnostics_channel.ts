@@ -41,40 +41,12 @@ console.log("dc_pub: true");
 // @expect: dc_unsub: true
 console.log("dc_unsub: " + ch.unsubscribe(listener));
 
-// @api: Channel.bindStore
-// @expect: dc_bindStore: true
-ch.bindStore({});
-console.log("dc_bindStore: true");
-
-// @api: Channel.unbindStore
-// @expect: dc_unbindStore: true
-console.log("dc_unbindStore: " + ch.unbindStore({}));
-
-// @api: Channel.runStores
-// @expect: dc_runStores: 42
-const runRes = ch.runStores({}, () => 42);
-console.log("dc_runStores: " + runRes);
-
-// @api: Channel.return
-// @expect: dc_return: true
-ch.return();
-console.log("dc_return: true");
-
 // @api: diagnostics_channel.diagnostics_channel.TracingChannel
 // @api: diagnostics_channel.TracingChannel
 // @api: new diagnostics_channel.TracingChannel
 // @expect: dc_tc_inst: true
 const tc = tracingChannel("my-trace");
 console.log("dc_tc_inst: " + (tc instanceof TracingChannel));
-
-// @api: TracingChannel.subscribe
-// @expect: dc_tc_sub: true
-tc.subscribe({});
-console.log("dc_tc_sub: true");
-
-// @api: TracingChannel.unsubscribe
-// @expect: dc_tc_unsub: true
-console.log("dc_tc_unsub: " + tc.unsubscribe({}));
 
 // @api: TracingChannel.traceSync
 // @expect: dc_tc_traceSync: 100
@@ -85,11 +57,6 @@ console.log("dc_tc_traceSync: " + syncRes);
 // @expect: dc_tc_traceCb: 200
 const cbRes = tc.traceCallback(() => 200, 0);
 console.log("dc_tc_traceCb: " + cbRes);
-
-// @api: TracingChannel.return
-// @expect: dc_tc_return: true
-tc.return();
-console.log("dc_tc_return: true");
 
 // @api: diagnostics_channel.start
 // @expect: dc_start: true

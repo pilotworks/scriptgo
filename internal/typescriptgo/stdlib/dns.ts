@@ -153,12 +153,6 @@ export function setDefaultResultOrder(order: string): void {
     }
 }
 
-let _dnsCancelled: boolean = false;
-
-export function cancel(): void {
-    _dnsCancelled = true;
-}
-
 export function lookup(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void {
     let cb: Function = () => {};
     let isAll = false;
@@ -420,9 +414,6 @@ export class Resolver {
         this._servers = ["127.0.0.1", "8.8.8.8", "1.1.1.1"];
     }
 
-    cancel(): void {
-    }
-
     setLocalAddress(ipv4?: string, ipv6?: string): void {
         if (ipv4) this._localIPv4 = ipv4;
         if (ipv6) this._localIPv6 = ipv6;
@@ -512,9 +503,6 @@ export class PromiseResolver {
 
     constructor(options?: unknown) {
         this._servers = ["127.0.0.1", "8.8.8.8", "1.1.1.1"];
-    }
-
-    cancel(): void {
     }
 
     setLocalAddress(ipv4?: string, ipv6?: string): void {
@@ -717,6 +705,5 @@ export default {
     setServers,
     getDefaultResultOrder,
     setDefaultResultOrder,
-    cancel,
     promises,
 };

@@ -1023,21 +1023,19 @@ func isTypedArrayClassName(name string) bool {
 
 func isGlobalConstructor(name string) bool {
 	switch name {
-	case "Blob", "Buffer", "ByteLengthQueuingStrategy", "BroadcastChannel",
+	case "Blob", "Buffer", "ByteLengthQueuingStrategy",
 		"CompressionStream", "CountQueuingStrategy", "Crypto", "CryptoKey",
-		"CustomEvent", "DecompressionStream", "Event", "EventSource",
-		"EventTarget", "File", "FormData", "Headers", "MessageChannel",
-		"MessageEvent", "MessagePort", "Navigator", "PerformanceEntry",
-		"PerformanceMark", "PerformanceMeasure", "PerformanceObserver",
+		"CustomEvent", "DecompressionStream", "Event",
+		"EventTarget", "File", "Headers",
+		"PerformanceEntry", "PerformanceMark", "PerformanceMeasure", "PerformanceObserver",
 		"PerformanceObserverEntryList", "PerformanceResourceTiming",
 		"ReadableByteStreamController", "ReadableStream", "ReadableStreamBYOBReader",
 		"ReadableStreamBYOBRequest", "ReadableStreamDefaultController",
-		"ReadableStreamDefaultReader", "Response", "Request", "Storage",
+		"ReadableStreamDefaultReader", "Response", "Request",
 		"SubtleCrypto", "DOMException", "TextDecoder", "TextDecoderStream",
 		"TextEncoder", "TextEncoderStream", "TransformStream",
 		"TransformStreamDefaultController", "URL", "URLSearchParams",
-		"WebAssembly", "WebSocket", "WritableStream",
-		"WritableStreamDefaultController", "WritableStreamDefaultWriter",
+		"WritableStream", "WritableStreamDefaultController", "WritableStreamDefaultWriter",
 		"AbortController", "AbortSignal", "Console", "performance", "crypto",
 		"require", "atob", "btoa", "clearImmediate", "clearInterval", "clearTimeout",
 		"queueMicrotask", "setImmediate", "setInterval", "setTimeout", "structuredClone":

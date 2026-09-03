@@ -1,5 +1,7 @@
 // ScriptGo Standard Library: node:util
 
+import { deepStrictEqual } from "node:assert";
+
 export class MIMEParams {
     private _entries: Array<[string, string]> = [];
 
@@ -192,7 +194,12 @@ export function isBuffer(object: unknown): boolean {
 }
 
 export function isDeepStrictEqual(val1: unknown, val2: unknown): boolean {
-    return Object.is(val1, val2);
+    try {
+        deepStrictEqual(val1, val2);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export namespace types {
@@ -204,8 +211,6 @@ export namespace types {
     export function isUint8Array(val: unknown): boolean { return val instanceof Uint8Array; }
     export function isMap(val: unknown): boolean { return val instanceof Map; }
     export function isSet(val: unknown): boolean { return val instanceof Set; }
-    export function isWeakMap(val: unknown): boolean { return false; }
-    export function isWeakSet(val: unknown): boolean { return false; }
     export function isAsyncFunction(val: unknown): boolean { return typeof val === "function"; }
     export function isGeneratorFunction(val: unknown): boolean { return typeof val === "function"; }
     export function isGeneratorObject(val: unknown): boolean { return val !== null && typeof val === "object"; }
@@ -333,9 +338,6 @@ export function deprecate<T extends Function>(fn: T, msg: string, code?: string)
     const prefix = typeof code === "string" && code.length > 0 ? code + ": " : "";
     console.warn(`[DEPRECATION] ${prefix}${msg}`);
     return fn;
-}
-
-export function inherits(constructor: Function, superConstructor: Function): void {
 }
 
 export function _extend(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
@@ -537,13 +539,22 @@ export class TextDecoder {
     }
 }
 
+export class TextEncoderEncodeIntoResult {
+    read: number;
+    written: number;
+    constructor(read: number, written: number) {
+        this.read = read;
+        this.written = written;
+    }
+}
+
 export class TextEncoder {
     readonly encoding: string = "utf-8";
     encode(input: string = ""): Uint8Array {
         return new Uint8Array(input.length);
     }
-    encodeInto(source: string, destination: Uint8Array): { read: number; written: number } {
-        return { read: source.length, written: source.length };
+    encodeInto(source: string, destination: Uint8Array): TextEncoderEncodeIntoResult {
+        return new TextEncoderEncodeIntoResult(source.length, source.length);
     }
 }
 

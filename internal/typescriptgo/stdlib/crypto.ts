@@ -25,130 +25,8 @@ function toCryptoBuffer(data: CryptoBinary, encoding?: string): Buffer {
     return typeof data === "string" ? Buffer.from(data, encoding) : Buffer.from(data);
 }
 
-export class Certificate {
-    static exportChallenge(spkac: unknown): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    static exportPublicKey(spkac: unknown): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    static verifySpkac(spkac: unknown): boolean {
-        return true;
-    }
-}
-
-export class Cipher extends EventEmitter {
-    update(data: unknown, inputEncoding?: string, outputEncoding?: string): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    final(outputEncoding?: string): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    setAutoPadding(autoPadding?: boolean): this {
-        return this;
-    }
-
-    getAuthTag(): Buffer {
-        return Buffer.alloc(16);
-    }
-
-    setAAD(buffer: unknown, options?: unknown): this {
-        return this;
-    }
-}
-
-export class Decipher extends EventEmitter {
-    update(data: unknown, inputEncoding?: string, outputEncoding?: string): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    final(outputEncoding?: string): Buffer {
-        return Buffer.alloc(0);
-    }
-
-    setAutoPadding(autoPadding?: boolean): this {
-        return this;
-    }
-
-    setAuthTag(buffer: unknown, encoding?: string): this {
-        return this;
-    }
-
-    setAAD(buffer: unknown, options?: unknown): this {
-        return this;
-    }
-}
-
-export class DiffieHellman {
-    verifyError: number = 0;
-
-    generateKeys(encoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    computeSecret(otherPublicKey: unknown, inputEncoding?: string, outputEncoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    getPrime(encoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    getGenerator(encoding?: string): Buffer {
-        return Buffer.alloc(1);
-    }
-
-    getPublicKey(encoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    getPrivateKey(encoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    setPublicKey(publicKey: unknown, encoding?: string): this {
-        return this;
-    }
-
-    setPrivateKey(privateKey: unknown, encoding?: string): this {
-        return this;
-    }
-}
-
-export class DiffieHellmanGroup extends DiffieHellman {}
-
 export interface HashOptions {
     outputLength?: number;
-}
-
-export class ECDH {
-    generateKeys(encoding?: string, format?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    computeSecret(otherPublicKey: unknown, inputEncoding?: string, outputEncoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    getPublicKey(encoding?: string, format?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    getPrivateKey(encoding?: string): Buffer {
-        return Buffer.alloc(32);
-    }
-
-    setPublicKey(publicKey: unknown, encoding?: string): this {
-        return this;
-    }
-
-    setPrivateKey(privateKey: unknown, encoding?: string): this {
-        return this;
-    }
 }
 
 export class Hash extends EventEmitter {
@@ -217,52 +95,6 @@ export class Hmac extends EventEmitter {
     }
 }
 
-export class KeyObject {
-    type: string = "secret";
-    asymmetricKeyType: string = "";
-    symmetricKeySize: number = 32;
-
-    constructor(type: string = "secret") {
-        this.type = type;
-    }
-
-    asymmetricKeyDetails(): unknown {
-        return {};
-    }
-
-    equals(otherKeyObject: KeyObject): boolean {
-        return true;
-    }
-
-    export(options?: unknown): unknown {
-        return Buffer.alloc(0);
-    }
-
-    toCryptoKey(algorithm: unknown, extractable: boolean, keyUsages: string[]): unknown {
-        return {};
-    }
-}
-
-export class Sign extends EventEmitter {
-    update(data: unknown, inputEncoding?: string): this {
-        return this;
-    }
-
-    sign(privateKey: unknown, outputEncoding?: string): Buffer {
-        return Buffer.alloc(64);
-    }
-}
-
-export class Verify extends EventEmitter {
-    update(data: unknown, inputEncoding?: string): this {
-        return this;
-    }
-
-    verify(object: unknown, signature: unknown, signatureEncoding?: string): boolean {
-        return true;
-    }
-}
-
 function formatFingerprintCrypto(hexStr: string): string {
     const upper = hexStr.toUpperCase();
     const parts: string[] = [];
@@ -281,7 +113,7 @@ export class X509Certificate {
     issuer: string = "";
     issuerCertificate: X509Certificate | undefined = undefined;
     keyUsage: string[] = [];
-    publicKey: KeyObject = new KeyObject("public");
+    publicKey: Record<string, unknown> = { type: "public" };
     raw: Buffer = Buffer.alloc(0);
     serialNumber: string = "";
     subject: string = "";
@@ -392,10 +224,6 @@ export class X509Certificate {
         return this.subject === otherCert.issuer;
     }
 
-    checkPrivateKey(privateKey: KeyObject): boolean {
-        return true;
-    }
-
     toJSON(): string {
         return JSON.stringify({
             subject: this.subject,
@@ -426,10 +254,6 @@ export class X509Certificate {
     toString(): string {
         return this._pem.length > 0 ? this._pem : "-----BEGIN CERTIFICATE-----\n" + this.fingerprint256 + "\n-----END CERTIFICATE-----";
     }
-
-    verify(publicKey: KeyObject): boolean {
-        return true;
-    }
 }
 
 export const constants: Record<string, number> = {
@@ -444,7 +268,6 @@ export const constants: Record<string, number> = {
     POINT_CONVERSION_HYBRID: 6,
 };
 
-export const fips: boolean = false;
 export { webcrypto };
 export const subtle: SubtleCrypto = webcrypto.subtle;
 
@@ -477,68 +300,12 @@ export function checkPrimeSync(candidate: unknown, options?: unknown): boolean {
     return true;
 }
 
-export function createCipheriv(algorithm: string, key: unknown, iv: unknown, options?: unknown): Cipher {
-    return new Cipher();
-}
-
-export function createDecipheriv(algorithm: string, key: unknown, iv: unknown, options?: unknown): Decipher {
-    return new Decipher();
-}
-
-export function createDiffieHellman(primeLength: number, generator?: unknown): DiffieHellman {
-    return new DiffieHellman();
-}
-
-export function createDiffieHellmanGroup(name: string): DiffieHellmanGroup {
-    return new DiffieHellmanGroup();
-}
-
-export function createECDH(curveName: string): ECDH {
-    return new ECDH();
-}
-
 export function createHash(algorithm: string, options?: unknown): Hash {
     return new Hash(algorithm);
 }
 
 export function createHmac(algorithm: string, key: CryptoBinary, options?: unknown): Hmac {
     return new Hmac(algorithm, key);
-}
-
-export function createPrivateKey(key: unknown): KeyObject {
-    return new KeyObject("private");
-}
-
-export function createPublicKey(key: unknown): KeyObject {
-    return new KeyObject("public");
-}
-
-export function createSecretKey(key: unknown, encoding?: string): KeyObject {
-    return new KeyObject("secret");
-}
-
-export function createSign(algorithm: string, options?: unknown): Sign {
-    return new Sign();
-}
-
-export function createVerify(algorithm: string, options?: unknown): Verify {
-    return new Verify();
-}
-
-export function generateKey(type: string, options: unknown, callback: (err: Error | null, key: KeyObject) => void): void {
-    callback(null, new KeyObject("secret"));
-}
-
-export function generateKeySync(type: string, options: unknown): KeyObject {
-    return new KeyObject("secret");
-}
-
-export function generateKeyPair(type: string, options: unknown, callback: (err: Error | null, publicKey: KeyObject, privateKey: KeyObject) => void): void {
-    callback(null, new KeyObject("public"), new KeyObject("private"));
-}
-
-export function generateKeyPairSync(type: string, options: unknown): { publicKey: KeyObject; privateKey: KeyObject } {
-    return { publicKey: new KeyObject("public"), privateKey: new KeyObject("private") };
 }
 
 export function generatePrime(size: number, callback: (err: Error | null, prime: unknown) => void): void;
@@ -567,24 +334,12 @@ export function generatePrimeSync(size: number, options?: unknown): unknown {
     return candidate;
 }
 
-export function getCipherInfo(nameOrNid: string | number, options?: unknown): unknown {
-    return { name: "aes-256-gcm", nid: 1, blockSize: 16, ivLength: 12, keyLength: 32 };
-}
-
 export function getCiphers(): string[] {
     return ["aes-128-cbc", "aes-256-cbc", "aes-256-gcm"];
 }
 
 export function getCurves(): string[] {
     return ["prime256v1", "secp256k1"];
-}
-
-export function getDiffieHellman(groupName: string): DiffieHellmanGroup {
-    return new DiffieHellmanGroup();
-}
-
-export function getFips(): boolean {
-    return false;
 }
 
 export function getHashes(): string[] {
@@ -629,22 +384,6 @@ export function pbkdf2Sync(password: unknown, salt: unknown, iterations: number,
         throw new TypeError("crypto.pbkdf2Sync requires string password and salt");
     }
     return __scriptgo.pbkdf2Sync(password, salt, iterations, keylen, digest);
-}
-
-export function privateDecrypt(privateKey: unknown, buffer: unknown): Buffer {
-    return Buffer.alloc(0);
-}
-
-export function privateEncrypt(privateKey: unknown, buffer: unknown): Buffer {
-    return Buffer.alloc(0);
-}
-
-export function publicDecrypt(publicKey: unknown, buffer: unknown): Buffer {
-    return Buffer.alloc(0);
-}
-
-export function publicEncrypt(publicKey: unknown, buffer: unknown): Buffer {
-    return Buffer.alloc(0);
 }
 
 export function randomBytes(size: number, callback?: (err: Error | null, buf: Buffer) => void): Buffer {
@@ -719,69 +458,31 @@ export function scryptSync(password: unknown, salt: unknown, keylen: number, opt
     return __scriptgo.scryptSync(password, salt, keylen);
 }
 
-export function secureHeapUsed(): { total: number; used: number; utilization: number; min: number } {
-    return { total: 0, used: 0, utilization: 0, min: 0 };
-}
-
-export function setEngine(engine: string, flags?: number): void {}
-export function setFips(enable: boolean): void {}
-
 export function timingSafeEqual(a: Buffer, b: Buffer): boolean {
     return __scriptgo.timingSafeEqual(a, b);
 }
 
 export default {
-    Certificate,
-    Cipher,
-    Decipher,
-    DiffieHellman,
-    DiffieHellmanGroup,
-    ECDH,
     Hash,
     Hmac,
-    KeyObject,
-    Sign,
-    Verify,
     X509Certificate,
     constants,
-    fips,
     subtle,
     webcrypto,
     checkPrime,
     checkPrimeSync,
-    createCipheriv,
-    createDecipheriv,
-    createDiffieHellman,
-    createDiffieHellmanGroup,
-    createECDH,
     createHash,
     createHmac,
-    createPrivateKey,
-    createPublicKey,
-    createSecretKey,
-    createSign,
-    createVerify,
-    generateKey,
-    generateKeySync,
-    generateKeyPair,
-    generateKeyPairSync,
     generatePrime,
     generatePrimeSync,
-    getCipherInfo,
     getCiphers,
     getCurves,
-    getDiffieHellman,
-    getFips,
     getHashes,
     getRandomValues,
     hkdf,
     hkdfSync,
     pbkdf2,
     pbkdf2Sync,
-    privateDecrypt,
-    privateEncrypt,
-    publicDecrypt,
-    publicEncrypt,
     randomBytes,
     randomFill,
     randomFillSync,
@@ -789,8 +490,5 @@ export default {
     randomUUID,
     scrypt,
     scryptSync,
-    secureHeapUsed,
-    setEngine,
-    setFips,
     timingSafeEqual,
 };

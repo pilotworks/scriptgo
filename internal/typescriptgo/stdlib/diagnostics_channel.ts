@@ -31,15 +31,6 @@ export class Channel {
         }
         return false;
     }
-
-    bindStore(store: unknown, transform?: unknown): void {}
-    unbindStore(store: unknown): boolean {
-        return true;
-    }
-    runStores<R>(context: unknown, fn: () => R): R {
-        return fn();
-    }
-    return(): void {}
 }
 
 export class TracingChannel {
@@ -67,11 +58,6 @@ export class TracingChannel {
             this.asyncEnd = new Channel("asyncEnd");
             this.error = new Channel("error");
         }
-    }
-
-    subscribe(subscribers: unknown): void {}
-    unsubscribe(subscribers: unknown): boolean {
-        return true;
     }
 
     traceSync<R>(fn: () => R, context: unknown = {}): R {
@@ -106,8 +92,6 @@ export class TracingChannel {
         this.end.publish(context);
         return res;
     }
-
-    return(): void {}
 }
 
 const _channels: Map<string, Channel> = new Map();

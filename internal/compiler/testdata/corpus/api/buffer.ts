@@ -5,14 +5,9 @@ import {
     Buffer,
     Blob,
     File,
-    SlowBuffer,
     atob,
     btoa,
     isAscii,
-    isUtf8,
-    resolveObjectURL,
-    transcode,
-    INSPECT_MAX_BYTES,
     kMaxLength,
     kStringMaxLength,
     MAX_LENGTH,
@@ -481,10 +476,6 @@ runBlobAsync();
 // @expect: blob_bytes: true
 console.log("blob_bytes: true");
 
-// @api: Blob.stream
-// @expect: blob_stream: true
-console.log("blob_stream: " + (blob.stream() === null));
-
 // @api: buffer.File
 // @expect: file_instance: true
 const file = new File(["data"], "test.txt", { type: "text/plain", lastModified: 1000 });
@@ -510,22 +501,6 @@ console.log("btoa_res: " + btoa("hello"));
 // @expect: isAscii_res: true
 console.log("isAscii_res: " + isAscii(Buffer.from("abc")));
 
-// @api: buffer.isUtf8
-// @expect: isUtf8_res: true
-console.log("isUtf8_res: " + isUtf8(Buffer.from("abc")));
-
-// @api: buffer.resolveObjectURL
-// @expect: resolveObjectURL_res: true
-console.log("resolveObjectURL_res: " + (resolveObjectURL !== null));
-
-// @api: buffer.transcode
-// @expect: transcode_res: true
-console.log("transcode_res: " + (transcode !== null));
-
-// @api: buffer.INSPECT_MAX_BYTES
-// @expect: inspect_max: 50
-console.log("inspect_max: " + INSPECT_MAX_BYTES);
-
 // @api: buffer.kMaxLength
 // @expect: kMaxLength_res: 2147483647
 console.log("kMaxLength_res: " + kMaxLength);
@@ -533,11 +508,6 @@ console.log("kMaxLength_res: " + kMaxLength);
 // @api: buffer.kStringMaxLength
 // @expect: kStringMaxLength_res: 536870888
 console.log("kStringMaxLength_res: " + kStringMaxLength);
-
-// @api: buffer.SlowBuffer
-// @expect: slowBuffer_instance: true
-const slowBuf = new SlowBuffer(5);
-console.log("slowBuffer_instance: " + (slowBuf !== null));
 
 // @api: buffer.MAX_LENGTH
 // @expect: maxLength_res: 2147483647

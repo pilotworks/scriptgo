@@ -3,7 +3,6 @@ import {
     setServers,
     getDefaultResultOrder,
     setDefaultResultOrder,
-    cancel,
     lookup,
     lookupService,
     resolve,
@@ -54,11 +53,6 @@ setDefaultResultOrder("ipv4first");
 if (getDefaultResultOrder() === "ipv4first") {
     console.log("resultOrder passed");
 }
-
-// @api: dns.cancel
-// @expect: cancel passed
-cancel();
-console.log("cancel passed");
 
 // @api: dns.lookup
 // @expect: lookup passed
@@ -196,12 +190,10 @@ reverse("127.0.0.1", (err: unknown, hostnames: string[]): void => {
 
 // @api: dns.dns.Resolver
 // @api: dns.Resolver.setLocalAddress
-// @api: dns.Resolver.cancel
 // @api: dns.Resolver.Resolver
 // @expect: Resolver passed
 const res = new Resolver();
 res.setLocalAddress("127.0.0.1", "::1");
-res.cancel();
 if (res instanceof Resolver) {
     console.log("Resolver passed");
 }

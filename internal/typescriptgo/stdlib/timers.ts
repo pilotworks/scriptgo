@@ -86,10 +86,6 @@ export class Timeout {
         return this;
     }
 
-    refresh(): this {
-        return this;
-    }
-
     close(): void {
         clearTimeout(this._id);
     }

@@ -81,11 +81,6 @@ console.log("timeout_ref: " + t.hasRef());
 t.unref();
 console.log("timeout_unref: " + t.hasRef());
 
-// @api: Timeout.refresh
-// @expect: timeout_refresh: true
-t.refresh();
-console.log("timeout_refresh: true");
-
 // @api: Timeout.close
 // @expect: timeout_closed: true
 t.close();

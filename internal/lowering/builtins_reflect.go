@@ -434,13 +434,13 @@ func lowerReflectGet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
 		Op:     ir.OpCall,
-		Type:   ir.TypeString,
+		Type:   ir.TypeUnknown,
 		Result: result,
-		Callee: "__object.get",
+		Callee: "__object.get_prop",
 		Args:   []string{targetVal, propVal},
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
-	return result, ir.TypeString, nil
+	return result, ir.TypeUnknown, nil
 }
 
 func lowerReflectSet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
@@ -501,42 +501,28 @@ func lowerReflectHas(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 		return "", "", fmt.Errorf("Reflect.has requires 2 arguments")
 	}
 
-	targetVal, targetType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	targetVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	if err != nil {
 		return "", "", err
 	}
 
 	propArg := call.Expression.Arguments[1]
-	propName := propArg.Text
-
 	result := call.Result
 	if result == "" {
 		result = nextTemp(call.Counter)
 	}
 
-	if after, ok := strings.CutPrefix(string(targetType), "object:"); ok {
-		className := after
-		if shape, exists := call.Shapes[className]; exists {
-			found := false
-			for _, f := range shape.Fields {
-				if f.Name == propName {
-					found = true
-					break
-				}
-			}
-			valStr := "false"
-			if found {
-				valStr = "true"
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeBool,
-				Result: result,
-				Value:  valStr,
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, ir.TypeBool, nil
-		}
+	if propArg.Kind == "string" || propArg.Kind == "literal" {
+		fieldName := strings.Trim(propArg.Text, "\"'`")
+		call.Function.Body = append(call.Function.Body, ir.Instruction{
+			Op:     ir.OpInstanceOf,
+			Type:   ir.TypeBool,
+			Result: result,
+			Value:  fieldName,
+			Args:   []string{targetVal},
+			Span:   toIRSpan(call.Path, call.Expression.Span),
+		})
+		return result, ir.TypeBool, nil
 	}
 
 	propVal, _, err := call.LowerExpression(call.Path, propArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
@@ -545,10 +531,10 @@ func lowerReflectHas(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 	}
 
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
+		Op:     ir.OpInstanceOf,
 		Type:   ir.TypeBool,
 		Result: result,
-		Callee: "__object.hasOwn",
+		Value:  "",
 		Args:   []string{targetVal, propVal},
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})

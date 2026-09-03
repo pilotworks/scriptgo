@@ -102,7 +102,7 @@ DOM layout or UI rendering.
 7. **Events Core:** `Event`, `EventTarget`, `CustomEvent`
 8. **Timers & Microtasks:** `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`
 9. **High-Resolution Time:** `performance` (`performance.now()`, `PerformanceMark`)
-10. **Real-time Comms:** `WebSocket` (Client & Server, `WebSocketListenerEntry`, event lifecycle)
+10. **Real-time Comms (Planned):** `WebSocket` client & server (native engine planned for future milestone).
 11. **WebAssembly & WASI Compatibility:** Standalone `wasm32-wasi` target with POSIX degradation guards (`child_process`, permissions gracefully report unsupported on preview1)
 
 ### ❌ OUT-OF-SCOPE: Frontend & Browser DOM APIs (Explicitly Excluded)

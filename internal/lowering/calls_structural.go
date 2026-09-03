@@ -23,6 +23,9 @@ func adaptStructuralObjectArgument(
 	}
 	sourceName := strings.TrimPrefix(string(valueType), "object:")
 	destinationName := strings.TrimPrefix(string(parameterType), "object:")
+	if isSubclassOf(sourceName, destinationName, classHierarchy) {
+		return value, valueType, false
+	}
 	sourceShape, sourceOK := shapes[sourceName]
 	if !sourceOK {
 		if fields, ok := resolveShapeFields(sourceName, shapes); ok {
@@ -40,6 +43,22 @@ func adaptStructuralObjectArgument(
 		}
 	}
 	if !sourceOK || !destinationOK || len(destinationShape.Fields) == 0 {
+		return value, valueType, false
+	}
+
+	for _, df := range destinationShape.Fields {
+		found := false
+		for _, sf := range sourceShape.Fields {
+			if sf.Name == df.Name {
+				found = true
+				break
+			}
+		}
+		if !found && !df.Optional {
+			return value, valueType, false
+		}
+	}
+	if dynamicFieldAccess(destinationName) && dynamicFieldAccess(sourceName) {
 		return value, valueType, false
 	}
 

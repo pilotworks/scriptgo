@@ -104,7 +104,12 @@ export class Buffer {
         return buf1.compare(buf2);
     }
     static isEncoding(encoding: string): boolean {
-        return true;
+        if (typeof encoding !== "string") return false;
+        const normalized = encoding.toLowerCase();
+        return normalized === "utf8" || normalized === "utf-8" ||
+               normalized === "hex" || normalized === "base64" || normalized === "base64url" ||
+               normalized === "ascii" || normalized === "latin1" || normalized === "binary" ||
+               normalized === "ucs2" || normalized === "ucs-2" || normalized === "utf16le" || normalized === "utf-16le";
     }
     static copyBytesFrom(view: Uint8Array, offset?: number, length?: number): Buffer {
         return Buffer.from(view);
@@ -151,10 +156,6 @@ export class Blob {
     async text(): Promise<string> {
         return this._bytes.toString();
     }
-
-    stream(): unknown {
-        return null;
-    }
 }
 
 export class File extends Blob {
@@ -180,11 +181,6 @@ export const MAX_LENGTH: number = constants.MAX_LENGTH;
 export const MAX_STRING_LENGTH: number = constants.MAX_STRING_LENGTH;
 export const kMaxLength: number = constants.MAX_LENGTH;
 export const kStringMaxLength: number = constants.MAX_STRING_LENGTH;
-export const INSPECT_MAX_BYTES: number = 50;
-export class SlowBuffer {
-    constructor(size: number) {}
-}
-
 export function atob(data: string): string {
     return __scriptgo.atob(data);
 }
@@ -194,17 +190,8 @@ export function btoa(data: string): string {
 }
 
 export function isAscii(input: Buffer | Uint8Array): boolean {
+    for (let i = 0; i < input.length; i++) {
+        if (input[i] > 127) return false;
+    }
     return true;
-}
-
-export function isUtf8(input: Buffer | Uint8Array): boolean {
-    return true;
-}
-
-export function resolveObjectURL(id: string): unknown {
-    return null;
-}
-
-export function transcode(source: Uint8Array, fromEnc: string, toEnc: string): Buffer {
-    return Buffer.from(source);
 }

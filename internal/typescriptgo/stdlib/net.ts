@@ -173,46 +173,6 @@ export class SocketAddress {
     }
 }
 
-export class BlockList {
-    rules: string[] = [];
-
-    addAddress(address: string, type: string = "ipv4"): void {
-        this.rules.push("addr:" + type + ":" + address);
-    }
-
-    addRange(start: string, end: string, type: string = "ipv4"): void {
-        this.rules.push("range:" + type + ":" + start + "-" + end);
-    }
-
-    addSubnet(net: string, prefix: number, type: string = "ipv4"): void {
-        this.rules.push("subnet:" + type + ":" + net + "/" + prefix);
-    }
-
-    check(address: string, type: string = "ipv4"): boolean {
-        const needle = "addr:" + type + ":" + address;
-        for (let i = 0; i < this.rules.length; i++) {
-            if (this.rules[i] === needle) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    fromJSON(rules: string[]): void {
-        for (let i = 0; i < rules.length; i++) {
-            this.rules.push(rules[i]);
-        }
-    }
-
-    toJSON(): string[] {
-        return this.rules;
-    }
-
-    static isBlockList(value: unknown): boolean {
-        return value instanceof BlockList;
-    }
-}
-
 export class Socket {
     connecting: boolean = false;
     destroyed: boolean = false;
@@ -605,25 +565,8 @@ export function connect(optionsOrPort: number | string | SocketConnectOptions, h
     return createConnection(optionsOrPort, hostOrListener, listener);
 }
 
-export function getDefaultAutoSelectFamily(): boolean {
-    return true;
-}
-
-export function setDefaultAutoSelectFamily(value: boolean): void {
-    // runtime configuration hook
-}
-
-export function getDefaultAutoSelectFamilyAttemptTimeout(): number {
-    return 250;
-}
-
-export function setDefaultAutoSelectFamilyAttemptTimeout(value: number): void {
-    // runtime configuration hook
-}
-
 export default {
     SocketAddress,
-    BlockList,
     Socket,
     Server,
     isIP,
@@ -632,8 +575,4 @@ export default {
     createServer,
     createConnection,
     connect,
-    getDefaultAutoSelectFamily,
-    setDefaultAutoSelectFamily,
-    getDefaultAutoSelectFamilyAttemptTimeout,
-    setDefaultAutoSelectFamilyAttemptTimeout,
 };

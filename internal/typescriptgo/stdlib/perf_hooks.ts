@@ -41,42 +41,6 @@ export class PerformanceMeasure extends PerformanceEntry {
     }
 }
 
-export class PerformanceNodeEntry extends PerformanceEntry {
-    detail: unknown = null;
-    flags: number = 0;
-    kind: number = 0;
-
-    constructor(name: string = "") {
-        super(name, "node", 0, 0);
-        this.detail = null;
-        this.flags = 0;
-        this.kind = 0;
-    }
-}
-
-export class PerformanceNodeTiming extends PerformanceEntry {
-    bootstrapComplete: number = 0;
-    environment: number = 0;
-    idleTime: number = 0;
-    loopExit: number = 0;
-    loopStart: number = 0;
-    nodeStart: number = 0;
-    v8Start: number = 0;
-
-    constructor() {
-        super("node", "node", 0, 0);
-        this.bootstrapComplete = 0;
-        this.environment = 0;
-        this.idleTime = 0;
-        this.loopExit = 0;
-        this.loopStart = 0;
-        this.nodeStart = 0;
-        this.v8Start = 0;
-    }
-
-    return(): void {}
-}
-
 export class PerformanceResourceTiming extends PerformanceEntry {
     workerStart: number = 0;
     redirectStart: number = 0;
@@ -321,20 +285,6 @@ export class Histogram {
     }
 }
 
-export class IntervalHistogram extends Histogram {
-    private _enabled: boolean = false;
-
-    enable(): boolean {
-        this._enabled = true;
-        return true;
-    }
-
-    disable(): boolean {
-        this._enabled = false;
-        return true;
-    }
-}
-
 export class RecordableHistogram extends Histogram {
     record(val: number | bigint): void {
         this._record(typeof val === "bigint" ? Number(val) : val);
@@ -355,12 +305,7 @@ export function createHistogram(options?: unknown): RecordableHistogram {
     return new RecordableHistogram();
 }
 
-export function monitorEventLoopDelay(options?: unknown): IntervalHistogram {
-    return new IntervalHistogram();
-}
-
 export class Performance {
-    nodeTiming: PerformanceNodeTiming = new PerformanceNodeTiming();
     timeOrigin: number = 0;
 
     now(): number {
@@ -446,15 +391,11 @@ export default {
     PerformanceEntry,
     PerformanceMark,
     PerformanceMeasure,
-    PerformanceNodeEntry,
-    PerformanceNodeTiming,
     PerformanceResourceTiming,
     PerformanceObserverEntryList,
     PerformanceObserver,
     Histogram,
-    IntervalHistogram,
     RecordableHistogram,
     createHistogram,
-    monitorEventLoopDelay,
     performance,
 };

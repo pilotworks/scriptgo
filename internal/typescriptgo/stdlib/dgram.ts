@@ -378,22 +378,6 @@ export class Socket {
         return this._sendBufferSize;
     }
 
-    getSendQueueSize(): number {
-        return 0;
-    }
-
-    getSendQueueCount(): number {
-        return 0;
-    }
-
-    ref(): Socket {
-        return this;
-    }
-
-    unref(): Socket {
-        return this;
-    }
-
     [Symbol.asyncDispose](): Promise<void> {
         this.close();
         return Promise.resolve(undefined);

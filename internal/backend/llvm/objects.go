@@ -300,10 +300,27 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
 	out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
-	strGlobal, ok := e.stringsByValue[instruction.Value]
-	if !ok {
-		return fmt.Errorf("unknown string literal %q for instanceof", instruction.Value)
+	var classArg string
+	if instruction.Value != "" {
+		strGlobal, ok := e.stringsByValue[instruction.Value]
+		if !ok {
+			return fmt.Errorf("unknown string literal %q for instanceof", instruction.Value)
+		}
+		classArg = strGlobal
+	} else if len(instruction.Args) > 1 {
+		cls := instruction.Args[1]
+		clsVal := cls
+		if slot, ok := e.varSlots[cls]; ok {
+			loaded := fmt.Sprintf("%s.instanceof_cls.%d", cls, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+			clsVal = loaded
+		}
+		classArg = "%" + clsVal
+	} else {
+		return fmt.Errorf("instanceof requires target class or property")
 	}
+
 	arg := instruction.Args[0]
 	argType := e.types[arg]
 	argVal := arg
@@ -326,7 +343,7 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
 		ptrArg = "%" + ptrVar
 	}
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_instanceof(ptr %s, ptr %s, ptr %%%s)\n", status, ptrArg, strGlobal, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_instanceof(ptr %s, ptr %s, ptr %%%s)\n", status, ptrArg, classArg, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	i32Val := instruction.Result + ".i32"
 	out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", i32Val, slot))

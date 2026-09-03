@@ -1,13 +1,11 @@
 import {
     EventEmitter,
-    EventEmitterAsyncResource,
     getEventListeners,
     getMaxListeners,
     setMaxListeners,
     listenerCount,
     once,
     on,
-    addAbortListener,
     defaultMaxListeners,
     captureRejections,
     captureRejectionSymbol,
@@ -136,34 +134,6 @@ console.log(resOnce === "data" || resOnce !== null);
 // @api: events.on
 // @expect: true
 console.log(typeof events.on(ee, "ev") === "object");
-
-// @api: events.addAbortListener
-// @expect: true
-const abortAc = new AbortController();
-const abortHandle = events.addAbortListener(abortAc.signal, () => {});
-console.log(typeof abortHandle === "object");
-
-// @api: events.events.EventEmitterAsyncResource
-// @expect: true
-const eeAsync = new EventEmitterAsyncResource({ name: "test" });
-console.log(eeAsync !== null);
-
-// @api: events.EventEmitterAsyncResource.emitDestroy
-// @expect: true
-eeAsync.emitDestroy();
-console.log(true);
-
-// @api: events.EventEmitterAsyncResource.asyncId
-// @expect: true
-console.log(eeAsync.asyncId >= 0);
-
-// @api: events.EventEmitterAsyncResource.triggerAsyncId
-// @expect: true
-console.log(eeAsync.triggerAsyncId >= 0);
-
-// @api: events.EventEmitterAsyncResource.asyncResource
-// @expect: true
-console.log(eeAsync.asyncResource === null || typeof eeAsync.asyncResource === "object");
 
 // @api: events.NodeEventTarget
 // @expect: true

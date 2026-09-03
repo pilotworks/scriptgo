@@ -293,25 +293,19 @@ console.log("wc_rsaPss: " + rsaPss.name + " " + rsaPss.saltLength);
 // @api: webcrypto.webcrypto.SubtleCrypto
 // @api: webcrypto.SubtleCrypto
 // @api: new webcrypto.SubtleCrypto
-// @api: SubtleCrypto.decrypt
 // @api: SubtleCrypto.deriveBits
 // @api: SubtleCrypto.deriveKey
 // @api: SubtleCrypto.digest
-// @api: SubtleCrypto.encrypt
 // @api: SubtleCrypto.exportKey
 // @api: SubtleCrypto.generateKey
 // @api: SubtleCrypto.importKey
 // @api: SubtleCrypto.sign
-// @api: SubtleCrypto.unwrapKey
 // @api: SubtleCrypto.verify
-// @api: SubtleCrypto.wrapKey
 // @expect: wc_async: true
 const runWebcryptoAsync = async () => {
     const subtle = new SubtleCrypto();
     const k = new CryptoKey();
     const data = new Uint8Array(16);
-    await subtle.encrypt("AES-GCM", k, data);
-    await subtle.decrypt("AES-GCM", k, data);
     await subtle.sign("HMAC", k, data);
     await subtle.verify("HMAC", k, data, data);
     await subtle.digest("SHA-256", data);
@@ -320,8 +314,6 @@ const runWebcryptoAsync = async () => {
     await subtle.deriveBits("HKDF", k, 256);
     await subtle.importKey("raw", data, "AES-GCM", true, ["encrypt"]);
     await subtle.exportKey("raw", k);
-    await subtle.wrapKey("raw", k, k, "AES-KW");
-    await subtle.unwrapKey("raw", data, k, "AES-KW", "AES-GCM", true, ["encrypt"]);
     console.log("wc_async: true");
 };
 runWebcryptoAsync();

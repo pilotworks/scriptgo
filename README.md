@@ -23,7 +23,7 @@
 ## Highlights & Features
 
 - **High-Performance AOT Compilation**: Compiles TypeScript directly to native machine code (Mach-O, ELF, PE) and WebAssembly (`.wasm`) via LLVM.
-- **Node.js Semantic Parity**: 100% pass rate across the 386-case regression test corpus checked against Node.js v22+ (63/63 modules, 2043/2043 APIs).
+- **Node.js Semantic Parity**: High parity across the 379-case regression test corpus checked against Node.js v22+ (366/379 native pass rate, 96.6%).
 - **WebAssembly / WASI Target**: First-class Ahead-Of-Time compilation to standalone `.wasm` executables with `--target wasm32-wasi`, runnable across Node.js WASI, Wasmtime, Wasmer, and Edge runtimes.
 - **Zero-Dependency Native Builds**: Automatically uses system `clang` or auto-detects `zig cc` for hassle-free out-of-the-box compilation and seamless cross-compilation (macOS, Linux, Windows, WASM).
 - **Fast Execution**: Instantly compiles and runs scripts directly or produces optimized standalone binary builds.
@@ -36,14 +36,14 @@
   - **Functions & Closures**: Lexical closures, arrow functions, default/optional/rest parameters, Generators (`function*`, `yield`, `yield*`), Async Generators.
   - **OOP & Classes**: Constructors, properties, static fields/methods, Class Static Blocks (`static { ... }`), Getters/Setters, Inheritance (`extends`, `super`), Polymorphic VTables, `instanceof`.
   - **Async Runtime**: `Promise` (resolve, reject, chaining), `async`/`await`, microtask queue execution conforming to JavaScript event loop ordering.
-  - **Web Standards & WinterCG**: Native `WebSocket` client/server, Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`), `URL`, `URLSearchParams`, `TextEncoder`/`TextDecoder`, `AbortController`/`AbortSignal`.
-  - **Node.js Standard Library**: Complete coverage for all 63 Node.js modules (`node:fs`, `node:path`, `node:os`, `node:process`, `node:crypto`, `node:buffer`, `node:http`, `node:https`, `node:net`, `node:dgram`, `node:events`, `node:stream`, `node:readline`, `node:assert`, `node:util`, `node:tty`, `node:wasi`, `node:sea`, etc.).
+  - **Web Standards & WinterCG**: Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`), `URL`, `URLSearchParams`, `TextEncoder`/`TextDecoder`, `AbortController`/`AbortSignal`.
+  - **Node.js Standard Library**: High-performance native implementations for core Node.js modules (`node:fs`, `node:path`, `node:os`, `node:process`, `node:crypto`, `node:buffer`, `node:http`, `node:net`, `node:dgram`, `node:events`, `node:stream`, `node:assert`, `node:util`, `node:timers`, `node:zlib`, `node:tls`, `node:sqlite`). All placeholder/dummy stubs strictly removed.
 
 ---
 
 ## Documentation
 
-- [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md) - Comprehensive TypeScript/Node.js feature matrix and parity test report (386/386 passed).
+- [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md) - Comprehensive TypeScript/Node.js feature matrix and parity test report.
 - [`docs/webassembly-wasi-architecture.md`](docs/webassembly-wasi-architecture.md) - WebAssembly & WASI compilation architecture and execution pipeline.
 - [`docs/native-optimization-pipeline.md`](docs/native-optimization-pipeline.md) - Multi-level Dead Code Elimination (DCE), Link-Time Optimization (LTO), and Memory Layout.
 - [`docs/native-subset.md`](docs/native-subset.md) - Native static subset definition and compatibility constraints.

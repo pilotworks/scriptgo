@@ -916,9 +916,13 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 		maps.Copy(caseEnv, switchEnv)
 		if statement.Expression != nil && (statement.Expression.Kind == "property" || statement.Expression.Kind == "member") && statement.Expression.Left != nil && statement.Expression.Left.Kind == "identifier" && c.Expression != nil && (c.Expression.Kind == "string" || c.Expression.Kind == "literal") {
 			varName := statement.Expression.Left.Text
+			propName := statement.Expression.Text
+			if statement.Expression.Right != nil && statement.Expression.Right.Text != "" {
+				propName = statement.Expression.Right.Text
+			}
 			valStr := c.Expression.Text
 			if currType, ok := switchEnv[varName]; ok {
-				matched := findMatchingDiscriminatedType(statement.Expression.Text, valStr, string(currType), shapes)
+				matched := findMatchingDiscriminatedType(propName, valStr, string(currType), shapes)
 				if matched != "" {
 					caseEnv[varName] = ir.Type("object:" + matched)
 				}
@@ -1096,8 +1100,31 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 	if expr.Kind == "binary" && expr.Operator == "in" && expr.Left != nil && (expr.Left.Kind == "string" || expr.Left.Kind == "literal") && expr.Right != nil && expr.Right.Kind == "identifier" {
 		varName := expr.Right.Text
 		propName := strings.Trim(expr.Left.Text, "\"'`")
-		for typeName, typeDef := range typeAliasesIndex {
-			if fields, ok := anonymousObjectFields(typeDef, nil); ok {
+		if currType, ok := baseEnv[varName]; ok {
+			cleanCurr := strings.TrimPrefix(string(currType), "object:")
+			if aliased, ok := typeAliasesIndex[cleanCurr]; ok && strings.Contains(aliased, "|") {
+				cleanCurr = aliased
+			}
+			parts := []string{cleanCurr}
+			if strings.Contains(cleanCurr, "|") {
+				parts = nil
+				for _, p := range strings.Split(cleanCurr, "|") {
+					parts = append(parts, strings.TrimSpace(strings.TrimPrefix(p, "object:")))
+				}
+			}
+			var thenTypes []string
+			var elseTypes []string
+			for _, part := range parts {
+				typeDef := part
+				if aliased, ok := typeAliasesIndex[part]; ok {
+					typeDef = aliased
+				}
+				var fields []ir.Field
+				if f, ok := anonymousObjectFields(typeDef, nil); ok {
+					fields = f
+				} else if s, ok := shapes[part]; ok {
+					fields = s.Fields
+				}
 				hasProp := false
 				for _, f := range fields {
 					if f.Name == propName {
@@ -1106,10 +1133,20 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 					}
 				}
 				if hasProp {
-					thenEnv[varName] = toIRType(typeName)
+					thenTypes = append(thenTypes, part)
 				} else {
-					elseEnv[varName] = toIRType(typeName)
+					elseTypes = append(elseTypes, part)
 				}
+			}
+			if len(thenTypes) == 1 {
+				thenEnv[varName] = toIRType(thenTypes[0])
+			} else if len(thenTypes) > 1 {
+				thenEnv[varName] = toIRType(strings.Join(thenTypes, " | "))
+			}
+			if len(elseTypes) == 1 {
+				elseEnv[varName] = toIRType(elseTypes[0])
+			} else if len(elseTypes) > 1 {
+				elseEnv[varName] = toIRType(strings.Join(elseTypes, " | "))
 			}
 		}
 		return
@@ -1348,9 +1385,13 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		}
 		if propAccess != nil && propAccess.Left != nil && propAccess.Left.Kind == "identifier" && literalVal != nil {
 			varName := propAccess.Left.Text
+			propName := propAccess.Text
+			if propAccess.Right != nil && propAccess.Right.Text != "" {
+				propName = propAccess.Right.Text
+			}
 			valStr := literalVal.Text
 			if currType, ok := baseEnv[varName]; ok {
-				matched := findMatchingDiscriminatedType(propAccess.Text, valStr, string(currType), shapes)
+				matched := findMatchingDiscriminatedType(propName, valStr, string(currType), shapes)
 				if matched != "" {
 					thenEnv[varName] = ir.Type("object:" + matched)
 				}

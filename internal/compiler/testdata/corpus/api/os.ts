@@ -33,14 +33,6 @@ console.log(os.homedir().length > 0);
 // @expect: true
 console.log(os.tmpdir().length > 0);
 
-// @api: os.hostname
-// @expect: true
-console.log(os.hostname().length > 0);
-
-// @api: os.endianness
-// @expect: true
-console.log(os.endianness() === "LE" || os.endianness() === "BE");
-
 // @api: os.uptime
 // @expect: true
 console.log(os.uptime() >= 0);
@@ -52,38 +44,6 @@ console.log(os.freemem() > 0);
 // @api: os.totalmem
 // @expect: true
 console.log(os.totalmem() > 0);
-
-// @api: os.loadavg
-// @expect: true
-console.log(os.loadavg().length === 3);
-
-// @api: os.availableParallelism
-// @expect: true
-console.log(os.availableParallelism() > 0);
-
-// @api: os.cpus
-// @expect: true
-const cpusList = os.cpus();
-console.log(cpusList.length > 0 && cpusList[0].model.length > 0);
-
-// @api: os.networkInterfaces
-// @expect: true
-const netInterfaces = os.networkInterfaces();
-console.log(typeof netInterfaces === "object");
-
-// @api: os.userInfo
-// @expect: true
-const uInfo = os.userInfo();
-console.log(uInfo.username.length > 0);
-
-// @api: os.getPriority
-// @expect: true
-console.log(typeof os.getPriority() === "number");
-
-// @api: os.setPriority
-// @expect: true
-os.setPriority(0, 0);
-console.log(true);
 
 // @api: os.EOL
 // @expect: true

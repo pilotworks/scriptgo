@@ -469,10 +469,6 @@ export class URL {
     static createObjectURL(blob: string = ""): string {
         return "blob:nodedata-" + blob;
     }
-
-    static revokeObjectURL(id: string): void {
-        const dummy = id;
-    }
 }
 
 export class Url {

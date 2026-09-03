@@ -968,36 +968,6 @@ interface IteratorConstructor {
 
 declare var Iterator: IteratorConstructor;
 
-interface WebSocket extends EventTarget {
-    readonly CONNECTING: 0;
-    readonly OPEN: 1;
-    readonly CLOSING: 2;
-    readonly CLOSED: 3;
-    readonly url: string;
-    readonly readyState: number;
-    readonly protocol: string;
-    readonly extensions: string;
-    readonly bufferedAmount: number;
-    binaryType: string;
-    onopen: ((event: unknown) => void) | null;
-    onmessage: ((event: unknown) => void) | null;
-    onerror: ((event: unknown) => void) | null;
-    onclose: ((event: unknown) => void) | null;
-    close(code?: number, reason?: string): void;
-    send(data: unknown): void;
-}
-
-interface WebSocketConstructor {
-    new(url: string, protocols?: string | string[]): WebSocket;
-    readonly prototype: WebSocket;
-    readonly CONNECTING: 0;
-    readonly OPEN: 1;
-    readonly CLOSING: 2;
-    readonly CLOSED: 3;
-}
-
-declare var WebSocket: WebSocketConstructor;
-
 interface EventInit {
     bubbles?: boolean;
     cancelable?: boolean;
@@ -1205,74 +1175,6 @@ interface FileConstructor {
 
 declare var File: FileConstructor;
 
-interface FormData {
-    append(name: string, value: unknown, fileName?: string): void;
-    delete(name: string): void;
-    get(name: string): unknown;
-    getAll(name: string): unknown[];
-    has(name: string): boolean;
-    set(name: string, value: unknown, fileName?: string): void;
-}
-
-interface FormDataConstructor {
-    new(): FormData;
-    readonly prototype: FormData;
-}
-
-declare var FormData: FormDataConstructor;
-
-interface MessagePort extends EventTarget {
-    postMessage(message: unknown, transfer?: unknown[]): void;
-    start(): void;
-    close(): void;
-}
-
-interface MessagePortConstructor {
-    readonly prototype: MessagePort;
-}
-
-declare var MessagePort: MessagePortConstructor;
-
-interface MessageChannel {
-    readonly port1: MessagePort;
-    readonly port2: MessagePort;
-}
-
-interface MessageChannelConstructor {
-    new(): MessageChannel;
-    readonly prototype: MessageChannel;
-}
-
-declare var MessageChannel: MessageChannelConstructor;
-
-interface MessageEvent extends Event {
-    readonly data: unknown;
-    readonly origin: string;
-    readonly lastEventId: string;
-    readonly source: unknown;
-    readonly ports: MessagePort[];
-}
-
-interface MessageEventConstructor {
-    new(type: string, eventInitDict?: unknown): MessageEvent;
-    readonly prototype: MessageEvent;
-}
-
-declare var MessageEvent: MessageEventConstructor;
-
-interface BroadcastChannel extends EventTarget {
-    readonly name: string;
-    postMessage(message: unknown): void;
-    close(): void;
-}
-
-interface BroadcastChannelConstructor {
-    new(name: string): BroadcastChannel;
-    readonly prototype: BroadcastChannel;
-}
-
-declare var BroadcastChannel: BroadcastChannelConstructor;
-
 interface ByteLengthQueuingStrategy {
     readonly highWaterMark: number;
     size(chunk: unknown): number;
@@ -1468,60 +1370,6 @@ interface WritableStreamDefaultWriterConstructor {
 }
 
 declare var WritableStreamDefaultWriter: WritableStreamDefaultWriterConstructor;
-
-interface EventSource extends EventTarget {
-    readonly url: string;
-    readonly readyState: number;
-    close(): void;
-}
-
-interface EventSourceConstructor {
-    new(url: string, eventSourceInitDict?: unknown): EventSource;
-    readonly prototype: EventSource;
-    readonly CONNECTING: number;
-    readonly OPEN: number;
-    readonly CLOSED: number;
-}
-
-declare var EventSource: EventSourceConstructor;
-
-interface Navigator {
-    readonly userAgent: string;
-    readonly language: string;
-    readonly languages: string[];
-    readonly onLine: boolean;
-    readonly hardwareConcurrency: number;
-}
-
-interface NavigatorConstructor {
-    readonly prototype: Navigator;
-}
-
-declare var Navigator: NavigatorConstructor;
-declare var navigator: Navigator;
-
-interface Storage {
-    readonly length: number;
-    clear(): void;
-    getItem(key: string): string | null;
-    key(index: number): string | null;
-    removeItem(key: string): void;
-    setItem(key: string, value: string): void;
-}
-
-interface StorageConstructor {
-    readonly prototype: Storage;
-}
-
-declare var Storage: StorageConstructor;
-
-interface WebAssembly {
-    validate(bytes: BufferSource): boolean;
-    compile(bytes: BufferSource): Promise<unknown>;
-    instantiate(bytes: BufferSource, importObject?: unknown): Promise<unknown>;
-}
-
-declare var WebAssembly: WebAssembly;
 
 interface PerformanceEntry {
     readonly name: string;

@@ -19,33 +19,6 @@ console.log(true);
 // @expect: true
 console.log(fs.existsSync(testFile));
 
-// @api: fs.unwatchFile
-// @expect: true
-fs.unwatchFile(testFile);
-console.log(true);
-
-// @api: fs.watchFile
-// @expect: true
-fs.watchFile(testFile, () => {});
-console.log(true);
-fs.unwatchFile(testFile);
-
-// @api: fs.watch
-// @expect: true
-const cbWatcher = fs.watch(testFile);
-console.log(cbWatcher !== null);
-cbWatcher.close();
-
-// @api: fs.createReadStream
-// @expect: true
-const cbReadStream = fs.createReadStream(testFile);
-console.log(cbReadStream !== null);
-
-// @api: fs.createWriteStream
-// @expect: true
-const cbWriteStream = fs.createWriteStream(testFile);
-console.log(cbWriteStream !== null);
-
 // @api: fs.writeFile
 // @expect: true
 fs.writeFile(testFile, "callback write data", (err) => {

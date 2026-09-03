@@ -101,22 +101,6 @@ console.log("socket_getRecvBufferSize: " + sock.getRecvBufferSize());
 // @expect: socket_getSendBufferSize: 65536
 console.log("socket_getSendBufferSize: " + sock.getSendBufferSize());
 
-// @api: dgram.Socket.getSendQueueSize
-// @expect: socket_getSendQueueSize: 0
-console.log("socket_getSendQueueSize: " + sock.getSendQueueSize());
-
-// @api: dgram.Socket.getSendQueueCount
-// @expect: socket_getSendQueueCount: 0
-console.log("socket_getSendQueueCount: " + sock.getSendQueueCount());
-
-// @api: dgram.Socket.ref
-// @expect: socket_ref: true
-console.log("socket_ref: " + (sock.ref() === sock));
-
-// @api: dgram.Socket.unref
-// @expect: socket_unref: true
-console.log("socket_unref: " + (sock.unref() === sock));
-
 // @api: dgram.Socket.close
 // @expect: socket_close: true
 sock.close();

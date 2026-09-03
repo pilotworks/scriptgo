@@ -20,10 +20,6 @@ export class SharedArrayBuffer {
     constructor(byteLength: number) {
         return __scriptgo.sharedArrayBufferNew(byteLength);
     }
-
-    slice(begin?: number, end?: number): SharedArrayBuffer {
-        return this;
-    }
 }
 
 export const Atomics = {

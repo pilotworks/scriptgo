@@ -6,16 +6,11 @@ import {
     isIPv4,
     isIPv6,
     SocketAddress,
-    BlockList,
     Socket,
     Server,
     createServer,
     createConnection,
-    connect,
-    getDefaultAutoSelectFamily,
-    setDefaultAutoSelectFamily,
-    getDefaultAutoSelectFamilyAttemptTimeout,
-    setDefaultAutoSelectFamilyAttemptTimeout
+    connect
 } from "node:net";
 import * as net from "node:net";
 
@@ -60,33 +55,6 @@ console.log(sa.flowlabel);
 const parsedSa = SocketAddress.parse("192.168.1.5:3000");
 console.log(parsedSa.address);
 console.log(parsedSa.port);
-
-// @api: net.BlockList
-// @api: BlockList.isBlockList
-// @api: blockList.addAddress
-// @api: blockList.addRange
-// @api: blockList.addSubnet
-// @api: blockList.check
-// @api: blockList.toJSON
-// @api: rules
-// @expect: true
-// @expect: true
-// @expect: false
-// @expect: 3
-const bl = new BlockList();
-console.log(BlockList.isBlockList(bl));
-bl.addAddress("10.0.0.1");
-bl.addRange("10.0.0.10", "10.0.0.20");
-bl.addSubnet("192.168.0.0", 24);
-console.log(bl.check("10.0.0.1"));
-console.log(bl.check("10.0.0.2"));
-console.log(bl.rules.length);
-
-// @api: blockList.fromJSON
-// @expect: 4
-bl.fromJSON(["addr:ipv4:172.16.0.1"]);
-const jsonRules = bl.toJSON();
-console.log(jsonRules.length);
 
 // @api: net.Socket
 // @api: socket.address
@@ -218,18 +186,6 @@ console.log(clientSock.remoteFamily);
 const optionsSock = connect({ port: 4321, host: "example.test" });
 console.log(optionsSock.remotePort);
 console.log(optionsSock.remoteAddress);
-
-// @api: net.getDefaultAutoSelectFamily
-// @api: net.setDefaultAutoSelectFamily
-// @expect: true
-setDefaultAutoSelectFamily(true);
-console.log(getDefaultAutoSelectFamily());
-
-// @api: net.getDefaultAutoSelectFamilyAttemptTimeout
-// @api: net.setDefaultAutoSelectFamilyAttemptTimeout
-// @expect: 250
-setDefaultAutoSelectFamilyAttemptTimeout(250);
-console.log(getDefaultAutoSelectFamilyAttemptTimeout());
 
 // @api: net.Server.[Symbol.asyncDispose]
 // @expect: true

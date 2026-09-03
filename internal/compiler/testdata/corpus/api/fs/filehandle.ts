@@ -98,22 +98,6 @@ const vw2 = Buffer.from("b");
 const vwritten = await fhRead.writev([vw1, vw2], 0);
 console.log(vwritten >= 0);
 
-// @api: FileHandle.readLines
-// @expect: true
-console.log(fhRead.fd >= 0);
-
-// @api: FileHandle.readableWebStream
-// @expect: true
-console.log(fhRead.fd >= 0);
-
-// @api: FileHandle.createReadStream
-// @expect: true
-console.log(fhRead.fd >= 0);
-
-// @api: FileHandle.createWriteStream
-// @expect: true
-console.log(fhRead.fd >= 0);
-
 // @api: FileHandle.[Symbol.asyncDispose]
 // @expect: true
 console.log(fhRead !== null);

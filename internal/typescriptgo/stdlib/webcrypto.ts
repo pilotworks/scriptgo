@@ -212,14 +212,6 @@ export class RsaPssParams {
 }
 
 export class SubtleCrypto {
-    async encrypt(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
-        return new ArrayBuffer(0);
-    }
-
-    async decrypt(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
-        return new ArrayBuffer(0);
-    }
-
     async sign(algorithm: unknown, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         let name = key.algorithm.name;
         if (typeof algorithm === "string") {
@@ -288,15 +280,7 @@ export class SubtleCrypto {
 
     async exportKey(format: string, key: CryptoKey): Promise<unknown> {
         if (format === "raw") return key.material.buffer;
-        return new ArrayBuffer(0);
-    }
-
-    async wrapKey(format: string, key: CryptoKey, wrappingKey: CryptoKey, wrapAlgorithm: unknown): Promise<ArrayBuffer> {
-        return new ArrayBuffer(0);
-    }
-
-    async unwrapKey(format: string, wrappedKey: BufferSource, unwrappingKey: CryptoKey, unwrapAlgorithm: unknown, unwrappedKeyAlgorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey> {
-        return new CryptoKey();
+        throw new Error("Only 'raw' format is currently supported for exportKey");
     }
 }
 

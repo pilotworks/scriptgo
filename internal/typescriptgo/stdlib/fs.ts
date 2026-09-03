@@ -1079,36 +1079,6 @@ export const native = {
     promises: promises,
 };
 
-export function unwatchFile(filename: string, listener?: (curr: Stats, prev: Stats) => void): void {}
-export function watchFile(filename: string, listener?: (curr: Stats, prev: Stats) => void): void {}
-export function watch(filename: string, options?: Record<string, string>, listener?: (eventType: string, filename: string) => void): FSWatcher { return new FSWatcher(); }
-export function createReadStream(path: string, options?: Record<string, string>): ReadStream { return new ReadStream(); }
-export function createWriteStream(path: string, options?: Record<string, string>): WriteStream { return new WriteStream(); }
-
-export class FSWatcher {
-    close(): void {}
-    ref(): void {}
-    unref(): void {}
-}
-
-export class StatWatcher {
-    ref(): void {}
-    unref(): void {}
-}
-
-export class ReadStream {
-    bytesRead: number = 0;
-    path: string = "";
-    pending: boolean = false;
-}
-
-export class WriteStream {
-    bytesWritten: number = 0;
-    path: string = "";
-    pending: boolean = false;
-    close(): void {}
-}
-
 export default {
     Stats,
     StatFs,

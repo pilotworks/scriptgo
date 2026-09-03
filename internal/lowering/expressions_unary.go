@@ -554,19 +554,17 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 	}
 
 	// 2. Object shape / Class check: "prop" in obj
-	if rightType == ir.TypeObject || rightType == ir.TypeUnknown {
-		if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
-			fieldName := strings.Trim(expression.Left.Text, "\"'`")
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpInstanceOf,
-				Type:   ir.TypeBool,
-				Result: result,
-				Value:  fieldName,
-				Args:   []string{rightVal},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeBool, nil
-		}
+	if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
+		fieldName := strings.Trim(expression.Left.Text, "\"'`")
+		function.Body = append(function.Body, ir.Instruction{
+			Op:     ir.OpInstanceOf,
+			Type:   ir.TypeBool,
+			Result: result,
+			Value:  fieldName,
+			Args:   []string{rightVal},
+			Span:   toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeBool, nil
 	}
 	if after, ok := strings.CutPrefix(string(rightType), "object:"); ok {
 		className := after
@@ -581,43 +579,7 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 			}
 		}
 		if !ok {
-			if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
-				fieldName := strings.Trim(expression.Left.Text, "\"'`")
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpInstanceOf,
-					Type:   ir.TypeBool,
-					Result: result,
-					Value:  fieldName,
-					Args:   []string{rightVal},
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, ir.TypeBool, nil
-			}
 			return "", "", fmt.Errorf("unknown object shape %q for \"in\" operator", className)
-		}
-
-		// Static string literal check
-		if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
-			fieldName := strings.Trim(expression.Left.Text, "\"'`")
-			hasField := false
-			for _, f := range shape.Fields {
-				if f.Name == fieldName {
-					hasField = true
-					break
-				}
-			}
-			val := "false"
-			if hasField {
-				val = "true"
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeBool,
-				Result: result,
-				Value:  val,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeBool, nil
 		}
 
 		// Dynamic string expression check

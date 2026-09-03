@@ -15,11 +15,6 @@ console.log("gl_buf: " + (typeof Buffer === "function" || typeof Buffer === "obj
 // @api: globals.ByteLengthQueuingStrategy
 // @expect: gl_blStrat: true
 console.log("gl_blStrat: " + (typeof ByteLengthQueuingStrategy === "function" || typeof ByteLengthQueuingStrategy === "object"));
-
-// @api: globals.BroadcastChannel
-// @expect: gl_bc: true
-console.log("gl_bc: " + (typeof BroadcastChannel === "function" || typeof BroadcastChannel === "object"));
-
 // @api: globals.CompressionStream
 // @expect: gl_compStr: true
 console.log("gl_compStr: " + (typeof CompressionStream === "function" || typeof CompressionStream === "object"));
@@ -36,32 +31,20 @@ console.log("gl_crypto: " + (typeof Crypto === "function" || typeof Crypto === "
 
 // @api: globals.CustomEvent
 // @api: globals.Event
-// @api: globals.EventSource
 // @api: globals.EventTarget
-// @expect: gl_events: true true true true
-console.log("gl_events: " + (typeof CustomEvent === "function" || typeof CustomEvent === "object") + " " + (typeof Event === "function" || typeof Event === "object") + " " + (typeof EventSource === "function" || typeof EventSource === "object") + " " + (typeof EventTarget === "function" || typeof EventTarget === "object"));
+// @expect: gl_events: true true true
+console.log("gl_events: " + (typeof CustomEvent === "function" || typeof CustomEvent === "object") + " " + (typeof Event === "function" || typeof Event === "object") + " " + (typeof EventTarget === "function" || typeof EventTarget === "object"));
 
 // @api: globals.DecompressionStream
 // @expect: gl_decompStr: true
 console.log("gl_decompStr: " + (typeof DecompressionStream === "function" || typeof DecompressionStream === "object"));
 
 // @api: globals.File
-// @api: globals.FormData
 // @api: globals.Headers
 // @api: globals.Request
 // @api: globals.Response
-// @expect: gl_fetchTypes: true true true true true
-console.log("gl_fetchTypes: " + (typeof File === "function" || typeof File === "object") + " " + (typeof FormData === "function" || typeof FormData === "object") + " " + (typeof Headers === "function" || typeof Headers === "object") + " " + (typeof Request === "function" || typeof Request === "object") + " " + (typeof Response === "function" || typeof Response === "object"));
-
-// @api: globals.MessageChannel
-// @api: globals.MessageEvent
-// @api: globals.MessagePort
-// @expect: gl_msg: true true true
-console.log("gl_msg: " + (typeof MessageChannel === "function" || typeof MessageChannel === "object") + " " + (typeof MessageEvent === "function" || typeof MessageEvent === "object") + " " + (typeof MessagePort === "function" || typeof MessagePort === "object"));
-
-// @api: globals.Navigator
-// @expect: gl_nav: true
-console.log("gl_nav: " + (typeof Navigator === "function" || typeof Navigator === "object"));
+// @expect: gl_fetchTypes: true true true true
+console.log("gl_fetchTypes: " + (typeof File === "function" || typeof File === "object") + " " + (typeof Headers === "function" || typeof Headers === "object") + " " + (typeof Request === "function" || typeof Request === "object") + " " + (typeof Response === "function" || typeof Response === "object"));
 
 // @api: globals.PerformanceEntry
 // @api: globals.PerformanceMark
@@ -80,10 +63,6 @@ console.log("gl_perf: " + (typeof PerformanceEntry === "function" || typeof Perf
 // @api: globals.ReadableStreamDefaultReader
 // @expect: gl_rsTypes: true true true true true true
 console.log("gl_rsTypes: " + (typeof ReadableByteStreamController === "function" || typeof ReadableByteStreamController === "object") + " " + (typeof ReadableStream === "function" || typeof ReadableStream === "object") + " " + (typeof ReadableStreamBYOBReader === "function" || typeof ReadableStreamBYOBReader === "object") + " " + (typeof ReadableStreamBYOBRequest === "function" || typeof ReadableStreamBYOBRequest === "object") + " " + (typeof ReadableStreamDefaultController === "function" || typeof ReadableStreamDefaultController === "object") + " " + (typeof ReadableStreamDefaultReader === "function" || typeof ReadableStreamDefaultReader === "object"));
-
-// @api: globals.Storage
-// @expect: gl_storage: true
-console.log("gl_storage: " + (typeof Storage === "function" || typeof Storage === "object"));
 
 // @api: globals.DOMException
 // @expect: gl_domEx: true
@@ -105,14 +84,6 @@ console.log("gl_ts: " + (typeof TransformStream === "function" || typeof Transfo
 // @api: globals.URLSearchParams
 // @expect: gl_url: true true
 console.log("gl_url: " + (typeof URL === "function" || typeof URL === "object") + " " + (typeof URLSearchParams === "function" || typeof URLSearchParams === "object"));
-
-// @api: globals.WebAssembly
-// @expect: gl_wasm: true
-console.log("gl_wasm: " + (typeof WebAssembly === "object"));
-
-// @api: globals.WebSocket
-// @expect: gl_ws: true
-console.log("gl_ws: " + (typeof WebSocket === "function" || typeof WebSocket === "object"));
 
 // @api: globals.WritableStream
 // @api: globals.WritableStreamDefaultController

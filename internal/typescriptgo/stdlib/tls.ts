@@ -303,9 +303,9 @@ function nativeObject(value: string): Record<string, unknown> {
     return JSON.parse(value) as Record<string, unknown>;
 }
 
-function nativeTLSCertificate(value: string): PeerCertificate {
+function nativeTLSCertificate(value: string): PeerCertificate | Record<string, unknown> {
     const parsed = nativeObject(value);
-    if (Object.keys(parsed).length === 0) return {};
+    if (Object.keys(parsed).length === 0) return ({} as Record<string, unknown>);
     const result: PeerCertificate = {
         subject: undefined,
         issuer: undefined,
@@ -1086,8 +1086,8 @@ export class TLSSocket {
         return this;
     }
 
-    address(): SocketAddressInfo {
-        if (this._handle === 0 || this.localAddress === undefined || this.localFamily === undefined || this.localPort === undefined) return {};
+    address(): SocketAddressInfo | Record<string, unknown> {
+        if (this._handle === 0 || this.localAddress === undefined || this.localFamily === undefined || this.localPort === undefined) return ({} as Record<string, unknown>);
         return { port: this.localPort, family: this.localFamily, address: this.localAddress };
     }
 
@@ -1107,8 +1107,8 @@ export class TLSSocket {
         return hexToBytes(__scriptgo.tlsExportKeyingMaterial(this._handle, length, label, contextBytes));
     }
 
-    getCertificate(): PeerCertificate | null {
-        if (this._closed || this._handle === 0) return null;
+    getCertificate(): PeerCertificate | Record<string, unknown> | null {
+        if (this._closed || this._handle === 0) return ({} as Record<string, unknown>);
         return nativeTLSCertificate(__scriptgo.tlsSocketInfo(this._handle, "certificate"));
     }
 
@@ -1136,8 +1136,8 @@ export class TLSSocket {
         return hexToBytes(__scriptgo.tlsSocketInfo(this._handle, "finished"));
     }
 
-    getPeerCertificate(detailed?: boolean): PeerCertificate | null {
-        if (this._closed || this._handle === 0) return null;
+    getPeerCertificate(detailed?: boolean): PeerCertificate | Record<string, unknown> | null {
+        if (this._closed || this._handle === 0) return ({} as Record<string, unknown>);
         return nativeTLSCertificate(__scriptgo.tlsSocketInfo(this._handle, detailed === true ? "peerCertificateDetailed" : "peerCertificate"));
     }
 

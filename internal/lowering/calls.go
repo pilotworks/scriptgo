@@ -43,17 +43,19 @@ func lowerCallExpression(
 			}
 		}
 		if !isModuleNamespace {
+			isIndexedCall := false
 			methodName := expression.Left.Text
 			if (expression.Left.Kind == "index" || expression.Left.Kind == "optional_index") && expression.Left.Right != nil {
 				if expression.Left.Right.Kind == "property" && expression.Left.Right.Left != nil && expression.Left.Right.Left.Text == "Symbol" {
 					methodName = "Symbol." + expression.Left.Right.Text
 				} else if expression.Left.Right.Kind == "string" {
 					methodName = expression.Left.Right.Text
-				} else if expression.Left.Right.Kind == "identifier" {
-					methodName = expression.Left.Right.Text
+				} else {
+					isIndexedCall = true
 				}
 			}
-			receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+			if !isIndexedCall {
+				receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 			if err == nil {
 				if methodName == "then" || methodName == "catch" {
 					args := []string{receiver}
@@ -487,6 +489,7 @@ func lowerCallExpression(
 				}
 			}
 		}
+	}
 	}
 
 	// super(...) call in constructor

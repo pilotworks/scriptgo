@@ -587,8 +587,6 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
-    } else if (val == 0) {
-        *out_value = NULL;
     } else {
         *out_value = (void *)val;
     }
@@ -606,9 +604,9 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint6
     if (tag == 2) {
         o->fields[index] = (uintptr_t)((2ULL << 32) | (payload != 0 ? 1 : 0));
     } else if (tag == 1) {
-        o->fields[index] = (uintptr_t)(1ULL << 32);
-    } else if (tag == 0) {
         o->fields[index] = 0;
+    } else if (tag == 0) {
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     } else {
         o->fields[index] = (uintptr_t)payload;
     }
@@ -629,15 +627,15 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
         return 0;
     }
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_tag = 0;
+        *out_payload = 0;
+    } else if (val == 0) {
+        *out_tag = 1;
         *out_payload = 0;
     } else if ((val >> 32) == 2) {
         *out_tag = 2;
         *out_payload = (val & 1);
-    } else if ((val >> 32) == 1 && (val & 0xFFFFFFFF) == 0) {
-        *out_tag = 1;
-        *out_payload = 0;
     } else if ((val & 0xFFF8000000000000ULL) != 0) {
         *out_tag = 3;
         *out_payload = (uint64_t)val;
@@ -873,7 +871,7 @@ int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *ou
                 *out_result = 0;
                 return 0;
             }
-            if ((kind == 'c' || kind == 'b') && value_length == class_name_length &&
+            if ((kind == 'c' || kind == 'b' || kind == 'f') && value_length == class_name_length &&
                 memcmp(value, class_name, value_length) == 0) {
                 *out_result = 1;
                 return 0;

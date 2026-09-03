@@ -174,18 +174,6 @@ export class EventEmitter {
 
 export class NodeEventTarget extends EventEmitter {}
 
-export class EventEmitterAsyncResource extends EventEmitter {
-    asyncId: number = 1;
-    triggerAsyncId: number = 0;
-    asyncResource: unknown = null;
-
-    constructor(options?: unknown) {
-        super();
-    }
-
-    emitDestroy(): void {}
-}
-
 export class Event {
     type: string;
     bubbles: boolean = false;
@@ -321,6 +309,13 @@ export class AbortSignal extends EventTarget {
 
     static timeout(delay: number): AbortSignal {
         const sig = new AbortSignal();
+        setTimeout(() => {
+            if (!sig.aborted) {
+                sig.aborted = true;
+                sig.reason = new Error("The operation was aborted due to timeout");
+                sig.dispatchEvent(new Event("abort"));
+            }
+        }, delay);
         return sig;
     }
 
@@ -414,12 +409,6 @@ export function on(emitter: unknown, event: string): unknown {
     };
 }
 
-export function addAbortListener(signal: unknown, listener: Function): { [Symbol.dispose](): void } {
-    return {
-        [Symbol.dispose]() {}
-    };
-}
-
 export const defaultMaxListeners = 10;
 export const captureRejections = false;
 export const captureRejectionSymbol = Symbol("captureRejections");
@@ -428,7 +417,6 @@ export const errorMonitor = Symbol("events.errorMonitor");
 export default {
     EventEmitter,
     NodeEventTarget,
-    EventEmitterAsyncResource,
     EventTarget,
     Event,
     CustomEvent,
@@ -440,7 +428,6 @@ export default {
     listenerCount,
     once,
     on,
-    addAbortListener,
     defaultMaxListeners,
     captureRejections,
     captureRejectionSymbol,

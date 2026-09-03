@@ -1010,7 +1010,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					valType = ir.TypeVoid
 				} else if isGlobalConstructor(name) {
 					typeStr := "function"
-					if name == "WebAssembly" || name == "crypto" || name == "performance" || name == "navigator" {
+					if name == "crypto" || name == "performance" {
 						typeStr = "object"
 					}
 					if result == "" {

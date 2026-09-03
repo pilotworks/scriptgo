@@ -2,16 +2,12 @@ import {
     PerformanceEntry,
     PerformanceMark,
     PerformanceMeasure,
-    PerformanceNodeEntry,
-    PerformanceNodeTiming,
     PerformanceResourceTiming,
     PerformanceObserverEntryList,
     PerformanceObserver,
     Histogram,
-    IntervalHistogram,
     RecordableHistogram,
     createHistogram,
-    monitorEventLoopDelay,
     performance
 } from "node:perf_hooks";
 
@@ -35,28 +31,6 @@ console.log("ph_mark: " + mark.entryType + " " + mark.detail);
 // @expect: ph_measure: measure 99
 const measure = new PerformanceMeasure("m1", { detail: 99 });
 console.log("ph_measure: " + measure.entryType + " " + measure.detail);
-
-// @api: perf_hooks.PerformanceNodeEntry
-// @api: PerformanceNodeEntry.flags
-// @api: PerformanceNodeEntry.kind
-// @api: PerformanceNodeEntry.detail
-// @expect: ph_nodeEntry: node 0 0
-const ne = new PerformanceNodeEntry("node-e");
-console.log("ph_nodeEntry: " + ne.entryType + " " + ne.flags + " " + ne.kind);
-
-// @api: perf_hooks.PerformanceNodeTiming
-// @api: PerformanceNodeTiming.bootstrapComplete
-// @api: PerformanceNodeTiming.environment
-// @api: PerformanceNodeTiming.idleTime
-// @api: PerformanceNodeTiming.loopExit
-// @api: PerformanceNodeTiming.loopStart
-// @api: PerformanceNodeTiming.nodeStart
-// @api: PerformanceNodeTiming.v8Start
-// @api: PerformanceNodeTiming.return
-// @expect: ph_nodeTiming: node 0
-const nt = new PerformanceNodeTiming();
-nt.return();
-console.log("ph_nodeTiming: " + nt.entryType + " " + nt.bootstrapComplete);
 
 // @api: perf_hooks.PerformanceResourceTiming
 // @api: PerformanceResourceTiming.workerStart
@@ -119,13 +93,7 @@ const hist = new Histogram();
 hist.reset();
 console.log("ph_hist: " + hist.count + " " + hist.min + " " + hist.percentile(50));
 
-// @api: perf_hooks.IntervalHistogram
-// @api: IntervalHistogram.enable
-// @api: IntervalHistogram.disable
-// @api: perf_hooks.monitorEventLoopDelay
-// @expect: ph_intervalHist: true true
-const ih = monitorEventLoopDelay();
-console.log("ph_intervalHist: " + ih.enable() + " " + ih.disable());
+
 
 // @api: perf_hooks.RecordableHistogram
 // @api: RecordableHistogram.record

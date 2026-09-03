@@ -32,7 +32,6 @@ import util, {
     getSystemErrorMessage,
     getCallSites,
     setTraceSigInt,
-    inherits,
     parseArgs,
     parseEnv,
     promisify,
@@ -170,11 +169,6 @@ console.log("getCallSites_res: " + Array.isArray(getCallSites()));
 // @expect: setTraceSigInt_res: true
 setTraceSigInt(true);
 console.log("setTraceSigInt_res: true");
-
-// @api: util.inherits
-// @expect: inherits_res: true
-inherits(() => {}, () => {});
-console.log("inherits_res: true");
 
 // @api: util.parseArgs
 // @expect: parseArgs_res: true

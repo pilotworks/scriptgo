@@ -48,11 +48,6 @@ if (parsedU !== null) {
     console.log(parsedU.href);
 }
 
-// @api: url.revokeObjectURL
-// @expect: revoked
-URL.revokeObjectURL("blob:nodedata-123");
-console.log("revoked");
-
 // @api: url.URLSearchParams
 // @expect: 1
 const sp1 = new URLSearchParams("a=1&b=2");
