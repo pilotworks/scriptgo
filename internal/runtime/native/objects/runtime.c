@@ -585,8 +585,10 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
         return 0;
     }
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
+    } else if (val == 0) {
+        *out_value = NULL;
     } else {
         *out_value = (void *)val;
     }
@@ -678,8 +680,12 @@ static int object_property_index_for_set(void *handle, const char *property) {
     size_t offset;
     char *type_name;
 
-    if (is_invalid_object_handle(handle) || property == NULL || object->magic != SCRIPTGO_OBJECT_MAGIC || object->type_name == NULL) {
+    if (is_invalid_object_handle(handle) || property == NULL || object->magic != SCRIPTGO_OBJECT_MAGIC) {
         return -1;
+    }
+    if (object->type_name == NULL) {
+        object->type_name = strdup("");
+        if (object->type_name == NULL) return -1;
     }
     index = object_field_index(object, property);
     if (index >= 0) return index;
@@ -891,6 +897,7 @@ int scriptgo_array_set_tag(void *handle, int64_t tag);
 int scriptgo_array_release(void *handle);
 int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_set_owned_data(void *handle, void *owned_data);
+int scriptgo_array_push(void *handle, const void *value, double *out_length);
 
 static int object_key_count(const scriptgo_object *object) {
     const char *cursor;
@@ -1104,5 +1111,60 @@ int scriptgo_object_release(void *handle) {
     scriptgo_gc_unregister(object);
     free((void *)object->type_name);
     free(object);
+    return 0;
+}
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+    int64_t element_tag;
+} scriptgo_grp_arr;
+
+typedef struct {
+    void *fn_ptr;
+    void *env;
+} scriptgo_grp_closure;
+
+int scriptgo_object_group_by(void *handle, void *closure_handle, void **out_object) {
+    if (out_object == NULL) return object_fail("scriptgo object groupBy output is invalid");
+    if (scriptgo_object_new(0, out_object) != 0) return -1;
+    if (handle == NULL || closure_handle == NULL) return 0;
+
+    scriptgo_grp_arr *array = (scriptgo_grp_arr *)handle;
+    scriptgo_grp_closure *c = (scriptgo_grp_closure *)closure_handle;
+    if (array->length <= 0) return 0;
+
+    for (int64_t i = 0; i < array->length; i++) {
+        union { double d; int64_t i; } u_idx;
+        u_idx.d = (double)i;
+        char *key = NULL;
+        if (array->element_size == sizeof(double)) {
+            double item = *(double *)(array->data + (size_t)i * sizeof(double));
+            union { double d; int64_t i; } u_item;
+            u_item.d = item;
+            char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+                (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+            key = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        } else {
+            void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+            char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+                (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+            key = fn(c->env, 4, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        }
+        if (key == NULL) key = "undefined";
+        void *sub_arr = NULL;
+        scriptgo_object_property_ptr_get(*out_object, key, &sub_arr);
+        if (sub_arr == NULL || sub_arr == (void *)&scriptgo_undefined_sentinel) {
+            if (scriptgo_array_new(0, array->element_size, &sub_arr) != 0) return -1;
+            if (array->element_tag > 0) scriptgo_array_set_tag(sub_arr, array->element_tag);
+            scriptgo_object_property_ptr_set(*out_object, key, sub_arr);
+        }
+        double dummy;
+        void *val_ptr = array->data + (size_t)i * (size_t)array->element_size;
+        scriptgo_array_push(sub_arr, val_ptr, &dummy);
+    }
     return 0;
 }

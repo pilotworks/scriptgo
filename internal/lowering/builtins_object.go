@@ -313,11 +313,17 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 				if resObj == "" {
 					resObj = nextTemp(call.Counter)
 				}
+				var mFieldNames []string
+				for _, f := range mergedShape.Fields {
+					mFieldNames = append(mFieldNames, f.Name)
+				}
+				mTag := ":" + strings.Join(mFieldNames, ":") + ":"
 				call.Function.Body = append(call.Function.Body, ir.Instruction{
 					Op:         ir.OpObjectNew,
 					Type:       ir.Type("object:" + mergedShape.Name),
 					Result:     resObj,
 					Callee:     mergedShape.Name,
+					Value:      mTag,
 					FieldCount: len(mergedShape.Fields),
 					Span:       toIRSpan(call.Path, call.Expression.Span),
 				})
@@ -332,6 +338,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 									Op:         ir.OpFieldGet,
 									Type:       f.Type,
 									Result:     fVal,
+									Callee:     src.shape.Name,
 									Args:       []string{src.val},
 									Field:      f.Name,
 									FieldIndex: fIdx,
@@ -353,6 +360,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 									Op:         ir.OpFieldGet,
 									Type:       f.Type,
 									Result:     fVal,
+									Callee:     targetShape.Name,
 									Args:       []string{targetVal},
 									Field:      f.Name,
 									FieldIndex: fIdx,
@@ -367,6 +375,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 						call.Function.Body = append(call.Function.Body, ir.Instruction{
 							Op:         ir.OpFieldSet,
 							Type:       ir.TypeVoid,
+							Callee:     mergedShape.Name,
 							Args:       []string{resObj, foundVal},
 							Field:      mField.Name,
 							FieldIndex: mIdx,
@@ -417,16 +426,55 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 					hasResShape = true
 				}
 			}
+			if !hasResShape && len(call.Expression.Arguments) > 0 {
+				arg0 := call.Expression.Arguments[0]
+				if arg0.Kind == "array" && len(arg0.Arguments) > 0 {
+					var fields []ir.Field
+					seen := map[string]bool{}
+					for _, elem := range arg0.Arguments {
+						if elem.Kind == "array" && len(elem.Arguments) >= 2 {
+							keyExpr := elem.Arguments[0]
+							valExpr := elem.Arguments[1]
+							if keyExpr.Kind == "string" || keyExpr.Kind == "literal" {
+								k := strings.Trim(keyExpr.Text, "\"'`")
+								if !seen[k] {
+									seen[k] = true
+									valType := toIRType(valExpr.InferredType)
+									if valType == "" {
+										valType = ir.TypeUnknown
+									}
+									fields = append(fields, ir.Field{Name: k, Type: valType})
+								}
+							}
+						}
+					}
+					if len(fields) > 0 {
+						anonName := anonymousShapeName(fields)
+						resShape = ir.ObjectShape{Name: anonName, Fields: fields}
+						call.Shapes[anonName] = resShape
+						hasResShape = true
+					}
+				}
+			}
 			if hasResShape && len(resShape.Fields) > 0 {
 				resObj := call.Result
 				if resObj == "" {
 					resObj = nextTemp(call.Counter)
 				}
+				if call.Result != "" {
+					call.Env[call.Result] = ir.Type("object:" + resShape.Name)
+				}
+				var tagNames []string
+				for _, f := range resShape.Fields {
+					tagNames = append(tagNames, f.Name)
+				}
+				typeTag := ":" + strings.Join(tagNames, ":") + ":"
 				call.Function.Body = append(call.Function.Body, ir.Instruction{
 					Op:         ir.OpObjectNew,
 					Type:       ir.Type("object:" + resShape.Name),
 					Result:     resObj,
 					Callee:     resShape.Name,
+					Value:      typeTag,
 					FieldCount: len(resShape.Fields),
 					Span:       toIRSpan(call.Path, call.Expression.Span),
 				})
@@ -475,7 +523,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 					Op:         ir.OpFieldGet,
 					Type:       ir.TypeString,
 					Result:     keyVal,
-					Callee:     "Tuple",
+					Callee:     "",
 					Field:      "0",
 					FieldIndex: 0,
 					Args:       []string{tupleVal},
@@ -506,7 +554,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 							Op:         ir.OpFieldGet,
 							Type:       f.Type,
 							Result:     valGot,
-							Callee:     "Tuple",
+							Callee:     "",
 							Field:      "1",
 							FieldIndex: 1,
 							Args:       []string{tupleVal},
@@ -515,6 +563,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 						{
 							Op:         ir.OpFieldSet,
 							Type:       ir.TypeVoid,
+							Callee:     resShape.Name,
 							Args:       []string{resObj, valGot},
 							Field:      f.Name,
 							FieldIndex: fIdx,

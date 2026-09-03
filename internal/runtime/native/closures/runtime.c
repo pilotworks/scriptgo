@@ -6,6 +6,9 @@
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
+
+#define SCRIPTGO_CLOSURE_GC_TAG 3
 
 typedef struct {
     int64_t length;
@@ -29,6 +32,10 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void **out_closure) {
     if (c == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
     c->fn_ptr = fn_ptr;
     c->env = env;
+    if (scriptgo_gc_register(c, SCRIPTGO_CLOSURE_GC_TAG, 0) != 0) {
+        free(c);
+        return scriptgo_runtime_set_error("scriptgo closure registration failed");
+    }
     *out_closure = c;
     return 0;
 }
@@ -827,4 +834,3 @@ int scriptgo_array_sort_closure_string(void *handle, void *closure_handle, void 
     }
     return 0;
 }
-

@@ -661,7 +661,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	if typeAliasesIndex != nil && typeAliasesIndex[className] != "" && strings.Contains(typeAliasesIndex[className], "|") {
 		isUnionAlias = true
 	}
-	if !isUnionAlias && (className == "" || className == "Record" || className == "closure" || strings.HasPrefix(className, "__closure_") || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
+	if !isUnionAlias && (className == "" || className == "Record" || className == "closure" || strings.HasPrefix(className, "__closure_") || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || strings.Contains(className, "[") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
 		propNameConst := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,

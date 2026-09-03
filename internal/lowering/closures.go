@@ -291,9 +291,15 @@ func lowerClosureExpression(
 	// In closure body, captured variables are available from closureEnv
 	for _, capVar := range capturedVars {
 		closureEnv[capVar] = env[capVar]
+		capStorageType := env[capVar]
+		if pType, ok := env["__param."+capVar]; ok && pType != "" {
+			capStorageType = pType
+		} else if pType, ok := env["__storage_type."+capVar]; ok && pType != "" {
+			capStorageType = pType
+		}
 		targetFn.Captured = append(targetFn.Captured, ir.Parameter{
 			Name: capVar,
-			Type: env[capVar],
+			Type: capStorageType,
 		})
 	}
 	if fnStmt.Name != "" {

@@ -80,6 +80,7 @@ static int scriptgo_console_bool(FILE *stream, int value) {
 }
 
 static int scriptgo_console_bigint(FILE *stream, long long value);
+static int scriptgo_console_object(FILE *stream, void *value);
 
 static int scriptgo_console_unknown(FILE *stream, unsigned int tag, unsigned int flags, unsigned long long payload) {
     if (tag == SCRIPTGO_TAG_UNDEFINED) {
@@ -97,7 +98,7 @@ static int scriptgo_console_unknown(FILE *stream, unsigned int tag, unsigned int
     } else if (tag == SCRIPTGO_TAG_BIGINT) {
         return scriptgo_console_bigint(stream, (long long)payload);
     } else {
-        return scriptgo_console_string(stream, "[object Object]");
+        return scriptgo_console_object(stream, (void *)(uintptr_t)payload);
     }
 }
 
@@ -199,6 +200,24 @@ static int scriptgo_console_object(FILE *stream, void *value) {
     }
     if (value == &scriptgo_undefined_sentinel) {
         return scriptgo_console_string(stream, "undefined");
+    }
+    uint32_t magic = *(const uint32_t *)value;
+    if (magic == 0x42554646) {
+        struct {
+            uint32_t magic;
+            int32_t kind;
+            int64_t length;
+            int64_t byte_offset;
+            int64_t element_size;
+            void *buffer;
+            unsigned char *data;
+        } *bv = (void *)value;
+        if (bv->data != NULL && bv->length > 0) {
+            fwrite(bv->data, 1, (size_t)bv->length, stream);
+        }
+        fputc('\n', stream);
+        fflush(stream);
+        return 0;
     }
     int tag = scriptgo_gc_get_tag(value);
     if (tag == 1 /* SCRIPTGO_TYPE_OBJECT */) {

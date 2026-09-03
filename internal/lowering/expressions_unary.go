@@ -599,12 +599,22 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 		// Static string literal check
 		if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
 			fieldName := strings.Trim(expression.Left.Text, "\"'`")
+			hasField := false
+			for _, f := range shape.Fields {
+				if f.Name == fieldName {
+					hasField = true
+					break
+				}
+			}
+			val := "false"
+			if hasField {
+				val = "true"
+			}
 			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpInstanceOf,
+				Op:     ir.OpConst,
 				Type:   ir.TypeBool,
 				Result: result,
-				Value:  fieldName,
-				Args:   []string{rightVal},
+				Value:  val,
 				Span:   toIRSpan(path, expression.Span),
 			})
 			return result, ir.TypeBool, nil

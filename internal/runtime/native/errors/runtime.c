@@ -210,6 +210,27 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
         *out_str = strdup("undefined");
         return 0;
     }
+    uint32_t magic = *(const uint32_t *)obj;
+    if (magic == 0x42554646) {
+        struct {
+            uint32_t magic;
+            int32_t kind;
+            int64_t length;
+            int64_t byte_offset;
+            int64_t element_size;
+            void *buffer;
+            unsigned char *data;
+        } *bv = (void *)obj;
+        char *s = malloc((size_t)bv->length + 1);
+        if (s != NULL) {
+            if (bv->data != NULL && bv->length > 0) {
+                memcpy(s, bv->data, (size_t)bv->length);
+            }
+            s[bv->length] = '\0';
+            *out_str = s;
+            return 0;
+        }
+    }
     if (scriptgo_gc_is_registered(obj)) {
         scriptgo_object_t *o = (scriptgo_object_t *)obj;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {

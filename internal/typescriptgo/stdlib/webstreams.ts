@@ -140,9 +140,9 @@ export class ReadableStreamDefaultReader {
         this._stream = stream === undefined ? null : stream;
     }
 
-    async read(): Promise<StreamResult> {
+    read(): Promise<StreamResult> {
         if (this._stream === null) {
-            return { done: true, value: undefined };
+            return Promise.resolve({ done: true, value: undefined });
         }
         return this._stream._readChunk();
     }

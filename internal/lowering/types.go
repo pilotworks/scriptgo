@@ -1024,6 +1024,9 @@ func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field,
 			continue
 		}
 		fName := strings.TrimSpace(trimmed[:colonIdx])
+		if strings.HasPrefix(fName, "[") {
+			continue
+		}
 		optional := strings.HasSuffix(fName, "?")
 		fName = strings.TrimSuffix(fName, "?")
 		isMethod := false
@@ -1066,8 +1069,9 @@ func fieldIndex(shape ir.ObjectShape, name string) int {
 func dynamicFieldAccess(className string) bool {
 	clean := strings.TrimPrefix(className, "object:")
 	if strings.HasPrefix(clean, "__shape_") {
-		// Anonymous values can cross a type assertion into a differently ordered
-		// structural alias, so resolve their fields by name at runtime as well.
+		if strings.HasPrefix(clean, "__shape_0_") {
+			return false
+		}
 		return true
 	}
 	meta, ok := classHierarchy[clean]

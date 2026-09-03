@@ -273,8 +273,24 @@ console.log("cr_verify: " + v.verify(pubKey, sig));
 // @api: X509Certificate.toLegacyObject
 // @api: X509Certificate.toString
 // @api: X509Certificate.verify
-// @expect: cr_x509: false 01 CN=Test true
-const cert = new X509Certificate("dummy");
+const testCertPem = "-----BEGIN CERTIFICATE-----\n" +
+    "MIICujCCAaKgAwIBAgIBATANBgkqhkiG9w0BAQsFADAPMQ0wCwYDVQQDDARUZXN0\n" +
+    "MB4XDTI2MDkwMzA0MzY1OVoXDTI3MDkwMzA0MzY1OVowDzENMAsGA1UEAwwEVGVz\n" +
+    "dDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKV9foCbRd8dT3Va7Bp9\n" +
+    "HQkuUN2RMpHG9hz/32dqjh0WaUL3i7uTnX8ux983AtXTtWdC8P+d7JnTOL5nWSHo\n" +
+    "F8xYrxMBWmtb0UKNP/Z3BG34dMdQ+2dWCfqE0NspSOiZE6j67Bwduyy9pUSP2SI3\n" +
+    "FrRF30nMreTCvE09n+GuGG5JH73fpLqaTCRmLBnONOzs7seIwW5b22yb59kAXc6S\n" +
+    "v5XfHXintpCDsbaWsHUBzQVGU7uAVv1Lp6HSmCrcHVaEI/vpoOHnwkXu747X5A7i\n" +
+    "k5YGn2u2k7jqaU7Dk9Eb6Fhr6nnZDgS18Qe8PhErygt1hqSTo9sVEtiEZbVXLSh4\n" +
+    "rtsCAwEAAaMhMB8wHQYDVR0OBBYEFBRw4E7K1B1Gxg/Xlq3946bUXHRFMA0GCSqG\n" +
+    "SIb3DQEBCwUAA4IBAQAtA7WoFof8XvpgemLyeicPr2zxOYTr25TMRpFN4p2H353b\n" +
+    "enf2bxkms/vZQL3hnGFdJJ2SC8/utRdcKaT1WCZtHiiMWN3TEyqOoeBz6TswcKjR\n" +
+    "teU1gvE0bIkUupI7gBWLQYunb46zOJl+YdyeJ7ZRVdV0XLGKutFPiMnRCg3V2fxM\n" +
+    "ZorBqCGPOZm2+ZRE9j8rMOWuWqTQ10lA9pncmG+p2TPsiCR5LsqM0kaMh5XA7ijA\n" +
+    "4pkaiYY/1ZoB6thc7T/xALi/KgVsiYNiDaVbwFnZDW6T8Ik0Xc95Obt6IFsiEciQ\n" +
+    "HYZMLWwiBFaGrDi3sgabJEskUFpjcOMuGjWzhgpH\n" +
+    "-----END CERTIFICATE-----";
+const cert = new X509Certificate(testCertPem);
 cert.checkEmail("test@example.com");
 cert.checkHost("example.com");
 cert.checkIP("127.0.0.1");
@@ -284,6 +300,7 @@ cert.toJSON();
 cert.toLegacyObject();
 cert.toString();
 cert.verify(pubKey);
+// @expect: cr_x509: false 01 CN=Test true
 console.log("cr_x509: " + cert.ca + " " + cert.serialNumber + " " + cert.subject + " " + (typeof cert.publicKey === "object"));
 
 // @api: crypto.constants

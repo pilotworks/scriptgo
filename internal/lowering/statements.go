@@ -57,6 +57,7 @@ func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes m
 		// unions may use unknown storage until a control-flow guard narrows them.
 		env["__decl_str."+parameter.Name] = ir.Type(pType)
 		env["__param."+parameter.Name] = typ
+		env["__storage_type."+parameter.Name] = typ
 		fnSig := parameter.Type
 		if fnSig == "" || fnSig == "closure" {
 			fnSig = parameter.InferredType

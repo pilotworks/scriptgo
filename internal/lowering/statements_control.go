@@ -918,7 +918,7 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 			varName := statement.Expression.Left.Text
 			valStr := c.Expression.Text
 			if currType, ok := switchEnv[varName]; ok {
-				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
+				matched := findMatchingDiscriminatedType(statement.Expression.Text, valStr, string(currType), shapes)
 				if matched != "" {
 					caseEnv[varName] = ir.Type("object:" + matched)
 				}
@@ -1024,37 +1024,43 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 	return nil
 }
 
-func findMatchingDiscriminatedType(targetVal string, unionType string, shapes map[string]ir.ObjectShape) string {
+func findMatchingDiscriminatedType(propName string, targetVal string, unionType string, shapes map[string]ir.ObjectShape) string {
 	cleanTarget := strings.ToLower(strings.Trim(targetVal, "\"'`"))
+	if cleanTarget == "" {
+		return ""
+	}
 	cleanUnion := strings.TrimPrefix(unionType, "object:")
 	if aliased, ok := typeAliasesIndex[cleanUnion]; ok {
 		cleanUnion = aliased
 	}
-	if strings.Contains(cleanUnion, "|") {
+	isUnion := strings.Contains(cleanUnion, "|")
+	if !isUnion && cleanUnion != "" && cleanUnion != "object" && !strings.HasPrefix(cleanUnion, "__shape_") {
+		return ""
+	}
+	unionParts := map[string]bool{}
+	if isUnion {
 		for _, typePart := range strings.Split(cleanUnion, "|") {
 			part := strings.TrimSpace(typePart)
 			part = strings.TrimPrefix(part, "object:")
-			if strings.Contains(strings.ToLower(part), cleanTarget) {
+			unionParts[part] = true
+			if strings.EqualFold(part, cleanTarget) {
 				return part
 			}
 		}
 	}
 	for shapeName, s := range shapes {
+		if isUnion && !unionParts[shapeName] {
+			continue
+		}
 		for _, f := range s.Fields {
-			if strings.EqualFold(f.Name, "kind") || strings.EqualFold(f.Name, "type") || strings.EqualFold(f.Name, "tag") || strings.EqualFold(f.Name, "status") {
+			if propName != "" && !strings.EqualFold(f.Name, propName) {
+				continue
+			}
+			if propName != "" || strings.EqualFold(f.Name, "kind") || strings.EqualFold(f.Name, "type") || strings.EqualFold(f.Name, "tag") || strings.EqualFold(f.Name, "status") {
 				cleanVal := strings.ToLower(strings.Trim(f.Value, "\"'`"))
 				if cleanVal == cleanTarget {
-					if cleanUnion == "" || cleanUnion == "object" || strings.HasPrefix(cleanUnion, "__shape_") || strings.Contains(cleanUnion, shapeName) {
-						return shapeName
-					}
+					return shapeName
 				}
-			}
-		}
-	}
-	for shapeName := range shapes {
-		if strings.Contains(strings.ToLower(shapeName), cleanTarget) {
-			if cleanUnion != "" && cleanUnion != "object" && strings.Contains(cleanUnion, shapeName) {
-				return shapeName
 			}
 		}
 	}
@@ -1344,7 +1350,7 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			varName := propAccess.Left.Text
 			valStr := literalVal.Text
 			if currType, ok := baseEnv[varName]; ok {
-				matched := findMatchingDiscriminatedType(valStr, string(currType), shapes)
+				matched := findMatchingDiscriminatedType(propAccess.Text, valStr, string(currType), shapes)
 				if matched != "" {
 					thenEnv[varName] = ir.Type("object:" + matched)
 				}

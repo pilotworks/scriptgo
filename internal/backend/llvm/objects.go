@@ -22,6 +22,18 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	typeName := instruction.Value
 	if typeName == "" {
+		for _, s := range e.module.Shapes {
+			if s.Name == instruction.Callee && len(s.Fields) > 0 {
+				var names []string
+				for _, f := range s.Fields {
+					names = append(names, f.Name)
+				}
+				typeName = ":" + strings.Join(names, ":") + ":"
+				break
+			}
+		}
+	}
+	if typeName == "" {
 		typeName = instruction.Callee
 	}
 	if typeName != "" {
@@ -394,6 +406,18 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_keys(ptr %%%s, ptr %%%s)\n", status, objVar, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
+		return nil
+	case "__object.groupBy":
+		itemsArg := e.ensurePointerArg(out, instruction.Args[0])
+		cbArg := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_group_by(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, itemsArg, cbArg, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type

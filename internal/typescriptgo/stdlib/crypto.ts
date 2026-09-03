@@ -305,7 +305,9 @@ export class X509Certificate {
             const beginIdx = certStr.indexOf("-----BEGIN CERTIFICATE-----");
             const endIdx = certStr.indexOf("-----END CERTIFICATE-----");
             if (beginIdx >= 0 && endIdx >= 0) {
-                b64 = certStr.substring(beginIdx + 27, endIdx).trim();
+                b64 = certStr.substring(beginIdx + 27, endIdx).replace(/\s+/g, "");
+            } else if (!certStr.startsWith("Subject:") && !certStr.startsWith("subject=")) {
+                throw new Error("error:0480006C:PEM routines::no start line");
             }
             this.raw = Buffer.from(b64, "base64");
         } else if (bufferOrCert instanceof Uint8Array || Buffer.isBuffer(bufferOrCert)) {
@@ -325,6 +327,18 @@ export class X509Certificate {
             this.fingerprint = "";
             this.fingerprint256 = "";
             this.fingerprint512 = "";
+        }
+
+        if (this.raw && this.raw.length > 5) {
+            for (let i = 0; i < this.raw.length - 5; i++) {
+                if (this.raw[i] === 0x55 && this.raw[i + 1] === 0x04 && this.raw[i + 2] === 0x03) {
+                    const strLen = this.raw[i + 4];
+                    if (i + 5 + strLen <= this.raw.length) {
+                        this.subject = "CN=" + this.raw.subarray(i + 5, i + 5 + strLen).toString("utf8");
+                        break;
+                    }
+                }
+            }
         }
 
         if (certStr.length > 0) {
@@ -347,9 +361,6 @@ export class X509Certificate {
                     this.serialNumber = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
                 }
             }
-        }
-        if (this.subject === "" && certStr.length > 0) {
-            this.subject = "CN=" + certStr.substring(0, 32);
         }
         if (this.issuer === "") {
             this.issuer = this.subject;

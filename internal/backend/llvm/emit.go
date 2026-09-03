@@ -61,11 +61,30 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
-			if (instruction.Op == ir.OpConst && (instruction.Type == ir.TypeString || instruction.Type == ir.TypeSymbol)) || (instruction.Op == ir.OpObjectNew && (instruction.Value != "" || instruction.Callee != "")) || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
+			if instruction.Op == ir.OpObjectNew {
 				val := instruction.Value
+				if val == "" {
+					for _, s := range module.Shapes {
+						if s.Name == instruction.Callee && len(s.Fields) > 0 {
+							var names []string
+							for _, f := range s.Fields {
+								names = append(names, f.Name)
+							}
+							val = ":" + strings.Join(names, ":") + ":"
+							break
+						}
+					}
+				}
 				if val == "" {
 					val = instruction.Callee
 				}
+				if val != "" {
+					if _, ok := stringsByValue[val]; !ok {
+						stringsByValue[val] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+					}
+				}
+			} else if (instruction.Op == ir.OpConst && (instruction.Type == ir.TypeString || instruction.Type == ir.TypeSymbol)) || (instruction.Op == ir.OpInstanceOf && instruction.Value != "") {
+				val := instruction.Value
 				if val != "" {
 					if _, ok := stringsByValue[val]; !ok {
 						stringsByValue[val] = fmt.Sprintf("@.str.%d", len(stringsByValue))
@@ -264,6 +283,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_is_unknown(i32, i64, i32, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_equals_unknown(i32, i64, i32, i64, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_keys(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_group_by(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_number(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_bool(i32, ptr)\n")
