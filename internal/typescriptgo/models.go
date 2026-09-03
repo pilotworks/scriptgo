@@ -38,8 +38,19 @@ type ModuleReference struct {
 	Specifier        string
 	ResolvedFileName string
 	LocalName        string
+	Bindings         []ModuleBinding
 	Span             SourceSpan
 	Builtin          bool
+	TypeOnly         bool
+}
+
+// ModuleBinding records a named import and its local name. Keeping this at
+// the frontend boundary lets later stages resolve declarations without
+// guessing which module an unqualified name came from.
+type ModuleBinding struct {
+	ImportedName string
+	LocalName    string
+	TypeOnly     bool
 }
 
 type SourceSpan struct {
@@ -170,6 +181,7 @@ type SyntaxField struct {
 	Name         string
 	Type         string
 	InferredType string
+	Optional     bool
 	Initializer  *SyntaxExpression
 	Decorators   []SyntaxDecorator
 	IsStatic     bool

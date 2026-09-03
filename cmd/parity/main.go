@@ -183,6 +183,8 @@ func main() {
 	}
 
 	startTime := time.Now()
+	resolvedCorpus = filepath.Clean(resolvedCorpus)
+	workingDir := filepath.Dir(filepath.Dir(resolvedCorpus))
 
 	// Verify Node runtime
 	nodePath, err := exec.LookPath("node")
@@ -197,13 +199,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	cases, err := findCorpusCases(*corpusDir, *filter)
+	cases, err := findCorpusCases(resolvedCorpus, *filter)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error scanning corpus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(cases) == 0 {
-		fmt.Fprintf(os.Stderr, "No test cases found matching filter %q in %s\n", *filter, *corpusDir)
+		fmt.Fprintf(os.Stderr, "No test cases found matching filter %q in %s\n", *filter, resolvedCorpus)
 		os.Exit(0)
 	}
 
@@ -211,7 +213,7 @@ func main() {
 		fmt.Printf("================================================================================\n")
 		fmt.Printf("  ScriptGo Native vs Node.js/TypeScript Parity Checker\n")
 		fmt.Printf("================================================================================\n")
-		fmt.Printf("Corpus directory : %s\n", *corpusDir)
+		fmt.Printf("Corpus directory : %s\n", resolvedCorpus)
 		fmt.Printf("TS Engine/Runner : %s (%s)\n", *runnerType, nodePath)
 		fmt.Printf("Native Backend   : Clang (%s)\n", clangPath)
 		fmt.Printf("Total Test Cases : %d\n", len(cases))
@@ -226,7 +228,7 @@ func main() {
 
 	for idx, caseTarget := range cases {
 		caseStart := time.Now()
-		relPath, _ := filepath.Rel(*corpusDir, caseTarget)
+		relPath, _ := filepath.Rel(resolvedCorpus, caseTarget)
 		if relPath == "" {
 			relPath = caseTarget
 		}
@@ -245,13 +247,13 @@ func main() {
 		}
 
 		if *recordMode {
-			nodeOut, nodeErr := runWithNode(entry, *runnerType)
+			nodeOut, nodeErr := runWithNode(entry, *runnerType, workingDir)
 			if nodeErr != nil {
 				fmt.Fprintf(os.Stderr, "Error executing %s with Node: %v\nOutput: %s\n", entry, nodeErr, nodeOut)
 				continue
 			}
 			expectedPath := filepath.Join(caseDir, "run.expected")
-			if isStandalone && (caseDir == *corpusDir || strings.HasSuffix(caseDir, "api")) {
+			if isStandalone && (caseDir == resolvedCorpus || strings.HasSuffix(caseDir, "api")) {
 				expectedPath = filepath.Join(caseDir, strings.TrimSuffix(filepath.Base(entry), ".ts")+".expected")
 			}
 			_ = os.WriteFile(expectedPath, []byte(nodeOut), 0o644)
@@ -322,16 +324,20 @@ func main() {
 
 		// 1. Runtime Cases (run.expected / native.expected)
 		if hasRunExpected || hasNativeExpected {
-			// Run Node.js / TypeScript
-			nodeOut, nodeErr := runWithNode(entry, *runnerType)
+			// Native-only expectations do not have a Node.js reference output.
+			var nodeOut string
+			var nodeErr error
+			if hasRunExpected {
+				nodeOut, nodeErr = runWithNode(entry, *runnerType, workingDir)
+			}
 			res.NodeOutput = nodeOut
 
 			cleanNodeOut := cleanTraceOutput(nodeOut)
 			cleanExpected := cleanTraceOutput(expectedTarget)
-			nodeMatchesTarget := (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
+			nodeMatchesTarget := !hasRunExpected || (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
 
 			// Run ScriptGo Native
-			sgOut, sgErr := compiler.RunWithOptions(entry, compiler.BuildOptions{})
+			sgOut, sgErr := compiler.RunWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
 			res.ScriptGoOutput = sgOut
 			if sgErr != nil {
 				res.ErrorMessage = sgErr.Error()
@@ -345,14 +351,13 @@ func main() {
 			cleanTarget := cleanTraceOutput(target)
 
 			nativeMatchesTarget := (sgErr == nil && (sgOut == target || strings.TrimSpace(sgOut) == strings.TrimSpace(target) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanTarget)))
-			nativeMatchesNode := (sgErr == nil && nodeErr == nil && (sgOut == nodeOut || strings.TrimSpace(sgOut) == strings.TrimSpace(nodeOut) || strings.TrimSpace(cleanSgOut) == strings.TrimSpace(cleanNodeOut)))
-
 			if nativeMatchesTarget {
 				res.NativeParity = StatusPass
 				nativePassedCount++
-				res.OverallMatch = true
-				fullParityCount++
-				if !nodeMatchesTarget && !nativeMatchesNode {
+				if nodeMatchesTarget {
+					res.OverallMatch = true
+					fullParityCount++
+				} else {
 					res.DiscrepancyDetails = fmt.Sprintf("ScriptGo matches expected output, but Node.js produced different output (%q vs %q)", sgOut, nodeOut)
 				}
 			} else {
@@ -375,9 +380,9 @@ func main() {
 
 			var sgErr error
 			if hasRunErr {
-				_, sgErr = compiler.Run(entry)
+				_, sgErr = compiler.RunWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
 			} else {
-				_, sgErr = compiler.Compile(entry)
+				_, sgErr = compiler.CompileWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
 			}
 
 			if sgErr != nil && strings.Contains(sgErr.Error(), strings.TrimSpace(errExp)) {
@@ -511,23 +516,30 @@ func main() {
 	}
 }
 
-func runWithNode(entry, runner string) (string, error) {
+func runWithNode(entry, runner, workingDir string) (string, error) {
+	absoluteEntry, err := filepath.Abs(entry)
+	if err != nil {
+		return "", fmt.Errorf("resolve Node entry point %q: %w", entry, err)
+	}
 	var cmd *exec.Cmd
 
 	switch runner {
 	case "tsx":
-		cmd = exec.Command("tsx", entry)
+		cmd = exec.Command("tsx", absoluteEntry)
 	case "tsc":
-		cmd = exec.Command("tsc", "--noEmit", entry)
+		cmd = exec.Command("tsc", "--noEmit", absoluteEntry)
 	default:
 		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
-		cmd = exec.Command("node", "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", entry)
+		cmd = exec.Command("node", "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", absoluteEntry)
+	}
+	if workingDir != "" {
+		cmd.Dir = workingDir
 	}
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stdout
-	err := cmd.Run()
+	err = cmd.Run()
 	return stdout.String(), err
 }
 

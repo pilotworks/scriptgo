@@ -276,6 +276,7 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 	result := make([]ModuleReference, 0, len(file.Imports()))
 	for _, specifier := range file.Imports() {
 		localName := namespaceImportName(specifier.AsNode())
+		typeOnly := importIsTypeOnly(specifier.AsNode())
 		if module, ok := builtinModule(specifier.Text()); ok {
 			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 			resolvedFileName := ""
@@ -286,7 +287,7 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 			} else {
 				resolvedFileName = filepath.Clean(filepath.Join(cwd, "node_modules", module.Name, "index.ts"))
 			}
-			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, LocalName: localName, Span: sourceSpan(specifier), Builtin: true})
+			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, LocalName: localName, Bindings: importBindings(specifier.AsNode()), Span: sourceSpan(specifier), Builtin: true, TypeOnly: typeOnly})
 			continue
 		}
 		resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
@@ -297,10 +298,84 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 			Specifier:        specifier.Text(),
 			ResolvedFileName: filepath.Clean(resolved.ResolvedFileName),
 			LocalName:        localName,
+			Bindings:         importBindings(specifier.AsNode()),
 			Span:             sourceSpan(specifier),
+			TypeOnly:         typeOnly,
 		})
 	}
 	return result
+}
+
+func importIsTypeOnly(specifier *ast.Node) bool {
+	if specifier == nil || specifier.Parent == nil || specifier.Parent.Kind != ast.KindImportDeclaration {
+		return false
+	}
+	declaration := specifier.Parent.AsImportDeclaration()
+	if declaration == nil || declaration.ImportClause == nil {
+		return false
+	}
+	clause := declaration.ImportClause.AsImportClause()
+	if clause == nil || clause.IsTypeOnly() {
+		return clause != nil && clause.IsTypeOnly()
+	}
+	if clause.NamedBindings == nil || clause.NamedBindings.Kind != ast.KindNamedImports {
+		return false
+	}
+	named := clause.NamedBindings.AsNamedImports()
+	if named == nil || named.Elements == nil || len(named.Elements.Nodes) == 0 {
+		return false
+	}
+	for _, element := range named.Elements.Nodes {
+		if !element.IsTypeOnly() {
+			return false
+		}
+	}
+	return true
+}
+
+func importBindings(specifier *ast.Node) []ModuleBinding {
+	if specifier == nil || specifier.Parent == nil || specifier.Parent.Kind != ast.KindImportDeclaration {
+		return nil
+	}
+	declaration := specifier.Parent.AsImportDeclaration()
+	if declaration == nil || declaration.ImportClause == nil {
+		return nil
+	}
+	clause := declaration.ImportClause.AsImportClause()
+	if clause == nil {
+		return nil
+	}
+	var bindings []ModuleBinding
+	if clause.Name() != nil {
+		bindings = append(bindings, ModuleBinding{
+			ImportedName: "default",
+			LocalName:    clause.Name().Text(),
+			TypeOnly:     clause.IsTypeOnly(),
+		})
+	}
+	if clause.NamedBindings == nil || clause.NamedBindings.Kind != ast.KindNamedImports {
+		return bindings
+	}
+	named := clause.NamedBindings.AsNamedImports()
+	if named == nil || named.Elements == nil {
+		return bindings
+	}
+	for _, element := range named.Elements.Nodes {
+		importSpecifier := element.AsImportSpecifier()
+		if importSpecifier == nil || importSpecifier.Name() == nil {
+			continue
+		}
+		importedName := importSpecifier.Name().Text()
+		if importSpecifier.PropertyName != nil {
+			importedName = importSpecifier.PropertyName.Text()
+		}
+		bindings = append(bindings, ModuleBinding{
+			ImportedName: importedName,
+			LocalName:    importSpecifier.Name().Text(),
+			TypeOnly:     clause.IsTypeOnly() || importSpecifier.IsTypeOnly,
+		})
+	}
+	return bindings
 }
 
 func namespaceImportName(specifier *ast.Node) string {

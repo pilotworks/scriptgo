@@ -666,7 +666,11 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 			}
 		}
 		if !ok {
-			return fmt.Errorf("unknown shape %q for for...in", shapeName)
+			if strings.HasPrefix(shapeName, "Record_") || strings.HasPrefix(shapeName, "Record__") || strings.HasPrefix(shapeName, "Record<") || shapeName == "Record" || strings.HasPrefix(shapeName, "Partial_") || strings.HasPrefix(shapeName, "Partial<") {
+				shape = ir.ObjectShape{Name: shapeName, Fields: nil}
+			} else {
+				return fmt.Errorf("unknown shape %q for for...in", shapeName)
+			}
 		}
 		for _, f := range shape.Fields {
 			fieldEnv := make(map[string]ir.Type, len(env)+1)
@@ -1070,6 +1074,14 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		applyConditionNarrowing(expr.Right, thenEnv, elseEnv, baseEnv, shapes)
 		return
 	}
+	if expr.Kind == "binary" && (expr.Operator == "||" || expr.Operator == "or") {
+		// The false branch of A || B requires both operands to be false. The
+		// true branch cannot safely inherit a narrowing from either operand.
+		unusedThen := make(map[string]ir.Type)
+		applyConditionNarrowing(expr.Left, unusedThen, elseEnv, baseEnv, shapes)
+		applyConditionNarrowing(expr.Right, unusedThen, elseEnv, baseEnv, shapes)
+		return
+	}
 	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==" || expr.Operator == "!==" || expr.Operator == "!=") {
 		if applyTypeofNarrowing(expr, thenEnv, elseEnv, baseEnv) {
 			return
@@ -1136,6 +1148,7 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		left := expr.Left
 		right := expr.Right
 		var targetIdent *typescriptgo.SyntaxExpression
+		var targetProperty *typescriptgo.SyntaxExpression
 		var nullishKind string
 		if left != nil && left.Kind == "identifier" {
 			targetIdent = left
@@ -1152,8 +1165,38 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 					nullishKind = "null"
 				}
 			}
+		} else if left != nil && (left.Kind == "property" || left.Kind == "member") {
+			targetProperty = left
+			if right != nil && (right.Kind == "undefined" || right.Text == "undefined") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if right != nil && (right.Kind == "null" || right.Text == "null") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
 		} else if right != nil && right.Kind == "identifier" {
 			targetIdent = right
+			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if left != nil && (left.Kind == "null" || left.Text == "null") {
+				if expr.Operator == "!=" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		} else if right != nil && (right.Kind == "property" || right.Kind == "member") {
+			targetProperty = right
 			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
 				if expr.Operator == "!=" {
 					nullishKind = "nullish"
@@ -1186,11 +1229,19 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 				}
 			}
 		}
+		if targetProperty != nil && nullishKind != "" {
+			if propertyPath := extractPropertyPath(targetProperty); len(propertyPath) > 1 {
+				if narrowed := narrowPropertyPathType(propertyPath, targetProperty, baseEnv, shapes, nullishKind); narrowed != "" {
+					thenEnv[strings.Join(propertyPath, ".")] = narrowed
+				}
+			}
+		}
 	}
 	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==") {
 		left := expr.Left
 		right := expr.Right
 		var targetIdent *typescriptgo.SyntaxExpression
+		var targetProperty *typescriptgo.SyntaxExpression
 		var nullishKind string
 		if left != nil && left.Kind == "identifier" {
 			targetIdent = left
@@ -1207,8 +1258,38 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 					nullishKind = "null"
 				}
 			}
+		} else if left != nil && (left.Kind == "property" || left.Kind == "member") {
+			targetProperty = left
+			if right != nil && (right.Kind == "undefined" || right.Text == "undefined") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if right != nil && (right.Kind == "null" || right.Text == "null") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
 		} else if right != nil && right.Kind == "identifier" {
 			targetIdent = right
+			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "undefined"
+				}
+			} else if left != nil && (left.Kind == "null" || left.Text == "null") {
+				if expr.Operator == "==" {
+					nullishKind = "nullish"
+				} else {
+					nullishKind = "null"
+				}
+			}
+		} else if right != nil && (right.Kind == "property" || right.Kind == "member") {
+			targetProperty = right
 			if left != nil && (left.Kind == "undefined" || left.Text == "undefined") {
 				if expr.Operator == "==" {
 					nullishKind = "nullish"
@@ -1241,6 +1322,13 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 				}
 			}
 		}
+		if targetProperty != nil && nullishKind != "" {
+			if propertyPath := extractPropertyPath(targetProperty); len(propertyPath) > 1 {
+				if narrowed := narrowPropertyPathType(propertyPath, targetProperty, baseEnv, shapes, nullishKind); narrowed != "" {
+					elseEnv[strings.Join(propertyPath, ".")] = narrowed
+				}
+			}
+		}
 		// typeof narrowing is applied above so that both the true and false
 		// branches retain the useful remainder of a source-level union.
 		var propAccess *typescriptgo.SyntaxExpression
@@ -1263,6 +1351,37 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			}
 		}
 	}
+}
+
+func narrowPropertyPathType(propertyPath []string, expression *typescriptgo.SyntaxExpression, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape, nullishKind string) ir.Type {
+	if len(propertyPath) < 2 {
+		return ""
+	}
+	current, ok := baseEnv[propertyPath[0]]
+	if !ok {
+		return nonNullishIRType(expression.InferredType)
+	}
+	for _, property := range propertyPath[1:] {
+		fields, found := resolveShapeFields(string(current), shapes)
+		if !found {
+			return nonNullishIRType(expression.InferredType)
+		}
+		var field *ir.Field
+		for index := range fields {
+			if fields[index].Name == property {
+				field = &fields[index]
+				break
+			}
+		}
+		if field == nil {
+			return nonNullishIRType(expression.InferredType)
+		}
+		current = field.Type
+	}
+	if nullishKind != "" && current != ir.TypeUnknown && current != ir.TypeVoid && current != ir.TypePointer {
+		return current
+	}
+	return nonNullishIRType(expression.InferredType)
 }
 
 func applyTypeofNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseEnv, baseEnv map[string]ir.Type) bool {
@@ -1382,7 +1501,7 @@ func typeMatchesTypeof(typeName, target string) bool {
 		return typeName == "boolean" || typeName == "bool" || typeName == "true" || typeName == "false"
 	}
 	if target == "object" {
-		return typeName == "object" || strings.HasPrefix(typeName, "object:") || (!strings.ContainsAny(typeName, "|&") && toIRType(typeName) != ir.TypeString && toIRType(typeName) != ir.TypeNumber && toIRType(typeName) != ir.TypeBool && toIRType(typeName) != ir.TypeBigInt && toIRType(typeName) != ir.TypeSymbol && toIRType(typeName) != ir.TypeClosure)
+		return typeName == "object" || typeName == "null" || strings.HasPrefix(typeName, "object:") || (!strings.ContainsAny(typeName, "|&") && toIRType(typeName) != ir.TypeString && toIRType(typeName) != ir.TypeNumber && toIRType(typeName) != ir.TypeBool && toIRType(typeName) != ir.TypeBigInt && toIRType(typeName) != ir.TypeSymbol && toIRType(typeName) != ir.TypeClosure)
 	}
 	if target == "function" {
 		return strings.Contains(typeName, "=>") || toIRType(typeName) == ir.TypeClosure

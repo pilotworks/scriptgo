@@ -506,6 +506,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				returnExpression = cloneAndSubstituteExpr(returnExpression, nil)
 				returnExpression.InferredType = string(expectedReturnType)
 			}
+		} else if returnExpression.Kind == "array" && strings.HasPrefix(string(expectedReturnType), "object:") {
+			// A tuple return type may contain nullable or otherwise heterogeneous
+			// elements. Contextualize the array so both branches use one slot layout.
+			shapeName := strings.TrimPrefix(string(expectedReturnType), "object:")
+			if isTupleShapeName(shapeName) {
+				returnExpression = cloneAndSubstituteExpr(returnExpression, nil)
+				returnExpression.InferredType = string(expectedReturnType)
+			}
 		}
 		value, typ, err := lowerExpression(path, returnExpression, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -789,13 +797,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 							return err
 						}
 						function.Body = append(function.Body, ir.Instruction{
-							Op:         ir.OpFieldSet,
-							Type:       ir.TypeVoid,
-							Callee:     shapeName,
-							Field:      field.Name,
-							FieldIndex: fieldIdx,
-							Args:       []string{arrVal, val},
-							Span:       toIRSpan(path, statement.Span),
+							Op:           ir.OpFieldSet,
+							Type:         ir.TypeVoid,
+							Callee:       shapeName,
+							Field:        field.Name,
+							FieldIndex:   fieldIdx,
+							DynamicField: dynamicFieldAccess(shapeName),
+							Args:         []string{arrVal, val},
+							Span:         toIRSpan(path, statement.Span),
 						})
 						return nil
 					}
@@ -809,13 +818,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 								return err
 							}
 							function.Body = append(function.Body, ir.Instruction{
-								Op:         ir.OpFieldSet,
-								Type:       ir.TypeVoid,
-								Callee:     shapeName,
-								Field:      field.Name,
-								FieldIndex: idx,
-								Args:       []string{arrVal, val},
-								Span:       toIRSpan(path, statement.Span),
+								Op:           ir.OpFieldSet,
+								Type:         ir.TypeVoid,
+								Callee:       shapeName,
+								Field:        field.Name,
+								FieldIndex:   idx,
+								DynamicField: dynamicFieldAccess(shapeName),
+								Args:         []string{arrVal, val},
+								Span:         toIRSpan(path, statement.Span),
 							})
 							return nil
 						}
@@ -1024,11 +1034,15 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Expression != nil && (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && (isPointerLikeType(shape.Fields[fIndex].Type) || shape.Fields[fIndex].Type == ir.TypePointer) {
 			val = nextTemp(counter)
 			valType = shape.Fields[fIndex].Type
+			value := "null"
+			if statement.Expression.Kind == "undefined" {
+				value = "undefined"
+			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpConst,
 				Type:   valType,
 				Result: val,
-				Value:  "null",
+				Value:  value,
 				Span:   toIRSpan(path, statement.Span),
 			})
 		} else {
@@ -1072,13 +1086,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     className,
-			Field:      statement.Name,
-			FieldIndex: fIndex,
-			Args:       []string{objVal, val},
-			Span:       toIRSpan(path, statement.Span),
+			Op:           ir.OpFieldSet,
+			Type:         ir.TypeVoid,
+			Callee:       className,
+			Field:        statement.Name,
+			FieldIndex:   fIndex,
+			DynamicField: dynamicFieldAccess(className),
+			Args:         []string{objVal, val},
+			Span:         toIRSpan(path, statement.Span),
 		})
 	case "class":
 		return nil

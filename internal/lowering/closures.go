@@ -273,7 +273,7 @@ func lowerClosureExpression(
 				case "call":
 					if expr.Left != nil {
 						calleeName := callName(expr.Left)
-						if sig, ok := signatures[calleeName]; ok {
+						if sig, ok := resolveFunctionSignature(path, calleeName, signatures); ok {
 							targetFn.ReturnType = sig.ReturnType
 						} else if retT, ok := env[calleeName+".retType"]; ok {
 							targetFn.ReturnType = retT

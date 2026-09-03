@@ -184,7 +184,7 @@ func lowerGeneratorFunction(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (ir.Function, []ir.Function, []ir.ObjectShape, error) {
-	name := statement.Name
+	name := functionIdentityForPath(path, statement.Name)
 	genClassName := "Generator_" + name
 
 	// Determine yielded type from statements or type annotation

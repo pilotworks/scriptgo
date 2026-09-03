@@ -13,6 +13,17 @@ const u8_arraybuffer_isView_1 = new Uint8Array([1, 2, 3]);
 console.log(ArrayBuffer.isView(u8_arraybuffer_isView_1));
 console.log(ArrayBuffer.isView("not a view"));
 
+// @api: arraybuffer.isView(unknown)
+// @expect: true
+// @expect: false
+// @expect: false
+const unknownView_arraybuffer_isView_1: unknown = new Uint8Array([4]);
+const unknownNumber_arraybuffer_isView_1: unknown = 42;
+const unknownNull_arraybuffer_isView_1: unknown = null;
+console.log(ArrayBuffer.isView(unknownView_arraybuffer_isView_1));
+console.log(ArrayBuffer.isView(unknownNumber_arraybuffer_isView_1));
+console.log(ArrayBuffer.isView(unknownNull_arraybuffer_isView_1));
+
 // @api: arraybuffer.slice
 // @expect: 8
 const buf_arraybuffer_slice_2 = new ArrayBuffer(16);

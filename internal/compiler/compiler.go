@@ -189,6 +189,10 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err != nil {
 		return err
 	}
+	codecConfig := nativeCodecConfigForTarget(options.Target)
+	if strings.Contains(output, "call i32 @scriptgo_tls_") && !codecConfig.hasDefine("SCRIPTGO_HAS_OPENSSL") {
+		return fmt.Errorf("node:tls requires OpenSSL development files available through pkg-config")
+	}
 	temporaryDir, err := os.MkdirTemp("", "scriptgo-build-")
 	if err != nil {
 		return fmt.Errorf("create temporary build directory: %w", err)
@@ -198,7 +202,6 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if err := os.WriteFile(temporaryPath, []byte(output), 0o644); err != nil {
 		return fmt.Errorf("write temporary LLVM file: %w", err)
 	}
-	codecConfig := nativeCodecConfigForTarget(options.Target)
 	var args []string
 	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig)
 	if err != nil {
@@ -362,6 +365,9 @@ func RunWithOptions(entryPath string, options BuildOptions) (string, error) {
 		return "", err
 	}
 	cmd := exec.Command(binPath)
+	if options.WorkingDir != "" {
+		cmd.Dir = options.WorkingDir
+	}
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output

@@ -95,6 +95,9 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		valArg = boxedVar
 		actualType = ir.TypeUnknown
 	}
+	if instruction.DynamicField {
+		return e.emitDynamicFieldSet(out, instruction, ptrObj, valArg, actualType, valueType)
+	}
 	switch {
 	case actualType == ir.TypeNumber:
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", status, ptrObj, instruction.FieldIndex, valArg))
@@ -164,6 +167,12 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 				break
 			}
 		}
+	}
+	if instruction.Type == ir.TypeUnknown {
+		actualFieldType = ir.TypeUnknown
+	}
+	if instruction.DynamicField {
+		return e.emitDynamicFieldGet(out, instruction, ptrObj)
 	}
 
 	if actualFieldType == ir.TypeUnknown {
@@ -412,44 +421,97 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 				return nil
 			}
 		}
-		if strings.HasSuffix(string(instruction.Type), "[]") || instruction.Type == ir.TypeNumberArray || instruction.Type == ir.TypeStringArray {
-			e.types[instruction.Result] = instruction.Type
-			arrSlot := instruction.Result + ".arr.slot"
-			status1 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-			e.runtimeStatus++
-			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", arrSlot))
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 2, i64 8, ptr %%%s)\n", status1, arrSlot))
-			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status1))
-			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, arrSlot))
-			return nil
-		}
-		if instruction.Type == ir.TypeBool {
-			e.types[instruction.Result] = ir.TypeBool
-			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 1, 1\n", instruction.Result))
-			return nil
-		}
-		if instruction.Type == ir.TypeString {
-			e.types[instruction.Result] = ir.TypeString
-			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
-			return nil
-		}
 		if instruction.Type == ir.TypeUnknown {
+			objArg := e.resolveArg(out, instruction.Args[0])
+			objType := e.types[instruction.Args[0]]
+			ptrObj := "%" + objArg
+			if objType == ir.TypeUnknown {
+				payloadName := fmt.Sprintf("dynamic.prop.payload.%d", e.loadCounter)
+				ptrName := fmt.Sprintf("dynamic.prop.ptr.%d", e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objArg)
+				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+				ptrObj = "%" + ptrName
+			}
+			propertyArg := e.resolveArg(out, instruction.Args[1])
+			tagSlot := fmt.Sprintf("%s.dynamic.tag.slot", instruction.Result)
+			payloadSlot := fmt.Sprintf("%s.dynamic.payload.slot", instruction.Result)
+			tagValue := fmt.Sprintf("%s.dynamic.tag", instruction.Result)
+			payloadValue := fmt.Sprintf("%s.dynamic.payload", instruction.Result)
+			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
 			e.types[instruction.Result] = ir.TypeUnknown
-			b0 := fmt.Sprintf("box.b0.%d", e.loadCounter)
-			b1 := fmt.Sprintf("box.b1.%d", e.loadCounter)
+			fmt.Fprintf(out, "  %%%s = alloca i32\n", tagSlot)
+			fmt.Fprintf(out, "  %%%s = alloca i64\n", payloadSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, tagSlot, payloadSlot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", tagValue, tagSlot)
+			fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", payloadValue, payloadSlot)
+			box0 := fmt.Sprintf("%s.dynamic.box0", instruction.Result)
+			box1 := fmt.Sprintf("%s.dynamic.box1", instruction.Result)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } undef, i32 %%%s, 0\n", box0, tagValue)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", box1, box0)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, box1, payloadValue)
+			return nil
+		}
+		objArg := e.resolveArg(out, instruction.Args[0])
+		objType := e.types[instruction.Args[0]]
+		ptrObj := objArg
+		if objType == ir.TypeUnknown {
+			payloadName := fmt.Sprintf("dynamic.prop.payload.%d", e.loadCounter)
+			ptrName := fmt.Sprintf("dynamic.prop.ptr.%d", e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 0, 0\n", b0))
-			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", b1, b0))
-			out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 0, 2\n", instruction.Result, b1))
-			return nil
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+			ptrObj = ptrName
 		}
-		if instruction.Type == ir.TypeNumber {
-			e.types[instruction.Result] = ir.TypeNumber
-			out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 1.0\n", instruction.Result))
-			return nil
-		}
+		propertyArg := e.resolveArg(out, instruction.Args[1])
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
 		e.types[instruction.Result] = instruction.Type
-		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
+		switch instruction.Type {
+		case ir.TypeNumber:
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
+			if objType == ir.TypeUnknown {
+				tagName := fmt.Sprintf("dynamic.prop.tag.%d", e.loadCounter)
+				payloadName := fmt.Sprintf("dynamic.prop.value.%d", e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagName, objArg)
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objArg)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_unknown_number_property(i32 %%%s, i64 %%%s, ptr %%%s, ptr %%%s)\n", status, tagName, payloadName, propertyArg, slot)
+			} else {
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+			}
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
+		case ir.TypeString:
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_string_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		case ir.TypeBool:
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bool_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			loaded := instruction.Result + ".i32"
+			out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", loaded, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded))
+		case ir.TypeBigInt:
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca i64\n", slot))
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", instruction.Result, slot))
+		default:
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_ptr_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		}
 		return nil
 	default:
 		if strings.HasPrefix(instruction.Callee, "__object.") {

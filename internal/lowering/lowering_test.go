@@ -332,3 +332,12 @@ func TestLowerWarnRuntimeCastsOption(t *testing.T) {
 		t.Fatalf("want CodeWarnCheckedCast (SG4005) warning, got %v", warns)
 	}
 }
+
+func TestIsHeterogeneousUnionIgnoresNestedObjectUnions(t *testing.T) {
+	if isHeterogeneousUnion("{ CN?: string | string[] | undefined }") {
+		t.Fatal("nested property union must not be treated as an object union")
+	}
+	if !isHeterogeneousUnion("string | number") {
+		t.Fatal("top-level primitive union must remain heterogeneous")
+	}
+}

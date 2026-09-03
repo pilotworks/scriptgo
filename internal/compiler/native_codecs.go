@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"os/exec"
+	goRuntime "runtime"
 	"strings"
 	"sync"
 )
@@ -9,6 +10,16 @@ import (
 type nativeCodecConfig struct {
 	compileFlags []string
 	linkFlags    []string
+}
+
+func (config nativeCodecConfig) hasDefine(name string) bool {
+	prefix := "-D" + name
+	for _, flag := range config.compileFlags {
+		if flag == prefix || strings.HasPrefix(flag, prefix+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -22,7 +33,11 @@ func nativeCodecConfigForTarget(target string) nativeCodecConfig {
 	}
 	nativeCodecsOnce.Do(func() {
 		nativeCodecs.compileFlags = append(nativeCodecs.compileFlags, "-DSCRIPTGO_HAS_ZLIB")
-		nativeCodecs.linkFlags = append(nativeCodecs.linkFlags, "-lz")
+		nativeCodecs.linkFlags = append(nativeCodecs.linkFlags, "-lz", "-lresolv")
+		if goRuntime.GOOS == "darwin" {
+			nativeCodecs.linkFlags = append(nativeCodecs.linkFlags, "-framework", "Security", "-framework", "CoreFoundation")
+		}
+		addPkgConfigCodec(&nativeCodecs, "SCRIPTGO_HAS_OPENSSL", "openssl")
 		addPkgConfigCodec(&nativeCodecs, "SCRIPTGO_HAS_BROTLI", "libbrotlienc", "libbrotlidec")
 		addPkgConfigCodec(&nativeCodecs, "SCRIPTGO_HAS_ZSTD", "libzstd")
 	})

@@ -1,5 +1,18 @@
 // ScriptGo Standard Library: node:dns
 
+declare namespace __scriptgo {
+    function dnsLookup(hostname: string, family?: number): { address: string; family: number };
+    function dnsLookupService(address: string, port: number): { hostname: string; service: string };
+    function dnsReverse(ip: string): string[];
+    function dnsResolveStrings(hostname: string, rrtype: string): string[];
+    function dnsResolveTxt(hostname: string): string[];
+    function dnsResolveMx(hostname: string): { exchanges: string[]; priorities: number[] };
+    function dnsResolveSrv(hostname: string): { names: string[]; ports: number[]; priorities: number[]; weights: number[] };
+    function dnsResolveSoa(hostname: string): { nsname: string; hostmaster: string; serial: number; refresh: number; retry: number; expire: number; minttl: number };
+    function dnsResolveCaa(hostname: string): { criticals: number[]; issues: string[] };
+    function dnsResolveNaptr(hostname: string): { flags: string[]; services: string[]; regexps: string[]; replacements: string[]; orders: number[]; preferences: number[] };
+}
+
 export const NODATA = "ENODATA";
 export const FORMERR = "EFORMERR";
 export const SERVFAIL = "ESERVFAIL";
@@ -166,31 +179,34 @@ export function lookup(hostname: string, optionsOrCallback?: unknown, callback?:
         return;
     }
 
-    let addr = "127.0.0.1";
-    let fam = 4;
-    if (hostname === "::1" || reqFamily === 6) {
-        addr = "::1";
-        fam = 6;
-    } else if (hostname === "localhost" || hostname === "127.0.0.1") {
-        addr = "127.0.0.1";
-        fam = 4;
+    if (reqFamily === 0 && _dnsResultOrder === "ipv4first") {
+        reqFamily = 4;
     }
 
-    if (isAll) {
-        const addresses: LookupAddress[] = [new LookupAddress(addr, fam)];
-        (cb as (err: unknown, addresses: LookupAddress[]) => void)(null, addresses);
-    } else {
-        (cb as (err: unknown, address: string, family: number) => void)(null, addr, fam);
+    try {
+        const res = __scriptgo.dnsLookup(hostname, reqFamily);
+        if (isAll) {
+            const addresses: LookupAddress[] = [new LookupAddress(res.address, res.family)];
+            (cb as (err: unknown, addresses: LookupAddress[]) => void)(null, addresses);
+        } else {
+            (cb as (err: unknown, address: string, family: number) => void)(null, res.address, res.family);
+        }
+    } catch (err) {
+        if (isAll) {
+            (cb as (err: unknown, addresses: LookupAddress[]) => void)(err, []);
+        } else {
+            (cb as (err: unknown, address: string, family: number) => void)(err, "", 0);
+        }
     }
 }
 
 export function lookupService(address: string, port: number, callback: (err: unknown, hostname: string, service: string) => void): void {
-    let service = String(port);
-    if (port === 80) service = "http";
-    else if (port === 443) service = "https";
-    else if (port === 22) service = "ssh";
-    else if (port === 53) service = "domain";
-    callback(null, "localhost", service);
+    try {
+        const res = __scriptgo.dnsLookupService(address, port);
+        callback(null, res.hostname, res.service);
+    } catch (err) {
+        callback(err, "", "");
+    }
 }
 
 export function resolve(hostname: string, rrtypeOrCallback?: unknown, callback?: unknown): void {
@@ -208,30 +224,27 @@ export function resolve(hostname: string, rrtypeOrCallback?: unknown, callback?:
         return;
     }
 
-    if (rrtype === "AAAA") {
-        (cb as (err: unknown, addresses: string[]) => void)(null, ["::1"]);
-    } else if (rrtype === "CNAME") {
-        (cb as (err: unknown, addresses: string[]) => void)(null, [hostname]);
-    } else if (rrtype === "NS") {
-        (cb as (err: unknown, addresses: string[]) => void)(null, ["ns1." + hostname, "ns2." + hostname]);
-    } else if (rrtype === "PTR") {
-        (cb as (err: unknown, addresses: string[]) => void)(null, ["localhost"]);
+    if (rrtype === "MX") {
+        resolveMx(hostname, cb as (err: unknown, addresses: MxRecord[]) => void);
     } else if (rrtype === "TXT") {
-        (cb as (err: unknown, records: string[][]) => void)(null, [["v=spf1 ~all"]]);
-    } else if (rrtype === "MX") {
-        (cb as (err: unknown, records: MxRecord[]) => void)(null, [new MxRecord("mail." + hostname, 10)]);
+        resolveTxt(hostname, cb as (err: unknown, records: string[][]) => void);
     } else if (rrtype === "SRV") {
-        (cb as (err: unknown, records: SrvRecord[]) => void)(null, [new SrvRecord(hostname, 8080, 10, 5)]);
+        resolveSrv(hostname, cb as (err: unknown, records: SrvRecord[]) => void);
     } else if (rrtype === "SOA") {
-        (cb as (err: unknown, record: SoaRecord) => void)(null, new SoaRecord("ns1." + hostname, "admin." + hostname, 2026010101, 7200, 3600, 1209600, 300));
+        resolveSoa(hostname, cb as (err: unknown, record: SoaRecord) => void);
     } else if (rrtype === "NAPTR") {
-        (cb as (err: unknown, records: NaptrRecord[]) => void)(null, [new NaptrRecord("s", "SIP+D2U", "", "_sip._udp." + hostname, 100, 10)]);
+        resolveNaptr(hostname, cb as (err: unknown, records: NaptrRecord[]) => void);
     } else if (rrtype === "CAA") {
-        (cb as (err: unknown, records: CaaRecord[]) => void)(null, [new CaaRecord(0, "letsencrypt.org")]);
+        resolveCaa(hostname, cb as (err: unknown, records: CaaRecord[]) => void);
     } else if (rrtype === "ANY") {
-        (cb as (err: unknown, records: AnyRecord[]) => void)(null, [new AnyRecord("127.0.0.1", 4, "A")]);
+        resolveAny(hostname, cb as (err: unknown, records: AnyRecord[]) => void);
     } else {
-        (cb as (err: unknown, addresses: string[]) => void)(null, ["127.0.0.1"]);
+        try {
+            const addrs = __scriptgo.dnsResolveStrings(hostname, rrtype);
+            (cb as (err: unknown, addresses: string[]) => void)(null, addrs);
+        } catch (err) {
+            (cb as (err: unknown, addresses: string[]) => void)(err, []);
+        }
     }
 }
 
@@ -244,7 +257,12 @@ export function resolve4(hostname: string, optionsOrCallback?: unknown, callback
     } else {
         return;
     }
-    (cb as (err: unknown, addresses: string[]) => void)(null, ["127.0.0.1"]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "A");
+        (cb as (err: unknown, addresses: string[]) => void)(null, addrs);
+    } catch (err) {
+        (cb as (err: unknown, addresses: string[]) => void)(err, []);
+    }
 }
 
 export function resolve6(hostname: string, optionsOrCallback?: unknown, callback?: unknown): void {
@@ -256,55 +274,141 @@ export function resolve6(hostname: string, optionsOrCallback?: unknown, callback
     } else {
         return;
     }
-    (cb as (err: unknown, addresses: string[]) => void)(null, ["::1"]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "AAAA");
+        (cb as (err: unknown, addresses: string[]) => void)(null, addrs);
+    } catch (err) {
+        (cb as (err: unknown, addresses: string[]) => void)(err, []);
+    }
 }
 
 export function resolveAny(hostname: string, callback: (err: unknown, records: AnyRecord[]) => void): void {
-    callback(null, [new AnyRecord("127.0.0.1", 4, "A")]);
+    try {
+        const fam = _dnsResultOrder === "ipv4first" ? 4 : 0;
+        const res = __scriptgo.dnsLookup(hostname, fam);
+        callback(null, [new AnyRecord(res.address, res.family, res.family === 6 ? "AAAA" : "A")]);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveCname(hostname: string, callback: (err: unknown, addresses: string[]) => void): void {
-    callback(null, [hostname]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "CNAME");
+        callback(null, addrs);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveCaa(hostname: string, callback: (err: unknown, records: CaaRecord[]) => void): void {
-    callback(null, [new CaaRecord(0, "letsencrypt.org")]);
+    try {
+        const res = __scriptgo.dnsResolveCaa(hostname);
+        const records: CaaRecord[] = [];
+        for (let i = 0; i < res.criticals.length; i++) {
+            records.push(new CaaRecord(res.criticals[i], res.issues[i]));
+        }
+        callback(null, records);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveMx(hostname: string, callback: (err: unknown, addresses: MxRecord[]) => void): void {
-    callback(null, [new MxRecord("mail." + hostname, 10)]);
+    try {
+        const res = __scriptgo.dnsResolveMx(hostname);
+        const records: MxRecord[] = [];
+        for (let i = 0; i < res.exchanges.length; i++) {
+            records.push(new MxRecord(res.exchanges[i], res.priorities[i]));
+        }
+        callback(null, records);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveNaptr(hostname: string, callback: (err: unknown, records: NaptrRecord[]) => void): void {
-    callback(null, [new NaptrRecord("s", "SIP+D2U", "", "_sip._udp." + hostname, 100, 10)]);
+    try {
+        const res = __scriptgo.dnsResolveNaptr(hostname);
+        const records: NaptrRecord[] = [];
+        for (let i = 0; i < res.flags.length; i++) {
+            records.push(new NaptrRecord(res.flags[i], res.services[i], res.regexps[i], res.replacements[i], res.orders[i], res.preferences[i]));
+        }
+        callback(null, records);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveNs(hostname: string, callback: (err: unknown, addresses: string[]) => void): void {
-    callback(null, ["ns1." + hostname, "ns2." + hostname]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "NS");
+        callback(null, addrs);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolvePtr(hostname: string, callback: (err: unknown, addresses: string[]) => void): void {
-    callback(null, ["localhost"]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "PTR");
+        callback(null, addrs);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveSoa(hostname: string, callback: (err: unknown, record: SoaRecord) => void): void {
-    callback(null, new SoaRecord("ns1." + hostname, "admin." + hostname, 2026010101, 7200, 3600, 1209600, 300));
+    try {
+        const res = __scriptgo.dnsResolveSoa(hostname);
+        callback(null, new SoaRecord(res.nsname, res.hostmaster, res.serial, res.refresh, res.retry, res.expire, res.minttl));
+    } catch (err) {
+        callback(err, new SoaRecord("", "", 0, 0, 0, 0, 0));
+    }
 }
 
 export function resolveSrv(hostname: string, callback: (err: unknown, records: SrvRecord[]) => void): void {
-    callback(null, [new SrvRecord(hostname, 8080, 10, 5)]);
+    try {
+        const res = __scriptgo.dnsResolveSrv(hostname);
+        const records: SrvRecord[] = [];
+        for (let i = 0; i < res.names.length; i++) {
+            records.push(new SrvRecord(res.names[i], res.ports[i], res.priorities[i], res.weights[i]));
+        }
+        callback(null, records);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveTlsa(hostname: string, callback: (err: unknown, records: string[]) => void): void {
-    callback(null, ["tlsa-record"]);
+    try {
+        const addrs = __scriptgo.dnsResolveStrings(hostname, "TLSA");
+        callback(null, addrs);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function resolveTxt(hostname: string, callback: (err: unknown, records: string[][]) => void): void {
-    callback(null, [["v=spf1 ~all"]]);
+    try {
+        const res = __scriptgo.dnsResolveTxt(hostname);
+        const records: string[][] = [];
+        for (let i = 0; i < res.length; i++) {
+            records.push([res[i]]);
+        }
+        callback(null, records);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export function reverse(ip: string, callback: (err: unknown, hostnames: string[]) => void): void {
-    callback(null, ["localhost"]);
+    try {
+        const names = __scriptgo.dnsReverse(ip);
+        callback(null, names);
+    } catch (err) {
+        callback(err, []);
+    }
 }
 
 export class Resolver {
@@ -455,81 +559,107 @@ export namespace promises {
     }
 
     export async function lookup(hostname: string, options?: unknown): Promise<LookupAddress> {
-        let addr = "127.0.0.1";
-        let fam = 4;
-        if (hostname === "::1") {
-            addr = "::1";
-            fam = 6;
+        let reqFamily = 0;
+        if (typeof options === "object" && options !== null) {
+            const opt = options as { family?: number };
+            if (typeof opt.family === "number") reqFamily = opt.family as number;
+        } else if (typeof options === "number") {
+            reqFamily = options as number;
         }
-        return new LookupAddress(addr, fam);
+        const res = __scriptgo.dnsLookup(hostname, reqFamily);
+        return new LookupAddress(res.address, res.family);
     }
 
     export async function lookupService(address: string, port: number): Promise<{ hostname: string; service: string }> {
-        let service = String(port);
-        if (port === 80) service = "http";
-        else if (port === 443) service = "https";
-        return { hostname: "localhost", service: service };
+        const res = __scriptgo.dnsLookupService(address, port);
+        return { hostname: res.hostname, service: res.service };
     }
 
-    export async function resolve(hostname: string, rrtype?: string): Promise<string[]> {
-        if (rrtype === "AAAA") return ["::1"];
-        return ["127.0.0.1"];
+    export async function resolve(hostname: string, rrtype: string = "A"): Promise<string[]> {
+        return __scriptgo.dnsResolveStrings(hostname, rrtype);
     }
 
     export async function resolve4(hostname: string): Promise<string[]> {
-        return ["127.0.0.1"];
+        return __scriptgo.dnsResolveStrings(hostname, "A");
     }
 
     export async function resolve6(hostname: string): Promise<string[]> {
-        return ["::1"];
+        return __scriptgo.dnsResolveStrings(hostname, "AAAA");
     }
 
     export async function resolveAny(hostname: string): Promise<AnyRecord[]> {
-        return [new AnyRecord("127.0.0.1", 4, "A")];
+        const res = __scriptgo.dnsLookup(hostname, 0);
+        return [new AnyRecord(res.address, res.family, res.family === 6 ? "AAAA" : "A")];
     }
 
     export async function resolveCname(hostname: string): Promise<string[]> {
-        return [hostname];
+        return __scriptgo.dnsResolveStrings(hostname, "CNAME");
     }
 
     export async function resolveCaa(hostname: string): Promise<CaaRecord[]> {
-        return [new CaaRecord(0, "letsencrypt.org")];
+        const res = __scriptgo.dnsResolveCaa(hostname);
+        const records: CaaRecord[] = [];
+        for (let i = 0; i < res.criticals.length; i++) {
+            records.push(new CaaRecord(res.criticals[i], res.issues[i]));
+        }
+        return records;
     }
 
     export async function resolveMx(hostname: string): Promise<MxRecord[]> {
-        return [new MxRecord("mail." + hostname, 10)];
+        const res = __scriptgo.dnsResolveMx(hostname);
+        const records: MxRecord[] = [];
+        for (let i = 0; i < res.exchanges.length; i++) {
+            records.push(new MxRecord(res.exchanges[i], res.priorities[i]));
+        }
+        return records;
     }
 
     export async function resolveNaptr(hostname: string): Promise<NaptrRecord[]> {
-        return [new NaptrRecord("s", "SIP+D2U", "", "_sip._udp." + hostname, 100, 10)];
+        const res = __scriptgo.dnsResolveNaptr(hostname);
+        const records: NaptrRecord[] = [];
+        for (let i = 0; i < res.flags.length; i++) {
+            records.push(new NaptrRecord(res.flags[i], res.services[i], res.regexps[i], res.replacements[i], res.orders[i], res.preferences[i]));
+        }
+        return records;
     }
 
     export async function resolveNs(hostname: string): Promise<string[]> {
-        return ["ns1." + hostname, "ns2." + hostname];
+        return __scriptgo.dnsResolveStrings(hostname, "NS");
     }
 
     export async function resolvePtr(hostname: string): Promise<string[]> {
-        return ["localhost"];
+        return __scriptgo.dnsResolveStrings(hostname, "PTR");
     }
 
     export async function resolveSoa(hostname: string): Promise<SoaRecord> {
-        return new SoaRecord("ns1." + hostname, "admin." + hostname, 2026010101, 7200, 3600, 1209600, 300);
+        const res = __scriptgo.dnsResolveSoa(hostname);
+        return new SoaRecord(res.nsname, res.hostmaster, res.serial, res.refresh, res.retry, res.expire, res.minttl);
     }
 
     export async function resolveSrv(hostname: string): Promise<SrvRecord[]> {
-        return [new SrvRecord(hostname, 8080, 10, 5)];
+        const res = __scriptgo.dnsResolveSrv(hostname);
+        const records: SrvRecord[] = [];
+        for (let i = 0; i < res.names.length; i++) {
+            records.push(new SrvRecord(res.names[i], res.ports[i], res.priorities[i], res.weights[i]));
+        }
+        return records;
     }
 
     export async function resolveTlsa(hostname: string): Promise<string[]> {
-        return ["tlsa-record"];
+        return __scriptgo.dnsResolveStrings(hostname, "TLSA");
     }
 
     export async function resolveTxt(hostname: string): Promise<string[][]> {
-        return [["v=spf1 ~all"]];
+        const res = __scriptgo.dnsResolveTxt(hostname);
+        const records: string[][] = [];
+        for (let i = 0; i < res.length; i++) {
+            records.push([res[i]]);
+        }
+        return records;
     }
 
     export async function reverse(ip: string): Promise<string[]> {
-        return ["localhost"];
+        return __scriptgo.dnsReverse(ip);
     }
 }
 

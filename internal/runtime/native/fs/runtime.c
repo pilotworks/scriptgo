@@ -14,16 +14,17 @@
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
+int scriptgo_buffer_alloc(double size, const char *fill_str, double fill_num, int has_fill, int is_str_fill, void **out_buf);
 
 static int fs_fail(const char *message) { return scriptgo_runtime_set_error(message); }
 
-int scriptgo_fs_read_file_sync(const char *path, char **out_content) {
+static int fs_read_bytes(const char *path, unsigned char **out_bytes, size_t *out_length) {
     FILE *f;
     long size;
-    char *buf;
+    unsigned char *buf;
     size_t read_bytes;
 
-    if (path == NULL || out_content == NULL) {
+    if (path == NULL || out_bytes == NULL || out_length == NULL) {
         return fs_fail("scriptgo fs read_file_sync invalid arguments");
     }
     f = fopen(path, "rb");
@@ -50,7 +51,40 @@ int scriptgo_fs_read_file_sync(const char *path, char **out_content) {
     buf[read_bytes] = '\0';
     fclose(f);
 
-    *out_content = buf;
+	*out_bytes = buf;
+	*out_length = read_bytes;
+    return 0;
+}
+
+int scriptgo_fs_read_file_sync(const char *path, const char *encoding, char **out_content) {
+    unsigned char *bytes = NULL;
+    size_t length = 0;
+    if (out_content == NULL || fs_read_bytes(path, &bytes, &length) != 0) return -1;
+    (void)encoding;
+    *out_content = (char *)bytes;
+    return 0;
+}
+
+int scriptgo_fs_read_file_buffer_sync(const char *path, void **out_buffer) {
+    unsigned char *bytes = NULL;
+    size_t length = 0;
+    void *buffer = NULL;
+    if (out_buffer == NULL || fs_read_bytes(path, &bytes, &length) != 0) return -1;
+    if (scriptgo_buffer_alloc((double)length, NULL, 0, 0, 0, &buffer) != 0 || buffer == NULL) {
+        free(bytes);
+        return fs_fail("scriptgo fs buffer allocation failed");
+    }
+    if (length > 0) {
+        typedef struct { uint32_t magic; int32_t kind; int64_t length; int64_t byte_offset; int64_t element_size; void *buffer; unsigned char *data; } fs_buffer_view;
+        fs_buffer_view *view = (fs_buffer_view *)buffer;
+        if (view->data == NULL) {
+            free(bytes);
+            return fs_fail("scriptgo fs buffer data is unavailable");
+        }
+        memcpy(view->data, bytes, length);
+    }
+    free(bytes);
+    *out_buffer = buffer;
     return 0;
 }
 
@@ -717,5 +751,3 @@ int scriptgo_fs_rmdir_sync(const char *path) {
     }
     return 0;
 }
-
-

@@ -95,3 +95,30 @@ func TestEmitTypedIndexFromUnknownArrayUsesTaggedRead(t *testing.T) {
 		t.Errorf("typed index from unknown[] used an untagged array read:\n%s", output)
 	}
 }
+
+func TestEmitIndexedAssignmentUsesTypedArrayWrite(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeString, Result: "value", Value: "updated"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "index", Value: "0"},
+			{Op: ir.OpArray, Type: ir.TypeStringArray, Result: "values", Args: []string{"value"}},
+			{Op: ir.OpIndexSet, Type: ir.TypeVoid, Args: []string{"values", "index", "value"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"declare i32 @scriptgo_array_set_typed(ptr, double, ptr, i64, i64)",
+		"call i32 @scriptgo_array_set_typed(ptr %values",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("LLVM output does not contain %q:\n%s", expected, output)
+		}
+	}
+}

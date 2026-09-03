@@ -1,5 +1,28 @@
 // ScriptGo Standard Library: node:dgram
 
+declare namespace __scriptgo {
+    function dgramSocketCreate(family?: number): number;
+    function dgramBind(fd: number, address: string, port: number): void;
+    function dgramSend(fd: number, data: string, len: number, port: number, address: string): number;
+    function dgramRecv(fd: number, maxLen: number): { data: string; bytes: number; address: string; port: number; family: number };
+    function dgramSetBroadcast(fd: number, flag: number): void;
+    function dgramSetMulticastTTL(fd: number, ttl: number): void;
+    function dgramSetMulticastLoopback(fd: number, flag: number): void;
+    function dgramSetRecvBufferSize(fd: number, size: number): void;
+    function dgramSetSendBufferSize(fd: number, size: number): void;
+    function dgramGetRecvBufferSize(fd: number): number;
+    function dgramGetSendBufferSize(fd: number): number;
+    function dgramSetTTL(fd: number, ttl: number): void;
+    function dgramSetMulticastInterface(fd: number, iface: string): void;
+    function dgramAddMembership(fd: number, mcast: string, iface: string): void;
+    function dgramDropMembership(fd: number, mcast: string, iface: string): void;
+    function dgramAddSourceSpecificMembership(fd: number, src: string, group: string, iface: string): void;
+    function dgramDropSourceSpecificMembership(fd: number, src: string, group: string, iface: string): void;
+    function dgramConnect(fd: number, address: string, port: number): void;
+    function dgramDisconnect(fd: number): void;
+    function dgramClose(fd: number): void;
+}
+
 class DgramListenerEntry {
     fn: Function;
     once: boolean;
@@ -46,6 +69,9 @@ export class Socket {
     private _remoteFamily: string = "IPv4";
 
     _buckets: DgramEventBucket[] = [];
+    _fd: number = -1;
+    _localPort: number = 0;
+    _localAddress: string = "0.0.0.0";
 
     constructor(typeOrOptions: string | SocketOptions = "udp4", listener?: Function) {
         if (typeof typeOrOptions === "string") {
@@ -54,6 +80,11 @@ export class Socket {
             if (typeOrOptions.type) this.type = typeOrOptions.type;
             if (typeOrOptions.recvBufferSize) this._recvBufferSize = typeOrOptions.recvBufferSize;
             if (typeOrOptions.sendBufferSize) this._sendBufferSize = typeOrOptions.sendBufferSize;
+        }
+        try {
+            this._fd = __scriptgo.dgramSocketCreate(this.type === "udp6" ? 6 : 4);
+        } catch {
+            this._fd = -1;
         }
         if (typeof listener === "function") {
             this.on("message", listener);
@@ -102,11 +133,33 @@ export class Socket {
 
     bind(portOrOptions?: unknown, addressOrCb?: unknown, cb?: Function): Socket {
         this._bound = true;
+        let port = 0;
+        let address = "0.0.0.0";
         let callback: Function | null = null;
-        if (typeof addressOrCb === "function") {
-            callback = addressOrCb;
-        } else if (typeof cb === "function") {
-            callback = cb;
+
+        if (typeof portOrOptions === "number") {
+            port = portOrOptions;
+            if (typeof addressOrCb === "string") address = addressOrCb;
+            else if (typeof addressOrCb === "function") callback = addressOrCb;
+            if (typeof cb === "function") callback = cb;
+        } else if (typeof portOrOptions === "object" && portOrOptions !== null) {
+            const opt = portOrOptions as { port?: number; address?: string };
+            if (opt.port !== undefined) port = opt.port;
+            if (opt.address !== undefined) address = opt.address;
+            if (typeof addressOrCb === "function") callback = addressOrCb;
+        } else if (typeof portOrOptions === "function") {
+            callback = portOrOptions;
+        }
+
+        this._localPort = port;
+        this._localAddress = address;
+
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramBind(this._fd, address, port);
+            } catch (err) {
+                this.emit("error", err);
+            }
         }
         if (callback) {
             this.once("listening", callback);
@@ -116,22 +169,44 @@ export class Socket {
     }
 
     send(msg: unknown, offsetOrPort?: unknown, lengthOrAddress?: unknown, portOrCb?: unknown, addressOrCb?: unknown, cb?: Function): void {
+        let port = 0;
+        let address = "127.0.0.1";
         let callback: Function | null = null;
-        if (typeof cb === "function") {
-            callback = cb;
-        } else if (typeof addressOrCb === "function") {
-            callback = addressOrCb;
-        } else if (typeof portOrCb === "function") {
-            callback = portOrCb;
+
+        if (typeof portOrCb === "number") {
+            port = portOrCb;
+            if (typeof addressOrCb === "string") address = addressOrCb;
+            if (typeof cb === "function") callback = cb;
+        } else if (typeof offsetOrPort === "number") {
+            port = offsetOrPort;
+            if (typeof lengthOrAddress === "string") address = lengthOrAddress;
+            if (typeof portOrCb === "function") callback = portOrCb as Function;
+        }
+
+        const strData = typeof msg === "string" ? msg : (msg ? String(msg) : "");
+        let sentBytes = 0;
+        if (this._fd >= 0) {
+            try {
+                sentBytes = __scriptgo.dgramSend(this._fd, strData, strData.length, port, address);
+            } catch (err) {
+                if (callback) callback(err, 0);
+                return;
+            }
         }
         if (callback) {
-            callback(null, 0);
+            callback(null, sentBytes);
         }
     }
 
     close(callback?: Function): Socket {
         this._closed = true;
         this._bound = false;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramClose(this._fd);
+            } catch {}
+            this._fd = -1;
+        }
         if (callback) {
             this.once("close", callback);
         }
@@ -141,22 +216,29 @@ export class Socket {
 
     address(): { address: string; family: string; port: number } {
         return {
-            address: "127.0.0.1",
-            family: "IPv4",
-            port: 41234,
+            address: this._localAddress.length > 0 && this._localAddress !== "0.0.0.0" ? this._localAddress : "127.0.0.1",
+            family: this.type === "udp6" ? "IPv6" : "IPv4",
+            port: this._localPort > 0 ? this._localPort : 41234,
         };
     }
 
     connect(port: number, addressOrCb?: unknown, cb?: Function): void {
         this._connected = true;
         this._remotePort = port;
+        let addr = "127.0.0.1";
         if (typeof addressOrCb === "string") {
             this._remoteAddress = addressOrCb;
+            addr = addressOrCb;
         } else if (typeof addressOrCb === "function") {
             this.once("connect", addressOrCb);
         }
         if (typeof cb === "function") {
             this.once("connect", cb);
+        }
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramConnect(this._fd, addr, port);
+            } catch {}
         }
         this.emit("connect");
     }
@@ -165,6 +247,11 @@ export class Socket {
         this._connected = false;
         this._remotePort = 0;
         this._remoteAddress = "";
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramDisconnect(this._fd);
+            } catch {}
+        }
     }
 
     remoteAddress(): { address: string; family: string; port: number } {
@@ -177,52 +264,117 @@ export class Socket {
 
     setBroadcast(flag: boolean = true): void {
         this._broadcast = flag;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetBroadcast(this._fd, flag ? 1 : 0);
+            } catch {}
+        }
     }
 
     setTTL(ttl: number): number {
         this._ttl = ttl;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetTTL(this._fd, ttl);
+            } catch {}
+        }
         return this._ttl;
     }
 
     setMulticastTTL(ttl: number): number {
         this._multicastTTL = ttl;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetMulticastTTL(this._fd, ttl);
+            } catch {}
+        }
         return this._multicastTTL;
     }
 
     setMulticastLoopback(flag: boolean = true): boolean {
         this._multicastLoopback = flag;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetMulticastLoopback(this._fd, flag ? 1 : 0);
+            } catch {}
+        }
         return this._multicastLoopback;
     }
 
     setMulticastInterface(multicastInterface: string): void {
         this._multicastInterface = multicastInterface;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetMulticastInterface(this._fd, multicastInterface);
+            } catch {}
+        }
     }
 
     addMembership(multicastAddress: string, multicastInterface?: string): void {
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramAddMembership(this._fd, multicastAddress, multicastInterface || "");
+            } catch {}
+        }
     }
 
     dropMembership(multicastAddress: string, multicastInterface?: string): void {
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramDropMembership(this._fd, multicastAddress, multicastInterface || "");
+            } catch {}
+        }
     }
 
     addSourceSpecificMembership(sourceAddress: string, groupAddress: string, multicastInterface?: string): void {
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramAddSourceSpecificMembership(this._fd, sourceAddress, groupAddress, multicastInterface || "");
+            } catch {}
+        }
     }
 
     dropSourceSpecificMembership(sourceAddress: string, groupAddress: string, multicastInterface?: string): void {
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramDropSourceSpecificMembership(this._fd, sourceAddress, groupAddress, multicastInterface || "");
+            } catch {}
+        }
     }
 
     setRecvBufferSize(size: number): void {
         this._recvBufferSize = size;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetRecvBufferSize(this._fd, size);
+            } catch {}
+        }
     }
 
     setSendBufferSize(size: number): void {
         this._sendBufferSize = size;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.dgramSetSendBufferSize(this._fd, size);
+            } catch {}
+        }
     }
 
     getRecvBufferSize(): number {
+        if (this._fd >= 0) {
+            try {
+                return __scriptgo.dgramGetRecvBufferSize(this._fd);
+            } catch {}
+        }
         return this._recvBufferSize;
     }
 
     getSendBufferSize(): number {
+        if (this._fd >= 0) {
+            try {
+                return __scriptgo.dgramGetSendBufferSize(this._fd);
+            } catch {}
+        }
         return this._sendBufferSize;
     }
 

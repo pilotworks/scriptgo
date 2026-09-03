@@ -141,6 +141,7 @@ int scriptgo_gc_remove_root(void *ptr) {
 }
 
 typedef struct {
+    uint64_t magic;
     int64_t field_count;
     const char *type_name;
     uintptr_t fields[];
@@ -239,6 +240,12 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             }
             // Free the object payload
             if (curr->ptr != NULL) {
+                if (curr->header.type_tag == SCRIPTGO_TYPE_OBJECT) {
+                    gc_object_layout *object = (gc_object_layout *)curr->ptr;
+                    if (object->magic == 0x53474F424A454354ULL) {
+                        free((void *)object->type_name);
+                    }
+                }
                 free(curr->ptr);
             }
             free(curr);

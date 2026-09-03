@@ -33,7 +33,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, StringLiteral: true, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "bool":
 		typ := ir.TypeBool
@@ -121,6 +121,21 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 									Span:   toIRSpan(path, expression.Span),
 								})
 								arguments[idx] = boxed
+							}
+						}
+					} else {
+						elemType := arrayLiteralElementType(arrType)
+						for idx, argName := range arguments {
+							if types[idx] == ir.TypeUnknown && elemType != ir.TypeUnknown {
+								casted := nextTemp(counter)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpCheckedCast,
+									Type:   elemType,
+									Result: casted,
+									Args:   []string{argName},
+									Span:   toIRSpan(path, expression.Arguments[idx].Span),
+								})
+								arguments[idx] = casted
 							}
 						}
 					}
@@ -735,6 +750,12 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		}
 		if ok {
 			typ := rawEnvType
+			// TypeScript-Go may preserve a const string literal as the
+			// variable's environment type. Normalize it before property and
+			// operator lowering so literal values use their runtime primitive.
+			if normalized := toIRType(string(typ)); normalized != "" && normalized != ir.TypeUnknown {
+				typ = normalized
+			}
 			storageType := env["__storage_type."+identName]
 			if storageType == "" {
 				storageType = env["__storage_type."+expression.Text]
@@ -847,7 +868,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			return identName, typ, nil
 		}
-		if sig, ok := signatures[expression.Text]; ok {
+		if sig, ok := resolveFunctionSignature(path, expression.Text, signatures); ok {
 			if result == "" {
 				result = nextTemp(counter)
 			}
@@ -1013,6 +1034,18 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		runtimeTypeOf := expression.Left != nil && typeContainsNullish(expression.Left.InferredType)
+		if runtimeTypeOf && isPointerLikeType(valType) {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:            ir.OpTypeOf,
+				Type:          ir.TypeString,
+				Result:        result,
+				Args:          []string{val},
+				RuntimeTypeOf: true,
+				Span:          toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeString, nil
+		}
 		if valType == ir.TypeUnknown || valType == ir.TypeClosure || strings.Contains(string(valType), "|") {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpTypeOf,
@@ -1076,7 +1109,15 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			strVal := val
 			if valType != ir.TypeString {
 				if arg != nil && arg.InferredType != "" && toIRType(arg.InferredType) == ir.TypeString {
-					strVal = val
+					strTemp := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpCheckedCast,
+						Type:   ir.TypeString,
+						Result: strTemp,
+						Args:   []string{val},
+						Span:   toIRSpan(path, arg.Span),
+					})
+					strVal = strTemp
 				} else if strings.HasPrefix(string(valType), "object:") {
 					className := strings.TrimPrefix(string(valType), "object:")
 					if method, mangled, found := findMethodInHierarchy(className, "toString", signatures, classHierarchy); found && (method.ReturnType == ir.TypeString || method.ReturnType == "") {
@@ -1159,7 +1200,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			if expression.WhenFalse != nil && (expression.WhenFalse.Kind == "null" || expression.WhenFalse.Kind == "undefined") {
 				whenFalse = nextTemp(counter)
 				zeroVal := "0"
-				if trueType == ir.TypeString {
+				if expression.WhenFalse.Kind == "undefined" {
+					switch trueType {
+					case ir.TypeNumber:
+						zeroVal = "NaN"
+					case ir.TypeBool:
+						zeroVal = "false"
+					default:
+						zeroVal = "undefined"
+					}
+				} else if trueType == ir.TypeString || strings.HasPrefix(string(trueType), "object:") || trueType == ir.TypePointer {
 					zeroVal = "null"
 				}
 				elseFn.Body = append(elseFn.Body, ir.Instruction{Op: ir.OpConst, Type: trueType, Result: whenFalse, Value: zeroVal, Span: toIRSpan(path, expression.WhenFalse.Span)})
@@ -1167,7 +1217,16 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				trueType = falseType
 				whenTrue = nextTemp(counter)
 				zeroVal := "0"
-				if falseType == ir.TypeString {
+				if expression.WhenTrue.Kind == "undefined" {
+					switch falseType {
+					case ir.TypeNumber:
+						zeroVal = "NaN"
+					case ir.TypeBool:
+						zeroVal = "false"
+					default:
+						zeroVal = "undefined"
+					}
+				} else if falseType == ir.TypeString || strings.HasPrefix(string(falseType), "object:") || falseType == ir.TypePointer {
 					zeroVal = "null"
 				}
 				thenFn.Body = append(thenFn.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})
@@ -1311,6 +1370,26 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		return result, ir.TypeNumber, nil
 	default:
 		return "", "", fmt.Errorf("unsupported expression %q", expression.Kind)
+	}
+}
+
+func arrayLiteralElementType(arrayType ir.Type) ir.Type {
+	if element, ok := strings.CutSuffix(string(arrayType), "[]"); ok {
+		return toIRType(element)
+	}
+	switch arrayType {
+	case ir.TypeNumberArray:
+		return ir.TypeNumber
+	case ir.TypeStringArray:
+		return ir.TypeString
+	case ir.TypeBoolArray:
+		return ir.TypeBool
+	case ir.TypeBigIntArray:
+		return ir.TypeBigInt
+	case ir.TypeSymbolArray:
+		return ir.TypeSymbol
+	default:
+		return ir.TypeUnknown
 	}
 }
 

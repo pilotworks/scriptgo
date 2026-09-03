@@ -7,6 +7,9 @@
 int scriptgo_runtime_set_error(const char *message);
 
 #define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252 // "TARR"
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646 // "BUFF"
+#endif
 #define SCRIPTGO_MAGIC_DATAVIEW   0x44564957 // "DVIW"
 #define SCRIPTGO_ARRAYBUFFER_GC_TAG 10
 
@@ -135,12 +138,63 @@ int scriptgo_arraybuffer_is_view(void *handle, int32_t *out_is_view) {
         return 0;
     }
     uint32_t magic = *(uint32_t *)handle;
-    if (magic == SCRIPTGO_MAGIC_TYPEDARRAY || magic == SCRIPTGO_MAGIC_DATAVIEW) {
+    if (magic == SCRIPTGO_MAGIC_TYPEDARRAY || magic == SCRIPTGO_MAGIC_BUFFER || magic == SCRIPTGO_MAGIC_DATAVIEW) {
         *out_is_view = 1;
     } else {
         *out_is_view = 0;
     }
     return 0;
+}
+
+static uint32_t typedarray_view_magic(void *handle) {
+    return handle == NULL ? 0 : *(uint32_t *)handle;
+}
+
+static int typedarray_view_is_typed_array(uint32_t magic) {
+    return magic == SCRIPTGO_MAGIC_TYPEDARRAY || magic == SCRIPTGO_MAGIC_BUFFER;
+}
+
+int scriptgo_arraybuffer_view_byte_length(void *handle, double *out_length) {
+    uint32_t magic = typedarray_view_magic(handle);
+    if (out_length == NULL) return typedarray_fail("scriptgo ArrayBufferView byteLength invalid output");
+    if (typedarray_view_is_typed_array(magic)) {
+        scriptgo_typed_array *view = (scriptgo_typed_array *)handle;
+        *out_length = (double)(view->length * view->element_size);
+        return 0;
+    }
+    if (magic == SCRIPTGO_MAGIC_DATAVIEW) {
+        *out_length = (double)((scriptgo_data_view *)handle)->byte_length;
+        return 0;
+    }
+    return typedarray_fail("scriptgo ArrayBufferView is invalid");
+}
+
+int scriptgo_arraybuffer_view_byte_offset(void *handle, double *out_offset) {
+    uint32_t magic = typedarray_view_magic(handle);
+    if (out_offset == NULL) return typedarray_fail("scriptgo ArrayBufferView byteOffset invalid output");
+    if (typedarray_view_is_typed_array(magic)) {
+        *out_offset = (double)((scriptgo_typed_array *)handle)->byte_offset;
+        return 0;
+    }
+    if (magic == SCRIPTGO_MAGIC_DATAVIEW) {
+        *out_offset = (double)((scriptgo_data_view *)handle)->byte_offset;
+        return 0;
+    }
+    return typedarray_fail("scriptgo ArrayBufferView is invalid");
+}
+
+int scriptgo_arraybuffer_view_buffer(void *handle, void **out_buffer) {
+    uint32_t magic = typedarray_view_magic(handle);
+    if (out_buffer == NULL) return typedarray_fail("scriptgo ArrayBufferView buffer invalid output");
+    if (typedarray_view_is_typed_array(magic)) {
+        *out_buffer = ((scriptgo_typed_array *)handle)->buffer;
+        return 0;
+    }
+    if (magic == SCRIPTGO_MAGIC_DATAVIEW) {
+        *out_buffer = ((scriptgo_data_view *)handle)->buffer;
+        return 0;
+    }
+    return typedarray_fail("scriptgo ArrayBufferView is invalid");
 }
 
 static int64_t typedarray_element_size(scriptgo_typedarray_kind kind) {
@@ -452,6 +506,39 @@ int scriptgo_typedarray_from_array(int64_t kind, void *array_handle, void **out_
         }
     }
     *out_array = ta;
+    return 0;
+}
+
+int scriptgo_typedarray_from_typed_array(int64_t kind, void *source_handle, void **out_array) {
+    if (source_handle == NULL || out_array == NULL) return typedarray_fail("scriptgo TypedArray from typed array failed");
+    scriptgo_typed_array *source = (scriptgo_typed_array *)source_handle;
+    if ((source->magic != SCRIPTGO_MAGIC_TYPEDARRAY && source->magic != SCRIPTGO_MAGIC_BUFFER) || source->length < 0) {
+        return typedarray_fail("scriptgo TypedArray source is invalid");
+    }
+    int source_bigint = source->kind == SCRIPTGO_TYPEDARRAY_BIGINT64 || source->kind == SCRIPTGO_TYPEDARRAY_BIGUINT64;
+    int target_bigint = kind == SCRIPTGO_TYPEDARRAY_BIGINT64 || kind == SCRIPTGO_TYPEDARRAY_BIGUINT64;
+    if (source_bigint != target_bigint) {
+        return typedarray_fail("scriptgo TypedArray cannot convert between Number and BigInt elements");
+    }
+    void *new_ta_handle = NULL;
+    if (scriptgo_typedarray_new(kind, source->length, NULL, 0, &new_ta_handle) != 0) return -1;
+    scriptgo_typed_array *target = (scriptgo_typed_array *)new_ta_handle;
+    if (source->length > 0 && source->data != NULL && target->data != NULL && source->kind == (scriptgo_typedarray_kind)kind) {
+        memcpy(target->data, source->data, (size_t)(source->length * source->element_size));
+    } else {
+        for (int64_t i = 0; i < source->length; i++) {
+            if (target_bigint) {
+                int64_t value = 0;
+                if (scriptgo_typedarray_get_bigint(source, (double)i, &value) != 0) return -1;
+                if (scriptgo_typedarray_set_bigint(target, (double)i, value) != 0) return -1;
+            } else {
+                double value = 0.0;
+                if (scriptgo_typedarray_get(source, (double)i, &value) != 0) return -1;
+                if (scriptgo_typedarray_set(target, (double)i, value) != 0) return -1;
+            }
+        }
+    }
+    *out_array = target;
     return 0;
 }
 

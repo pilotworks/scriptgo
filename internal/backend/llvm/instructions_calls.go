@@ -637,7 +637,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
-	if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") || strings.HasPrefix(instruction.Callee, "__dataview.") {
+	if strings.HasPrefix(instruction.Callee, "__typedarray.") || strings.HasPrefix(instruction.Callee, "__arraybuffer.") || strings.HasPrefix(instruction.Callee, "__arraybuffer_view.") || strings.HasPrefix(instruction.Callee, "__dataview.") {
 		if err := e.emitTypedArrayIntrinsic(out, instruction); err != nil {
 			return err
 		}
@@ -690,6 +690,45 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	}
 	if strings.HasPrefix(instruction.Callee, "__text_encoder.") || strings.HasPrefix(instruction.Callee, "__text_decoder.") {
 		if err := e.emitTextEncodingIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+			if instruction.Type == ir.TypeString {
+				e.ownedStrings = append(e.ownedStrings, instruction.Result)
+			}
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__dns.") {
+		if err := e.emitDnsIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__net.") {
+		if err := e.emitNetIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__dgram.") {
+		if err := e.emitDgramIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__tls.") {
+		if err := e.emitTLSIntrinsic(out, instruction); err != nil {
 			return err
 		}
 		if instruction.Result != "" {

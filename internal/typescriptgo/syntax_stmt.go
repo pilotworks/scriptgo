@@ -607,11 +607,13 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 					inferredFType = resolveInferredType(chk, member)
 				}
 				pName := syntaxMemberName(member.Name())
+				property := member.AsPropertySignatureDeclaration()
 				fields = append(fields, SyntaxField{
 					Span:         sourceSpan(member),
 					Name:         pName,
 					Type:         fType,
 					InferredType: inferredFType,
+					Optional:     property != nil && property.PostfixToken != nil,
 				})
 			case ast.KindConstructSignature:
 				mType := syntaxType(member.Type())
@@ -697,11 +699,13 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 						if member.Name() != nil {
 							pName = member.Name().Text()
 						}
+						property := member.AsPropertySignatureDeclaration()
 						fields = append(fields, SyntaxField{
 							Span:         sourceSpan(member),
 							Name:         pName,
 							Type:         syntaxType(member.Type()),
 							InferredType: resolveInferredType(chk, member),
+							Optional:     property != nil && property.PostfixToken != nil,
 						})
 					}
 				}
@@ -716,11 +720,13 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 									if member.Name() != nil {
 										pName = member.Name().Text()
 									}
+									property := member.AsPropertySignatureDeclaration()
 									fields = append(fields, SyntaxField{
 										Span:         sourceSpan(member),
 										Name:         pName,
 										Type:         syntaxType(member.Type()),
 										InferredType: resolveInferredType(chk, member),
+										Optional:     property != nil && property.PostfixToken != nil,
 									})
 								}
 							}

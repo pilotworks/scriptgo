@@ -35,16 +35,24 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 		if result == "" {
 			result = nextTemp(counter)
 		}
+		dynamic := dynamicFieldAccess(shapeName)
+		fieldCount := len(targetShape.Fields)
+		if dynamic {
+			fieldCount = 0
+		}
 		objType := ir.Type("object:" + shapeName)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:         ir.OpObjectNew,
 			Type:       objType,
 			Result:     result,
 			Callee:     shapeName,
-			FieldCount: len(targetShape.Fields),
+			FieldCount: fieldCount,
 			Span:       toIRSpan(path, expression.Span),
 		})
 		for i, field := range targetShape.Fields {
+			if dynamic {
+				continue
+			}
 			defVal := "undefined"
 			defType := field.Type
 			switch field.Type {
@@ -324,19 +332,29 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 	if result == "" {
 		result = nextTemp(counter)
 	}
+	var tagFields []ir.Field
+	if dynamicFieldAccess(shapeName) {
+		tagFields = fields
+	} else {
+		tagFields = targetShape.Fields
+	}
 	var tagNames []string
-	for _, f := range fields {
+	for _, f := range tagFields {
 		tagNames = append(tagNames, f.Name)
 	}
 	typeTag := ":" + strings.Join(tagNames, ":") + ":"
 	objType := ir.Type("object:" + shapeName)
+	fieldCount := len(targetShape.Fields)
+	if dynamicFieldAccess(shapeName) {
+		fieldCount = len(fields)
+	}
 	function.Body = append(function.Body, ir.Instruction{
 		Op:         ir.OpObjectNew,
 		Type:       objType,
 		Result:     result,
 		Callee:     shapeName,
 		Value:      typeTag,
-		FieldCount: len(targetShape.Fields),
+		FieldCount: fieldCount,
 		Span:       toIRSpan(path, expression.Span),
 	})
 	propMap := map[string]string{}
@@ -372,15 +390,19 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				val = unboxed
 			}
 			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpFieldSet,
-				Type:       ir.TypeVoid,
-				Callee:     shapeName,
-				Field:      field.Name,
-				FieldIndex: i,
-				Args:       []string{result, val},
-				Span:       toIRSpan(path, expression.Span),
+				Op:           ir.OpFieldSet,
+				Type:         ir.TypeVoid,
+				Callee:       shapeName,
+				Field:        field.Name,
+				FieldIndex:   i,
+				DynamicField: dynamicFieldAccess(shapeName),
+				Args:         []string{result, val},
+				Span:         toIRSpan(path, expression.Span),
 			})
 		} else {
+			if dynamicFieldAccess(shapeName) {
+				continue
+			}
 			defVal := "undefined"
 			defType := field.Type
 			if field.Type == ir.TypeNumber {
@@ -397,13 +419,14 @@ func lowerObjectLiteralExpression(path string, expression *typescriptgo.SyntaxEx
 				Span:   toIRSpan(path, expression.Span),
 			})
 			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpFieldSet,
-				Type:       ir.TypeVoid,
-				Callee:     shapeName,
-				Field:      field.Name,
-				FieldIndex: i,
-				Args:       []string{result, defConst},
-				Span:       toIRSpan(path, expression.Span),
+				Op:           ir.OpFieldSet,
+				Type:         ir.TypeVoid,
+				Callee:       shapeName,
+				Field:        field.Name,
+				FieldIndex:   i,
+				DynamicField: dynamicFieldAccess(shapeName),
+				Args:         []string{result, defConst},
+				Span:         toIRSpan(path, expression.Span),
 			})
 		}
 	}

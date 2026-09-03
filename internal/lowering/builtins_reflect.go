@@ -881,9 +881,6 @@ func lowerReflectConstruct(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 	})
 
 	for i, field := range shape.Fields {
-		if field.Name == "__dummy" {
-			continue
-		}
 		defVal := field.Value
 		if defVal == "" {
 			switch field.Type {

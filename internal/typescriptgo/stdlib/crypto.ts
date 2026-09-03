@@ -263,6 +263,15 @@ export class Verify extends EventEmitter {
     }
 }
 
+function formatFingerprintCrypto(hexStr: string): string {
+    const upper = hexStr.toUpperCase();
+    const parts: string[] = [];
+    for (let i = 0; i < upper.length; i += 2) {
+        parts.push(upper.substring(i, i + 2));
+    }
+    return parts.join(":");
+}
+
 export class X509Certificate {
     ca: boolean = false;
     fingerprint: string = "";
@@ -281,40 +290,95 @@ export class X509Certificate {
     validFromDate: string = "";
     validTo: string = "";
     validToDate: string = "";
+    private _pem: string = "";
 
-    constructor(buffer: unknown) {
-        this.ca = false;
-        this.fingerprint = "00:00:00";
-        this.fingerprint256 = "00:00:00";
-        this.fingerprint512 = "00:00:00";
-        this.infoAccess = "";
-        this.issuer = "CN=Test";
-        this.keyUsage = [];
-        this.publicKey = new KeyObject("public");
-        this.raw = Buffer.alloc(0);
-        this.serialNumber = "01";
-        this.subject = "CN=Test";
-        this.subjectAltName = "";
-        this.validFrom = "Jan 1 2026";
-        this.validFromDate = "2026-01-01";
-        this.validTo = "Jan 1 2030";
-        this.validToDate = "2030-01-01";
+    constructor(bufferOrCert: unknown) {
+        if (bufferOrCert === undefined || bufferOrCert === null) {
+            throw new TypeError('The "buffer" argument must be one of type string, Buffer, TypedArray, or DataView');
+        }
+
+        let certStr = "";
+        if (typeof bufferOrCert === "string") {
+            certStr = bufferOrCert as string;
+            this._pem = certStr;
+            let b64 = certStr;
+            const beginIdx = certStr.indexOf("-----BEGIN CERTIFICATE-----");
+            const endIdx = certStr.indexOf("-----END CERTIFICATE-----");
+            if (beginIdx >= 0 && endIdx >= 0) {
+                b64 = certStr.substring(beginIdx + 27, endIdx).trim();
+            }
+            this.raw = Buffer.from(b64, "base64");
+        } else if (bufferOrCert instanceof Uint8Array || Buffer.isBuffer(bufferOrCert)) {
+            this.raw = Buffer.from(bufferOrCert as Uint8Array);
+        } else {
+            throw new TypeError('The "buffer" argument must be one of type string, Buffer, TypedArray, or DataView');
+        }
+
+        try {
+            const sha1Hex = __scriptgo.hashDigestBuffer("sha1", this.raw, "hex");
+            this.fingerprint = formatFingerprintCrypto(sha1Hex);
+            const sha256Hex = __scriptgo.hashDigestBuffer("sha256", this.raw, "hex");
+            this.fingerprint256 = formatFingerprintCrypto(sha256Hex);
+            const sha512Hex = __scriptgo.hashDigestBuffer("sha512", this.raw, "hex");
+            this.fingerprint512 = formatFingerprintCrypto(sha512Hex);
+        } catch {
+            this.fingerprint = "";
+            this.fingerprint256 = "";
+            this.fingerprint512 = "";
+        }
+
+        if (certStr.length > 0) {
+            const lines = certStr.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith("Subject:") || line.startsWith("subject=")) {
+                    this.subject = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
+                } else if (line.startsWith("Issuer:") || line.startsWith("issuer=")) {
+                    this.issuer = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
+                } else if (line.startsWith("DNS:") || line.startsWith("IP Address:") || line.startsWith("SAN:")) {
+                    this.subjectAltName = line;
+                } else if (line.startsWith("Not Before:") || line.startsWith("validFrom=")) {
+                    this.validFrom = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
+                    this.validFromDate = this.validFrom;
+                } else if (line.startsWith("Not After :") || line.startsWith("Not After:") || line.startsWith("validTo=")) {
+                    this.validTo = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
+                    this.validToDate = this.validTo;
+                } else if (line.startsWith("Serial Number:") || line.startsWith("serial=")) {
+                    this.serialNumber = line.substring(line.indexOf(":") >= 0 ? line.indexOf(":") + 1 : line.indexOf("=") + 1).trim();
+                }
+            }
+        }
+        if (this.subject === "" && certStr.length > 0) {
+            this.subject = "CN=" + certStr.substring(0, 32);
+        }
+        if (this.issuer === "") {
+            this.issuer = this.subject;
+        }
+        if (this.serialNumber === "") {
+            this.serialNumber = "01";
+        }
     }
 
     checkEmail(email: string, options?: unknown): boolean {
-        return true;
+        return this.subjectAltName.indexOf("email:" + email) >= 0 || this.subject.indexOf("emailAddress=" + email) >= 0;
     }
 
     checkHost(host: string, options?: unknown): string | undefined {
+        if (this.subjectAltName.indexOf("DNS:" + host) >= 0 || this.subject.indexOf("CN=" + host) >= 0) {
+            return undefined;
+        }
         return host;
     }
 
     checkIP(ip: string, options?: unknown): string | undefined {
+        if (this.subjectAltName.indexOf("IP Address:" + ip) >= 0 || this.subjectAltName.indexOf("IP:" + ip) >= 0) {
+            return undefined;
+        }
         return ip;
     }
 
     checkIssued(otherCert: X509Certificate): boolean {
-        return true;
+        return this.subject === otherCert.issuer;
     }
 
     checkPrivateKey(privateKey: KeyObject): boolean {
@@ -322,15 +386,34 @@ export class X509Certificate {
     }
 
     toJSON(): string {
-        return "{}";
+        return JSON.stringify({
+            subject: this.subject,
+            issuer: this.issuer,
+            subjectAltName: this.subjectAltName,
+            validFrom: this.validFrom,
+            validTo: this.validTo,
+            fingerprint: this.fingerprint,
+            fingerprint256: this.fingerprint256,
+            fingerprint512: this.fingerprint512,
+            serialNumber: this.serialNumber,
+        });
     }
 
     toLegacyObject(): unknown {
-        return {};
+        return {
+            subject: this.subject,
+            issuer: this.issuer,
+            valid_from: this.validFrom,
+            valid_to: this.validTo,
+            fingerprint: this.fingerprint,
+            fingerprint256: this.fingerprint256,
+            fingerprint512: this.fingerprint512,
+            serialNumber: this.serialNumber,
+        };
     }
 
     toString(): string {
-        return "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----";
+        return this._pem.length > 0 ? this._pem : "-----BEGIN CERTIFICATE-----\n" + this.fingerprint256 + "\n-----END CERTIFICATE-----";
     }
 
     verify(publicKey: KeyObject): boolean {

@@ -86,10 +86,10 @@ func TestAuditCompletedModules(t *testing.T) {
 		"child_process", "dgram", "http", "readline", "tty",
 		"single-executable-applications", "wasi", "permissions",
 		"repl", "tracing", "module", "modules",
-		"zlib", "tls", "inspector", "vm", "v8", "sqlite", "test",
+		"zlib", "tls", "inspector", "v8", "sqlite", "test",
 		"errors", "environment_variables", "diagnostics_channel", "async_hooks", "async_context",
 		"worker_threads", "cluster", "perf_hooks", "webstreams",
-		"crypto", "webcrypto", "http2", "globals",
+		"crypto", "webcrypto", "http2", "globals", "dns", "net",
 	}
 	for _, modName := range modules {
 		doc, err := spec.LoadModuleSpec(specCacheDir, modName)

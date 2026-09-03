@@ -211,7 +211,8 @@ export const W_OK = 2;
 export const X_OK = 1;
 
 declare namespace __scriptgo {
-    function readFileSync(path: string, encoding?: string): string;
+    function readFileSync(path: string): Buffer;
+    function readFileSync(path: string, encoding: string): string;
     function writeFileSync(path: string, data: string): void;
     function existsSync(path: string): boolean;
     function unlinkSync(path: string): void;
@@ -251,7 +252,12 @@ declare namespace __scriptgo {
     function opendirSync(path: string): string[];
 }
 
-export function readFileSync(path: string, encoding?: string): string {
+export function readFileSync(path: string): Buffer;
+export function readFileSync(path: string, encoding: string): string;
+export function readFileSync(path: string, encoding?: string): string | Buffer {
+    if (encoding === undefined) {
+        return __scriptgo.readFileSync(path);
+    }
     return __scriptgo.readFileSync(path, encoding);
 }
 
@@ -681,12 +687,23 @@ export class FSPromises {
 export const promises: FSPromises = new FSPromises();
 
 // Callback APIs
-export function readFile(path: string, callback?: (err: Error | null, data: string) => void): void {
+export function readFile(path: string, callback: (err: Error | null, data: Buffer) => void): void;
+export function readFile(path: string, encoding: string, callback: (err: Error | null, data: string) => void): void;
+export function readFile(path: string, encodingOrCallback?: string | ((err: Error | null, data: Buffer) => void), callback?: (err: Error | null, data: string) => void): void {
     try {
-        const res = readFileSync(path);
+        if (typeof encodingOrCallback === "function") {
+            const res = readFileSync(path);
+            queueMicrotask(() => encodingOrCallback(null, res));
+            return;
+        }
+        const res = readFileSync(path, encodingOrCallback === undefined ? "utf8" : encodingOrCallback);
         if (callback) queueMicrotask(() => callback(null, res));
     } catch (e: unknown) {
-        if (callback) queueMicrotask(() => callback(new Error("readFile error"), ""));
+        if (typeof encodingOrCallback === "function") {
+            queueMicrotask(() => encodingOrCallback(new Error("readFile error"), Buffer.alloc(0)));
+        } else if (callback) {
+            queueMicrotask(() => callback(new Error("readFile error"), ""));
+        }
     }
 }
 

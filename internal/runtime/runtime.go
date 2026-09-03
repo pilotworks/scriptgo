@@ -91,6 +91,21 @@ var weakSource string
 //go:embed native/intl/runtime.c
 var intlSource string
 
+//go:embed native/dns/runtime.c
+var dnsSource string
+
+//go:embed native/net/runtime.c
+var netSource string
+
+//go:embed native/dgram/runtime.c
+var dgramSource string
+
+//go:embed native/tls/runtime.c
+var tlsSource string
+
+//go:embed native/tls/root_certificates.h
+var tlsRootCertificatesHeader string
+
 //go:embed native/sqlite/sqlite_types.h
 var sqliteTypesHeader string
 
@@ -114,4 +129,6 @@ var sqliteFunctionsSource string
 
 var sqliteSource = "#define SQLITE_THREADSAFE 1\n#define SQLITE_ENABLE_JSON1 1\n#define SQLITE_ENABLE_SESSION 1\n#define SQLITE_ENABLE_PREUPDATE_HOOK 1\n#define SQLITE_ENABLE_COLUMN_METADATA 1\n#define SQLITE_OMIT_DEPRECATED 1\n" + sqlite3Source + "\n" + sqliteTypesHeader + "\n" + sqliteDbSource + "\n" + sqliteStmtSource + "\n" + sqliteResultsSource + "\n" + sqliteSessionSource + "\n" + sqliteFunctionsSource
 
-var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)
+var tlsRootCertificatesSource = "#define NODE_WANT_INTERNALS 1\nstatic const char *scriptgo_tls_bundled_root_certificates[] = {\n" + tlsRootCertificatesHeader + "\n};\n#undef NODE_WANT_INTERNALS\n"
+
+var Source = []byte(errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + dnsSource + "\n" + netSource + "\n" + dgramSource + "\n" + tlsRootCertificatesSource + tlsSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)

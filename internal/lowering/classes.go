@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -12,13 +13,16 @@ import (
 )
 
 type ClassMeta struct {
-	Name       string
-	Extends    string
-	Implements []string
-	IsAbstract bool
-	Fields     []typescriptgo.SyntaxField
-	Statics    map[string]typescriptgo.SyntaxField
-	HasCtor    bool
+	Name        string
+	FileName    string
+	Extends     string
+	Implements  []string
+	IsAbstract  bool
+	IsInterface bool
+	IsTypeAlias bool
+	Fields      []typescriptgo.SyntaxField
+	Statics     map[string]typescriptgo.SyntaxField
+	HasCtor     bool
 }
 
 var classHierarchy = map[string]ClassMeta{}
@@ -28,10 +32,13 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	hierarchy := map[string]ClassMeta{}
 	syntax := map[string]typescriptgo.SyntaxClass{}
 	for _, file := range program.Files {
+		fileName := filepath.Clean(file.FileName)
 		var visitStmt func(stmt typescriptgo.SyntaxStatement)
 		visitStmt = func(stmt typescriptgo.SyntaxStatement) {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
-				if existingSyntax, exists := syntax[stmt.Class.Name]; exists {
+				className := classIdentityForPath(fileName, stmt.Class.Name)
+				classDef := *stmt.Class
+				if existingSyntax, exists := syntax[className]; exists {
 					if stmt.Kind == "interface" || stmt.Kind == "type_alias" {
 						return
 					}
@@ -42,7 +49,7 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 						methodSeen[key] = len(mergedMethods)
 						mergedMethods = append(mergedMethods, m)
 					}
-					for _, m := range stmt.Class.Methods {
+					for _, m := range classDef.Methods {
 						key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
 						if idx, found := methodSeen[key]; found {
 							if mergedMethods[idx].Body == nil && m.Body != nil {
@@ -53,25 +60,31 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 							mergedMethods = append(mergedMethods, m)
 						}
 					}
-					stmt.Class.Methods = mergedMethods
+					classDef.Methods = mergedMethods
 				}
-				syntax[stmt.Class.Name] = *stmt.Class
+				syntax[className] = classDef
 				meta := ClassMeta{
-					Name:       stmt.Class.Name,
-					Extends:    stmt.Class.Extends,
-					Implements: stmt.Class.Implements,
-					IsAbstract: stmt.Class.IsAbstract,
-					Statics:    map[string]typescriptgo.SyntaxField{},
-					HasCtor:    stmt.Class.Constructor != nil,
+					Name:        className,
+					FileName:    fileName,
+					Extends:     qualifyClassType(fileName, classDef.Extends),
+					Implements:  make([]string, 0, len(classDef.Implements)),
+					IsAbstract:  classDef.IsAbstract,
+					IsInterface: stmt.Kind == "interface",
+					IsTypeAlias: stmt.Kind == "type_alias",
+					Statics:     map[string]typescriptgo.SyntaxField{},
+					HasCtor:     classDef.Constructor != nil,
 				}
-				for _, f := range stmt.Class.Fields {
+				for _, implemented := range classDef.Implements {
+					meta.Implements = append(meta.Implements, qualifyClassType(fileName, implemented))
+				}
+				for _, f := range classDef.Fields {
 					if f.IsStatic {
 						meta.Statics[f.Name] = f
 					} else {
 						meta.Fields = append(meta.Fields, f)
 					}
 				}
-				hierarchy[stmt.Class.Name] = meta
+				hierarchy[className] = meta
 			} else if stmt.Kind == "namespace" || stmt.Kind == "block" {
 				for _, sub := range stmt.Body {
 					visitStmt(sub)
@@ -566,35 +579,59 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 	if className == "" {
 		return ""
 	}
-	chain := []string{className}
 	cleanBase := strings.Split(className, "__")[0]
-	if cleanBase != className {
-		chain = append(chain, cleanBase)
+	fields := getInheritedFields(cleanBase, hierarchy)
+
+	// Class metadata has a separate token kind for class names and fields. The
+	// runtime needs both: class names support instanceof, while field names map
+	// directly to the storage order used by the lowering shape.
+	var tag strings.Builder
+	tag.WriteString("__class__|")
+	writeToken := func(kind byte, value string) {
+		if value == "" {
+			return
+		}
+		fmt.Fprintf(&tag, "%c%d:%s|", kind, len([]byte(value)), value)
 	}
+	writeToken('c', className)
+	if cleanBase != className {
+		writeToken('b', cleanBase)
+	}
+	for _, field := range fields {
+		writeToken('f', field.Name)
+	}
+
+	seenClasses := map[string]bool{className: true, cleanBase: true}
 	curr := cleanBase
 	for {
 		meta, ok := hierarchy[curr]
-		if ok {
-			for _, f := range meta.Fields {
-				if f.Name != "" {
-					chain = append(chain, f.Name)
-				}
-			}
-			if cls, okCls := classSyntax[curr]; okCls {
-				for _, m := range cls.Methods {
-					if m.Name != "" {
-						chain = append(chain, m.Name)
-					}
-				}
-			}
-		}
 		if !ok || meta.Extends == "" {
 			break
 		}
-		chain = append(chain, meta.Extends)
-		curr = meta.Extends
+		for _, rawBase := range strings.Split(meta.Extends, ",") {
+			base := strings.TrimSpace(rawBase)
+			if base == "" {
+				continue
+			}
+			if !seenClasses[base] {
+				writeToken('b', base)
+				seenClasses[base] = true
+			}
+			baseName := base
+			if idx := strings.IndexAny(baseName, "<"); idx >= 0 {
+				baseName = baseName[:idx]
+			} else if idx := strings.Index(baseName, "__"); idx >= 0 {
+				baseName = baseName[:idx]
+			}
+			if baseName != "" && !seenClasses[baseName] {
+				writeToken('b', baseName)
+				seenClasses[baseName] = true
+			}
+			curr = baseName
+			break
+		}
 	}
-	return ":" + strings.Join(chain, ":") + ":"
+	return strings.TrimSuffix(tag.String(), "|")
 }
 
 func getInheritanceDepth(className string, hierarchy map[string]ClassMeta) int {

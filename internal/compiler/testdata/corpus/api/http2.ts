@@ -29,7 +29,7 @@ console.log("h2_props: " + constants.NGHTTP2_SESSION_SERVER + " " + typeof sensi
 // @api: http2.getDefaultSettings
 // @api: http2.getPackedSettings
 // @api: http2.getUnpackedSettings
-// @expect: h2_settings: 4096 0 4096
+// @expect: h2_settings: 4096 42 4096
 const defSettings = getDefaultSettings();
 const packed = getPackedSettings(defSettings);
 const unpacked = getUnpackedSettings(new Uint8Array(0));

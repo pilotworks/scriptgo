@@ -82,6 +82,16 @@ func nonNullishIRType(value string) ir.Type {
 	return toIRType(strings.Join(filtered, " | "))
 }
 
+func typeContainsNullish(typeStr string) bool {
+	for _, part := range splitTopLevelUnion(strings.TrimSpace(typeStr)) {
+		switch strings.TrimSpace(part) {
+		case "null", "undefined", "void":
+			return true
+		}
+	}
+	return false
+}
+
 func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	value = strings.TrimSpace(value)
 	for strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")") && !strings.Contains(value, "=>") {
@@ -97,6 +107,15 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeObject
 	}
 	cleanVal := strings.TrimPrefix(value, "object:")
+	// Shape names encode array-valued fields with a trailing `_arr`. Resolve
+	// the shape marker before interpreting that suffix as an array type.
+	if strings.HasPrefix(cleanVal, "__shape_") {
+		if strings.HasSuffix(cleanVal, "[]") {
+			element := toIRTypeInternal(strings.TrimSuffix(value, "[]"), visited)
+			return ir.Type(string(element) + "[]")
+		}
+		return ir.Type("object:" + cleanVal)
+	}
 	if aliased, ok := typeAliasesIndex[cleanVal]; ok && aliased != cleanVal {
 		newVisited := make(map[string]bool, len(visited)+1)
 		for k, v := range visited {
@@ -141,6 +160,13 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				return ir.TypeVoid
 			}
 			hasNullish := len(nonNullish) < len(parts)
+			hasNull := false
+			for _, p := range parts {
+				if strings.TrimSpace(p) == "null" {
+					hasNull = true
+					break
+				}
+			}
 			allStrings := true
 			for _, p := range nonNullish {
 				if p != "string" && !((strings.HasPrefix(p, "\"") && strings.HasSuffix(p, "\"")) || (strings.HasPrefix(p, "'") && strings.HasSuffix(p, "'"))) {
@@ -149,6 +175,9 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				}
 			}
 			if allStrings {
+				if hasNull {
+					return ir.TypeUnknown
+				}
 				return ir.TypeString
 			}
 			allNumbers := true
@@ -995,6 +1024,8 @@ func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field,
 			continue
 		}
 		fName := strings.TrimSpace(trimmed[:colonIdx])
+		optional := strings.HasSuffix(fName, "?")
+		fName = strings.TrimSuffix(fName, "?")
 		isMethod := false
 		if parenIdx := strings.Index(fName, "("); parenIdx != -1 {
 			fName = strings.TrimSpace(fName[:parenIdx])
@@ -1008,8 +1039,9 @@ func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field,
 			fieldType = ir.TypeClosure
 		}
 		fields = append(fields, ir.Field{
-			Name: fName,
-			Type: fieldType,
+			Name:     fName,
+			Type:     fieldType,
+			Optional: optional,
 		})
 	}
 	if len(fields) == 0 {
@@ -1029,6 +1061,17 @@ func fieldIndex(shape ir.ObjectShape, name string) int {
 		}
 	}
 	return -1
+}
+
+func dynamicFieldAccess(className string) bool {
+	clean := strings.TrimPrefix(className, "object:")
+	if strings.HasPrefix(clean, "__shape_") {
+		// Anonymous values can cross a type assertion into a differently ordered
+		// structural alias, so resolve their fields by name at runtime as well.
+		return true
+	}
+	meta, ok := classHierarchy[clean]
+	return ok && (meta.IsInterface || meta.IsTypeAlias)
 }
 
 func sourceError(path string, span typescriptgo.SourceSpan, err error) error {
@@ -1073,8 +1116,7 @@ func isTypedArrayType(t ir.Type) bool {
 
 // ArrayBufferView is a TypeScript union of typed arrays and DataView. The
 // frontend keeps that alias name when it cannot collapse the union; property
-// lowering still needs to route its shared view fields through the typed-array
-// ABI instead of treating the alias as an object shape.
+// lowering routes its shared fields through a tag-aware ABI.
 func isArrayBufferViewType(t ir.Type) bool {
 	if t == "ArrayBufferView" || t == "object:ArrayBufferView" {
 		return true

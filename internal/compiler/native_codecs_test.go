@@ -21,3 +21,16 @@ func TestAppendUniquePreservesFirstOccurrence(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeCodecConfigHasDefine(t *testing.T) {
+	config := nativeCodecConfig{compileFlags: []string{"-DSCRIPTGO_HAS_OPENSSL", "-DOTHER=value"}}
+	if !config.hasDefine("SCRIPTGO_HAS_OPENSSL") {
+		t.Fatal("hasDefine() did not find an exact define")
+	}
+	if !config.hasDefine("OTHER") {
+		t.Fatal("hasDefine() did not find a define with a value")
+	}
+	if !(nativeCodecConfig{compileFlags: []string{"-DSCRIPTGO_HAS_OPENSSL=1"}}).hasDefine("SCRIPTGO_HAS_OPENSSL") {
+		t.Fatal("hasDefine() did not find a define with a value")
+	}
+}

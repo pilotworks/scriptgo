@@ -77,6 +77,14 @@ func (e *functionEmitter) emitTextEncodingIntrinsic(out *strings.Builder, instru
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_new(i64 2, ptr %%%s)\n", objStatus, objSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", objStatus)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, objSlot)
+		typeGlobal, ok := e.stringsByValue[intrinsicObjectDescriptor(instruction.Callee)]
+		if !ok {
+			return fmt.Errorf("missing text encoder result descriptor")
+		}
+		typeStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_type_set(ptr %%%s, ptr %s)\n", typeStatus, instruction.Result, typeGlobal)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", typeStatus)
 
 		setReadStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

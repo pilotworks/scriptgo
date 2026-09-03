@@ -33,10 +33,11 @@ type ObjectShape struct {
 }
 
 type Field struct {
-	Name  string
-	Type  Type
-	Value string
-	Span  SourceSpan
+	Name     string
+	Type     Type
+	Value    string
+	Optional bool
+	Span     SourceSpan
 }
 
 type SourceSpan struct {
@@ -100,25 +101,31 @@ const (
 )
 
 type Instruction struct {
-	Op         string
-	Type       Type
-	Result     string
-	Value      string
-	Operator   string
-	Callee     string
-	Field      string
-	FieldIndex int
-	FieldCount int
-	Args       []string
-	Span       SourceSpan
-	Then       []Instruction
-	Else       []Instruction
-	Cond       []Instruction
-	Body       []Instruction
-	Step       []Instruction
-	CatchVar   string
-	Catch      []Instruction
-	Finally    []Instruction
+	Op     string
+	Type   Type
+	Result string
+	Value  string
+	// StringLiteral distinguishes source strings from the undefined/null sentinels.
+	StringLiteral bool
+	Operator      string
+	Callee        string
+	Field         string
+	FieldIndex    int
+	// DynamicField uses the runtime property name instead of a static layout index.
+	DynamicField bool
+	// RuntimeTypeOf requests a runtime nullish check for pointer-backed values.
+	RuntimeTypeOf bool
+	FieldCount    int
+	Args          []string
+	Span          SourceSpan
+	Then          []Instruction
+	Else          []Instruction
+	Cond          []Instruction
+	Body          []Instruction
+	Step          []Instruction
+	CatchVar      string
+	Catch         []Instruction
+	Finally       []Instruction
 }
 
 const (

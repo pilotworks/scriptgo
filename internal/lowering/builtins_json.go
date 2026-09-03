@@ -137,15 +137,16 @@ func lowerJSONStringifyValue(call IntrinsicCall, val string, valType ir.Type) (s
 			res, _, err := lowerJSONStringifyObject(call, val, shape)
 			return res, err
 		}
-		emptyObj := nextTemp(call.Counter)
+		res := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:     ir.OpConst,
+			Op:     ir.OpCall,
 			Type:   ir.TypeString,
-			Result: emptyObj,
-			Value:  "{}",
+			Result: res,
+			Callee: "__json.stringify_unknown",
+			Args:   []string{val},
 			Span:   toIRSpan(call.Path, call.Expression.Span),
 		})
-		return emptyObj, nil
+		return res, nil
 
 	default:
 		shapeName := strings.TrimPrefix(string(valType), "object:")

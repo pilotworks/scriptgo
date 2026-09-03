@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: August 30, 2026
+> **Report Date**: September 1, 2026
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -18,10 +18,10 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **386** | **386 / 386 Passed** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 375 | 375 PASS (direct binary compilation) | 100.0% |
+| **Total Corpus Test Cases** | **394** | **300 / 394 Full Parity** | **76.1%** |
+| - *Native LLVM/Clang Parity* | 394 | 336 PASS (direct binary compilation) | 85.3% |
 | - *Static Subset Diagnostics* | 11 | 11 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~2m40s (macOS / Linux) | Verified across macOS & Linux | - |
+| **Total Test Suite Runtime** | ~6m20s (macOS / Linux) | Verified across macOS / Linux | - |
 
 ---
 
@@ -196,33 +196,33 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 386
-Native Backend Parity  : 375/386 (97.2%)
-Diagnostic Parity      : 11/386
-Overall Full Parity    : 386/386 (100.0%)
+Total Test Cases       : 394
+Native Backend Parity  : 336/394 (85.3%)
+Diagnostic Parity      : 11/394
+Overall Full Parity    : 300/394 (76.1%)
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
-| **`algorithms`** | 27 | **100%** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 97 | **100%** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
-| **`api/fs`** | 5 | **100%** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
+| **`algorithms`** | 27 | **81.5% (22/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
+| **`api`** | 101 | **42.6% (43/101)** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
+| **`api/fs`** | 5 | **20.0% (1/5)** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
 | **`async`** | 13 | **100%** | Top-level await, async pipelines, microtask sequencing, async generator iteration, parallel execution, error propagation. |
-| **`classes`** | 25 | **100%** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
+| **`classes`** | 26 | **96.2% (25/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 23 | **100%** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
-| **`destructuring`** | 20 | **100%** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
+| **`destructuring`** | 20 | **90.0% (18/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
 | **`enums`** | 10 | **100%** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 22 | **100%** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
-| **`generics`** | 20 | **100%** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 19 | **100%** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
-| **`language/diagnostics`** | 5 | **100%** | Static subset error detection with standardized `SGxxxx` error codes. |
+| **`functions`** | 22 | **95.5% (21/22)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`generics`** | 20 | **85.0% (17/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
+| **`language`** | 19 | **52.6% (10/19)** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language/diagnostics`** | 5 | **80.0% (4/5)** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100%** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100%** | Named/default exports/imports, initialization order, multi-level re-exports. |
-| **`operators`** | 25 | **100%** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
-| **`scenarios`** | 15 | **100%** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
-| **`tuples`** | 18 | **100%** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
-| **`types`** | 14 | **100%** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
+| **`operators`** | 25 | **96.0% (24/25)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
+| **`scenarios`** | 15 | **66.7% (10/15)** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
+| **`tuples`** | 18 | **77.8% (14/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
+| **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 19 | **100%** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 ---
@@ -362,7 +362,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Networking & Sockets (`node:net`)** | ✅ Full (67 / 67 APIs) | Complete 100% Node.js parity: `Server`, `Socket`, `SocketAddress`, `BlockList`, `connect`, `createConnection`, `createServer`, `isIP`, `isIPv4`, `isIPv6`, `[Symbol.asyncDispose]`. |
 | **V8 Engine Hooks (`node:v8`)** | ✅ Full (56 / 56 APIs) | Complete 100% Node.js parity: `cachedDataVersionTag`, `getHeapStatistics`, `getHeapSpaceStatistics`, `getHeapCodeStatistics`, `getCppHeapStatistics`, `getHeapSnapshot`, `writeHeapSnapshot`, `setFlagsFromString`, `queryObjects`, `stopCoverage`, `takeCoverage`, `setHeapSnapshotNearHeapLimit`, `isStringOneByteRepresentation`, `GCProfiler`, `Serializer`, `Deserializer`, `DefaultSerializer`, `DefaultDeserializer`, `serialize`, `deserialize`, `promiseHooks`, `startupSnapshot`. |
 | **Compression & Decompression (`node:zlib`)** | ✅ Full (53 / 53 APIs) | Codec-backed round-trip coverage for Deflate/Gzip, Brotli, and Zstandard sync/callback APIs; native builds discover Brotli/Zstd flags once via `pkg-config`, while unsupported targets report an explicit codec diagnostic. Includes `create*` classes, `crc32`, `constants`, and `codes`. |
-| **TLS / SSL Security (`node:tls`)** | ✅ Full (51 / 51 APIs) | Complete 100% Node.js parity: `Server`, `TLSSocket`, `CryptoStream`, `SecurePair`, `connect`, `createServer`, `createSecureContext`, `createSecurePair`, `getCiphers`, `checkServerIdentity`, `DEFAULT_ECDH_CURVE`, `DEFAULT_MAX_VERSION`, `DEFAULT_MIN_VERSION`, `DEFAULT_CIPHERS`. |
+| **TLS / SSL Security (`node:tls`)** | ✅ Full (51 / 51 official APIs; 58 corpus annotations) | OpenSSL-backed coverage for `SecureContext`, `X509Certificate` (including typed `checkHost`/`checkEmail`/`checkIP` options), `SecurePair`, `Server`, `TLSSocket`, `connect`, `createServer`, `createSecureContext`, `createSecurePair`, `getCiphers`, `checkServerIdentity`, certificate/session/keying-material accessors, socket options, and TLS constants. |
 | **Worker Threads (`node:worker_threads`)** | ✅ Full (48 / 48 APIs) | Complete 100% Node.js parity: `Worker`, `MessagePort`, `MessageChannel`, `BroadcastChannel`, `parentPort`, `workerData`, `isMainThread`, `threadId`, `setEnvironmentData`, `getEnvironmentData`, `markAsUntransferable`, `moveMessagePortToContext`, `receiveMessageOnPort`, `postMessageToThread`. |
 | **Diagnostics Channel (`node:diagnostics_channel`)** | ✅ Full (23 / 23 APIs) | Complete 100% Node.js parity: `channel`, `hasSubscribers`, `subscribe`, `unsubscribe`, `Channel`, `TracingChannel`, `traceSync`, `tracePromise`, `traceCallback`. |
 | **Node.js Errors (`node:errors`)** | ✅ Full (22 / 22 APIs) | Complete 100% Node.js parity: `hideStackFrames`, `codes` with all canonical error constructors (`ERR_INVALID_ARG_TYPE`, `ERR_OUT_OF_RANGE`, `ERR_BUFFER_OUT_OF_BOUNDS`, `ERR_INTERNAL_ASSERTION`, etc.). |

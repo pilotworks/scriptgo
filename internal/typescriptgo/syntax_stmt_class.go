@@ -192,6 +192,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 					Name:         syntaxMemberName(property.Name()),
 					Type:         fType,
 					InferredType: inferredFType,
+					Optional:     property.PostfixToken != nil,
 					Initializer:  syntaxExpression(property.Initializer, chk),
 					Decorators:   fDecs,
 					IsStatic:     ast.HasSyntacticModifier(member, ast.ModifierFlagsStatic),

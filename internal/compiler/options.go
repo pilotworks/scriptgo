@@ -15,6 +15,7 @@ const RuntimeABIVersion = "scriptgo.runtime.v1"
 type BuildOptions struct {
 	CC               string
 	Target           string
+	WorkingDir       string
 	Debug            bool
 	OptLevel         string
 	LTO              string

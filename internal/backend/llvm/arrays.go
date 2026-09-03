@@ -194,7 +194,11 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemLLVMType, valArg, valSlot))
 	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, valSlot))
+	valueSize, err := arrayElementSizeForTarget(arrayType, e.pointerSize())
+	if err != nil {
+		return err
+	}
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_typed(ptr %%%s, double %%%s, ptr %%%s, i64 %d, i64 %d)\n", status, arrArg, idxArg, valSlot, valueSize, arrayElementTag(arrayType)))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	return nil
 }

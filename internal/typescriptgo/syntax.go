@@ -67,7 +67,10 @@ func normalizeInferredType(typeStr string) string {
 		"Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array", "DataView", "ArrayBuffer", "Map", "Set":
 		return typeStr
 	default:
-		if strings.HasPrefix(typeStr, "\"") && strings.HasSuffix(typeStr, "\"") {
+		// TypeScript-Go truncates very long string literal types, so the
+		// formatted type may have no closing quote. It is still a string
+		// primitive at the lowering boundary.
+		if strings.HasPrefix(typeStr, "\"") || strings.HasPrefix(typeStr, "'") {
 			return "string"
 		}
 		if _, err := strconv.ParseFloat(typeStr, 64); err == nil {

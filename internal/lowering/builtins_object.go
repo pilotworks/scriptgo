@@ -102,47 +102,13 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 		MinArgs:  1,
 		MaxArgs:  1,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			objVal, objType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			objVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 			if err != nil {
 				return "", "", err
 			}
 			result := call.Result
 			if result == "" {
 				result = nextTemp(call.Counter)
-			}
-
-			if after, ok := strings.CutPrefix(string(objType), "object:"); ok {
-				className := after
-				shape, exists := call.Shapes[className]
-				if exists {
-					call.Function.Body = append(call.Function.Body, ir.Instruction{
-						Op:         ir.OpArray,
-						Type:       ir.TypeStringArray,
-						Result:     result,
-						FieldCount: len(shape.Fields),
-						Span:       toIRSpan(call.Path, call.Expression.Span),
-					})
-					for _, f := range shape.Fields {
-						constName := nextTemp(call.Counter)
-						call.Function.Body = append(call.Function.Body, ir.Instruction{
-							Op:     ir.OpConst,
-							Type:   ir.TypeString,
-							Result: constName,
-							Value:  f.Name,
-							Span:   toIRSpan(call.Path, call.Expression.Span),
-						})
-						pushRes := nextTemp(call.Counter)
-						call.Function.Body = append(call.Function.Body, ir.Instruction{
-							Op:     ir.OpCall,
-							Type:   ir.TypeNumber,
-							Result: pushRes,
-							Callee: "__array.push",
-							Args:   []string{result, constName},
-							Span:   toIRSpan(call.Path, call.Expression.Span),
-						})
-					}
-					return result, ir.TypeStringArray, nil
-				}
 			}
 
 			call.Function.Body = append(call.Function.Body, ir.Instruction{

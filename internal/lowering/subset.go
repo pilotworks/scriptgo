@@ -130,8 +130,8 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 		if statement.Class != nil && len(statement.Class.TypeParameters) > 0 {
 			return subsetError(fileName, statement.Span, CodeGenericSpecialize, fmt.Sprintf("unspecialized generic class %q", statement.Class.Name))
 		}
-		if statement.Class == nil || (statement.Class.Extends == "" && len(statement.Class.Fields) == 0 && statement.Class.Constructor == nil && len(statement.Class.Methods) == 0 && len(statement.Class.StaticBlocks) == 0 && len(statement.Class.Decorators) == 0) {
-			return subsetError(fileName, statement.Span, CodeLanguageLowering, "empty class shape")
+		if statement.Class == nil {
+			return subsetError(fileName, statement.Span, CodeLanguageLowering, "class declaration is missing its class body")
 		}
 		if statement.Class.Constructor != nil {
 			for _, p := range statement.Class.Constructor.Parameters {
@@ -322,7 +322,13 @@ func isHeterogeneousUnion(typ string) bool {
 	if !strings.Contains(normalized, "|") {
 		return false
 	}
-	parts := strings.Split(normalized, "|")
+	parts := splitTopLevelUnion(normalized)
+	if len(parts) <= 1 {
+		if len(normalized) > 1 && normalized[0] == '(' && normalized[len(normalized)-1] == ')' {
+			return isHeterogeneousUnion(strings.TrimSpace(normalized[1 : len(normalized)-1]))
+		}
+		return false
+	}
 	var nonNullish []string
 	for _, p := range parts {
 		trimmed := strings.TrimSpace(p)
@@ -585,10 +591,11 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			}
 			return nil
 		}
-		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
+		stringConcatUnion := expression.Operator == "+" && hasStringConcatUnion(expression)
+		if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) && !stringConcatUnion {
 			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Left.InferredType))
 		}
-		if expression.Right != nil && isHeterogeneousUnion(expression.Right.InferredType) {
+		if expression.Right != nil && isHeterogeneousUnion(expression.Right.InferredType) && !stringConcatUnion {
 			return subsetError(fileName, expression.Span, CodeUnionNarrowing, fmt.Sprintf("unresolved union operation on type %q", expression.Right.InferredType))
 		}
 		if err := validateExpression(fileName, expression.Left); err != nil {
@@ -646,6 +653,23 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 	default:
 		return subsetError(fileName, expression.Span, CodeInternalFallback, expression.Kind)
 	}
+}
+
+func hasStringConcatUnion(expression *typescriptgo.SyntaxExpression) bool {
+	if expression == nil || expression.Operator != "+" {
+		return false
+	}
+	for _, operand := range []*typescriptgo.SyntaxExpression{expression.Left, expression.Right} {
+		if operand == nil || !isHeterogeneousUnion(operand.InferredType) {
+			continue
+		}
+		for _, member := range splitTopLevelUnion(operand.InferredType) {
+			if toPrimitiveCategory(member) == "string" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func formatSubsetMessage(code SubsetCode, feature string) string {

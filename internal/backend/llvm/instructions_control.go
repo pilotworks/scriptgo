@@ -281,8 +281,8 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 	finallyLabel := fmt.Sprintf("try.finally.%d", labelId)
 	endLabel := fmt.Sprintf("try.end.%d", labelId)
 
-	hasCatch := len(instruction.Catch) > 0 || instruction.CatchVar != ""
 	hasFinally := len(instruction.Finally) > 0
+	hasCatch := len(instruction.Catch) > 0 || instruction.CatchVar != "" || !hasFinally
 
 	landingLabel := catchLabel
 	if !hasCatch {

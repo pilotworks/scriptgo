@@ -61,6 +61,11 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			})
 			return res, ir.TypeBool, nil
 		}
+		if leftTyp == ir.TypeVoid {
+			// An undefined left operand is always falsy, so && returns it
+			// without evaluating the right operand.
+			return leftVal, leftTyp, nil
+		}
 	}
 	if expression.Operator == "||" {
 		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
@@ -109,6 +114,11 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				Span: toIRSpan(path, expression.Span),
 			})
 			return res, ir.TypeBool, nil
+		}
+		if leftTyp == ir.TypeVoid {
+			// An undefined left operand is always falsy, so || evaluates and
+			// returns the right operand.
+			return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
 		}
 	}
 	if expression.Operator == "??" {
@@ -263,6 +273,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 		if targetClass == "" {
 			return "", "", fmt.Errorf("instanceof requires a class identifier on the right")
 		}
+		targetClass = classIdentityForPath(path, targetClass)
 		if idx := strings.LastIndex(targetClass, "."); idx != -1 {
 			if _, exists := classHierarchy[targetClass]; !exists {
 				shortName := targetClass[idx+1:]
@@ -401,6 +412,40 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeBool, nil
+	}
+	// TypeScript-Go can preserve the string result type for a dynamic `+`
+	// expression even when its operands come from an unknown control-flow
+	// branch. JavaScript concatenation converts those operands to strings.
+	if expression.Operator == "+" && (leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) &&
+		(leftType == ir.TypeString || rightType == ir.TypeString || toIRType(expression.InferredType) == ir.TypeString) {
+		coerce := func(value string, typ ir.Type) (string, ir.Type) {
+			if typ == ir.TypeString {
+				return value, typ
+			}
+			callee := "__string.fromUnknown"
+			switch {
+			case typ == ir.TypeNumber:
+				callee = "__string.fromNumber"
+			case typ == ir.TypeBool:
+				callee = "__string.fromBool"
+			case typ == ir.TypeBigInt:
+				callee = "__string.fromBigInt"
+			case typ == ir.TypeObject || strings.HasPrefix(string(typ), "object:") || isPointerLikeType(typ):
+				callee = "__string.fromObject"
+			}
+			converted := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: converted,
+				Callee: callee,
+				Args:   []string{value},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return converted, ir.TypeString
+		}
+		left, leftType = coerce(left, leftType)
+		right, rightType = coerce(right, rightType)
 	}
 	if leftType != rightType {
 		if (expression.Operator == "!==" || expression.Operator == "!=") && leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
@@ -576,7 +621,9 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				right = strTemp
 				rightType = ir.TypeString
 			}
-		} else if (expression.Operator == "||" || expression.Operator == "&&") && (leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) {
+		} else if (expression.Operator == "||" || expression.Operator == "&&") &&
+			(leftType == ir.TypeUnknown || rightType == ir.TypeUnknown ||
+				(rightType == ir.TypeVoid && !isPointerLikeType(leftType))) {
 			if leftType != ir.TypeUnknown {
 				boxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{left}, Span: toIRSpan(path, expression.Span)})
@@ -615,6 +662,10 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: boolTemp, Operator: "!=", Args: []string{left, nullConst}, Span: toIRSpan(path, expression.Span)})
 				left = boolTemp
 				leftType = ir.TypeBool
+			} else if rightType == ir.TypeVoid {
+				// Keep the logical result in the left operand's pointer-like
+				// representation; the undefined sentinel is a valid falsy value.
+				rightType = leftType
 			} else {
 				return "", "", fmt.Errorf("operator %q does not support %s and %s", expression.Operator, leftType, rightType)
 			}

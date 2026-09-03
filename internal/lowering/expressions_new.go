@@ -9,8 +9,9 @@ import (
 )
 
 func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
-	className := callName(expression.Left)
-	if res, typ, handled, err := lowerIntlNew(path, expression, className, result, function, env, counter, shapes, signatures); handled {
+	rawClassName := callName(expression.Left)
+	className := rawClassName
+	if res, typ, handled, err := lowerIntlNew(path, expression, rawClassName, result, function, env, counter, shapes, signatures); handled {
 		return res, typ, err
 	}
 	if className == "RegExp" {
@@ -334,6 +335,18 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			})
 			return result, targetType, nil
 		}
+		if isTypedArrayType(arg0Type) {
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   targetType,
+				Result: result,
+				Callee: "__typedarray.new_typed_array",
+				Value:  className,
+				Args:   []string{arg0Val},
+				Span:   toIRSpan(path, expression.Span),
+			})
+			return result, targetType, nil
+		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpCall,
 			Type:   targetType,
@@ -492,6 +505,8 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeTextDecoder, nil
 	}
 
+	className = classIdentityForPath(path, rawClassName)
+
 	var shape ir.ObjectShape
 	var ok bool
 	if strings.Contains(function.Name, ".") {
@@ -513,6 +528,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		if idx := strings.Index(inferred, "<"); idx != -1 {
 			inferred = inferred[:idx]
 		}
+		inferred = classIdentityForPath(path, inferred)
 		if s, exists := shapes[inferred]; exists {
 			shape = s
 			ok = true
@@ -546,7 +562,8 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		FieldCount: len(shape.Fields),
 		Span:       toIRSpan(path, expression.Span),
 	})
-	if className == "Date" {
+	publicName := classPublicName(className)
+	if publicName == "Date" {
 		timeVal := nextTemp(counter)
 		if len(expression.Arguments) == 0 {
 			function.Body = append(function.Body, ir.Instruction{
@@ -572,7 +589,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		return result, objType, nil
 	}
-	if className == "Error" || className == "TypeError" || className == "RangeError" || className == "ReferenceError" || className == "SyntaxError" || className == "URIError" || className == "EvalError" {
+	if publicName == "Error" || publicName == "TypeError" || publicName == "RangeError" || publicName == "ReferenceError" || publicName == "SyntaxError" || publicName == "URIError" || publicName == "EvalError" {
 		msgVal := nextTemp(counter)
 		if len(expression.Arguments) > 0 {
 			mv, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
@@ -587,7 +604,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		}
 		nameVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: className, Span: toIRSpan(path, expression.Span),
+			Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: publicName, Span: toIRSpan(path, expression.Span),
 		})
 		function.Body = append(function.Body, ir.Instruction{
 			Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{result, msgVal}, Span: toIRSpan(path, expression.Span),
@@ -597,7 +614,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		stackVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: className + ": " + path, Span: toIRSpan(path, expression.Span),
+			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: publicName + ": " + path, Span: toIRSpan(path, expression.Span),
 		})
 		causeVal := nextTemp(counter)
 		causeFound := false
@@ -626,7 +643,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		return result, objType, nil
 	}
-	if className == "SuppressedError" {
+	if publicName == "SuppressedError" {
 		errVal := nextTemp(counter)
 		suppVal := nextTemp(counter)
 		msgVal := nextTemp(counter)
@@ -735,11 +752,16 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 					srcShapeName := strings.TrimPrefix(string(argType), "object:")
 					if dstShape, ok := shapes[dstShapeName]; ok && strings.HasPrefix(srcShapeName, "__shape_") {
 						adapted := nextTemp(counter)
+						fieldNames := make([]string, 0, len(dstShape.Fields))
+						for _, field := range dstShape.Fields {
+							fieldNames = append(fieldNames, field.Name)
+						}
 						function.Body = append(function.Body, ir.Instruction{
 							Op:         ir.OpObjectNew,
 							Type:       paramType,
 							Result:     adapted,
 							Callee:     dstShapeName,
+							Value:      ":" + strings.Join(fieldNames, ":") + ":",
 							FieldCount: len(dstShape.Fields),
 							Span:       toIRSpan(path, arg.Span),
 						})
@@ -749,23 +771,46 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 									if srcField.Name == dstField.Name {
 										fieldVal := nextTemp(counter)
 										function.Body = append(function.Body, ir.Instruction{
-											Op:         ir.OpFieldGet,
-											Type:       dstField.Type,
-											Result:     fieldVal,
-											Callee:     srcShapeName,
-											Field:      srcField.Name,
-											FieldIndex: srcIdx,
-											Args:       []string{argVal},
-											Span:       toIRSpan(path, arg.Span),
+											Op:           ir.OpFieldGet,
+											Type:         srcField.Type,
+											Result:       fieldVal,
+											Callee:       srcShapeName,
+											Field:        srcField.Name,
+											FieldIndex:   srcIdx,
+											DynamicField: dynamicFieldAccess(srcShapeName),
+											Args:         []string{argVal},
+											Span:         toIRSpan(path, arg.Span),
 										})
+										if dstField.Type == ir.TypeUnknown && srcField.Type != ir.TypeUnknown {
+											boxed := nextTemp(counter)
+											function.Body = append(function.Body, ir.Instruction{
+												Op:     ir.OpBoxUnknown,
+												Type:   ir.TypeUnknown,
+												Result: boxed,
+												Args:   []string{fieldVal},
+												Span:   toIRSpan(path, arg.Span),
+											})
+											fieldVal = boxed
+										} else if dstField.Type != ir.TypeUnknown && srcField.Type == ir.TypeUnknown {
+											casted := nextTemp(counter)
+											function.Body = append(function.Body, ir.Instruction{
+												Op:     ir.OpCheckedCast,
+												Type:   dstField.Type,
+												Result: casted,
+												Args:   []string{fieldVal},
+												Span:   toIRSpan(path, arg.Span),
+											})
+											fieldVal = casted
+										}
 										function.Body = append(function.Body, ir.Instruction{
-											Op:         ir.OpFieldSet,
-											Type:       ir.TypeVoid,
-											Callee:     dstShapeName,
-											Field:      dstField.Name,
-											FieldIndex: dstIdx,
-											Args:       []string{adapted, fieldVal},
-											Span:       toIRSpan(path, arg.Span),
+											Op:           ir.OpFieldSet,
+											Type:         ir.TypeVoid,
+											Callee:       dstShapeName,
+											Field:        dstField.Name,
+											FieldIndex:   dstIdx,
+											DynamicField: dynamicFieldAccess(dstShapeName),
+											Args:         []string{adapted, fieldVal},
+											Span:         toIRSpan(path, arg.Span),
 										})
 										break
 									}

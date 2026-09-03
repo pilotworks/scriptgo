@@ -354,7 +354,7 @@ typedef struct {
     unsigned int datalen;
     unsigned long long bitlen;
     unsigned int state[8];
-} SHA256_CTX;
+} scriptgo_sha256_context;
 
 #define ROTRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
 #define CH_256(x,y,z) (((x) & (y)) ^ (~(x) & (z)))
@@ -375,7 +375,7 @@ static const unsigned int k256[64] = {
     0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
 
-static void sha256_transform(SHA256_CTX *ctx, const unsigned char data[]) {
+static void sha256_transform(scriptgo_sha256_context *ctx, const unsigned char data[]) {
     unsigned int a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
     for (i = 0, j = 0; i < 16; ++i, j += 4)
         m[i] = ((unsigned int)data[j] << 24) | ((unsigned int)data[j + 1] << 16) | ((unsigned int)data[j + 2] << 8) | ((unsigned int)data[j + 3]);
@@ -395,7 +395,7 @@ static void sha256_transform(SHA256_CTX *ctx, const unsigned char data[]) {
     ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
 }
 
-static void sha256_init(SHA256_CTX *ctx) {
+static void sha256_init(scriptgo_sha256_context *ctx) {
     ctx->datalen = 0; ctx->bitlen = 0;
     ctx->state[0] = 0x6a09e667; ctx->state[1] = 0xbb67ae85;
     ctx->state[2] = 0x3c6ef372; ctx->state[3] = 0xa54ff53a;
@@ -403,7 +403,7 @@ static void sha256_init(SHA256_CTX *ctx) {
     ctx->state[6] = 0x1f83d9ab; ctx->state[7] = 0x5be0cd19;
 }
 
-static void sha256_update(SHA256_CTX *ctx, const unsigned char data[], size_t len) {
+static void sha256_update(scriptgo_sha256_context *ctx, const unsigned char data[], size_t len) {
     for (size_t i = 0; i < len; ++i) {
         ctx->data[ctx->datalen] = data[i];
         ctx->datalen++;
@@ -415,7 +415,7 @@ static void sha256_update(SHA256_CTX *ctx, const unsigned char data[], size_t le
     }
 }
 
-static void sha256_final(unsigned char hash[32], SHA256_CTX *ctx) {
+static void sha256_final(unsigned char hash[32], scriptgo_sha256_context *ctx) {
     unsigned int i = ctx->datalen;
     if (ctx->datalen < 56) {
         ctx->data[i++] = 0x80;
@@ -455,7 +455,7 @@ typedef struct {
     uint64_t state[8];
     uint64_t bitcount[2];
     unsigned char buffer[128];
-} SHA512_CTX;
+} scriptgo_sha512_context;
 
 #define ROTR64(x, n) (((x) >> (n)) | ((x) << (64 - (n))))
 #define CH_512(x, y, z) (((x) & (y)) ^ (~(x) & (z)))
@@ -488,7 +488,7 @@ static const uint64_t K512[80] = {
     0x4cc5d4becb3e42b6ULL, 0x597f299cfc657e2aULL, 0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL
 };
 
-static void sha512_transform(SHA512_CTX *ctx, const unsigned char *buffer) {
+static void sha512_transform(scriptgo_sha512_context *ctx, const unsigned char *buffer) {
     uint64_t a = ctx->state[0], b = ctx->state[1], c = ctx->state[2], d = ctx->state[3];
     uint64_t e = ctx->state[4], f = ctx->state[5], g = ctx->state[6], h = ctx->state[7];
     uint64_t W[80];
@@ -511,7 +511,7 @@ static void sha512_transform(SHA512_CTX *ctx, const unsigned char *buffer) {
     ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
 }
 
-static void sha512_init(SHA512_CTX *ctx) {
+static void sha512_init(scriptgo_sha512_context *ctx) {
     ctx->state[0] = 0x6a09e667f3bcc908ULL; ctx->state[1] = 0xbb67ae8584caa73bULL;
     ctx->state[2] = 0x3c6ef372fe94f82bULL; ctx->state[3] = 0xa54ff53a5f1d36f1ULL;
     ctx->state[4] = 0x510e527fade682d1ULL; ctx->state[5] = 0x9b05688c2b3e6c1fULL;
@@ -519,7 +519,7 @@ static void sha512_init(SHA512_CTX *ctx) {
     ctx->bitcount[0] = ctx->bitcount[1] = 0;
 }
 
-static void sha512_update(SHA512_CTX *ctx, const unsigned char *data, size_t len) {
+static void sha512_update(scriptgo_sha512_context *ctx, const unsigned char *data, size_t len) {
     size_t left = (ctx->bitcount[0] >> 3) & 127;
     size_t fill = 128 - left;
     ctx->bitcount[0] += (uint64_t)len << 3;
@@ -537,7 +537,7 @@ static void sha512_update(SHA512_CTX *ctx, const unsigned char *data, size_t len
     if (len) memcpy(ctx->buffer + left, data, len);
 }
 
-static void sha512_final(unsigned char digest[64], SHA512_CTX *ctx) {
+static void sha512_final(unsigned char digest[64], scriptgo_sha512_context *ctx) {
     size_t last = (ctx->bitcount[0] >> 3) & 127;
     size_t padn = (last < 112) ? (112 - last) : (240 - last);
     static const unsigned char PADDING[128] = { 0x80 };
@@ -560,7 +560,7 @@ static void sha512_final(unsigned char digest[64], SHA512_CTX *ctx) {
 // -------------------------------------------------------------
 static int compute_raw_hash(const char *algo, const unsigned char *data, size_t len, unsigned char *out_hash, size_t *out_len) {
     if (strcasecmp(algo, "sha256") == 0 || strcasecmp(algo, "sha-256") == 0) {
-        SHA256_CTX ctx;
+        scriptgo_sha256_context ctx;
         sha256_init(&ctx);
         sha256_update(&ctx, data, len);
         sha256_final(out_hash, &ctx);
@@ -568,7 +568,7 @@ static int compute_raw_hash(const char *algo, const unsigned char *data, size_t 
         return 0;
     }
     if (strcasecmp(algo, "sha512") == 0 || strcasecmp(algo, "sha-512") == 0) {
-        SHA512_CTX ctx;
+        scriptgo_sha512_context ctx;
         sha512_init(&ctx);
         sha512_update(&ctx, data, len);
         sha512_final(out_hash, &ctx);
@@ -594,9 +594,22 @@ static int compute_raw_hash(const char *algo, const unsigned char *data, size_t 
     return -1;
 }
 
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646
+#endif
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252
+#endif
+
+int scriptgo_crypto_hash_digest_buffer(const char *algo, void *data_handle, const char *encoding, char **out_digest);
+
 int scriptgo_crypto_hash_digest(const char *algo, const char *data, const char *encoding, char **out_digest) {
     if (algo == NULL || data == NULL || out_digest == NULL) {
         return crypto_fail("crypto.createHash: invalid arguments");
+    }
+    const uint32_t magic = *(const uint32_t *)data;
+    if (magic == SCRIPTGO_MAGIC_BUFFER || magic == SCRIPTGO_MAGIC_TYPEDARRAY) {
+        return scriptgo_crypto_hash_digest_buffer(algo, (void *)data, encoding, out_digest);
     }
     unsigned char hash[64];
     size_t hash_len = 0;

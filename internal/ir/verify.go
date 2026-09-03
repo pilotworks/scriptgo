@@ -143,7 +143,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				leftType := known[instruction.Args[0]]
 				rightType := known[instruction.Args[1]]
 				if leftType != rightType {
-					return fmt.Errorf("binary operands must have the same type")
+					return fmt.Errorf("binary operands must have the same type (operator=%q, left=%s, right=%s, args=%v)", instruction.Operator, leftType, rightType, instruction.Args)
 				}
 				if leftType == TypeBool {
 					if instruction.Operator != "&&" && instruction.Operator != "||" {

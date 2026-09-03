@@ -146,48 +146,64 @@ static void b64_neon_decode_block(const char *input, unsigned char *output) {
 #endif
 
 int scriptgo_web_atob(const char *input, char **out_decoded) {
+    char *normalized;
+    size_t raw_len;
+    size_t in_len = 0;
+    size_t pad = 0;
     if (input == NULL || out_decoded == NULL) {
         return web_fail("scriptgo atob invalid arguments");
     }
-    size_t in_len = strlen(input);
+    raw_len = strlen(input);
+    normalized = (char *)malloc(raw_len + 1);
+    if (normalized == NULL) return web_fail("scriptgo atob allocation failed");
+    for (size_t i = 0; i < raw_len; i++) {
+        char value = input[i];
+        if (value == ' ' || value == '\t' || value == '\n' || value == '\r' || value == '\f') continue;
+        normalized[in_len++] = value;
+    }
+    normalized[in_len] = '\0';
     if (in_len % 4 != 0) {
+        free(normalized);
         return web_fail("InvalidCharacterError: The string to be decoded is not correctly encoded.");
     }
-    size_t pad = 0;
     if (in_len > 0) {
-        if (input[in_len - 1] == '=') pad++;
-        if (in_len > 1 && input[in_len - 2] == '=') pad++;
+        if (normalized[in_len - 1] == '=') pad++;
+        if (in_len > 1 && normalized[in_len - 2] == '=') pad++;
     }
     size_t out_len = (in_len / 4) * 3 - pad;
     char *decoded = (char *)malloc(out_len + 1);
     if (decoded == NULL) {
+        free(normalized);
         return web_fail("scriptgo atob allocation failed");
     }
 
     size_t j = 0;
     size_t i = 0;
 #if defined(SCRIPTGO_HAS_NEON_BASE64)
-    while (in_len - i >= 16 && memchr(input + i, '=', 16) == NULL) {
+    while (in_len - i >= 16 && memchr(normalized + i, '=', 16) == NULL) {
         int valid = 1;
         for (size_t k = 0; k < 16; k++) {
-            if (b64_char_value(input[i + k]) < 0) {
+            if (b64_char_value(normalized[i + k]) < 0) {
                 valid = 0;
                 break;
             }
         }
         if (!valid) break;
-        b64_neon_decode_block(input + i, (unsigned char *)decoded + j);
+        b64_neon_decode_block(normalized + i, (unsigned char *)decoded + j);
         i += 16;
         j += 12;
     }
 #endif
     for (; i < in_len; i += 4) {
-        int v0 = b64_char_value(input[i]);
-        int v1 = b64_char_value(input[i + 1]);
-        int v2 = input[i + 2] == '=' ? 0 : b64_char_value(input[i + 2]);
-        int v3 = input[i + 3] == '=' ? 0 : b64_char_value(input[i + 3]);
+        int v0 = b64_char_value(normalized[i]);
+        int v1 = b64_char_value(normalized[i + 1]);
+        int v2 = normalized[i + 2] == '=' ? 0 : b64_char_value(normalized[i + 2]);
+        int v3 = normalized[i + 3] == '=' ? 0 : b64_char_value(normalized[i + 3]);
 
-        if (v0 < 0 || v1 < 0 || (input[i + 2] != '=' && v2 < 0) || (input[i + 3] != '=' && v3 < 0)) {
+        if (v0 < 0 || v1 < 0 || (normalized[i + 2] != '=' && v2 < 0) || (normalized[i + 3] != '=' && v3 < 0) ||
+            (normalized[i + 2] == '=' && normalized[i + 3] != '=') ||
+            ((normalized[i + 2] == '=' || normalized[i + 3] == '=') && i + 4 != in_len)) {
+            free(normalized);
             free(decoded);
             return web_fail("InvalidCharacterError: The string to be decoded contains invalid characters.");
         }
@@ -199,6 +215,7 @@ int scriptgo_web_atob(const char *input, char **out_decoded) {
         if (j < out_len) decoded[j++] = (char)(triple & 0xFF);
     }
     decoded[out_len] = '\0';
+    free(normalized);
     *out_decoded = decoded;
     return 0;
 }
@@ -419,4 +436,3 @@ int scriptgo_stream_set_default_high_water_mark(int32_t is_object, double hwm) {
     }
     return 0;
 }
-

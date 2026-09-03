@@ -278,6 +278,40 @@ func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinInt
 	}
 }
 
+func lowerFsReadFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	if len(call.Expression.Arguments) < 1 || len(call.Expression.Arguments) > 2 {
+		return "", "", fmt.Errorf("builtin %s expects between 1 and 2 argument(s)", intrinsic.Name)
+	}
+	args := make([]string, 0, len(call.Expression.Arguments))
+	for _, argument := range call.Expression.Arguments {
+		value, typ, err := call.LowerExpression(call.Path, argument, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		if err != nil {
+			return "", "", err
+		}
+		if typ != ir.TypeString && typ != ir.TypeUnknown {
+			return "", "", fmt.Errorf("builtin %s does not support %s", intrinsic.Name, typ)
+		}
+		args = append(args, value)
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	returnType := ir.TypeBuffer
+	if len(args) == 2 && call.Expression.Arguments[1].Kind != "undefined" {
+		returnType = ir.TypeString
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   returnType,
+		Result: result,
+		Callee: "__fs.readFileSync",
+		Args:   args,
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
+	return result, returnType, nil
+}
+
 func initIntrinsics() map[string]BuiltinIntrinsic {
 	m := make(map[string]BuiltinIntrinsic)
 
@@ -774,7 +808,13 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.ppid"}, CategoryNodeGlobal, "__process.ppid", nil, ir.TypeNumber, 0, 0)
 	register([]string{"__scriptgo.version"}, CategoryNodeGlobal, "__process.version", nil, ir.TypeString, 0, 0)
 
-	register([]string{"__scriptgo.readFileSync"}, CategoryNodeModule, "__fs.readFileSync", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeString, 1, 2)
+	m["__scriptgo.readFileSync"] = BuiltinIntrinsic{
+		Category: CategoryNodeModule,
+		Name:     "__scriptgo.readFileSync",
+		MinArgs:  1,
+		MaxArgs:  2,
+		Lower:    lowerFsReadFileSync,
+	}
 	register([]string{"__scriptgo.writeFileSync"}, CategoryNodeModule, "__fs.writeFileSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.existsSync"}, CategoryNodeModule, "__fs.existsSync", []ir.Type{ir.TypeString}, ir.TypeBool, 1, 1)
 	register([]string{"__scriptgo.unlinkSync"}, CategoryNodeModule, "__fs.unlinkSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 1, 1)
@@ -813,8 +853,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.rmdirSync"}, CategoryNodeModule, "__fs.rmdirSync", []ir.Type{ir.TypeString}, ir.TypeVoid, 1, 1)
 
 	register([]string{"crypto.randomUUID", "__scriptgo.randomUUID", "randomUUID"}, CategoryNodeModule, "__crypto.randomUUID", nil, ir.TypeString, 0, 0)
-	register([]string{"crypto.hashDigest", "__scriptgo.hashDigest", "hashDigest"}, CategoryNodeModule, "__crypto.hashDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 2, 3)
-	register([]string{"crypto.hashDigestBuffer", "__scriptgo.hashDigestBuffer", "hashDigestBuffer"}, CategoryNodeModule, "__crypto.hashDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeString}, ir.TypeString, 2, 3)
+	register([]string{"crypto.hashDigest", "__scriptgo.hashDigest", "hashDigest"}, CategoryNodeModule, "__crypto.hashDigest", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeUint8Array, ir.TypeUnknown, ir.TypeObject}, ir.TypeString, 2, 3)
+	register([]string{"crypto.hashDigestBuffer", "__scriptgo.hashDigestBuffer", "hashDigestBuffer"}, CategoryNodeModule, "__crypto.hashDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeUint8Array, ir.TypeUnknown, ir.TypeObject}, ir.TypeString, 2, 3)
 	register([]string{"crypto.randomBytes", "__scriptgo.randomBytes", "randomBytes"}, CategoryNodeModule, "__crypto.randomBytes", []ir.Type{ir.TypeNumber}, ir.TypeBuffer, 1, 1)
 	register([]string{"crypto.randomInt", "__scriptgo.randomInt", "randomInt"}, CategoryNodeModule, "__crypto.randomInt", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 2, 2)
 	register([]string{"crypto.randomFill", "__scriptgo.randomFill", "randomFill"}, CategoryNodeModule, "__crypto.randomFill", []ir.Type{ir.TypeBuffer, ir.TypeNumber, ir.TypeNumber}, ir.TypeBuffer, 1, 3)
@@ -864,6 +904,86 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.sqliteCreateFunction"}, CategoryNodeModule, "__sqlite.createFunction", nil, ir.TypeVoid, 4, 5)
 	register([]string{"__scriptgo.sqliteCreateAggregate"}, CategoryNodeModule, "__sqlite.createAggregate", nil, ir.TypeVoid, 4, 5)
 	register([]string{"__scriptgo.sqliteBackup"}, CategoryNodeModule, "__sqlite.backup", nil, ir.TypeNumber, 2, 2)
+
+	// DNS Intrinsics
+	register([]string{"__scriptgo.dnsLookup"}, CategoryNodeModule, "__dns.lookup", []ir.Type{ir.TypeString, ir.TypeNumber}, ir.TypeObject, 1, 2)
+	register([]string{"__scriptgo.dnsLookupService"}, CategoryNodeModule, "__dns.lookupService", []ir.Type{ir.TypeString, ir.TypeNumber}, ir.TypeObject, 2, 2)
+	register([]string{"__scriptgo.dnsReverse"}, CategoryNodeModule, "__dns.reverse", []ir.Type{ir.TypeString}, ir.TypeStringArray, 1, 1)
+	register([]string{"__scriptgo.dnsResolveStrings"}, CategoryNodeModule, "__dns.resolveStrings", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeStringArray, 2, 2)
+	register([]string{"__scriptgo.dnsResolveTxt"}, CategoryNodeModule, "__dns.resolveTxt", []ir.Type{ir.TypeString}, ir.TypeStringArray, 1, 1)
+	register([]string{"__scriptgo.dnsResolveMx"}, CategoryNodeModule, "__dns.resolveMx", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
+	register([]string{"__scriptgo.dnsResolveSrv"}, CategoryNodeModule, "__dns.resolveSrv", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
+	register([]string{"__scriptgo.dnsResolveSoa"}, CategoryNodeModule, "__dns.resolveSoa", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
+	register([]string{"__scriptgo.dnsResolveCaa"}, CategoryNodeModule, "__dns.resolveCaa", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
+	register([]string{"__scriptgo.dnsResolveNaptr"}, CategoryNodeModule, "__dns.resolveNaptr", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
+
+	// Net TCP Intrinsics
+	register([]string{"__scriptgo.netSocketCreate"}, CategoryNodeModule, "__net.socketCreate", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 0, 2)
+	register([]string{"__scriptgo.netSocketConnect"}, CategoryNodeModule, "__net.socketConnect", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.netSocketWrite"}, CategoryNodeModule, "__net.socketWrite", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeNumber, 3, 3)
+	register([]string{"__scriptgo.netSocketRead"}, CategoryNodeModule, "__net.socketRead", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeString, 2, 2)
+	register([]string{"__scriptgo.netSocketClose"}, CategoryNodeModule, "__net.socketClose", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.netServerListen"}, CategoryNodeModule, "__net.serverListen", []ir.Type{ir.TypeString, ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 3, 3)
+	register([]string{"__scriptgo.netServerAccept"}, CategoryNodeModule, "__net.serverAccept", []ir.Type{ir.TypeNumber}, ir.TypeObject, 1, 1)
+
+	// Dgram UDP Intrinsics
+	register([]string{"__scriptgo.dgramSocketCreate"}, CategoryNodeModule, "__dgram.socketCreate", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 0, 1)
+	register([]string{"__scriptgo.dgramBind"}, CategoryNodeModule, "__dgram.bind", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.dgramSend"}, CategoryNodeModule, "__dgram.send", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber, ir.TypeNumber, ir.TypeString}, ir.TypeNumber, 5, 5)
+	register([]string{"__scriptgo.dgramRecv"}, CategoryNodeModule, "__dgram.recv", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeObject, 2, 2)
+	register([]string{"__scriptgo.dgramSetBroadcast"}, CategoryNodeModule, "__dgram.setBroadcast", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramSetMulticastTTL"}, CategoryNodeModule, "__dgram.setMulticastTTL", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramSetMulticastLoopback"}, CategoryNodeModule, "__dgram.setMulticastLoopback", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramSetRecvBufferSize"}, CategoryNodeModule, "__dgram.setRecvBufferSize", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramSetSendBufferSize"}, CategoryNodeModule, "__dgram.setSendBufferSize", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramGetRecvBufferSize"}, CategoryNodeModule, "__dgram.getRecvBufferSize", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
+	register([]string{"__scriptgo.dgramGetSendBufferSize"}, CategoryNodeModule, "__dgram.getSendBufferSize", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
+	register([]string{"__scriptgo.dgramSetTTL"}, CategoryNodeModule, "__dgram.setTTL", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramSetMulticastInterface"}, CategoryNodeModule, "__dgram.setMulticastInterface", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.dgramAddMembership"}, CategoryNodeModule, "__dgram.addMembership", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.dgramDropMembership"}, CategoryNodeModule, "__dgram.dropMembership", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.dgramAddSourceSpecificMembership"}, CategoryNodeModule, "__dgram.addSourceSpecificMembership", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeVoid, 4, 4)
+	register([]string{"__scriptgo.dgramDropSourceSpecificMembership"}, CategoryNodeModule, "__dgram.dropSourceSpecificMembership", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeVoid, 4, 4)
+	register([]string{"__scriptgo.dgramConnect"}, CategoryNodeModule, "__dgram.connect", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.dgramDisconnect"}, CategoryNodeModule, "__dgram.disconnect", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.dgramClose"}, CategoryNodeModule, "__dgram.close", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+
+	// TLS intrinsics. The TypeScript node:tls adapter owns option handling and
+	// object/event semantics; these calls expose only the native TLS ABI.
+	register([]string{"__scriptgo.tlsContextCreate"}, CategoryNodeModule, "__tls.contextCreate", []ir.Type{ir.TypeString, ir.TypeBool}, ir.TypeNumber, 7, 7)
+	register([]string{"__scriptgo.tlsSocketCreate"}, CategoryNodeModule, "__tls.socketCreate", []ir.Type{ir.TypeNumber, ir.TypeBool}, ir.TypeNumber, 2, 2)
+	register([]string{"__scriptgo.tlsSocketConnect"}, CategoryNodeModule, "__tls.socketConnect", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber, ir.TypeString, ir.TypeBool, ir.TypeUint8Array}, ir.TypeNumber, 6, 6)
+	register([]string{"__scriptgo.tlsSocketAdopt"}, CategoryNodeModule, "__tls.socketAdopt", []ir.Type{ir.TypeNumber, ir.TypeNumber, ir.TypeString, ir.TypeBool, ir.TypeBool, ir.TypeBool, ir.TypeUint8Array}, ir.TypeNumber, 7, 7)
+	register([]string{"__scriptgo.tlsSocketWrite"}, CategoryNodeModule, "__tls.socketWrite", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeNumber, 3, 3)
+	register([]string{"__scriptgo.tlsSocketWriteBytes"}, CategoryNodeModule, "__tls.socketWriteBytes", []ir.Type{ir.TypeNumber, ir.TypeUint8Array, ir.TypeBuffer}, ir.TypeNumber, 2, 2)
+	register([]string{"__scriptgo.tlsSocketRead"}, CategoryNodeModule, "__tls.socketRead", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeString, 2, 2)
+	register([]string{"__scriptgo.tlsPairWrite"}, CategoryNodeModule, "__tls.pairWrite", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeNumber, 4, 4)
+	register([]string{"__scriptgo.tlsPairWriteBytes"}, CategoryNodeModule, "__tls.pairWriteBytes", []ir.Type{ir.TypeNumber, ir.TypeUint8Array, ir.TypeBuffer}, ir.TypeNumber, 3, 3)
+	register([]string{"__scriptgo.tlsPairRead"}, CategoryNodeModule, "__tls.pairRead", []ir.Type{ir.TypeNumber}, ir.TypeString, 3, 3)
+	register([]string{"__scriptgo.tlsSocketClose"}, CategoryNodeModule, "__tls.socketClose", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.tlsSocketInfo"}, CategoryNodeModule, "__tls.socketInfo", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeString, 2, 2)
+	register([]string{"__scriptgo.tlsSocketNumber"}, CategoryNodeModule, "__tls.socketNumber", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeNumber, 2, 2)
+	register([]string{"__scriptgo.tlsSocketBool"}, CategoryNodeModule, "__tls.socketBool", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeBool, 2, 2)
+	register([]string{"__scriptgo.tlsExportKeyingMaterial"}, CategoryNodeModule, "__tls.exportKeyingMaterial", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString, ir.TypeUint8Array}, ir.TypeString, 4, 4)
+	register([]string{"__scriptgo.tlsSocketSetOption"}, CategoryNodeModule, "__tls.socketSetOption", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.tlsSocketSetServername"}, CategoryNodeModule, "__tls.socketSetServername", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.tlsSocketSetSession"}, CategoryNodeModule, "__tls.socketSetSession", []ir.Type{ir.TypeNumber, ir.TypeUint8Array}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.tlsSocketSetKeyCert"}, CategoryNodeModule, "__tls.socketSetKeyCert", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.tlsSocketRenegotiate"}, CategoryNodeModule, "__tls.socketRenegotiate", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"__scriptgo.tlsPairCreate"}, CategoryNodeModule, "__tls.pairCreate", []ir.Type{ir.TypeNumber, ir.TypeBool}, ir.TypeNumber, 4, 4)
+	register([]string{"__scriptgo.tlsServerListen"}, CategoryNodeModule, "__tls.serverListen", []ir.Type{ir.TypeNumber, ir.TypeBool, ir.TypeString}, ir.TypeNumber, 6, 6)
+	register([]string{"__scriptgo.tlsServerAccept"}, CategoryNodeModule, "__tls.serverAccept", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
+	register([]string{"__scriptgo.tlsServerClose"}, CategoryNodeModule, "__tls.serverClose", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.tlsServerInfo"}, CategoryNodeModule, "__tls.serverInfo", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeString, 2, 2)
+	register([]string{"__scriptgo.tlsServerSetContext"}, CategoryNodeModule, "__tls.serverSetContext", []ir.Type{ir.TypeNumber, ir.TypeBool}, ir.TypeVoid, 4, 4)
+	register([]string{"__scriptgo.tlsServerAddContext"}, CategoryNodeModule, "__tls.serverAddContext", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 3, 3)
+	register([]string{"__scriptgo.tlsServerSetTicketKeys"}, CategoryNodeModule, "__tls.serverSetTicketKeys", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.tlsX509ParsePem"}, CategoryNodeModule, "__tls.x509ParsePem", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
+	register([]string{"__scriptgo.tlsX509ParseBytes"}, CategoryNodeModule, "__tls.x509ParseBytes", []ir.Type{ir.TypeUint8Array, ir.TypeBuffer}, ir.TypeString, 1, 1)
+	register([]string{"__scriptgo.tlsCiphers"}, CategoryNodeModule, "__tls.ciphers", nil, ir.TypeString, 0, 0)
+	register([]string{"__scriptgo.tlsRootCertificates"}, CategoryNodeModule, "__tls.rootCertificates", nil, ir.TypeString, 0, 0)
+	register([]string{"__scriptgo.tlsSystemCertificates"}, CategoryNodeModule, "__tls.systemCertificates", nil, ir.TypeString, 0, 0)
+	register([]string{"__scriptgo.tlsExtraCertificates"}, CategoryNodeModule, "__tls.extraCertificates", nil, ir.TypeString, 0, 0)
 
 	registerObjectIntrinsics(m)
 	registerBufferIntrinsics(m)

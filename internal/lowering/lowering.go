@@ -39,6 +39,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	defer func() {
 		WarnRuntimeCasts = prevWarn
 	}()
+	checkedProgram := program
+	program = runtimeProgram(checkedProgram)
 	extraFunctions = nil
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
@@ -62,6 +64,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	if err := validateSubsetLocked(program); err != nil {
 		return ir.Module{}, err
 	}
+	initializeClassIdentities(program)
+	initializeFunctionIdentities(program)
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
 	typeAliasesIndex = map[string]string{}
 	for _, file := range program.Files {
@@ -132,8 +136,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				if statement.Kind == "type_alias" && len(statement.Class.Fields) == 0 {
 					return
 				}
-				shape := ir.ObjectShape{Name: statement.Class.Name, Span: toIRSpan(fileName, statement.Class.Span)}
-				allFields := getInheritedFields(statement.Class.Name, hierarchy)
+				className := classIdentityForPath(fileName, statement.Class.Name)
+				shape := ir.ObjectShape{Name: className, Span: toIRSpan(fileName, statement.Class.Span)}
+				allFields := getInheritedFields(className, hierarchy)
 				if len(allFields) == 0 {
 					allFields = statement.Class.Fields
 				}
@@ -150,10 +155,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					if fTypeStr == "" {
 						fTypeStr = field.InferredType
 					}
-					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRType(fTypeStr), Value: val, Span: toIRSpan(fileName, field.Span)})
-				}
-				if len(shape.Fields) == 0 && statement.Kind == "class" {
-					shape.Fields = append(shape.Fields, ir.Field{Name: "__dummy", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(fileName, statement.Class.Span)})
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRTypeForPath(fileName, fTypeStr), Value: val, Optional: field.Optional, Span: toIRSpan(fileName, field.Span)})
 				}
 				if statement.Kind == "interface" {
 					if _, exists := shapes[shape.Name]; exists {
@@ -168,7 +170,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 				}
 				shapes[shape.Name] = shape
-				baseName := statement.Class.Name
+				baseName := className
 				if idx := strings.Index(baseName, "<"); idx != -1 {
 					baseName = baseName[:idx]
 					shapes[baseName] = shape
@@ -199,6 +201,13 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		for _, statement := range file.Syntax.Statements {
 			collectShapes(file.FileName, statement)
 		}
+	}
+	for _, shape := range typeOnlyShapes(checkedProgram, program) {
+		if _, exists := shapes[shape.Name]; exists {
+			continue
+		}
+		shapes[shape.Name] = shape
+		module.Shapes = append(module.Shapes, shape)
 	}
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
@@ -286,7 +295,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for clsName, meta := range hierarchy {
 		for fName, field := range meta.Statics {
 			globalName := clsName + "_" + fName
-			globalType := toIRType(field.Type)
+			globalType := toIRTypeForPath(meta.FileName, field.Type)
 			if globalType == "" {
 				globalType = ir.TypeNumber
 			}
@@ -384,7 +393,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
-				RegisterGeneratorStatement(statement.Name, statement)
+				RegisterGeneratorStatement(functionIdentityForPath(file.FileName, statement.Name), statement)
 			}
 		}
 	}
@@ -415,7 +424,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if (statement.Kind == "function" || statement.Kind == "async_function") && len(statement.Body) > 0 {
-				implementedFunctions[statement.Name] = true
+				implementedFunctions[functionIdentityForPath(file.FileName, statement.Name)] = true
 			}
 		}
 	}
@@ -423,7 +432,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, file := range program.Files {
 		for _, statement := range file.Syntax.Statements {
 			if statement.Kind == "declare_function" {
-				if implementedFunctions[statement.Name] {
+				if implementedFunctions[functionIdentityForPath(file.FileName, statement.Name)] {
 					continue
 				}
 				retType := toIRType(statement.Type)
@@ -442,7 +451,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					params = append(params, ir.Parameter{Name: p.Name, Type: toIRType(pType)})
 				}
 				module.Externs = append(module.Externs, ir.ExternFunction{
-					Name:       statement.Name,
+					Name:       functionIdentityForPath(file.FileName, statement.Name),
 					Span:       toIRSpan(file.FileName, statement.Span),
 					Parameters: params,
 					ReturnType: retType,
@@ -453,13 +462,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				if len(statement.TypeParameters) > 0 {
 					continue
 				}
-				if len(statement.Body) == 0 && implementedFunctions[statement.Name] {
+				if len(statement.Body) == 0 && implementedFunctions[functionIdentityForPath(file.FileName, statement.Name)] {
 					continue
 				}
 				fnCopy := statement
-				if fnCopy.Name == "main" {
-					fnCopy.Name = "main$user"
-				}
+				fnCopy.Name = functionIdentityForPath(file.FileName, statement.Name)
 				function, err := lowerFunction(file.FileName, fnCopy, shapes, signatures)
 				if err != nil {
 					return ir.Module{}, fmt.Errorf("lower function %q: %w", statement.Name, sourceError(file.FileName, statement.Span, err))
@@ -473,6 +480,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				if statement.Class == nil || len(statement.Class.TypeParameters) > 0 {
 					return nil
 				}
+				className := classIdentityForPath(fileName, statement.Class.Name)
 				var fieldInits []typescriptgo.SyntaxStatement
 				for _, f := range statement.Class.Fields {
 					if !f.IsStatic && f.Initializer != nil {
@@ -492,7 +500,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 
 				// Lower constructor if present
 				if statement.Class.Constructor != nil {
-					ctorMangled := statement.Class.Name + "_constructor"
+					ctorMangled := className + "_constructor"
 					var ctorBody []typescriptgo.SyntaxStatement
 					if len(statement.Class.Constructor.Body) > 0 && statement.Class.Constructor.Body[0].Expression != nil && statement.Class.Constructor.Body[0].Expression.Kind == "call" && statement.Class.Constructor.Body[0].Expression.Left != nil && statement.Class.Constructor.Body[0].Expression.Left.Text == "super" {
 						ctorBody = append(ctorBody, statement.Class.Constructor.Body[0])
@@ -508,7 +516,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						Name: ctorMangled,
 						Type: "void",
 						Parameters: append([]typescriptgo.SyntaxParameter{
-							{Name: "this", Type: "object:" + statement.Class.Name},
+							{Name: "this", Type: "object:" + className},
 						}, statement.Class.Constructor.Parameters...),
 						Body: ctorBody,
 					}
@@ -521,7 +529,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 
 				// Lower methods, static methods, getters, setters
-				allMethods := getInheritedMethods(statement.Class.Name, hierarchy)
+				allMethods := getInheritedMethods(className, hierarchy)
 				for _, method := range allMethods {
 					if method.IsAbstract || method.Body == nil {
 						continue
@@ -533,7 +541,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					// class type at each method boundary. Keeping it as the literal
 					// `this` type makes the next chained call lose its receiver class.
 					if retType == "this" || retType == "object:this" {
-						retType = "object:" + statement.Class.Name
+						retType = "object:" + className
 					}
 					var cleanParams []typescriptgo.SyntaxParameter
 					for _, p := range method.Parameters {
@@ -542,18 +550,18 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						}
 					}
 					if method.IsStatic {
-						mangled = statement.Class.Name + "_static_" + method.Name
+						mangled = className + "_static_" + method.Name
 						params = cleanParams
 					} else if method.Kind == "get" {
-						mangled = statement.Class.Name + "_get_" + method.Name
-						params = []typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}
+						mangled = className + "_get_" + method.Name
+						params = []typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}
 					} else if method.Kind == "set" {
-						mangled = statement.Class.Name + "_set_" + method.Name
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, cleanParams...)
+						mangled = className + "_set_" + method.Name
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 						retType = "void"
 					} else {
-						mangled = statement.Class.Name + "_" + method.Name
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + statement.Class.Name}}, cleanParams...)
+						mangled = className + "_" + method.Name
+						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 					}
 					methodStmt := typescriptgo.SyntaxStatement{
 						Span:       method.Span,
@@ -571,7 +579,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					module.Functions = append(module.Functions, function)
 					signatures[mangled] = function
 					if method.IsStatic {
-						signatures[statement.Class.Name+"."+method.Name] = function
+						signatures[className+"."+method.Name] = function
 					}
 				}
 
@@ -582,7 +590,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						case typescriptgo.StaticElementField:
 							f := elem.Field
 							if f != nil && f.IsStatic && f.Initializer != nil {
-								staticVar := statement.Class.Name + "_" + f.Name
+								staticVar := className + "_" + f.Name
 								_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
 								if err == nil {
 									env[staticVar] = valType
@@ -599,7 +607,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				} else {
 					for _, f := range statement.Class.Fields {
 						if f.IsStatic && f.Initializer != nil {
-							staticVar := statement.Class.Name + "_" + f.Name
+							staticVar := className + "_" + f.Name
 							_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, &main, env, &counter, shapes, signatures)
 							if err == nil {
 								env[staticVar] = valType

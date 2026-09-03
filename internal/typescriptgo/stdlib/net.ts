@@ -1,5 +1,15 @@
 // ScriptGo Standard Library: node:net
 
+declare namespace __scriptgo {
+    function netSocketCreate(family?: number, sockType?: number): number;
+    function netSocketConnect(fd: number, host: string, port: number): void;
+    function netSocketWrite(fd: number, data: string, len: number): number;
+    function netSocketRead(fd: number, maxLen: number): string;
+    function netSocketClose(fd: number): void;
+    function netServerListen(host: string, port: number, backlog: number): number;
+    function netServerAccept(serverFd: number): { fd: number; ip: string; port: number };
+}
+
 class NetListenerEntry {
     fn: Function;
     once: boolean;
@@ -219,6 +229,7 @@ export class Socket {
     remoteFamily: string = "IPv4";
     timeout: number = 0;
     autoSelectFamilyAttemptedAddresses: string[] = [];
+    _fd: number = -1;
 
     _buckets: NetEventBucket[] = [];
 
@@ -227,6 +238,7 @@ export class Socket {
         this.destroyed = false;
         this.pending = false;
         this.readyState = "open";
+        this._fd = -1;
     }
 
     private _getBucket(name: string): NetEventBucket {
@@ -288,7 +300,16 @@ export class Socket {
         } else if (typeof hostOrListener === "function") {
             this.once("connect", hostOrListener);
         }
-        this.emit("connect");
+        try {
+            if (this._fd < 0) {
+                this._fd = __scriptgo.netSocketCreate(4, 1);
+            }
+            __scriptgo.netSocketConnect(this._fd, this.remoteAddress, this.remotePort);
+            this.emit("connect");
+        } catch (err) {
+            this.emit("error", err);
+            this.destroy();
+        }
         return this;
     }
 
@@ -296,13 +317,46 @@ export class Socket {
         if (this.destroyed) {
             return false;
         }
-        this.bytesWritten += typeof data === "string" ? data.length : data.byteLength;
+        let byteCount = 0;
+        let strData = "";
+        if (typeof data === "string") {
+            strData = data;
+            byteCount = data.length;
+        } else if (data && typeof data === "object") {
+            const arr = data as Uint8Array;
+            byteCount = arr.byteLength !== undefined ? arr.byteLength : (arr.length !== undefined ? arr.length : 0);
+            strData = String(data);
+        }
+        this.bytesWritten += byteCount;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.netSocketWrite(this._fd, strData, byteCount);
+            } catch (err) {
+                this.emit("error", err);
+            }
+        }
         if (typeof encodingOrCb === "function") {
             encodingOrCb();
         } else if (callback !== null) {
             callback();
         }
         return true;
+    }
+
+    read(size: number = 65536): string {
+        if (this._fd >= 0 && !this.destroyed) {
+            try {
+                const data = __scriptgo.netSocketRead(this._fd, size);
+                this.bytesRead += data.length;
+                if (data.length > 0) {
+                    this.emit("data", data);
+                }
+                return data;
+            } catch (err) {
+                this.emit("error", err);
+            }
+        }
+        return "";
     }
 
     end(dataOrCb: string | Uint8Array | (() => void) | null = null, encodingOrCb: string | (() => void) | null = null, callback: (() => void) | null = null): Socket {
@@ -326,6 +380,12 @@ export class Socket {
 
     destroy(error: Error | null = null): Socket {
         if (!this.destroyed) {
+            if (this._fd >= 0) {
+                try {
+                    __scriptgo.netSocketClose(this._fd);
+                } catch {}
+                this._fd = -1;
+            }
             this.destroyed = true;
             this.readyState = "closed";
             if (error !== null && error !== undefined) {
@@ -387,18 +447,28 @@ export class Socket {
             address: this.localAddress,
         };
     }
+
+    [Symbol.asyncDispose](): Promise<void> {
+        this.destroy();
+        return Promise.resolve(undefined);
+    }
 }
 
 export class Server {
     listening: boolean = false;
     maxConnections: number = 1000;
+    maxHeadersCount: number = 2000;
+    timeout: number = 0;
+    keepAliveTimeout: number = 5000;
     dropMaxConnection: boolean = false;
 
     _buckets: NetEventBucket[] = [];
     _connectionsCount: number = 0;
-    private _addressPort: number = 0;
+    _addressPort: number = 0;
+    _serverFd: number = -1;
 
     constructor(optionsOrListener: ServerOptions | (() => void) | null = null, listener: (() => void) | null = null) {
+        this._serverFd = -1;
         if (typeof optionsOrListener === "function") {
             this.on("connection", optionsOrListener);
         } else if (typeof listener === "function") {
@@ -448,22 +518,46 @@ export class Server {
 
     listen(portOrOptions: number | string | ListenOptions = 0, hostOrCb: string | (() => void) | null = null, callback: (() => void) | null = null): Server {
         this.listening = true;
+        let port = 0;
+        let host = "0.0.0.0";
+        let backlog = 511;
+
         if (typeof portOrOptions === "number") {
-            this._addressPort = portOrOptions;
-        } else if (typeof portOrOptions === "object") {
-            this._addressPort = portOrOptions.port === undefined ? 0 : portOrOptions.port;
+            port = portOrOptions;
+            this._addressPort = port;
+            if (typeof hostOrCb === "string") host = hostOrCb;
+        } else if (typeof portOrOptions === "string") {
+            host = portOrOptions;
+        } else if (typeof portOrOptions === "object" && portOrOptions !== null) {
+            if (portOrOptions.port !== undefined) {
+                port = portOrOptions.port;
+                this._addressPort = port;
+            }
+            if (portOrOptions.host !== undefined) host = portOrOptions.host;
+            if (portOrOptions.backlog !== undefined) backlog = portOrOptions.backlog;
         }
         if (typeof hostOrCb === "function") {
             this.once("listening", hostOrCb);
         } else if (callback !== null) {
             this.once("listening", callback);
         }
-        this.emit("listening");
+        try {
+            this._serverFd = __scriptgo.netServerListen(host, port, backlog);
+            this.emit("listening");
+        } catch (err) {
+            this.emit("error", err);
+        }
         return this;
     }
 
     close(callback: Function | null = null): Server {
         this.listening = false;
+        if (this._serverFd >= 0) {
+            try {
+                __scriptgo.netSocketClose(this._serverFd);
+            } catch {}
+            this._serverFd = -1;
+        }
         if (callback !== null && callback !== undefined) {
             this.once("close", callback);
         }

@@ -82,14 +82,70 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("arraybuffer.isView requires 1 argument")
 		}
+		argName := instruction.Args[0]
+		arg := ""
+		if e.types[argName] == ir.TypeUnknown || e.isParamUnknown(argName) {
+			if slot, ok := e.varSlots[argName]; ok {
+				loaded := fmt.Sprintf("%s.is_view_load.%d", argName, e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+				argName = loaded
+			}
+			tag := fmt.Sprintf("%s.is_view_tag.%d", argName, e.loadCounter)
+			payload := fmt.Sprintf("%s.is_view_payload.%d", argName, e.loadCounter)
+			payloadPtr := fmt.Sprintf("%s.is_view_ptr.%d", argName, e.loadCounter)
+			objectPtr := fmt.Sprintf("%s.is_view_object.%d", argName, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, argName))
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, argName))
+			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", payloadPtr, payload))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 5\n", objectPtr, tag))
+			arg = fmt.Sprintf("%s.is_view_safe.%d", argName, e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr null\n", arg, objectPtr, payloadPtr))
+		} else {
+			arg = e.ensurePointerArg(out, argName)
+		}
 		slot := instruction.Result + ".is_view.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_arraybuffer_is_view(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_arraybuffer_is_view(ptr %%%s, ptr %%%s)\n", status, arg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
 		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		return nil
+
+	case "__arraybuffer_view.byteLength", "__arraybuffer_view.byteOffset":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("%s requires 1 argument", strings.TrimPrefix(instruction.Callee, "__"))
+		}
+		arg := e.ensurePointerArg(out, instruction.Args[0])
+		function := "scriptgo_arraybuffer_view_byte_length"
+		if instruction.Callee == "__arraybuffer_view.byteOffset" {
+			function = "scriptgo_arraybuffer_view_byte_offset"
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, function, arg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__arraybuffer_view.buffer":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("arraybuffer_view.buffer requires 1 argument")
+		}
+		arg := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_arraybuffer_view_buffer(ptr %%%s, ptr %%%s)\n", status, arg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
 
 	case "__typedarray.new_length":
@@ -244,6 +300,23 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
+	case "__typedarray.new_typed_array":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("typedarray.new_typed_array requires 1 argument")
+		}
+		kind := typedArrayKind(instruction.Type)
+		if instruction.Value != "" {
+			kind = typedArrayKind(ir.Type(instruction.Value))
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_typed_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[0], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil

@@ -209,16 +209,15 @@ func lowerCallExpression(
 						args := []string{receiver}
 						for aIdx, argument := range expression.Arguments {
 							pIdx := aIdx + 1
-							if (argument.Kind == "object_literal" || argument.Kind == "object") && (argument.InferredType == "" || strings.HasPrefix(argument.InferredType, "{")) && pIdx < len(target.Parameters) {
-								paramType := string(target.Parameters[pIdx].Type)
-								argument.InferredType = strings.TrimPrefix(paramType, "object:")
-							}
 							if argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && pIdx < len(target.Parameters) && strings.HasSuffix(string(target.Parameters[pIdx].Type), "[]") {
 								argument.InferredType = string(target.Parameters[pIdx].Type)
 							}
 							argVal, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 							if err != nil {
 								return "", "", err
+							}
+							if pIdx < len(target.Parameters) {
+								argVal, valType, _ = adaptStructuralObjectArgument(path, toIRSpan(path, argument.Span), argVal, valType, target.Parameters[pIdx].Type, function, counter, shapes)
 							}
 							hasRest := (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0
 							restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
@@ -599,7 +598,7 @@ func lowerCallExpression(
 	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member") && expression.Left.Left != nil {
 		className := ""
 		if expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text != "this" {
-			className = expression.Left.Left.Text
+			className = classIdentityForPath(path, expression.Left.Left.Text)
 		} else if (expression.Left.Left.Kind == "this" || (expression.Left.Left.Kind == "identifier" && expression.Left.Left.Text == "this")) && strings.Contains(function.Name, "_static_") {
 			className = strings.Split(function.Name, "_static_")[0]
 		}
@@ -901,7 +900,7 @@ func lowerCallExpression(
 		retType := ir.TypeNumber
 		if rt, ok := env[callee+".retType"]; ok && rt != "" {
 			retType = rt
-		} else if target, ok := signatures[callee]; ok && target.ReturnType != "" {
+		} else if target, ok := resolveFunctionSignature(path, callee, signatures); ok && target.ReturnType != "" {
 			retType = target.ReturnType
 		} else if expression.InferredType != "" {
 			retType = toIRType(expression.InferredType)
@@ -999,7 +998,7 @@ func lowerCallExpression(
 		return "", "", fmt.Errorf("unsupported call target (kind: %s, leftKind: %s, leftText: %s, recvKind: %s, recvText: %s, args: %d)", expression.Kind, leftKind, leftText, receiverKind, receiverText, len(expression.Arguments))
 	}
 
-	target, ok := signatures[callee]
+	target, ok := resolveFunctionSignature(path, callee, signatures)
 	if !ok {
 		if strings.HasPrefix(callee, "fs.promises.") {
 			method := strings.TrimPrefix(callee, "fs.promises.")
@@ -1068,10 +1067,7 @@ func lowerCallExpression(
 	}
 	for aIdx, argument := range expression.Arguments {
 		pIdx := aIdx + paramOffset
-		if (argument.Kind == "object_literal" || argument.Kind == "object") && (argument.InferredType == "" || strings.HasPrefix(argument.InferredType, "{")) && pIdx < len(target.Parameters) {
-			paramType := string(target.Parameters[pIdx].Type)
-			argument.InferredType = strings.TrimPrefix(paramType, "object:")
-		} else if argument.Kind == "array" && pIdx < len(target.Parameters) {
+		if argument.Kind == "array" && pIdx < len(target.Parameters) {
 			paramType := target.Parameters[pIdx].Type
 			shapeName := strings.TrimPrefix(string(paramType), "object:")
 			if shape, ok := shapes[shapeName]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
@@ -1099,6 +1095,18 @@ func lowerCallExpression(
 		value, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
+		}
+		if pIdx < len(target.Parameters) {
+			value, valType, _ = adaptStructuralObjectArgument(
+				path,
+				toIRSpan(path, argument.Span),
+				value,
+				valType,
+				target.Parameters[pIdx].Type,
+				function,
+				counter,
+				shapes,
+			)
 		}
 		hasRest := (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0
 		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray

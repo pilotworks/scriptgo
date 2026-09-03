@@ -15,14 +15,22 @@ func (e *functionEmitter) emitFsIntrinsic(out *strings.Builder, instruction ir.I
 
 	switch instruction.Callee {
 	case "__fs.readFileSync":
-		if len(instruction.Args) < 1 || len(instruction.Args) > 2 || instruction.Type != ir.TypeString {
+		if len(instruction.Args) < 1 || len(instruction.Args) > 2 || (instruction.Type != ir.TypeString && instruction.Type != ir.TypeBuffer) {
 			return fmt.Errorf("fs.readFileSync has invalid signature")
 		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_read_file_sync(ptr %%%s, ptr %%%s)\n", status, resolvedArgs[0], slot)
+		if instruction.Type == ir.TypeBuffer {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_read_file_buffer_sync(ptr %%%s, ptr %%%s)\n", status, resolvedArgs[0], slot)
+		} else {
+			encoding := "null"
+			if len(resolvedArgs) == 2 {
+				encoding = fmt.Sprintf("%%%s", resolvedArgs[1])
+			}
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_fs_read_file_sync(ptr %%%s, ptr %s, ptr %%%s)\n", status, resolvedArgs[0], encoding, slot)
+		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil

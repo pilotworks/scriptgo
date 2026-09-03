@@ -10,6 +10,10 @@ import (
 )
 
 func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+	className := ""
+	if expression.Left != nil && expression.Left.Kind == "identifier" {
+		className = classIdentityForPath(path, expression.Left.Text)
+	}
 	// 1. Check built-in global constants (e.g. Math.PI, Number.MAX_VALUE, Symbol.iterator)
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		propKey := expression.Left.Text + "." + expression.Text
@@ -47,7 +51,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				return result, valType, nil
 			}
 			if len(propertyPath) == 2 {
-				if sig, ok := signatures[expression.Text]; ok {
+				if sig, ok := resolveFunctionSignature(path, callName(expression), signatures); ok {
 					if result == "" {
 						result = nextTemp(counter)
 					}
@@ -91,7 +95,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 
 		// 2. Check static getters
-		if getter, getterName, ok := findGetterInHierarchy(expression.Left.Text, expression.Text, signatures, classHierarchy); ok && getter.Parameters == nil {
+		if getter, getterName, ok := findGetterInHierarchy(className, expression.Text, signatures, classHierarchy); ok && getter.Parameters == nil {
 			if result == "" {
 				result = nextTemp(counter)
 			}
@@ -106,7 +110,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 
 		// 2.5. Check function reflection (.length and .name)
-		if fn, isFunc := signatures[expression.Left.Text]; isFunc {
+		if fn, isFunc := resolveFunctionSignature(path, expression.Left.Text, signatures); isFunc {
 			if expression.Text == "length" {
 				arity := len(fn.Parameters)
 				if defaults, hasDefaults := defaultParamsIndex[fn.Name]; hasDefaults {
@@ -140,7 +144,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 					Op:     ir.OpConst,
 					Type:   ir.TypeString,
 					Result: result,
-					Value:  fn.Name,
+					Value:  functionPublicName(fn.Name),
 					Span:   toIRSpan(path, expression.Span),
 				})
 				return result, ir.TypeString, nil
@@ -148,10 +152,10 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 
 		// 3. Check static fields in class hierarchy
-		if meta, ok := classHierarchy[expression.Left.Text]; ok {
+		if meta, ok := classHierarchy[className]; ok {
 			if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
-				staticVar := expression.Left.Text + "_" + expression.Text
-				typ := toIRType(staticField.Type)
+				staticVar := className + "_" + expression.Text
+				typ := toIRTypeForPath(path, staticField.Type)
 				if typ == "" {
 					typ = ir.TypeNumber
 				}
@@ -160,7 +164,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 
 		// 4. Check shape const fields (e.g. Enums)
-		if shape, ok := shapes[expression.Left.Text]; ok {
+		if shape, ok := shapes[className]; ok {
 			for _, field := range shape.Fields {
 				if field.Name == expression.Text && field.Value != "" {
 					if result == "" {
@@ -295,10 +299,13 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	// DataView shares the ArrayBufferView surface but has no `length` and uses
-	// dedicated byteLength/byteOffset accessors. Keep it out of the typed-array
-	// branch so its ABI receives a DataView handle, not a typed-array handle.
+	// ArrayBufferView is a runtime union of typed arrays and DataView. Its shared
+	// fields need a tag-aware ABI; concrete typed arrays can use their faster ABI.
 	if isArrayBufferViewType(objectType) && objectType != ir.TypeDataView {
+		viewIntrinsic := "__typedarray."
+		if objectType == "ArrayBufferView" || objectType == "object:ArrayBufferView" {
+			viewIntrinsic = "__arraybuffer_view."
+		}
 		if expression.Text == "length" {
 			if result == "" {
 				result = nextTemp(counter)
@@ -321,7 +328,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				Op:     ir.OpCall,
 				Type:   ir.TypeNumber,
 				Result: result,
-				Callee: "__typedarray.byteLength",
+				Callee: viewIntrinsic + "byteLength",
 				Args:   []string{object},
 				Span:   toIRSpan(path, expression.Span),
 			})
@@ -335,7 +342,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				Op:     ir.OpCall,
 				Type:   ir.TypeNumber,
 				Result: result,
-				Callee: "__typedarray.byteOffset",
+				Callee: viewIntrinsic + "byteOffset",
 				Args:   []string{object},
 				Span:   toIRSpan(path, expression.Span),
 			})
@@ -349,7 +356,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				Op:     ir.OpCall,
 				Type:   ir.TypeArrayBuffer,
 				Result: result,
-				Callee: "__typedarray.buffer",
+				Callee: viewIntrinsic + "buffer",
 				Args:   []string{object},
 				Span:   toIRSpan(path, expression.Span),
 			})
@@ -592,7 +599,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 		}
 	}
 
-	className := strings.TrimPrefix(string(objectType), "object:")
+	className = strings.TrimPrefix(string(objectType), "object:")
 
 	// Check instance getters
 	if getter, getterName, ok := findGetterInHierarchy(className, expression.Text, signatures, classHierarchy); ok {
@@ -821,6 +828,9 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			continue
 		}
 		fType := field.Type
+		if field.Optional {
+			fType = ir.TypeUnknown
+		}
 		if propertyPath := extractPropertyPath(expression); len(propertyPath) > 0 {
 			if narrowed, ok := env[strings.Join(propertyPath, ".")]; ok && narrowed != "" {
 				fType = narrowed
@@ -856,14 +866,15 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 				if fType == ir.TypeUnknown && field.Type != ir.TypeUnknown {
 					rawRes := nextTemp(counter)
 					thenFn.Body = append(thenFn.Body, ir.Instruction{
-						Op:         ir.OpFieldGet,
-						Type:       field.Type,
-						Result:     rawRes,
-						Callee:     className,
-						Field:      field.Name,
-						FieldIndex: fieldIndex(shape, field.Name),
-						Args:       []string{object},
-						Span:       toIRSpan(path, expression.Span),
+						Op:           ir.OpFieldGet,
+						Type:         field.Type,
+						Result:       rawRes,
+						Callee:       className,
+						Field:        field.Name,
+						FieldIndex:   fieldIndex(shape, field.Name),
+						DynamicField: dynamicFieldAccess(className),
+						Args:         []string{object},
+						Span:         toIRSpan(path, expression.Span),
 					})
 					thenFn.Body = append(thenFn.Body, ir.Instruction{
 						Op:     ir.OpBoxUnknown,
@@ -874,14 +885,15 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 					})
 				} else {
 					thenFn.Body = append(thenFn.Body, ir.Instruction{
-						Op:         ir.OpFieldGet,
-						Type:       fType,
-						Result:     result,
-						Callee:     className,
-						Field:      field.Name,
-						FieldIndex: fieldIndex(shape, field.Name),
-						Args:       []string{object},
-						Span:       toIRSpan(path, expression.Span),
+						Op:           ir.OpFieldGet,
+						Type:         fType,
+						Result:       result,
+						Callee:       className,
+						Field:        field.Name,
+						FieldIndex:   fieldIndex(shape, field.Name),
+						DynamicField: dynamicFieldAccess(className),
+						Args:         []string{object},
+						Span:         toIRSpan(path, expression.Span),
 					})
 				}
 				function.Body = append(function.Body, ir.Instruction{
@@ -895,14 +907,15 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			}
 		}
 		function.Body = append(function.Body, ir.Instruction{
-			Op:         ir.OpFieldGet,
-			Type:       fType,
-			Result:     result,
-			Callee:     className,
-			Field:      field.Name,
-			FieldIndex: fieldIndex(shape, field.Name),
-			Args:       []string{object},
-			Span:       toIRSpan(path, expression.Span),
+			Op:           ir.OpFieldGet,
+			Type:         fType,
+			Result:       result,
+			Callee:       className,
+			Field:        field.Name,
+			FieldIndex:   fieldIndex(shape, field.Name),
+			DynamicField: dynamicFieldAccess(className),
+			Args:         []string{object},
+			Span:         toIRSpan(path, expression.Span),
 		})
 		return result, fType, nil
 	}
@@ -995,7 +1008,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	for _, f := range shape.Fields {
 		fieldNames = append(fieldNames, f.Name)
 	}
-	return "", "", fmt.Errorf("unknown field %q on object %q (fields: %v)", expression.Text, className, fieldNames)
+	return "", "", fmt.Errorf("unknown field %q on object %q (type %q in %s; fields: %v)", expression.Text, className, objectType, function.Name, fieldNames)
 }
 
 func resolveShapeFields(name string, shapes map[string]ir.ObjectShape) ([]ir.Field, bool) {
