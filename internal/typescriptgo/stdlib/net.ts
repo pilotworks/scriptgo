@@ -356,22 +356,6 @@ export class Socket {
         return this;
     }
 
-    destroySoon(): void {
-        this.destroy();
-    }
-
-    resetAndDestroy(): Socket {
-        return this.destroy();
-    }
-
-    pause(): Socket {
-        return this;
-    }
-
-    resume(): Socket {
-        return this;
-    }
-
     setTimeout(timeout: number, callback: (() => void) | null = null): Socket {
         this.timeout = timeout;
         if (callback !== null && callback !== undefined) {
@@ -380,25 +364,6 @@ export class Socket {
         return this;
     }
 
-    setNoDelay(noDelay: boolean = true): Socket {
-        return this;
-    }
-
-    setKeepAlive(enable: boolean = false, initialDelay: number = 0): Socket {
-        return this;
-    }
-
-    setEncoding(encoding: string = "utf8"): Socket {
-        return this;
-    }
-
-    ref(): Socket {
-        return this;
-    }
-
-    unref(): Socket {
-        return this;
-    }
 
     address(): { port: number, family: string, address: string } {
         return {
@@ -537,13 +502,6 @@ export class Server {
         callback(null, this._connectionsCount);
     }
 
-    ref(): Server {
-        return this;
-    }
-
-    unref(): Server {
-        return this;
-    }
 
     [Symbol.asyncDispose](): Promise<void> {
         this.close();

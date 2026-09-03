@@ -53,10 +53,6 @@ console.log("dc_tc_inst: " + (tc instanceof TracingChannel));
 const syncRes = tc.traceSync(() => 100);
 console.log("dc_tc_traceSync: " + syncRes);
 
-// @api: TracingChannel.traceCallback
-// @expect: dc_tc_traceCb: 200
-const cbRes = tc.traceCallback(() => 200, 0);
-console.log("dc_tc_traceCb: " + cbRes);
 
 // @api: diagnostics_channel.start
 // @expect: dc_start: true

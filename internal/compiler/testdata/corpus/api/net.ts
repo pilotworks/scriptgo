@@ -59,13 +59,6 @@ console.log(parsedSa.port);
 // @api: net.Socket
 // @api: socket.address
 // @api: socket.setTimeout
-// @api: socket.setNoDelay
-// @api: socket.setKeepAlive
-// @api: socket.setEncoding
-// @api: socket.pause
-// @api: socket.resume
-// @api: socket.ref
-// @api: socket.unref
 // @api: readyState
 // @api: localAddress
 // @api: localFamily
@@ -108,21 +101,12 @@ console.log(sock.pending);
 sock.setTimeout(5000);
 console.log(sock.timeout);
 console.log(sock.autoSelectFamilyAttemptedAddresses !== undefined ? sock.autoSelectFamilyAttemptedAddresses.length : 0);
-sock.setNoDelay(true);
-sock.setKeepAlive(true, 1000);
-sock.setEncoding("utf8");
-sock.pause();
-sock.resume();
-sock.ref();
-sock.unref();
 const sockAddr = sock.address();
 console.log(sockAddr.address);
 
 // @api: socket.write
 // @api: socket.end
 // @api: socket.destroy
-// @api: socket.destroySoon
-// @api: socket.resetAndDestroy
 // @expect: true
 // @expect: true
 // @expect: 16
@@ -133,15 +117,11 @@ console.log(sock.write(netPayload));
 console.log(sock.bytesWritten);
 sock.end();
 console.log(sock.readyState);
-sock.destroySoon();
-sock.resetAndDestroy();
 
 // @api: net.Server
 // @api: net.createServer
 // @api: server.listen
 // @api: server.address
-// @api: server.ref
-// @api: server.unref
 // @api: server.close
 // @api: listening
 // @api: maxConnections
@@ -159,8 +139,6 @@ console.log(srv.maxConnections);
 console.log(srv.dropMaxConnection);
 const srvAddr = srv.address();
 console.log(srvAddr.port);
-srv.ref();
-srv.unref();
 srv.close();
 console.log(srv.listening);
 srv.close();

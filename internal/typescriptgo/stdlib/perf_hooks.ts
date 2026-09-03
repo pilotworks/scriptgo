@@ -229,7 +229,7 @@ export class Histogram {
     exceedsBigInt: bigint = 0n;
     percentiles: Map<number, number> = new Map();
     percentilesBigInt: Map<bigint, bigint> = new Map();
-    private _samples: number[] = [];
+    _samples: number[] = [];
 
     reset(): void {
         this.count = 0;
@@ -295,8 +295,8 @@ export class RecordableHistogram extends Histogram {
     }
 
     add(other: RecordableHistogram): void {
-        for (let i = 0; i < other.count; i++) {
-            this._record(other.mean);
+        for (let i = 0; i < other._samples.length; i++) {
+            this._record(other._samples[i]);
         }
     }
 }

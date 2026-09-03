@@ -910,12 +910,6 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.dnsLookupService"}, CategoryNodeModule, "__dns.lookupService", []ir.Type{ir.TypeString, ir.TypeNumber}, ir.TypeObject, 2, 2)
 	register([]string{"__scriptgo.dnsReverse"}, CategoryNodeModule, "__dns.reverse", []ir.Type{ir.TypeString}, ir.TypeStringArray, 1, 1)
 	register([]string{"__scriptgo.dnsResolveStrings"}, CategoryNodeModule, "__dns.resolveStrings", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeStringArray, 2, 2)
-	register([]string{"__scriptgo.dnsResolveTxt"}, CategoryNodeModule, "__dns.resolveTxt", []ir.Type{ir.TypeString}, ir.TypeStringArray, 1, 1)
-	register([]string{"__scriptgo.dnsResolveMx"}, CategoryNodeModule, "__dns.resolveMx", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
-	register([]string{"__scriptgo.dnsResolveSrv"}, CategoryNodeModule, "__dns.resolveSrv", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
-	register([]string{"__scriptgo.dnsResolveSoa"}, CategoryNodeModule, "__dns.resolveSoa", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
-	register([]string{"__scriptgo.dnsResolveCaa"}, CategoryNodeModule, "__dns.resolveCaa", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
-	register([]string{"__scriptgo.dnsResolveNaptr"}, CategoryNodeModule, "__dns.resolveNaptr", []ir.Type{ir.TypeString}, ir.TypeObject, 1, 1)
 
 	// Net TCP Intrinsics
 	register([]string{"__scriptgo.netSocketCreate"}, CategoryNodeModule, "__net.socketCreate", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 0, 2)

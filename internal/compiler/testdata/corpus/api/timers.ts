@@ -43,20 +43,6 @@ console.log("interval_cleared: true");
 const imm = new Immediate(1);
 console.log("imm_instance: " + (imm !== null));
 
-// @api: Immediate.hasRef
-// @expect: imm_hasRef: true
-console.log("imm_hasRef: " + imm.hasRef());
-
-// @api: Immediate.ref
-// @expect: imm_ref: true
-imm.ref();
-console.log("imm_ref: " + imm.hasRef());
-
-// @api: Immediate.unref
-// @expect: imm_unref: false
-imm.unref();
-console.log("imm_unref: " + imm.hasRef());
-
 // @api: Immediate.[Symbol.dispose]
 // @expect: imm_disposed: true
 imm[Symbol.dispose]();
@@ -66,20 +52,6 @@ console.log("imm_disposed: true");
 // @expect: timeout_instance: true
 const t = new Timeout(2);
 console.log("timeout_instance: " + (t !== null));
-
-// @api: Timeout.hasRef
-// @expect: timeout_hasRef: true
-console.log("timeout_hasRef: " + t.hasRef());
-
-// @api: Timeout.ref
-// @expect: timeout_ref: true
-t.ref();
-console.log("timeout_ref: " + t.hasRef());
-
-// @api: Timeout.unref
-// @expect: timeout_unref: false
-t.unref();
-console.log("timeout_unref: " + t.hasRef());
 
 // @api: Timeout.close
 // @expect: timeout_closed: true

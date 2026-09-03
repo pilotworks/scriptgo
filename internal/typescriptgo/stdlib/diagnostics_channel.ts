@@ -85,13 +85,6 @@ export class TracingChannel {
             throw err;
         }
     }
-
-    traceCallback<R>(fn: () => R, position: number, context: unknown = {}): R {
-        this.start.publish(context);
-        const res: R = fn();
-        this.end.publish(context);
-        return res;
-    }
 }
 
 const _channels: Map<string, Channel> = new Map();

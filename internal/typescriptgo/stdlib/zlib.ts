@@ -50,64 +50,6 @@ export const constants = {
     BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT: 3,
 };
 
-export class ZlibBase {
-    bytesRead: number = 0;
-    bytesWritten: number = 0;
-
-    constructor() {
-        this.bytesRead = 0;
-        this.bytesWritten = 0;
-    }
-
-    close(callback?: ZlibCallback): void {
-        if (typeof callback === "function") {
-            callback(null, new Uint8Array(0));
-        }
-    }
-
-    flush(kind?: number | ZlibCallback, callback?: ZlibCallback): void {
-        if (typeof kind === "function") {
-            kind(null, new Uint8Array(0));
-        } else if (typeof callback === "function") {
-            callback(null, new Uint8Array(0));
-        }
-    }
-
-    params(level: number, strategy: number, callback?: ZlibCallback): void {
-        if (typeof callback === "function") {
-            callback(null, new Uint8Array(0));
-        }
-    }
-
-    reset(): void {
-        this.bytesRead = 0;
-        this.bytesWritten = 0;
-    }
-}
-
-export class Deflate extends ZlibBase {}
-export class DeflateRaw extends ZlibBase {}
-export class Gunzip extends ZlibBase {}
-export class Gzip extends ZlibBase {}
-export class Inflate extends ZlibBase {}
-export class InflateRaw extends ZlibBase {}
-export class Unzip extends ZlibBase {}
-export class BrotliCompress extends ZlibBase {}
-export class BrotliDecompress extends ZlibBase {}
-export class ZstdCompress extends ZlibBase {}
-export class ZstdDecompress extends ZlibBase {}
-
-export function createDeflate(options?: ZlibOptions): Deflate { return new Deflate(); }
-export function createDeflateRaw(options?: ZlibOptions): DeflateRaw { return new DeflateRaw(); }
-export function createGunzip(options?: ZlibOptions): Gunzip { return new Gunzip(); }
-export function createGzip(options?: ZlibOptions): Gzip { return new Gzip(); }
-export function createInflate(options?: ZlibOptions): Inflate { return new Inflate(); }
-export function createInflateRaw(options?: ZlibOptions): InflateRaw { return new InflateRaw(); }
-export function createUnzip(options?: ZlibOptions): Unzip { return new Unzip(); }
-export function createBrotliCompress(options?: BrotliOptions): BrotliCompress { return new BrotliCompress(); }
-export function createBrotliDecompress(options?: BrotliOptions): BrotliDecompress { return new BrotliDecompress(); }
-export function createZstdCompress(options?: ZstdOptions): ZstdCompress { return new ZstdCompress(); }
-export function createZstdDecompress(options?: ZstdOptions): ZstdDecompress { return new ZstdDecompress(); }
 
 export interface ZlibOptions {
     flush?: number;
@@ -303,29 +245,6 @@ export function crc32(data: ZlibInput, value?: number): number {
 
 export default {
     constants,
-    ZlibBase,
-    Deflate,
-    DeflateRaw,
-    Gunzip,
-    Gzip,
-    Inflate,
-    InflateRaw,
-    Unzip,
-    BrotliCompress,
-    BrotliDecompress,
-    ZstdCompress,
-    ZstdDecompress,
-    createDeflate,
-    createDeflateRaw,
-    createGunzip,
-    createGzip,
-    createInflate,
-    createInflateRaw,
-    createUnzip,
-    createBrotliCompress,
-    createBrotliDecompress,
-    createZstdCompress,
-    createZstdDecompress,
     deflate,
     deflateSync,
     deflateRaw,

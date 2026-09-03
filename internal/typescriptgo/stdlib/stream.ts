@@ -46,33 +46,6 @@ class AbortSignalLike {
     addEventListener: Function | null = null;
 }
 
-export class WebReadableStream {
-    _stream: Readable | null = null;
-    constructor(stream?: Readable | null) {
-        this._stream = stream !== undefined ? stream : null;
-    }
-}
-
-export class ReadableStream extends WebReadableStream { }
-
-export class WebWritableStream {
-    _stream: Writable | null = null;
-    constructor(stream?: Writable | null) {
-        this._stream = stream !== undefined ? stream : null;
-    }
-}
-
-export class WritableStream extends WebWritableStream { }
-
-export class WebDuplexStream {
-    readable: WebReadableStream;
-    writable: WebWritableStream;
-    constructor(readable: WebReadableStream, writable: WebWritableStream) {
-        this.readable = readable;
-        this.writable = writable;
-    }
-}
-
 export class Stream {
     static _defaultHighWaterMark: number = 65536;
     static _defaultObjectModeHighWaterMark: number = 16;
@@ -678,17 +651,6 @@ export class Readable extends Stream {
         }
         return false;
     }
-
-    static fromWeb(readableStream: unknown, options?: unknown): Readable {
-        if (options !== undefined && options !== null) {
-            return new Readable(options as ReadableOptions);
-        }
-        return new Readable();
-    }
-
-    static toWeb(streamReadable: unknown, options?: unknown): unknown {
-        return new WebReadableStream(streamReadable as Readable);
-    }
 }
 
 export interface WritableOptions {
@@ -932,17 +894,6 @@ export class Writable extends Stream {
         this.emit("close");
         return this;
     }
-
-    static fromWeb(writableStream: unknown, options?: unknown): Writable {
-        if (options !== undefined && options !== null) {
-            return new Writable(options as WritableOptions);
-        }
-        return new Writable();
-    }
-
-    static toWeb(streamWritable: unknown, options?: unknown): unknown {
-        return new WebWritableStream(streamWritable as Writable);
-    }
 }
 
 export interface DuplexOptions {
@@ -1172,19 +1123,6 @@ export class Duplex extends Readable {
         return duplex;
     }
 
-    static fromWeb(pair: unknown, options?: unknown): Duplex {
-        if (options !== undefined && options !== null) {
-            return new Duplex(options as DuplexOptions);
-        }
-        return new Duplex();
-    }
-
-    static toWeb(streamDuplex: unknown, options?: unknown): unknown {
-        return new WebDuplexStream(
-            new WebReadableStream(streamDuplex as Readable),
-            new WebWritableStream(streamDuplex as Writable)
-        );
-    }
 }
 
 export interface TransformOptions extends DuplexOptions {
@@ -1534,12 +1472,9 @@ export class StreamPromises {
 export class StreamConsumers {
     _tag: string = "consumers";
 
-    private _readable(stream: Readable | WebReadableStream): Readable | null {
+    private _readable(stream: Readable): Readable | null {
         if (stream instanceof Readable) {
             return stream;
-        }
-        if (stream instanceof WebReadableStream && stream._stream instanceof Readable) {
-            return stream._stream;
         }
         return null;
     }
@@ -1557,7 +1492,7 @@ export class StreamConsumers {
         return Buffer.from(String(chunk));
     }
 
-    async buffer(stream: Readable | WebReadableStream): Promise<Buffer> {
+    async buffer(stream: Readable): Promise<Buffer> {
         const readable = this._readable(stream);
         if (readable === null) {
             return Buffer.alloc(0);
@@ -1573,23 +1508,23 @@ export class StreamConsumers {
         });
     }
 
-    async text(stream: Readable | WebReadableStream): Promise<string> {
+    async text(stream: Readable): Promise<string> {
         return (await this.buffer(stream)).toString();
     }
 
-    async json(stream: Readable | WebReadableStream): Promise<unknown> {
+    async json(stream: Readable): Promise<unknown> {
         const t = await this.text(stream);
         return JSON.parse(t);
     }
 
-    async arrayBuffer(stream: Readable | WebReadableStream): Promise<ArrayBuffer> {
+    async arrayBuffer(stream: Readable): Promise<ArrayBuffer> {
         const bytes = await this.buffer(stream);
         const result = new ArrayBuffer(bytes.length);
         new Uint8Array(result).set(bytes);
         return result;
     }
 
-    async blob(stream: Readable | WebReadableStream): Promise<Blob> {
+    async blob(stream: Readable): Promise<Blob> {
         return new Blob([await this.buffer(stream)]);
     }
 }
@@ -1602,14 +1537,6 @@ export function destroy(stream: unknown, err?: unknown): void {
 
 export function from(src: unknown): Duplex {
     return Duplex.from(src);
-}
-
-export function fromWeb(readableStream: unknown, options?: unknown): Readable {
-    return Readable.fromWeb(readableStream, options);
-}
-
-export function toWeb(streamReadable: unknown, options?: unknown): unknown {
-    return Readable.toWeb(streamReadable, options);
 }
 
 export function isDisturbed(stream: unknown): boolean {
@@ -1631,8 +1558,6 @@ export default {
     destroy,
     compose,
     from,
-    fromWeb,
-    toWeb,
     isDisturbed,
     getDefaultHighWaterMark,
     setDefaultHighWaterMark,

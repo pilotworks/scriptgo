@@ -1,7 +1,7 @@
 import { Blob, Buffer } from "node:buffer";
-import { consumers, Readable, WebReadableStream } from "node:stream";
+import { consumers, Readable } from "node:stream";
 
-type ConsumableStream = Readable | WebReadableStream;
+type ConsumableStream = Readable;
 
 export function buffer(stream: ConsumableStream): Promise<Buffer> {
     return consumers.buffer(stream);

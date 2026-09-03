@@ -82,8 +82,8 @@ func TestAuditCompletedModules(t *testing.T) {
 	}
 
 	modules := []string{
-		"console", "stream", "assert",
-		"zlib", "tls", "sqlite", "webstreams",
+		"console", "assert",
+		"tls", "sqlite", "webstreams",
 	}
 	for _, modName := range modules {
 		doc, err := spec.LoadModuleSpec(specCacheDir, modName)

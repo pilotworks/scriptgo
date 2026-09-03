@@ -82,14 +82,6 @@ export class MIMEParams {
     entries(): Array<[string, string]> {
         return this._entries;
     }
-
-    [Symbol.iterator](): unknown {
-        return {
-            next: () => {
-                return { done: true, value: null };
-            }
-        };
-    }
 }
 
 export class MIMEType {
@@ -206,14 +198,10 @@ export namespace types {
     export function isDate(val: unknown): boolean { return val instanceof Date; }
     export function isRegExp(val: unknown): boolean { return val instanceof RegExp; }
     export function isNativeError(val: unknown): boolean { return val instanceof Error; }
-    export function isPromise(val: unknown): boolean { return val !== null && typeof val === "object"; }
     export function isArrayBuffer(val: unknown): boolean { return val instanceof ArrayBuffer; }
     export function isUint8Array(val: unknown): boolean { return val instanceof Uint8Array; }
     export function isMap(val: unknown): boolean { return val instanceof Map; }
     export function isSet(val: unknown): boolean { return val instanceof Set; }
-    export function isAsyncFunction(val: unknown): boolean { return typeof val === "function"; }
-    export function isGeneratorFunction(val: unknown): boolean { return typeof val === "function"; }
-    export function isGeneratorObject(val: unknown): boolean { return val !== null && typeof val === "object"; }
     export function isAnyArrayBuffer(val: unknown): boolean { return val instanceof ArrayBuffer; }
     export function isBoxedPrimitive(val: unknown): boolean { return val !== null && typeof val === "object" && (val instanceof Number || val instanceof String || val instanceof Boolean); }
     export function isDataView(val: unknown): boolean { return val instanceof DataView; }
@@ -344,15 +332,6 @@ export function _extend(target: Record<string, unknown>, source: Record<string, 
     return Object.assign(target, source);
 }
 
-export function debug(section: string): Function {
-    const sec = section.toUpperCase();
-    return (a?: unknown, b?: unknown) => {};
-}
-
-export function debuglog(section: string): Function {
-    return debug(section);
-}
-
 export function log(string: string): void {
     const d = new Date();
     console.log(`${d.toLocaleDateString()} ${d.toLocaleTimeString()} - ${string}`);
@@ -471,36 +450,8 @@ export function getSystemErrorMessage(err: number): string {
     return "";
 }
 
-export function getCallSites(frameCount?: number, options?: unknown): unknown[] {
-    return [];
-}
-
-let _traceSigInt: boolean = false;
-
-export function setTraceSigInt(enable: boolean): void {
-    _traceSigInt = enable;
-}
-
 export function diff(actual: unknown, expected: unknown): string {
     return `+ ${inspect(expected)}\n- ${inspect(actual)}`;
-}
-
-export function aborted(signal: unknown, resource?: unknown): Promise<void> {
-    return new Promise((resolve) => {
-        resolve();
-    });
-}
-
-export function transferableAbortController(): unknown {
-    return { signal: { aborted: false } };
-}
-
-export function transferableAbortSignal(signal: unknown): unknown {
-    return signal;
-}
-
-export function parseArgs(config?: unknown): unknown {
-    return { values: {}, positionals: [] };
 }
 
 export function parseEnv(content: string): Map<string, string> {
@@ -520,42 +471,6 @@ export function parseEnv(content: string): Map<string, string> {
         }
     }
     return result;
-}
-
-export class TextDecoder {
-    encoding: string = "utf-8";
-    fatal: boolean = false;
-    ignoreBOM: boolean = false;
-    constructor(label: string = "utf-8", options?: { fatal?: boolean; ignoreBOM?: boolean }) {
-        this.encoding = label;
-        if (options) {
-            if (options.fatal) this.fatal = options.fatal;
-            if (options.ignoreBOM) this.ignoreBOM = options.ignoreBOM;
-        }
-    }
-    decode(input?: Uint8Array): string {
-        if (!input) return "";
-        return input.toString();
-    }
-}
-
-export class TextEncoderEncodeIntoResult {
-    read: number;
-    written: number;
-    constructor(read: number, written: number) {
-        this.read = read;
-        this.written = written;
-    }
-}
-
-export class TextEncoder {
-    readonly encoding: string = "utf-8";
-    encode(input: string = ""): Uint8Array {
-        return new Uint8Array(input.length);
-    }
-    encodeInto(source: string, destination: Uint8Array): TextEncoderEncodeIntoResult {
-        return new TextEncoderEncodeIntoResult(source.length, source.length);
-    }
 }
 
 export default {
@@ -581,7 +496,6 @@ export default {
     inspect,
     format,
     formatWithOptions,
-    debuglog,
     deprecate,
     callbackify,
     promisify,
@@ -591,12 +505,6 @@ export default {
     getSystemErrorMap,
     getSystemErrorName,
     getSystemErrorMessage,
-    getCallSites,
-    setTraceSigInt,
     diff,
-    aborted,
-    transferableAbortController,
-    transferableAbortSignal,
-    parseArgs,
     parseEnv,
 };

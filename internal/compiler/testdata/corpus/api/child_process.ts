@@ -22,6 +22,6 @@ console.log("spawnSync_status: " + spawnSyncRet.status);
 
 // @api: child_process.execFileSync
 // @expect: execFileSync_res: hello
-const execFileSyncOut = execFileSync("echo hello");
+const execFileSyncOut = execFileSync("echo", ["hello"]);
 console.log("execFileSync_res: " + execFileSyncOut.trim());
 

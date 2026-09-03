@@ -1,5 +1,5 @@
 // ScriptGo Corpus: Util Standard Builtin APIs
-// Consolidated test suite with 1:1 isolated assertions for all 67 official Node.js util APIs.
+// Consolidated test suite with 1:1 isolated assertions for official Node.js util APIs.
 
 import util, {
     format,
@@ -30,23 +30,13 @@ import util, {
     getSystemErrorName,
     getSystemErrorMap,
     getSystemErrorMessage,
-    getCallSites,
-    setTraceSigInt,
-    parseArgs,
     parseEnv,
     promisify,
     callbackify,
-    debug,
-    debuglog,
     diff,
-    aborted,
-    transferableAbortController,
-    transferableAbortSignal,
     log,
     MIMEType,
-    MIMEParams,
-    TextDecoder,
-    TextEncoder
+    MIMEParams
 } from "node:util";
 
 // @api: util.format
@@ -161,19 +151,6 @@ console.log("getSystemErrorMap_res: " + (getSystemErrorMap().size > 0));
 // @expect: getSystemErrorMessage_res: No such file or directory
 console.log("getSystemErrorMessage_res: " + getSystemErrorMessage(-2));
 
-// @api: util.getCallSites
-// @expect: getCallSites_res: true
-console.log("getCallSites_res: " + Array.isArray(getCallSites()));
-
-// @api: util.setTraceSigInt
-// @expect: setTraceSigInt_res: true
-setTraceSigInt(true);
-console.log("setTraceSigInt_res: true");
-
-// @api: util.parseArgs
-// @expect: parseArgs_res: true
-console.log("parseArgs_res: " + (parseArgs() !== null));
-
 // @api: util.parseEnv
 // @expect: parseEnv_res: bar
 const env = parseEnv("FOO=bar\n# comment");
@@ -187,29 +164,9 @@ console.log("promisify_res: " + (typeof promisify === "function"));
 // @expect: callbackify_res: true
 console.log("callbackify_res: " + (typeof callbackify === "function"));
 
-// @api: util.debug
-// @expect: debug_res: true
-console.log("debug_res: " + (typeof debug("foo") === "function"));
-
-// @api: util.debuglog
-// @expect: debuglog_res: true
-console.log("debuglog_res: " + (typeof debuglog("bar") === "function"));
-
 // @api: util.diff
 // @expect: diff_res: true
 console.log("diff_res: " + (diff(1, 2).length > 0));
-
-// @api: util.aborted
-// @expect: aborted_res: true
-console.log("aborted_res: " + (aborted(null) !== null));
-
-// @api: util.transferableAbortController
-// @expect: transferableAbortController_res: true
-console.log("transferableAbortController_res: " + (transferableAbortController() !== null));
-
-// @api: util.transferableAbortSignal
-// @expect: transferableAbortSignal_res: true
-console.log("transferableAbortSignal_res: " + (transferableAbortSignal(null) === null));
 
 // @api: util.log
 // @expect: log_res: true
@@ -283,48 +240,4 @@ console.log("mimeparams_values: " + (mparams.values().length > 0));
 // @api: MIMEParams.entries
 // @expect: mimeparams_entries: true
 console.log("mimeparams_entries: " + (mparams.entries().length > 0));
-
-// @api: MIMEParams.[Symbol.iterator]
-// @expect: mimeparams_iter: true
-console.log("mimeparams_iter: " + (mparams[Symbol.iterator]() !== null));
-
-// @api: util.TextDecoder
-// @expect: textdecoder_inst: true
-const tdec = new TextDecoder("utf-8");
-console.log("textdecoder_inst: " + (tdec !== null));
-
-// @api: TextDecoder.encoding
-// @expect: textdecoder_encoding: utf-8
-console.log("textdecoder_encoding: " + tdec.encoding);
-
-// @api: TextDecoder.fatal
-// @expect: textdecoder_fatal: false
-console.log("textdecoder_fatal: " + tdec.fatal);
-
-// @api: TextDecoder.ignoreBOM
-// @expect: textdecoder_ignoreBOM: false
-console.log("textdecoder_ignoreBOM: " + tdec.ignoreBOM);
-
-// @api: TextDecoder.decode
-// @expect: textdecoder_decode: hello
-console.log("textdecoder_decode: " + tdec.decode(new Uint8Array([104, 101, 108, 108, 111])));
-
-// @api: util.TextEncoder
-// @expect: textencoder_inst: true
-const tenc = new TextEncoder();
-console.log("textencoder_inst: " + (tenc !== null));
-
-// @api: TextEncoder.encoding
-// @expect: textencoder_encoding: utf-8
-console.log("textencoder_encoding: " + tenc.encoding);
-
-// @api: TextEncoder.encode
-// @expect: textencoder_encode: 5
-console.log("textencoder_encode: " + tenc.encode("hello").length);
-
-// @api: TextEncoder.encodeInto
-// @expect: textencoder_encodeInto: 5
-const dstU8 = new Uint8Array(10);
-const encRes = tenc.encodeInto("hello", dstU8);
-console.log("textencoder_encodeInto: " + encRes.written);
 

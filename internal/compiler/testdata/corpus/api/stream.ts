@@ -19,8 +19,6 @@ import {
     isWritable,
     isErrored,
     from,
-    fromWeb,
-    toWeb,
     isDisturbed
 } from "node:stream";
 import {
@@ -71,16 +69,6 @@ console.log("disturbed_before: " + isDisturbed(rDist));
 rDist.push("test");
 rDist.read(1);
 console.log("disturbed_after: " + isDisturbed(rDist));
-
-// @api: stream.fromWeb
-// @expect: fromWeb_created: true
-const rFromWeb = fromWeb(new ReadableStream());
-console.log("fromWeb_created: " + (rFromWeb !== null));
-
-// @api: stream.toWeb
-// @expect: toWeb_created: true
-const rToWeb = toWeb(new Readable({ read: () => {} }));
-console.log("toWeb_created: " + (rToWeb !== null));
 
 // @api: stream.from
 // @expect: duplexFrom_created: true

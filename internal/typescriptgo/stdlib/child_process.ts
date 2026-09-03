@@ -58,8 +58,12 @@ export function spawnSync(command: string, args: string[] = defaultSpawnArgs, op
     return new SpawnSyncReturns(raw.stdout, raw.stderr, raw.status);
 }
 
-export function execFileSync(file: string, args: string[] = defaultSpawnArgs, options?: ExecSyncOptions): string {
-    return execSync(file, options);
+export function execFileSync(file: string, args: string[] = defaultSpawnArgs, options: ExecSyncOptions = defaultExecOptions): string {
+    const ret = spawnSync(file, args, options);
+    if (ret.status !== 0) {
+        throw new Error("Command failed: " + file + (ret.stderr.length > 0 ? "\n" + ret.stderr : ""));
+    }
+    return ret.stdout;
 }
 
 export default {

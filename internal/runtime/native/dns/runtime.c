@@ -277,143 +277,45 @@ int scriptgo_dns_resolve_strings(const char *hostname, const char *rrtype, void 
     }
 #endif
 
-    if (strcmp(rrtype, "AAAA") == 0) {
-        char *ip = strdup("::1");
-        scriptgo_array_push(*out_strings, &ip, &dummy);
-    } else if (strcmp(rrtype, "CNAME") == 0) {
-        char *cname = strdup(hostname);
-        scriptgo_array_push(*out_strings, &cname, &dummy);
-    } else if (strcmp(rrtype, "NS") == 0) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "ns1.%s", hostname);
-        char *ns1 = strdup(buf);
-        snprintf(buf, sizeof(buf), "ns2.%s", hostname);
-        char *ns2 = strdup(buf);
-        scriptgo_array_push(*out_strings, &ns1, &dummy);
-        scriptgo_array_push(*out_strings, &ns2, &dummy);
-    } else if (strcmp(rrtype, "PTR") == 0) {
-        char *ptr = strdup("localhost");
-        scriptgo_array_push(*out_strings, &ptr, &dummy);
-    } else {
-        char *ip = strdup("127.0.0.1");
-        scriptgo_array_push(*out_strings, &ip, &dummy);
+    if (type == ns_t_a || type == ns_t_aaaa) {
+        struct addrinfo hints;
+        struct addrinfo *res = NULL;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_family = (type == ns_t_a) ? AF_INET : AF_INET6;
+        if (getaddrinfo(hostname, NULL, &hints, &res) == 0 && res != NULL) {
+            int pushed = 0;
+            for (struct addrinfo *p = res; p != NULL; p = p->ai_next) {
+                char ip_buf[INET6_ADDRSTRLEN];
+                if (p->ai_family == AF_INET && type == ns_t_a) {
+                    struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
+                    inet_ntop(AF_INET, &(ipv4->sin_addr), ip_buf, sizeof(ip_buf));
+                    char *val = strdup(ip_buf);
+                    scriptgo_array_push(*out_strings, &val, &dummy);
+                    pushed++;
+                } else if (p->ai_family == AF_INET6 && type == ns_t_aaaa) {
+                    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
+                    inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip_buf, sizeof(ip_buf));
+                    char *val = strdup(ip_buf);
+                    scriptgo_array_push(*out_strings, &val, &dummy);
+                    pushed++;
+                }
+            }
+            freeaddrinfo(res);
+            if (pushed > 0) {
+                return 0;
+            }
+        }
+    } else if (type == ns_t_ptr) {
+        char *host = NULL;
+        char *serv = NULL;
+        if (scriptgo_dns_lookup_service(hostname, 0.0, &host, &serv) == 0 && host != NULL) {
+            scriptgo_array_push(*out_strings, &host, &dummy);
+            if (serv) free(serv);
+            return 0;
+        }
+        if (serv) free(serv);
     }
-    return 0;
-}
 
-int scriptgo_dns_resolve_mx(const char *hostname, void **out_exchanges, void **out_priorities) {
-    if (hostname == NULL || out_exchanges == NULL || out_priorities == NULL) {
-        return dns_fail("scriptgo dns resolve_mx invalid arguments");
-    }
-    if (scriptgo_array_new(0, sizeof(char *), out_exchanges) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_priorities) != 0) {
-        return dns_fail("scriptgo dns array allocation failed");
-    }
-    double dummy;
-    char buf[256];
-    snprintf(buf, sizeof(buf), "mail.%s", hostname);
-    char *exch = strdup(buf);
-    double prio = 10.0;
-    scriptgo_array_push(*out_exchanges, &exch, &dummy);
-    scriptgo_array_push(*out_priorities, &prio, &dummy);
-    return 0;
-}
-
-int scriptgo_dns_resolve_txt(const char *hostname, void **out_txt) {
-    if (hostname == NULL || out_txt == NULL) {
-        return dns_fail("scriptgo dns resolve_txt invalid arguments");
-    }
-    if (scriptgo_array_new(0, sizeof(char *), out_txt) != 0) {
-        return dns_fail("scriptgo dns array allocation failed");
-    }
-    double dummy;
-    char *txt = strdup("v=spf1 ~all");
-    scriptgo_array_push(*out_txt, &txt, &dummy);
-    return 0;
-}
-
-int scriptgo_dns_resolve_srv(const char *hostname, void **out_names, void **out_ports, void **out_priorities, void **out_weights) {
-    if (hostname == NULL || out_names == NULL || out_ports == NULL || out_priorities == NULL || out_weights == NULL) {
-        return dns_fail("scriptgo dns resolve_srv invalid arguments");
-    }
-    if (scriptgo_array_new(0, sizeof(char *), out_names) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_ports) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_priorities) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_weights) != 0) {
-        return dns_fail("scriptgo dns array allocation failed");
-    }
-    double dummy;
-    char *name = strdup(hostname);
-    double port = 8080.0;
-    double prio = 10.0;
-    double weight = 5.0;
-    scriptgo_array_push(*out_names, &name, &dummy);
-    scriptgo_array_push(*out_ports, &port, &dummy);
-    scriptgo_array_push(*out_priorities, &prio, &dummy);
-    scriptgo_array_push(*out_weights, &weight, &dummy);
-    return 0;
-}
-
-int scriptgo_dns_resolve_soa(const char *hostname, char **out_nsname, char **out_hostmaster, double *out_serial, double *out_refresh, double *out_retry, double *out_expire, double *out_minttl) {
-    if (hostname == NULL || out_nsname == NULL || out_hostmaster == NULL) {
-        return dns_fail("scriptgo dns resolve_soa invalid arguments");
-    }
-    char buf1[256];
-    char buf2[256];
-    snprintf(buf1, sizeof(buf1), "ns1.%s", hostname);
-    snprintf(buf2, sizeof(buf2), "admin.%s", hostname);
-    *out_nsname = strdup(buf1);
-    *out_hostmaster = strdup(buf2);
-    *out_serial = 2026010101.0;
-    *out_refresh = 7200.0;
-    *out_retry = 3600.0;
-    *out_expire = 1209600.0;
-    *out_minttl = 300.0;
-    return 0;
-}
-
-int scriptgo_dns_resolve_caa(const char *hostname, void **out_criticals, void **out_issues) {
-    if (hostname == NULL || out_criticals == NULL || out_issues == NULL) {
-        return dns_fail("scriptgo dns resolve_caa invalid arguments");
-    }
-    if (scriptgo_array_new(0, sizeof(double), out_criticals) != 0 ||
-        scriptgo_array_new(0, sizeof(char *), out_issues) != 0) {
-        return dns_fail("scriptgo dns array allocation failed");
-    }
-    double dummy;
-    double crit = 0.0;
-    char *issue = strdup("letsencrypt.org");
-    scriptgo_array_push(*out_criticals, &crit, &dummy);
-    scriptgo_array_push(*out_issues, &issue, &dummy);
-    return 0;
-}
-
-int scriptgo_dns_resolve_naptr(const char *hostname, void **out_flags, void **out_services, void **out_regexps, void **out_replacements, void **out_orders, void **out_preferences) {
-    if (hostname == NULL || out_flags == NULL || out_services == NULL || out_regexps == NULL || out_replacements == NULL || out_orders == NULL || out_preferences == NULL) {
-        return dns_fail("scriptgo dns resolve_naptr invalid arguments");
-    }
-    if (scriptgo_array_new(0, sizeof(char *), out_flags) != 0 ||
-        scriptgo_array_new(0, sizeof(char *), out_services) != 0 ||
-        scriptgo_array_new(0, sizeof(char *), out_regexps) != 0 ||
-        scriptgo_array_new(0, sizeof(char *), out_replacements) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_orders) != 0 ||
-        scriptgo_array_new(0, sizeof(double), out_preferences) != 0) {
-        return dns_fail("scriptgo dns array allocation failed");
-    }
-    double dummy;
-    char *flag = strdup("s");
-    char *service = strdup("SIP+D2U");
-    char *regexp = strdup("");
-    char buf[256];
-    snprintf(buf, sizeof(buf), "_sip._udp.%s", hostname);
-    char *repl = strdup(buf);
-    double order = 100.0;
-    double pref = 10.0;
-    scriptgo_array_push(*out_flags, &flag, &dummy);
-    scriptgo_array_push(*out_services, &service, &dummy);
-    scriptgo_array_push(*out_regexps, &regexp, &dummy);
-    scriptgo_array_push(*out_replacements, &repl, &dummy);
-    scriptgo_array_push(*out_orders, &order, &dummy);
-    scriptgo_array_push(*out_preferences, &pref, &dummy);
     return 0;
 }

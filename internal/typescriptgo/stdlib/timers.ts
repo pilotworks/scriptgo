@@ -39,24 +39,9 @@ export function clearImmediate(id: number | undefined): void {
 
 export class Immediate {
     _id: number = 0;
-    _refed: boolean = true;
 
     constructor(id: number = 0) {
         this._id = id;
-    }
-
-    hasRef(): boolean {
-        return this._refed;
-    }
-
-    ref(): this {
-        this._refed = true;
-        return this;
-    }
-
-    unref(): this {
-        this._refed = false;
-        return this;
     }
 
     [Symbol.dispose](): void {
@@ -66,24 +51,9 @@ export class Immediate {
 
 export class Timeout {
     _id: number = 0;
-    _refed: boolean = true;
 
     constructor(id: number = 0) {
         this._id = id;
-    }
-
-    hasRef(): boolean {
-        return this._refed;
-    }
-
-    ref(): this {
-        this._refed = true;
-        return this;
-    }
-
-    unref(): this {
-        this._refed = false;
-        return this;
     }
 
     close(): void {

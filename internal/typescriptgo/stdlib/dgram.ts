@@ -218,7 +218,7 @@ export class Socket {
         return {
             address: this._localAddress.length > 0 && this._localAddress !== "0.0.0.0" ? this._localAddress : "127.0.0.1",
             family: this.type === "udp6" ? "IPv6" : "IPv4",
-            port: this._localPort > 0 ? this._localPort : 41234,
+            port: this._localPort,
         };
     }
 

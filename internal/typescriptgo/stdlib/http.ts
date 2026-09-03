@@ -18,18 +18,6 @@ class HttpEventBucket {
     }
 }
 
-class WebSocketListenerEntry {
-    type: string;
-    callback: Function;
-    once: boolean;
-
-    constructor(type: string, callback: Function, once: boolean) {
-        this.type = type;
-        this.callback = callback;
-        this.once = once;
-    }
-}
-
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];
