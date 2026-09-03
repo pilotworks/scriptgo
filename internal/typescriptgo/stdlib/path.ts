@@ -178,15 +178,6 @@ export function toNamespacedPath(path: string): string {
     return path;
 }
 
-export function matchesGlob(path: string, pattern: string): boolean {
-    if (pattern === "*") return true;
-    if (pattern.startsWith("*.")) {
-        const ext = pattern.slice(1);
-        return path.endsWith(ext);
-    }
-    return path === pattern;
-}
-
 export const posix = {
     join,
     dirname,
@@ -199,7 +190,6 @@ export const posix = {
     parse,
     format,
     toNamespacedPath,
-    matchesGlob,
     sep: "/",
     delimiter: ":",
 };
@@ -216,7 +206,6 @@ export const win32 = {
     parse,
     format,
     toNamespacedPath,
-    matchesGlob,
     sep: "\\",
     delimiter: ";",
 };
@@ -233,7 +222,6 @@ export default {
     parse,
     format,
     toNamespacedPath,
-    matchesGlob,
     sep,
     delimiter,
     posix,

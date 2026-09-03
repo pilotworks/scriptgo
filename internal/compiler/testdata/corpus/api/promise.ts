@@ -2,19 +2,11 @@
 // Consolidated test suite with inline assertions.
 
 // @api: Promise.all
-// @api: Promise.allSettled
-// @api: Promise.any
-// @api: Promise.race
-// @api: Promise.reject
 // @api: Promise.resolve
 // @api: Promise.withResolvers
 // @api: Promise.try
-// @api: Promise.prototype.then
-// @api: Promise.prototype.catch
-// @api: Promise.prototype.finally
 // @api: new Promise
 // @api: Promise.constructor
-// @api: Promise.new
 // @expect: resolved: 42
 // @expect: bool: true
 // @expect: bigint: 123

@@ -465,10 +465,6 @@ export class URL {
         }
         return null;
     }
-
-    static createObjectURL(blob: string = ""): string {
-        return "blob:nodedata-" + blob;
-    }
 }
 
 export class Url {
@@ -527,24 +523,12 @@ export function resolve(from: string, to: string): string {
     return u.href;
 }
 
-export function domainToASCII(domain: string): string {
-    return domain.toLowerCase();
-}
-
-export function domainToUnicode(domain: string): string {
-    return domain;
-}
-
 export function fileURLToPath(url: string): string {
     let str = url;
     if (str.indexOf("file://") === 0) {
         str = str.slice(7, str.length);
     }
     return str;
-}
-
-export function fileURLToPathBuffer(url: string): string {
-    return fileURLToPath(url);
 }
 
 export function pathToFileURL(path: string): URL {

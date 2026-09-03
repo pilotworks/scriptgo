@@ -10,15 +10,6 @@ fs.mkdirSync(tmpDir, { recursive: true });
 const testFile = tmpDir + "/test_write.txt";
 fs.writeFileSync(testFile, "initial data");
 
-// @api: fs.openAsBlob
-// @expect: true
-fs.openAsBlob(testFile);
-console.log(true);
-
-// @api: fs.native
-// @expect: true
-console.log(fs.existsSync(testFile));
-
 // @api: fs.writeFile
 // @expect: true
 fs.writeFile(testFile, "callback write data", (err) => {
@@ -273,12 +264,6 @@ fs.futimes(cbOpenFd, 1600000000, 1600000000, (err) => {
 // @api: fs.close
 // @expect: true
 fs.close(cbOpenFd, (err) => {
-    console.log(err === null);
-});
-
-// @api: fs.glob
-// @expect: true
-fs.glob(tmpDir + "/*", (err, m) => {
     console.log(err === null);
 });
 

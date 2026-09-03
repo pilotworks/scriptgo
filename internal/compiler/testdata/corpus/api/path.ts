@@ -46,10 +46,6 @@ console.log(path.format({ dir: "/foo/bar", base: "baz.txt" }));
 // @expect: /foo/bar
 console.log(path.toNamespacedPath("/foo/bar"));
 
-// @api: path.matchesGlob
-// @expect: true
-console.log(path.matchesGlob("/foo/bar.txt", "*.txt"));
-
 // @api: path.sep
 // @expect: /
 console.log(path.sep);

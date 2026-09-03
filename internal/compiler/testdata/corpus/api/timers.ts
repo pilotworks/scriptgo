@@ -9,9 +9,7 @@ import {
     setTimeout,
     clearTimeout,
     setInterval,
-    clearInterval,
-    wait,
-    yield as timerYield
+    clearInterval
 } from "node:timers";
 
 // @api: timers.clearImmediate
@@ -66,16 +64,6 @@ console.log("timeout_primitive: " + t[Symbol.toPrimitive]());
 // @expect: timeout_disposed: true
 t[Symbol.dispose]();
 console.log("timeout_disposed: true");
-
-// @api: timers.wait
-// @expect: wait_done: true
-await wait(1);
-console.log("wait_done: true");
-
-// @api: timers.yield
-// @expect: yield_done: true
-await timerYield();
-console.log("yield_done: true");
 
 // @api: timers.setImmediate
 // @expect: immediate_called: true

@@ -380,21 +380,6 @@ export function toUSVString(string: string): string {
     return res;
 }
 
-function applyStyle(name: string, text: string): string {
-    let open = "";
-    let close = "";
-    if (name === "bold") { open = "\x1b[1m"; close = "\x1b[22m"; }
-    else if (name === "italic") { open = "\x1b[3m"; close = "\x1b[23m"; }
-    else if (name === "underline") { open = "\x1b[4m"; close = "\x1b[24m"; }
-    else if (name === "red") { open = "\x1b[31m"; close = "\x1b[39m"; }
-    else if (name === "green") { open = "\x1b[32m"; close = "\x1b[39m"; }
-    else if (name === "yellow") { open = "\x1b[33m"; close = "\x1b[39m"; }
-    else if (name === "blue") { open = "\x1b[34m"; close = "\x1b[39m"; }
-    else if (name === "cyan") { open = "\x1b[36m"; close = "\x1b[39m"; }
-    else if (name === "white") { open = "\x1b[37m"; close = "\x1b[39m"; }
-    return open + text + close;
-}
-
 export function styleText(formatName: string | string[], text: string, options?: unknown): string {
     let open = "";
     let close = "";
@@ -450,10 +435,6 @@ export function getSystemErrorMessage(err: number): string {
     return "";
 }
 
-export function diff(actual: unknown, expected: unknown): string {
-    return `+ ${inspect(expected)}\n- ${inspect(actual)}`;
-}
-
 export function parseEnv(content: string): Map<string, string> {
     const result: Map<string, string> = new Map();
     const lines = content.split("\n");
@@ -505,6 +486,5 @@ export default {
     getSystemErrorMap,
     getSystemErrorName,
     getSystemErrorMessage,
-    diff,
     parseEnv,
 };

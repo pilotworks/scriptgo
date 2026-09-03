@@ -5,12 +5,6 @@ declare namespace __scriptgo {
     function dnsLookupService(address: string, port: number): { hostname: string; service: string };
     function dnsReverse(ip: string): string[];
     function dnsResolveStrings(hostname: string, rrtype: string): string[];
-    function dnsResolveTxt(hostname: string): string[];
-    function dnsResolveMx(hostname: string): { exchanges: string[]; priorities: number[] };
-    function dnsResolveSrv(hostname: string): { names: string[]; ports: number[]; priorities: number[]; weights: number[] };
-    function dnsResolveSoa(hostname: string): { nsname: string; hostmaster: string; serial: number; refresh: number; retry: number; expire: number; minttl: number };
-    function dnsResolveCaa(hostname: string): { criticals: number[]; issues: string[] };
-    function dnsResolveNaptr(hostname: string): { flags: string[]; services: string[]; regexps: string[]; replacements: string[]; orders: number[]; preferences: number[] };
 }
 
 export const NODATA = "ENODATA";

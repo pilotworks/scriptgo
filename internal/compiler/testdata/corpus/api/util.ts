@@ -33,8 +33,6 @@ import util, {
     parseEnv,
     promisify,
     callbackify,
-    diff,
-    log,
     MIMEType,
     MIMEParams
 } from "node:util";
@@ -163,14 +161,6 @@ console.log("promisify_res: " + (typeof promisify === "function"));
 // @api: util.callbackify
 // @expect: callbackify_res: true
 console.log("callbackify_res: " + (typeof callbackify === "function"));
-
-// @api: util.diff
-// @expect: diff_res: true
-console.log("diff_res: " + (diff(1, 2).length > 0));
-
-// @api: util.log
-// @expect: log_res: true
-console.log("log_res: true");
 
 // @api: util._extend
 // @expect: _extend_res: true

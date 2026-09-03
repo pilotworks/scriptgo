@@ -3,10 +3,7 @@ import {
     URL,
     URLSearchParams,
     Url,
-    domainToASCII,
-    domainToUnicode,
     fileURLToPath,
-    fileURLToPathBuffer,
     format,
     parse,
     pathToFileURL,
@@ -36,10 +33,6 @@ console.log(u1.toString());
 // @api: url.canParse
 // @expect: true
 console.log(URL.canParse("https://example.com"));
-
-// @api: url.createObjectURL
-// @expect: blob:nodedata-123
-console.log(URL.createObjectURL("123"));
 
 // @api: url.parse
 // @expect: https://example.com/test
@@ -183,21 +176,9 @@ console.log(spSort.values().length === 2);
 // @expect: true
 console.log(spSort.entries().length === 2);
 
-// @api: url.domainToASCII
-// @expect: example.com
-console.log(domainToASCII("EXAMPLE.COM"));
-
-// @api: url.domainToUnicode
-// @expect: example.com
-console.log(domainToUnicode("example.com"));
-
 // @api: url.fileURLToPath
 // @expect: /path/to/file.txt
 console.log(fileURLToPath("file:///path/to/file.txt"));
-
-// @api: url.fileURLToPathBuffer
-// @expect: /path/to/file.txt
-console.log(fileURLToPathBuffer("file:///path/to/file.txt"));
 
 // @api: url.format
 // @expect: https://example.com/

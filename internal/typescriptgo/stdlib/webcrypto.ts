@@ -33,11 +33,11 @@ function binaryString(bytes: Buffer): string {
 export class CryptoKey {
     type: string = "secret";
     extractable: boolean = true;
-    algorithm: KeyAlgorithm = new KeyAlgorithm();
+    algorithm: { name: string } = { name: "AES-GCM" };
     usages: string[] = ["encrypt", "decrypt"];
     material: Buffer = Buffer.alloc(0);
 
-    constructor(type: string = "secret", extractable: boolean = true, algorithm: KeyAlgorithm = new KeyAlgorithm(), usages: string[] = ["encrypt", "decrypt"]) {
+    constructor(type: string = "secret", extractable: boolean = true, algorithm: { name: string } = { name: "AES-GCM" }, usages: string[] = ["encrypt", "decrypt"]) {
         this.type = type;
         this.extractable = extractable;
         this.algorithm = algorithm;
@@ -52,20 +52,6 @@ export class CryptoKeyPair {
     constructor(privateKey?: CryptoKey, publicKey?: CryptoKey) {
         this.privateKey = privateKey || new CryptoKey("private");
         this.publicKey = publicKey || new CryptoKey("public");
-    }
-}
-
-export class Algorithm {
-    name: string = "";
-    constructor(name: string = "") {
-        this.name = name;
-    }
-}
-
-export class KeyAlgorithm {
-    name: string = "AES-GCM";
-    constructor(name: string = "AES-GCM") {
-        this.name = name;
     }
 }
 
@@ -118,19 +104,19 @@ export class SubtleCrypto {
             if (params.iterations) iterations = params.iterations;
             if (params.salt) salt = binaryString(sourceBytes(params.salt));
         }
-        if (name.toUpperCase() === "PBKDF2" || name.toUpperCase() === "HKDF") {
+        if (name.toUpperCase() === "PBKDF2") {
             const pass = binaryString(baseKey.material);
             const keyLength = length > 0 ? length / 8 : 16;
             const derived = __scriptgo.pbkdf2Sync(pass, salt, iterations, keyLength, digest);
             return bufferToArrayBuffer(derived);
         }
-        return new ArrayBuffer(0);
+        throw new Error("Unsupported deriveBits algorithm: " + name);
     }
 
     async importKey(format: string, keyData: unknown, algorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey> {
         let name = "RAW";
         if (typeof algorithm === "string") name = algorithm;
-        const key = new CryptoKey("secret", extractable, new KeyAlgorithm(name), keyUsages);
+        const key = new CryptoKey("secret", extractable, { name }, keyUsages);
         if (format === "raw") key.material = sourceBytes(keyData as BufferSource);
         return key;
     }
@@ -164,7 +150,5 @@ export default {
     CryptoKey,
     CryptoKeyPair,
     SubtleCrypto,
-    Algorithm,
-    KeyAlgorithm,
     webcrypto,
 };

@@ -172,8 +172,6 @@ export class EventEmitter {
     }
 }
 
-export class NodeEventTarget extends EventEmitter {}
-
 export class Event {
     type: string;
     bubbles: boolean = false;
@@ -416,7 +414,6 @@ export const errorMonitor = Symbol("events.errorMonitor");
 
 export default {
     EventEmitter,
-    NodeEventTarget,
     EventTarget,
     Event,
     CustomEvent,

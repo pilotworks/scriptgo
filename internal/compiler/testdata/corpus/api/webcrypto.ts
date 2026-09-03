@@ -4,8 +4,6 @@ import {
     CryptoKey,
     CryptoKeyPair,
     SubtleCrypto,
-    Algorithm,
-    KeyAlgorithm,
 } from "webcrypto";
 
 // @api: webcrypto.webcrypto.Crypto
@@ -39,22 +37,6 @@ console.log("wc_key: " + key.type + " " + key.extractable + " " + key.algorithm.
 // @expect: wc_keypair: private public
 const pair = new CryptoKeyPair();
 console.log("wc_keypair: " + pair.privateKey.type + " " + pair.publicKey.type);
-
-// @api: webcrypto.webcrypto.Algorithm
-// @api: webcrypto.Algorithm
-// @api: new webcrypto.Algorithm
-// @api: Algorithm.name
-// @expect: wc_algo: test
-const algo = new Algorithm("test");
-console.log("wc_algo: " + algo.name);
-
-// @api: webcrypto.webcrypto.KeyAlgorithm
-// @api: webcrypto.KeyAlgorithm
-// @api: new webcrypto.KeyAlgorithm
-// @api: KeyAlgorithm.name
-// @expect: wc_keyalgo: AES-GCM
-const keyAlgo = new KeyAlgorithm();
-console.log("wc_keyalgo: " + keyAlgo.name);
 
 // @api: webcrypto.webcrypto.SubtleCrypto
 // @api: webcrypto.SubtleCrypto

@@ -76,18 +76,6 @@ console.log(entry !== null && entry.path.length >= 0);
 dir.closeSync();
 console.log(true);
 
-// @api: fs.Dir.[Symbol.asyncIterator]
-// @expect: true
-console.log(dir !== null);
-
-// @api: fs.Dir.[Symbol.asyncDispose]
-// @expect: true
-console.log(dir.path.length > 0);
-
-// @api: fs.Dir.[Symbol.Dispose]
-// @expect: true
-console.log(dir.path.length > 0);
-
 // @api: fs.opendir
 // @expect: true
 const asyncDir = await fs.promises.opendir(tmpDir);
@@ -260,10 +248,6 @@ console.log(sfs.files > 0);
 // @api: fs.StatFs.ffree
 // @expect: true
 console.log(sfs.ffree > 0);
-
-// @api: fs.StatFs.type
-// @expect: true
-console.log(sfs.bsize > 0);
 
 // Clean up /tmp
 fs.rmSync(tmpDir, { recursive: true, force: true });

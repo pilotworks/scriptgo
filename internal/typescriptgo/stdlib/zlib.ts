@@ -76,17 +76,6 @@ export type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
 type ZlibInput = string | Uint8Array;
 
-function _inputBytes(data: ZlibInput): Uint8Array {
-    if (typeof data === "string") {
-        const result = new Uint8Array(data.length);
-        for (let i = 0; i < data.length; i++) {
-            result[i] = data.charCodeAt(i) & 0xFF;
-        }
-        return result;
-    }
-    return data;
-}
-
 function _transform(data: ZlibInput, mode: number): Uint8Array {
     if (typeof data === "string") {
         return __scriptgo.zlibTransformString(data, mode);

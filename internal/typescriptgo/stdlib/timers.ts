@@ -69,24 +69,6 @@ export class Timeout {
     }
 }
 
-export function wait(ms: number = 0): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve(undefined);
-        }, ms);
-    });
-}
-
-function _yield(): Promise<void> {
-    return new Promise((resolve) => {
-        setImmediate(() => {
-            resolve(undefined);
-        });
-    });
-}
-
-export { _yield as yield };
-
 export class TimersPromises {
     setTimeout(delay: number = 1, value?: unknown): Promise<unknown> {
         return new Promise((resolve) => {
@@ -123,7 +105,5 @@ export default {
     clearInterval,
     setImmediate,
     clearImmediate,
-    wait,
-    yield: _yield,
     promises,
 };

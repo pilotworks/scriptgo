@@ -964,14 +964,6 @@ export function rm(path: string, callback?: (err: Error | null) => void): void {
     }
 }
 
-export function globSync(pattern: string): string[] {
-    return readdirSync(".");
-}
-
-export function glob(pattern: string, callback?: (err: Error | null, matches: string[]) => void): void {
-    if (callback) queueMicrotask(() => callback(null, []));
-}
-
 export function read(fd: number, buffer: Buffer, offset: number, length: number, position: number, callback?: (err: Error | null, bytesRead: number, buffer: Buffer) => void): void {
     try {
         const n = readSync(fd, buffer, offset, length, position);
@@ -1070,14 +1062,6 @@ export function futimes(fd: number, atime: number, mtime: number, callback?: (er
         if (callback) queueMicrotask(() => callback(new Error("futimes error")));
     }
 }
-
-export function openAsBlob(path: string): Promise<string> {
-    return Promise.resolve(path);
-}
-
-export const native = {
-    promises: promises,
-};
 
 export default {
     Stats,

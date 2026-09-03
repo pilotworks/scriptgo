@@ -230,10 +230,5 @@ console.log(true);
 fs.lutimesSync(symLink, 1600000000, 1600000000);
 console.log(true);
 
-// @api: fs.globSync
-// @expect: true
-const matchedFiles = fs.globSync(tmpDir + "/*");
-console.log(matchedFiles.length > 0);
-
 // Clean up /tmp
 fs.rmSync(tmpDir, { recursive: true, force: true });

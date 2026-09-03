@@ -1,23 +1,3 @@
-class HttpListenerEntry {
-    fn: Function;
-    once: boolean;
-
-    constructor(fn: Function, once: boolean) {
-        this.fn = fn;
-        this.once = once;
-    }
-}
-
-class HttpEventBucket {
-    name: string;
-    listeners: HttpListenerEntry[];
-
-    constructor(name: string, listeners: HttpListenerEntry[]) {
-        this.name = name;
-        this.listeners = listeners;
-    }
-}
-
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];

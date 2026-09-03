@@ -7,7 +7,6 @@ declare namespace __scriptgo {
     function netSocketRead(fd: number, maxLen: number): string;
     function netSocketClose(fd: number): void;
     function netServerListen(host: string, port: number, backlog: number): number;
-    function netServerAccept(serverFd: number): { fd: number; ip: string; port: number };
 }
 
 class NetListenerEntry {

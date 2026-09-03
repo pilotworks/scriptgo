@@ -135,62 +135,6 @@ console.log(resOnce === "data" || resOnce !== null);
 // @expect: true
 console.log(typeof events.on(ee, "ev") === "object");
 
-// @api: events.NodeEventTarget
-// @expect: true
-const net = new EventEmitter();
-console.log(net !== null);
-
-// @api: NodeEventTarget.on
-// @expect: true
-net.on("data", () => {});
-console.log(net.listenerCount("data") === 1);
-
-// @api: NodeEventTarget.addListener
-// @expect: true
-net.addListener("data", () => {});
-console.log(net.listenerCount("data") === 2);
-
-// @api: NodeEventTarget.once
-// @expect: true
-net.once("ev", () => {});
-console.log(net.listenerCount("ev") === 1);
-
-// @api: NodeEventTarget.emit
-// @expect: true
-console.log(net.emit("data"));
-
-// @api: NodeEventTarget.listenerCount
-// @expect: 2
-console.log(net.listenerCount("data"));
-
-// @api: NodeEventTarget.eventNames
-// @expect: true
-console.log(net.eventNames().length >= 1);
-
-// @api: NodeEventTarget.off
-// @expect: true
-net.off("data", dummyFn);
-console.log(true);
-
-// @api: NodeEventTarget.removeListener
-// @expect: true
-net.removeListener("data", dummyFn);
-console.log(true);
-
-// @api: NodeEventTarget.removeAllListeners
-// @expect: 0
-net.removeAllListeners();
-console.log(net.listenerCount("data"));
-
-// @api: NodeEventTarget.setMaxListeners
-// @expect: true
-net.setMaxListeners(25);
-console.log(net.getMaxListeners() === 25);
-
-// @api: NodeEventTarget.getMaxListeners
-// @expect: 25
-console.log(net.getMaxListeners());
-
 // @api: events.Event
 // @expect: true
 const ev = new Event("build", { cancelable: true });

@@ -168,4 +168,5 @@ console.log(optionsSock.remoteAddress);
 // @api: net.Server.[Symbol.asyncDispose]
 // @expect: true
 const srvAsync = createServer();
-console.log(srvAsync !== null);
+await srvAsync[Symbol.asyncDispose]();
+console.log(srvAsync.listening === false);
