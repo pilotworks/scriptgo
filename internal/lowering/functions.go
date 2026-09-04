@@ -198,7 +198,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 								function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRTypeForPath(fileName, method.Parameters[0].Type)})
 							}
 						} else {
-							mangled = className + "_" + method.Name
+							mangled = methodImplementationName(className, method.Name)
 							retType := toIRTypeForPath(fileName, method.Type)
 							if method.Type == "this" || retType == "this" || retType == "object:this" {
 								retType = ir.Type("object:" + className)
@@ -326,7 +326,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRTypeForPath(fileName, method.Parameters[0].Type)})
 						}
 					} else {
-						mangled = className + "_" + method.Name
+						mangled = methodImplementationName(className, method.Name)
 						retType := toIRTypeForPath(fileName, method.Type)
 						if method.Type == "this" || retType == "this" || retType == "object:this" {
 							retType = ir.Type("object:" + className)

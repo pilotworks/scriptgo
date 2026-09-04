@@ -677,7 +677,7 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
 		return nil
 	case "__crypto.randomFill":
-		if len(instruction.Args) < 1 || len(instruction.Args) > 3 {
+		if len(instruction.Args) < 1 || len(instruction.Args) > 4 {
 			return fmt.Errorf("crypto.randomFill has invalid signature")
 		}
 		offArg := "0.0"
@@ -688,9 +688,13 @@ func (e *functionEmitter) emitCryptoIntrinsic(out *strings.Builder, instruction 
 		if len(instruction.Args) >= 3 {
 			szArg = fmt.Sprintf("%%%s", instruction.Args[2])
 		}
+		callback := "null"
+		if len(instruction.Args) == 4 {
+			callback = fmt.Sprintf("%%%s", instruction.Args[3])
+		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_random_fill(ptr %%%s, double %s, double %s)\n", status, instruction.Args[0], offArg, szArg)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_crypto_random_fill(ptr %%%s, double %s, double %s, ptr %s)\n", status, instruction.Args[0], offArg, szArg, callback)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		if instruction.Type == ir.TypeBuffer {
 			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0])
@@ -842,7 +846,7 @@ func (e *functionEmitter) emitDateIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
-	case "__date.toString", "__date.toTemporalInstant", "__date.toLocaleString", "__date.toLocaleDateString", "__date.toLocaleTimeString":
+	case "__date.toString", "__date.toLocaleString", "__date.toLocaleDateString", "__date.toLocaleTimeString":
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++

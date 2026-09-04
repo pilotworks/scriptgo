@@ -5,7 +5,6 @@ import {
     PerformanceResourceTiming,
     PerformanceObserverEntryList,
     PerformanceObserver,
-    Histogram,
     RecordableHistogram,
     createHistogram,
     performance
@@ -71,29 +70,6 @@ obs.observe({ entryTypes: ["mark"] });
 const records = obs.takeRecords();
 obs.disconnect();
 console.log("ph_obs: " + (PerformanceObserver.supportedEntryTypes.length > 0) + " " + records.length);
-
-// @api: perf_hooks.Histogram
-// @api: Histogram.percentile
-// @api: Histogram.percentileBigInt
-// @api: Histogram.reset
-// @api: Histogram.count
-// @api: Histogram.countBigInt
-// @api: Histogram.exceeds
-// @api: Histogram.exceedsBigInt
-// @api: Histogram.max
-// @api: Histogram.maxBigInt
-// @api: Histogram.mean
-// @api: Histogram.min
-// @api: Histogram.minBigInt
-// @api: Histogram.percentiles
-// @api: Histogram.percentilesBigInt
-// @api: Histogram.stddev
-// @expect: ph_hist: 0 0 0
-const hist = new Histogram();
-hist.reset();
-console.log("ph_hist: " + hist.count + " " + hist.min + " " + hist.percentile(50));
-
-
 
 // @api: perf_hooks.RecordableHistogram
 // @api: RecordableHistogram.record

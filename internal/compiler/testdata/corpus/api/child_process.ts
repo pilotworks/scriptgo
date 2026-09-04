@@ -5,7 +5,6 @@ import {
     spawnSync,
     execSync,
     execFileSync,
-    SpawnSyncReturns
 } from "node:child_process";
 
 // @api: child_process.execSync
@@ -24,4 +23,3 @@ console.log("spawnSync_status: " + spawnSyncRet.status);
 // @expect: execFileSync_res: hello
 const execFileSyncOut = execFileSync("echo", ["hello"]);
 console.log("execFileSync_res: " + execFileSyncOut.trim());
-

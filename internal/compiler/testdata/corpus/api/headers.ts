@@ -1,7 +1,6 @@
 // ScriptGo Corpus: Headers Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
-import { Headers } from "node:http";
 
 // @api: headers.append
 // @api: headers.get

@@ -193,6 +193,9 @@ typedef struct {
     uint64_t magic;
     int64_t field_count;
     const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
     uintptr_t fields[];
 } scriptgo_object_t;
 
@@ -246,6 +249,41 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
     }
     *out_str = (char *)obj;
     return 0;
+}
+
+int scriptgo_error_to_string(void *obj, char **out_str) {
+    scriptgo_object_t *error;
+    const char *name;
+    const char *message;
+    size_t name_len;
+    size_t message_len;
+    char *result;
+
+    if (obj == NULL || out_str == NULL || !scriptgo_gc_is_registered(obj)) {
+        return scriptgo_runtime_set_error("invalid error object");
+    }
+    error = (scriptgo_object_t *)obj;
+    if (error->magic != SCRIPTGO_OBJECT_MAGIC || error->field_count < 2) {
+        return scriptgo_runtime_set_error("invalid error object");
+    }
+    name = error->fields[1] == 0 ? "Error" : (const char *)error->fields[1];
+    message = error->fields[0] == 0 ? "" : (const char *)error->fields[0];
+    name_len = strlen(name);
+    message_len = strlen(message);
+    if (name_len == 0) name = "Error";
+    if (message_len == 0) {
+        *out_str = strdup(name);
+    } else if (name_len == 0) {
+        *out_str = strdup(message);
+    } else {
+        result = malloc(name_len + message_len + 3);
+        if (result == NULL) return scriptgo_runtime_set_error("error string allocation failed");
+        memcpy(result, name, name_len);
+        memcpy(result + name_len, ": ", 2);
+        memcpy(result + name_len + 2, message, message_len + 1);
+        *out_str = result;
+    }
+    return *out_str == NULL ? scriptgo_runtime_set_error("error string allocation failed") : 0;
 }
 
 typedef struct scriptgo_exception_frame {
@@ -369,4 +407,3 @@ void scriptgo_debugger_break(const char *file, int line) {
     (void)file;
     (void)line;
 }
-

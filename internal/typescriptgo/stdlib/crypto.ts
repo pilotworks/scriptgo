@@ -283,7 +283,16 @@ export function checkPrime(candidate: unknown, options?: unknown, callback?: unk
 }
 
 export function checkPrimeSync(candidate: unknown, options?: unknown): boolean {
-    if (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 2) {
+	if (typeof candidate === "bigint") {
+		if (candidate < 2n) return false;
+		if (candidate === 2n || candidate === 3n) return true;
+		if (candidate % 2n === 0n) return false;
+		for (let divisor = 3n; divisor * divisor <= candidate; divisor += 2n) {
+			if (candidate % divisor === 0n) return false;
+		}
+		return true;
+	}
+	if (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 2) {
         return false;
     }
     if (candidate === 2 || candidate === 3) {

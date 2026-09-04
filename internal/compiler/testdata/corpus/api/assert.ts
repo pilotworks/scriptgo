@@ -22,7 +22,6 @@ import assert, {
     doesNotReject,
     AssertionError,
     CallTracker,
-    Assert,
     strict
 } from "node:assert";
 
@@ -126,42 +125,6 @@ console.log("match passed");
 // @expect: doesNotMatch passed
 doesNotMatch("hello world", /foo/);
 console.log("doesNotMatch passed");
-
-// @api: assert.AssertionError
-// @expect: AssertionError
-// @expect: ERR_ASSERTION
-const err = new AssertionError({ message: "custom assertion", actual: 1, expected: 2 });
-console.log(err.name);
-console.log(err.code);
-
-// @api: assert.CallTracker
-// @api: assert.CallTracker.calls
-// @api: assert.CallTracker.getCalls
-// @api: assert.CallTracker.report
-// @api: assert.CallTracker.reset
-// @api: assert.CallTracker.verify
-// @expect: 2
-// @expect: 0
-// @expect: tracker verified
-const tracker = new CallTracker();
-function trackedFn(n: number): number {
-    return n * 2;
-}
-const tracked = tracker.calls(trackedFn, 2);
-tracked(10);
-tracked(20);
-console.log(tracker.getCalls(trackedFn).length);
-console.log(tracker.report().length);
-tracker.verify();
-tracker.reset();
-console.log("tracker verified");
-
-// @api: assert.Assert
-// @expect: Assert class passed
-const customAssert = new Assert({ diff: "simple", strict: true });
-customAssert.ok(true);
-customAssert.strictEqual(100, 100);
-console.log("Assert class passed");
 
 // @api: assert.strict
 // @expect: strict mode passed

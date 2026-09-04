@@ -9,8 +9,11 @@
 // @api: Intl.PluralRules.prototype.select
 // @expect: 1,234,567
 // @expect: -1
-// @expect: ["Hello","World"]
-// @expect: ["en-US"]
+// @expect: {}
+// @expect: Hello
+// @expect: 0
+// @expect: 3
+// @expect: [ 'en-US' ]
 // @expect: English
 // @expect: Apple, Banana, and Cherry
 // @expect: in 3 days
@@ -23,8 +26,16 @@ console.log(nf.format(1234567));
 const collator = new Intl.Collator("en");
 console.log(collator.compare("a", "b"));
 
-const segmenter = new Intl.Segmenter("en");
+const segmenter = new Intl.Segmenter("en", { granularity: "word" });
 console.log(segmenter.segment("Hello World"));
+const segments = segmenter.segment("Hello World");
+console.log(segments.containing(1)!.segment);
+console.log(segments.containing(1)!.index);
+let segmentCount = 0;
+for (const part of segments) {
+    segmentCount++;
+}
+console.log(segmentCount);
 
 const locales = Intl.getCanonicalLocales("EN-us");
 console.log(locales);
@@ -41,4 +52,3 @@ console.log(rtf.format(3, "day"));
 const pr = new Intl.PluralRules("en");
 console.log(pr.select(1));
 console.log(pr.select(5));
-

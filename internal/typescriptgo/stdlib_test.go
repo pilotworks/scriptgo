@@ -16,7 +16,7 @@ func TestEmbeddedStdlibLoaded(t *testing.T) {
 		t.Fatal("expected embedded builtin modules, got 0")
 	}
 
-	expectedModules := []string{"console", "crypto", "fs", "os", "path", "process", "vm"}
+	expectedModules := []string{"console", "crypto", "fs", "os", "path", "process", "reflect-metadata", "vm"}
 	for _, modName := range expectedModules {
 		mod, ok := builtinModule(modName)
 		if !ok {

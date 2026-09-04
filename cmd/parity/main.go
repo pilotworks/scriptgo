@@ -58,6 +58,7 @@ type CatSummary struct {
 }
 
 type corpusDirectives struct {
+	runner            string
 	hasRunExpected    bool
 	runExpected       string
 	hasNativeExpected bool
@@ -101,7 +102,9 @@ func parseCorpusDirectives(content string) corpusDirectives {
 			continue
 		}
 		comment := strings.TrimLeft(strings.TrimPrefix(trimmedLeading, "//"), " \t")
-		if val, ok := parseDirectiveLine(comment, "@expect"); ok {
+		if val, ok := parseDirectiveLine(comment, "@parity-runner"); ok {
+			d.runner = strings.TrimSpace(val)
+		} else if val, ok := parseDirectiveLine(comment, "@expect"); ok {
 			d.hasRunExpected = true
 			runLines = append(runLines, val)
 		} else if val, ok := parseDirectiveLine(comment, "@run.expected"); ok {
@@ -280,6 +283,10 @@ func main() {
 		if content, err := os.ReadFile(entry); err == nil {
 			directives = parseCorpusDirectives(string(content))
 		}
+		runner := *runnerType
+		if directives.runner != "" {
+			runner = directives.runner
+		}
 
 		res := CaseResult{
 			Path:              relPath,
@@ -343,7 +350,7 @@ func main() {
 			var nodeOut string
 			var nodeErr error
 			if hasRunExpected {
-				nodeOut, nodeErr = runWithNode(entry, *runnerType, workingDir, nodePath)
+				nodeOut, nodeErr = runWithNode(entry, runner, workingDir, nodePath)
 			}
 			res.NodeOutput = nodeOut
 
@@ -539,12 +546,44 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 	}
 
 	var cmd *exec.Cmd
+	var emittedEntry string
 
 	switch runner {
 	case "tsx":
 		cmd = exec.Command("tsx", absoluteEntry)
 	case "tsc":
 		cmd = exec.Command("tsc", "--noEmit", absoluteEntry)
+	case "tsc-node22":
+		tscPath := os.Getenv("TSC_BIN")
+		if tscPath == "" {
+			tscPath = "tsc"
+		}
+		tempDir, err := os.MkdirTemp("", "scriptgo-parity-tsc-")
+		if err != nil {
+			return "", fmt.Errorf("create TypeScript output directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+		emittedEntry = filepath.Join(tempDir, strings.TrimSuffix(filepath.Base(absoluteEntry), filepath.Ext(absoluteEntry))+".js")
+		compile := exec.Command(tscPath, "--target", "ES2022", "--module", "NodeNext", "--experimentalDecorators", "--emitDecoratorMetadata", "--skipLibCheck", "--noEmitOnError", "false", "--outDir", tempDir, "--rootDir", filepath.Dir(absoluteEntry), absoluteEntry)
+		compile.Dir = workingDir
+		var compileOutput bytes.Buffer
+		compile.Stdout = &compileOutput
+		compile.Stderr = &compileOutput
+		if err := compile.Run(); err != nil && !fileExists(emittedEntry) {
+			return compileOutput.String(), fmt.Errorf("tsc: %w\n%s", err, compileOutput.String())
+		}
+		if emittedEntry == "" || !fileExists(emittedEntry) {
+			return compileOutput.String(), fmt.Errorf("tsc did not emit %s", emittedEntry)
+		}
+		cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", emittedEntry)
+		// The emitted entry lives in /tmp, so expose corpus-local test dependencies.
+		if workingDir != "" {
+			nodeModules := filepath.Join(workingDir, "node_modules")
+			if absoluteNodeModules, err := filepath.Abs(nodeModules); err == nil {
+				nodeModules = absoluteNodeModules
+			}
+			cmd.Env = append(os.Environ(), "NODE_PATH="+nodeModules)
+		}
 	default:
 		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
 		cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", absoluteEntry)
@@ -558,6 +597,11 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 	cmd.Stderr = &stdout
 	err = cmd.Run()
 	return stdout.String(), err
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func findCorpusCases(root, filter string) ([]string, error) {

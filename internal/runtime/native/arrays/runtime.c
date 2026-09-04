@@ -1196,16 +1196,16 @@ int scriptgo_array_entries(void *handle, void **out_array) {
         char buf[256];
         if (array->element_size == sizeof(char *)) {
             const char *val = *(const char **)(array->data + (size_t)i * sizeof(char *));
-            snprintf(buf, sizeof(buf), "[%lld, %s]", (long long)i, val ? val : "undefined");
+            snprintf(buf, sizeof(buf), "[ %lld, '%s' ]", (long long)i, val ? val : "undefined");
         } else if (array->element_size == sizeof(double)) {
             double val = *(double *)(array->data + (size_t)i * sizeof(double));
             if (val == (double)(int64_t)val) {
-                snprintf(buf, sizeof(buf), "[%lld, %lld]", (long long)i, (long long)val);
+                snprintf(buf, sizeof(buf), "[ %lld, %lld ]", (long long)i, (long long)val);
             } else {
-                snprintf(buf, sizeof(buf), "[%lld, %g]", (long long)i, val);
+                snprintf(buf, sizeof(buf), "[ %lld, %g ]", (long long)i, val);
             }
         } else {
-            snprintf(buf, sizeof(buf), "[%lld, <item>]", (long long)i);
+            snprintf(buf, sizeof(buf), "[ %lld, <item> ]", (long long)i);
         }
         char *entry_str = strdup(buf);
         memcpy(res->data + (size_t)i * sizeof(char *), &entry_str, sizeof(char *));

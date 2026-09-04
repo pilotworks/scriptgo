@@ -180,10 +180,6 @@ const d_date_toLocaleTimeString_42 = new Date(1577836800000); console.log(typeof
 const d_date_toString_43 = new Date(1700000000000);
 console.log(d_date_toString_43.toString().length > 0);
 
-// @api: date.toTemporalInstant
-// @expect: string
-const d_date_toTemporalInstant_44 = new Date(1577836800000); console.log(typeof d_date_toTemporalInstant_44.toTemporalInstant());
-
 // @api: date.toTimeString
 // @expect: string
 const d_date_toTimeString_45 = new Date(1577836800000); console.log(typeof d_date_toTimeString_45.toTimeString());

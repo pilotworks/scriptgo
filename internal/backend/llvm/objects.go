@@ -353,6 +353,50 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 
 func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__object.freeze", "__object.seal", "__object.preventExtensions":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("%s requires one argument", instruction.Callee)
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		callee := "@scriptgo_object_freeze"
+		if instruction.Callee == "__object.seal" {
+			callee = "@scriptgo_object_seal"
+		}
+		if instruction.Callee == "__object.preventExtensions" {
+			callee = "@scriptgo_object_prevent_extensions"
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 %s(ptr %%%s, ptr %%%s)\n", status, callee, obj, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = ir.TypeObject
+		return nil
+	case "__object.isFrozen", "__object.isSealed", "__object.isExtensible":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("%s requires one argument", instruction.Callee)
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
+		callee := "@scriptgo_object_is_frozen"
+		if instruction.Callee == "__object.isSealed" {
+			callee = "@scriptgo_object_is_sealed"
+		}
+		if instruction.Callee == "__object.isExtensible" {
+			callee = "@scriptgo_object_is_extensible"
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 %s(ptr %%%s, ptr %%%s)\n", status, callee, obj, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		loaded := instruction.Result + ".i32"
+		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", loaded, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded))
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
 	case "__object.is":
 		e.types[instruction.Result] = ir.TypeBool
 		slot := instruction.Result + ".slot"
@@ -553,6 +597,56 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		}
+		return nil
+	case "__object.set_prop":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("__object.set_prop requires object, property, and value")
+		}
+		objArg := e.resolveArg(out, instruction.Args[0])
+		propertyArg := e.resolveArg(out, instruction.Args[1])
+		valueArg := e.resolveArg(out, instruction.Args[2])
+		objType := e.types[instruction.Args[0]]
+		ptrObj := objArg
+		if objType == ir.TypeUnknown {
+			payloadName := fmt.Sprintf("dynamic.set.payload.%d", e.loadCounter)
+			ptrName := fmt.Sprintf("dynamic.set.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, objArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+			ptrObj = ptrName
+		}
+		valueType := e.types[instruction.Args[2]]
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		switch valueType {
+		case ir.TypeString:
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_string_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, valueArg)
+		case ir.TypeNumber:
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_set(ptr %%%s, ptr %%%s, double %%%s)\n", status, ptrObj, propertyArg, valueArg)
+		case ir.TypeBool:
+			boolValue := fmt.Sprintf("dynamic.set.bool.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolValue, valueArg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bool_set(ptr %%%s, ptr %%%s, i32 %%%s)\n", status, ptrObj, propertyArg, boolValue)
+		case ir.TypeBigInt:
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_set(ptr %%%s, ptr %%%s, i64 %%%s)\n", status, ptrObj, propertyArg, valueArg)
+		default:
+			tagName := fmt.Sprintf("dynamic.set.tag.%d", e.loadCounter)
+			payloadName := fmt.Sprintf("dynamic.set.value.%d", e.loadCounter)
+			e.loadCounter++
+			boxed := valueArg
+			if valueType != ir.TypeUnknown {
+				boxed = fmt.Sprintf("dynamic.set.boxed.%d", e.loadCounter)
+				e.loadCounter++
+				if err := e.emitBoxValue(out, valueArg, valueType, boxed); err != nil {
+					return err
+				}
+			}
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagName, boxed)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, boxed)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %%%s, ptr %%%s, i32 %%%s, i64 %%%s)\n", status, ptrObj, propertyArg, tagName, payloadName)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 	default:
 		if strings.HasPrefix(instruction.Callee, "__object.") {

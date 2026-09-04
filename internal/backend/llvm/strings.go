@@ -138,6 +138,51 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, arg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.inspectObject":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.inspectObject has invalid signature")
+		}
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if slot, ok := e.varSlots[arg]; ok {
+			loaded := fmt.Sprintf("%s.inspect_load.%d", arg, e.loadCounter)
+			e.loadCounter++
+			if argType == ir.TypeUnknown {
+				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot)
+				arg = loaded
+			} else {
+				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				arg = loaded
+			}
+		}
+		if argType == ir.TypeUnknown {
+			tagVar := fmt.Sprintf("inspect.tag.%d", e.loadCounter)
+			valVar := fmt.Sprintf("inspect.val.%d", e.loadCounter)
+			ptrVar := fmt.Sprintf("inspect.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", valVar, arg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, valVar)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_inspect_object(ptr %%%s, ptr %%__slot_ptr)\n", status, ptrVar)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_inspect_object(ptr %%%s, ptr %%__slot_ptr)\n", status, arg)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.inspectBuffer":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.inspectBuffer has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_inspect_buffer(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.inspectArray":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.inspectArray has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_inspect_array(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.slice", "__string.substring":
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.slice has invalid signature")
@@ -296,6 +341,20 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 			return fmt.Errorf("string.fromBigInt has invalid signature")
 		}
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.fromBigIntLocale":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.fromBigIntLocale has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint_locale(i64 %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.errorToString":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("error.toString has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_error_to_string(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.match":

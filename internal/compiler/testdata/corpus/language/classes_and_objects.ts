@@ -301,8 +301,8 @@ console.log(c_classes_methods_8.add(32));
 // @expect: ElectricCar(Tesla, battery=100kWh)
 // @expect: 220
 // @expect: Poly: Vehicle(Generic) speed: 100
-// @expect: Poly: Vehicle(Toyota) speed: 100
-// @expect: Poly: Vehicle(Tesla) speed: 100
+// @expect: Poly: Car(Toyota, doors=4) speed: 180
+// @expect: Poly: ElectricCar(Tesla, battery=100kWh) speed: 220
 // @expect: true
 // @expect: true
 // @expect: true
@@ -613,8 +613,8 @@ console.log(MathUtils_classes_static_members_15.multiply(6, 7));
 // @expect: BOSS[Rank 3] -> Monster[3]: Dragon (Lvl 50)
 // @expect: 3000
 // @expect: Summary: Entity[1]: NPC with power 10
-// @expect: Summary: Entity[2]: Goblin with power 10
-// @expect: Summary: Entity[3]: Dragon with power 10
+// @expect: Summary: Monster[2]: Goblin (Lvl 5) with power 50
+// @expect: Summary: BOSS[Rank 3] -> Monster[3]: Dragon (Lvl 50) with power 3000
 class Entity_classes_three_tier_inheritance_16 {
     id: number;
     name: string;

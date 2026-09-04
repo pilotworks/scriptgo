@@ -1,3 +1,4 @@
+// @parity-runner: tsc-node22
 // ScriptGo Corpus: Static Tier Features Test Suite
 // Consolidated test suite with inline assertions.
 

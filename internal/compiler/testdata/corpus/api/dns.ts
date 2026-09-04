@@ -11,7 +11,6 @@ import {
     resolvePtr,
     reverse,
     promises,
-    LookupAddress
 } from "node:dns";
 
 

@@ -100,7 +100,7 @@ console.log(({ a: 1 }).hasOwnProperty("a"));
 console.log(Object.isExtensible({ a: 1 }));
 
 // @api: object.isFrozen
-// @expect: true
+// @expect: false
 console.log(Object.isFrozen({ a: 1 }));
 
 // @api: object.isPrototypeOf
@@ -108,7 +108,7 @@ console.log(Object.isFrozen({ a: 1 }));
 console.log(({ a: 1 }).isPrototypeOf({ b: 2 }));
 
 // @api: object.isSealed
-// @expect: true
+// @expect: false
 console.log(Object.isSealed({ a: 1 }));
 
 // @api: object.preventExtensions
@@ -142,4 +142,3 @@ console.log(typeof ({ a: 1 }).valueOf() === "object");
 // @api: Objectconstructor
 // @expect: true
 console.log(typeof Object() === "object");
-

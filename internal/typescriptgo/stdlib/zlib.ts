@@ -83,6 +83,10 @@ function _transform(data: ZlibInput, mode: number): Uint8Array {
     return __scriptgo.zlibTransformBuffer(data, mode);
 }
 
+function _scheduleTransform(callback: ZlibCallback, data: ZlibInput, mode: number): void {
+    Promise.resolve().then(() => callback(null, _transform(data, mode)));
+}
+
 function _crc32Bytes(data: Uint8Array, initial: number): number {
     let crc = (initial ^ -1) >>> 0;
     for (let i = 0; i < data.length; i++) {
@@ -109,7 +113,7 @@ function _crc32Input(data: ZlibInput): Uint8Array {
 export function deflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 0));
+        _scheduleTransform(cb, buf, 0);
     }
 }
 
@@ -120,7 +124,7 @@ export function deflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
 export function deflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 1));
+        _scheduleTransform(cb, buf, 1);
     }
 }
 
@@ -131,7 +135,7 @@ export function deflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Arra
 export function gunzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 5));
+        _scheduleTransform(cb, buf, 5);
     }
 }
 
@@ -142,7 +146,7 @@ export function gunzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
 export function gzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 2));
+        _scheduleTransform(cb, buf, 2);
     }
 }
 
@@ -153,7 +157,7 @@ export function gzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
 export function inflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 3));
+        _scheduleTransform(cb, buf, 3);
     }
 }
 
@@ -164,7 +168,7 @@ export function inflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
 export function inflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 4));
+        _scheduleTransform(cb, buf, 4);
     }
 }
 
@@ -175,7 +179,7 @@ export function inflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Arra
 export function unzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 5));
+        _scheduleTransform(cb, buf, 5);
     }
 }
 
@@ -186,7 +190,7 @@ export function unzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
 export function brotliCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 6));
+        _scheduleTransform(cb, buf, 6);
     }
 }
 
@@ -197,7 +201,7 @@ export function brotliCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8
 export function brotliDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 7));
+        _scheduleTransform(cb, buf, 7);
     }
 }
 
@@ -208,7 +212,7 @@ export function brotliDecompressSync(buf: ZlibInput, options?: ZlibOptions): Uin
 export function zstdCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 8));
+        _scheduleTransform(cb, buf, 8);
     }
 }
 
@@ -219,7 +223,7 @@ export function zstdCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Ar
 export function zstdDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
     const cb = typeof options === "function" ? options : callback;
     if (typeof cb === "function") {
-        cb(null, _transform(buf, 9));
+        _scheduleTransform(cb, buf, 9);
     }
 }
 

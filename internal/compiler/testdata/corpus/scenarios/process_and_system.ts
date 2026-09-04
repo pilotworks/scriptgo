@@ -9,10 +9,10 @@ import * as os from "node:os";
 // --- Context Case: scenarios_child_process_exec_sync ---
 // @expect: Hello from execSync
 // @expect: 12345
-const out1_child_process_exec_sync_0 = execSync("echo Hello from execSync");
+const out1_child_process_exec_sync_0 = execSync("echo Hello from execSync", { encoding: "utf8" });
 console.log(out1_child_process_exec_sync_0.trim());
 
-const out2_child_process_exec_sync_0 = execSync("echo 12345");
+const out2_child_process_exec_sync_0 = execSync("echo 12345", { encoding: "utf8" });
 console.log(out2_child_process_exec_sync_0.trim());
 
 // --- Context Case: scenarios_child_process_spawn_sync ---

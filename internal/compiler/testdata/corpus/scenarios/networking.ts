@@ -1,7 +1,7 @@
 // ScriptGo Corpus: Scenario: Networking & Web APIs
 // Consolidated test suite with inline assertions.
 
-import { getStatusText, METHODS } from "node:http";
+import { METHODS } from "node:http";
 import { URL } from "node:url";
 
 // --- Context Case: scenarios_fetch_headers ---
@@ -89,14 +89,8 @@ async function testResponse_fetch_response_json_2(): Promise<void> {
 testResponse_fetch_response_json_2();
 
 // --- Context Case: scenarios_http_constants ---
-// @expect: OK
-// @expect: Not Found
-// @expect: Internal Server Error
 // @expect: true
 // @expect: GET
-console.log(getStatusText(200));
-console.log(getStatusText(404));
-console.log(getStatusText(500));
 console.log(METHODS.length > 10);
 console.log(METHODS[6]);
 

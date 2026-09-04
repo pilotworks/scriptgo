@@ -643,7 +643,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					Op:     ir.OpCall,
 					Type:   retType,
 					Result: result,
-					Callee: "__object.get",
+					Callee: "__object.get_prop",
 					Args:   []string{array, index},
 					Span:   toIRSpan(path, expression.Span),
 				})

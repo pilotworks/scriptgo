@@ -682,9 +682,9 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 	}
 
 	registerSimpleObj([]string{"Object.create"}, "__object.create", ir.TypeObject, 1, 2)
-	registerSimpleObj([]string{"Object.freeze"}, "__object.freeze", "", 1, 1)
-	registerSimpleObj([]string{"Object.seal"}, "__object.seal", "", 1, 1)
-	registerSimpleObj([]string{"Object.preventExtensions"}, "__object.preventExtensions", "", 1, 1)
+	registerSimpleObj([]string{"Object.freeze"}, "__object.freeze", ir.TypeObject, 1, 1)
+	registerSimpleObj([]string{"Object.seal"}, "__object.seal", ir.TypeObject, 1, 1)
+	registerSimpleObj([]string{"Object.preventExtensions"}, "__object.preventExtensions", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.isFrozen"}, "__object.isFrozen", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isSealed"}, "__object.isSealed", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isExtensible"}, "__object.isExtensible", ir.TypeBool, 1, 1)

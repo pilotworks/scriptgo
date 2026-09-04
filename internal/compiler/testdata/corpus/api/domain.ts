@@ -1,4 +1,5 @@
-import { create, Domain, active, EventEmitter } from "node:domain";
+import { create, Domain, active } from "node:domain";
+import { EventEmitter } from "node:events";
 
 // @api: domain.create
 // @expect: domain create passed

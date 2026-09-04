@@ -97,12 +97,12 @@ export class TimersPromises {
 export const promises: TimersPromises = new TimersPromises();
 
 export default {
-    Immediate,
     Timeout,
     setTimeout,
     clearTimeout,
     setInterval,
     clearInterval,
+    Immediate,
     setImmediate,
     clearImmediate,
     promises,

@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: September 1, 2026
+> **Report Date**: September 4, 2026
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **379** | **329 / 379 Full Parity** | **86.8%** |
-| - *Native LLVM/Clang Parity* | 379 | 367 PASS (direct binary compilation) | 96.8% |
+| **Total Corpus Test Cases** | **380** | **335 / 380 Full Parity** | **88.2%** |
+| - *Native LLVM/Clang Parity* | 380 | 368 PASS (direct binary compilation) | 96.8% |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Total Test Suite Runtime** | ~2m10s (macOS / Linux) | Verified across macOS / Linux | - |
 
@@ -102,7 +102,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Class Static Blocks | ✅ Full | Static initialization blocks `static { ... }`, supporting `this` and `ClassName` references. |
 | Getters / Setters (`get` / `set`) | ✅ Full | Custom property access via getter/setter functions. |
 | Inheritance (`extends`, `super`) | ✅ Full | Property/method inheritance, `super()` constructor calls, and `super.method()`. |
-| Polymorphism & VTables | ✅ Full | Virtual method dispatch when invoked through base class references. |
+| Polymorphism & VTables | ✅ Full | Virtual method dispatch through stable `*_dispatch` entry points backed by `*_impl` functions; `super.method()` remains a direct base implementation call. |
 | `instanceof` Operator | ✅ Full | Accurate runtime class inheritance hierarchy inspection. |
 | Access Modifiers (`public`, `private`, `protected`) | ✅ Full | Strict access control enforcement during Type-Checking phase. |
 | `abstract class` & `interface` | ✅ Full | Frontend contract verification for interface and abstract classes. |
@@ -143,7 +143,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Object`** | `Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign`, `Object.fromEntries`, `Object.groupBy` | ✅ 100% matches ECMAScript static method specifications |
 | **`Promise`** | `new Promise()`, `resolve`, `reject`, `.then()`, `.catch()`, `.finally()`, `Promise.allSettled()`, `Promise.any()`, `Promise.withResolvers()`, Microtask Queue | ✅ 100% matches Promise A+ & ES2024 specifications |
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
-| **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `toTemporalInstant()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (47/47 APIs) |
+| **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
 | **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description`, `.toString()` | ✅ Matches primitive symbol format |
@@ -189,19 +189,19 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 379
-Native Backend Parity  : 366/379 (96.6%)
-Diagnostic Parity      : 12/379
-Overall Full Parity    : 332/379 (87.6%)
-Total Time Elapsed     : 4m55.589s
+Total Test Cases       : 380
+Native Backend Parity  : 368/380 (96.8%)
+Diagnostic Parity      : 12/380
+Overall Full Parity    : 335/380 (88.2%)
+Total Time Elapsed     : 5m9.953s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 86 | **58.1% (50/86)** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
-| **`api/fs`** | 5 | **20.0% (1/5)** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
+| **`api`** | 87 | **58.6% (51/87)** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
+| **`api/fs`** | 5 | **40.0% (2/5)** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
 | **`arrays`** | 1 | **100% (1/1)** | Array methods and manipulation. |
 | **`async`** | 13 | **100% (13/13)** | Top-level await, async pipelines, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 26 | **100% (26/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
@@ -215,7 +215,7 @@ Total Time Elapsed     : 4m55.589s
 | **`language/errors`** | 6 | **100% (6/6)** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
 | **`operators`** | 25 | **100% (25/25)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
-| **`scenarios`** | 15 | **80.0% (12/15)** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
+| **`scenarios`** | 15 | **86.7% (13/15)** | Real-world workflows: data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
 | **`tuples`** | 18 | **100% (18/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
 | **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 19 | **100% (19/19)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
@@ -271,7 +271,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Object Literal** | `{ name: "Alice", age: 30 }` | ✅ Full | Static layout, shorthand property initialization `{ name, age }`. |
 | **Arrow / Anon Function** | `(x) => x + 1`, `function(a) { ... }` | ✅ Full | Closures capturing lexical environments. |
 | **Property Access** | `obj.prop`, `obj?.prop` | ✅ Full | Static field offsets, optional chaining `?.`. |
-| **Element Index Access** | `arr[i]`, `str[i]`, `tuple[0]`, `obj["key"]` | ✅ Full | Multi-type array read/write, string indexing `str[i]`, tuple read/write, and static string keys on objects. Dynamic string indexing `obj[dynamicVar]` is rejected (use `Record`/`Map`). |
+| **Element Index Access** | `arr[i]`, `str[i]`, `tuple[0]`, `obj["key"]` | ✅ Full | Multi-type array read/write, string indexing `str[i]`, tuple read/write, and static or dynamic string keys on dictionary-like objects. |
 | **Function Call** | `foo(a, b)`, `obj.method()` | ✅ Full | Virtual dispatch, direct calls, generic type arguments. |
 | **Optional Call** | `fn?.(args)`, `obj?.method?.()` | ✅ Full | Safe optional invocation of closures or methods when target exists. |
 | **New Expression** | `new Person("Bob")` | ✅ Full | Vtable initialization, constructor execution. |
@@ -319,7 +319,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | **Generators (`function*`, `yield`)** | ✅ Full | State-machine lowering into iterator objects with `.next()` (`value`, `done`) and `for..of` integration. |
 | **Async Generators (`async function*`, `yield*`)** | ✅ Full | Async data-producing generator functions, `yield*` delegation for arrays / sub-generators, consumed via `for await (const x of gen())`. |
-| **Dynamic Key Access (`obj[key]`)** | ⚠️ Deliberate limitation | Supports static string keys `obj["prop"]` (lowered to C-struct offsets). Dynamic variables `obj[dynamicVar]` require `Record<string, V>` or `Map<K, V>` to preserve AOT memory layouts. |
+| **Dynamic Key Access (`obj[key]`)** | ✅ Supported | `Record<string, V>` and empty object literals use a bounded runtime property table for dynamic string-key reads and writes; static object fields retain their fixed-layout path. |
 | **Dynamic `import('./mod')`** | ❌ Unsupported | Currently supports closed static module graphs only (AOT static linking). |
 | **`eval()` & `new Function()`** | ❌ Unavailable in Native | Native machine binaries cannot interpret arbitrary JS strings at runtime (requires `--dynamic`). |
 | **`Reflect` Namespace** | ✅ Full | All 19 standard ECMAScript & metadata APIs (`get`, `set`, `has`, `deleteProperty`, `ownKeys`, `defineProperty`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, `apply`, `construct`, `getMetadata`, `getOwnMetadata`, `hasMetadata`, `hasOwnMetadata`, `defineMetadata`, `metadata`) supported in Static Tier. |

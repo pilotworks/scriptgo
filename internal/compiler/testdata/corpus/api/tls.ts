@@ -6,7 +6,6 @@ import {
     rootCertificates,
     checkServerIdentity,
     createSecureContext,
-    setDefaultCACertificates,
     getCACertificates,
     getCiphers,
     Server,
@@ -54,10 +53,7 @@ console.log("tls_checkIdentity: " + (checkServerIdentity("unknown.example", { su
 
 // @api: tls.createSecureContext
 // @expect: tls_secureContext: true
-setDefaultCACertificates([pem]);
 console.log("tls_secureContext: " + (createSecureContext() instanceof Object));
-
-// @api: tls.setDefaultCACertificates
 // @api: tls.getCACertificates
 // @expect: tls_ca_certs: 1
 console.log("tls_ca_certs: " + getCACertificates().length);

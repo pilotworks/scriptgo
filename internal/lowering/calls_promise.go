@@ -19,50 +19,6 @@ func lowerPromiseStaticCall(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	if callee == "Promise.try" && len(expression.Arguments) > 0 {
-		fnVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", true, err
-		}
-		callbackType := ir.TypeVoid
-		if retType, ok := env[fnVal+".retType"]; ok && retType != "" {
-			callbackType = retType
-		} else if signature, ok := signatures[fnVal]; ok && signature.ReturnType != "" {
-			callbackType = signature.ReturnType
-		}
-		callbackResult := ""
-		if callbackType != ir.TypeVoid {
-			callbackResult = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpClosureCall,
-			Type:   callbackType,
-			Result: callbackResult,
-			Callee: fnVal,
-			Args:   nil,
-			Span:   toIRSpan(path, expression.Arguments[0].Span),
-		})
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		promType := toIRType(expression.InferredType)
-		if !strings.HasPrefix(string(promType), "object:Promise") {
-			promType = toIRType("Promise<" + string(callbackType) + ">")
-		}
-		resolveArgs := []string{}
-		if callbackResult != "" {
-			resolveArgs = append(resolveArgs, callbackResult)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   promType,
-			Result: result,
-			Callee: "__async.promise_resolve",
-			Args:   resolveArgs,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, promType, true, nil
-	}
 	if callee == "Promise.resolve" || callee == "Promise.reject" {
 		var argVal string
 		argType := ir.TypeVoid

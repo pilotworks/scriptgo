@@ -1,7 +1,6 @@
 // ScriptGo Corpus: Response Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
-import { Response } from "node:http";
 
 // @api: response.status
 // @api: response.statusText

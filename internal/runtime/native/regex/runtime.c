@@ -320,6 +320,32 @@ int scriptgo_string_from_bigint(long long value, char **out_str) {
     return 0;
 }
 
+int scriptgo_string_from_bigint_locale(long long value, char **out_str) {
+    char raw[64];
+    size_t digits;
+    size_t groups;
+    size_t output_len;
+    size_t src = 0;
+    size_t dst = 0;
+    char *result;
+
+    if (out_str == NULL) return scriptgo_runtime_set_error("invalid argument to bigint locale formatting");
+    snprintf(raw, sizeof(raw), "%lld", value);
+    digits = raw[0] == '-' ? strlen(raw) - 1 : strlen(raw);
+    groups = digits > 3 ? (digits - 1) / 3 : 0;
+    output_len = strlen(raw) + groups;
+    result = malloc(output_len + 1);
+    if (result == NULL) return scriptgo_runtime_set_error("bigint locale allocation failed");
+    if (raw[0] == '-') result[dst++] = raw[src++];
+    for (size_t i = 0; i < digits; i++) {
+        if (i > 0 && (digits - i) % 3 == 0) result[dst++] = ',';
+        result[dst++] = raw[src++];
+    }
+    result[dst] = '\0';
+    *out_str = result;
+    return 0;
+}
+
 int scriptgo_bigint_from_number(double value, long long *out_value) {
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint fromNumber");
     *out_value = (long long)value;
@@ -388,26 +414,3 @@ long long scriptgo_bigint_pow(long long base, long long exp) {
     }
     return result;
 }
-
-int scriptgo_regex_escape(const char *str, char **out_str) {
-    if (out_str == NULL) return scriptgo_runtime_set_error("invalid regex escape argument");
-    if (str == NULL) {
-        *out_str = strdup("");
-        return 0;
-    }
-    size_t len = strlen(str);
-    char *buf = malloc(len * 2 + 1);
-    if (buf == NULL) return scriptgo_runtime_set_error("out of memory");
-    size_t j = 0;
-    const char *syntax = "^$\\.*+?()[]{}|/";
-    for (size_t i = 0; i < len; i++) {
-        if (strchr(syntax, str[i]) != NULL) {
-            buf[j++] = '\\';
-        }
-        buf[j++] = str[i];
-    }
-    buf[j] = '\0';
-    *out_str = buf;
-    return 0;
-}
-

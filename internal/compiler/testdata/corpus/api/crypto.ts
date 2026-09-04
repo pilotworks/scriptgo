@@ -29,6 +29,8 @@ import {
     timingSafeEqual,
 } from "node:crypto";
 
+function onRandomFill(err: Error | null, buf: Buffer): void {}
+
 // @api: crypto.crypto.Hash
 // @api: crypto.Hash
 // @api: new crypto.Hash
@@ -142,7 +144,7 @@ console.log("cr_props: " + constants.RSA_PKCS1_PADDING + " " + (typeof subtle ==
 // @api: crypto.scryptSync
 // @api: crypto.timingSafeEqual
 // @expect: cr_sync: true true 32 32 16 true
-const primeOk = checkPrimeSync(3);
+const primeOk = checkPrimeSync(3n);
 const pSync = generatePrimeSync(16);
 getCiphers();
 getCurves();
@@ -170,10 +172,10 @@ console.log("cr_hkdf: " + Buffer.from(hkdfRes).toString("hex"));
 // @api: crypto.randomFill
 // @api: crypto.scrypt
 // @expect: cr_async: true
-checkPrime(3, {}, (err, res) => {});
+checkPrime(3n, {}, (err, res) => {});
 generatePrime(32, {}, (err, prime) => {});
 hkdf("sha256", "ikm", "salt", "info", 32, (err, dk) => {});
 pbkdf2("pass", "salt", 100, 32, "sha256", (err, dk) => {});
-randomFill(Buffer.alloc(8), 0, 8);
+randomFill(Buffer.alloc(8), onRandomFill);
 scrypt("pass", "salt", 32, (err, dk) => {});
 console.log("cr_async: true");

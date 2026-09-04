@@ -215,7 +215,9 @@ export function inspect(
 ): string {
     if (object === null) return "null";
     if (object === undefined) return "undefined";
-    if (typeof object === "string") return JSON.stringify(object);
+    if (typeof object === "string") {
+        return "'" + (object as string).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + "'";
+    }
     if (typeof object === "number") return String(object);
     if (typeof object === "boolean") return String(object);
     if (typeof object === "symbol") return String(object);
@@ -435,8 +437,8 @@ export function getSystemErrorMessage(err: number): string {
     return "";
 }
 
-export function parseEnv(content: string): Map<string, string> {
-    const result: Map<string, string> = new Map();
+export function parseEnv(content: string): Record<string, string> {
+    const result: Record<string, string> = {};
     const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -448,7 +450,7 @@ export function parseEnv(content: string): Map<string, string> {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
                 val = val.slice(1, val.length - 1);
             }
-            result.set(key, val);
+        result[key] = val;
         }
     }
     return result;

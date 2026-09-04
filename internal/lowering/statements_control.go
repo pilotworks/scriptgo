@@ -204,6 +204,11 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	if err != nil {
 		return err
 	}
+	isSegments := arrType == ir.Type("object:Intl.Segments")
+	if isSegments {
+		// Intl.Segments is iterable but is not an array-backed value.
+		arrType = ir.Type("Intl.Segment[]")
+	}
 	if (strings.Contains(string(arrType), "Generator") || strings.Contains(string(arrType), "Iterator")) && !strings.Contains(string(arrType), "MapIterator") && !strings.Contains(string(arrType), "SetIterator") {
 		shapeName := strings.TrimPrefix(string(arrType), "object:")
 		nextFn := shapeName + "_next"
@@ -479,6 +484,9 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	} else {
 		return fmt.Errorf("for...of requires iterable array or string, got %s", arrType)
 	}
+	if isSegments {
+		elemType = ir.Type("object:Intl.Segment")
+	}
 
 	idxName := fmt.Sprintf("__i_%d", *counter)
 	lenName := fmt.Sprintf("__len_%d", *counter)
@@ -487,6 +495,8 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	env[idxName] = ir.TypeNumber
 	if isString {
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenName, Callee: "__string.length", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
+	} else if isSegments {
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenName, Callee: "__intl.segments_length", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
 	} else {
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenName, Callee: "__array.length", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
 	}
@@ -518,6 +528,8 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 				Span:   toIRSpan(path, statement.Span),
 			})
 			bodyEnv[statement.Name] = ir.TypeNumber
+		} else if isSegments {
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: elemType, Result: statement.Name, Callee: "__intl.segments_get", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
 		} else {
 			rawVal := nextTemp(counter)
 			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: rawVal, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
@@ -533,6 +545,8 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	} else {
 		if isString {
 			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: statement.Name, Callee: "__string.charAt", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
+		} else if isSegments {
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpCall, Type: elemType, Result: statement.Name, Callee: "__intl.segments_get", Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
 		} else {
 			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{Op: ir.OpIndex, Type: elemType, Result: statement.Name, Args: []string{arrVal, idxName}, Span: toIRSpan(path, statement.Span)})
 		}

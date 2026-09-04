@@ -1,0 +1,6 @@
+{ a: 1, b: 'x' }
+value [ { a: 1 } ]
+<Buffer 00 0a ff>
+Uint8Array(3) [ 0, 10, 255 ]
+{ a: 1 }
+[ 0, 'a' ]

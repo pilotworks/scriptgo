@@ -23,7 +23,7 @@ console.log(fs.existsSync("tmp/non_existent_file.xyz"));
 // @expect: true
 // @expect: false
 // @expect: true
-// @expect: Hello World! Appended.
+// @expect: <Buffer 48 65 6c 6c 6f 20 57 6f 72 6c 64 21 20 41 70 70 65 6e 64 65 64 2e>
 // @expect: true
 // @expect: true
 // @expect: false
@@ -66,7 +66,7 @@ fs.rmSync(testDir_fs_extended_sync_1, rmOpts_fs_extended_sync_1);
 console.log(fs.existsSync(testDir_fs_extended_sync_1));
 
 // --- Context Case: scenarios_fs_promises ---
-// @expect: Promise FS Works!
+// @expect: <Buffer 50 72 6f 6d 69 73 65 20 46 53 20 57 6f 72 6b 73 21>
 // @expect: 17
 // @expect: true
 // @expect: 2

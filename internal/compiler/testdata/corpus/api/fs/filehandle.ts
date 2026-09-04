@@ -24,8 +24,8 @@ console.log(fh.fd >= 0);
 
 // @api: FileHandle.write
 // @expect: true
-const bytesWritten = await fh.write("hello filehandle");
-console.log(bytesWritten > 0);
+const writeResult = await fh.write("hello filehandle");
+console.log(writeResult.bytesWritten > 0);
 
 // @api: FileHandle.sync
 // @expect: true

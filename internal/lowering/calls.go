@@ -95,7 +95,14 @@ func lowerCallExpression(
 					if res, typ, handled, err := lowerDateReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 						return res, typ, err
 					}
-					if receiverType == ir.TypeBigInt && (methodName == "toString" || methodName == "toLocaleString") {
+					if receiverType == ir.TypeBigInt && methodName == "toLocaleString" {
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.fromBigIntLocale", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+						return result, ir.TypeString, nil
+					}
+					if receiverType == ir.TypeBigInt && methodName == "toString" {
 						if result == "" {
 							result = nextTemp(counter)
 						}
@@ -104,6 +111,14 @@ func lowerCallExpression(
 					}
 					if receiverType == ir.TypeBigInt && methodName == "valueOf" {
 						return receiver, ir.TypeBigInt, nil
+					}
+					if (receiverType == ir.TypeObject || strings.HasPrefix(string(receiverType), "object:")) &&
+						(strings.Contains(string(receiverType), "Error") || strings.HasSuffix(string(receiverType), "Error")) && methodName == "toString" {
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.errorToString", Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
+						return result, ir.TypeString, nil
 					}
 					if receiverType == ir.TypeSymbol && methodName == "toString" {
 						if result == "" {
@@ -238,6 +253,10 @@ func lowerCallExpression(
 										Span:   toIRSpan(path, argument.Span),
 									})
 									argVal = boxed
+								} else if pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeString && argument.Kind == "undefined" {
+									undefinedConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefinedConst, Value: "undefined", Span: toIRSpan(path, argument.Span)})
+									argVal = undefinedConst
 								} else if pIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[pIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
 									nullConst := nextTemp(counter)
 									function.Body = append(function.Body, ir.Instruction{
@@ -306,6 +325,14 @@ func lowerCallExpression(
 											})
 											val = biConst
 											valType = ir.TypeBigInt
+										} else if paramType == ir.TypeString && initExpr.Kind == "undefined" {
+											strConst := nextTemp(counter)
+											function.Body = append(function.Body, ir.Instruction{
+												Op: ir.OpConst, Type: ir.TypeString, Result: strConst, Value: "undefined",
+												Span: toIRSpan(path, initExpr.Span),
+											})
+											val = strConst
+											valType = ir.TypeString
 										} else if (strings.HasPrefix(string(paramType), "object:") || isPointerLikeType(paramType)) && (initExpr.Kind == "null" || initExpr.Kind == "undefined") {
 											valStr := "null"
 											if initExpr.Kind == "undefined" {
@@ -336,7 +363,9 @@ func lowerCallExpression(
 										if paramType == ir.TypeBool {
 											defStr = "false"
 										} else if paramType == ir.TypeString {
-											defStr = ""
+											// Missing optional strings must retain undefined rather than
+											// collapsing into the valid empty-string value.
+											defStr = "undefined"
 										} else if isPointerLikeType(paramType) || strings.HasPrefix(string(paramType), "object:") {
 											defStr = "null"
 										}
@@ -574,7 +603,7 @@ func lowerCallExpression(
 		if meta.Extends == "" {
 			return "", "", fmt.Errorf("super.%s called in class %q with no base class", expression.Left.Text, currentClass)
 		}
-		target, mangled, found := findMethodInHierarchy(meta.Extends, expression.Left.Text, signatures, classHierarchy)
+		target, mangled, found := findImplementationInHierarchy(meta.Extends, expression.Left.Text, signatures, classHierarchy)
 		if !found {
 			return "", "", fmt.Errorf("super method %q not found in base class %q", expression.Left.Text, meta.Extends)
 		}
@@ -631,6 +660,10 @@ func lowerCallExpression(
 							Span:   toIRSpan(path, argument.Span),
 						})
 						val = boxed
+					} else if aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeString && argument.Kind == "undefined" {
+						undefinedConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: undefinedConst, Value: "undefined", Span: toIRSpan(path, argument.Span)})
+						val = undefinedConst
 					} else if aIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[aIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
 						valStr := "null"
 						if argument.Kind == "undefined" {
@@ -689,6 +722,14 @@ func lowerCallExpression(
 										Span:   toIRSpan(path, initExpr.Span),
 									})
 									args = append(args, biConst)
+									continue
+								} else if paramType == ir.TypeString && initExpr.Kind == "undefined" {
+									strConst := nextTemp(counter)
+									function.Body = append(function.Body, ir.Instruction{
+										Op: ir.OpConst, Type: ir.TypeString, Result: strConst, Value: "undefined",
+										Span: toIRSpan(path, initExpr.Span),
+									})
+									args = append(args, strConst)
 									continue
 								}
 								val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)

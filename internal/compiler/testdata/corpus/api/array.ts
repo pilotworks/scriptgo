@@ -20,8 +20,8 @@ a_array_copyWithin_2.copyWithin(0, 3, 4);
 console.log(a_array_copyWithin_2.join(","));
 
 // @api: array.entries
-// @expect: [0, a]
-// @expect: [1, b]
+// @expect: [ 0, 'a' ]
+// @expect: [ 1, 'b' ]
 const a_array_entries_3: string[] = ["a", "b"];
 for (const entry of a_array_entries_3.entries()) {
   console.log(entry);
@@ -260,4 +260,3 @@ console.log(a_array_with_42.join(","));
 // @expect: 1,2,3
 const a_array_constructor_43: number[] = new Array(1, 2, 3);
 console.log(a_array_constructor_43.join(","));
-

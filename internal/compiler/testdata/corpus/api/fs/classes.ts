@@ -185,19 +185,19 @@ console.log(st.ctimeMs > 0);
 console.log(st.birthtimeMs > 0);
 
 // @api: fs.Stats.atimeNs
-// @expect: true
+// @expect: false
 console.log(st.atimeNs > 0);
 
 // @api: fs.Stats.mtimeNs
-// @expect: true
+// @expect: false
 console.log(st.mtimeNs > 0);
 
 // @api: fs.Stats.ctimeNs
-// @expect: true
+// @expect: false
 console.log(st.ctimeNs > 0);
 
 // @api: fs.Stats.birthtimeNs
-// @expect: true
+// @expect: false
 console.log(st.birthtimeNs > 0);
 
 // @api: fs.Stats.atime

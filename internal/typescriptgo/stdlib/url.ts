@@ -8,6 +8,31 @@ class URLSearchParamEntry {
     }
 }
 
+class URLSearchParamsIterator {
+    // Kept optional for compatibility with code that probes array-like values;
+    // real iterators do not expose a length property.
+    length?: number;
+    private _values: unknown[];
+    private _index: number = 0;
+
+    constructor(values: unknown[]) {
+        this._values = values;
+    }
+
+    next(): { value: unknown; done: boolean } {
+        if (this._index < this._values.length) {
+            const value = this._values[this._index];
+            this._index = this._index + 1;
+            return { value: value, done: false };
+        }
+        return { value: undefined, done: true };
+    }
+
+    [Symbol.iterator](): URLSearchParamsIterator {
+        return this;
+    }
+}
+
 export class URLSearchParams {
     private _entries: URLSearchParamEntry[] = [];
 
@@ -42,7 +67,7 @@ export class URLSearchParams {
 
     delete(name: string, value?: string): void {
         const next: URLSearchParamEntry[] = [];
-        const hasVal = value !== undefined && value !== "undefined" && value !== null && value !== "null";
+        const hasVal = value !== undefined && value !== null;
         for (let i = 0; i < this._entries.length; i++) {
             if (hasVal) {
                 if (this._entries[i].name !== name || this._entries[i].value !== value) {
@@ -77,7 +102,7 @@ export class URLSearchParams {
     }
 
     has(name: string, value?: string): boolean {
-        const hasVal = value !== undefined && value !== "undefined" && value !== null && value !== "null";
+        const hasVal = value !== undefined && value !== null;
         for (let i = 0; i < this._entries.length; i++) {
             if (this._entries[i].name === name) {
                 if (hasVal) {
@@ -124,8 +149,8 @@ export class URLSearchParams {
         }
     }
 
-    entries(): string[][] {
-        const res: string[][] = [];
+    entries(): [string, string][] {
+        const res: [string, string][] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push([this._entries[i].name, this._entries[i].value]);
         }

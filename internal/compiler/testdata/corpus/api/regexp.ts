@@ -50,10 +50,6 @@ const re_regexp_test_2 = /^[a-z]+$/;
 console.log(re_regexp_test_2.test("hello"));
 console.log(re_regexp_test_2.test("123"));
 
-// @api: RegExp.escape(string: string): string
-// @expect: \[\*\.js\]
-console.log(RegExp.escape("[*.js]"));
-
 // @api: RegExp.compile(pattern: string, flags?: string): this
 // @expect: true
 const re_comp = /abc/;

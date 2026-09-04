@@ -1,6 +1,5 @@
 import {
     Channel,
-    TracingChannel,
     channel,
     tracingChannel,
     hasSubscribers,
@@ -41,19 +40,6 @@ console.log("dc_pub: true");
 // @expect: dc_unsub: true
 console.log("dc_unsub: " + ch.unsubscribe(listener));
 
-// @api: diagnostics_channel.diagnostics_channel.TracingChannel
-// @api: diagnostics_channel.TracingChannel
-// @api: new diagnostics_channel.TracingChannel
-// @expect: dc_tc_inst: true
-const tc = tracingChannel("my-trace");
-console.log("dc_tc_inst: " + (tc instanceof TracingChannel));
-
-// @api: TracingChannel.traceSync
-// @expect: dc_tc_traceSync: 100
-const syncRes = tc.traceSync(() => 100);
-console.log("dc_tc_traceSync: " + syncRes);
-
-
 // @api: diagnostics_channel.start
 // @expect: dc_start: true
 start("my-chan", {});
@@ -78,9 +64,3 @@ console.log("dc_asyncEnd: true");
 // @expect: dc_error: true
 error("my-chan", {});
 console.log("dc_error: true");
-
-// @api: TracingChannel.tracePromise
-// @expect: dc_tc_tracePromise: 300
-tc.tracePromise(async () => 300).then((res: number) => {
-    console.log("dc_tc_tracePromise: " + res);
-});

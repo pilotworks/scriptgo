@@ -23,22 +23,26 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span ty
 	case ir.TypeSymbol:
 		callee = "__symbol.keyFor"
 	case ir.TypeNumberArray:
-		callee = "__json.stringify_number_array"
+		callee = "__string.inspectArray"
 	case ir.TypeStringArray:
-		callee = "__json.stringify_string_array"
+		callee = "__string.inspectArray"
 	case ir.TypeMap:
 		callee = "__map.toString"
 	case ir.TypeSet:
 		callee = "__set.toString"
 	case ir.TypeUnknown:
 		callee = "__string.fromUnknown"
+	case ir.TypeUnknownArray:
+		callee = "__string.inspectArray"
 	case ir.TypeObject:
-		callee = "__string.fromObject"
+		callee = "__string.inspectObject"
+	case ir.TypeBuffer:
+		callee = "__string.inspectBuffer"
 	default:
-		if strings.HasSuffix(string(valType), "[]") {
-			callee = "__json.stringify_string_array"
+		if strings.HasSuffix(string(valType), "[]") || valType == ir.TypeUnknownArray {
+			callee = "__string.inspectArray"
 		} else if strings.HasPrefix(string(valType), "object:") {
-			callee = "__string.fromObject"
+			callee = "__string.inspectObject"
 		} else {
 			callee = "__string.fromUnknown"
 		}
@@ -125,7 +129,7 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 		if err != nil {
 			return "", "", err
 		}
-		if isTypedArrayType(argType) {
+		if isTypedArrayType(argType) && argType != ir.TypeBuffer {
 			strTemp := nextTemp(call.Counter)
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op:     ir.OpCall,
@@ -220,29 +224,6 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 			})
 			return "", ir.TypeVoid, nil
 		}
-		if argType == ir.TypeNumberArray || argType == ir.TypeStringArray || strings.HasSuffix(string(argType), "[]") {
-			strTemp := nextTemp(call.Counter)
-			callee := "__json.stringify_number_array"
-			if argType == ir.TypeStringArray || strings.HasSuffix(string(argType), "[]") {
-				callee = "__json.stringify_string_array"
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: strTemp,
-				Callee: callee,
-				Args:   []string{argVal},
-				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
-			})
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpPrint,
-				Type:   ir.TypeVoid,
-				Callee: intrinsic.Name,
-				Args:   []string{strTemp},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return "", ir.TypeVoid, nil
-		}
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
 			Op:     ir.OpPrint,
 			Type:   ir.TypeVoid,
@@ -324,7 +305,7 @@ func containsFormatSpecifier(s string) bool {
 	for i := 0; i < len(s)-1; i++ {
 		if s[i] == '%' {
 			c := s[i+1]
-			if c == 's' || c == 'd' || c == 'i' || c == 'f' || c == 'j' || c == '%' {
+			if c == 's' || c == 'd' || c == 'i' || c == 'f' || c == 'j' || c == 'o' || c == 'O' || c == '%' {
 				return true
 			}
 		}
@@ -339,7 +320,7 @@ func lowerFormatString(call IntrinsicCall, fmtStr string, extraArgs []*typescrip
 	for i := 0; i < len(fmtStr); i++ {
 		if fmtStr[i] == '%' && i+1 < len(fmtStr) {
 			spec := fmtStr[i+1]
-			if spec == 's' || spec == 'd' || spec == 'i' || spec == 'f' || spec == 'j' || spec == '%' {
+			if spec == 's' || spec == 'd' || spec == 'i' || spec == 'f' || spec == 'j' || spec == 'o' || spec == 'O' || spec == '%' {
 				if i > last {
 					litConst := nextTemp(call.Counter)
 					call.Function.Body = append(call.Function.Body, ir.Instruction{

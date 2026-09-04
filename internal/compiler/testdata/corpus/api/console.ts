@@ -68,7 +68,7 @@ console.info("info output");
 console.log("log output");
 
 // @api: console.table
-// @expect: ["a","b"]
+// @expect: [ 'a', 'b' ]
 // @expect: table output
 console.table(["a", "b"]);
 console.log("table output");
@@ -109,12 +109,10 @@ console.log("profiled");
 // @expect: custom console
 // @expect: custom console with options
 // @expect: named log from node:console
-import { Console, ConsoleConstructorOptions, log } from "node:console";
+import { Console, log } from "node:console";
 const c = new Console();
 console.log("custom console");
-const opts: ConsoleConstructorOptions = { ignoreErrors: true };
+const opts: { ignoreErrors: boolean } = { ignoreErrors: true };
 const c2 = new Console(opts);
 console.log("custom console with options");
 log("named log from node:console");
-
-

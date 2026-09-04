@@ -10,7 +10,6 @@ import {
     isAscii,
     kMaxLength,
     kStringMaxLength,
-    MAX_LENGTH,
     MAX_STRING_LENGTH
 } from "node:buffer";
 
@@ -508,13 +507,5 @@ console.log("kMaxLength_res: " + kMaxLength);
 // @api: buffer.kStringMaxLength
 // @expect: kStringMaxLength_res: 536870888
 console.log("kStringMaxLength_res: " + kStringMaxLength);
-
-// @api: buffer.MAX_LENGTH
-// @expect: maxLength_res: 2147483647
-console.log("maxLength_res: " + MAX_LENGTH);
-
-// @api: buffer.MAX_STRING_LENGTH
-// @expect: maxStringLength_res: 536870888
-console.log("maxStringLength_res: " + MAX_STRING_LENGTH);
 
 

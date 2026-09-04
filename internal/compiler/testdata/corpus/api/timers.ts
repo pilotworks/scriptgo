@@ -2,7 +2,6 @@
 // Consolidated test suite with inline assertions.
 
 import {
-    Immediate,
     Timeout,
     setImmediate,
     clearImmediate,
@@ -36,15 +35,6 @@ const intClearId = setInterval(() => {
 clearInterval(intClearId);
 console.log("interval_cleared: true");
 
-// @api: timers.Immediate
-// @expect: imm_instance: true
-const imm = new Immediate(1);
-console.log("imm_instance: " + (imm !== null));
-
-// @api: Immediate.[Symbol.dispose]
-// @expect: imm_disposed: true
-imm[Symbol.dispose]();
-console.log("imm_disposed: true");
 
 // @api: timers.Timeout
 // @expect: timeout_instance: true

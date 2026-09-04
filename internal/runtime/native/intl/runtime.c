@@ -6,8 +6,14 @@
 #include <stdint.h>
 
 int scriptgo_runtime_set_error(const char *message);
+extern const char scriptgo_undefined_sentinel;
 int scriptgo_array_new(int64_t capacity, int64_t elem_size, void **out_arr);
+int scriptgo_array_set_tag(void *handle, int64_t tag);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
+int scriptgo_object_new(int64_t field_count, void **out_object);
+int scriptgo_object_type_set(void *handle, const char *type_name);
+int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
+int scriptgo_object_number_set(void *handle, int64_t index, double value);
 
 typedef struct {
     char *locale;
@@ -22,6 +28,29 @@ typedef struct {
 typedef struct {
     char *locale;
 } scriptgo_intl_segmenter;
+
+typedef struct {
+    int64_t index;
+    int64_t length;
+} scriptgo_segment_record;
+
+typedef struct {
+    char *input;
+    int64_t count;
+    scriptgo_segment_record *records;
+} scriptgo_segments_data;
+
+typedef struct {
+    uint64_t magic;
+    int64_t field_count;
+    const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
+    uintptr_t fields[];
+} scriptgo_intl_object;
+
+#define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
 
 typedef struct {
     char *locale;
@@ -107,21 +136,73 @@ int scriptgo_intl_segmenter_new(const char *locale, void **out_seg) {
     return 0;
 }
 
-int scriptgo_intl_segmenter_segment(void *handle, const char *input, void **out_arr) {
-    if (out_arr == NULL) return scriptgo_runtime_set_error("intl segment failed");
+int scriptgo_intl_segmenter_segment(void *handle, const char *input, void **out_segments) {
+    scriptgo_segments_data *data;
+    scriptgo_intl_object *segments;
+    size_t i, start;
+    (void)handle;
+    if (out_segments == NULL) return scriptgo_runtime_set_error("intl segment failed");
     if (input == NULL) input = "";
-    int err = scriptgo_array_new(0, sizeof(char *), out_arr);
-    if (err != 0) return err;
-
-    char *dup = strdup(input);
-    char *token = strtok(dup, " \t\r\n");
-    while (token != NULL) {
-        char *word = strdup(token);
-        double l = 0;
-        scriptgo_array_push(*out_arr, &word, &l);
-        token = strtok(NULL, " \t\r\n");
+    data = calloc(1, sizeof(*data));
+    if (data == NULL) return scriptgo_runtime_set_error("intl segments allocation failed");
+    data->input = strdup(input);
+    for (i = 0; input[i] != '\0';) {
+        start = i;
+        int whitespace = input[i] == ' ' || input[i] == '\t' || input[i] == '\r' || input[i] == '\n';
+        while (input[i] != '\0' && ((input[i] == ' ' || input[i] == '\t' || input[i] == '\r' || input[i] == '\n') == whitespace)) i++;
+        data->records = realloc(data->records, (size_t)(data->count + 1) * sizeof(*data->records));
+        if (data->records == NULL) return scriptgo_runtime_set_error("intl segments allocation failed");
+        data->records[data->count++] = (scriptgo_segment_record){(int64_t)start, (int64_t)(i - start)};
     }
-    free(dup);
+    if (scriptgo_object_new(1, out_segments) != 0) return -1;
+    segments = (scriptgo_intl_object *)*out_segments;
+    if (scriptgo_object_type_set(segments, "Intl.Segments") != 0 || scriptgo_object_ptr_set(segments, 0, data) != 0) return -1;
+    return 0;
+}
+
+static scriptgo_segments_data *scriptgo_segments_data_from(void *handle) {
+    scriptgo_intl_object *segments = (scriptgo_intl_object *)handle;
+    if (segments == NULL || segments->magic != SCRIPTGO_OBJECT_MAGIC || segments->field_count < 1) return NULL;
+    return (scriptgo_segments_data *)(uintptr_t)segments->fields[0];
+}
+
+static int scriptgo_intl_make_segment(scriptgo_segments_data *data, int64_t index, void **out_segment) {
+    scriptgo_intl_object *segment;
+    scriptgo_segment_record record;
+    char *segment_text;
+    if (data == NULL || out_segment == NULL || index < 0 || index >= data->count) return scriptgo_runtime_set_error("intl segment index out of range");
+    record = data->records[index];
+    segment_text = strndup(data->input + record.index, (size_t)record.length);
+    if (segment_text == NULL || scriptgo_object_new(3, out_segment) != 0) return scriptgo_runtime_set_error("intl segment allocation failed");
+    segment = (scriptgo_intl_object *)*out_segment;
+    if (scriptgo_object_type_set(segment, "__class__|c12:Intl.Segment|f7:segment|f5:index|f5:input") != 0 ||
+        scriptgo_object_ptr_set(segment, 0, segment_text) != 0 || scriptgo_object_number_set(segment, 1, (double)record.index) != 0 ||
+        scriptgo_object_ptr_set(segment, 2, (void *)data->input) != 0) return -1;
+    return 0;
+}
+
+int scriptgo_intl_segments_length(void *handle, double *out_length) {
+    scriptgo_segments_data *data = scriptgo_segments_data_from(handle);
+    if (data == NULL || out_length == NULL) return scriptgo_runtime_set_error("invalid Intl.Segments object");
+    *out_length = (double)data->count;
+    return 0;
+}
+
+int scriptgo_intl_segments_get(void *handle, double index, void **out_segment) {
+    scriptgo_segments_data *data = scriptgo_segments_data_from(handle);
+    int64_t i = (int64_t)index;
+    if (index != (double)i) return scriptgo_runtime_set_error("invalid Intl.Segments index");
+    return scriptgo_intl_make_segment(data, i, out_segment);
+}
+
+int scriptgo_intl_segments_containing(void *handle, double position, void **out_segment) {
+    scriptgo_segments_data *data = scriptgo_segments_data_from(handle);
+    int64_t i;
+    if (data == NULL || out_segment == NULL || position < 0 || position != (double)(int64_t)position) return scriptgo_runtime_set_error("invalid Intl.Segments position");
+    for (i = 0; i < data->count; i++) {
+        if ((int64_t)position >= data->records[i].index && (int64_t)position < data->records[i].index + data->records[i].length) return scriptgo_intl_make_segment(data, i, out_segment);
+    }
+    *out_segment = (void *)&scriptgo_undefined_sentinel;
     return 0;
 }
 
@@ -129,6 +210,7 @@ int scriptgo_intl_get_canonical_locales(const char *locale, void **out_arr) {
     if (out_arr == NULL) return scriptgo_runtime_set_error("intl canonical locales failed");
     int err = scriptgo_array_new(0, sizeof(char *), out_arr);
     if (err != 0) return err;
+    if (scriptgo_array_set_tag(*out_arr, 4) != 0) return -1;
     const char *canonical = "en-US";
     if (locale != NULL && (strcasecmp(locale, "en-US") == 0 || strcasecmp(locale, "en") == 0)) {
         canonical = "en-US";

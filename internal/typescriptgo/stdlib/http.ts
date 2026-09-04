@@ -407,12 +407,12 @@ export function validateHeaderValue(name: string, value: unknown): void {
 export default {
     METHODS,
     STATUS_CODES,
-    getStatusText,
     maxHeaderSize,
-    validateHeaderName,
-    validateHeaderValue,
     Headers,
     Request,
     Response,
     fetch,
+    getStatusText,
+    validateHeaderName,
+    validateHeaderValue,
 };

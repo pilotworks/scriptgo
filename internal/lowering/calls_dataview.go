@@ -161,7 +161,7 @@ func lowerDateReceiverMethod(
 		return result, ir.TypeNumber, true, nil
 
 	case "toISOString", "toJSON", "toString", "toDateString", "toTimeString", "toUTCString",
-		"toLocaleDateString", "toLocaleString", "toLocaleTimeString", "toTemporalInstant":
+		"toLocaleDateString", "toLocaleString", "toLocaleTimeString":
 		timeVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: timeVal, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{receiver}, Span: toIRSpan(path, expression.Span)})
 		if result == "" {

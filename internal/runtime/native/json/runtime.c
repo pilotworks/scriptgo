@@ -562,3 +562,94 @@ int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t pay
         return scriptgo_string_from_object((void *)(uintptr_t)payload, out_str);
     }
 }
+
+static int inspect_append(char **out, size_t *length, size_t *capacity, char value) {
+    if (*length + 2 > *capacity) {
+        size_t next = *capacity == 0 ? 64 : *capacity * 2;
+        char *grown = realloc(*out, next);
+        if (grown == NULL) return json_fail("scriptgo inspect allocation failed");
+        *out = grown;
+        *capacity = next;
+    }
+    (*out)[(*length)++] = value;
+    (*out)[*length] = '\0';
+    return 0;
+}
+
+// Converts the compact JSON representation into Node's single-line inspector
+// representation for objects whose values are already runtime-tagged.
+int scriptgo_json_inspect_object(void *handle, char **out_str) {
+    char *json = NULL;
+    char *out = NULL;
+    size_t length = 0, capacity = 0;
+    int in_string = 0;
+    int empty = 0;
+    if (out_str == NULL || json_stringify_object(handle, &json) != 0) return -1;
+    empty = strcmp(json, "{}") == 0;
+    for (size_t i = 0; json[i] != '\0'; i++) {
+        char c = json[i];
+        if (c == '"') {
+            size_t end = i + 1;
+            while (json[end] != '\0') {
+                if (json[end] == '"' && json[end - 1] != '\\') break;
+                end++;
+            }
+            int is_key = json[end + 1] == ':';
+            if (is_key) {
+                size_t start = i + 1;
+                int identifier = start < end;
+                for (size_t j = start; j < end; j++) {
+                    char k = json[j];
+                    if (!((k >= 'a' && k <= 'z') || (k >= 'A' && k <= 'Z') ||
+                          (k >= '0' && k <= '9') || k == '_' || k == '$')) {
+                        identifier = 0;
+                        break;
+                    }
+                }
+                if (identifier) {
+                    for (size_t j = start; j < end; j++) {
+                        if (inspect_append(&out, &length, &capacity, json[j]) != 0) goto fail;
+                    }
+                } else {
+                    if (inspect_append(&out, &length, &capacity, '\'') != 0) goto fail;
+                    for (size_t j = start; j < end; j++) {
+                        if (inspect_append(&out, &length, &capacity, json[j]) != 0) goto fail;
+                    }
+                    if (inspect_append(&out, &length, &capacity, '\'') != 0) goto fail;
+                }
+            } else {
+                if (inspect_append(&out, &length, &capacity, '\'') != 0) goto fail;
+                for (size_t j = i + 1; j < end; j++) {
+                    if (json[j] == '\\' && json[j + 1] == '"') j++;
+                    if (inspect_append(&out, &length, &capacity, json[j]) != 0) goto fail;
+                }
+                if (inspect_append(&out, &length, &capacity, '\'') != 0) goto fail;
+            }
+            i = end;
+            in_string = 0;
+            continue;
+        }
+        if (!in_string && c == '{' && !empty) {
+            if (inspect_append(&out, &length, &capacity, '{') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
+        } else if (!in_string && c == '}' && !empty) {
+            if (inspect_append(&out, &length, &capacity, ' ') != 0 || inspect_append(&out, &length, &capacity, '}') != 0) goto fail;
+        } else if (!in_string && c == '[' && json[i + 1] != ']') {
+            if (inspect_append(&out, &length, &capacity, '[') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
+        } else if (!in_string && c == ']' && i > 0 && json[i - 1] != '[') {
+            if (inspect_append(&out, &length, &capacity, ' ') != 0 || inspect_append(&out, &length, &capacity, ']') != 0) goto fail;
+        } else if (!in_string && c == ',') {
+            if (inspect_append(&out, &length, &capacity, ',') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
+        } else if (!in_string && c == ':') {
+            if (inspect_append(&out, &length, &capacity, ':') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
+        } else if (inspect_append(&out, &length, &capacity, c) != 0) {
+            goto fail;
+        }
+    }
+    free(json);
+    *out_str = out;
+    return 0;
+fail:
+    free(json);
+    free(out);
+    return -1;
+}

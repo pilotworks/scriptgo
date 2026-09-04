@@ -1,6 +1,6 @@
 // @expect: Alice: 50 points
 // @expect: 30
-// @expect: [true]
+// @expect: [ true ]
 
 function curry2<T, U, R>(f: (a: T, b: U) => R): (a: T) => (b: U) => R {
   return (a: T) => (b: U) => f(a, b);

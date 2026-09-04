@@ -1,7 +1,6 @@
 // ScriptGo Corpus: WHATWG Streams & Streaming Fetch Integration
 // Consolidated test suite verifying Response.body stream reader, locking, and byte piping.
 
-import { Response, Headers } from "node:http";
 import { ReadableStream, TransformStream } from "node:stream/web";
 
 // @api: Response.body

@@ -1,3 +1,4 @@
+// @parity-runner: tsc-node22
 // ScriptGo Corpus: TypeScript 5.2 / ES2024 Explicit Resource Management (using & await using)
 // Consolidated test suite verifying lexical disposal, LIFO order, and early return disposal.
 

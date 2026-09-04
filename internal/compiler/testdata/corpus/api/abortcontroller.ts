@@ -1,6 +1,5 @@
 // ScriptGo Corpus Test: AbortController & AbortSignal
 
-import { AbortController, AbortSignal } from "node:events";
 
 // @api: AbortController.constructor
 // @expect: false
@@ -44,4 +43,3 @@ const combined = AbortSignal.any([c1.signal, c2.signal]);
 c2.abort("any-aborted");
 console.log(combined.aborted);
 console.log(combined.reason);
-

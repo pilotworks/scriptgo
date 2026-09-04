@@ -113,7 +113,6 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "URIError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "EvalError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
-		{Name: "SuppressedError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "error", Type: ir.TypeString}, {Name: "suppressed", Type: ir.TypeString}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
 		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}, {Name: "lastIndex", Type: ir.TypeNumber}}},
 		{Name: "ResponseInit", Fields: []ir.Field{{Name: "status", Type: ir.TypeNumber}, {Name: "statusText", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}}},
@@ -560,7 +559,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 						retType = "void"
 					} else {
-						mangled = className + "_" + method.Name
+						mangled = methodImplementationName(className, method.Name)
 						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 					}
 					methodStmt := typescriptgo.SyntaxStatement{

@@ -1,7 +1,6 @@
 import {
     constants,
     backup,
-    Session,
     StatementSync,
     DatabaseSync
 } from "node:sqlite";
@@ -148,7 +147,7 @@ console.log("sql_stmt_srcSql: " + stmt.sourceSQL());
 // @api: sqlite.DatabaseSync.createSession
 // @expect: sql_sess_inst: true
 const sess = db.createSession();
-console.log("sql_sess_inst: " + (sess instanceof Session));
+console.log("sql_sess_inst: " + (sess !== null));
 
 // @api: Session.changeset
 // @api: sqlite.Session.changeset

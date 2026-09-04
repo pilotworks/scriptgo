@@ -15,12 +15,12 @@ await fs.promises.writeFile(testFile, "promise content");
 console.log(fs.existsSync(testFile));
 
 // @api: fs.promises.readFile
-// @expect: promise content
+// @expect: <Buffer 70 72 6f 6d 69 73 65 20 63 6f 6e 74 65 6e 74>
 const pData = await fs.promises.readFile(testFile);
 console.log(pData);
 
 // @api: fs.promises.appendFile
-// @expect: promise content+appended
+// @expect: <Buffer 70 72 6f 6d 69 73 65 20 63 6f 6e 74 65 6e 74 2b 61 70 70 65 6e 64 65 64>
 await fs.promises.appendFile(testFile, "+appended");
 const pAppendData = await fs.promises.readFile(testFile);
 console.log(pAppendData);

@@ -36,6 +36,7 @@ func recordUsingResource(name string, resType ir.Type, isAwait bool, span typesc
 func emitDisposeResource(path string, res usingResourceInfo, function *ir.Function, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) {
 	clsName := strings.TrimPrefix(string(res.Type), "object:")
 	candidates := []string{
+		methodImplementationName(clsName, "Symbol.dispose"),
 		clsName + "_Symbol.dispose",
 		clsName + ".Symbol.dispose",
 		clsName + "_Symbol_dispose",
@@ -44,6 +45,7 @@ func emitDisposeResource(path string, res usingResourceInfo, function *ir.Functi
 	}
 	if res.IsAwait {
 		candidates = append([]string{
+			methodImplementationName(clsName, "Symbol.asyncDispose"),
 			clsName + "_Symbol.asyncDispose",
 			clsName + ".Symbol.asyncDispose",
 			clsName + "_Symbol_asyncDispose",

@@ -1,3 +1,6 @@
+// @parity-runner: tsc-node22
+import "reflect-metadata";
+
 // ScriptGo Corpus: Static Tier Unified Decorators & Reflection Test Suite
 // Consolidated test suite verifying Stage 3 and Legacy experimental decorators in Static Tier.
 
@@ -31,24 +34,24 @@ class UserService {
 }
 
 // @expect: true
-console.log(Reflect.hasMetadata("role", UserService, "getUser"));
+console.log(Reflect.hasMetadata("role", UserService.prototype, "getUser"));
 
 // @expect: admin
-console.log(Reflect.getMetadata("role", UserService, "getUser"));
+console.log(Reflect.getMetadata("role", UserService.prototype, "getUser"));
 
-// @expect: function
-console.log(Reflect.getMetadata("design:type", UserService, "getUser"));
+// @expect: [Function: Function]
+console.log(Reflect.getMetadata("design:type", UserService.prototype, "getUser"));
 
-// @expect: string
-console.log(Reflect.getMetadata("design:returntype", UserService, "getUser"));
+// @expect: [Function: String]
+console.log(Reflect.getMetadata("design:returntype", UserService.prototype, "getUser"));
 
 // --- Context Case: custom_define_metadata ---
 // @api: Reflect.defineMetadata
-Reflect.defineMetadata("tag", "v1.0", UserService, "getUser");
+Reflect.defineMetadata("tag", "v1.0", UserService.prototype, "getUser");
 // @expect: true
-console.log(Reflect.hasMetadata("tag", UserService, "getUser"));
+console.log(Reflect.hasMetadata("tag", UserService.prototype, "getUser"));
 // @expect: v1.0
-console.log(Reflect.getMetadata("tag", UserService, "getUser"));
+console.log(Reflect.getMetadata("tag", UserService.prototype, "getUser"));
 
 // --- Context Case: field_and_class_decorators ---
 function trace(tag: string) {
@@ -67,5 +70,3 @@ class Order {
 let order = new Order();
 // @expect: ORD-001
 console.log(order.orderId);
-
-

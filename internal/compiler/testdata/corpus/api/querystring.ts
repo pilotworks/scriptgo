@@ -1,4 +1,11 @@
-import { escape, unescape, stringify, encode, parse, decode, querystring, ParsedUrlQuery } from "node:querystring";
+import { escape, unescape, stringify, encode, parse, decode, querystring } from "node:querystring";
+
+class ParsedUrlQuery {
+    [key: string]: unknown;
+    set(key: string, value: string | string[]): void {
+        this[key] = value;
+    }
+}
 
 // @api: querystring.escape
 // @expect: hello%20world%20%26%20foo%3Dbar

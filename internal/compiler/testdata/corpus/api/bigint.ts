@@ -28,7 +28,7 @@ const bi_asUintN_neg = BigInt.asUintN(4, -2n);
 console.log(bi_asUintN_neg.toString());
 
 // @api: BigInt.toLocaleString
-// @expect: 987654321
+// @expect: 987,654,321
 const bi_locale = 987654321n;
 console.log(bi_locale.toLocaleString());
 

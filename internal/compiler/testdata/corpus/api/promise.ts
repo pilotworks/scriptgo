@@ -4,7 +4,6 @@
 // @api: Promise.all
 // @api: Promise.resolve
 // @api: Promise.withResolvers
-// @api: Promise.try
 // @api: new Promise
 // @api: Promise.constructor
 // @expect: resolved: 42
@@ -15,13 +14,8 @@
 // @expect: 100
 // @expect: object
 // @expect: constructed: 7
-// @expect: try: 999
 // @expect: withResolvers: 8
 export {};
-
-function getVal(): number {
-    return 999;
-}
 
 async function testPromise() {
     const p = Promise.resolve(42);
@@ -40,8 +34,6 @@ async function testPromise() {
     const { promise, resolve } = Promise.withResolvers<number>();
     resolve(8);
     const withResolversValue = await promise;
-    const resTry = await Promise.try(() => getVal());
-
     const pCreated = new Promise<number>((res) => {
         const dummy = true;
     });
@@ -51,7 +43,6 @@ async function testPromise() {
         resolve(7);
     });
     console.log("constructed: " + constructed);
-    console.log("try: " + resTry);
     console.log("withResolvers: " + withResolversValue);
 }
 

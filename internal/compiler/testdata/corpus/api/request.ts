@@ -1,7 +1,6 @@
 // ScriptGo Corpus: Request Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
-import { Request, Headers } from "node:http";
 
 // @api: request.url
 // @api: request.method

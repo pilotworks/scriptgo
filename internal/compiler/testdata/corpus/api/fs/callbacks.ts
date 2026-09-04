@@ -149,15 +149,16 @@ fs.link(testFile, hardLink, (err) => {
 const symLink = tmpDir + "/test_sym.txt";
 
 // @api: fs.symlink
-// @expect: true
-fs.symlink(testFile, symLink, (err) => {
-    console.log(err === null);
-});
-
 // @api: fs.readlink
 // @expect: true
-fs.readlink(symLink, (err, linkString) => {
-    console.log(linkString.length > 0);
+fs.symlink(testFile, symLink, (err) => {
+    if (err !== null) {
+        console.log(false);
+        return;
+    }
+    fs.readlink(symLink, (readErr, linkString) => {
+        console.log(readErr === null && linkString !== undefined && linkString.length > 0);
+    });
 });
 
 // @api: fs.utimes

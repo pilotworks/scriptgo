@@ -240,7 +240,6 @@ interface Date {
     toLocaleString(locales?: unknown, options?: unknown): string;
     toLocaleDateString(locales?: unknown, options?: unknown): string;
     toLocaleTimeString(locales?: unknown, options?: unknown): string;
-    toTemporalInstant(): unknown;
     valueOf(): number;
     getTime(): number;
     getFullYear(): number;
@@ -1508,4 +1507,3 @@ declare var crypto: Crypto;
 
 declare function fetch(input: unknown, init?: unknown): Promise<Response>;
 declare function require(id: string): unknown;
-

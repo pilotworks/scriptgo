@@ -184,7 +184,3 @@ console.log(Math.SQRT1_2 > 0.7);
 // @expect: true
 console.log(Math.SQRT2 > 1.41);
 
-// @api: Math.f16round
-// @expect: 1.5
-console.log(Math.f16round(1.5));
-

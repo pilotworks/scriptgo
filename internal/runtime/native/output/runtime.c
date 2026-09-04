@@ -139,10 +139,14 @@ typedef struct {
     uint64_t magic;
     int64_t field_count;
     const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
     uintptr_t fields[];
 } scriptgo_object_raw_t;
 
 int scriptgo_string_from_object(void *obj, char **out_str);
+int scriptgo_json_inspect_object(void *obj, char **out_str);
 
 static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
     if (arr == NULL) return scriptgo_console_string(stream, "null");
@@ -153,7 +157,12 @@ static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
     fprintf(stream, "[ ");
     for (int64_t i = 0; i < arr->length; i++) {
         if (i > 0) fprintf(stream, ", ");
-        if (arr->element_size == 1) {
+        if (arr->element_tag == SCRIPTGO_TAG_STRING) {
+            const char *s = *(const char **)(arr->data + (size_t)i * sizeof(char *));
+            if (s == NULL) fprintf(stream, "null");
+            else if (s == &scriptgo_undefined_sentinel) fprintf(stream, "undefined");
+            else fprintf(stream, "'%s'", s);
+        } else if (arr->element_size == 1) {
             uint8_t b = *(uint8_t *)(arr->data + (size_t)i);
             fprintf(stream, "%s", b ? "true" : "false");
         } else if (arr->element_size == sizeof(double)) {
@@ -193,6 +202,7 @@ static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
 }
 
 int scriptgo_gc_get_tag(void *ptr);
+int scriptgo_error_to_string(void *obj, char **out_str);
 
 static int scriptgo_console_object(FILE *stream, void *value) {
     if (value == NULL) {
@@ -212,10 +222,12 @@ static int scriptgo_console_object(FILE *stream, void *value) {
             void *buffer;
             unsigned char *data;
         } *bv = (void *)value;
-        if (bv->data != NULL && bv->length > 0) {
-            fwrite(bv->data, 1, (size_t)bv->length, stream);
+        scriptgo_console_print_indent(stream);
+        fprintf(stream, "<Buffer");
+        for (int64_t i = 0; i < bv->length; i++) {
+            fprintf(stream, " %02x", bv->data == NULL ? 0 : bv->data[i]);
         }
-        fputc('\n', stream);
+        fprintf(stream, ">\n");
         fflush(stream);
         return 0;
     }
@@ -224,9 +236,18 @@ static int scriptgo_console_object(FILE *stream, void *value) {
         scriptgo_object_raw_t *o = (scriptgo_object_raw_t *)value;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
             if (o->type_name != NULL && strstr(o->type_name, "Error") != NULL) {
-                if (o->field_count > 0 && o->fields[0] != 0 && o->fields[0] != 0x7FF8000000000000ULL) {
-                    return scriptgo_console_string(stream, (const char *)o->fields[0]);
+                char *error_string = NULL;
+                if (scriptgo_error_to_string(value, &error_string) == 0 && error_string != NULL) {
+                    int result = scriptgo_console_string(stream, error_string);
+                    free(error_string);
+                    return result;
                 }
+            }
+            char *inspected = NULL;
+            if (scriptgo_json_inspect_object(value, &inspected) == 0 && inspected != NULL) {
+                int result = scriptgo_console_string(stream, inspected);
+                free(inspected);
+                return result;
             }
             return scriptgo_console_string(stream, "[object Object]");
         }
@@ -242,6 +263,91 @@ static int scriptgo_console_object(FILE *stream, void *value) {
     return scriptgo_console_string(stream, (const char *)value);
 }
 
+int scriptgo_console_inspect_buffer(void *value, char **out_str) {
+    struct {
+        uint32_t magic;
+        int32_t kind;
+        int64_t length;
+        int64_t byte_offset;
+        int64_t element_size;
+        void *buffer;
+        unsigned char *data;
+    } *bv = (void *)value;
+    size_t capacity;
+    char *out;
+    size_t pos = 0;
+    if (out_str == NULL || value == NULL || bv->magic != 0x42554646) return scriptgo_runtime_set_error("invalid buffer inspection");
+    capacity = (size_t)bv->length * 3 + 10;
+    out = malloc(capacity);
+    if (out == NULL) return scriptgo_runtime_set_error("buffer inspection allocation failed");
+    pos += (size_t)snprintf(out + pos, capacity - pos, "<Buffer");
+    for (int64_t i = 0; i < bv->length; i++) pos += (size_t)snprintf(out + pos, capacity - pos, " %02x", bv->data == NULL ? 0 : bv->data[i]);
+    snprintf(out + pos, capacity - pos, ">");
+    *out_str = out;
+    return 0;
+}
+
+int scriptgo_console_inspect_array(void *value, char **out_str) {
+    scriptgo_array_raw_t *arr = (scriptgo_array_raw_t *)value;
+    size_t capacity;
+    char *out;
+    size_t pos = 0;
+    if (out_str == NULL || arr == NULL) return scriptgo_runtime_set_error("invalid array inspection");
+    if (arr == (scriptgo_array_raw_t *)&scriptgo_undefined_sentinel) { *out_str = strdup("undefined"); return *out_str == NULL; }
+    if (arr->length == 0) { *out_str = strdup("[]"); return *out_str == NULL; }
+    capacity = (size_t)arr->length * 96 + 4;
+    out = malloc(capacity);
+    if (out == NULL) return scriptgo_runtime_set_error("array inspection allocation failed");
+    pos += (size_t)snprintf(out + pos, capacity - pos, "[ ");
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (i > 0) pos += (size_t)snprintf(out + pos, capacity - pos, ", ");
+        if (arr->element_tag == SCRIPTGO_TAG_STRING) {
+            const char *s = *(const char **)(arr->data + (size_t)i * sizeof(char *));
+            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", s == NULL ? "null" : (s == &scriptgo_undefined_sentinel ? "undefined" : "'"));
+            if (s != NULL && s != &scriptgo_undefined_sentinel) pos += (size_t)snprintf(out + pos, capacity - pos, "%s'", s);
+        } else if (arr->element_tag == 2 || arr->element_size == 1) {
+            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", *(uint8_t *)(arr->data + (size_t)i) ? "true" : "false");
+        } else if (arr->element_tag == 5 && arr->element_size == sizeof(char *)) {
+            char *inspected = NULL;
+            void *element = *(void **)(arr->data + (size_t)i * sizeof(char *));
+            if (scriptgo_json_inspect_object(element, &inspected) == 0 && inspected != NULL) {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", inspected);
+                free(inspected);
+            } else {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
+            }
+        } else if (arr->element_tag == 3 || arr->element_size == sizeof(double)) {
+            char number[64];
+            scriptgo_format_double_shortest(number, sizeof(number), *(double *)(arr->data + (size_t)i * sizeof(double)));
+            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", number);
+        } else if (arr->element_size == 16) {
+            uint32_t tag = *(uint32_t *)(arr->data + (size_t)i * 16);
+            uint64_t payload = *(uint64_t *)(arr->data + (size_t)i * 16 + 8);
+            if (tag == SCRIPTGO_TAG_STRING) {
+                const char *s = (const char *)(uintptr_t)payload;
+                pos += (size_t)snprintf(out + pos, capacity - pos, "'%s'", s == NULL ? "" : s);
+            } else if (tag == SCRIPTGO_TAG_NUMBER) {
+                union { uint64_t raw; double number; } value;
+                value.raw = payload;
+                char number[64];
+                scriptgo_format_double_shortest(number, sizeof(number), value.number);
+                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", number);
+            } else if (tag == SCRIPTGO_TAG_BOOLEAN) {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", payload ? "true" : "false");
+            } else if (tag == SCRIPTGO_TAG_NULL) {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "null");
+            } else {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
+            }
+        } else {
+            pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
+        }
+    }
+    snprintf(out + pos, capacity - pos, " ]");
+    *out_str = out;
+    return 0;
+}
+
 #define SCRIPTGO_CONSOLE_METHOD(name, stream) \
     int scriptgo_console_##name##_number(double value) { return scriptgo_console_number(stream, value); } \
     int scriptgo_console_##name##_bigint(long long value) { return scriptgo_console_bigint(stream, value); } \
@@ -249,6 +355,7 @@ static int scriptgo_console_object(FILE *stream, void *value) {
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
     int scriptgo_console_##name##_unknown(unsigned int tag, unsigned int flags, unsigned long long payload) { return scriptgo_console_unknown(stream, tag, flags, payload); } \
+    int scriptgo_console_##name##_buffer(void *value) { return scriptgo_console_object(stream, value); } \
     int scriptgo_console_##name##_object(void *value) { return scriptgo_console_object(stream, value); }
 
 SCRIPTGO_CONSOLE_METHOD(log, stdout)
@@ -412,4 +519,3 @@ int scriptgo_console_trace(const char *msg) {
     fflush(stderr);
     return 0;
 }
-

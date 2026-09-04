@@ -23,6 +23,7 @@ func consoleRuntimeName(method string, typ ir.Type) (string, bool) {
 		ir.TypeString:  "string",
 		ir.TypeBool:    "bool",
 		ir.TypeUnknown: "unknown",
+		ir.TypeBuffer:  "buffer",
 	}[typ]
 	if suffix == "" {
 		if typ == ir.TypeVoid {

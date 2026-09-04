@@ -203,15 +203,6 @@ int scriptgo_number_to_locale_string(double val, char **out_value) {
     return scriptgo_number_to_string(val, 10.0, out_value);
 }
 
-int scriptgo_math_f16round(double val, double *out_value) {
-    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to f16round");
-    if (isnan(val)) { *out_value = NAN; return 0; }
-    if (isinf(val)) { *out_value = val; return 0; }
-    __fp16 h = (__fp16)val;
-    *out_value = (double)h;
-    return 0;
-}
-
 int32_t scriptgo_to_int32(double val) {
     if (isnan(val) || isinf(val) || val == 0.0) {
         return 0;
@@ -240,4 +231,3 @@ double scriptgo_math_pow(double x, double y) {
     if (fabs(x) == 1.0 && isinf(y)) return NAN;
     return pow(x, y);
 }
-

@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -278,6 +279,60 @@ func lowerCall(callee string, returnType ir.Type) func(IntrinsicCall, BuiltinInt
 	}
 }
 
+func lowerRandomFill(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	if len(call.Expression.Arguments) < 1 || len(call.Expression.Arguments) > 4 {
+		return "", "", fmt.Errorf("builtin %s expects between 1 and 4 argument(s)", intrinsic.Name)
+	}
+	buffer, bufferType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
+	if bufferType != ir.TypeBuffer && bufferType != ir.TypeUint8Array {
+		return "", "", fmt.Errorf("builtin %s requires a buffer", intrinsic.Name)
+	}
+	var offset, size, callback string
+	for i := 1; i < len(call.Expression.Arguments); i++ {
+		value, typ, lowerErr := call.LowerExpression(call.Path, call.Expression.Arguments[i], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		if lowerErr != nil {
+			return "", "", lowerErr
+		}
+		if typ == ir.TypeClosure || strings.Contains(string(typ), "=>") {
+			callback = value
+			break
+		}
+		if typ != ir.TypeNumber {
+			return "", "", fmt.Errorf("builtin %s expects numeric offset/size or callback", intrinsic.Name)
+		}
+		if offset == "" {
+			offset = value
+		} else if size == "" {
+			size = value
+		} else {
+			return "", "", fmt.Errorf("builtin %s received too many numeric arguments", intrinsic.Name)
+		}
+	}
+	for offset == "" || size == "" {
+		zero := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zero, Value: "0", Span: toIRSpan(call.Path, call.Expression.Span)})
+		if offset == "" {
+			offset = zero
+		} else {
+			size = zero
+		}
+	}
+	if callback == "" {
+		undefined := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeClosure, Result: undefined, Value: "undefined", Span: toIRSpan(call.Path, call.Expression.Span)})
+		callback = undefined
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBuffer, Result: result, Callee: "__crypto.randomFill", Args: []string{buffer, offset, size, callback}, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, ir.TypeBuffer, nil
+}
+
 func lowerFsReadFileSync(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 1 || len(call.Expression.Arguments) > 2 {
 		return "", "", fmt.Errorf("builtin %s expects between 1 and 2 argument(s)", intrinsic.Name)
@@ -316,7 +371,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	m := make(map[string]BuiltinIntrinsic)
 
 	// Math functions (Category 1: ECMAScript)
-	math1 := []string{"abs", "ceil", "floor", "trunc", "sqrt", "cbrt", "round", "fround", "f16round", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "log", "log2", "log10", "log1p", "exp", "expm1", "sign", "clz32"}
+	math1 := []string{"abs", "ceil", "floor", "trunc", "sqrt", "cbrt", "round", "fround", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "log", "log2", "log10", "log1p", "exp", "expm1", "sign", "clz32"}
 	for _, fn := range math1 {
 		name := "Math." + fn
 		m[name] = BuiltinIntrinsic{Category: CategoryECMAScript, Name: name, ArgumentTypes: []ir.Type{ir.TypeNumber}, MinArgs: 1, MaxArgs: 1, Lower: lowerCall("__"+name, ir.TypeNumber)}
@@ -334,6 +389,11 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register := func(aliases []string, cat BuiltinCategory, callee string, argTypes []ir.Type, retType ir.Type, minArgs, maxArgs int) {
 		for _, name := range aliases {
 			m[name] = BuiltinIntrinsic{Category: cat, Name: aliases[0], ArgumentTypes: argTypes, MinArgs: minArgs, MaxArgs: maxArgs, Lower: lowerCall(callee, retType)}
+		}
+	}
+	registerCustom := func(aliases []string, cat BuiltinCategory, callee string, retType ir.Type, minArgs, maxArgs int, lower func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error)) {
+		for _, name := range aliases {
+			m[name] = BuiltinIntrinsic{Category: cat, Name: aliases[0], MinArgs: minArgs, MaxArgs: maxArgs, Lower: lower}
 		}
 	}
 
@@ -497,31 +557,6 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "lastIndex", FieldIndex: 2, Args: []string{res, zeroVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 			})
 			return res, ir.Type("object:RegExp"), nil
-		},
-	}
-	m["RegExp.escape"] = BuiltinIntrinsic{
-		Category: CategoryECMAScript,
-		Name:     "RegExp.escape",
-		MinArgs:  1,
-		MaxArgs:  1,
-		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			strVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-			if err != nil {
-				return "", "", err
-			}
-			result := call.Result
-			if result == "" {
-				result = nextTemp(call.Counter)
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: result,
-				Callee: "__regexp.escape",
-				Args:   []string{strVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, ir.TypeString, nil
 		},
 	}
 	m["Symbol"] = BuiltinIntrinsic{
@@ -857,7 +892,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"crypto.hashDigestBuffer", "__scriptgo.hashDigestBuffer", "hashDigestBuffer"}, CategoryNodeModule, "__crypto.hashDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeUint8Array, ir.TypeUnknown, ir.TypeObject}, ir.TypeString, 2, 3)
 	register([]string{"crypto.randomBytes", "__scriptgo.randomBytes", "randomBytes"}, CategoryNodeModule, "__crypto.randomBytes", []ir.Type{ir.TypeNumber}, ir.TypeBuffer, 1, 1)
 	register([]string{"crypto.randomInt", "__scriptgo.randomInt", "randomInt"}, CategoryNodeModule, "__crypto.randomInt", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 2, 2)
-	register([]string{"crypto.randomFill", "__scriptgo.randomFill", "randomFill"}, CategoryNodeModule, "__crypto.randomFill", []ir.Type{ir.TypeBuffer, ir.TypeNumber, ir.TypeNumber}, ir.TypeBuffer, 1, 3)
+	registerCustom([]string{"crypto.randomFill", "__scriptgo.randomFill", "randomFill"}, CategoryNodeModule, "__crypto.randomFill", ir.TypeBuffer, 1, 4, lowerRandomFill)
 	register([]string{"crypto.timingSafeEqual", "__scriptgo.timingSafeEqual", "timingSafeEqual"}, CategoryNodeModule, "__crypto.timingSafeEqual", []ir.Type{ir.TypeBuffer, ir.TypeBuffer}, ir.TypeBool, 2, 2)
 	register([]string{"crypto.hmacDigest", "__scriptgo.hmacDigest", "hmacDigest"}, CategoryNodeModule, "__crypto.hmacDigest", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 3, 4)
 	register([]string{"crypto.hmacDigestBuffer", "__scriptgo.hmacDigestBuffer", "hmacDigestBuffer"}, CategoryNodeModule, "__crypto.hmacDigestBuffer", []ir.Type{ir.TypeString, ir.TypeBuffer, ir.TypeBuffer, ir.TypeString}, ir.TypeString, 3, 4)

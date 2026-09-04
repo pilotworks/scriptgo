@@ -5,10 +5,12 @@ export class Stats {
     mode: number;
     atimeMs: number = 0;
     ctimeMs: number = 0;
-    atimeNs: number = 0;
-    mtimeNs: number = 0;
-    ctimeNs: number = 0;
-    birthtimeNs: number = 0;
+    // Node exposes nanosecond fields only for bigint stat results. The
+    // default Stats shape preserves the fields as unavailable values.
+    atimeNs: number = NaN;
+    mtimeNs: number = NaN;
+    ctimeNs: number = NaN;
+    birthtimeNs: number = NaN;
     dev: number = 0;
     ino: number = 0;
     nlink: number = 1;
@@ -25,10 +27,6 @@ export class Stats {
         this.mode = mode;
         this.atimeMs = mtimeMs;
         this.ctimeMs = mtimeMs;
-        this.atimeNs = mtimeMs * 1000000;
-        this.mtimeNs = mtimeMs * 1000000;
-        this.ctimeNs = mtimeMs * 1000000;
-        this.birthtimeNs = birthtimeMs * 1000000;
     }
 
     get atime(): Date {
@@ -489,8 +487,8 @@ export class FileHandle {
         return Promise.resolve(readSync(this.fd, buffer, offset, length, position));
     }
 
-    write(data: string, offset: number = 0, length: number = -1): Promise<number> {
-        return Promise.resolve(writeSync(this.fd, data, offset, length));
+    write(data: string, offset: number = 0, length: number = -1): Promise<{ bytesWritten: number; buffer: Buffer }> {
+        return Promise.resolve({ bytesWritten: writeSync(this.fd, data, offset, length), buffer: Buffer.from(data) });
     }
 
     readFile(encoding: string = "utf8"): Promise<string> {
@@ -547,7 +545,12 @@ export class FSPromises {
 
     constructor() {}
 
-    readFile(path: string, encoding: string = "utf8"): Promise<string> {
+    readFile(path: string): Promise<Buffer>;
+    readFile(path: string, encoding: string): Promise<string>;
+    readFile(path: string, encoding?: string): Promise<string | Buffer> {
+        if (encoding === undefined) {
+            return Promise.resolve(readFileSync(path));
+        }
         return Promise.resolve(readFileSync(path, encoding));
     }
 

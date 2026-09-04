@@ -23,6 +23,9 @@ typedef struct {
     uint64_t magic;
     int64_t field_count;
     const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
     uintptr_t fields[];
 } scriptgo_object;
 
@@ -137,6 +140,16 @@ static int object_field_index(const scriptgo_object *object, const char *propert
     }
 
     cursor = object->type_name;
+    /* Plain shape markers carry no fields; only their encoded extensions do. */
+    {
+        const char *extension = strchr(cursor, '|');
+        const char *descriptor_colon = strchr(cursor, ':');
+        if (extension != NULL && (descriptor_colon == NULL || descriptor_colon > extension)) {
+            cursor = extension;
+        } else if (extension == NULL && descriptor_colon == NULL) {
+            return -1;
+        }
+    }
     while (*cursor != '\0') {
         const char *field_start;
         const char *field_end;
@@ -422,12 +435,68 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     object->magic = SCRIPTGO_OBJECT_MAGIC;
     object->field_count = field_count;
     object->type_name = NULL;
+    object->extensible = 1;
+    object->sealed = 0;
+    object->frozen = 0;
     for (int64_t i = 0; i < capacity; i++) {
         uint64_t nan_bits = SCRIPTGO_OBJECT_NAN_BITS;
         memcpy(&object->fields[i], &nan_bits, sizeof(uint64_t));
     }
     scriptgo_gc_register(object, 1, (uint32_t)capacity);
     *out_object = object;
+    return 0;
+}
+
+int scriptgo_object_freeze(void *handle, void **out_object) {
+    if (out_object == NULL) return object_fail("scriptgo object freeze failed");
+    if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
+        return object_fail("scriptgo object freeze invalid object");
+    }
+    scriptgo_object *object = (scriptgo_object *)handle;
+    object->extensible = 0;
+    object->sealed = 1;
+    object->frozen = 1;
+    *out_object = handle;
+    return 0;
+}
+
+int scriptgo_object_seal(void *handle, void **out_object) {
+    if (out_object == NULL) return object_fail("scriptgo object seal failed");
+    if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
+        return object_fail("scriptgo object seal invalid object");
+    }
+    scriptgo_object *object = (scriptgo_object *)handle;
+    object->extensible = 0;
+    object->sealed = 1;
+    *out_object = handle;
+    return 0;
+}
+
+int scriptgo_object_prevent_extensions(void *handle, void **out_object) {
+    if (out_object == NULL) return object_fail("scriptgo object preventExtensions failed");
+    if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
+        return object_fail("scriptgo object preventExtensions invalid object");
+    }
+    ((scriptgo_object *)handle)->extensible = 0;
+    *out_object = handle;
+    return 0;
+}
+
+int scriptgo_object_is_frozen(void *handle, int32_t *out_result) {
+    if (out_result == NULL) return object_fail("scriptgo object isFrozen failed");
+    *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->frozen;
+    return 0;
+}
+
+int scriptgo_object_is_sealed(void *handle, int32_t *out_result) {
+    if (out_result == NULL) return object_fail("scriptgo object isSealed failed");
+    *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->sealed;
+    return 0;
+}
+
+int scriptgo_object_is_extensible(void *handle, int32_t *out_result) {
+    if (out_result == NULL) return object_fail("scriptgo object isExtensible failed");
+    *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->extensible;
     return 0;
 }
 
@@ -690,7 +759,14 @@ static int object_property_index_for_set(void *handle, const char *property) {
     index = object_field_index(object, property);
     if (index >= 0) return index;
     if (is_class_descriptor(object->type_name)) return -1;
-	if (strncmp(object->type_name, "__json__", 8) == 0 || object->field_count >= 64) {
+    /* Empty object literals become dictionary-backed once a dynamic key is assigned. */
+    if (strcmp(object->type_name, "__shape_empty") == 0) {
+        char *dictionary_name = strdup("__json__");
+        if (dictionary_name == NULL) return -1;
+        free((void *)object->type_name);
+        object->type_name = dictionary_name;
+    }
+	if (object->field_count >= 64) {
 		return -1;
 	}
 	property_length = strlen(property);
@@ -732,6 +808,11 @@ int scriptgo_object_property_string_get(void *handle, const char *property, cons
         *out_value = NULL;
     }
     return 0;
+}
+
+int scriptgo_object_property_string_set(void *handle, const char *property, const char *value) {
+    int index = object_property_index_for_set(handle, property);
+    return index < 0 ? object_fail("scriptgo object property string set failed") : scriptgo_object_string_set(handle, index, value);
 }
 
 int scriptgo_object_property_bool_get(void *handle, const char *property, int32_t *out_value) {

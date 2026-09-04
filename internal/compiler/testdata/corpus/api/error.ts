@@ -9,7 +9,7 @@
 // @api: error.constructor
 // @expect: fail
 // @expect: Error
-// @expect: [object Object]
+// @expect: Error: fail
 // @expect: true
 const e_error_error_0 = new Error("fail");
 console.log(e_error_error_0.message);
@@ -46,4 +46,3 @@ console.log(e_error_type_error_2.name);
 const e_error_syntax_error_3 = new SyntaxError("syntax fail");
 console.log(e_error_syntax_error_3.message);
 console.log(e_error_syntax_error_3.name);
-

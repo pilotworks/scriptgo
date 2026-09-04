@@ -46,7 +46,7 @@ console.log("format_res: " + format("%s %d", "hello", 42));
 console.log("formatWithOptions_res: " + formatWithOptions({}, "%s %d", "hello", 42));
 
 // @api: util.inspect
-// @expect: inspect_res: "hello"
+// @expect: inspect_res: 'hello'
 console.log("inspect_res: " + inspect("hello"));
 
 // @api: util.isDeepStrictEqual
@@ -152,7 +152,7 @@ console.log("getSystemErrorMessage_res: " + getSystemErrorMessage(-2));
 // @api: util.parseEnv
 // @expect: parseEnv_res: bar
 const env = parseEnv("FOO=bar\n# comment");
-console.log("parseEnv_res: " + env.get("FOO"));
+console.log("parseEnv_res: " + env.FOO);
 
 // @api: util.promisify
 // @expect: promisify_res: true
@@ -230,4 +230,3 @@ console.log("mimeparams_values: " + (mparams.values().length > 0));
 // @api: MIMEParams.entries
 // @expect: mimeparams_entries: true
 console.log("mimeparams_entries: " + (mparams.entries().length > 0));
-

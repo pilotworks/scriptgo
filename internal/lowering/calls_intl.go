@@ -84,7 +84,7 @@ func lowerIntlReceiverMethod(
 	trimmedType := strings.TrimPrefix(string(receiverType), "object:")
 	subType := strings.TrimPrefix(trimmedType, "Intl.")
 	switch subType {
-	case "NumberFormat", "DateTimeFormat", "Collator", "Segmenter", "DisplayNames", "ListFormat", "RelativeTimeFormat", "PluralRules":
+	case "NumberFormat", "DateTimeFormat", "Collator", "Segmenter", "Segments", "DisplayNames", "ListFormat", "RelativeTimeFormat", "PluralRules":
 		// valid Intl subType
 	default:
 		return "", "", false, nil
@@ -143,13 +143,21 @@ func lowerIntlReceiverMethod(
 		if methodName == "segment" {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpCall,
-				Type:   ir.TypeStringArray,
+				Type:   ir.Type("object:Intl.Segments"),
 				Result: result,
 				Callee: "__intl.segmenter_segment",
 				Args:   args,
 				Span:   toIRSpan(path, expression.Span),
 			})
-			return result, ir.TypeStringArray, true, nil
+			return result, ir.Type("object:Intl.Segments"), true, nil
+		}
+	case "Segments":
+		if methodName == "containing" {
+			segmentFields := []ir.Field{{Name: "segment", Type: ir.TypeString}, {Name: "index", Type: ir.TypeNumber}, {Name: "input", Type: ir.TypeString}}
+			shapes["Intl.Segment"] = ir.ObjectShape{Name: "Intl.Segment", Fields: segmentFields}
+			shapes["SegmentData"] = ir.ObjectShape{Name: "SegmentData", Fields: segmentFields}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.Type("object:Intl.Segment"), Result: result, Callee: "__intl.segments_containing", Args: args, Span: toIRSpan(path, expression.Span)})
+			return result, ir.Type("object:Intl.Segment"), true, nil
 		}
 	case "DisplayNames":
 		if methodName == "of" {

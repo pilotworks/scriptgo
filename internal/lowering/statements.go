@@ -834,6 +834,28 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				}
 			}
 		}
+		// Dictionary-like objects use the runtime key instead of a fixed shape
+		// field. Keep the array path below strict about numeric indexes.
+		if arrType == ir.TypeObject || strings.HasPrefix(string(arrType), "object:") || arrType == ir.TypeUnknown {
+			idxVal, idxType, err := lowerExpression(path, statement.Right, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return err
+			}
+			if idxType == ir.TypeString {
+				val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return err
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeVoid,
+					Callee: "__object.set_prop",
+					Args:   []string{arrVal, idxVal, val},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				return nil
+			}
+		}
 		if arrType == ir.TypeString {
 			return fmt.Errorf("cannot assign to read-only string index")
 		}

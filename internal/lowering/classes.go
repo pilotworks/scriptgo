@@ -297,23 +297,51 @@ func normalizeGenericName(s string) string {
 	return s
 }
 
+func findImplementationInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
+	curr := className
+	for curr != "" {
+		if fn, ok := signatures[methodImplementationName(curr, methodName)]; ok {
+			return fn, methodImplementationName(curr, methodName), true
+		}
+		clean := curr
+		if idx := strings.IndexAny(clean, "<"); idx >= 0 {
+			clean = clean[:idx]
+		}
+		if fn, ok := signatures[methodImplementationName(clean, methodName)]; ok {
+			return fn, methodImplementationName(clean, methodName), true
+		}
+		meta, ok := hierarchy[clean]
+		if !ok {
+			break
+		}
+		curr = meta.Extends
+	}
+	return ir.Function{}, "", false
+}
+
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	if className == "this" || className == "" {
 		for cls := range hierarchy {
-			if fn, ok := signatures[cls+"_"+methodName]; ok {
-				return fn, cls + "_" + methodName, true
+			if fn, ok := signatures[methodImplementationName(cls, methodName)]; ok {
+				return fn, methodImplementationName(cls, methodName), true
 			}
 		}
 	}
 	curr := className
+	if className != "" && className != "this" {
+		dispatchName := className + "_" + methodName + "_dispatch"
+		if fn, ok := signatures[dispatchName]; ok {
+			return fn, dispatchName, true
+		}
+	}
 	for curr != "" {
-		mangledDirect := curr + "_" + methodName
+		mangledDirect := methodImplementationName(curr, methodName)
 		if fn, ok := signatures[mangledDirect]; ok {
 			return fn, mangledDirect, true
 		}
 		if strings.Contains(curr, "<") && strings.HasSuffix(curr, ">") {
 			mangledCls := mangleGenericTypeString(curr)
-			mangled := mangledCls + "_" + methodName
+			mangled := methodImplementationName(mangledCls, methodName)
 			if fn, ok := signatures[mangled]; ok {
 				return fn, mangled, true
 			}
@@ -324,11 +352,11 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		} else if idx := strings.Index(curr, "__"); idx != -1 {
 			cleanCurr = curr[:idx]
 		}
-		mangled := cleanCurr + "_" + methodName
+		mangled := methodImplementationName(cleanCurr, methodName)
 		if fn, ok := signatures[mangled]; ok {
 			return fn, mangled, true
 		}
-		genMangled := "Generator_" + cleanCurr + "_" + methodName
+		genMangled := "Generator_" + cleanCurr + "_" + methodName + "_impl"
 		if fn, ok := signatures[genMangled]; ok {
 			return fn, genMangled, true
 		}
@@ -384,7 +412,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 				isLoose = true
 			}
 		}
-		subMangled := subName + "_" + methodName
+		subMangled := methodImplementationName(subName, methodName)
 		if _, ok := signatures[subMangled]; ok && !seenSub[subName] {
 			if isExact {
 				exactSubs = append(exactSubs, subName)
@@ -399,15 +427,15 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		candidateSubs = allSubs
 	}
 	if len(candidateSubs) == 1 {
-		subMangled := candidateSubs[0] + "_" + methodName
+		subMangled := methodImplementationName(candidateSubs[0], methodName)
 		return signatures[subMangled], subMangled, true
 	} else if len(candidateSubs) > 1 {
 		slices.Sort(candidateSubs)
-		dispatchName := cleanCls + "_" + methodName
+		dispatchName := methodDispatcherName(cleanCls, methodName)
 		if fn, ok := signatures[dispatchName]; ok {
 			return fn, dispatchName, true
 		}
-		firstSig := signatures[candidateSubs[0]+"_"+methodName]
+		firstSig := signatures[methodImplementationName(candidateSubs[0], methodName)]
 		var params []ir.Parameter
 		var forwardArgs []string
 		for i, p := range firstSig.Parameters {
@@ -426,7 +454,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		}
 		counter := 0
 		for i, subName := range candidateSubs {
-			subMangled := subName + "_" + methodName
+			subMangled := methodImplementationName(subName, methodName)
 			subSig := signatures[subMangled]
 			subArgs := append([]string(nil), forwardArgs...)
 			if len(subArgs) > len(subSig.Parameters) {
@@ -508,17 +536,26 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		}
 		extraFunctions = append(extraFunctions, dispatchFn)
 		signatures[dispatchName] = dispatchFn
+		if defaults := defaultParamsIndex[methodImplementationName(candidateSubs[0], methodName)]; defaults != nil {
+			defaultParamsIndex[dispatchName] = defaults
+		}
+		for _, subName := range candidateSubs {
+			if restParamsIndex[methodImplementationName(subName, methodName)] {
+				restParamsIndex[dispatchName] = true
+				break
+			}
+		}
 		return dispatchFn, dispatchName, true
 	}
 	if className != "" && className != "this" {
 		for sigName, fn := range signatures {
-			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_")) && strings.HasSuffix(sigName, "_"+methodName) {
+			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_")) && strings.HasSuffix(sigName, "_"+methodName+"_impl") {
 				return fn, sigName, true
 			}
 		}
 	} else {
 		for sigName, fn := range signatures {
-			if strings.HasSuffix(sigName, "_"+methodName) {
+			if strings.HasSuffix(sigName, "_"+methodName+"_impl") {
 				return fn, sigName, true
 			}
 		}
@@ -680,6 +717,30 @@ func isSubclassOf(subClass, baseClass string, hierarchy map[string]ClassMeta) bo
 	return false
 }
 
+func methodImplementationName(className, methodName string) string {
+	return className + "_" + methodName + "_impl"
+}
+
+func methodDispatcherName(className, methodName string) string {
+	return className + "_" + methodName + "_dispatch"
+}
+
+func classSatisfies(className, target string, hierarchy map[string]ClassMeta) bool {
+	if isSubclassOf(className, target, hierarchy) {
+		return true
+	}
+	meta, ok := hierarchy[className]
+	if !ok {
+		return false
+	}
+	for _, implemented := range meta.Implements {
+		if implemented == target || isSubtype(implemented, target) {
+			return true
+		}
+	}
+	return false
+}
+
 func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures map[string]ir.Function) []ir.Function {
 	var dispatchers []ir.Function
 	type methodKey struct {
@@ -706,21 +767,10 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 			}
 			seen[key] = true
 
-			hasOwnConcrete := false
-			for _, baseM := range stmtClass.Methods {
-				if baseM.Name == m.Name && !baseM.IsStatic && baseM.Kind == "method" && !baseM.IsAbstract && len(baseM.Body) > 0 {
-					hasOwnConcrete = true
-					break
-				}
-			}
-			if hasOwnConcrete {
-				continue
-			}
-
 			var implementors []string
 			for candClass := range hierarchy {
-				if isSubclassOf(candClass, baseClass, hierarchy) {
-					candMangled := candClass + "_" + m.Name
+				if classSatisfies(candClass, baseClass, hierarchy) {
+					candMangled := methodImplementationName(candClass, m.Name)
 					if _, exists := signatures[candMangled]; exists {
 						if stmtCand, ok := classSyntax[candClass]; ok {
 							for _, candM := range stmtCand.Methods {
@@ -734,19 +784,21 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 				}
 			}
 
-			if len(implementors) > 1 {
+			if len(implementors) > 0 {
 				sort.Slice(implementors, func(i, j int) bool {
 					return getInheritanceDepth(implementors[i], hierarchy) > getInheritanceDepth(implementors[j], hierarchy)
 				})
 
-				firstMangled := implementors[0] + "_" + m.Name
+				firstMangled := methodImplementationName(implementors[0], m.Name)
 				templateSig := signatures[firstMangled]
 
-				dispatchName := baseClass + "_" + m.Name
+				dispatchName := methodDispatcherName(baseClass, m.Name)
 
 				params := make([]ir.Parameter, len(templateSig.Parameters))
 				copy(params, templateSig.Parameters)
 				if len(params) > 0 {
+					// Dispatchers use the canonical receiver name expected by method bodies.
+					params[0].Name = "this"
 					params[0].Type = ir.Type("object:" + baseClass)
 				}
 
@@ -759,7 +811,7 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 
 				for i := 0; i < len(implementors)-1; i++ {
 					implClass := implementors[i]
-					implMangled := implClass + "_" + m.Name
+					implMangled := methodImplementationName(implClass, m.Name)
 					isInstVar := fmt.Sprintf("is.%s.%d", implClass, counter)
 					counter++
 					body = append(body, ir.Instruction{
@@ -809,7 +861,7 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 				}
 
 				lastImpl := implementors[len(implementors)-1]
-				lastMangled := lastImpl + "_" + m.Name
+				lastMangled := methodImplementationName(lastImpl, m.Name)
 				if templateSig.ReturnType == ir.TypeVoid {
 					body = append(body, ir.Instruction{
 						Op:     ir.OpCall,
@@ -846,6 +898,12 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 				}
 				dispatchers = append(dispatchers, dispatchFn)
 				signatures[dispatchName] = dispatchFn
+				if defaults := defaultParamsIndex[firstMangled]; defaults != nil {
+					defaultParamsIndex[dispatchName] = defaults
+				}
+				if restParamsIndex[firstMangled] {
+					restParamsIndex[dispatchName] = true
+				}
 			}
 		}
 	}

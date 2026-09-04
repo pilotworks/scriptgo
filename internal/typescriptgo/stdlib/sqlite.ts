@@ -349,7 +349,6 @@ export async function backup(sourceDb?: DatabaseSync, destination?: string, opti
 export default {
     constants,
     backup,
-    Session,
     StatementSync,
     DatabaseSync,
 };

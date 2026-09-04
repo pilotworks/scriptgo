@@ -1,7 +1,6 @@
 // ScriptGo Corpus: Fetch Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
-import { fetch, Headers, Request, Response } from "node:http";
 
 // @api: fetch.Headers
 // @expect: application/json

@@ -85,12 +85,12 @@ func collectClassMetadata(class *typescriptgo.SyntaxClass) {
 			}
 		}
 		if len(m.Decorators) > 0 {
-			registerStaticMetadata(className, m.Name, "design:type", "function")
+			registerStaticMetadata(className, m.Name, "design:type", "[Function: Function]")
 			if len(paramTypes) > 0 {
 				registerStaticMetadata(className, m.Name, "design:paramtypes", paramTypes)
 			}
 			if m.Type != "" {
-				registerStaticMetadata(className, m.Name, "design:returntype", m.Type)
+				registerStaticMetadata(className, m.Name, "design:returntype", decoratorTypeDisplay(m.Type))
 			}
 			for _, dec := range m.Decorators {
 				registerDecoratorMetadata(className, m.Name, dec)
@@ -102,7 +102,7 @@ func collectClassMetadata(class *typescriptgo.SyntaxClass) {
 	for _, f := range class.Fields {
 		if len(f.Decorators) > 0 {
 			if f.Type != "" {
-				registerStaticMetadata(className, f.Name, "design:type", f.Type)
+				registerStaticMetadata(className, f.Name, "design:type", decoratorTypeDisplay(f.Type))
 			}
 			for _, dec := range f.Decorators {
 				registerDecoratorMetadata(className, f.Name, dec)
@@ -111,15 +111,34 @@ func collectClassMetadata(class *typescriptgo.SyntaxClass) {
 	}
 }
 
+func decoratorTypeDisplay(typeName string) string {
+	switch typeName {
+	case "string":
+		return "[Function: String]"
+	case "number":
+		return "[Function: Number]"
+	case "boolean":
+		return "[Function: Boolean]"
+	case "bigint":
+		return "[Function: BigInt]"
+	case "symbol":
+		return "[Function: Symbol]"
+	case "object":
+		return "[Function: Object]"
+	default:
+		return "[Function: " + typeName + "]"
+	}
+}
+
 func registerDecoratorMetadata(className, memberName string, dec typescriptgo.SyntaxDecorator) {
 	if dec.DesignType != "" {
-		registerStaticMetadata(className, memberName, "design:type", dec.DesignType)
+		registerStaticMetadata(className, memberName, "design:type", decoratorTypeDisplay(dec.DesignType))
 	}
 	if len(dec.ParamTypes) > 0 {
 		registerStaticMetadata(className, memberName, "design:paramtypes", dec.ParamTypes)
 	}
 	if dec.ReturnType != "" {
-		registerStaticMetadata(className, memberName, "design:returntype", dec.ReturnType)
+		registerStaticMetadata(className, memberName, "design:returntype", decoratorTypeDisplay(dec.ReturnType))
 	}
 
 	// Extract metadata from custom decorators, e.g. @Reflect.metadata(key, val) or @Role("admin")

@@ -53,14 +53,6 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 		fmt.Fprintf(out, "  %%%s = fptrunc double %%%s to float\n", f32, instruction.Args[0])
 		fmt.Fprintf(out, "  %%%s = fpext float %%%s to double\n", instruction.Result, f32)
 		return nil
-	case "__Math.f16round":
-		if len(instruction.Args) != 1 {
-			return fmt.Errorf("math intrinsic %q requires one number", instruction.Callee)
-		}
-		f16 := instruction.Result + "_f16"
-		fmt.Fprintf(out, "  %%%s = fptrunc double %%%s to half\n", f16, instruction.Args[0])
-		fmt.Fprintf(out, "  %%%s = fpext half %%%s to double\n", instruction.Result, f16)
-		return nil
 	case "__Math.clz32":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("math intrinsic %q requires one number", instruction.Callee)

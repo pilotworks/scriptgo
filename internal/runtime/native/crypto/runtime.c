@@ -12,6 +12,33 @@
 
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_buffer_alloc(double size, const char *fill_str, double fill_num, int has_fill, int is_str_fill, void **out_buf);
+extern const char scriptgo_undefined_sentinel;
+int scriptgo_timer_set_timeout(void *closure_handle, double delay_ms, double *out_id);
+int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
+
+typedef struct {
+    void *fn_ptr;
+    void *env;
+} scriptgo_callback_closure;
+
+typedef struct {
+    void *callback;
+    void *buffer;
+} scriptgo_random_fill_callback;
+
+static void scriptgo_random_fill_complete(
+    void *env, int32_t t0, int32_t p0, int64_t v0,
+    int32_t t1, int32_t p1, int64_t v1,
+    int32_t t2, int32_t p2, int64_t v2,
+    int32_t t3, int32_t p3, int64_t v3) {
+    scriptgo_random_fill_callback *ctx = (scriptgo_random_fill_callback *)env;
+    scriptgo_boxed_value error = {1, 0, 0};
+    scriptgo_boxed_value buffer = {5, 0, (int64_t)(uintptr_t)ctx->buffer};
+    (void)t0; (void)p0; (void)v0; (void)t1; (void)p1; (void)v1;
+    (void)t2; (void)p2; (void)v2; (void)t3; (void)p3; (void)v3;
+    scriptgo_closure_invoke(ctx->callback, 2, &error, &buffer, NULL, NULL);
+    free(ctx);
+}
 
 typedef struct {
     uint32_t magic;
@@ -109,20 +136,34 @@ int scriptgo_crypto_random_int(double min_val, double max_val, double *out_val) 
     return 0;
 }
 
-int scriptgo_crypto_random_fill(void *buffer_handle, double offset_opt, double size_opt) {
-    if (buffer_handle == NULL) return crypto_fail("crypto.randomFillSync: null buffer");
+int scriptgo_crypto_random_fill(void *buffer_handle, double offset_opt, double size_opt, void *callback) {
+    if (buffer_handle == NULL) return crypto_fail("crypto.randomFill: null buffer");
     scriptgo_crypto_buffer_view *bv = (scriptgo_crypto_buffer_view *)buffer_handle;
-    if (bv->data == NULL) return 0;
+    if (bv->magic != 0x42554646U && bv->magic != 0x54415252U) return crypto_fail("crypto.randomFill: invalid buffer");
+    if (bv->data == NULL) return crypto_fail("crypto.randomFill: invalid buffer data");
     int64_t off = (int64_t)offset_opt;
-    if (off < 0) off = 0;
+    if (offset_opt < 0 || offset_opt != (double)off) return crypto_fail("crypto.randomFill: invalid offset");
     int64_t sz = (int64_t)size_opt;
-    if (sz <= 0 || off + sz > bv->length) {
+    if (size_opt < 0 || size_opt != (double)sz) return crypto_fail("crypto.randomFill: invalid size");
+    if (size_opt == 0) {
         sz = bv->length - off;
     }
-    if (sz > 0 && off < bv->length) {
+    if (off > bv->length || sz > bv->length - off) return crypto_fail("crypto.randomFill: offset and size exceed buffer");
+    if (sz > 0) {
         if (get_random_bytes(bv->data + off, (size_t)sz) != 0) {
-            return crypto_fail("crypto.randomFillSync: failed to generate random bytes");
+            return crypto_fail("crypto.randomFill: failed to generate random bytes");
         }
+    }
+    if (callback != NULL && callback != &scriptgo_undefined_sentinel) {
+        scriptgo_random_fill_callback *ctx = calloc(1, sizeof(*ctx));
+        scriptgo_callback_closure *timer_callback = calloc(1, sizeof(*timer_callback));
+        double timer_id;
+        if (ctx == NULL || timer_callback == NULL) return crypto_fail("crypto.randomFill: callback allocation failed");
+        ctx->callback = callback;
+        ctx->buffer = buffer_handle;
+        timer_callback->fn_ptr = (void *)scriptgo_random_fill_complete;
+        timer_callback->env = ctx;
+        if (scriptgo_timer_set_timeout(timer_callback, 0.0, &timer_id) != 0) return -1;
     }
     return 0;
 }

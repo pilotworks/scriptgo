@@ -88,6 +88,42 @@ func TestLowerHelloProgram(t *testing.T) {
 	}
 }
 
+func TestLowerClassMethodsSeparateImplementationAndDispatch(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := `class Base { speak(): string { return "base"; } }
+class Derived extends Base { speak(): string { return "derived"; } }
+function call(value: Base): string { return value.speak(); }
+console.log(call(new Derived()));
+`
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	program, err := frontend.NewProgram(entry, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := Lower(program)
+	if err != nil {
+		t.Fatalf("Lower error = %v", err)
+	}
+	seenBaseImpl := false
+	seenDerivedImpl := false
+	seenDispatch := false
+	for _, function := range module.Functions {
+		seenBaseImpl = seenBaseImpl || function.Name == "Base_speak_impl"
+		seenDerivedImpl = seenDerivedImpl || function.Name == "Derived_speak_impl"
+		seenDispatch = seenDispatch || function.Name == "Base_speak_dispatch"
+		for _, instruction := range function.Body {
+			if function.Name == "call" && instruction.Op == ir.OpCall && instruction.Callee == "Base_speak_dispatch" {
+				seenDispatch = true
+			}
+		}
+	}
+	if !seenBaseImpl || !seenDerivedImpl || !seenDispatch {
+		t.Fatalf("class method implementation/dispatcher split missing: base=%v derived=%v dispatch=%v", seenBaseImpl, seenDerivedImpl, seenDispatch)
+	}
+}
+
 func TestLowerResolvesNamedImportAlias(t *testing.T) {
 	dir := t.TempDir()
 	dependency := filepath.Join(dir, "dependency.ts")
