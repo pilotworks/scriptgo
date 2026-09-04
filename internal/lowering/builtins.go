@@ -930,8 +930,6 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.dgramSetMulticastLoopback"}, CategoryNodeModule, "__dgram.setMulticastLoopback", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.dgramSetRecvBufferSize"}, CategoryNodeModule, "__dgram.setRecvBufferSize", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.dgramSetSendBufferSize"}, CategoryNodeModule, "__dgram.setSendBufferSize", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
-	register([]string{"__scriptgo.dgramGetRecvBufferSize"}, CategoryNodeModule, "__dgram.getRecvBufferSize", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
-	register([]string{"__scriptgo.dgramGetSendBufferSize"}, CategoryNodeModule, "__dgram.getSendBufferSize", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
 	register([]string{"__scriptgo.dgramSetTTL"}, CategoryNodeModule, "__dgram.setTTL", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.dgramSetMulticastInterface"}, CategoryNodeModule, "__dgram.setMulticastInterface", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.dgramAddMembership"}, CategoryNodeModule, "__dgram.addMembership", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeString}, ir.TypeVoid, 3, 3)

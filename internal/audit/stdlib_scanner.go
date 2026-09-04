@@ -76,12 +76,8 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 		filePath := filepath.Join("internal", "typescriptgo", "stdlib", relSlash)
 
 		moduleName := strings.TrimSuffix(relSlash, ".ts")
-		if strings.HasSuffix(moduleName, ".d") {
-			moduleName = strings.TrimSuffix(moduleName, ".d")
-		}
-		if strings.HasSuffix(moduleName, "/index") {
-			moduleName = strings.TrimSuffix(moduleName, "/index")
-		}
+		moduleName = strings.TrimSuffix(moduleName, ".d")
+		moduleName = strings.TrimSuffix(moduleName, "/index")
 		if relSlash == "globals.d.ts" {
 			moduleName = "globals"
 		}

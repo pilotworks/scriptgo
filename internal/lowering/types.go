@@ -1069,10 +1069,7 @@ func fieldIndex(shape ir.ObjectShape, name string) int {
 func dynamicFieldAccess(className string) bool {
 	clean := strings.TrimPrefix(className, "object:")
 	if strings.HasPrefix(clean, "__shape_") {
-		if strings.HasPrefix(clean, "__shape_0_") {
-			return false
-		}
-		return true
+		return !strings.HasPrefix(clean, "__shape_0_")
 	}
 	meta, ok := classHierarchy[clean]
 	return ok && (meta.IsInterface || meta.IsTypeAlias)

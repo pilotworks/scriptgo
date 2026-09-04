@@ -18,10 +18,10 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **379** | **330 / 379 Full Parity** | **87.1%** |
-| - *Native LLVM/Clang Parity* | 379 | 366 PASS (direct binary compilation) | 96.6% |
+| **Total Corpus Test Cases** | **379** | **329 / 379 Full Parity** | **86.8%** |
+| - *Native LLVM/Clang Parity* | 379 | 367 PASS (direct binary compilation) | 96.8% |
 | - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Total Test Suite Runtime** | ~5m23s (macOS / Linux) | Verified across macOS / Linux | - |
+| **Total Test Suite Runtime** | ~2m10s (macOS / Linux) | Verified across macOS / Linux | - |
 
 ---
 
@@ -164,7 +164,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Timers`** | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `setImmediate`, `clearImmediate`, `queueMicrotask`, `node:timers` | ✅ Full event loop integration with monotonic clock timer drain |
 | **`node:events` / `events`** | `EventEmitter`, `on`, `once`, `prependListener`, `prependOnceListener`, `removeListener`, `off`, `removeAllListeners`, `emit`, `listenerCount`, `listeners`, `rawListeners`, `eventNames`, `setMaxListeners`, `getMaxListeners`, static `listenerCount`, static `defaultMaxListeners` | ✅ 100% matches Node.js EventEmitter specification |
 | **`node:child_process` / `child_process`** | `ChildProcess` class (`channel`, `connected`, `exitCode`, `killed`, `pid`, `signalCode`, `spawnargs`, `spawnfile`, `stdin`, `stdout`, `stderr`, `stdio`, `kill`, `disconnect`, `ref`, `unref`, `send`, `[Symbol.dispose]`), `spawn`, `exec`, `execFile`, `fork`, `execFileSync`, `execSync`, `spawnSync` | ✅ 100% matches Node.js child_process specification (26 / 26 APIs verified) |
-| **`node:dgram` / `dgram`** | `Socket` class (`bind`, `connect`, `disconnect`, `send`, `close`, `address`, `remoteAddress`, `setBroadcast`, `setTTL`, `setMulticastTTL`, `setMulticastLoopback`, `setMulticastInterface`, `addMembership`, `dropMembership`, `addSourceSpecificMembership`, `dropSourceSpecificMembership`, `setRecvBufferSize`, `setSendBufferSize`, `getRecvBufferSize`, `getSendBufferSize`, `[Symbol.asyncDispose]`), `createSocket` | ✅ 100% matches Node.js dgram UDP specification |
+| **`node:dgram` / `dgram`** | `Socket` class (`bind`, `connect`, `disconnect`, `send`, `close`, `address`, `remoteAddress`, `setBroadcast`, `setTTL`, `setMulticastTTL`, `setMulticastLoopback`, `setMulticastInterface`, `addMembership`, `dropMembership`, `addSourceSpecificMembership`, `dropSourceSpecificMembership`, `setRecvBufferSize`, `setSendBufferSize`, `[Symbol.asyncDispose]`), `createSocket` | ✅ 100% matches Node.js dgram UDP specification |
 | **`node:http` & WHATWG Fetch** | `fetch`, `Request`, `Response`, `Headers`, `METHODS`, `STATUS_CODES`, `getStatusText`, `maxHeaderSize`, `validateHeaderName`, `validateHeaderValue` | ✅ Matches WHATWG Fetch & Node.js HTTP constant/validation specifications |
 | **`node:net`** | `isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `createServer`, `createConnection`, `connect` | ✅ Matches Node.js Net POSIX TCP socket specification |
 | **`Weak Collections, WeakRef & FinalizationRegistry`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `FinalizationRegistry` (`.register()`, `.unregister()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections, weak references & finalizers |
@@ -371,7 +371,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Readline CLI (`node:readline`)** | ❌ Unsupported / Not Implemented | Removed in-memory mock placeholder module. Native interactive terminal input planned. |
 | **DNS Resolution (`node:dns`)** | ✅ Core APIs | C runtime getaddrinfo / resolv bindings: `lookup`, `lookupService`, `resolve`, `resolve4`, `resolve6`, `resolveCname`, `resolveNs`, `resolvePtr`, `reverse`, `getDefaultResultOrder`, `setDefaultResultOrder`, `promises.*`. Hardcoded mock record resolvers (MX/TXT/SRV/SOA/CAA/NAPTR/TLSA) and dummy in-memory `Resolver`/`getServers`/`setServers` removed. |
 | **Assert (`node:assert`)** | ✅ Full (27 / 27 APIs) | Complete 100% Node.js parity: `assert`, `ok`, `equal`, `notEqual`, `strictEqual`, `notStrictEqual`, `deepEqual`, `notDeepEqual`, `deepStrictEqual`, `notDeepStrictEqual`, `partialDeepStrictEqual`, `throws`, `doesNotThrow`, `ifError`, `fail`, `match`, `doesNotMatch`, `rejects`, `doesNotReject`, `AssertionError`, `CallTracker`, `Assert`, and `strict`. |
-| **UDP / Datagram Sockets (`node:dgram`)** | ✅ Core APIs | Real BSD socket UDP implementation: `Socket` (bind, send, close, address, getRecvBufferSize, getSendBufferSize, setBroadcast, setMulticastLoopback, setMulticastTTL, setTTL, addMembership, dropMembership), `createSocket`, `[Symbol.asyncDispose]`. Dummy queue size/ref stubs and hardcoded port fallback removed. |
+| **UDP / Datagram Sockets (`node:dgram`)** | ✅ Core APIs | Real BSD socket UDP implementation: `Socket` (bind, send, close, address, setBroadcast, setMulticastLoopback, setMulticastTTL, setTTL, addMembership, dropMembership), `createSocket`, `[Symbol.asyncDispose]`. Dummy queue size/ref stubs and hardcoded port fallback removed. |
 | **Child Processes (`node:child_process`)** | ✅ Core APIs | Real C runtime POSIX fork/exec/popen synchronous execution: `execSync`, `spawnSync`, `execFileSync`, `SpawnSyncReturns`. Fake async stubs (`ChildProcess`, `spawn`, `exec`, `execFile`, `fork`) removed. |
 | **Operating System (`node:os`)** | ✅ Core APIs | Real C runtime system calls: `arch`, `platform`, `type`, `release`, `version`, `machine`, `homedir`, `tmpdir`, `uptime`, `freemem`, `totalmem`, `EOL`, `devNull`, `constants`. Fake hardcoded stubs (`hostname`, `endianness`, `loadavg`, `availableParallelism`, `cpus`, `networkInterfaces`, `userInfo`) removed. |
 | **Console (`node:console`)** | ✅ Full (23 / 23 APIs) | Complete 100% Node.js parity: `Console`, `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `dir`, `dirxml`, `table`, `trace`, `group`, `groupCollapsed`, `groupEnd`, `time`, `timeEnd`, `timeLog`, `timeStamp`, `profile`, `profileEnd`. |

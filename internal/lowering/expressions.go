@@ -148,7 +148,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				}
 			}
 			if isHomogeneous && !inferredTuple {
-				var arrType ir.Type = ir.TypeNumberArray
+				arrType := ir.TypeNumberArray
 				if len(types) > 0 && types[0] == ir.TypeString {
 					arrType = ir.TypeStringArray
 				} else if len(types) > 0 && types[0] != ir.TypeNumber {
@@ -242,7 +242,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			}
 			return result, objType, nil
 		}
-		var arrType ir.Type = ir.TypeNumberArray
+		arrType := ir.TypeNumberArray
 		if expression.InferredType != "" && expression.InferredType != "never[]" && expression.InferredType != "unknown[]" {
 			inferred := toIRType(expression.InferredType)
 			if strings.HasSuffix(string(inferred), "[]") {

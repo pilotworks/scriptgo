@@ -181,34 +181,6 @@ func (e *functionEmitter) emitDgramIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
-	case "__dgram.getRecvBufferSize":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("dgram.getRecvBufferSize requires 1 argument")
-		}
-		slot := instruction.Result + ".slot"
-		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dgram_get_recv_buffer_size(double %%%s, ptr %%%s)\n",
-			status, resolvedArgs[0], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__dgram.getSendBufferSize":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("dgram.getSendBufferSize requires 1 argument")
-		}
-		slot := instruction.Result + ".slot"
-		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dgram_get_send_buffer_size(double %%%s, ptr %%%s)\n",
-			status, resolvedArgs[0], slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
 	case "__dgram.setTTL":
 		if len(instruction.Args) < 2 {
 			return fmt.Errorf("dgram.setTTL requires 2 arguments")

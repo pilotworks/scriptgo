@@ -360,24 +360,6 @@ export class Socket {
         }
     }
 
-    getRecvBufferSize(): number {
-        if (this._fd >= 0) {
-            try {
-                return __scriptgo.dgramGetRecvBufferSize(this._fd);
-            } catch {}
-        }
-        return this._recvBufferSize;
-    }
-
-    getSendBufferSize(): number {
-        if (this._fd >= 0) {
-            try {
-                return __scriptgo.dgramGetSendBufferSize(this._fd);
-            } catch {}
-        }
-        return this._sendBufferSize;
-    }
-
     [Symbol.asyncDispose](): Promise<void> {
         this.close();
         return Promise.resolve(undefined);

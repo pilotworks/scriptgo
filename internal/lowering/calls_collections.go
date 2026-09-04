@@ -22,7 +22,7 @@ func lowerWeakReceiverMethod(
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
 	if (receiverType == "object:WeakRef" || strings.HasPrefix(string(receiverType), "object:WeakRef<") || strings.HasPrefix(string(receiverType), "object:WeakRef__") || receiverType == "WeakRef") && methodName == "deref" {
-		var retType ir.Type = ir.TypeObject
+		retType := ir.TypeObject
 		if strings.HasPrefix(string(receiverType), "object:WeakRef<") && strings.HasSuffix(string(receiverType), ">") {
 			inner := strings.TrimSuffix(strings.TrimPrefix(string(receiverType), "object:WeakRef<"), ">")
 			retType = toIRType(inner)
@@ -257,7 +257,7 @@ func lowerMapSetReceiverMethod(
 		switch methodName {
 		case "set":
 			if len(expression.Arguments) < 2 {
-				return "", "", true, fmt.Errorf("Map.set requires key and value arguments")
+				return "", "", true, fmt.Errorf("map.set requires key and value arguments")
 			}
 			_, valTypeStr := resolveMapTypes(expression.Left, env)
 			if valTypeStr != "" && expression.Arguments[1].Kind == "array" && (expression.Arguments[1].InferredType == "" || expression.Arguments[1].InferredType == "never[]" || expression.Arguments[1].InferredType == "unknown[]") {
@@ -291,7 +291,7 @@ func lowerMapSetReceiverMethod(
 
 		case "get":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Map.get requires key argument")
+				return "", "", true, fmt.Errorf("map.get requires key argument")
 			}
 			kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -318,7 +318,7 @@ func lowerMapSetReceiverMethod(
 
 		case "has":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Map.has requires key argument")
+				return "", "", true, fmt.Errorf("map.has requires key argument")
 			}
 			kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -339,7 +339,7 @@ func lowerMapSetReceiverMethod(
 
 		case "delete":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Map.delete requires key argument")
+				return "", "", true, fmt.Errorf("map.delete requires key argument")
 			}
 			kVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -417,7 +417,7 @@ func lowerMapSetReceiverMethod(
 		switch methodName {
 		case "add":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Set.add requires value argument")
+				return "", "", true, fmt.Errorf("set.add requires value argument")
 			}
 			vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -438,7 +438,7 @@ func lowerMapSetReceiverMethod(
 
 		case "has":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Set.has requires value argument")
+				return "", "", true, fmt.Errorf("set.has requires value argument")
 			}
 			vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -459,7 +459,7 @@ func lowerMapSetReceiverMethod(
 
 		case "delete":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Set.delete requires value argument")
+				return "", "", true, fmt.Errorf("set.delete requires value argument")
 			}
 			vVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -508,7 +508,7 @@ func lowerMapSetReceiverMethod(
 
 		case "union", "intersection", "difference", "symmetricDifference":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Set.%s requires other Set argument", methodName)
+				return "", "", true, fmt.Errorf("set.%s requires other Set argument", methodName)
 			}
 			otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -529,7 +529,7 @@ func lowerMapSetReceiverMethod(
 
 		case "isSubsetOf", "isSupersetOf", "isDisjointFrom":
 			if len(expression.Arguments) < 1 {
-				return "", "", true, fmt.Errorf("Set.%s requires other Set argument", methodName)
+				return "", "", true, fmt.Errorf("set.%s requires other Set argument", methodName)
 			}
 			otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {

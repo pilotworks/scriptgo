@@ -83,7 +83,7 @@ func registerArrayBuiltins(m map[string]BuiltinIntrinsic) {
 		MaxArgs:  3,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 			var args []string
-			var retType ir.Type = ir.TypeNumberArray
+			retType := ir.TypeNumberArray
 			for i, argExpr := range call.Expression.Arguments {
 				argVal, aType, err := call.LowerExpression(call.Path, argExpr, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 				if err != nil {
@@ -145,7 +145,7 @@ func registerArrayBuiltins(m map[string]BuiltinIntrinsic) {
 		MaxArgs:  3,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 			var args []string
-			var elemType ir.Type = ir.TypeNumber
+			elemType := ir.TypeNumber
 			for i, argExpr := range call.Expression.Arguments {
 				argVal, aType, err := call.LowerExpression(call.Path, argExpr, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 				if err != nil {

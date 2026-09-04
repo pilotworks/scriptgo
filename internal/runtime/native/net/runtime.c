@@ -7,12 +7,14 @@
 #include <errno.h>
 
 #if !defined(_WIN32)
+#if !defined(__wasi__)
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#endif
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -23,6 +25,44 @@ int scriptgo_runtime_set_error(const char *message);
 static int net_fail(const char *message) {
     return scriptgo_runtime_set_error(message);
 }
+
+#if defined(__wasi__)
+int scriptgo_net_socket_create(double family, double sock_type, double *out_fd) {
+    if (out_fd) *out_fd = -1.0;
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_net_socket_connect(double fd_num, const char *host, double port_num) {
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_net_socket_write(double fd_num, const char *data, double len_num, double *out_written) {
+    if (out_written) *out_written = 0.0;
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_net_socket_read(double fd_num, double max_len_num, char **out_data, double *out_bytes_read) {
+    if (out_data) *out_data = strdup("");
+    if (out_bytes_read) *out_bytes_read = 0.0;
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_net_socket_close(double fd_num) {
+    return 0;
+}
+
+int scriptgo_net_server_listen(const char *host, double port_num, double backlog_num, double *out_server_fd) {
+    if (out_server_fd) *out_server_fd = -1.0;
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_net_server_accept(double server_fd_num, double *out_client_fd, char **out_client_ip, double *out_client_port) {
+    if (out_client_fd) *out_client_fd = -1.0;
+    if (out_client_ip) *out_client_ip = strdup("");
+    if (out_client_port) *out_client_port = 0.0;
+    return net_fail("net is not supported on WebAssembly/WASI");
+}
+#else
 
 int scriptgo_net_socket_create(double family, double sock_type, double *out_fd) {
     if (out_fd == NULL) {
@@ -240,3 +280,5 @@ int scriptgo_net_server_accept(double server_fd_num, double *out_client_fd, char
     *out_client_port = (double)client_port;
     return 0;
 }
+#endif
+

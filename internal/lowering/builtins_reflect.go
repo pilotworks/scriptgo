@@ -390,7 +390,7 @@ func lowerReflectDefineMetadata(call IntrinsicCall, intrinsic BuiltinIntrinsic) 
 
 func lowerReflectGet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 2 {
-		return "", "", fmt.Errorf("Reflect.get requires at least 2 arguments")
+		return "", "", fmt.Errorf("reflect.get requires at least 2 arguments")
 	}
 
 	targetVal, targetType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
@@ -445,7 +445,7 @@ func lowerReflectGet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 
 func lowerReflectSet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 3 {
-		return "", "", fmt.Errorf("Reflect.set requires at least 3 arguments")
+		return "", "", fmt.Errorf("reflect.set requires at least 3 arguments")
 	}
 
 	targetVal, targetType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
@@ -498,7 +498,7 @@ func lowerReflectSet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 
 func lowerReflectHas(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 2 {
-		return "", "", fmt.Errorf("Reflect.has requires 2 arguments")
+		return "", "", fmt.Errorf("reflect.has requires 2 arguments")
 	}
 
 	targetVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
@@ -789,7 +789,7 @@ func lowerReflectPreventExtensions(call IntrinsicCall, intrinsic BuiltinIntrinsi
 
 func lowerReflectApply(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 3 {
-		return "", "", fmt.Errorf("Reflect.apply requires 3 arguments")
+		return "", "", fmt.Errorf("reflect.apply requires 3 arguments")
 	}
 
 	fnArg := call.Expression.Arguments[0]
@@ -842,7 +842,7 @@ func lowerReflectApply(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 
 func lowerReflectConstruct(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	if len(call.Expression.Arguments) < 2 {
-		return "", "", fmt.Errorf("Reflect.construct requires at least 2 arguments")
+		return "", "", fmt.Errorf("reflect.construct requires at least 2 arguments")
 	}
 
 	targetArg := call.Expression.Arguments[0]
@@ -850,7 +850,7 @@ func lowerReflectConstruct(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 
 	shape, exists := call.Shapes[className]
 	if !exists {
-		return "", "", fmt.Errorf("Reflect.construct: unknown class or constructor %q", className)
+		return "", "", fmt.Errorf("reflect.construct: unknown class or constructor %q", className)
 	}
 
 	result := call.Result

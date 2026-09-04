@@ -1025,13 +1025,13 @@ prepareArgs:
 func (e *functionEmitter) emitPromiseSettlement(out *strings.Builder, instruction ir.Instruction, promise string, status string, rejected bool) error {
 	if len(instruction.Args) == 0 {
 		if rejected {
-			return fmt.Errorf("Promise.reject requires 1 argument")
+			return fmt.Errorf("promise.reject requires 1 argument")
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_boxed(ptr %%%s, i32 0, i64 0)\n", status, promise))
 		return nil
 	}
 	if len(instruction.Args) != 1 {
-		return fmt.Errorf("Promise settlement requires 1 argument")
+		return fmt.Errorf("promise settlement requires 1 argument")
 	}
 
 	arg := instruction.Args[0]
@@ -1094,7 +1094,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		return nil
 	case "__async.promise_resolver":
 		if len(instruction.Args) != 1 {
-			return fmt.Errorf("Promise resolver requires a promise")
+			return fmt.Errorf("promise resolver requires a promise")
 		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
@@ -1113,7 +1113,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		return nil
 	case "__async.promise_construct":
 		if len(instruction.Args) != 1 {
-			return fmt.Errorf("Promise constructor requires exactly one executor")
+			return fmt.Errorf("promise constructor requires exactly one executor")
 		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
@@ -1126,7 +1126,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		return nil
 	case "__async.promise_resolve":
 		if len(instruction.Args) > 1 {
-			return fmt.Errorf("Promise.resolve requires at most 1 argument")
+			return fmt.Errorf("promise.resolve requires at most 1 argument")
 		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
@@ -1147,7 +1147,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		return nil
 	case "__async.promise_reject":
 		if len(instruction.Args) != 1 {
-			return fmt.Errorf("Promise.reject requires 1 argument")
+			return fmt.Errorf("promise.reject requires 1 argument")
 		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))

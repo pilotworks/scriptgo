@@ -78,7 +78,7 @@ func lowerIteratorReceiverMethod(
 		}
 	}
 
-	var args []string = []string{receiver}
+	args := []string{receiver}
 	for _, arg := range expression.Arguments {
 		val, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
 		if err != nil {

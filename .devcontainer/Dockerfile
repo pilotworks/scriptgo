@@ -12,6 +12,9 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
         make \
         valgrind \
         pkg-config \
+        libbrotli-dev \
+        libzstd-dev \
+        libssl-dev \
         ca-certificates \
         curl \
         wget \

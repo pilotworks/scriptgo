@@ -29,7 +29,7 @@ func runAuditCommand(specCacheDir, corpusDir, filter string, showMissing, jsonOu
 	}
 
 	if jsonOutput || outFile != "" {
-		var w *os.File = os.Stdout
+		w := os.Stdout
 		if outFile != "" {
 			if dir := filepath.Dir(outFile); dir != "." {
 				_ = os.MkdirAll(dir, 0o755)

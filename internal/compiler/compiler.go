@@ -478,14 +478,14 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 
 func linkerDCEFlags(target string) []string {
 	t := strings.ToLower(target)
-	if t == "native" || t == "" {
-		if goRuntime.GOOS == "darwin" {
-			return []string{"-Wl,-dead_strip"}
-		}
-		return []string{"-Wl,--gc-sections"}
-	}
-	if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") {
+	if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin") {
 		return []string{"-Wl,-dead_strip"}
 	}
-	return []string{"-Wl,--gc-sections"}
+	flags := []string{"-Wl,--gc-sections"}
+	if _, err := exec.LookPath("ld.lld"); err == nil {
+		flags = append(flags, "-fuse-ld=lld")
+	} else if _, err := exec.LookPath("lld"); err == nil {
+		flags = append(flags, "-fuse-ld=lld")
+	}
+	return flags
 }

@@ -6,10 +6,12 @@
 #include <errno.h>
 
 #if !defined(_WIN32)
+#if !defined(__wasi__)
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#endif
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -20,6 +22,88 @@ int scriptgo_runtime_set_error(const char *message);
 static int dgram_fail(const char *message) {
     return scriptgo_runtime_set_error(message);
 }
+
+#if defined(__wasi__)
+int scriptgo_dgram_socket_create(double family, double *out_fd) {
+    if (out_fd) *out_fd = -1.0;
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_bind(double fd_num, const char *address, double port_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_send(double fd_num, const char *data, double len_num, double port_num, const char *address, double *out_sent) {
+    if (out_sent) *out_sent = 0.0;
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_recv(double fd_num, double max_len_num, char **out_data, double *out_read,
+                        char **out_rinfo_ip, double *out_rinfo_port, double *out_rinfo_family) {
+    if (out_data) *out_data = strdup("");
+    if (out_read) *out_read = 0.0;
+    if (out_rinfo_ip) *out_rinfo_ip = strdup("");
+    if (out_rinfo_port) *out_rinfo_port = 0.0;
+    if (out_rinfo_family) *out_rinfo_family = 4.0;
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_broadcast(double fd_num, double flag_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_multicast_ttl(double fd_num, double ttl_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_multicast_loopback(double fd_num, double flag_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_recv_buffer_size(double fd_num, double size_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_send_buffer_size(double fd_num, double size_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_ttl(double fd_num, double ttl_num) {
+    return dgram_fail("dgram is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_dgram_set_multicast_interface(double fd_num, const char *iface_addr) {
+    return 0;
+}
+
+int scriptgo_dgram_add_membership(double fd_num, const char *mcast_addr, const char *iface_addr) {
+    return 0;
+}
+
+int scriptgo_dgram_drop_membership(double fd_num, const char *mcast_addr, const char *iface_addr) {
+    return 0;
+}
+
+int scriptgo_dgram_add_source_specific_membership(double fd_num, const char *src_addr, const char *group_addr, const char *iface_addr) {
+    return 0;
+}
+
+int scriptgo_dgram_drop_source_specific_membership(double fd_num, const char *src_addr, const char *group_addr, const char *iface_addr) {
+    return 0;
+}
+
+int scriptgo_dgram_connect(double fd_num, const char *address, double port_num) {
+    return 0;
+}
+
+int scriptgo_dgram_disconnect(double fd_num) {
+    return 0;
+}
+
+int scriptgo_dgram_close(double fd_num) {
+    return 0;
+}
+#else
 
 int scriptgo_dgram_socket_create(double family, double *out_fd) {
     if (out_fd == NULL) {
@@ -215,32 +299,6 @@ int scriptgo_dgram_set_send_buffer_size(double fd_num, double size_num) {
     return 0;
 }
 
-int scriptgo_dgram_get_recv_buffer_size(double fd_num, double *out_size) {
-    int fd = (int)fd_num;
-    if (out_size == NULL) return dgram_fail("invalid argument");
-    int size = 0;
-    socklen_t len = sizeof(size);
-    if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)&size, &len) < 0) {
-        *out_size = 65536.0;
-        return 0;
-    }
-    *out_size = (double)size;
-    return 0;
-}
-
-int scriptgo_dgram_get_send_buffer_size(double fd_num, double *out_size) {
-    int fd = (int)fd_num;
-    if (out_size == NULL) return dgram_fail("invalid argument");
-    int size = 0;
-    socklen_t len = sizeof(size);
-    if (getsockopt(fd, SOL_SOCKET, SO_SNDBUF, (char *)&size, &len) < 0) {
-        *out_size = 65536.0;
-        return 0;
-    }
-    *out_size = (double)size;
-    return 0;
-}
-
 int scriptgo_dgram_set_ttl(double fd_num, double ttl_num) {
     int fd = (int)fd_num;
     int ttl = (int)ttl_num;
@@ -369,3 +427,5 @@ int scriptgo_dgram_close(double fd_num) {
     }
     return 0;
 }
+#endif
+

@@ -27,11 +27,7 @@ func extractPropertyPath(expr *typescriptgo.SyntaxExpression) []string {
 	return nil
 }
 
-// resolveASTConstantFromExpr evaluates literal expressions or traverses object literals along the remaining path.
-func resolveASTConstantFromExpr(expr *typescriptgo.SyntaxExpression, remaining []string) (string, ir.Type, bool) {
-	return resolveASTConstantFromExprVisited(expr, remaining, make(map[string]bool))
-}
-
+// resolveASTConstantFromExprVisited evaluates literal expressions or traverses object literals along the remaining path.
 func resolveASTConstantFromExprVisited(expr *typescriptgo.SyntaxExpression, remaining []string, visited map[string]bool) (string, ir.Type, bool) {
 	if expr == nil {
 		return "", "", false

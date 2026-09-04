@@ -93,14 +93,6 @@ console.log("socket_setRecvBufferSize: true");
 sock.setSendBufferSize(65536);
 console.log("socket_setSendBufferSize: true");
 
-// @api: dgram.Socket.getRecvBufferSize
-// @expect: socket_getRecvBufferSize: 65536
-console.log("socket_getRecvBufferSize: " + sock.getRecvBufferSize());
-
-// @api: dgram.Socket.getSendBufferSize
-// @expect: socket_getSendBufferSize: 65536
-console.log("socket_getSendBufferSize: " + sock.getSendBufferSize());
-
 // @api: dgram.Socket.close
 // @expect: socket_close: true
 sock.close();

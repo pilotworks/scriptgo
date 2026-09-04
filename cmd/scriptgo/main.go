@@ -342,7 +342,7 @@ func handleCheck(args []string) {
 	}
 
 	var entryPath string
-	var cleanup func() = func() {}
+	cleanup := func() {}
 	defer func() { cleanup() }()
 
 	if *eval != "" {

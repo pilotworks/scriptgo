@@ -566,7 +566,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			}
 			if instruction.Type == ir.TypeUnknown {
 				var argVal string
-				var argType ir.Type = ir.TypeObject
+				argType := ir.TypeObject
 				if len(instruction.Args) > 0 {
 					argVal = instruction.Args[0]
 					if t, ok := e.types[argVal]; ok && t != "" {

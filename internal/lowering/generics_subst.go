@@ -103,6 +103,7 @@ func substituteType(typ string, subst map[string]string) string {
 	if strings.Contains(clean, "=>") {
 		depth := 0
 		splitIdx := -1
+	scanLoop:
 		for i := 0; i < len(clean)-1; i++ {
 			switch clean[i] {
 			case '(', '<', '{', '[':
@@ -114,7 +115,7 @@ func substituteType(typ string, subst map[string]string) string {
 			case '=':
 				if depth == 0 && clean[i+1] == '>' {
 					splitIdx = i
-					break
+					break scanLoop
 				}
 			}
 		}

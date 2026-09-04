@@ -84,7 +84,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 
 	case "copy":
 		if len(expression.Arguments) < 1 {
-			return "", "", true, fmt.Errorf("Buffer.copy requires target argument")
+			return "", "", true, fmt.Errorf("buffer.copy requires target argument")
 		}
 		targetVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -145,7 +145,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 
 	case "equals":
 		if len(expression.Arguments) < 1 {
-			return "", "", true, fmt.Errorf("Buffer.equals requires other argument")
+			return "", "", true, fmt.Errorf("buffer.equals requires other argument")
 		}
 		otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -163,7 +163,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 
 	case "compare":
 		if len(expression.Arguments) < 1 {
-			return "", "", true, fmt.Errorf("Buffer.compare requires other argument")
+			return "", "", true, fmt.Errorf("buffer.compare requires other argument")
 		}
 		otherVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -181,7 +181,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 
 	case "indexOf":
 		if len(expression.Arguments) < 1 {
-			return "", "", true, fmt.Errorf("Buffer.indexOf requires value argument")
+			return "", "", true, fmt.Errorf("buffer.indexOf requires value argument")
 		}
 		valVal, valType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -218,7 +218,7 @@ func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, r
 
 	case "includes", "lastIndexOf":
 		if len(expression.Arguments) < 1 {
-			return "", "", true, fmt.Errorf("Buffer.%s requires value argument", methodName)
+			return "", "", true, fmt.Errorf("buffer.%s requires value argument", methodName)
 		}
 		valVal, valType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {

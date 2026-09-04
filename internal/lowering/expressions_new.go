@@ -45,7 +45,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			}
 		}
 		if len(expression.Arguments) != 1 {
-			return "", "", fmt.Errorf("Promise constructor requires exactly one executor")
+			return "", "", fmt.Errorf("promise constructor requires exactly one executor")
 		}
 		executor, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -63,7 +63,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	}
 	if className == "WeakRef" {
 		var targetArg string
-		var targetType ir.Type = ir.TypeObject
+		targetType := ir.TypeObject
 		if len(expression.Arguments) > 0 {
 			v, t, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {

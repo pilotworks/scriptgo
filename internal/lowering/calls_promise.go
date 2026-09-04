@@ -65,7 +65,7 @@ func lowerPromiseStaticCall(
 	}
 	if callee == "Promise.resolve" || callee == "Promise.reject" {
 		var argVal string
-		var argType ir.Type = ir.TypeVoid
+		argType := ir.TypeVoid
 		if len(expression.Arguments) > 0 {
 			v, t, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -100,7 +100,7 @@ func lowerPromiseStaticCall(
 		arrExpr := expression.Arguments[0]
 		if arrExpr.Kind == "array" {
 			var resArgs []string
-			var resElemType ir.Type = ir.TypeUnknown
+			resElemType := ir.TypeUnknown
 			for _, elem := range arrExpr.Arguments {
 				promVal, promType, err := lowerExpression(path, elem, "", function, env, counter, shapes, signatures)
 				if err != nil {
