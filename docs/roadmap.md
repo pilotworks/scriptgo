@@ -162,9 +162,9 @@ Dependencies: Milestone 3. Estimated scope: Medium.
   - Explicit Resource Management (`using` & `await using`, `[Symbol.dispose]`, `[Symbol.asyncDispose]`).
   - ES2024 Set Methods (`union`, `intersection`, `difference`, `symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`).
   - ES2024 Object & Array Helpers (`Promise.withResolvers`, `Object.groupBy`, `Map.groupBy`, `Array.fromAsync`).
-- [x] Web Standards & WinterCG:
-  - Native `WebSocket` client/server with complete event lifecycle.
-  - Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`).
+- Web Standards & WinterCG:
+  - [ ] Native `WebSocket` client/server (pending native engine integration; placeholder stubs purged).
+  - [x] Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`).
 
 ### Milestone 7: WebAssembly / WASI Compilation Target (Completed)
 
@@ -186,9 +186,14 @@ semantic gaps behind native code generation.
 - [ ] Emit Static/Dynamic/Unsupported coverage reports for reachable source sites.
 - [ ] Add Node reference, QuickJS-ng, interpreter, and native boundary parity tests.
 
-### Standard Library Compatibility Slice (100% Complete)
+### Standard Library Compatibility Slice (In Progress)
 
-All 63 Node.js standard modules (2043 / 2043 APIs) have been implemented in pure TypeScript with native C runtime intrinsics and 100% verified against Node.js 22 LTS.
+The standard library follows the Node.js-compatible policy in [`docs/stdlib.md`](stdlib.md).
+Currently, 34 core modules are available (backed by C runtime intrinsics or pure TypeScript implementations) covering essential APIs for buffers, crypto, file system, networking, streams, SQLite, and utilities. Unimplemented mock modules, fake stubs, and non-standard APIs have been strictly purged to ensure zero false parity:
+
+- **Verified / Substantially Supported Modules:** `assert`, `console`, `sqlite`, `webstreams`, `path`, `punycode`, `querystring`, `string_decoder`, `domain`, `tls` (OpenSSL), `events`, `buffer`, `os`, `crypto` (OpenSSL core), `fs` (core sync/promises), etc.
+- **Explicitly Unsupported / Deferred Modules:** `http2`, `test`, `v8`, `worker_threads`, `cluster`, `readline`, `https`, `inspector`, `tty`, `repl`, `tracing`, `sea`, `wasi`, `permissions`.
+- **Audit & Parity Tracking:** Tracked continuously via `internal/audit` against Node.js v22 LTS specs and documented in [`docs/typescript-parity-report.md`](typescript-parity-report.md).
 
 ### Node.js And npm Compatibility Track
 

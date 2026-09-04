@@ -280,12 +280,16 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 		if module, ok := builtinModule(specifier.Text()); ok {
 			resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
 			resolvedFileName := ""
-			if module.Name == "stream_consumers" {
+			if module.Name == "stream_consumers" || module.Name == "stream/consumers" {
 				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "consumers", "index.ts")
+			} else if module.Name == "stream_promises" || module.Name == "stream/promises" {
+				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "promises", "index.ts")
+			} else if module.Name == "webstreams" || module.Name == "stream/web" {
+				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "web", "index.ts")
 			} else if resolved != nil && resolved.ResolvedFileName != "" && !strings.HasSuffix(resolved.ResolvedFileName, ".d.ts") {
 				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
 			} else {
-				resolvedFileName = filepath.Clean(filepath.Join(cwd, "node_modules", module.Name, "index.ts"))
+				resolvedFileName = filepath.Clean(filepath.Join(cwd, "node_modules", filepath.FromSlash(module.Name), "index.ts"))
 			}
 			result = append(result, ModuleReference{Specifier: specifier.Text(), ResolvedFileName: resolvedFileName, LocalName: localName, Bindings: importBindings(specifier.AsNode()), Span: sourceSpan(specifier), Builtin: true, TypeOnly: typeOnly})
 			continue

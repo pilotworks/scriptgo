@@ -210,7 +210,7 @@ func syntaxType(node *ast.Node) string {
 			var members []string
 			for _, m := range typeLit.Members.Nodes {
 				if m.Kind == ast.KindPropertySignature && m.Name() != nil {
-					name := m.Name().Text()
+					name := syntaxMemberName(m.Name())
 					t := syntaxType(m.Type())
 					members = append(members, name+": "+t)
 				}

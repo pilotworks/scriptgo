@@ -20,11 +20,14 @@ typedef struct scriptgo_symbol_entry {
 static uint64_t g_symbol_id_counter = 1000;
 static scriptgo_symbol_entry_t *g_symbol_registry = NULL;
 
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
+
 static scriptgo_symbol_t *create_symbol_internal(const char *description) {
     scriptgo_symbol_t *sym = (scriptgo_symbol_t *)malloc(sizeof(scriptgo_symbol_t));
     if (sym == NULL) return NULL;
     sym->id = ++g_symbol_id_counter;
     sym->description = (description && description[0] != '\0') ? strdup(description) : NULL;
+    scriptgo_gc_register(sym, 11, 0);
     return sym;
 }
 

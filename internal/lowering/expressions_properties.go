@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -63,6 +64,28 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 						Span:   toIRSpan(path, expression.Span),
 					})
 					return result, ir.TypeClosure, nil
+				}
+				cleanPath := filepath.Clean(path)
+				_, isNS := functionNamespacesByFile[cleanPath][firstIdent]
+				if !isNS {
+					_, isNS = classNamespacesByFile[cleanPath][firstIdent]
+				}
+				if isNS {
+					prop := propertyPath[1]
+					if topVar, hasVar := topLevelVars[prop]; hasVar {
+						varTyp := toIRType(topVar.Type)
+						if varTyp == "" {
+							varTyp = toIRType(topVar.InferredType)
+						}
+						if varTyp == "" {
+							varTyp = ir.TypeNumber
+						}
+						isPrimitiveConst := topVar.VarDeclKind == "const" && topVar.Expression != nil && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")
+						if !isPrimitiveConst || function.Name != "main" {
+							return prop, varTyp, nil
+						}
+						return lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
+					}
 				}
 			}
 		}

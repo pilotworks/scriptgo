@@ -53,32 +53,40 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 		if module.IsDeclaration {
 			fileName = "index.d.ts"
 		}
-		if name == "stream_consumers" {
-			virtualPath := filepath.Join(cwd, "node_modules", "stream", "consumers", fileName)
-			virtualFiles[virtualPath] = module.Source
-			builtinPaths[virtualPath] = "stream/consumers"
-			continue
-		}
-		virtualPath := filepath.Join(cwd, "node_modules", name, fileName)
+		virtualPath := filepath.Join(cwd, "node_modules", filepath.FromSlash(name), fileName)
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
-		if name == "webstreams" {
-			vStreamWeb := filepath.Join(cwd, "node_modules", "stream", "web", fileName)
-			virtualFiles[vStreamWeb] = module.Source
-			builtinPaths[vStreamWeb] = "stream/web"
+
+		if name == "stream/consumers" {
+			vLegacy := filepath.Join(cwd, "node_modules", "stream_consumers", fileName)
+			virtualFiles[vLegacy] = module.Source
+			builtinPaths[vLegacy] = "stream_consumers"
+		} else if name == "stream/promises" {
+			vLegacy := filepath.Join(cwd, "node_modules", "stream_promises", fileName)
+			virtualFiles[vLegacy] = module.Source
+			builtinPaths[vLegacy] = "stream_promises"
+		} else if name == "stream/web" {
+			vLegacy := filepath.Join(cwd, "node_modules", "webstreams", fileName)
+			virtualFiles[vLegacy] = module.Source
+			builtinPaths[vLegacy] = "webstreams"
 		}
 	}
 
 	var nodeTypesDts strings.Builder
 	for name := range builtinModules {
-		if name == "stream_consumers" {
+		if name == "stream/consumers" || name == "stream_consumers" {
 			nodeTypesDts.WriteString("declare module \"node:stream/consumers\" {\n    export * from \"stream/consumers\";\n    import d from \"stream/consumers\";\n    export default d;\n}\n")
 			continue
 		}
-		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
-		if name == "webstreams" {
-			nodeTypesDts.WriteString("declare module \"node:stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\n")
+		if name == "stream/promises" || name == "stream_promises" {
+			nodeTypesDts.WriteString("declare module \"node:stream/promises\" {\n    export * from \"stream/promises\";\n    import d from \"stream/promises\";\n    export default d;\n}\n")
+			continue
 		}
+		if name == "stream/web" || name == "webstreams" {
+			nodeTypesDts.WriteString("declare module \"node:stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"node:webstreams\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\n")
+			continue
+		}
+		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))
 	}
 	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
 	virtualFiles[nodeTypesPath] = nodeTypesDts.String()

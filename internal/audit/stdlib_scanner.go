@@ -49,57 +49,56 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 	}
 
 	embeddedFS := typescriptgo.EmbeddedFS()
-	entries, err := fs.ReadDir(embeddedFS, "stdlib")
-	if err != nil {
-		return nil, fmt.Errorf("read embedded stdlib dir: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			dirName := entry.Name()
-			relPath := filepath.Join(dirName, "index.ts")
-			contentBytes, err := fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
-			if err != nil {
-				relPath = filepath.Join(dirName, "index.d.ts")
-				contentBytes, err = fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
-			}
-			if err != nil {
-				relPath = filepath.Join(dirName, dirName+".ts")
-				contentBytes, err = fs.ReadFile(embeddedFS, filepath.Join("stdlib", relPath))
-			}
-			if err == nil {
-				filePath := filepath.Join("internal", "typescriptgo", "stdlib", relPath)
-				content := string(contentBytes)
-				syntaxFile, err := typescriptgo.ParseFileToSyntax(filePath, content)
-				if err == nil {
-					processSyntaxStatements(catalog, syntaxFile.Statements, dirName, filePath, content)
-				}
-			}
-			continue
+	err := fs.WalkDir(embeddedFS, "stdlib", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		fileName := entry.Name()
-		if !strings.HasSuffix(fileName, ".ts") {
-			continue
+		if d.IsDir() {
+			return nil
 		}
-
-		filePath := filepath.Join("internal", "typescriptgo", "stdlib", fileName)
-		contentBytes, err := fs.ReadFile(embeddedFS, filepath.Join("stdlib", fileName))
+		rel, err := filepath.Rel("stdlib", path)
 		if err != nil {
-			continue
+			return err
+		}
+		relSlash := filepath.ToSlash(rel)
+		if strings.HasSuffix(relSlash, ".gitkeep") {
+			return nil
+		}
+		if !strings.HasSuffix(relSlash, ".ts") {
+			return nil
+		}
+
+		contentBytes, err := fs.ReadFile(embeddedFS, path)
+		if err != nil {
+			return nil
 		}
 		content := string(contentBytes)
+		filePath := filepath.Join("internal", "typescriptgo", "stdlib", relSlash)
 
-		moduleName := strings.TrimSuffix(fileName, ".ts")
-		if fileName == "globals.d.ts" {
+		moduleName := strings.TrimSuffix(relSlash, ".ts")
+		if strings.HasSuffix(moduleName, ".d") {
+			moduleName = strings.TrimSuffix(moduleName, ".d")
+		}
+		if strings.HasSuffix(moduleName, "/index") {
+			moduleName = strings.TrimSuffix(moduleName, "/index")
+		}
+		if relSlash == "globals.d.ts" {
 			moduleName = "globals"
 		}
 
 		syntaxFile, err := typescriptgo.ParseFileToSyntax(filePath, content)
 		if err != nil {
-			continue
+			return nil
 		}
 
 		processSyntaxStatements(catalog, syntaxFile.Statements, moduleName, filePath, content)
+		if moduleName == "stream/web" {
+			processSyntaxStatements(catalog, syntaxFile.Statements, "webstreams", filePath, content)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk embedded stdlib dir: %w", err)
 	}
 
 	return catalog, nil

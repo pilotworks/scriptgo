@@ -13,7 +13,8 @@ typedef enum {
     SCRIPTGO_TYPE_WEAKREF,
     SCRIPTGO_TYPE_WEAKMAP,
     SCRIPTGO_TYPE_WEAKSET,
-    SCRIPTGO_TYPE_ARRAYBUFFER
+    SCRIPTGO_TYPE_ARRAYBUFFER,
+    SCRIPTGO_TYPE_SYMBOL
 } scriptgo_gc_type_tag;
 
 typedef struct scriptgo_gc_header {
@@ -244,6 +245,12 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                     gc_object_layout *object = (gc_object_layout *)curr->ptr;
                     if (object->magic == 0x53474F424A454354ULL) {
                         free((void *)object->type_name);
+                    }
+                } else if (curr->header.type_tag == SCRIPTGO_TYPE_SYMBOL) {
+                    typedef struct { uint64_t id; char *description; } sym_payload;
+                    sym_payload *sym = (sym_payload *)curr->ptr;
+                    if (sym->description != NULL) {
+                        free(sym->description);
                     }
                 }
                 free(curr->ptr);

@@ -1,6 +1,8 @@
 package lowering
 
 import (
+	"strings"
+
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -27,6 +29,10 @@ func extractPropertyPath(expr *typescriptgo.SyntaxExpression) []string {
 
 // resolveASTConstantFromExpr evaluates literal expressions or traverses object literals along the remaining path.
 func resolveASTConstantFromExpr(expr *typescriptgo.SyntaxExpression, remaining []string) (string, ir.Type, bool) {
+	return resolveASTConstantFromExprVisited(expr, remaining, make(map[string]bool))
+}
+
+func resolveASTConstantFromExprVisited(expr *typescriptgo.SyntaxExpression, remaining []string, visited map[string]bool) (string, ir.Type, bool) {
 	if expr == nil {
 		return "", "", false
 	}
@@ -38,20 +44,12 @@ func resolveASTConstantFromExpr(expr *typescriptgo.SyntaxExpression, remaining [
 			return expr.Text, ir.TypeString, true
 		case "bool", "boolean", "boolean_literal", "true", "false":
 			return expr.Text, ir.TypeBool, true
-		case "call":
-			if expr.Left != nil && expr.Left.Text == "Symbol" {
-				val := "Symbol"
-				if len(expr.Arguments) > 0 {
-					val = expr.Arguments[0].Text
-				}
-				return val, ir.TypeSymbol, true
-			}
 		case "object_literal", "object":
 			return "{}", ir.TypeObject, true
 		case "property", "optional_property", "identifier":
 			path := extractPropertyPath(expr)
 			if len(path) > 0 {
-				return resolveASTConstantPath(path)
+				return resolveASTConstantPathVisited(path, visited)
 			}
 		}
 		return "", "", false
@@ -62,9 +60,9 @@ func resolveASTConstantFromExpr(expr *typescriptgo.SyntaxExpression, remaining [
 		for _, prop := range expr.Arguments {
 			if prop != nil && prop.Text == targetKey {
 				if prop.Left != nil {
-					return resolveASTConstantFromExpr(prop.Left, remaining[1:])
+					return resolveASTConstantFromExprVisited(prop.Left, remaining[1:], visited)
 				}
-				return resolveASTConstantPath(append([]string{targetKey}, remaining[1:]...))
+				return resolveASTConstantPathVisited(append([]string{targetKey}, remaining[1:]...), visited)
 			}
 		}
 	}
@@ -73,12 +71,22 @@ func resolveASTConstantFromExpr(expr *typescriptgo.SyntaxExpression, remaining [
 
 // resolveASTConstantPath resolves a top-level constant or module constant path from the AST.
 func resolveASTConstantPath(path []string) (string, ir.Type, bool) {
+	return resolveASTConstantPathVisited(path, make(map[string]bool))
+}
+
+func resolveASTConstantPathVisited(path []string, visited map[string]bool) (string, ir.Type, bool) {
 	if len(path) == 0 {
 		return "", "", false
 	}
+	key := strings.Join(path, ".")
+	if visited[key] {
+		return "", "", false
+	}
+	visited[key] = true
+
 	// 1. Direct match on top-level variable
 	if topVar, ok := topLevelVars[path[0]]; ok && topVar.Expression != nil {
-		if val, typ, found := resolveASTConstantFromExpr(topVar.Expression, path[1:]); found {
+		if val, typ, found := resolveASTConstantFromExprVisited(topVar.Expression, path[1:], visited); found {
 			return val, typ, true
 		}
 	}
@@ -86,7 +94,7 @@ func resolveASTConstantPath(path []string) (string, ir.Type, bool) {
 	if len(path) >= 2 {
 		if topVar, ok := topLevelVars[path[1]]; ok {
 			if topVar.Expression != nil {
-				if val, typ, found := resolveASTConstantFromExpr(topVar.Expression, path[2:]); found {
+				if val, typ, found := resolveASTConstantFromExprVisited(topVar.Expression, path[2:], visited); found {
 					return val, typ, true
 				}
 			}

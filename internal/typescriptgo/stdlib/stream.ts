@@ -1,52 +1,44 @@
+// ScriptGo Standard Library: node:stream
+
 import { Blob, Buffer } from "node:buffer";
+import { EventEmitter, AbortSignal } from "node:events";
+
+export type StreamChunk = string | Buffer | Uint8Array;
+
+export interface AbortSignalLike {
+    aborted?: boolean;
+    addEventListener?: Function;
+}
+
+export interface FinishedOptions {
+    error?: boolean;
+    readable?: boolean;
+    writable?: boolean;
+    signal?: AbortSignal | AbortSignalLike;
+}
 
 declare namespace __scriptgo {
     function streamGetDefaultHighWaterMark(objectMode: boolean): number;
     function streamSetDefaultHighWaterMark(objectMode: boolean, value: number): void;
 }
 
-class StreamListenerEntry {
-    fn: Function;
-    once: boolean;
-
-    constructor(fn: Function, once: boolean) {
-        this.fn = fn;
-        this.once = once;
-    }
-}
-
-class StreamEventBucket {
-    name: string;
-    listeners: StreamListenerEntry[];
-
-    constructor(name: string, listeners: StreamListenerEntry[]) {
-        this.name = name;
-        this.listeners = listeners;
-    }
-}
-
 class StreamWriteReq {
-    chunk: string;
+    chunk: StreamChunk;
     encoding: string;
     callback: Function;
 
-    constructor(chunk: string, encoding: string, callback: Function) {
+    constructor(chunk: StreamChunk, encoding: string, callback: Function) {
         this.chunk = chunk;
         this.encoding = encoding;
         this.callback = callback;
     }
 }
 
-class PipeOptions {
+export class PipeOptions {
     end: boolean = true;
 }
 
-class AbortSignalLike {
-    aborted: boolean = false;
-    addEventListener: Function | null = null;
-}
-
-export class Stream {
+export class Stream extends EventEmitter {
     static _defaultHighWaterMark: number = 65536;
     static _defaultObjectModeHighWaterMark: number = 16;
 
@@ -56,206 +48,27 @@ export class Stream {
     errored: Error | null = null;
     closed: boolean = false;
 
-    private _events: StreamEventBucket[] = [];
-    private _maxListeners: number = 10;
-
-    constructor() { }
-
-    private _findBucketIndex(event: string): number {
-        for (let i = 0; i < this._events.length; i++) {
-            if (this._events[i].name === event) {
-                return i;
-            }
-        }
-        return -1;
+    constructor() {
+        super();
     }
 
-    private _getOrCreateBucketIndex(event: string): number {
-        let idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            this._events.push(new StreamEventBucket(event, []));
-            idx = this._events.length - 1;
-        }
-        return idx;
-    }
-
-    addListener(event: string, listener: Function): this {
-        return this.on(event, listener);
-    }
-
-    on(event: string, listener: Function): this {
-        const idx = this._getOrCreateBucketIndex(event);
-        this._events[idx].listeners.push(new StreamListenerEntry(listener, false));
-        return this;
-    }
-
-    once(event: string, listener: Function): this {
-        const idx = this._getOrCreateBucketIndex(event);
-        this._events[idx].listeners.push(new StreamListenerEntry(listener, true));
-        return this;
-    }
-
-    prependListener(event: string, listener: Function): this {
-        const idx = this._getOrCreateBucketIndex(event);
-        this._events[idx].listeners.unshift(new StreamListenerEntry(listener, false));
-        return this;
-    }
-
-    prependOnceListener(event: string, listener: Function): this {
-        const idx = this._getOrCreateBucketIndex(event);
-        this._events[idx].listeners.unshift(new StreamListenerEntry(listener, true));
-        return this;
-    }
-
-    removeListener(event: string, listener: Function): this {
-        return this.off(event, listener);
-    }
-
-    off(event: string, listener: Function): this {
-        const idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            return this;
-        }
-        const remaining: StreamListenerEntry[] = [];
-        let removed = false;
-        const bucket = this._events[idx];
-        for (let i = 0; i < bucket.listeners.length; i++) {
-            const entry = bucket.listeners[i];
-            if (!removed && entry.fn === listener) {
-                removed = true;
-            } else {
-                remaining.push(entry);
-            }
-        }
-        bucket.listeners = remaining;
-        return this;
-    }
-
-    removeAllListeners(event?: string): this {
-        if (event !== undefined && event !== "") {
-            const idx = this._findBucketIndex(event);
-            if (idx >= 0) {
-                this._events[idx].listeners = [];
-            }
-        } else {
-            this._events = [];
-        }
-        return this;
-    }
-
-    setMaxListeners(n: number): this {
-        this._maxListeners = n;
-        return this;
-    }
-
-    getMaxListeners(): number {
-        return this._maxListeners;
-    }
-
-    listenerCount(event: string): number {
-        const idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            return 0;
-        }
-        return this._events[idx].listeners.length;
-    }
-
-    listeners(event: string): Function[] {
-        const res: Function[] = [];
-        const idx = this._findBucketIndex(event);
-        if (idx >= 0) {
-            const bucket = this._events[idx];
-            for (let i = 0; i < bucket.listeners.length; i++) {
-                res.push(bucket.listeners[i].fn);
-            }
-        }
-        return res;
-    }
-
-    rawListeners(event: string): Function[] {
-        return this.listeners(event);
-    }
-
-    eventNames(): string[] {
-        const names: string[] = [];
-        for (let i = 0; i < this._events.length; i++) {
-            if (this._events[i].listeners.length > 0) {
-                names.push(this._events[i].name);
-            }
-        }
-        return names;
-    }
-
-    emit(event: string, arg1?: unknown, arg2?: unknown, arg3?: unknown, arg4?: unknown): boolean {
-        const idx = this._findBucketIndex(event);
-        if (idx < 0) {
-            if (event === "error") {
-                if (arg1 !== undefined) {
-                    throw arg1;
-                }
-                throw new Error("Unhandled error event");
-            }
-            return false;
-        }
-        if (this._events[idx].listeners.length === 0) {
-            if (event === "error") {
-                if (arg1 !== undefined) {
-                    throw arg1;
-                }
-                throw new Error("Unhandled error event");
-            }
-            return false;
-        }
-
-        const bucket = this._events[idx];
-        const snapshot: StreamListenerEntry[] = [];
-        for (let i = 0; i < bucket.listeners.length; i++) {
-            snapshot.push(bucket.listeners[i]);
-        }
-
-        const remaining: StreamListenerEntry[] = [];
-        for (let i = 0; i < bucket.listeners.length; i++) {
-            if (!bucket.listeners[i].once) {
-                remaining.push(bucket.listeners[i]);
-            }
-        }
-        bucket.listeners = remaining;
-
-        for (let i = 0; i < snapshot.length; i++) {
-            const fn = snapshot[i].fn;
-            if (arg1 === undefined) {
-                fn();
-            } else if (arg2 === undefined) {
-                fn(arg1);
-            } else if (arg3 === undefined) {
-                fn(arg1, arg2);
-            } else if (arg4 === undefined) {
-                fn(arg1, arg2, arg3);
-            } else {
-                fn(arg1, arg2, arg3, arg4);
-            }
-        }
-
-        return true;
-    }
-
-    destroy(error?: unknown): this {
+    destroy(error?: Error | null): this {
         if (this.destroyed) {
             return this;
         }
         this.destroyed = true;
         this.closed = true;
         if (error !== undefined && error !== null) {
-            this.errored = error as Error;
+            this.errored = error instanceof Error ? error : new Error(String(error));
             if (this.listenerCount("error") > 0) {
-                this.emit("error", error);
+                this.emit("error", this.errored);
             }
         }
         this.emit("close");
         return this;
     }
 
-    write(chunk: unknown, encoding?: unknown, callback?: unknown): boolean {
+    write(chunk: StreamChunk, encoding?: string | Function, callback?: Function): boolean {
         if (this instanceof Writable) {
             return (this as Writable).write(chunk, encoding, callback);
         }
@@ -265,7 +78,7 @@ export class Stream {
         return true;
     }
 
-    end(chunk?: unknown, encoding?: unknown, callback?: unknown): this {
+    end(chunk?: StreamChunk | Function, encoding?: string | Function, callback?: Function): this {
         if (this instanceof Writable) {
             (this as Writable).end(chunk, encoding, callback);
         } else if (this instanceof Duplex) {
@@ -274,7 +87,7 @@ export class Stream {
         return this;
     }
 
-    read(size: number = -1): unknown {
+    read(size: number = -1): StreamChunk | null {
         if (this instanceof Readable) {
             return (this as Readable).read(size);
         }
@@ -295,13 +108,9 @@ export class Stream {
         return this;
     }
 
-    pipe(destination: unknown, options?: unknown): unknown {
+    pipe(destination: Writable | Stream, options?: PipeOptions): Writable | Stream {
         if (this instanceof Readable) {
-            let opt: PipeOptions | undefined = undefined;
-            if (typeof options === "object" && options !== null) {
-                opt = options as PipeOptions;
-            }
-            return (this as Readable).pipe(destination, opt);
+            return (this as Readable).pipe(destination, options);
         }
         return destination;
     }
@@ -323,23 +132,36 @@ export interface ReadableOptions {
     encoding?: string;
     objectMode?: boolean;
     autoDestroy?: boolean;
+    signal?: AbortSignal | AbortSignalLike;
     read?: Function;
     destroy?: Function;
+}
+
+class NodeReadableStream {
+    locked: boolean = false;
+    _stream: Readable;
+
+    constructor(stream: Readable) {
+        this.locked = false;
+        this._stream = stream;
+    }
 }
 
 export class Readable extends Stream {
     readable: boolean = true;
     readableEnded: boolean = false;
-    readableFlowing: boolean = false;
+    readableFlowing: boolean | null = null;
     readableHighWaterMark: number = 16384;
     readableLength: number = 0;
     readableObjectMode: boolean = false;
-    readableEncoding: string = "utf8";
+    readableEncoding: string | null = null;
+    readableDidRead: boolean = false;
+    readableAborted: boolean = false;
     destroyed: boolean = false;
     errored: Error | null = null;
     closed: boolean = false;
 
-    _buffer: string[] = [];
+    _buffer: StreamChunk[] = [];
     _reading: boolean = false;
     _paused: boolean = false;
     _autoDestroy: boolean = true;
@@ -371,6 +193,9 @@ export class Readable extends Stream {
             if (options.destroy !== undefined) {
                 this._customDestroy = options.destroy as Function;
             }
+            if (options.signal) {
+                addAbortSignal(options.signal, this);
+            }
         } else {
             this.readableHighWaterMark = getDefaultHighWaterMark(false);
         }
@@ -382,7 +207,14 @@ export class Readable extends Stream {
         }
         let total = 0;
         for (let i = 0; i < this._buffer.length; i++) {
-            total += this._buffer[i].length;
+            const item = this._buffer[i];
+            if (typeof item === "string") {
+                total += (item as string).length;
+            } else if (item && typeof (item as { length?: number }).length === "number") {
+                total += (item as { length: number }).length;
+            } else {
+                total += 1;
+            }
         }
         return total;
     }
@@ -394,8 +226,9 @@ export class Readable extends Stream {
         }
     }
 
-    read(size: number = -1): string | null {
+    read(size: number = -1): StreamChunk | null {
         this._disturbed = true;
+        this.readableDidRead = true;
         if (size === 0) {
             this._read(0);
             return null;
@@ -420,13 +253,15 @@ export class Readable extends Stream {
         return null;
     }
 
-    push(chunk: string | null, encoding?: string): boolean {
+    push(chunk: StreamChunk | null, encoding?: string): boolean {
         this._disturbed = true;
         if (chunk === null) {
             this.readableEnded = true;
-            this.emit("end");
-            if (this._autoDestroy) {
-                this.destroy();
+            if (this._buffer.length === 0) {
+                this.emit("end");
+                if (this._autoDestroy) {
+                    this.destroy();
+                }
             }
             return false;
         }
@@ -443,18 +278,24 @@ export class Readable extends Stream {
                     this.emit("data", item);
                 }
             }
+            if (this._buffer.length === 0 && this.readableEnded) {
+                this.emit("end");
+                if (this._autoDestroy) {
+                    this.destroy();
+                }
+            }
         }
 
         return this.readableLength < this.readableHighWaterMark;
     }
 
-    unshift(chunk: string): boolean {
+    unshift(chunk: StreamChunk): boolean {
         this._buffer.unshift(chunk);
         this.readableLength = this._calcLength();
         return true;
     }
 
-    on(event: string, listener: Function): this {
+    on(event: string | symbol, listener: Function): this {
         super.on(event, listener);
         if (event === "data") {
             if (!this._paused) {
@@ -468,7 +309,7 @@ export class Readable extends Stream {
         return this;
     }
 
-    addListener(event: string, listener: Function): this {
+    addListener(event: string | symbol, listener: Function): this {
         return this.on(event, listener);
     }
 
@@ -492,6 +333,9 @@ export class Readable extends Stream {
         }
         if (this._buffer.length === 0 && this.readableEnded) {
             this.emit("end");
+            if (this._autoDestroy) {
+                this.destroy();
+            }
         } else if (this._buffer.length === 0 && !this.readableEnded) {
             this._read(this.readableHighWaterMark);
         }
@@ -507,7 +351,7 @@ export class Readable extends Stream {
         return this;
     }
 
-    pipe(destination: unknown, options?: PipeOptions): unknown {
+    pipe(destination: Writable | Stream, options?: PipeOptions): Writable | Stream {
         let endOption = true;
         if (options !== undefined && options !== null) {
             endOption = options.end;
@@ -516,36 +360,48 @@ export class Readable extends Stream {
         if (destination instanceof Writable) {
             const dest = destination as Writable;
             this._pipeDests.push(destination);
+            this.on("data", (chunk: StreamChunk) => {
+                const canContinue = dest.write(chunk);
+                if (!canContinue) {
+                    this.pause();
+                }
+            });
+            dest.on("drain", () => {
+                this.resume();
+            });
             if (endOption) {
-                this.on("end", () => {
+                this.once("end", () => {
                     dest.end();
                 });
             }
-            this.on("data", (chunk: unknown) => {
-                dest.write(chunk);
-            });
         } else if (destination instanceof Duplex) {
             const dest = destination as Duplex;
             this._pipeDests.push(destination);
+            this.on("data", (chunk: StreamChunk) => {
+                const canContinue = dest.write(chunk);
+                if (!canContinue) {
+                    this.pause();
+                }
+            });
+            dest.on("drain", () => {
+                this.resume();
+            });
             if (endOption) {
-                this.on("end", () => {
+                this.once("end", () => {
                     dest.end();
                 });
             }
-            this.on("data", (chunk: unknown) => {
-                dest.write(chunk);
-            });
         } else if (destination instanceof Stream) {
             const dest = destination as Stream;
             this._pipeDests.push(destination);
+            this.on("data", (chunk: StreamChunk) => {
+                dest.write(chunk);
+            });
             if (endOption) {
-                this.on("end", () => {
+                this.once("end", () => {
                     dest.end();
                 });
             }
-            this.on("data", (chunk: unknown) => {
-                dest.write(chunk);
-            });
         }
 
         if (this._pipeDests.length === 1 && !this._paused) {
@@ -554,7 +410,7 @@ export class Readable extends Stream {
         return destination;
     }
 
-    unpipe(destination?: unknown): this {
+    unpipe(destination?: Stream): this {
         if (destination === undefined || destination === null) {
             this._pipeDests = [];
             this.pause();
@@ -571,27 +427,23 @@ export class Readable extends Stream {
         return this;
     }
 
-    wrap(oldStream: unknown): this {
+    wrap(oldStream: Stream | EventEmitter): this {
         if (oldStream instanceof Stream) {
             const old = oldStream as Stream;
-            old.on("data", (chunk: unknown) => {
-                this.push(String(chunk));
+            old.on("data", (chunk: StreamChunk) => {
+                this.push(chunk);
             });
             old.on("end", () => {
                 this.push(null);
             });
-            old.on("error", (err: unknown) => {
-                let errObj: Error = new Error(String(err));
-                if (err instanceof Error) {
-                    errObj = err as Error;
-                }
-                this.destroy(errObj);
+            old.on("error", (err: Error) => {
+                this.destroy(err);
             });
         }
         return this;
     }
 
-    destroy(error?: unknown): this {
+    destroy(error?: Error | null): this {
         if (this.destroyed) {
             return this;
         }
@@ -599,31 +451,88 @@ export class Readable extends Stream {
         this.readable = false;
         this.closed = true;
         if (error !== undefined && error !== null) {
-            this.errored = error as Error;
+            this.errored = error instanceof Error ? error : new Error(String(error));
+            this.readableAborted = true;
             if (this.listenerCount("error") > 0) {
-                this.emit("error", error);
+                this.emit("error", this.errored);
             }
         }
         if (typeof this._customDestroy === "function") {
             const fn = this._customDestroy as Function;
-            fn(error !== undefined ? error : null, (err: Error | null) => { });
+            fn(error !== undefined ? error : null, (err: Error | null) => {
+                if (err && this.listenerCount("error") > 0) {
+                    this.emit("error", err);
+                }
+            });
         }
         this.emit("close");
         return this;
     }
 
-    static from(iterable: unknown, options?: unknown): Readable {
+    [Symbol.asyncIterator](): AsyncIterableIterator<StreamChunk> {
+        const self = this;
+        return {
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+            async next(): Promise<IteratorResult<StreamChunk>> {
+                const chunk = self.read();
+                if (chunk !== null) {
+                    return { done: false, value: chunk };
+                }
+                if (self.readableEnded && self._buffer.length === 0) {
+                    return { done: true, value: undefined as unknown as StreamChunk };
+                }
+                if (self.destroyed) {
+                    return { done: true, value: undefined as unknown as StreamChunk };
+                }
+                return new Promise<IteratorResult<StreamChunk>>((resolve, reject) => {
+                    const onData = (val: StreamChunk) => {
+                        cleanup();
+                        resolve({ done: false, value: val });
+                    };
+                    const onEnd = () => {
+                        cleanup();
+                        resolve({ done: true, value: undefined as unknown as StreamChunk });
+                    };
+                    const onError = (err: Error) => {
+                        cleanup();
+                        reject(err);
+                    };
+                    const cleanup = () => {
+                        self.removeListener("data", onData);
+                        self.removeListener("end", onEnd);
+                        self.removeListener("error", onError);
+                    };
+                    self.once("data", onData);
+                    self.once("end", onEnd);
+                    self.once("error", onError);
+                    self.resume();
+                });
+            },
+            async return(): Promise<IteratorResult<StreamChunk>> {
+                self.destroy();
+                return { done: true, value: undefined as unknown as StreamChunk };
+            },
+            async throw(err?: Error): Promise<IteratorResult<StreamChunk>> {
+                self.destroy(err);
+                return Promise.reject(err);
+            }
+        };
+    }
+
+    static from(iterable: unknown, options?: ReadableOptions): Readable {
         let stream: Readable = new Readable();
         if (options !== undefined && options !== null) {
-            stream = new Readable(options as ReadableOptions);
+            stream = new Readable(options);
         }
         if (iterable !== null && iterable !== undefined) {
             if (Array.isArray(iterable)) {
-                const arr = iterable as string[];
+                const arr = iterable as StreamChunk[];
                 let idx = 0;
-                stream._customRead = (size: number) => {
+                stream._customRead = () => {
                     while (idx < arr.length && !stream.isPaused()) {
-                        stream.push(String(arr[idx]));
+                        stream.push(arr[idx]);
                         idx++;
                     }
                     if (idx >= arr.length) {
@@ -633,7 +542,7 @@ export class Readable extends Stream {
             } else if (typeof iterable === "string") {
                 const str = iterable as string;
                 let sent = false;
-                stream._customRead = (size: number) => {
+                stream._customRead = () => {
                     if (!sent) {
                         sent = true;
                         stream.push(str);
@@ -645,7 +554,18 @@ export class Readable extends Stream {
         return stream;
     }
 
-    static isDisturbed(stream: unknown): boolean {
+    static fromWeb(src: unknown, options?: ReadableOptions): Readable {
+        if (src instanceof NodeReadableStream) {
+            return (src as NodeReadableStream)._stream;
+        }
+        return new Readable(options);
+    }
+
+    static toWeb(streamReadable: Readable, options?: unknown): unknown {
+        return new NodeReadableStream(streamReadable);
+    }
+
+    static isDisturbed(stream: Stream | null | undefined): boolean {
         if (stream instanceof Readable) {
             return (stream as Readable)._disturbed;
         }
@@ -659,10 +579,21 @@ export interface WritableOptions {
     defaultEncoding?: string;
     objectMode?: boolean;
     autoDestroy?: boolean;
+    signal?: AbortSignal | AbortSignalLike;
     write?: Function;
     writev?: Function;
     final?: Function;
     destroy?: Function;
+}
+
+class NodeWritableStream {
+    locked: boolean = false;
+    _stream: Writable;
+
+    constructor(stream: Writable) {
+        this.locked = false;
+        this._stream = stream;
+    }
 }
 
 export class Writable extends Stream {
@@ -715,12 +646,15 @@ export class Writable extends Stream {
             if (options.destroy !== undefined) {
                 this._customDestroy = options.destroy as Function;
             }
+            if (options.signal) {
+                addAbortSignal(options.signal, this);
+            }
         } else {
             this.writableHighWaterMark = getDefaultHighWaterMark(false);
         }
     }
 
-    _write(chunk: string, encoding: string, callback: Function): void {
+    _write(chunk: StreamChunk, encoding: string, callback: Function): void {
         if (typeof this._customWrite === "function") {
             const fn = this._customWrite as Function;
             fn(chunk, encoding, callback);
@@ -775,7 +709,7 @@ export class Writable extends Stream {
         }
     }
 
-    write(chunk: unknown, encodingOrCallback?: unknown, callback?: unknown): boolean {
+    write(chunk: StreamChunk, encodingOrCallback?: string | Function, callback?: Function): boolean {
         let encoding: string = this._defaultEncoding;
         let cb: Function | null = null;
 
@@ -800,15 +734,26 @@ export class Writable extends Stream {
             return false;
         }
 
-        const chunkStr = String(chunk);
-        this.writableLength += chunkStr.length;
+        let chunkLen = 1;
+        if (typeof chunk === "string") {
+            chunkLen = (chunk as string).length;
+        } else if (chunk && typeof (chunk as { length?: number }).length === "number") {
+            chunkLen = (chunk as { length: number }).length;
+        }
+        this.writableLength += chunkLen;
 
         const self = this;
         const onDone = (err?: Error | null) => {
-            self.writableLength = 0;
+            self.writableLength = Math.max(0, self.writableLength - chunkLen);
             if (err) {
                 self.destroy(err);
+                if (cb !== null) {
+                    cb(err);
+                }
                 return;
+            }
+            if (cb !== null) {
+                cb(null);
             }
             if (self.writableNeedDrain && self.writableLength < self.writableHighWaterMark) {
                 self.writableNeedDrain = false;
@@ -817,27 +762,27 @@ export class Writable extends Stream {
         };
 
         if (this.writableCorked > 0) {
-            this._writeBuffer.push(new StreamWriteReq(chunkStr, encoding, onDone));
+            this._writeBuffer.push(new StreamWriteReq(chunk, encoding, onDone));
         } else {
-            this._write(chunkStr, encoding, onDone);
+            this._write(chunk, encoding, onDone);
         }
 
-        if (cb !== null) {
-            cb(null);
+        const canWrite = this.writableLength < this.writableHighWaterMark;
+        if (!canWrite) {
+            this.writableNeedDrain = true;
         }
-
-        return this.writableLength < this.writableHighWaterMark;
+        return canWrite;
     }
 
-    end(chunkOrCallback?: unknown, encodingOrCallback?: unknown, callback?: unknown): this {
-        let chunk: unknown = null;
+    end(chunkOrCallback?: StreamChunk | Function, encodingOrCallback?: string | Function, callback?: Function): this {
+        let chunk: StreamChunk | null = null;
         let encoding: string = this._defaultEncoding;
         let cb: Function | null = null;
 
         if (typeof chunkOrCallback === "function") {
             cb = chunkOrCallback as Function;
         } else if (chunkOrCallback !== undefined && chunkOrCallback !== null) {
-            chunk = chunkOrCallback;
+            chunk = chunkOrCallback as StreamChunk;
             if (typeof encodingOrCallback === "function") {
                 cb = encodingOrCallback as Function;
             } else if (typeof encodingOrCallback === "string") {
@@ -858,23 +803,25 @@ export class Writable extends Stream {
         this._final((err?: Error | null) => {
             if (err) {
                 self.destroy(err);
+                if (cb !== null) {
+                    cb(err);
+                }
                 return;
             }
             self.writableFinished = true;
             self.emit("finish");
+            if (cb !== null) {
+                cb(null);
+            }
             if (self._autoDestroy) {
                 self.destroy();
             }
         });
 
-        if (cb !== null) {
-            cb(null);
-        }
-
         return this;
     }
 
-    destroy(error?: unknown): this {
+    destroy(error?: Error | null): this {
         if (this.destroyed) {
             return this;
         }
@@ -882,35 +829,46 @@ export class Writable extends Stream {
         this.writable = false;
         this.closed = true;
         if (error !== undefined && error !== null) {
-            this.errored = error as Error;
+            this.errored = error instanceof Error ? error : new Error(String(error));
             if (this.listenerCount("error") > 0) {
-                this.emit("error", error);
+                this.emit("error", this.errored);
             }
         }
         if (typeof this._customDestroy === "function") {
             const fn = this._customDestroy as Function;
-            fn(error !== undefined ? error : null, (err: Error | null) => { });
+            fn(error !== undefined ? error : null, (err: Error | null) => {
+                if (err && this.listenerCount("error") > 0) {
+                    this.emit("error", err);
+                }
+            });
         }
         this.emit("close");
         return this;
     }
+
+    static fromWeb(src: unknown, options?: WritableOptions): Writable {
+        if (src instanceof NodeWritableStream) {
+            return (src as NodeWritableStream)._stream;
+        }
+        return new Writable(options);
+    }
+
+    static toWeb(streamWritable: Writable): unknown {
+        return new NodeWritableStream(streamWritable);
+    }
+
+    static isDisturbed(stream: Stream | null | undefined): boolean {
+        if (stream instanceof Writable) {
+            return (stream as Writable).writableEnded || (stream as Writable).destroyed;
+        }
+        return false;
+    }
 }
 
-export interface DuplexOptions {
+export interface DuplexOptions extends ReadableOptions, WritableOptions {
     allowHalfOpen?: boolean;
     readable?: boolean;
     writable?: boolean;
-    highWaterMark?: number;
-    decodeStrings?: boolean;
-    defaultEncoding?: string;
-    encoding?: string;
-    objectMode?: boolean;
-    autoDestroy?: boolean;
-    read?: Function;
-    write?: Function;
-    writev?: Function;
-    final?: Function;
-    destroy?: Function;
 }
 
 export class Duplex extends Readable {
@@ -927,6 +885,7 @@ export class Duplex extends Readable {
     _writeBuffer: StreamWriteReq[] = [];
     _allowHalfOpen: boolean = true;
     _customWrite: Function | null = null;
+    _customWritev: Function | null = null;
     _customFinal: Function | null = null;
 
     constructor(options?: DuplexOptions) {
@@ -941,6 +900,9 @@ export class Duplex extends Readable {
             if (options.write !== undefined) {
                 this._customWrite = options.write as Function;
             }
+            if (options.writev !== undefined) {
+                this._customWritev = options.writev as Function;
+            }
             if (options.final !== undefined) {
                 this._customFinal = options.final as Function;
             }
@@ -953,7 +915,7 @@ export class Duplex extends Readable {
         }
     }
 
-    _write(chunk: string, encoding: string, callback: Function): void {
+    _write(chunk: StreamChunk, encoding: string, callback: Function): void {
         if (this instanceof Transform) {
             (this as Transform)._write(chunk, encoding, callback);
             return;
@@ -961,6 +923,15 @@ export class Duplex extends Readable {
         if (typeof this._customWrite === "function") {
             const fn = this._customWrite as Function;
             fn(chunk, encoding, callback);
+        } else {
+            callback(null);
+        }
+    }
+
+    _writev(chunks: StreamWriteReq[], callback: Function): void {
+        if (typeof this._customWritev === "function") {
+            const fn = this._customWritev as Function;
+            fn(chunks, callback);
         } else {
             callback(null);
         }
@@ -1007,7 +978,7 @@ export class Duplex extends Readable {
         }
     }
 
-    write(chunk: unknown, encodingOrCallback?: unknown, callback?: unknown): boolean {
+    write(chunk: StreamChunk, encodingOrCallback?: string | Function, callback?: Function): boolean {
         let encoding: string = this._defaultEncoding;
         let cb: Function | null = null;
 
@@ -1032,15 +1003,26 @@ export class Duplex extends Readable {
             return false;
         }
 
-        const chunkStr = String(chunk);
-        this.writableLength += chunkStr.length;
+        let chunkLen = 1;
+        if (typeof chunk === "string") {
+            chunkLen = (chunk as string).length;
+        } else if (chunk && typeof (chunk as { length?: number }).length === "number") {
+            chunkLen = (chunk as { length: number }).length;
+        }
+        this.writableLength += chunkLen;
 
         const self = this;
         const onDone = (err?: Error | null) => {
-            self.writableLength = 0;
+            self.writableLength = Math.max(0, self.writableLength - chunkLen);
             if (err) {
                 self.destroy(err);
+                if (cb !== null) {
+                    cb(err);
+                }
                 return;
+            }
+            if (cb !== null) {
+                cb(null);
             }
             if (self.writableNeedDrain && self.writableLength < self.writableHighWaterMark) {
                 self.writableNeedDrain = false;
@@ -1049,27 +1031,27 @@ export class Duplex extends Readable {
         };
 
         if (this.writableCorked > 0) {
-            this._writeBuffer.push(new StreamWriteReq(chunkStr, encoding, onDone));
+            this._writeBuffer.push(new StreamWriteReq(chunk, encoding, onDone));
         } else {
-            this._write(chunkStr, encoding, onDone);
+            this._write(chunk, encoding, onDone);
         }
 
-        if (cb !== null) {
-            cb(null);
+        const canWrite = this.writableLength < this.writableHighWaterMark;
+        if (!canWrite) {
+            this.writableNeedDrain = true;
         }
-
-        return this.writableLength < this.writableHighWaterMark;
+        return canWrite;
     }
 
-    end(chunkOrCallback?: unknown, encodingOrCallback?: unknown, callback?: unknown): this {
-        let chunk: unknown = null;
+    end(chunkOrCallback?: StreamChunk | Function, encodingOrCallback?: string | Function, callback?: Function): this {
+        let chunk: StreamChunk | null = null;
         let encoding: string = this._defaultEncoding;
         let cb: Function | null = null;
 
         if (typeof chunkOrCallback === "function") {
             cb = chunkOrCallback as Function;
         } else if (chunkOrCallback !== undefined && chunkOrCallback !== null) {
-            chunk = chunkOrCallback;
+            chunk = chunkOrCallback as StreamChunk;
             if (typeof encodingOrCallback === "function") {
                 cb = encodingOrCallback as Function;
             } else if (typeof encodingOrCallback === "string") {
@@ -1090,29 +1072,31 @@ export class Duplex extends Readable {
         this._final((err?: Error | null) => {
             if (err) {
                 self.destroy(err);
+                if (cb !== null) {
+                    cb(err);
+                }
                 return;
             }
             self.writableFinished = true;
             self.emit("finish");
+            if (cb !== null) {
+                cb(null);
+            }
             if (!self._allowHalfOpen && self._autoDestroy) {
                 self.destroy();
             }
         });
 
-        if (cb !== null) {
-            cb(null);
-        }
-
         return this;
     }
 
-    static from(src: unknown, options?: unknown): Duplex {
+    static from(src: unknown, options?: ReadableOptions): Duplex {
         if (src instanceof Duplex) {
             return src as Duplex;
         }
         let duplex: Duplex = new Duplex();
         if (options !== undefined && options !== null) {
-            duplex = new Duplex(options as DuplexOptions);
+            duplex = new Duplex(options);
         }
         if (src instanceof Stream) {
             const s = src as Stream;
@@ -1123,6 +1107,36 @@ export class Duplex extends Readable {
         return duplex;
     }
 
+    static fromWeb(src: unknown, options?: ReadableOptions): Duplex {
+        const duplex = new Duplex(options);
+        if (src && typeof src === "object") {
+            const pair = src as { readable?: unknown; writable?: unknown };
+            if (pair.readable) {
+                const r = Readable.fromWeb(pair.readable, options);
+                r.on("data", (chunk: StreamChunk) => duplex.push(chunk));
+                r.once("end", () => duplex.push(null));
+                r.once("error", (err: Error) => duplex.destroy(err));
+            }
+            if (pair.writable) {
+                const w = Writable.fromWeb(pair.writable, options);
+                duplex._customWrite = (chunk: StreamChunk, enc: string, cb: Function) => {
+                    w.write(chunk, enc, cb);
+                };
+                duplex._customFinal = (cb: Function) => {
+                    w.end(() => cb(null));
+                };
+            }
+        }
+        return duplex;
+    }
+
+    static toWeb(stream: unknown, options?: unknown): unknown {
+        const duplex = stream as Duplex;
+        return {
+            readable: Readable.toWeb(duplex),
+            writable: Writable.toWeb(duplex)
+        };
+    }
 }
 
 export interface TransformOptions extends DuplexOptions {
@@ -1146,7 +1160,7 @@ export class Transform extends Duplex {
         }
     }
 
-    _transform(chunk: string, encoding: string, callback: Function): void {
+    _transform(chunk: StreamChunk, encoding: string, callback: Function): void {
         if (typeof this._customTransform === "function") {
             const fn = this._customTransform as Function;
             fn(chunk, encoding, callback);
@@ -1164,14 +1178,14 @@ export class Transform extends Duplex {
         }
     }
 
-    _write(chunk: string, encoding: string, callback: Function): void {
+    _write(chunk: StreamChunk, encoding: string, callback: Function): void {
         const self = this;
-        this._transform(chunk, encoding, (err?: Error | null, data?: string) => {
+        this._transform(chunk, encoding, (err?: Error | null, data?: StreamChunk) => {
             if (err) {
                 callback(err);
                 return;
             }
-            if (data) {
+            if (data !== undefined && data !== null) {
                 self.push(data);
             }
             callback(null);
@@ -1180,12 +1194,12 @@ export class Transform extends Duplex {
 
     _final(callback: Function): void {
         const self = this;
-        this._flush((err?: Error | null, data?: string) => {
+        this._flush((err?: Error | null, data?: StreamChunk) => {
             if (err) {
                 callback(err);
                 return;
             }
-            if (data) {
+            if (data !== undefined && data !== null) {
                 self.push(data);
             }
             self.push(null);
@@ -1197,12 +1211,12 @@ export class Transform extends Duplex {
 }
 
 export class PassThrough extends Transform {
-    _transform(chunk: string, encoding: string, callback: Function): void {
+    _transform(chunk: StreamChunk, encoding: string, callback: Function): void {
         callback(null, chunk);
     }
 }
 
-export function isReadable(stream: unknown): boolean {
+export function isReadable(stream: Stream | null | undefined): boolean {
     if (stream === null || stream === undefined) {
         return false;
     }
@@ -1213,7 +1227,7 @@ export function isReadable(stream: unknown): boolean {
     return false;
 }
 
-export function isWritable(stream: unknown): boolean {
+export function isWritable(stream: Stream | null | undefined): boolean {
     if (stream === null || stream === undefined) {
         return false;
     }
@@ -1224,7 +1238,7 @@ export function isWritable(stream: unknown): boolean {
     return false;
 }
 
-export function isErrored(stream: unknown): boolean {
+export function isErrored(stream: Stream | null | undefined): boolean {
     if (stream === null || stream === undefined) {
         return false;
     }
@@ -1235,15 +1249,14 @@ export function isErrored(stream: unknown): boolean {
     return false;
 }
 
-export function addAbortSignal(signal: unknown, stream: unknown): unknown {
+export function addAbortSignal(signal: AbortSignal | AbortSignalLike | null | undefined, stream: Stream): Stream {
     if (signal !== null && signal !== undefined && stream instanceof Stream) {
-        const sig = signal as AbortSignalLike;
+        const sig = signal as { aborted?: boolean; addEventListener?: Function };
         const str = stream as Stream;
         if (sig.aborted) {
             str.destroy(new Error("The operation was aborted"));
         } else if (typeof sig.addEventListener === "function") {
-            const addEv = sig.addEventListener as Function;
-            addEv("abort", () => {
+            sig.addEventListener("abort", () => {
                 str.destroy(new Error("The operation was aborted"));
             });
         }
@@ -1251,13 +1264,23 @@ export function addAbortSignal(signal: unknown, stream: unknown): unknown {
     return stream;
 }
 
-export function finished(stream: unknown, optionsOrCallback?: unknown, callback?: unknown): unknown {
+export function finished(
+    stream: Stream,
+    optionsOrCallback?: FinishedOptions | Function,
+    callback?: Function
+): Function | Promise<void> | null {
     let cb: Function | null = null;
+    let signal: AbortSignal | AbortSignalLike | undefined = undefined;
 
     if (typeof optionsOrCallback === "function") {
         cb = optionsOrCallback as Function;
     } else if (typeof callback === "function") {
         cb = callback as Function;
+        if (optionsOrCallback && typeof optionsOrCallback === "object") {
+            signal = (optionsOrCallback as FinishedOptions).signal;
+        }
+    } else if (optionsOrCallback && typeof optionsOrCallback === "object") {
+        signal = (optionsOrCallback as FinishedOptions).signal;
     }
 
     if (cb !== null) {
@@ -1269,30 +1292,43 @@ export function finished(stream: unknown, optionsOrCallback?: unknown, callback?
                 return null;
             }
             let done = false;
-            const onFinishOrEnd = () => {
+            const onDone = (err?: Error | null) => {
                 if (!done) {
                     done = true;
-                    fn(null);
+                    queueMicrotask(() => {
+                        fn(err !== undefined ? err : null);
+                    });
                 }
             };
-            const onError = (err: unknown) => {
-                if (!done) {
-                    done = true;
-                    fn(err);
-                }
-            };
-            s.on("finish", onFinishOrEnd);
-            s.on("end", onFinishOrEnd);
-            s.on("close", onFinishOrEnd);
-            s.on("error", onError);
+            s.once("finish", () => onDone());
+            s.once("end", () => onDone());
+            s.once("close", () => onDone());
+            s.once("error", (err: Error) => onDone(err));
+            if (signal) {
+                addAbortSignal(signal, s);
+            }
         }
         return null;
     }
 
-    return Promise.resolve(null);
+    return new Promise<void>((resolve, reject) => {
+        finished(stream, optionsOrCallback, (err: Error | null) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
 }
 
-function _extractStreams(first?: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown): Stream[] {
+function _extractStreams(
+    first?: unknown,
+    second?: unknown,
+    third?: unknown,
+    fourth?: unknown,
+    fifth?: unknown
+): Stream[] {
     const res: Stream[] = [];
     if (Array.isArray(first)) {
         const arr = first as Stream[];
@@ -1317,7 +1353,13 @@ function _extractStreams(first?: unknown, second?: unknown, third?: unknown, fou
     return res;
 }
 
-function _extractCallback(first?: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown): Function | null {
+function _extractCallback(
+    first?: unknown,
+    second?: unknown,
+    third?: unknown,
+    fourth?: unknown,
+    fifth?: unknown
+): Function | null {
     if (typeof first === "function") return first as Function;
     if (typeof second === "function") return second as Function;
     if (typeof third === "function") return third as Function;
@@ -1332,61 +1374,101 @@ export function pipeline(
     third?: unknown,
     fourth?: unknown,
     fifth?: unknown
-): unknown {
+): Stream | Promise<Stream | null> | null {
     const streams: Stream[] = _extractStreams(first, second, third, fourth, fifth);
     const cb: Function | null = _extractCallback(first, second, third, fourth, fifth);
 
     if (cb !== null) {
         const fn = cb as Function;
-        if (streams.length > 0) {
-            streams[0].pause();
-            const last = streams[streams.length - 1];
-            let done = false;
-            const onFinish = () => {
-                if (!done) {
-                    done = true;
-                    fn(null);
-                }
-            };
-            const onError = (err: unknown) => {
-                if (!done) {
-                    done = true;
-                    fn(err);
-                }
-            };
-            last.on("finish", onFinish);
-            last.on("end", onFinish);
-            last.on("close", onFinish);
-            for (let i = 0; i < streams.length; i++) {
-                streams[i].on("error", onError);
-            }
+        if (streams.length === 0) {
+            fn(null);
+            return null;
         }
+
+        let done = false;
+        const destroyAll = (err?: Error | null) => {
+            if (!done) {
+                done = true;
+                for (let i = 0; i < streams.length; i++) {
+                    streams[i].destroy(err);
+                }
+                queueMicrotask(() => {
+                    fn(err !== undefined ? err : null);
+                });
+            }
+        };
+
+        const last = streams[streams.length - 1];
+        const onFinish = () => {
+            if (!done) {
+                done = true;
+                queueMicrotask(() => {
+                    fn(null);
+                });
+            }
+        };
+        const onError = (err: Error) => {
+            destroyAll(err);
+        };
+
+        last.once("finish", onFinish);
+        last.once("end", onFinish);
+        for (let i = 0; i < streams.length; i++) {
+            streams[i].once("error", onError);
+        }
+
         for (let i = 0; i < streams.length - 1; i++) {
             const current = streams[i];
             const next = streams[i + 1];
             current.pipe(next);
         }
-        if (streams.length > 0) {
-            streams[0].resume();
-            return streams[streams.length - 1];
-        }
-        return null;
+
+        return last;
     }
 
-    if (streams.length > 0) {
-        streams[0].pause();
+    return new Promise<Stream | null>((resolve, reject) => {
+        if (streams.length === 0) {
+            resolve(null);
+            return;
+        }
+
+        let done = false;
+        const destroyAll = (err?: Error | null) => {
+            if (!done) {
+                done = true;
+                for (let i = 0; i < streams.length; i++) {
+                    streams[i].destroy(err);
+                }
+                reject(err || new Error("stream pipeline failed"));
+            }
+        };
+
+        const last = streams[streams.length - 1];
+        const onFinish = () => {
+            if (!done) {
+                done = true;
+                resolve(last);
+            }
+        };
+        const onError = (err: Error) => {
+            destroyAll(err);
+        };
+
+        last.once("finish", onFinish);
+        last.once("end", onFinish);
+        for (let i = 0; i < streams.length; i++) {
+            streams[i].once("error", onError);
+        }
+
         for (let i = 0; i < streams.length - 1; i++) {
             const current = streams[i];
             const next = streams[i + 1];
             current.pipe(next);
         }
-        streams[0].resume();
-        return Promise.resolve(streams[streams.length - 1]);
-    }
-    return Promise.resolve(null);
+    });
 }
 
-function _processComposeArg(arg: unknown, list: Stream[]): void {
+function _processComposeArg(arg: Stream | Stream[] | undefined, list: Stream[]): void {
     if (arg === undefined || arg === null) {
         return;
     }
@@ -1401,10 +1483,10 @@ function _processComposeArg(arg: unknown, list: Stream[]): void {
 }
 
 export function compose(
-    first?: unknown,
-    second?: unknown,
-    third?: unknown,
-    fourth?: unknown
+    first?: Stream | Stream[],
+    second?: Stream,
+    third?: Stream,
+    fourth?: Stream
 ): Duplex {
     const list: Stream[] = [];
     _processComposeArg(first, list);
@@ -1434,7 +1516,7 @@ export function compose(
     duplex._customRead = (size: number) => {
         lastStream.read(size);
     };
-    duplex._customWrite = (chunk: string, encoding: string, callback: Function) => {
+    duplex._customWrite = (chunk: StreamChunk, encoding: string, callback: Function) => {
         firstStream.write(chunk);
         callback(null);
     };
@@ -1443,14 +1525,10 @@ export function compose(
         callback(null);
     };
 
-    lastStream.on("data", (chunk: unknown) => duplex.push(String(chunk)));
+    lastStream.on("data", (chunk: StreamChunk) => duplex.push(chunk));
     lastStream.on("end", () => duplex.push(null));
-    lastStream.on("error", (err: unknown) => {
-        let errObj: Error = new Error(String(err));
-        if (err instanceof Error) {
-            errObj = err as Error;
-        }
-        duplex.destroy(errObj);
+    lastStream.on("error", (err: Error) => {
+        duplex.destroy(err);
     });
 
     return duplex;
@@ -1459,92 +1537,110 @@ export function compose(
 export class StreamPromises {
     _tag: string = "promises";
 
-    finished(stream: unknown, options?: unknown): Promise<void> {
-        return Promise.resolve(undefined) as Promise<void>;
+    finished(stream: Stream, options?: FinishedOptions): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            finished(stream, options, (err: Error | null) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
     }
 
-    pipeline(first?: unknown, second?: unknown, third?: unknown, fourth?: unknown, fifth?: unknown): Promise<unknown> {
-        pipeline(first, second, third, fourth, fifth);
-        return Promise.resolve(null);
+    pipeline(
+        first?: unknown,
+        second?: unknown,
+        third?: unknown,
+        fourth?: unknown,
+        fifth?: unknown
+    ): Promise<Stream | null> {
+        return pipeline(first, second, third, fourth, fifth) as Promise<Stream | null>;
     }
 }
 
 export class StreamConsumers {
     _tag: string = "consumers";
 
-    private _readable(stream: Readable): Readable | null {
-        if (stream instanceof Readable) {
-            return stream;
-        }
-        return null;
-    }
-
-    private _chunkBuffer(chunk: unknown): Buffer {
+    private _chunkBuffer(chunk: StreamChunk): Buffer {
         if (typeof chunk === "string") {
             return Buffer.from(chunk);
         }
         if (Buffer.isBuffer(chunk)) {
-            return chunk;
+            return chunk as Buffer;
         }
-        if (chunk instanceof Uint8Array || chunk instanceof ArrayBuffer) {
-            return Buffer.from(chunk);
-        }
-        return Buffer.from(String(chunk));
+        return Buffer.from(chunk);
     }
 
-    async buffer(stream: Readable): Promise<Buffer> {
-        const readable = this._readable(stream);
-        if (readable === null) {
+    async buffer(stream: Stream | Readable): Promise<Buffer> {
+        if (!stream) {
             return Buffer.alloc(0);
         }
 
-        return new Promise<Buffer>((resolve, reject) => {
-            const chunks: Buffer[] = [];
-            readable.once("error", (err: Error) => reject(err));
-            readable.once("end", () => resolve(Buffer.concat(chunks)));
-            readable.on("data", (chunk: unknown) => {
-                chunks.push(this._chunkBuffer(chunk));
+        if (stream instanceof Readable) {
+            const readable = stream as Readable;
+            return new Promise<Buffer>((resolve, reject) => {
+                const chunks: Buffer[] = [];
+                readable.once("error", (err: Error) => reject(err));
+                readable.once("end", () => resolve(Buffer.concat(chunks)));
+                readable.on("data", (chunk: StreamChunk) => {
+                    chunks.push(this._chunkBuffer(chunk));
+                });
             });
-        });
+        }
+
+        if (stream instanceof Stream) {
+            const s = stream as Stream;
+            return new Promise<Buffer>((resolve, reject) => {
+                const chunks: Buffer[] = [];
+                s.once("error", (err: Error) => reject(err));
+                s.once("end", () => resolve(Buffer.concat(chunks)));
+                s.on("data", (chunk: StreamChunk) => {
+                    chunks.push(this._chunkBuffer(chunk));
+                });
+            });
+        }
+
+        return Buffer.alloc(0);
     }
 
-    async text(stream: Readable): Promise<string> {
+    async text(stream: Stream | Readable): Promise<string> {
         return (await this.buffer(stream)).toString();
     }
 
-    async json(stream: Readable): Promise<unknown> {
+    async json(stream: Stream | Readable): Promise<unknown> {
         const t = await this.text(stream);
         return JSON.parse(t);
     }
 
-    async arrayBuffer(stream: Readable): Promise<ArrayBuffer> {
+    async arrayBuffer(stream: Stream | Readable): Promise<ArrayBuffer> {
         const bytes = await this.buffer(stream);
         const result = new ArrayBuffer(bytes.length);
         new Uint8Array(result).set(bytes);
         return result;
     }
 
-    async blob(stream: Readable): Promise<Blob> {
+    async blob(stream: Stream | Readable): Promise<Blob> {
         return new Blob([await this.buffer(stream)]);
     }
 }
 
-export function destroy(stream: unknown, err?: unknown): void {
+export function destroy(stream: Stream, err?: Error | null): void {
     if (stream instanceof Stream) {
         stream.destroy(err);
     }
 }
 
-export function from(src: unknown): Duplex {
-    return Duplex.from(src);
-}
-
-export function isDisturbed(stream: unknown): boolean {
+export function isDisturbed(stream: Stream | null | undefined): boolean {
     return Readable.isDisturbed(stream);
 }
 
 export const promises: StreamPromises = new StreamPromises();
 export const consumers: StreamConsumers = new StreamConsumers();
+export const from = Readable.from;
+export const fromWeb = Readable.fromWeb;
+export const toWeb = Readable.toWeb;
 
 export default {
     Stream,
@@ -1557,8 +1653,10 @@ export default {
     finished,
     destroy,
     compose,
-    from,
     isDisturbed,
+    from,
+    fromWeb,
+    toWeb,
     getDefaultHighWaterMark,
     setDefaultHighWaterMark,
     promises,

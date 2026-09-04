@@ -1089,7 +1089,9 @@ func lowerCallExpression(
 				pName := target.Parameters[j].Name
 				if pName != "this" && pName != "" {
 					paramMap[pName] = args[j]
-					env[args[j]] = target.Parameters[j].Type
+					if _, exists := env[args[j]]; !exists {
+						env[args[j]] = target.Parameters[j].Type
+					}
 				}
 			}
 			initExpr := substituteParamIdentifiers(defaults[pIdx], paramMap)
@@ -1181,7 +1183,9 @@ func lowerCallExpression(
 			pName := target.Parameters[j].Name
 			if pName != "this" && pName != "" {
 				paramMap[pName] = args[j]
-				env[args[j]] = target.Parameters[j].Type
+				if _, exists := env[args[j]]; !exists {
+					env[args[j]] = target.Parameters[j].Type
+				}
 			}
 		}
 		for i := len(args); i < len(target.Parameters); i++ {
@@ -1245,7 +1249,9 @@ func lowerCallExpression(
 					pName := target.Parameters[i].Name
 					if pName != "" && pName != "this" {
 						paramMap[pName] = val
-						env[val] = target.Parameters[i].Type
+						if _, exists := env[val]; !exists {
+							env[val] = target.Parameters[i].Type
+						}
 					}
 					args = append(args, val)
 					continue

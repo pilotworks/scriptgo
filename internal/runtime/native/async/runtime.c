@@ -102,9 +102,9 @@ static void scriptgo_promise_resolver_callback(
     (void)tag1; (void)pad1; (void)payload1;
     (void)tag2; (void)pad2; (void)payload2;
     (void)tag3; (void)pad3; (void)payload3;
+    (void)pad0;
     scriptgo_promise_resolver_env *env = (scriptgo_promise_resolver_env *)env_ptr;
     if (env == NULL || env->promise == NULL) return;
-    (void)pad0;
     (void)scriptgo_promise_set_boxed(env->promise, env->reject, (uint32_t)tag0, (uint64_t)payload0);
 }
 

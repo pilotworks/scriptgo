@@ -23,7 +23,7 @@ type BuiltinModule struct {
 	IsDeclaration bool
 }
 
-//go:embed stdlib/*
+//go:embed all:stdlib
 var embeddedStdlibFS embed.FS
 
 var (
@@ -44,57 +44,68 @@ func loadEmbeddedStdlib(version string) error {
 	newModules := map[string]BuiltinModule{}
 	var newGlobals string
 
-	entries, err := embeddedStdlibFS.ReadDir("stdlib")
-	if err != nil {
-		return fmt.Errorf("read embedded stdlib: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			dirName := entry.Name()
-			isDecl := false
-			indexPath := filepath.Join("stdlib", dirName, "index.ts")
-			content, err := embeddedStdlibFS.ReadFile(indexPath)
-			if err != nil {
-				indexPath = filepath.Join("stdlib", dirName, "index.d.ts")
-				content, err = embeddedStdlibFS.ReadFile(indexPath)
-				if err == nil {
-					isDecl = true
-				}
-			}
-			if err != nil {
-				indexPath = filepath.Join("stdlib", dirName, dirName+".ts")
-				content, err = embeddedStdlibFS.ReadFile(indexPath)
-			}
-			if err == nil {
-				newModules[dirName] = BuiltinModule{
-					Name:          dirName,
-					Version:       version,
-					Source:        string(content),
-					IsDeclaration: isDecl,
-				}
-			}
-			continue
+	err := fs.WalkDir(embeddedStdlibFS, "stdlib", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		name := entry.Name()
-		content, err := embeddedStdlibFS.ReadFile(filepath.Join("stdlib", name))
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel("stdlib", path)
 		if err != nil {
-			return fmt.Errorf("read embedded stdlib file %s: %w", name, err)
+			return err
+		}
+		relSlash := filepath.ToSlash(rel)
+		if strings.HasSuffix(relSlash, ".gitkeep") {
+			return nil
+		}
+		content, err := embeddedStdlibFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read embedded stdlib file %s: %w", path, err)
 		}
 
-		if name == "globals.d.ts" {
+		if relSlash == "globals.d.ts" {
 			newGlobals = string(content)
-			continue
+			return nil
 		}
 
-		if strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".d.ts") {
-			modName := strings.TrimSuffix(name, ".ts")
+		if strings.HasSuffix(relSlash, ".ts") && !strings.HasSuffix(relSlash, ".d.ts") {
+			modName := strings.TrimSuffix(relSlash, ".ts")
+			if strings.HasSuffix(modName, "/index") {
+				modName = strings.TrimSuffix(modName, "/index")
+			}
 			newModules[modName] = BuiltinModule{
 				Name:    modName,
 				Version: version,
 				Source:  string(content),
 			}
+		} else if strings.HasSuffix(relSlash, ".d.ts") {
+			modName := strings.TrimSuffix(relSlash, ".d.ts")
+			if strings.HasSuffix(modName, "/index") {
+				modName = strings.TrimSuffix(modName, "/index")
+			}
+			newModules[modName] = BuiltinModule{
+				Name:          modName,
+				Version:       version,
+				Source:        string(content),
+				IsDeclaration: true,
+			}
 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("read embedded stdlib: %w", err)
+	}
+
+	// Register compatibility aliases
+	if m, ok := newModules["stream/consumers"]; ok {
+		newModules["stream_consumers"] = BuiltinModule{Name: "stream_consumers", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
+	}
+	if m, ok := newModules["stream/promises"]; ok {
+		newModules["stream_promises"] = BuiltinModule{Name: "stream_promises", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
+	}
+	if m, ok := newModules["stream/web"]; ok {
+		newModules["webstreams"] = BuiltinModule{Name: "webstreams", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
 	}
 
 	builtinModules = newModules
@@ -131,61 +142,70 @@ func LoadStdlibFromDir(dir string, version string) error {
 	defer stdlibMu.Unlock()
 
 	cleanDir := filepath.Clean(dir)
-	entries, err := os.ReadDir(cleanDir)
-	if err != nil {
-		return fmt.Errorf("read stdlib directory %s: %w", cleanDir, err)
-	}
-
 	newModules := map[string]BuiltinModule{}
 	var newGlobals string
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			dirName := entry.Name()
-			isDecl := false
-			indexPath := filepath.Join(cleanDir, dirName, "index.ts")
-			content, err := os.ReadFile(indexPath)
-			if err != nil {
-				indexPath = filepath.Join(cleanDir, dirName, "index.d.ts")
-				content, err = os.ReadFile(indexPath)
-				if err == nil {
-					isDecl = true
-				}
-			}
-			if err != nil {
-				indexPath = filepath.Join(cleanDir, dirName, dirName+".ts")
-				content, err = os.ReadFile(indexPath)
-			}
-			if err == nil {
-				newModules[dirName] = BuiltinModule{
-					Name:          dirName,
-					Version:       version,
-					Source:        string(content),
-					IsDeclaration: isDecl,
-				}
-			}
-			continue
+	err := filepath.WalkDir(cleanDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		name := entry.Name()
-		fullPath := filepath.Join(cleanDir, name)
-		content, err := os.ReadFile(fullPath)
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(cleanDir, path)
 		if err != nil {
-			return fmt.Errorf("read stdlib file %s: %w", fullPath, err)
+			return err
+		}
+		relSlash := filepath.ToSlash(rel)
+		if strings.HasSuffix(relSlash, ".gitkeep") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read stdlib file %s: %w", path, err)
 		}
 
-		if name == "globals.d.ts" {
+		if relSlash == "globals.d.ts" {
 			newGlobals = string(content)
-			continue
+			return nil
 		}
 
-		if strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".d.ts") {
-			modName := strings.TrimSuffix(name, ".ts")
+		if strings.HasSuffix(relSlash, ".ts") && !strings.HasSuffix(relSlash, ".d.ts") {
+			modName := strings.TrimSuffix(relSlash, ".ts")
+			if strings.HasSuffix(modName, "/index") {
+				modName = strings.TrimSuffix(modName, "/index")
+			}
 			newModules[modName] = BuiltinModule{
 				Name:    modName,
 				Version: version,
 				Source:  string(content),
 			}
+		} else if strings.HasSuffix(relSlash, ".d.ts") {
+			modName := strings.TrimSuffix(relSlash, ".d.ts")
+			if strings.HasSuffix(modName, "/index") {
+				modName = strings.TrimSuffix(modName, "/index")
+			}
+			newModules[modName] = BuiltinModule{
+				Name:          modName,
+				Version:       version,
+				Source:        string(content),
+				IsDeclaration: true,
+			}
 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("read stdlib directory %s: %w", cleanDir, err)
+	}
+
+	if m, ok := newModules["stream/consumers"]; ok {
+		newModules["stream_consumers"] = BuiltinModule{Name: "stream_consumers", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
+	}
+	if m, ok := newModules["stream/promises"]; ok {
+		newModules["stream_promises"] = BuiltinModule{Name: "stream_promises", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
+	}
+	if m, ok := newModules["stream/web"]; ok {
+		newModules["webstreams"] = BuiltinModule{Name: "webstreams", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
 	}
 
 	builtinModules = newModules
@@ -281,13 +301,21 @@ func builtinModule(name string) (BuiltinModule, bool) {
 	defer stdlibMu.RUnlock()
 
 	canonical := strings.TrimPrefix(name, "node:")
-	if canonical == "stream/web" {
-		canonical = "webstreams"
-	} else if canonical == "stream/consumers" {
-		canonical = "stream_consumers"
+	if module, ok := builtinModules[canonical]; ok {
+		return module, true
 	}
-	module, ok := builtinModules[canonical]
-	return module, ok
+	switch canonical {
+	case "stream/web":
+		module, ok := builtinModules["webstreams"]
+		return module, ok
+	case "stream/consumers":
+		module, ok := builtinModules["stream_consumers"]
+		return module, ok
+	case "stream/promises":
+		module, ok := builtinModules["stream_promises"]
+		return module, ok
+	}
+	return BuiltinModule{}, false
 }
 
 // EmbeddedFS returns the embedded filesystem containing stdlib sources and declarations.

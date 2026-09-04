@@ -645,6 +645,8 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
             *out_tag = 6;
         } else if (gc_tag == 3) {
             *out_tag = 7;
+        } else if (gc_tag == 11) {
+            *out_tag = 9; // SCRIPTGO_TAG_SYMBOL
         } else if (gc_tag != 0) {
             *out_tag = 5;
         } else {

@@ -187,9 +187,24 @@ func main() {
 	workingDir := filepath.Dir(filepath.Dir(resolvedCorpus))
 
 	// Verify Node runtime
-	nodePath, err := exec.LookPath("node")
+	nodeCmd := os.Getenv("NODE_BIN")
+	if nodeCmd == "" {
+		nodeCmd = "node"
+	}
+	nodePath, err := exec.LookPath(nodeCmd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Node.js is not installed or not in PATH: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: Node.js (%s) is not installed or not in PATH: %v\n", nodeCmd, err)
+		os.Exit(1)
+	}
+
+	nodeVerOut, err := exec.Command(nodePath, "-v").Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to check Node.js version at %s: %v\n", nodePath, err)
+		os.Exit(1)
+	}
+	nodeVersion := strings.TrimSpace(string(nodeVerOut))
+	if !strings.HasPrefix(nodeVersion, "v22.") {
+		fmt.Fprintf(os.Stderr, "Error: Node.js version must be v22.x (found %s at %s). Please switch to Node.js v22 or set NODE_BIN environment variable.\n", nodeVersion, nodePath)
 		os.Exit(1)
 	}
 
@@ -247,7 +262,7 @@ func main() {
 		}
 
 		if *recordMode {
-			nodeOut, nodeErr := runWithNode(entry, *runnerType, workingDir)
+			nodeOut, nodeErr := runWithNode(entry, *runnerType, workingDir, nodePath)
 			if nodeErr != nil {
 				fmt.Fprintf(os.Stderr, "Error executing %s with Node: %v\nOutput: %s\n", entry, nodeErr, nodeOut)
 				continue
@@ -328,7 +343,7 @@ func main() {
 			var nodeOut string
 			var nodeErr error
 			if hasRunExpected {
-				nodeOut, nodeErr = runWithNode(entry, *runnerType, workingDir)
+				nodeOut, nodeErr = runWithNode(entry, *runnerType, workingDir, nodePath)
 			}
 			res.NodeOutput = nodeOut
 
@@ -516,11 +531,13 @@ func main() {
 	}
 }
 
-func runWithNode(entry, runner, workingDir string) (string, error) {
+func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
+	entry = filepath.Clean(entry)
 	absoluteEntry, err := filepath.Abs(entry)
 	if err != nil {
 		return "", fmt.Errorf("resolve Node entry point %q: %w", entry, err)
 	}
+
 	var cmd *exec.Cmd
 
 	switch runner {
@@ -530,7 +547,7 @@ func runWithNode(entry, runner, workingDir string) (string, error) {
 		cmd = exec.Command("tsc", "--noEmit", absoluteEntry)
 	default:
 		loader := "data:text/javascript,export async function resolve(specifier, context, nextResolve) { try { return await nextResolve(specifier, context); } catch (e) { if (specifier.startsWith(\"./\") || specifier.startsWith(\"../\")) { for (const ext of [\".ts\", \".js\", \"/index.ts\", \"/index.js\"]) { try { return await nextResolve(specifier + ext, context); } catch {} } } throw e; } }"
-		cmd = exec.Command("node", "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", absoluteEntry)
+		cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", "--loader", loader, "--experimental-transform-types", absoluteEntry)
 	}
 	if workingDir != "" {
 		cmd.Dir = workingDir

@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml/badge.svg)](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![TypeScript Parity](<https://img.shields.io/badge/TypeScript%20Parity-100%25%20(386%2F386)-success.svg>)](docs/typescript-parity-report.md)
+[![TypeScript Parity](<https://img.shields.io/badge/TypeScript%20Parity-96.6%25%20(366%2F379)-success.svg>)](docs/typescript-parity-report.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platforms](<https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WASM%20(WASI)-lightgrey.svg>)](#toolchain--cross-compilation)
 

@@ -5,6 +5,7 @@ import {
     inflateSync,
     gunzipSync,
 } from "node:zlib";
+import { Blob } from "node:buffer";
 
 type StreamResult = { done: boolean; value: unknown };
 type ByteStreamResult = { done: boolean; value: ArrayBufferView | undefined };
@@ -13,7 +14,17 @@ interface BlobOptions {
     type?: string;
 }
 
+interface UnderlyingByteSource {
+    type: "bytes";
+    autoAllocateChunkSize?: number;
+    start?: (controller: ReadableByteStreamController) => unknown;
+    pull?: (controller: ReadableByteStreamController) => unknown;
+    cancel?: (reason?: unknown) => unknown;
+}
+
 interface ReadableSource {
+    type?: undefined;
+    autoAllocateChunkSize?: number;
     start?: (controller: ReadableStreamDefaultController) => unknown;
     pull?: (controller: ReadableStreamDefaultController) => unknown;
     cancel?: (reason?: unknown) => unknown;
@@ -108,29 +119,7 @@ function textFromBytes(bytes: Uint8Array): string {
     return new TextDecoder().decode(bytes);
 }
 
-export class Blob {
-    size: number = 0;
-    type: string = "";
-    private _bytes: Uint8Array = new Uint8Array(0);
-
-    constructor(blobParts: unknown[] = [], options?: BlobOptions) {
-        const parts: Uint8Array[] = [];
-        for (let i = 0; i < blobParts.length; i++) {
-            parts.push(bytesFromPart(blobParts[i]));
-        }
-        this._bytes = concatBytes(parts);
-        this.size = this._bytes.length;
-        this.type = options && typeof options.type === "string" ? options.type.toLowerCase() : "";
-    }
-
-    async arrayBuffer(): Promise<ArrayBuffer> {
-        return arrayBufferFromBytes(this._bytes);
-    }
-
-    async text(): Promise<string> {
-        return textFromBytes(this._bytes);
-    }
-}
+export { Blob };
 
 export class ReadableStreamDefaultReader {
     closed: Promise<undefined> = Promise.resolve(undefined);
@@ -166,8 +155,11 @@ export class ReadableStreamBYOBRequest {
     private _controller: ReadableByteStreamController | null;
 
     constructor(controller?: ReadableByteStreamController) {
+        if (controller === undefined) {
+            throw new TypeError("Cannot construct a ReadableStreamBYOBRequest directly");
+        }
         this.view = null;
-        this._controller = controller === undefined ? null : controller;
+        this._controller = controller;
     }
 
     respond(bytesWritten: number): void {
@@ -285,22 +277,40 @@ export class ReadableStreamDefaultController {
 }
 
 export class ReadableStream {
+    static from<T>(iterable: SyncIterable<T> | AsyncIterableLike<T>): ReadableStream {
+        return from(iterable);
+    }
+
     locked: boolean = false;
     private _queue: unknown[] = [];
     private _closed: boolean = false;
     private _error: unknown = undefined;
     private _source: ReadableSource | null = null;
+    private _byteSource: UnderlyingByteSource | null = null;
     private _controller: ReadableStreamDefaultController;
 
-    constructor(underlyingSource?: ReadableSource, strategy?: unknown) {
+    constructor(underlyingSource?: ReadableSource, strategy?: unknown);
+    constructor(underlyingSource?: UnderlyingByteSource, strategy?: unknown);
+    constructor(underlyingSource?: unknown, strategy?: unknown) {
         this.locked = false;
         this._queue = [];
         this._closed = false;
         this._error = undefined;
-        this._source = underlyingSource === undefined ? null : underlyingSource;
         this._controller = new ReadableStreamDefaultController(this);
-        if (this._source !== null && typeof this._source.start === "function") {
-            this._source.start(this._controller);
+        if (underlyingSource !== undefined && underlyingSource !== null) {
+            const raw = underlyingSource as { type?: string };
+            if (raw.type === "bytes") {
+                this._byteSource = underlyingSource as UnderlyingByteSource;
+                const byteCtrl = new ReadableByteStreamController(this);
+                if (typeof this._byteSource.start === "function") {
+                    this._byteSource.start(byteCtrl);
+                }
+            } else {
+                this._source = underlyingSource as ReadableSource;
+                if (typeof this._source.start === "function") {
+                    this._source.start(this._controller);
+                }
+            }
         }
     }
 
@@ -311,6 +321,8 @@ export class ReadableStream {
         this._closed = true;
         if (this._source !== null && typeof this._source.cancel === "function") {
             await this._source.cancel(reason);
+        } else if (this._byteSource !== null && typeof this._byteSource.cancel === "function") {
+            await this._byteSource.cancel(reason);
         }
     }
 
@@ -607,6 +619,7 @@ export class TransformStream {
                 if (definition !== null && typeof definition.flush === "function") {
                     definition.flush(controller);
                 }
+                controller.terminate();
             },
         });
         if (definition !== null && typeof definition.start === "function") {

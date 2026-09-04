@@ -1,0 +1,21 @@
+ws_rs_inst: true false
+ws_reader: true true
+ws_values: true
+ws_ts: true true
+ws_tee: true true
+ws_ws_inst: true false
+ws_writer: true 1
+ws_byobReq: true
+ws_byteCtrl: true true
+ws_byobReader: true true
+ws_defaultCtrl: true 0
+ws_wsCtrl: true true
+ws_tsCtrl: true true
+ws_blStrategy: 1024 16
+ws_cntStrategy: 10 1
+ws_encStream: utf-8 true true
+ws_decStream: utf-8 false false
+ws_compStream: true true
+ws_decompStream: true true
+ws_from: true
+ws_async: true

@@ -36,7 +36,13 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 		var visitStmt func(stmt typescriptgo.SyntaxStatement)
 		visitStmt = func(stmt typescriptgo.SyntaxStatement) {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
+				if stmt.Class.Name == "" {
+					return
+				}
 				className := classIdentityForPath(fileName, stmt.Class.Name)
+				if className == "" {
+					return
+				}
 				classDef := *stmt.Class
 				if existingSyntax, exists := syntax[className]; exists {
 					if stmt.Kind == "interface" || stmt.Kind == "type_alias" {
@@ -338,6 +344,9 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 	} else if idx := strings.Index(className, "__"); idx != -1 {
 		cleanCls = className[:idx]
 	}
+	if cleanCls == "" {
+		return ir.Function{}, "", false
+	}
 	normClass := normalizeGenericName(className)
 	mangledCls := className
 	if strings.Contains(className, "<") && strings.HasSuffix(className, ">") {
@@ -368,7 +377,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 				isLoose = true
 			}
 		}
-		if !isExact && !isLoose && (meta.Extends == className || meta.Extends == cleanCls || normalizeGenericName(meta.Extends) == normClass) {
+		if meta.Extends != "" && !isExact && !isLoose && (meta.Extends == className || meta.Extends == cleanCls || normalizeGenericName(meta.Extends) == normClass) {
 			if meta.Extends == className || normalizeGenericName(meta.Extends) == normClass {
 				isExact = true
 			} else {
@@ -418,13 +427,18 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		counter := 0
 		for i, subName := range candidateSubs {
 			subMangled := subName + "_" + methodName
+			subSig := signatures[subMangled]
+			subArgs := append([]string(nil), forwardArgs...)
+			if len(subArgs) > len(subSig.Parameters) {
+				subArgs = subArgs[:len(subSig.Parameters)]
+			}
 			if i == len(candidateSubs)-1 {
 				if firstSig.ReturnType == ir.TypeVoid {
 					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
 						Op:     ir.OpCall,
 						Type:   ir.TypeVoid,
 						Callee: subMangled,
-						Args:   forwardArgs,
+						Args:   subArgs,
 					})
 					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
 						Op:   ir.OpReturn,
@@ -438,7 +452,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 						Type:   firstSig.ReturnType,
 						Result: retVal,
 						Callee: subMangled,
-						Args:   forwardArgs,
+						Args:   subArgs,
 					})
 					dispatchFn.Body = append(dispatchFn.Body, ir.Instruction{
 						Op:   ir.OpReturn,
@@ -462,7 +476,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 						Op:     ir.OpCall,
 						Type:   ir.TypeVoid,
 						Callee: subMangled,
-						Args:   forwardArgs,
+						Args:   subArgs,
 					})
 					thenBody = append(thenBody, ir.Instruction{
 						Op:   ir.OpReturn,
@@ -476,7 +490,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 						Type:   firstSig.ReturnType,
 						Result: retVal,
 						Callee: subMangled,
-						Args:   forwardArgs,
+						Args:   subArgs,
 					})
 					thenBody = append(thenBody, ir.Instruction{
 						Op:   ir.OpReturn,
@@ -649,6 +663,9 @@ func getInheritanceDepth(className string, hierarchy map[string]ClassMeta) int {
 }
 
 func isSubclassOf(subClass, baseClass string, hierarchy map[string]ClassMeta) bool {
+	if subClass == "" || baseClass == "" {
+		return false
+	}
 	curr := subClass
 	for curr != "" {
 		if curr == baseClass {
@@ -672,6 +689,9 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 	seen := map[methodKey]bool{}
 
 	for baseClass := range hierarchy {
+		if baseClass == "" {
+			continue
+		}
 		stmtClass, ok := classSyntax[baseClass]
 		if !ok {
 			continue

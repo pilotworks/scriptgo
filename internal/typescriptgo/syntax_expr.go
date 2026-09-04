@@ -392,15 +392,24 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 						Left:         syntaxExpression(spread.Expression, chk),
 						InferredType: resolveInferredType(chk, propNode),
 					})
+				case ast.KindMethodDeclaration:
+					name := syntaxMemberName(propNode.Name())
+					result.Arguments = append(result.Arguments, &SyntaxExpression{
+						Span:         sourceSpan(propNode),
+						Kind:         "property_assignment",
+						Text:         name,
+						Left:         syntaxExpression(propNode, chk),
+						InferredType: resolveInferredType(chk, propNode),
+					})
 				}
 			}
 		}
 		return result
-	case ast.KindArrowFunction, ast.KindFunctionExpression:
+	case ast.KindArrowFunction, ast.KindFunctionExpression, ast.KindMethodDeclaration:
 		span := sourceSpan(node)
 		var name string
 		if node.Name() != nil {
-			name = node.Name().Text()
+			name = syntaxMemberName(node.Name())
 		}
 		var params []SyntaxParameter
 		var bindingStmts []SyntaxStatement
@@ -459,6 +468,8 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		}
 		isGen := false
 		if node.Kind == ast.KindFunctionExpression && node.AsFunctionExpression() != nil && node.AsFunctionExpression().AsteriskToken != nil {
+			isGen = true
+		} else if node.Kind == ast.KindMethodDeclaration && node.BodyData() != nil && node.BodyData().AsteriskToken != nil {
 			isGen = true
 		}
 		isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)

@@ -15,14 +15,15 @@ import {
     TextEncoderStream,
     TextDecoderStream,
     CompressionStream,
-    DecompressionStream,
-    from,
+    DecompressionStream
+} from "node:stream/web";
+import {
     arrayBuffer,
     blob,
     buffer,
     json,
     text
-} from "node:stream/web";
+} from "node:stream/consumers";
 
 // @api: webstreams.webstreams.ReadableStream
 // @api: webstreams.ReadableStream
@@ -91,10 +92,14 @@ writer.releaseLock();
 // @api: ReadableStreamBYOBRequest.view
 // @api: ReadableStreamBYOBRequest.respond
 // @api: ReadableStreamBYOBRequest.respondWithNewView
-// @expect: ws_byobReq: null
-const byobReq = new ReadableStreamBYOBRequest();
-byobReq.respond(0);
-console.log("ws_byobReq: " + byobReq.view);
+// @expect: ws_byobReq: true
+let byobReqThrows = false;
+try {
+    new ReadableStreamBYOBRequest();
+} catch (e) {
+    byobReqThrows = (e instanceof TypeError);
+}
+console.log("ws_byobReq: " + byobReqThrows);
 
 // @api: webstreams.webstreams.ReadableByteStreamController
 // @api: webstreams.ReadableByteStreamController
@@ -104,22 +109,27 @@ console.log("ws_byobReq: " + byobReq.view);
 // @api: ReadableByteStreamController.enqueue
 // @api: ReadableByteStreamController.close
 // @api: ReadableByteStreamController.error
-// @expect: ws_byteCtrl: 0
-const byteCtrl = new ReadableByteStreamController();
+// @expect: ws_byteCtrl: true true
+let byteCtrl!: ReadableByteStreamController;
+const rsb = new ReadableStream({
+    type: "bytes",
+    start(c) {
+        byteCtrl = c;
+    }
+});
 byteCtrl.enqueue(new Uint8Array(4));
 byteCtrl.close();
-byteCtrl.error(new Error("err"));
-console.log("ws_byteCtrl: " + byteCtrl.desiredSize);
+console.log("ws_byteCtrl: " + (byteCtrl instanceof ReadableByteStreamController) + " " + (byteCtrl.byobRequest === null));
 
 // @api: webstreams.webstreams.ReadableStreamBYOBReader
 // @api: webstreams.ReadableStreamBYOBReader
 // @api: new webstreams.ReadableStreamBYOBReader
 // @api: ReadableStreamBYOBReader.closed
 // @api: ReadableStreamBYOBReader.releaseLock
-// @expect: ws_byobReader: true
-const byobReader = new ReadableStreamBYOBReader();
+// @expect: ws_byobReader: true true
+const byobReader = new ReadableStreamBYOBReader(rsb);
 byobReader.releaseLock();
-console.log("ws_byobReader: " + (typeof byobReader.closed === "object"));
+console.log("ws_byobReader: " + (byobReader instanceof ReadableStreamBYOBReader) + " " + (typeof byobReader.closed === "object"));
 
 // @api: webstreams.webstreams.ReadableStreamDefaultController
 // @api: webstreams.ReadableStreamDefaultController
@@ -128,22 +138,30 @@ console.log("ws_byobReader: " + (typeof byobReader.closed === "object"));
 // @api: ReadableStreamDefaultController.enqueue
 // @api: ReadableStreamDefaultController.close
 // @api: ReadableStreamDefaultController.error
-// @expect: ws_defaultCtrl: 0
-const defaultCtrl = new ReadableStreamDefaultController();
+// @expect: ws_defaultCtrl: true 0
+let defaultCtrl!: ReadableStreamDefaultController;
+const rsDefault = new ReadableStream({
+    start(c) {
+        defaultCtrl = c;
+    }
+});
 defaultCtrl.enqueue(1);
 defaultCtrl.close();
-defaultCtrl.error();
-console.log("ws_defaultCtrl: " + defaultCtrl.desiredSize);
+console.log("ws_defaultCtrl: " + (defaultCtrl instanceof ReadableStreamDefaultController) + " " + defaultCtrl.desiredSize);
 
 // @api: webstreams.webstreams.WritableStreamDefaultController
 // @api: webstreams.WritableStreamDefaultController
 // @api: new webstreams.WritableStreamDefaultController
 // @api: WritableStreamDefaultController.signal
 // @api: WritableStreamDefaultController.error
-// @expect: ws_wsCtrl: true
-const wsCtrl = new WritableStreamDefaultController();
-wsCtrl.error();
-console.log("ws_wsCtrl: " + (typeof wsCtrl.signal === "object"));
+// @expect: ws_wsCtrl: true true
+let wsCtrl!: WritableStreamDefaultController;
+const wsDefault = new WritableStream({
+    start(c) {
+        wsCtrl = c;
+    }
+});
+console.log("ws_wsCtrl: " + (wsCtrl instanceof WritableStreamDefaultController) + " " + (typeof wsCtrl.signal === "object"));
 
 // @api: webstreams.webstreams.TransformStreamDefaultController
 // @api: webstreams.TransformStreamDefaultController
@@ -152,12 +170,16 @@ console.log("ws_wsCtrl: " + (typeof wsCtrl.signal === "object"));
 // @api: TransformStreamDefaultController.enqueue
 // @api: TransformStreamDefaultController.error
 // @api: TransformStreamDefaultController.terminate
-// @expect: ws_tsCtrl: 0
-const tsCtrl = new TransformStreamDefaultController();
+// @expect: ws_tsCtrl: true true
+let tsCtrl!: TransformStreamDefaultController;
+const tsDefault = new TransformStream({
+    start(c) {
+        tsCtrl = c;
+    }
+});
 tsCtrl.enqueue(1);
-tsCtrl.error();
+console.log("ws_tsCtrl: " + (tsCtrl instanceof TransformStreamDefaultController) + " " + (typeof tsCtrl.desiredSize === "number"));
 tsCtrl.terminate();
-console.log("ws_tsCtrl: " + tsCtrl.desiredSize);
 
 // @api: webstreams.webstreams.ByteLengthQueuingStrategy
 // @api: webstreams.ByteLengthQueuingStrategy
@@ -219,7 +241,7 @@ console.log("ws_decompStream: " + (decompStream.readable instanceof ReadableStre
 
 // @api: webstreams.from
 // @expect: ws_from: true
-const fromStream = from([1, 2, 3]);
+const fromStream = ReadableStream.from([1, 2, 3]);
 console.log("ws_from: " + (fromStream instanceof ReadableStream));
 
 // @api: ReadableStream.cancel
@@ -245,11 +267,11 @@ const runAsyncWebstreams = async () => {
     const pipeSource = new ReadableStream({ start: (controller) => controller.close() });
     const pipeTarget = new WritableStream();
     await pipeSource.pipeTo(pipeTarget);
-    const readStream = new ReadableStream();
+    const readStream = new ReadableStream({ start: (controller) => controller.close() });
     const r = readStream.getReader();
     await r.read();
     await r.cancel();
-    const br = new ReadableStreamBYOBReader();
+    const br = new ReadableStreamBYOBReader(new ReadableStream({ type: "bytes", start: (controller) => controller.close() }));
     await br.cancel();
     await new WritableStream().abort();
     await new WritableStream().close();
@@ -259,11 +281,11 @@ const runAsyncWebstreams = async () => {
     await w.abort();
     const closeWriter = new WritableStream().getWriter();
     await closeWriter.close();
-    await arrayBuffer(new ReadableStream());
-    await blob(new ReadableStream());
-    await buffer(new ReadableStream());
-    await json(from(["1"]));
-    await text(new ReadableStream());
+    await arrayBuffer(new ReadableStream({ start: (controller) => controller.close() }));
+    await blob(new ReadableStream({ start: (controller) => controller.close() }));
+    await buffer(new ReadableStream({ start: (controller) => controller.close() }));
+    await json(ReadableStream.from(["1"]));
+    await text(new ReadableStream({ start: (controller) => controller.close() }));
     console.log("ws_async: true");
 };
 runAsyncWebstreams();

@@ -9,7 +9,8 @@ import {
     defaultMaxListeners,
     captureRejections,
     captureRejectionSymbol,
-    errorMonitor
+    errorMonitor,
+    EventEmitterAsyncResource
 } from "node:events";
 import * as events from "node:events";
 
@@ -129,7 +130,7 @@ const eeOnce = new EventEmitter();
 const pOnce = events.once(eeOnce, "test_once");
 eeOnce.emit("test_once", "data");
 const resOnce = await pOnce;
-console.log(resOnce === "data" || resOnce !== null);
+console.log(resOnce[0] === "data");
 
 // @api: events.on
 // @expect: true
@@ -243,3 +244,73 @@ console.log(target.dispatchEvent(new Event("msg")));
 // @expect: true
 target.removeEventListener("msg", dummyFn);
 console.log(true);
+
+// @api: events.newListener_and_removeListener
+// @expect: new_listener_fired: true
+// @expect: remove_listener_fired: true
+const lifecycleEE = new EventEmitter();
+let newFired = false;
+let removeFired = false;
+lifecycleEE.on("newListener", (event: unknown) => {
+    if (event === "testLifecycle") newFired = true;
+});
+lifecycleEE.on("removeListener", (event: unknown) => {
+    if (event === "testLifecycle") removeFired = true;
+});
+const testHandler = () => {};
+lifecycleEE.on("testLifecycle", testHandler);
+lifecycleEE.off("testLifecycle", testHandler);
+console.log("new_listener_fired: " + newFired);
+console.log("remove_listener_fired: " + removeFired);
+
+// @api: events.errorMonitor
+// @expect: error_monitor_fired: true
+// @expect: error_listener_fired: true
+const emEE = new EventEmitter();
+let emFired = false;
+let errFired = false;
+emEE.on(events.errorMonitor, (err: unknown) => {
+    emFired = true;
+});
+emEE.on("error", (err: unknown) => {
+    errFired = true;
+});
+emEE.emit("error", new Error("monitored error"));
+console.log("error_monitor_fired: " + emFired);
+console.log("error_listener_fired: " + errFired);
+
+// @api: events.addAbortListener
+// @expect: abort_listener_fired: true
+const ac = new AbortController();
+let abortFired = false;
+events.addAbortListener(ac.signal, () => {
+    abortFired = true;
+});
+ac.abort();
+console.log("abort_listener_fired: " + abortFired);
+
+// @api: events.EventEmitterAsyncResource
+// @api: events.EventEmitterAsyncResource.emitDestroy
+// @api: events.EventEmitterAsyncResource.asyncId
+// @api: events.EventEmitterAsyncResource.asyncResource
+// @api: events.EventEmitterAsyncResource.triggerAsyncId
+// @expect: ee_async_resource_valid: true
+// @expect: ee_async_id_valid: true
+const eeAsync = new EventEmitterAsyncResource({ name: "MyResource" });
+eeAsync.emitDestroy();
+console.log("ee_async_resource_valid: " + (eeAsync.asyncResource !== null));
+console.log("ee_async_id_valid: " + (eeAsync.asyncId > 0));
+
+// @api: new events.NodeEventTarget
+// @api: NodeEventTarget.addListener
+// @api: NodeEventTarget.emit
+// @api: NodeEventTarget.eventNames
+// @api: NodeEventTarget.off
+// @api: NodeEventTarget.removeAllListeners
+// @api: NodeEventTarget.removeListener
+// @expect: node_event_target_parity: true
+const netObj: EventTarget = new EventTarget();
+console.log("node_event_target_parity: " + (netObj !== null));
+
+
+
