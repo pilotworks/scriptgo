@@ -6,9 +6,9 @@
 
 [![CI](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml/badge.svg)](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![TypeScript Parity](<https://img.shields.io/badge/TypeScript%20Parity-96.6%25%20(366%2F379)-success.svg>)](docs/typescript-parity-report.md)
+[![TypeScript Parity](<https://img.shields.io/badge/TypeScript%20Parity-100%25%20(386%2F386)-success.svg>)](docs/typescript-parity-report.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platforms](<https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WASM%20(WASI)-lightgrey.svg>)](#toolchain--cross-compilation)
+[![Platforms](<https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20WASM%20(WASI)-lightgrey.svg>)](#toolchain--cross-compilation)
 
 **A high-performance Ahead-Of-Time (AOT) compiler compiling TypeScript to native standalone executables and WebAssembly (WASI) modules with Node.js parity.**
 
@@ -23,29 +23,28 @@
 ## Highlights & Features
 
 - **High-Performance AOT Compilation**: Compiles TypeScript directly to native machine code (Mach-O, ELF, PE) and WebAssembly (`.wasm`) via LLVM.
-- **Node.js Semantic Parity**: High parity across the 379-case regression test corpus checked against Node.js v22+ (366/379 native pass rate, 96.6%).
-- **WebAssembly / WASI Target**: First-class Ahead-Of-Time compilation to standalone `.wasm` executables with `--target wasm32-wasi`, runnable across Node.js WASI, Wasmtime, Wasmer, and Edge runtimes.
+- **Node.js Semantic Parity**: Full parity across the 386-case regression test corpus checked against Node.js v22+ (386/386, 100%).
+- **WebAssembly / WASI Target**: First-class Ahead-Of-Time compilation to standalone `.wasm` executables with `--target wasm32-wasi`, validated on Node.js WASI and Wasmtime.
 - **Zero-Dependency Native Builds**: Automatically uses system `clang` or auto-detects `zig cc` for hassle-free out-of-the-box compilation and seamless cross-compilation (macOS, Linux, Windows, WASM).
 - **Fast Execution**: Instantly compiles and runs scripts directly or produces optimized standalone binary builds.
-- **Modern TypeScript & ECMAScript (ES2022 - ES2024)**:
+- **Modern TypeScript & ECMAScript (ES2022 - ES2025)**:
   - **Explicit Resource Management**: Full `using` and `await using` resource disposal with `Symbol.dispose` and `Symbol.asyncDispose`.
   - **ES2024 Set Methods**: `union()`, `intersection()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`.
   - **ES2024 Utilities**: `Promise.withResolvers()`, `Object.groupBy()`, `Map.groupBy()`, `Array.fromAsync()`.
+  - **ES2025 Iterator Helpers**: `Iterator.from()`, `map()`, `filter()`, `take()`, `drop()`, `flatMap()`, `reduce()`, `toArray()`, `forEach()`, `some()`, `every()`, `find()`.
   - **Types & Primitives**: `number` (IEEE-754), `bigint`, `string` (UTF-8), `boolean`, `symbol` (with Symbol Registry), `null`, `undefined`, `unknown` (with type narrowing), Tuples, Enums (numeric, string, reverse mappings), Union types (`T | null | undefined`), Monomorphized Generics.
   - **Control Flow**: `if`/`else`, `switch`/`case` (with fallthrough), `while`, `do..while`, `for`, `for..of`, `for..in`, `for await..of`, Labeled statements (`break label`, `continue label`), `try`/`catch`/`finally`, `throw`, Array & Object destructuring, Spread/Rest (`...`), Tagged template literals, Optional chaining & calls (`?.`, `fn?.()`).
   - **Functions & Closures**: Lexical closures, arrow functions, default/optional/rest parameters, Generators (`function*`, `yield`, `yield*`), Async Generators.
   - **OOP & Classes**: Constructors, properties, static fields/methods, Class Static Blocks (`static { ... }`), Getters/Setters, Inheritance (`extends`, `super`), Polymorphic VTables, `instanceof`.
   - **Async Runtime**: `Promise` (resolve, reject, chaining), `async`/`await`, microtask queue execution conforming to JavaScript event loop ordering.
   - **Web Standards & WinterCG**: Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`), `URL`, `URLSearchParams`, `TextEncoder`/`TextDecoder`, `AbortController`/`AbortSignal`.
-  - **Node.js Standard Library**: High-performance native implementations for core Node.js modules (`node:fs`, `node:path`, `node:os`, `node:process`, `node:crypto`, `node:buffer`, `node:http`, `node:net`, `node:dgram`, `node:events`, `node:stream`, `node:assert`, `node:util`, `node:timers`, `node:zlib`, `node:tls`, `node:sqlite`). All placeholder/dummy stubs strictly removed.
+  - **Node.js Standard Library**: High-performance native implementations for core Node.js modules (`node:fs`, `node:path`, `node:os`, `node:process`, `node:crypto`, `node:buffer`, `node:http`, `node:net`, `node:dgram`, `node:dns`, `node:domain`, `node:events`, `node:stream`, `node:assert`, `node:child_process`, `node:module`, `node:querystring`, `node:util`, `node:timers`, `node:zlib`, `node:tls`, `node:sqlite`). All placeholder/dummy stubs strictly removed.
 
 ---
 
 ## Documentation
 
 - [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md) - Comprehensive TypeScript/Node.js feature matrix and parity test report.
-- [`docs/webassembly-wasi-architecture.md`](docs/webassembly-wasi-architecture.md) - WebAssembly & WASI compilation architecture and execution pipeline.
-- [`docs/native-optimization-pipeline.md`](docs/native-optimization-pipeline.md) - Multi-level Dead Code Elimination (DCE), Link-Time Optimization (LTO), and Memory Layout.
 - [`docs/native-subset.md`](docs/native-subset.md) - Native static subset definition and compatibility constraints.
 - [`docs/compilation-tiers.md`](docs/compilation-tiers.md) - Static, Dynamic (QuickJS-ng island), and Unsupported compilation policy.
 - [`docs/application-structure.md`](docs/application-structure.md) - Repository architecture, package ownership, and dependency direction.
