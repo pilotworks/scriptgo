@@ -48,6 +48,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install parity Node dependencies
+        run: npm ci --prefix internal/compiler
+
       - name: Setup Zig (for WebAssembly / WASI & Cross-Compilation)
         uses: mlugg/setup-zig@v1
         with:

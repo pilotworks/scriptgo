@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install parity Node dependencies
+        run: npm ci --prefix internal/compiler
+
       - name: Setup Zig (WebAssembly & Cross-Toolchain)
         uses: mlugg/setup-zig@v1
         with:
@@ -286,4 +289,3 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
-
