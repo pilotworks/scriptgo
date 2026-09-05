@@ -205,7 +205,3 @@ func branchSchedule(base string, index int, await ir.Instruction, fulfilled, rej
 		{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_schedule_resume_pair", Args: []string{await.Args[0], fmt.Sprintf("%s.fulfilled.closure.%d", base, index), fmt.Sprintf("%s.rejected.closure.%d", base, index)}, Span: await.Span},
 	}
 }
-
-func settleWithoutReturn(promiseName, frameName string, span ir.SourceSpan) []ir.Instruction {
-	return []ir.Instruction{{Op: ir.OpConst, Type: ir.TypeUnknown, Result: "__async.undefined", Value: "undefined", Span: span}, {Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_resolve_existing", Args: []string{promiseName, "__async.undefined"}, Span: span}, {Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.frame_release", Args: []string{frameName}, Span: span}}
-}

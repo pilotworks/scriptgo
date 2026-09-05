@@ -38,15 +38,11 @@ func lowerStructuredAsyncLoopLinearMulti(path string, statement typescriptgo.Syn
 	for _, segment := range segments {
 		scope = append(scope, segment...)
 	}
-	for _, await := range awaits {
-		scope = append(scope, await)
-	}
+	scope = append(scope, awaits...)
 	for _, segment := range tailSegments {
 		scope = append(scope, segment...)
 	}
-	for _, await := range tailAwaits {
-		scope = append(scope, await)
-	}
+	scope = append(scope, tailAwaits...)
 	captures := asyncCaptures(scope, valueTypes, lowered.Parameters)
 	seen := map[string]bool{}
 	for _, name := range captures {

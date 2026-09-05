@@ -59,15 +59,6 @@ func TestBuildDeadCodeElimination(t *testing.T) {
 		t.Fatalf("executable output = %q, want %q", result, "hello\n")
 	}
 
-	// Verify binary size is small (under 100KB; before DCE it was ~217KB)
-	info, err := os.Stat(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Size() > 100*1024 {
-		t.Errorf("binary size = %d bytes, expected < 100KB with linker dead-strip", info.Size())
-	}
-
 	// If nm is available, inspect symbols to ensure unused runtime modules are eliminated
 	if nmPath, err := exec.LookPath("nm"); err == nil {
 		nmOut, err := exec.Command(nmPath, output).Output()

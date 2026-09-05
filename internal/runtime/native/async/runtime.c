@@ -677,7 +677,7 @@ int scriptgo_promise_then(void *promise_handle, void *on_fulfilled_closure, void
 	scriptgo_promise *result = NULL;
 	if (p == NULL || out_result == NULL) return scriptgo_runtime_set_error("scriptgo promise then failed");
 	if (scriptgo_promise_create((void **)&result) != 0) return -1;
-	scriptgo_reaction *r = malloc(sizeof(scriptgo_reaction));
+	scriptgo_reaction *r = calloc(1, sizeof(*r));
     if (r == NULL) return scriptgo_runtime_set_error("scriptgo promise reaction allocation failed");
 	r->on_fulfilled = (scriptgo_closure_inner *)on_fulfilled_closure;
 	r->on_rejected = (scriptgo_closure_inner *)on_rejected_closure;

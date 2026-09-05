@@ -228,16 +228,6 @@ func hasStructuredAwait(instructions []ir.Instruction) bool {
 	return false
 }
 
-func stripReturn(instructions []ir.Instruction) []ir.Instruction {
-	result := make([]ir.Instruction, 0, len(instructions))
-	for _, instruction := range instructions {
-		if instruction.Op != ir.OpReturn {
-			result = append(result, instruction)
-		}
-	}
-	return result
-}
-
 // rewriteAsyncReturns converts early returns in structured prefix instructions
 // into settlement of the outer promise before returning from the async entry.
 func rewriteAsyncReturns(instructions []ir.Instruction, promiseName, frameName string, span ir.SourceSpan) []ir.Instruction {
@@ -313,32 +303,6 @@ func lowerAsyncImmediateFunction(path string, statement typescriptgo.SyntaxState
 		result.Body = append(result.Body, ir.Instruction{Op: ir.OpReturn, Type: result.ReturnType, Args: []string{promiseName}, Span: result.Span})
 	}
 	return result, nil
-}
-
-func findReturnValue(instructions []ir.Instruction) string {
-	for i := len(instructions) - 1; i >= 0; i-- {
-		if instructions[i].Op == ir.OpReturn && len(instructions[i].Args) > 0 {
-			return instructions[i].Args[0]
-		}
-	}
-	return ""
-}
-
-func appendAsyncResolve(function *ir.Function, promiseName, value string, span ir.SourceSpan) (ir.Function, error) {
-	if value == "" {
-		value = appendResolvedPromiseUndefined(function, new(int), span)
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{value}, Span: span})
-		return *function, nil
-	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeVoid,
-		Callee: "__async.promise_resolve_existing",
-		Args:   []string{promiseName, value},
-		Span:   span,
-	})
-	function.Body = append(function.Body, ir.Instruction{Op: ir.OpReturn, Type: function.ReturnType, Args: []string{promiseName}, Span: span})
-	return *function, nil
 }
 
 func appendAsyncSuspension(function *ir.Function, promiseName, frameName string, awaits []ir.Instruction, segments [][]ir.Instruction, index int, source ir.Function, path string, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) {
@@ -433,54 +397,6 @@ func makeAsyncContinuation(owner *ir.Function, promiseName, frameName string, aw
 		ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: rejectedClosure, Callee: reject.Name, Args: captures, Span: awaits[index].Span},
 	)
 	return fulfilledClosure, rejectedClosure
-}
-
-func segmentWithoutReturn(segment []ir.Instruction) []ir.Instruction {
-	result := make([]ir.Instruction, 0, len(segment))
-	for _, instruction := range segment {
-		if instruction.Op != ir.OpReturn {
-			result = append(result, instruction)
-		}
-	}
-	return result
-}
-
-func rewriteAsyncContinuationThrows(instructions []ir.Instruction, promiseName, frameName string) []ir.Instruction {
-	result := make([]ir.Instruction, 0, len(instructions))
-	for _, instruction := range instructions {
-		instruction.Then = rewriteAsyncContinuationThrows(instruction.Then, promiseName, frameName)
-		instruction.Else = rewriteAsyncContinuationThrows(instruction.Else, promiseName, frameName)
-		instruction.Cond = rewriteAsyncContinuationThrows(instruction.Cond, promiseName, frameName)
-		instruction.Body = rewriteAsyncContinuationThrows(instruction.Body, promiseName, frameName)
-		instruction.Step = rewriteAsyncContinuationThrows(instruction.Step, promiseName, frameName)
-		instruction.Catch = rewriteAsyncContinuationThrows(instruction.Catch, promiseName, frameName)
-		instruction.Finally = rewriteAsyncContinuationThrows(instruction.Finally, promiseName, frameName)
-		if instruction.Op != ir.OpThrow {
-			result = append(result, instruction)
-			continue
-		}
-		value := "__async.undefined"
-		if len(instruction.Args) > 0 {
-			value = instruction.Args[0]
-		} else {
-			result = append(result, ir.Instruction{Op: ir.OpConst, Type: ir.TypeUnknown, Result: value, Value: "undefined", Span: instruction.Span})
-		}
-		result = append(result,
-			ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_reject_existing", Args: []string{promiseName, value}, Span: instruction.Span},
-			ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.frame_release", Args: []string{frameName}, Span: instruction.Span},
-			ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: instruction.Span},
-		)
-	}
-	return result
-}
-
-func findFirstAwait(instructions []ir.Instruction) ir.Instruction {
-	for _, instruction := range instructions {
-		if instruction.Op == ir.OpCall && strings.HasPrefix(instruction.Callee, "__async.await") {
-			return instruction
-		}
-	}
-	return ir.Instruction{}
 }
 
 func asyncValueTypes(function ir.Function) map[string]ir.Type {

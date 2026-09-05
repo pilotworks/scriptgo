@@ -501,7 +501,7 @@ int scriptgo_object_is_extensible(void *handle, int32_t *out_result) {
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+	if (is_invalid_object_handle(handle) || !scriptgo_gc_is_registered(handle) || index < 0 || index >= 64) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
@@ -644,10 +644,10 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
-        *out_value = (void *)&scriptgo_undefined_sentinel;
-        return 0;
-    }
+	if (is_invalid_object_handle(handle) || !scriptgo_gc_is_registered(handle) || index < 0 || index >= 64) {
+		*out_value = (void *)&scriptgo_undefined_sentinel;
+		return 0;
+	}
     scriptgo_object *o = (scriptgo_object *)handle;
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
@@ -790,7 +790,7 @@ int scriptgo_object_property_number_get(void *handle, const char *property, doub
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property number output is invalid");
     *out_value = NAN;
-    if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+	if (is_invalid_object_handle(handle) || property == NULL || !scriptgo_gc_is_registered(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_number_get(handle, index, out_value);
 }

@@ -67,23 +67,6 @@ func addPkgConfigCodec(config *nativeCodecConfig, define string, packages ...str
 	return true
 }
 
-func linkAvailable(libraries ...string) bool {
-	cc, err := exec.LookPath("cc")
-	if err != nil {
-		cc, err = exec.LookPath("clang")
-		if err != nil {
-			return false
-		}
-	}
-	args := []string{"-x", "c", "-", "-o", "/dev/null"}
-	for _, library := range libraries {
-		args = append(args, "-l"+library)
-	}
-	cmd := exec.Command(cc, args...)
-	cmd.Stdin = bytes.NewBufferString("int main(void) { return 0; }\n")
-	return cmd.Run() == nil
-}
-
 func linkAvailableFiles(files ...string) bool {
 	cc, err := exec.LookPath("cc")
 	if err != nil {

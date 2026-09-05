@@ -228,10 +228,10 @@ func lowerStructuredAsyncLoopTry(path string, statement typescriptgo.SyntaxState
 	runner.Body = append(runner.Body, loop.Cond...)
 	await := awaits[0]
 	schedule := []ir.Instruction{
-		ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: fulfilledClosure, Callee: successName, Args: continuationCaptures, Span: await.Span},
-		ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: rejectedClosure, Callee: rejectName, Args: continuationCaptures, Span: await.Span},
-		ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_schedule_resume_pair", Args: []string{await.Args[0], fulfilledClosure, rejectedClosure}, Span: await.Span},
-		ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: await.Span},
+		{Op: ir.OpClosure, Type: ir.TypeClosure, Result: fulfilledClosure, Callee: successName, Args: continuationCaptures, Span: await.Span},
+		{Op: ir.OpClosure, Type: ir.TypeClosure, Result: rejectedClosure, Callee: rejectName, Args: continuationCaptures, Span: await.Span},
+		{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_schedule_resume_pair", Args: []string{await.Args[0], fulfilledClosure, rejectedClosure}, Span: await.Span},
+		{Op: ir.OpReturn, Type: ir.TypeVoid, Span: await.Span},
 	}
 	runner.Body = append(runner.Body, ir.Instruction{Op: ir.OpIf, Type: ir.TypeVoid, Args: []string{loop.Args[0]}, Then: append(append([]ir.Instruction{}, segments[0]...), schedule...), Else: tail, Span: loop.Span})
 

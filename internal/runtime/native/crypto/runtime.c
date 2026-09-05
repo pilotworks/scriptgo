@@ -27,10 +27,10 @@ typedef struct {
 } scriptgo_random_fill_callback;
 
 static void scriptgo_random_fill_complete(
-    void *env, int32_t t0, int32_t p0, int64_t v0,
-    int32_t t1, int32_t p1, int64_t v1,
-    int32_t t2, int32_t p2, int64_t v2,
-    int32_t t3, int32_t p3, int64_t v3) {
+    void *env, uint32_t t0, uint32_t p0, uint64_t v0,
+    uint32_t t1, uint32_t p1, uint64_t v1,
+    uint32_t t2, uint32_t p2, uint64_t v2,
+    uint32_t t3, uint32_t p3, uint64_t v3) {
     scriptgo_random_fill_callback *ctx = (scriptgo_random_fill_callback *)env;
     scriptgo_boxed_value error = {1, 0, 0};
     scriptgo_boxed_value buffer = {5, 0, (int64_t)(uintptr_t)ctx->buffer};

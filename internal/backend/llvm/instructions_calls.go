@@ -1292,10 +1292,6 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fn := "scriptgo_promise_resolve_existing"
-		if instruction.Callee == "__async.promise_reject_existing" {
-			fn = "scriptgo_promise_reject_existing"
-		}
 		argType := e.types[instruction.Args[1]]
 		argVal := e.resolveArg(out, instruction.Args[1])
 		if instruction.Callee == "__async.promise_resolve_existing" && argType == ir.TypeNumber {
@@ -1308,6 +1304,7 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		} else if instruction.Callee == "__async.promise_resolve_existing" && isJSArrayType(argType) {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_existing_array(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], argVal))
 		} else {
+			fn := "scriptgo_promise_resolve_existing_boxed"
 			boxed := fmt.Sprintf("promise.existing.box.%d", e.loadCounter)
 			e.loadCounter++
 			if err := e.emitBoxValue(out, argVal, argType, boxed); err != nil {
@@ -1318,7 +1315,6 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 			e.loadCounter++
 			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, boxed))
 			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, boxed))
-			fn = "scriptgo_promise_resolve_existing_boxed"
 			if instruction.Callee == "__async.promise_reject_existing" {
 				fn = "scriptgo_promise_reject_existing_boxed"
 			}
