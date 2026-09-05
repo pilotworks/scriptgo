@@ -20,7 +20,7 @@ console.log(out2_child_process_exec_sync_0.trim());
 // @expect: 0
 const args_child_process_spawn_sync_1: string[] = ["Hello", "from", "spawnSync"];
 const res_child_process_spawn_sync_1 = spawnSync("echo", args_child_process_spawn_sync_1);
-console.log(res_child_process_spawn_sync_1.stdout.trim());
+console.log(res_child_process_spawn_sync_1.stdout.toString().trim());
 console.log(res_child_process_spawn_sync_1.status);
 
 // --- Context Case: scenarios_modules_node_prefix ---

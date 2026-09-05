@@ -10,16 +10,16 @@ import {
 // @api: child_process.execSync
 // @expect: execSync_res: hello
 const execSyncOut = execSync("echo hello");
-console.log("execSync_res: " + execSyncOut.trim());
+console.log("execSync_res: " + execSyncOut.toString().trim());
 
 // @api: child_process.spawnSync
 // @expect: spawnSync_res: hello
 // @expect: spawnSync_status: 0
 const spawnSyncRet = spawnSync("echo", ["hello"]);
-console.log("spawnSync_res: " + spawnSyncRet.stdout.trim());
+console.log("spawnSync_res: " + spawnSyncRet.stdout.toString().trim());
 console.log("spawnSync_status: " + spawnSyncRet.status);
 
 // @api: child_process.execFileSync
 // @expect: execFileSync_res: hello
 const execFileSyncOut = execFileSync("echo", ["hello"]);
-console.log("execFileSync_res: " + execFileSyncOut.trim());
+console.log("execFileSync_res: " + execFileSyncOut.toString().trim());

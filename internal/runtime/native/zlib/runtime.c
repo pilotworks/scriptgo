@@ -6,11 +6,63 @@
 #include <zlib.h>
 #endif
 #ifdef SCRIPTGO_HAS_BROTLI
+#if defined(__has_include)
+#if __has_include(<brotli/decode.h>) && __has_include(<brotli/encode.h>)
 #include <brotli/decode.h>
 #include <brotli/encode.h>
+#else
+#define SCRIPTGO_BROTLI_ABI_DECLS
+#endif
+#else
+#define SCRIPTGO_BROTLI_ABI_DECLS
+#endif
+#ifdef SCRIPTGO_BROTLI_ABI_DECLS
+typedef int BROTLI_BOOL;
+typedef enum {
+    BROTLI_DECODER_RESULT_ERROR = 0,
+    BROTLI_DECODER_RESULT_SUCCESS = 1,
+    BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT = 2,
+    BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT = 3
+} BrotliDecoderResult;
+typedef struct BrotliDecoderStateStruct BrotliDecoderState;
+size_t BrotliEncoderMaxCompressedSize(size_t input_size);
+BROTLI_BOOL BrotliEncoderCompress(int quality, int lgwin, int mode, size_t input_size,
+                                   const uint8_t *input, size_t *encoded_size, uint8_t *encoded_buffer);
+BrotliDecoderState *BrotliDecoderCreateInstance(void *alloc_func, void *free_func, void *opaque);
+void BrotliDecoderDestroyInstance(BrotliDecoderState *state);
+BrotliDecoderResult BrotliDecoderDecompressStream(BrotliDecoderState *state,
+    size_t *available_in, const uint8_t **next_in, size_t *available_out,
+    uint8_t **next_out, uint8_t *total_out);
+#define BROTLI_DEFAULT_QUALITY 11
+#define BROTLI_DEFAULT_WINDOW 22
+#define BROTLI_MODE_GENERIC 0
+#endif
 #endif
 #ifdef SCRIPTGO_HAS_ZSTD
+#if defined(__has_include)
+#if __has_include(<zstd.h>)
 #include <zstd.h>
+#else
+#define SCRIPTGO_ZSTD_ABI_DECLS
+#endif
+#else
+#define SCRIPTGO_ZSTD_ABI_DECLS
+#endif
+#ifdef SCRIPTGO_ZSTD_ABI_DECLS
+typedef struct ZSTD_DStream_s ZSTD_DStream;
+typedef struct { const void *src; size_t size; size_t pos; } ZSTD_inBuffer;
+typedef struct { void *dst; size_t size; size_t pos; } ZSTD_outBuffer;
+size_t ZSTD_compressBound(size_t srcSize);
+size_t ZSTD_compress(void *dst, size_t dstCapacity, const void *src, size_t srcSize, int compressionLevel);
+unsigned ZSTD_isError(size_t code);
+unsigned long long ZSTD_getFrameContentSize(const void *src, size_t srcSize);
+ZSTD_DStream *ZSTD_createDStream(void);
+size_t ZSTD_initDStream(ZSTD_DStream *zds);
+size_t ZSTD_decompressStream(ZSTD_DStream *zds, ZSTD_outBuffer *output, ZSTD_inBuffer *input);
+size_t ZSTD_freeDStream(ZSTD_DStream *zds);
+#define ZSTD_CONTENTSIZE_UNKNOWN (18446744073709551615ULL)
+#define ZSTD_CONTENTSIZE_ERROR (18446744073709551614ULL)
+#endif
 #endif
 
 int scriptgo_runtime_set_error(const char *message);

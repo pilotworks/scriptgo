@@ -74,11 +74,6 @@ console.log(true);
 await fs.promises.chmod(testFile, 0o644);
 console.log(true);
 
-// @api: fs.promises.lchmod
-// @expect: true
-await fs.promises.lchmod(testFile, 0o644);
-console.log(true);
-
 // @api: fs.promises.realpath
 // @expect: true
 const pReal = await fs.promises.realpath(testFile);

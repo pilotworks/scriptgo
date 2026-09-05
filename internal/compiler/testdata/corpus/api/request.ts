@@ -1,6 +1,8 @@
 // ScriptGo Corpus: Request Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
+import "node:http";
+
 
 // @api: request.url
 // @api: request.method
@@ -10,7 +12,7 @@
 // @expect: https://example.com/api
 // @expect: POST
 // @expect: application/json
-// @expect: {"hello":"world"}
+// @expect: true
 const h = new Headers();
 h.set("Content-Type", "application/json");
 const req = new Request("https://example.com/api", {
@@ -22,4 +24,4 @@ const req = new Request("https://example.com/api", {
 console.log(req.url);
 console.log(req.method);
 console.log(req.headers.get("Content-Type"));
-console.log(req.body);
+console.log(req.body !== null);

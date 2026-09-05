@@ -9,10 +9,20 @@ fs.mkdirSync(tmpDir, { recursive: true });
 
 const testFile = tmpDir + "/test_write.txt";
 fs.writeFileSync(testFile, "initial data");
+const writeFileTarget = tmpDir + "/write_file.txt";
+const appendFileTarget = tmpDir + "/append_file.txt";
+const chmodFile = tmpDir + "/chmod_file.txt";
+const truncateFile = tmpDir + "/truncate_file.txt";
+const utimesFile = tmpDir + "/utimes_file.txt";
+fs.writeFileSync(writeFileTarget, "initial");
+fs.writeFileSync(appendFileTarget, "initial");
+fs.writeFileSync(chmodFile, "initial");
+fs.writeFileSync(truncateFile, "initial data");
+fs.writeFileSync(utimesFile, "initial");
 
 // @api: fs.writeFile
 // @expect: true
-fs.writeFile(testFile, "callback write data", (err) => {
+fs.writeFile(writeFileTarget, "callback write data", (err) => {
     console.log(err === null);
 });
 
@@ -48,25 +58,24 @@ fs.access(testFile, fs.constants.F_OK, (err) => {
 
 // @api: fs.chmod
 // @expect: true
-fs.chmod(testFile, 0o644, (err) => {
+fs.chmod(chmodFile, 0o644, (err) => {
     console.log(err === null);
 });
 
-// @api: fs.lchmod
-// @expect: true
-fs.lchmod(testFile, 0o644, (err) => {
-    console.log(err === null);
-});
+const chownFile = tmpDir + "/test_chown.txt";
+const lchownFile = tmpDir + "/test_lchown.txt";
+fs.writeFileSync(chownFile, "chown");
+fs.writeFileSync(lchownFile, "lchown");
 
 // @api: fs.chown
 // @expect: true
-fs.chown(testFile, -1, -1, (err) => {
+fs.chown(chownFile, -1, -1, (err) => {
     console.log(err === null);
 });
 
 // @api: fs.lchown
 // @expect: true
-fs.lchown(testFile, -1, -1, (err) => {
+fs.lchown(lchownFile, -1, -1, (err) => {
     console.log(err === null);
 });
 
@@ -77,14 +86,21 @@ fs.realpath(testFile, (err, resolved) => {
 });
 
 const copyDest = tmpDir + "/test_copy.txt";
+const renamedFile = tmpDir + "/test_renamed.txt";
+fs.writeFileSync(renamedFile, "rename target");
 
 // @api: fs.copyFile
 // @expect: true
 fs.copyFile(testFile, copyDest, (err) => {
     console.log(err === null);
+    // @expect: true
+    fs.rename(copyDest, renamedFile, (renameErr) => {
+        console.log(renameErr === null);
+    });
 });
 
 const cpFile = tmpDir + "/test_cp.txt";
+fs.writeFileSync(cpFile, "cp target");
 
 // @api: fs.cp
 // @expect: true
@@ -94,19 +110,13 @@ fs.cp(testFile, cpFile, (err) => {
 
 // @api: fs.appendFile
 // @expect: true
-fs.appendFile(testFile, "+appended", (err) => {
-    console.log(err === null);
-});
-
-const renamedFile = tmpDir + "/test_renamed.txt";
-
-// @api: fs.rename
-// @expect: true
-fs.rename(copyDest, renamedFile, (err) => {
+fs.appendFile(appendFileTarget, "+appended", (err) => {
     console.log(err === null);
 });
 
 const subDir = tmpDir + "/sub_dir";
+const rmdirDir = tmpDir + "/rmdir_dir";
+fs.mkdirSync(rmdirDir);
 
 // @api: fs.mkdir
 // @expect: true
@@ -122,19 +132,21 @@ fs.readdir(tmpDir, (err, files) => {
 
 // @api: fs.rmdir
 // @expect: true
-fs.rmdir(subDir, (err) => {
+fs.rmdir(rmdirDir, (err) => {
     console.log(err === null);
 });
 
 // @api: fs.unlink
 // @expect: true
-fs.unlink(renamedFile, (err) => {
+const unlinkFile = tmpDir + "/test_unlink.txt";
+fs.writeFileSync(unlinkFile, "unlink");
+fs.unlink(unlinkFile, (err) => {
     console.log(err === null);
 });
 
 // @api: fs.truncate
 // @expect: true
-fs.truncate(testFile, 5, (err) => {
+fs.truncate(truncateFile, 5, (err) => {
     console.log(err === null);
 });
 
@@ -163,13 +175,13 @@ fs.symlink(testFile, symLink, (err) => {
 
 // @api: fs.utimes
 // @expect: true
-fs.utimes(testFile, 1600000000, 1600000000, (err) => {
+fs.utimes(utimesFile, 1600000000, 1600000000, (err) => {
     console.log(err === null);
 });
 
 // @api: fs.lutimes
 // @expect: true
-fs.lutimes(symLink, 1600000000, 1600000000, (err) => {
+fs.lutimes(utimesFile, 1600000000, 1600000000, (err) => {
     console.log(err === null);
 });
 
@@ -191,7 +203,6 @@ const cbOpenFd = fs.openSync(tmpDir + "/test_cb_fd.txt", "w+", 0o666);
 // @expect: true
 fs.open(testFile, "r+", 0o666, (err, fd) => {
     console.log(fd >= 0);
-    fs.closeSync(fd);
 });
 
 const cbRBuf = Buffer.alloc(5);
@@ -264,12 +275,15 @@ fs.futimes(cbOpenFd, 1600000000, 1600000000, (err) => {
 
 // @api: fs.close
 // @expect: true
-fs.close(cbOpenFd, (err) => {
+const closeOnlyFd = fs.openSync(tmpDir + "/test_close_fd.txt", "w");
+fs.close(closeOnlyFd, (err) => {
     console.log(err === null);
 });
 
 // @api: fs.rm
 // @expect: true
-fs.rm(cpFile, (err) => {
+const rmFile = tmpDir + "/test_rm.txt";
+fs.writeFileSync(rmFile, "rm");
+fs.rm(rmFile, (err) => {
     console.log(err === null);
 });

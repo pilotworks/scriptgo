@@ -1,6 +1,8 @@
 // ScriptGo Corpus: Headers Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
+import "node:http";
+
 
 // @api: headers.append
 // @api: headers.get
@@ -26,9 +28,9 @@ console.log(h.has("Content-Type"));
 // @expect: text/html
 // @expect: 1
 h.set("Accept", "text/html");
-console.log(h.keys()[0]);
-console.log(h.values()[0]);
-console.log(h.entries().length);
+console.log(Array.from(h.keys())[0]);
+console.log(Array.from(h.values())[0]);
+console.log(Array.from(h.entries()).length);
 
 // @api: headers.forEach
 // @expect: forEach passed

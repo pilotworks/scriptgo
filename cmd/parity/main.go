@@ -555,8 +555,25 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 		cmd = exec.Command("tsc", "--noEmit", absoluteEntry)
 	case "tsc-node22":
 		tscPath := os.Getenv("TSC_BIN")
+		hasTSC := tscPath != ""
 		if tscPath == "" {
-			tscPath = "tsc"
+			tscPath = filepath.Join(workingDir, "node_modules", ".bin", "tsc")
+			if absoluteTSC, err := filepath.Abs(tscPath); err == nil {
+				tscPath = absoluteTSC
+			}
+			hasTSC = fileExists(tscPath)
+			if !hasTSC {
+				tscPath = "tsc"
+			}
+		}
+		if !hasTSC {
+			_, err := exec.LookPath(tscPath)
+			hasTSC = err == nil
+		}
+		if !hasTSC {
+			// Node 22 can execute the corpus TypeScript directly when tsc is not installed.
+			cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", "--experimental-transform-types", absoluteEntry)
+			break
 		}
 		tempDir, err := os.MkdirTemp("", "scriptgo-parity-tsc-")
 		if err != nil {

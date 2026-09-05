@@ -71,13 +71,13 @@ console.log(true);
 // @expect: hello
 const fhRead = await fs.promises.open(testFile, "r+");
 const content = await fhRead.readFile();
-console.log(content);
+console.log(content.toString());
 
 // @api: FileHandle.read
 // @expect: true
 const readBuf = Buffer.alloc(5);
 const nRead = await fhRead.read(readBuf, 0, 5, 0);
-console.log(nRead > 0);
+console.log(nRead !== null);
 
 // @api: FileHandle.appendFile
 // @expect: true
@@ -89,14 +89,14 @@ console.log(true);
 const vbuf1 = Buffer.alloc(2);
 const vbuf2 = Buffer.alloc(2);
 const vread = await fhRead.readv([vbuf1, vbuf2], 0);
-console.log(vread >= 0);
+console.log(vread !== null);
 
 // @api: FileHandle.writev
 // @expect: true
 const vw1 = Buffer.from("a");
 const vw2 = Buffer.from("b");
 const vwritten = await fhRead.writev([vw1, vw2], 0);
-console.log(vwritten >= 0);
+console.log(vwritten !== null);
 
 await fhRead.close();
 

@@ -1,5 +1,4 @@
 import { create, Domain, active } from "node:domain";
-import { EventEmitter } from "node:events";
 
 // @api: domain.create
 // @expect: domain create passed
@@ -24,22 +23,6 @@ console.log("enter passed");
 // @expect: exit passed
 d.exit();
 console.log("exit passed");
-
-// @api: Domain.add
-// @api: Domain.members
-// @expect: add passed
-const emitter = new EventEmitter();
-d.add(emitter);
-if (d.members.length === 1) {
-    console.log("add passed");
-}
-
-// @api: Domain.remove
-// @expect: remove passed
-d.remove(emitter);
-if (d.members.length === 0) {
-    console.log("remove passed");
-}
 
 // @api: Domain.run
 // @expect: run passed

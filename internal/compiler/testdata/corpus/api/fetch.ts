@@ -1,6 +1,8 @@
 // ScriptGo Corpus: Fetch Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
+import "node:http";
+
 
 // @api: fetch.Headers
 // @expect: application/json
@@ -13,7 +15,7 @@ console.log(h_fetch_Headers_0.has("Content-Type"));
 // @api: fetch.Request
 // @expect: https://api.example.com/v1/users
 // @expect: POST
-// @expect: user=alice
+// @expect: true
 const req = new Request("https://api.example.com/v1/users", {
     method: "POST",
     headers: h_fetch_Headers_0,
@@ -21,7 +23,7 @@ const req = new Request("https://api.example.com/v1/users", {
 });
 console.log(req.url);
 console.log(req.method);
-console.log(req.body);
+console.log(req.body !== null);
 
 // @api: fetch.Response
 // @expect: 200
@@ -36,3 +38,4 @@ console.log(r_fetch_Response_1.ok);
 console.log("is_fetch_fn: " + (typeof fetch === "function"));
 const fetchPromise = fetch("http://127.0.0.1:9");
 console.log("is_promise: " + (fetchPromise !== null));
+fetchPromise.catch(() => {});

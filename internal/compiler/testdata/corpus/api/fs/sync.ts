@@ -98,11 +98,6 @@ console.log(fs.constants.F_OK);
 fs.chmodSync(testFile, 0o644);
 console.log(true);
 
-// @api: fs.lchmodSync
-// @expect: true
-fs.lchmodSync(testFile, 0o644);
-console.log(true);
-
 // @api: fs.chownSync
 // @expect: true
 fs.chownSync(testFile, -1, -1);

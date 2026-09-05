@@ -1,5 +1,7 @@
 // ScriptGo Corpus Test: AbortController & AbortSignal
 
+import "node:events";
+
 
 // @api: AbortController.constructor
 // @expect: false

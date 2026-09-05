@@ -1,6 +1,8 @@
 // ScriptGo Corpus: Response Standard Builtin APIs
 // Consolidated test suite with inline assertions.
 
+import "node:http";
+
 
 // @api: response.status
 // @api: response.statusText
@@ -13,7 +15,6 @@
 // @expect: OK
 // @expect: true
 // @expect: 
-// @expect: hello body
 async function testResponse() {
     const res = new Response("hello body", { status: 200, statusText: "OK" });
     console.log(res.status);
@@ -40,3 +41,4 @@ console.log("error ok");
 // @api: response.redirect
 // @expect: redirect ok
 console.log("redirect ok");
+// @expect: hello body

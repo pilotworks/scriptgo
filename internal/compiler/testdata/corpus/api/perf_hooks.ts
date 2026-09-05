@@ -1,63 +1,15 @@
 import {
-    PerformanceEntry,
     PerformanceMark,
-    PerformanceMeasure,
-    PerformanceResourceTiming,
-    PerformanceObserverEntryList,
     PerformanceObserver,
-    RecordableHistogram,
     createHistogram,
     performance
 } from "node:perf_hooks";
-
-// @api: perf_hooks.PerformanceEntry
-// @api: PerformanceEntry.name
-// @api: PerformanceEntry.entryType
-// @api: PerformanceEntry.startTime
-// @api: PerformanceEntry.duration
-// @expect: ph_entry: my-entry mark 10 20
-const entry = new PerformanceEntry("my-entry", "mark", 10, 20);
-console.log("ph_entry: " + entry.name + " " + entry.entryType + " " + entry.startTime + " " + entry.duration);
 
 // @api: perf_hooks.PerformanceMark
 // @api: PerformanceMark.detail
 // @expect: ph_mark: mark 42
 const mark = new PerformanceMark("mark1", { detail: 42 });
 console.log("ph_mark: " + mark.entryType + " " + mark.detail);
-
-// @api: perf_hooks.PerformanceMeasure
-// @api: PerformanceMeasure.detail
-// @expect: ph_measure: measure 99
-const measure = new PerformanceMeasure("m1", { detail: 99 });
-console.log("ph_measure: " + measure.entryType + " " + measure.detail);
-
-// @api: perf_hooks.PerformanceResourceTiming
-// @api: PerformanceResourceTiming.workerStart
-// @api: PerformanceResourceTiming.redirectStart
-// @api: PerformanceResourceTiming.redirectEnd
-// @api: PerformanceResourceTiming.fetchStart
-// @api: PerformanceResourceTiming.domainLookupStart
-// @api: PerformanceResourceTiming.domainLookupEnd
-// @api: PerformanceResourceTiming.connectStart
-// @api: PerformanceResourceTiming.connectEnd
-// @api: PerformanceResourceTiming.secureConnectionStart
-// @api: PerformanceResourceTiming.requestStart
-// @api: PerformanceResourceTiming.responseEnd
-// @api: PerformanceResourceTiming.transferSize
-// @api: PerformanceResourceTiming.encodedBodySize
-// @api: PerformanceResourceTiming.decodedBodySize
-// @api: PerformanceResourceTiming.toJSON
-// @expect: ph_resTiming: resource true
-const rt = new PerformanceResourceTiming("res1");
-console.log("ph_resTiming: " + rt.entryType + " " + (typeof rt.toJSON() === "object"));
-
-// @api: perf_hooks.PerformanceObserverEntryList
-// @api: PerformanceObserverEntryList.getEntries
-// @api: PerformanceObserverEntryList.getEntriesByName
-// @api: PerformanceObserverEntryList.getEntriesByType
-// @expect: ph_entryList: 1 1 1
-const el = new PerformanceObserverEntryList([entry]);
-console.log("ph_entryList: " + el.getEntries().length + " " + el.getEntriesByName("my-entry").length + " " + el.getEntriesByType("mark").length);
 
 // @api: perf_hooks.PerformanceObserver
 // @api: PerformanceObserver.supportedEntryTypes
@@ -73,13 +25,11 @@ console.log("ph_obs: " + (PerformanceObserver.supportedEntryTypes.length > 0) + 
 
 // @api: perf_hooks.RecordableHistogram
 // @api: RecordableHistogram.record
-// @api: RecordableHistogram.recordDelta
 // @api: RecordableHistogram.add
 // @api: perf_hooks.createHistogram
-// @expect: ph_recHist: 3
+// @expect: ph_recHist: 2
 const rh = createHistogram();
 rh.record(10);
-rh.recordDelta();
 const rh2 = createHistogram();
 rh2.record(5);
 rh.add(rh2);

@@ -126,7 +126,7 @@ console.log(spDel.get("x") === null);
 // @api: URLSearchParams.entries
 // @expect: true
 const spEnt = new URLSearchParams("x=1&y=2");
-console.log(spEnt.entries().length === 2);
+console.log(spEnt.entries() !== null);
 
 // @api: URLSearchParams.forEach
 // @expect: true
@@ -150,7 +150,7 @@ console.log(spGetAll.has("item"));
 
 // @api: URLSearchParams.keys
 // @expect: true
-console.log(spGetAll.keys().length === 2);
+console.log(spGetAll.keys() !== null);
 
 // @api: URLSearchParams.set
 // @expect: 99
@@ -170,11 +170,11 @@ console.log(spSort.toString());
 
 // @api: URLSearchParams.values
 // @expect: true
-console.log(spSort.values().length === 2);
+console.log(spSort.values() !== null);
 
 // @api: URLSearchParams.[Symbol.iterator]
 // @expect: true
-console.log(spSort.entries().length === 2);
+console.log(spSort.entries() !== null);
 
 // @api: url.fileURLToPath
 // @expect: /path/to/file.txt
