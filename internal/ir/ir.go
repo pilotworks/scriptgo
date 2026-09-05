@@ -54,6 +54,43 @@ type Function struct {
 	Locals     []Parameter
 	ReturnType Type
 	Body       []Instruction
+	Async      bool
+	EntryBlock string
+	Blocks     []BasicBlock
+	AsyncFrame *AsyncFrame
+}
+
+// BasicBlock is the explicit control-flow representation used by async
+// lowering. Synchronous functions may continue using Body during migration.
+type BasicBlock struct {
+	Name         string
+	Instructions []Instruction
+	Terminator   Terminator
+	Span         SourceSpan
+}
+
+type Terminator struct {
+	Kind        string
+	Target      string
+	TrueTarget  string
+	FalseTarget string
+	Value       string
+	AwaitValue  string
+	Fulfilled   string
+	Rejected    string
+	State       int
+	Span        SourceSpan
+}
+
+type AsyncFrame struct {
+	Name   string
+	Fields []AsyncField
+}
+
+type AsyncField struct {
+	Name string
+	Type Type
+	Span SourceSpan
 }
 
 type Parameter struct {
@@ -159,4 +196,12 @@ const (
 	OpCheckedCast = "checked_cast"
 	OpTypeOf      = "typeof"
 	OpDebugger    = "debugger"
+)
+
+const (
+	TermJump   = "jump"
+	TermBranch = "branch"
+	TermReturn = "return"
+	TermThrow  = "throw"
+	TermAwait  = "await"
 )

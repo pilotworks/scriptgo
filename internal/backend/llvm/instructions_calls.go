@@ -763,6 +763,35 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 	for index, argument := range instruction.Args {
 		paramType := llvmType(callee.Parameters[index].Type)
 		argVal := e.resolveArg(out, argument)
+		if strings.HasPrefix(e.function.Name, "__top_level_async_stage_") && !e.isParam(argument) {
+			for _, global := range e.module.Globals {
+				if global.Name == argument {
+					loadName := fmt.Sprintf("%s.stage_global.%d", argument, e.loadCounter)
+					e.loadCounter++
+					typ := e.types[argument]
+					if typ == "" || typ == ir.TypeVoid {
+						typ = global.Type
+					}
+					if typ == "" || typ == ir.TypeVoid {
+						typ = ir.TypePointer
+					}
+					e.types[loadName] = typ
+					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), global.Name))
+					argVal = loadName
+					break
+				}
+			}
+		}
+		if isRawCallbackParameter(callee.Parameters[index]) {
+			boxed := argVal
+			for field, fieldType := range []string{"i32", "i32", "i64"} {
+				fieldName := fmt.Sprintf("call.raw.%s.%d", []string{"tag", "pad", "payload"}[field], e.loadCounter)
+				e.loadCounter++
+				out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, %d\n", fieldName, boxed, field))
+				callArgs = append(callArgs, fmt.Sprintf("%s %%%s", fieldType, fieldName))
+			}
+			continue
+		}
 		argType, hasArgType := e.types[argVal]
 		if !hasArgType {
 			argType, hasArgType = e.types[argument]
@@ -1073,6 +1102,34 @@ func (e *functionEmitter) emitPromiseSettlement(out *strings.Builder, instructio
 
 func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__async.frame_new":
+		slot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		count := instruction.Value
+		if count == "" {
+			count = "0"
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_async_frame_new(i64 %s, ptr %%%s)\n", status, count, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = ir.TypePointer
+		if e.function.AsyncFrame != nil {
+			if err := e.emitAsyncFrameInitialValues(out, instruction.Result); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "__async.frame_release":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("async frame release requires one frame")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_async_frame_release(ptr %%%s)\n", status, instruction.Args[0]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
 	case "__async.queueMicrotask":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("queueMicrotask requires 1 argument")
@@ -1176,10 +1233,12 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr %s)\n", status, instruction.Args[0], instruction.Args[1], rejArg))
+		resultSlot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", resultSlot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr %%%s, ptr %s, i32 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], rejArg, promiseReactionTag(instruction.Value), resultSlot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		if instruction.Result != "" {
-			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, resultSlot))
 			e.types[instruction.Result] = instruction.Type
 		}
 		return nil
@@ -1189,14 +1248,88 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1]))
+		resultSlot := instruction.Result + ".slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", resultSlot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_then(ptr %%%s, ptr null, ptr %%%s, i32 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], promiseReactionTag(instruction.Value), resultSlot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		if instruction.Result != "" {
-			out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0]))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, resultSlot))
 			e.types[instruction.Result] = instruction.Type
 		}
 		return nil
+	case "__async.promise_schedule_resume":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("promise resume scheduling requires promise and continuation")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		promiseArg, err := e.emitAsyncPromiseArg(out, instruction.Args[0])
+		if err != nil {
+			return err
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_schedule_resume(ptr %%%s, ptr %%%s)\n", status, promiseArg, instruction.Args[1]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	case "__async.promise_schedule_resume_pair":
+		if len(instruction.Args) != 3 {
+			return fmt.Errorf("promise resume pair requires promise and two continuations")
+		}
+		if promiseType := e.types[instruction.Args[0]]; promiseType != "" && promiseType != ir.TypeUnknown && promiseType != ir.Type("object:Promise") && !strings.HasPrefix(string(promiseType), "object:Promise_") && !strings.HasPrefix(string(promiseType), "object:Promise<") {
+			return fmt.Errorf("async resume source %q has non-Promise type %s", instruction.Args[0], promiseType)
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		promiseArg, err := e.emitAsyncPromiseArg(out, instruction.Args[0])
+		if err != nil {
+			return err
+		}
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_schedule_resume_pair(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, promiseArg, instruction.Args[1], instruction.Args[2]))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
+	case "__async.promise_resolve_existing", "__async.promise_reject_existing":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("promise settlement requires promise and value")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fn := "scriptgo_promise_resolve_existing"
+		if instruction.Callee == "__async.promise_reject_existing" {
+			fn = "scriptgo_promise_reject_existing"
+		}
+		argType := e.types[instruction.Args[1]]
+		argVal := e.resolveArg(out, instruction.Args[1])
+		if instruction.Callee == "__async.promise_resolve_existing" && argType == ir.TypeNumber {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_existing_number(ptr %%%s, double %%%s)\n", status, instruction.Args[0], argVal))
+		} else if instruction.Callee == "__async.promise_resolve_existing" && argType == ir.TypeBool {
+			boolVal := fmt.Sprintf("promise.existing.bool.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolVal, argVal))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_existing_bool(ptr %%%s, i32 %%%s)\n", status, instruction.Args[0], boolVal))
+		} else if instruction.Callee == "__async.promise_resolve_existing" && isJSArrayType(argType) {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_existing_array(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], argVal))
+		} else {
+			boxed := fmt.Sprintf("promise.existing.box.%d", e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, argVal, argType, boxed); err != nil {
+				return err
+			}
+			tag := fmt.Sprintf("promise.existing.tag.%d", e.loadCounter)
+			payload := fmt.Sprintf("promise.existing.payload.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, boxed))
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, boxed))
+			fn = "scriptgo_promise_resolve_existing_boxed"
+			if instruction.Callee == "__async.promise_reject_existing" {
+				fn = "scriptgo_promise_reject_existing_boxed"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @%s(ptr %%%s, i32 %%%s, i64 %%%s)\n", status, fn, instruction.Args[0], tag, payload))
+		}
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		return nil
 	case "__async.await":
+		if e.function.Async {
+			return fmt.Errorf("async state machine contains blocking __async.await")
+		}
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("await requires 1 argument")
 		}
@@ -1314,7 +1447,9 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", pVal, slot))
 		status2 := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve(ptr %%%s, ptr %%%s)\n", status2, pVal, srcArray))
+		// Array.fromAsync produces a known array payload; preserve its array tag
+		// so an await continuation can reconstruct the statically typed array.
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_existing_array(ptr %%%s, ptr %%%s)\n", status2, pVal, srcArray))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status2))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type
@@ -1346,6 +1481,17 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__async.promise_all", "__async.promise_all_settled", "__async.promise_any", "__async.promise_race":
+		if instruction.Callee == "__async.promise_all" && len(instruction.Args) == 1 {
+			slot := instruction.Result + ".slot"
+			out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_all_numbers(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot))
+			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			e.types[instruction.Result] = instruction.Type
+			return nil
+		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -1386,5 +1532,101 @@ func (e *functionEmitter) emitAsyncIntrinsic(out *strings.Builder, instruction i
 		return nil
 	default:
 		return fmt.Errorf("unknown async intrinsic %q", instruction.Callee)
+	}
+}
+
+// emitAsyncFrameInitialValues persists values available at async entry. Later
+// states still use the same frame object, so this is the stable storage ABI
+// even when a continuation also has an optimized captured representation.
+func (e *functionEmitter) emitAsyncFrameInitialValues(out *strings.Builder, frame string) error {
+	fieldIndex := make(map[string]int, len(e.function.AsyncFrame.Fields))
+	for index, field := range e.function.AsyncFrame.Fields {
+		fieldIndex[field.Name] = index
+	}
+	for _, field := range e.function.AsyncFrame.Fields {
+		if field.Name == "state" {
+			// State is written by the continuation dispatcher when that ABI is
+			// emitted; there is no SSA value for the initial zero state here.
+			continue
+		}
+		// The literal promise field is descriptive metadata; its SSA name is
+		// generated per lowering site and is not recoverable from the field.
+		if field.Name == "promise" {
+			continue
+		}
+		valueType, ok := e.types[field.Name]
+		if !ok || valueType == ir.TypeVoid {
+			continue
+		}
+		if err := e.emitAsyncFrameBoxed(out, frame, fieldIndex[field.Name], field.Name, valueType); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitAsyncFrameBoxed(out *strings.Builder, frame string, index int, value string, valueType ir.Type) error {
+	boxed := fmt.Sprintf("async.frame.box.%d", e.loadCounter)
+	e.loadCounter++
+	if err := e.emitBoxValue(out, value, valueType, boxed); err != nil {
+		return err
+	}
+	tag := fmt.Sprintf("async.frame.tag.%d", e.loadCounter)
+	payload := fmt.Sprintf("async.frame.payload.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, boxed))
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, boxed))
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_async_frame_set(ptr %%%s, i64 %d, i32 %%%s, i64 %%%s)\n", status, frame, index, tag, payload))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	return nil
+}
+
+func (e *functionEmitter) emitAsyncPromiseArg(out *strings.Builder, arg string) (string, error) {
+	if typ := e.types[arg]; typ != "" && typ != ir.TypeUnknown {
+		return e.ensurePointerArg(out, arg), nil
+	}
+	boxed := e.resolveArg(out, arg)
+	tag := fmt.Sprintf("async.promise.tag.%d", e.loadCounter)
+	payload := fmt.Sprintf("async.promise.payload.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, boxed))
+	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, boxed))
+	slot := fmt.Sprintf("async.promise.slot.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_promise_resolve_unknown(i32 %%%s, i64 %%%s, ptr %%%s)\n", status, tag, payload, slot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	result := fmt.Sprintf("async.promise.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", result, slot))
+	return result, nil
+}
+
+func isJSArrayType(t ir.Type) bool {
+	return t == ir.TypeNumberArray || t == ir.TypeStringArray ||
+		t == ir.TypeBoolArray || t == ir.TypeBigIntArray ||
+		t == ir.TypeSymbolArray || t == ir.TypeUnknownArray ||
+		strings.HasSuffix(string(t), "[]")
+}
+
+func promiseReactionTag(typeName string) int {
+	switch typeName {
+	case string(ir.TypeNumber):
+		return 3
+	case string(ir.TypeBool):
+		return 2
+	case string(ir.TypeString):
+		return 4
+	case string(ir.TypeVoid), "":
+		return 0
+	default:
+		if strings.HasSuffix(typeName, "[]") {
+			return 6 // array payload
+		}
+		return 5
 	}
 }

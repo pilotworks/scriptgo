@@ -297,9 +297,10 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		arrayArg := e.ensurePointerArg(out, instruction.Args[0])
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, arrayArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -315,8 +316,9 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
+		arrayArg := e.ensurePointerArg(out, instruction.Args[0])
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_typed_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_from_typed_array(i64 %d, ptr %%%s, ptr %%%s)\n", status, kind, arrayArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -328,8 +330,9 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
+		arrayArg := e.ensurePointerArg(out, instruction.Args[0])
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_to_string(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_to_string(ptr %%%s, ptr %%%s)\n", status, arrayArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil

@@ -387,6 +387,24 @@ int scriptgo_exception_get_bool(scriptgo_exception_frame_t *frame) {
     return frame->thrown_bool;
 }
 
+int scriptgo_exception_get_tag_payload(scriptgo_exception_frame_t *frame, uint32_t *out_tag, uint64_t *out_payload) {
+    if (frame == NULL || out_tag == NULL || out_payload == NULL) return -1;
+    *out_payload = 0;
+    if (frame->thrown_type == 1) {
+        *out_tag = (frame->thrown_string != NULL && scriptgo_gc_is_registered((void *)frame->thrown_string)) ? 5 : 4;
+        *out_payload = (uint64_t)(uintptr_t)frame->thrown_string;
+    } else if (frame->thrown_type == 2) {
+        *out_tag = 3;
+        memcpy(out_payload, &frame->thrown_number, sizeof(frame->thrown_number));
+    } else if (frame->thrown_type == 3) {
+        *out_tag = 2;
+        *out_payload = (uint64_t)(frame->thrown_bool != 0);
+    } else {
+        *out_tag = 0;
+    }
+    return 0;
+}
+
 void scriptgo_exception_rethrow(scriptgo_exception_frame_t *frame) {
     if (frame == NULL) return;
     int type = frame->thrown_type;

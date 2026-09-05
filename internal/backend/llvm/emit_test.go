@@ -122,3 +122,59 @@ func TestEmitIndexedAssignmentUsesTypedArrayWrite(t *testing.T) {
 		}
 	}
 }
+
+func TestEmitArrayFromAsyncPreservesArrayPromiseTag(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "one", Value: "1"},
+			{Op: ir.OpArray, Type: ir.TypeNumberArray, Result: "values", Args: []string{"one"}},
+			{Op: ir.OpCall, Type: ir.Type("object:Promise<number[]>"), Result: "promise", Callee: "__async.array_from_async", Args: []string{"values"}},
+			{Op: ir.OpCall, Type: ir.Type("object:Promise"), Result: "outer", Callee: "__async.promise_create"},
+			{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_resolve_existing", Args: []string{"outer", "values"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "call i32 @scriptgo_promise_resolve_existing_array") {
+		t.Fatalf("Array.fromAsync did not preserve the array payload tag:\n%s", output)
+	}
+	if strings.Contains(output, "call i32 @scriptgo_promise_resolve(ptr %promise") {
+		t.Fatalf("Array.fromAsync used generic pointer resolution:\n%s", output)
+	}
+}
+
+func TestEmitAsyncFramePersistsEntryParameter(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{
+		{Name: "main", ReturnType: ir.TypeVoid, Body: []ir.Instruction{{Op: ir.OpReturn, Type: ir.TypeVoid}}},
+		{
+			Name:       "asyncFn",
+			Parameters: []ir.Parameter{{Name: "value", Type: ir.TypeNumber}},
+			ReturnType: ir.Type("object:Promise"),
+			Async:      true,
+			EntryBlock: "entry",
+			AsyncFrame: &ir.AsyncFrame{Fields: []ir.AsyncField{
+				{Name: "state", Type: ir.TypeNumber},
+				{Name: "promise", Type: ir.Type("object:Promise")},
+				{Name: "value", Type: ir.TypeNumber},
+			}},
+			Blocks: []ir.BasicBlock{{Name: "entry", Terminator: ir.Terminator{Kind: ir.TermReturn}}},
+			Body: []ir.Instruction{
+				{Op: ir.OpCall, Type: ir.TypePointer, Result: "frame", Callee: "__async.frame_new", Value: "3"},
+				{Op: ir.OpReturn, Type: ir.Type("object:Promise"), Args: []string{"frame"}},
+			},
+		}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "call i32 @scriptgo_async_frame_set") {
+		t.Fatalf("async entry did not persist frame values:\n%s", output)
+	}
+}

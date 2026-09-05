@@ -203,7 +203,7 @@ Total Time Elapsed     : 5m9.953s
 | **`api`** | 87 | **58.6% (51/87)** | Standard APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, and web globals. |
 | **`api/fs`** | 5 | **40.0% (2/5)** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
 | **`arrays`** | 1 | **100% (1/1)** | Array methods and manipulation. |
-| **`async`** | 13 | **100% (13/13)** | Top-level await, async pipelines, microtask sequencing, async generator iteration, parallel execution, error propagation. |
+| **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 26 | **100% (26/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 23 | **100% (23/23)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 20 | **100% (20/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |

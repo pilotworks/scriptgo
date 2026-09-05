@@ -196,8 +196,16 @@ func lowerClosureExpression(
 		}
 		targetFn.ReturnType = toIRType(inferred)
 	}
-	if (fnStmt.IsAsync || fnStmt.Kind == "async_function") && (targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid) {
-		targetFn.ReturnType = ir.Type("object:Promise")
+	if fnStmt.IsAsync || fnStmt.Kind == "async_function" {
+		// Lower the closure body against its resolved payload type. The async
+		// wrapper created below owns the outer Promise and settles it once.
+		if payload, ok := asyncResolvedReturnType(fnStmt.Type); ok {
+			targetFn.ReturnType = payload
+		} else if payload, ok := asyncResolvedReturnType(fnStmt.InferredType); ok {
+			targetFn.ReturnType = payload
+		} else if targetFn.ReturnType == "" || targetFn.ReturnType == ir.TypeVoid {
+			targetFn.ReturnType = ir.TypeUnknown
+		}
 	}
 	if targetFn.ReturnType == "" {
 		targetFn.ReturnType = ir.TypeVoid
@@ -418,7 +426,10 @@ func lowerClosureExpression(
 			}
 		}
 		if !returned {
-			if strings.HasPrefix(string(targetFn.ReturnType), "object:Promise") {
+			if fnStmt.IsAsync || fnStmt.Kind == "async_function" {
+				// An async function with no explicit return is settled as
+				// undefined by lowerAsyncFunctionFromLowered.
+			} else if strings.HasPrefix(string(targetFn.ReturnType), "object:Promise") {
 				prom := appendResolvedPromiseUndefined(&targetFn, &closureBodyCounter, targetFn.Span)
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: targetFn.ReturnType, Args: []string{prom}, Span: targetFn.Span})
 			} else if targetFn.ReturnType != ir.TypeVoid {
@@ -427,6 +438,15 @@ func lowerClosureExpression(
 				targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: targetFn.Span})
 			}
 		}
+	}
+	if fnStmt.IsAsync || fnStmt.Kind == "async_function" {
+		asyncStatement := *fnStmt
+		asyncStatement.Name = closureName
+		asyncTarget, err := lowerAsyncFunctionFromLowered(path, asyncStatement, targetFn, shapes, signatures)
+		if err != nil {
+			return "", "", sourceError(path, fnStmt.Span, err)
+		}
+		targetFn = asyncTarget
 	}
 
 	extraFunctions = append(extraFunctions, targetFn)

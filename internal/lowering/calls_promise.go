@@ -54,6 +54,25 @@ func lowerPromiseStaticCall(
 	}
 	if callee == "Promise.all" && len(expression.Arguments) > 0 {
 		arrExpr := expression.Arguments[0]
+		if arrExpr.Kind != "array" {
+			arrVal, _, err := lowerExpression(path, arrExpr, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			promiseType := toIRType(expression.InferredType)
+			if promiseType == "" || promiseType == ir.TypeUnknown {
+				promiseType = ir.Type("object:Promise")
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: promiseType, Result: result,
+				Callee: "__async.promise_all", Args: []string{arrVal},
+				Span: toIRSpan(path, expression.Span),
+			})
+			return result, promiseType, true, nil
+		}
 		if arrExpr.Kind == "array" {
 			var resArgs []string
 			resElemType := ir.TypeUnknown

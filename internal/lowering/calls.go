@@ -82,6 +82,7 @@ func lowerCallExpression(
 							Result: result,
 							Callee: callee,
 							Args:   args,
+							Value:  string(env[args[1]+".retType"]),
 							Span:   toIRSpan(path, expression.Span),
 						})
 						return result, ir.Type("object:Promise"), nil
@@ -1107,15 +1108,21 @@ func lowerCallExpression(
 	args := make([]string, 0, len(expression.Arguments))
 	paramOffset := 0
 	if len(target.Parameters) > 0 && target.Parameters[0].Name == "this" {
-		dummyThis := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpConst,
-			Type:   target.Parameters[0].Type,
-			Result: dummyThis,
-			Value:  "null",
-			Span:   toIRSpan(path, expression.Span),
-		})
-		args = append(args, dummyThis)
+		var receiver string
+		if expression.Left != nil {
+			receiverExpression := expression.Left.Left
+			if expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "optional_property" {
+				var err error
+				receiver, _, err = lowerExpression(path, receiverExpression, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+			}
+		}
+		if receiver == "" {
+			return "", "", fmt.Errorf("method %q has no receiver", callee)
+		}
+		args = append(args, receiver)
 		paramOffset = 1
 	}
 	for aIdx, argument := range expression.Arguments {

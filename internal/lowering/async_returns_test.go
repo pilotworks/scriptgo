@@ -57,6 +57,10 @@ async function readBytes(queue: unknown[]): Promise<ByteStreamResult> {
 	if len(objectShapes) != 2 || objectShapes[0] != wantShape || objectShapes[1] != wantShape {
 		t.Fatalf("readChunk object shapes = %v, want [%s %s]", objectShapes, wantShape, wantShape)
 	}
+	readBytes := findFunction(t, module, "readBytes")
+	if !readBytes.Async || readBytes.EntryBlock == "" || readBytes.AsyncFrame == nil || len(readBytes.Blocks) < 3 {
+		t.Fatalf("readBytes missing async state metadata: async=%v entry=%q frame=%v blocks=%d", readBytes.Async, readBytes.EntryBlock, readBytes.AsyncFrame, len(readBytes.Blocks))
+	}
 }
 
 func findFunction(t *testing.T, module ir.Module, name string) ir.Function {

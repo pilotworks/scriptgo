@@ -41,6 +41,18 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 	if f.Name == "" {
 		return fmt.Errorf("function has no name")
 	}
+	if f.Async {
+		if len(f.Blocks) == 0 || f.EntryBlock == "" {
+			return fmt.Errorf("async function requires an entry block")
+		}
+		if f.AsyncFrame == nil {
+			return fmt.Errorf("async function requires an async frame")
+		}
+		if hasBlockingAwait(f.Body) {
+			return fmt.Errorf("async function contains blocking __async.await intrinsic")
+		}
+		return f.verifyBlocks(globals)
+	}
 	known := make(map[string]Type, len(globals)+len(f.Parameters)+len(f.Captured))
 	if globals != nil {
 		maps.Copy(known, globals)
@@ -331,6 +343,99 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			terminated = true
 		default:
 			return fmt.Errorf("unknown instruction %q", instruction.Op)
+		}
+	}
+	return nil
+}
+
+func hasBlockingAwait(instructions []Instruction) bool {
+	for _, instruction := range instructions {
+		if instruction.Op == OpCall && instruction.Callee == "__async.await" {
+			return true
+		}
+		if hasBlockingAwait(instruction.Then) || hasBlockingAwait(instruction.Else) ||
+			hasBlockingAwait(instruction.Cond) || hasBlockingAwait(instruction.Body) ||
+			hasBlockingAwait(instruction.Step) || hasBlockingAwait(instruction.Catch) ||
+			hasBlockingAwait(instruction.Finally) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f Function) verifyBlocks(globals map[string]Type) error {
+	blocks := make(map[string]BasicBlock, len(f.Blocks))
+	for _, block := range f.Blocks {
+		if block.Name == "" {
+			return fmt.Errorf("async block has no name")
+		}
+		if _, exists := blocks[block.Name]; exists {
+			return fmt.Errorf("duplicate async block %q", block.Name)
+		}
+		blocks[block.Name] = block
+	}
+	if _, ok := blocks[f.EntryBlock]; !ok {
+		return fmt.Errorf("async entry block %q does not exist", f.EntryBlock)
+	}
+	states := make(map[int]string)
+	for _, block := range f.Blocks {
+		switch block.Terminator.Kind {
+		case TermJump:
+			if _, ok := blocks[block.Terminator.Target]; !ok {
+				return fmt.Errorf("async block %q jumps to missing block %q", block.Name, block.Terminator.Target)
+			}
+		case TermBranch:
+			if _, ok := blocks[block.Terminator.TrueTarget]; !ok {
+				return fmt.Errorf("async block %q branches to missing true block %q", block.Name, block.Terminator.TrueTarget)
+			}
+			if _, ok := blocks[block.Terminator.FalseTarget]; !ok {
+				return fmt.Errorf("async block %q branches to missing false block %q", block.Name, block.Terminator.FalseTarget)
+			}
+		case TermAwait:
+			if block.Terminator.AwaitValue == "" || block.Terminator.Fulfilled == "" || block.Terminator.Rejected == "" || block.Terminator.State < 0 {
+				return fmt.Errorf("async block %q has incomplete await terminator", block.Name)
+			}
+			if previous, exists := states[block.Terminator.State]; exists {
+				return fmt.Errorf("async await state %d is used by blocks %q and %q", block.Terminator.State, previous, block.Name)
+			}
+			states[block.Terminator.State] = block.Name
+			if _, ok := blocks[block.Terminator.Fulfilled]; !ok {
+				return fmt.Errorf("async await in block %q resumes to missing fulfilled block %q", block.Name, block.Terminator.Fulfilled)
+			}
+			if _, ok := blocks[block.Terminator.Rejected]; !ok {
+				return fmt.Errorf("async await in block %q resumes to missing rejected block %q", block.Name, block.Terminator.Rejected)
+			}
+		case TermReturn, TermThrow:
+		default:
+			return fmt.Errorf("async block %q has unsupported terminator %q", block.Name, block.Terminator.Kind)
+		}
+	}
+	// A block that cannot be reached from the entry is not part of the state
+	// machine. Rejecting it catches stale continuation states before a backend
+	// can silently emit dead or dangling resume code.
+	reachable := make(map[string]bool, len(blocks))
+	var visit func(string)
+	visit = func(name string) {
+		if reachable[name] {
+			return
+		}
+		reachable[name] = true
+		terminator := blocks[name].Terminator
+		switch terminator.Kind {
+		case TermJump:
+			visit(terminator.Target)
+		case TermBranch:
+			visit(terminator.TrueTarget)
+			visit(terminator.FalseTarget)
+		case TermAwait:
+			visit(terminator.Fulfilled)
+			visit(terminator.Rejected)
+		}
+	}
+	visit(f.EntryBlock)
+	for name := range blocks {
+		if !reachable[name] {
+			return fmt.Errorf("async block %q is unreachable from entry block %q", name, f.EntryBlock)
 		}
 	}
 	return nil

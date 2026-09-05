@@ -42,9 +42,46 @@ int scriptgo_string_length(const char *, double *);
 int scriptgo_string_last_index(const char *, const char *, double, double *);
 int scriptgo_string_slice(const char *, double, double, char **);
 int scriptgo_string_release(char *);
+int scriptgo_async_frame_new(int64_t, void **);
+int scriptgo_async_frame_set(void *, int64_t, uint32_t, uint64_t);
+int scriptgo_async_frame_get(void *, int64_t, uint32_t *, uint64_t *);
+int scriptgo_async_frame_release(void *);
+int scriptgo_promise_create(void **);
+int scriptgo_promise_resolve_number(void *, double);
+int scriptgo_promise_then(void *, void *, void *, uint32_t, void **);
+int scriptgo_promise_await_number(void *, double *);
+int scriptgo_promise_schedule_resume(void *, void *);
+int scriptgo_event_loop_run(void);
+int scriptgo_closure_create(void *, void *, void **);
+
+static int resume_calls = 0;
+static uint32_t resume_tag = 0;
+static uint64_t resume_payload = 0;
+static double add_one_callback(void *env,
+    uint32_t tag0, uint32_t pad0, uint64_t payload0,
+    uint32_t tag1, uint32_t pad1, uint64_t payload1,
+    uint32_t tag2, uint32_t pad2, uint64_t payload2,
+    uint32_t tag3, uint32_t pad3, uint64_t payload3) {
+    double value = 0;
+    (void)env; (void)pad0; (void)tag1; (void)pad1; (void)payload1;
+    (void)tag2; (void)pad2; (void)payload2; (void)tag3; (void)pad3; (void)payload3;
+    memcpy(&value, &payload0, sizeof(value));
+    return value + 1;
+}
+static void resume_callback(void *env,
+    int32_t tag0, int32_t pad0, int64_t payload0,
+    int32_t tag1, int32_t pad1, int64_t payload1,
+    int32_t tag2, int32_t pad2, int64_t payload2,
+    int32_t tag3, int32_t pad3, int64_t payload3) {
+    (void)env; (void)pad0; (void)tag1; (void)pad1; (void)payload1;
+    (void)tag2; (void)pad2; (void)payload2; (void)tag3; (void)pad3; (void)payload3;
+    resume_calls++;
+    resume_tag = (uint32_t)tag0;
+    resume_payload = (uint64_t)payload0;
+}
 
 int main(void) {
-    void *array = NULL, *string_array = NULL, *object = NULL;
+    void *array = NULL, *string_array = NULL, *object = NULL, *frame = NULL, *promise = NULL, *closure = NULL;
     int64_t length = -1;
     double number = 0, string_length = 0, index = 0;
     char *joined = NULL, *slice = NULL;
@@ -77,6 +114,28 @@ int main(void) {
     if (scriptgo_string_slice(joined, -4, 99, &slice) != 0 || strcmp(slice, "abcd") != 0) return 23;
     scriptgo_string_release(slice);
     scriptgo_string_release(joined);
+    uint32_t frame_tag = 0;
+    uint64_t frame_payload = 0;
+    if (scriptgo_async_frame_new(1, &frame) != 0) return 24;
+    if (scriptgo_async_frame_set(frame, 0, 3, 0x1234) != 0) return 25;
+    if (scriptgo_async_frame_get(frame, 0, &frame_tag, &frame_payload) != 0 || frame_tag != 3 || frame_payload != 0x1234) return 26;
+    if (scriptgo_async_frame_release(frame) != 0) return 27;
+    if (scriptgo_promise_create(&promise) != 0) return 28;
+    if (scriptgo_closure_create((void *)resume_callback, NULL, &closure) != 0) return 29;
+    if (scriptgo_promise_schedule_resume(promise, closure) != 0) return 30;
+    if (scriptgo_promise_resolve_number(promise, 42.0) != 0) return 31;
+    if (resume_calls != 0) return 32;
+    if (scriptgo_event_loop_run() != 0 || resume_calls != 1 || resume_tag != 3) return 33;
+
+    void *source = NULL, *derived = NULL, *transform = NULL;
+    double source_value = 0, derived_value = 0;
+    if (scriptgo_promise_create(&source) != 0) return 34;
+    if (scriptgo_closure_create((void *)add_one_callback, NULL, &transform) != 0) return 35;
+    if (scriptgo_promise_then(source, transform, NULL, 3, &derived) != 0 || derived == source) return 36;
+    if (scriptgo_promise_resolve_number(source, 41.0) != 0) return 37;
+    if (scriptgo_event_loop_run() != 0) return 38;
+    if (scriptgo_promise_await_number(source, &source_value) != 0 || source_value != 41.0) return 39;
+    if (scriptgo_promise_await_number(derived, &derived_value) != 0 || derived_value != 42.0) return 40;
     puts("ok");
     return 0;
 }

@@ -630,13 +630,28 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_promise_resolver_create(ptr, i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_construct(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_existing_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_number(ptr, double)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_bool(ptr, i32)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_bigint(ptr, i64)\n")
 	out.WriteString("declare i32 @scriptgo_promise_resolve_boxed(ptr, i32, i64)\n")
 	out.WriteString("declare i32 @scriptgo_promise_reject(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_reject_boxed(ptr, i32, i64)\n")
-	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_then(ptr, ptr, ptr, i32, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_schedule_resume(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_schedule_resume_pair(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_unknown(i32, i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_existing(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_reject_existing(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_existing_number(ptr, double)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_existing_bool(ptr, i32)\n")
+	out.WriteString("declare i32 @scriptgo_promise_resolve_existing_boxed(ptr, i32, i64)\n")
+	out.WriteString("declare i32 @scriptgo_promise_reject_existing_boxed(ptr, i32, i64)\n")
+	out.WriteString("declare i32 @scriptgo_promise_all_numbers(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_async_frame_new(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_async_frame_set(ptr, i64, i32, i64)\n")
+	out.WriteString("declare i32 @scriptgo_async_frame_get(ptr, i64, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_async_frame_release(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_number(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_ptr(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_promise_await_bool(ptr, ptr)\n")
@@ -979,11 +994,18 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		out.WriteString("define i32 @main(i32 %argc, ptr %argv)")
 	} else {
 		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
-		for index, parameter := range function.Parameters {
-			if index > 0 {
+		parameterIndex := 0
+		for _, parameter := range function.Parameters {
+			if parameterIndex > 0 {
 				out.WriteString(", ")
 			}
+			if isRawCallbackParameter(parameter) {
+				out.WriteString(fmt.Sprintf("i32 %%%s.tag, i32 %%%s.pad, i64 %%%s.payload", parameter.Name, parameter.Name, parameter.Name))
+				parameterIndex += 3
+				continue
+			}
 			out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
+			parameterIndex++
 		}
 		out.WriteString(")")
 	}
@@ -993,6 +1015,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	out.WriteString(" {\n")
 	if name == "main" {
 		out.WriteString("  call void @scriptgo_process_init(i32 %argc, ptr %argv)\n")
+	}
+	for _, parameter := range function.Parameters {
+		if !isRawCallbackParameter(parameter) {
+			continue
+		}
+		value := parameter.Name
+		first := fmt.Sprintf("%s.box.0", value)
+		second := fmt.Sprintf("%s.box.1", value)
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } undef, i32 %%%s.tag, 0\n", first, value))
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 %%%s.pad, 1\n", second, first, value))
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s.payload, 2\n", value, second, value))
 	}
 
 	verStr := options.CompilerVersion
@@ -1144,6 +1177,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 
 	if !emitter.terminated {
 		if function.Name == "main" {
+			// Async entrypoints run their synchronous prefix first; only then are
+			// promise continuations drained in FIFO microtask order.
+			out.WriteString("  call i32 @scriptgo_event_loop_run()\n")
 			out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 			out.WriteString("  ret i32 0\n")
 		} else if isClosure && (function.ReturnType == ir.TypeVoid || function.ReturnType == "") {
@@ -1163,6 +1199,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 	out.WriteString("}\n\n")
 	return hoistAllocas(out.String()), nil
+}
+
+func isRawCallbackParameter(parameter ir.Parameter) bool {
+	return parameter.Type == ir.TypeUnknown &&
+		(strings.HasSuffix(parameter.Name, "$raw") || parameter.Name == "__resume_raw")
 }
 
 func hoistAllocas(fnCode string) string {

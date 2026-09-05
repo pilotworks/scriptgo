@@ -1325,6 +1325,22 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			isPromise = true
 			inner := strings.TrimSuffix(strings.TrimPrefix(string(typ), "object:Promise<"), ">")
 			retType = toIRType(inner)
+		} else if typ == ir.Type("object:Promise") {
+			isPromise = true
+			if resolved, ok := asyncResolvedReturnType(expression.InferredType); ok {
+				retType = resolved
+			} else if expression.Left != nil {
+				// Native dispatch may erase Promise<T> to object:Promise;
+				// recover T from the operand's checked type before falling back
+				// to unknown so post-await member lowering keeps its type.
+				if resolved, ok := asyncResolvedReturnType(expression.Left.InferredType); ok {
+					retType = resolved
+				} else {
+					retType = ir.TypeUnknown
+				}
+			} else {
+				retType = ir.TypeUnknown
+			}
 		} else if typ == ir.TypeUnknown && expression.InferredType != "" && !strings.Contains(expression.InferredType, "Promise") {
 			retType = toIRType(expression.InferredType)
 		}

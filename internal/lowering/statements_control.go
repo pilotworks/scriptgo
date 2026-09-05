@@ -104,11 +104,11 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 
 	applyConditionNarrowing(statement.Expression, thenEnv, elseEnv, env, shapes)
 
-	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, thenEnv, counter, shapes, signatures)
+	thenBody, err := lowerBranch(path, statement.Then, function.ReturnType, thenEnv, function, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
-	elseBody, err := lowerBranch(path, statement.Else, function.ReturnType, elseEnv, counter, shapes, signatures)
+	elseBody, err := lowerBranch(path, statement.Else, function.ReturnType, elseEnv, function, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
@@ -133,13 +133,13 @@ func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *i
 	if err != nil {
 		return fmt.Errorf("while condition: %w", err)
 	}
-	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, function, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
 	var stepInstructions []ir.Instruction
 	if len(statement.Step) > 0 {
-		stepInstructions, err = lowerBranch(path, statement.Step, function.ReturnType, env, counter, shapes, signatures)
+		stepInstructions, err = lowerBranch(path, statement.Step, function.ReturnType, env, function, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
@@ -171,13 +171,13 @@ func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function 
 	if err != nil {
 		return fmt.Errorf("do-while condition: %w", err)
 	}
-	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, function, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
 	var stepInstructions []ir.Instruction
 	if len(statement.Step) > 0 {
-		stepInstructions, err = lowerBranch(path, statement.Step, function.ReturnType, env, counter, shapes, signatures)
+		stepInstructions, err = lowerBranch(path, statement.Step, function.ReturnType, env, function, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
@@ -753,7 +753,7 @@ func substituteStringIndexInStmt(stmt typescriptgo.SyntaxStatement, varName stri
 }
 
 func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
-	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, function, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
@@ -943,7 +943,7 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 			}
 		}
 
-		caseStmts, err := lowerBranch(path, c.Statements, function.ReturnType, caseEnv, counter, shapes, signatures)
+		caseStmts, err := lowerBranch(path, c.Statements, function.ReturnType, caseEnv, function, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}
@@ -984,7 +984,7 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 		activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
 	}
 
-	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, counter, shapes, signatures)
+	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, function, counter, shapes, signatures)
 	if len(statement.Finally) > 0 {
 		activeReturnFinallyStack = activeReturnFinallyStack[:len(activeReturnFinallyStack)-1]
 	}
@@ -1021,10 +1021,22 @@ func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.
 			activeThrowFinallyStack = activeThrowFinallyStack[:len(activeThrowFinallyStack)-1]
 		}
 		catchInstructions = catchBranch.Body
+		for _, local := range catchBranch.Locals {
+			found := false
+			for _, existing := range function.Locals {
+				if existing.Name == local.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				function.Locals = append(function.Locals, local)
+			}
+		}
 	}
 	var finallyInstructions []ir.Instruction
 	if len(statement.Finally) > 0 {
-		finallyBranch, err := lowerBranch(path, statement.Finally, function.ReturnType, env, counter, shapes, signatures)
+		finallyBranch, err := lowerBranch(path, statement.Finally, function.ReturnType, env, function, counter, shapes, signatures)
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,13 @@ import (
 )
 
 func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+	if statement.IsAsync || statement.Kind == "async_function" {
+		return lowerAsyncFunction(path, statement, shapes, signatures)
+	}
+	return lowerSyncFunction(path, statement, shapes, signatures)
+}
+
+func lowerSyncFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
 	savedUsingScopes := usingScopeStack
 	usingScopeStack = nil
 	defer func() {
@@ -587,6 +594,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		if len(activeReturnFinallyStack) > 0 && value != "" && typ != ir.TypeVoid {
 			savedVal := nextTemp(counter)
+			// Return values that must survive a finally clause need a real
+			// storage slot; OpAssign is a variable write, not an SSA definition.
+			function.Locals = append(function.Locals, ir.Parameter{Name: savedVal, Type: typ})
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpAssign,
 				Type:   typ,
@@ -1229,13 +1239,25 @@ func lowerActiveBreakFinally(path string, function *ir.Function, env map[string]
 	return nil
 }
 
-func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnType ir.Type, parentEnv map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]ir.Instruction, error) {
+func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnType ir.Type, parentEnv map[string]ir.Type, parent *ir.Function, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]ir.Instruction, error) {
 	branch := ir.Function{Name: "branch", ReturnType: returnType}
 	env := make(map[string]ir.Type, len(parentEnv))
 	maps.Copy(env, parentEnv)
 	for _, statement := range statements {
 		if err := lowerStatement(path, statement, &branch, env, counter, shapes, signatures); err != nil {
 			return nil, err
+		}
+	}
+	for _, local := range branch.Locals {
+		found := false
+		for _, existing := range parent.Locals {
+			if existing.Name == local.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			parent.Locals = append(parent.Locals, local)
 		}
 	}
 	return branch.Body, nil

@@ -565,6 +565,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					methodStmt := typescriptgo.SyntaxStatement{
 						Span:       method.Span,
 						Kind:       "function",
+						IsAsync:    method.IsAsync,
 						Name:       mangled,
 						Type:       retType,
 						Parameters: params,
@@ -681,8 +682,23 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	sort.Slice(module.Shapes, func(i, j int) bool {
 		return module.Shapes[i].Name < module.Shapes[j].Name
 	})
-	main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
-	module.Functions = append([]ir.Function{main}, module.Functions...)
+	if len(collectNestedAwaits(main.Body)) > 0 {
+		functions, ok, err := lowerTopLevelAsyncSequence(program.EntryPath, main, shapes, signatures)
+		if err != nil {
+			return ir.Module{}, fmt.Errorf("lower top-level await: %w", sourceError(program.EntryPath, typescriptgo.SourceSpan{}, err))
+		}
+		if ok {
+			mainFunction := functions[len(functions)-1]
+			stageFunctions := functions[:len(functions)-1]
+			module.Functions = append(append([]ir.Function{mainFunction}, stageFunctions...), module.Functions...)
+		} else {
+			main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+			module.Functions = append([]ir.Function{main}, module.Functions...)
+		}
+	} else {
+		main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+		module.Functions = append([]ir.Function{main}, module.Functions...)
+	}
 	module.Functions = append(module.Functions, extraFunctions...)
 
 	dispatchers := synthesizePolymorphicDispatchers(hierarchy, signatures)

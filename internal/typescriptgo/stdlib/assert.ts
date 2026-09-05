@@ -756,13 +756,14 @@ async function rejectsImpl(asyncFn: Function | Promise<unknown>, error?: unknown
     let threw = false;
     let caughtErr: unknown = undefined;
     try {
+        let promise: Promise<unknown>;
         if (typeof asyncFn === "function") {
             const callable = asyncFn as () => Promise<unknown>;
-            const promise = callable();
-            await promise;
+            promise = callable();
         } else {
-            await (asyncFn as Promise<unknown>);
+            promise = asyncFn as Promise<unknown>;
         }
+        await promise;
     } catch (err) {
         threw = true;
         caughtErr = err;
@@ -786,13 +787,14 @@ async function doesNotRejectImpl(asyncFn: Function | Promise<unknown>, error?: u
     let threw = false;
     let caughtErr: unknown = undefined;
     try {
+        let promise: Promise<unknown>;
         if (typeof asyncFn === "function") {
             const callable = asyncFn as () => Promise<unknown>;
-            const promise = callable();
-            await promise;
+            promise = callable();
         } else {
-            await (asyncFn as Promise<unknown>);
+            promise = asyncFn as Promise<unknown>;
         }
+        await promise;
     } catch (err) {
         threw = true;
         caughtErr = err;

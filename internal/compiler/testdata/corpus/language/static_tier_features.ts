@@ -48,8 +48,6 @@ async function testAsyncStaticFeatures(): Promise<number> {
     console.log(settled[0].status);
     return anyRes;
 }
-// @expect: 10
-// @expect: fulfilled
 testAsyncStaticFeatures();
 
 // --- Context Case: auto_accessors ---
@@ -71,3 +69,7 @@ namespace Calculator {
 }
 // @expect: 42
 console.log(Calculator.multiply(6, 7));
+
+// Async continuations run after synchronous module initialization.
+// @expect: 10
+// @expect: fulfilled
