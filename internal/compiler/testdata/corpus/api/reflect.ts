@@ -1,3 +1,6 @@
+// @parity-runner: tsc-node22
+import "reflect-metadata";
+
 // ScriptGo Corpus: ECMAScript Reflect API Complete Test Suite
 // Verifying all 19 standard Reflect operations & reflection metadata in Static Tier.
 
@@ -36,19 +39,19 @@ class Account {
 
 // --- 2. Test Metadata APIs ---
 // @expect: true
-console.log(Reflect.hasMetadata("security", Account, "balance"));
+console.log(Reflect.hasMetadata("security", Account.prototype, "balance"));
 // @expect: high
-console.log(Reflect.getMetadata("security", Account, "balance"));
+console.log(Reflect.getMetadata("security", Account.prototype, "balance"));
 // @expect: true
-console.log(Reflect.hasOwnMetadata("security", Account, "balance"));
+console.log(Reflect.hasOwnMetadata("security", Account.prototype, "balance"));
 // @expect: high
-console.log(Reflect.getOwnMetadata("security", Account, "balance"));
+console.log(Reflect.getOwnMetadata("security", Account.prototype, "balance"));
 
-Reflect.defineMetadata("version", "2.0", Account, "deposit");
+Reflect.defineMetadata("version", "2.0", Account.prototype, "deposit");
 // @expect: true
-console.log(Reflect.hasMetadata("version", Account, "deposit"));
+console.log(Reflect.hasMetadata("version", Account.prototype, "deposit"));
 // @expect: 2.0
-console.log(Reflect.getMetadata("version", Account, "deposit"));
+console.log(Reflect.getMetadata("version", Account.prototype, "deposit"));
 
 // --- 3. Test Object Properties (get, set, has, ownKeys) ---
 let acc = new Account();
