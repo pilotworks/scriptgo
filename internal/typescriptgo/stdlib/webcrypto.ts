@@ -115,7 +115,12 @@ export class SubtleCrypto {
 
     async importKey(format: string, keyData: unknown, algorithm: unknown, extractable: boolean, keyUsages: string[]): Promise<CryptoKey> {
         let name = "RAW";
-        if (typeof algorithm === "string") name = algorithm;
+        if (typeof algorithm === "string") {
+            name = algorithm;
+        } else if (algorithm && typeof algorithm === "object") {
+            const algorithmObject = algorithm as { name?: string };
+            if (algorithmObject.name) name = algorithmObject.name;
+        }
         const key = new CryptoKey("secret", extractable, { name }, keyUsages);
         if (format === "raw") key.material = sourceBytes(keyData as BufferSource);
         return key;

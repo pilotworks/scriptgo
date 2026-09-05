@@ -564,7 +564,7 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 		}
 		defer os.RemoveAll(tempDir)
 		emittedEntry = filepath.Join(tempDir, strings.TrimSuffix(filepath.Base(absoluteEntry), filepath.Ext(absoluteEntry))+".js")
-		compile := exec.Command(tscPath, "--target", "ES2022", "--module", "NodeNext", "--experimentalDecorators", "--emitDecoratorMetadata", "--skipLibCheck", "--noEmitOnError", "false", "--outDir", tempDir, "--rootDir", filepath.Dir(absoluteEntry), absoluteEntry)
+		compile := exec.Command(tscPath, "--target", "ES2022", "--module", "ES2022", "--moduleResolution", "Bundler", "--experimentalDecorators", "--emitDecoratorMetadata", "--skipLibCheck", "--noEmitOnError", "false", "--outDir", tempDir, "--rootDir", filepath.Dir(absoluteEntry), absoluteEntry)
 		compile.Dir = workingDir
 		var compileOutput bytes.Buffer
 		compile.Stdout = &compileOutput
@@ -575,12 +575,23 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 		if emittedEntry == "" || !fileExists(emittedEntry) {
 			return compileOutput.String(), fmt.Errorf("tsc did not emit %s", emittedEntry)
 		}
+		// The emitted ES module is outside the corpus package boundary. Recreate
+		// the package boundary and dependency lookup needed by Node's ESM loader.
+		packageJSON := filepath.Join(tempDir, "package.json")
+		if err := os.WriteFile(packageJSON, []byte(`{"type":"module"}`), 0o644); err != nil {
+			return "", fmt.Errorf("write temporary package metadata: %w", err)
+		}
 		cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", emittedEntry)
 		// The emitted entry lives in /tmp, so expose corpus-local test dependencies.
 		if workingDir != "" {
 			nodeModules := filepath.Join(workingDir, "node_modules")
 			if absoluteNodeModules, err := filepath.Abs(nodeModules); err == nil {
 				nodeModules = absoluteNodeModules
+			}
+			if info, err := os.Stat(nodeModules); err == nil && info.IsDir() {
+				if err := os.Symlink(nodeModules, filepath.Join(tempDir, "node_modules")); err != nil {
+					return "", fmt.Errorf("link temporary Node dependencies: %w", err)
+				}
 			}
 			cmd.Env = append(os.Environ(), "NODE_PATH="+nodeModules)
 		}

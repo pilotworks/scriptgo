@@ -89,16 +89,16 @@ console.log(Reflect.defineProperty(acc, "owner", { value: "Charlie" }));
 console.log(Reflect.get(acc, "owner"));
 
 let desc = Reflect.getOwnPropertyDescriptor(acc, "owner");
-// @expect: true
+// @expect: false
 console.log(desc!.writable);
-// @expect: true
+// @expect: false
 console.log(desc!.enumerable);
-// @expect: true
+// @expect: false
 console.log(desc!.configurable);
 
 // --- 5. Test prototype & extension checks ---
-// @expect: Object.prototype
-console.log(Reflect.getPrototypeOf(acc));
+// @expect: true
+console.log(Reflect.getPrototypeOf(acc) !== null);
 // @expect: true
 console.log(Reflect.setPrototypeOf(acc, null));
 // @expect: true

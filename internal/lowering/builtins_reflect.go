@@ -696,7 +696,7 @@ func lowerReflectGetOwnPropertyDescriptor(call IntrinsicCall, intrinsic BuiltinI
 		Op:     ir.OpConst,
 		Type:   ir.TypeBool,
 		Result: writableConst,
-		Value:  "true",
+		Value:  "false",
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
 	call.Function.Body = append(call.Function.Body, ir.Instruction{

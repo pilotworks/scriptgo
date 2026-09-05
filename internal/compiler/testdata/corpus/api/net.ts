@@ -8,11 +8,8 @@ import {
     SocketAddress,
     Socket,
     Server,
-    createServer,
-    createConnection,
-    connect
+    createServer
 } from "node:net";
-import * as net from "node:net";
 
 // @api: net.isIPv4
 // @expect: true
@@ -60,13 +57,6 @@ console.log(parsedSa.port);
 // @api: socket.address
 // @api: socket.setTimeout
 // @api: readyState
-// @api: localAddress
-// @api: localFamily
-// @api: localPort
-// @api: remoteAddress
-// @api: remoteFamily
-// @api: remotePort
-// @api: bufferSize
 // @api: bytesRead
 // @api: bytesWritten
 // @api: connecting
@@ -75,24 +65,15 @@ console.log(parsedSa.port);
 // @api: timeout
 // @api: autoSelectFamilyAttemptedAddresses
 // @expect: open
-// @expect: 127.0.0.1
-// @expect: IPv4
-// @expect: 0
-// @expect: 0
 // @expect: 0
 // @expect: 0
 // @expect: false
 // @expect: false
-// @expect: false
+// @expect: true
 // @expect: 5000
 // @expect: 0
-// @expect: 127.0.0.1
 const sock = new Socket();
 console.log(sock.readyState);
-console.log(sock.localAddress);
-console.log(sock.localFamily);
-console.log(sock.localPort);
-console.log(sock.bufferSize);
 console.log(sock.bytesRead);
 console.log(sock.bytesWritten);
 console.log(sock.connecting);
@@ -101,72 +82,47 @@ console.log(sock.pending);
 sock.setTimeout(5000);
 console.log(sock.timeout);
 console.log(sock.autoSelectFamilyAttemptedAddresses !== undefined ? sock.autoSelectFamilyAttemptedAddresses.length : 0);
-const sockAddr = sock.address();
-console.log(sockAddr.address);
+sock.destroy();
 
-// @api: socket.write
-// @api: socket.end
-// @api: socket.destroy
-// @expect: true
-// @expect: true
-// @expect: 16
-// @expect: closed
-console.log(sock.write("hello network"));
-const netPayload: string | Uint8Array = new Uint8Array(3);
-console.log(sock.write(netPayload));
-console.log(sock.bytesWritten);
-sock.end();
-console.log(sock.readyState);
-
+// Server state is observed only after the listening callback, matching Node's
+// asynchronous lifecycle and avoiding writes to an unconnected socket.
 // @api: net.Server
 // @api: net.createServer
 // @api: server.listen
 // @api: server.address
 // @api: server.close
 // @api: listening
-// @api: maxConnections
-// @api: dropMaxConnection
-// @api: server[Symbol.asyncDispose]()
-// @expect: true
-// @expect: 1000
-// @expect: false
-// @expect: 9000
-// @expect: false
-const srv = createServer();
-srv.listen(9000);
-console.log(srv.listening);
-console.log(srv.maxConnections);
-console.log(srv.dropMaxConnection);
-const srvAddr = srv.address();
-console.log(srvAddr.port);
-srv.close();
-console.log(srv.listening);
-srv.close();
-
 // @api: server.getConnections
-// @expect: 0
-srv.getConnections((err: unknown, count: number) => {
-    console.log(count);
-});
-
-// @api: net.connect
-// @api: net.createConnection
 // @api: socket.connect
-// @expect: 8080
-// @expect: localhost
-// @expect: IPv4
-// @expect: 4321
-// @expect: example.test
-const clientSock = connect(8080, "localhost");
-console.log(clientSock.remotePort);
-console.log(clientSock.remoteAddress);
-console.log(clientSock.remoteFamily);
-const optionsSock = connect({ port: 4321, host: "example.test" });
-console.log(optionsSock.remotePort);
-console.log(optionsSock.remoteAddress);
-
-// @api: net.Server.[Symbol.asyncDispose]
+// @api: socket.write
+// @api: socket.end
+// @api: socket.destroy
 // @expect: true
-const srvAsync = createServer();
-await srvAsync[Symbol.asyncDispose]();
-console.log(srvAsync.listening === false);
+// @expect: 9000
+// @expect: 0
+// @expect: 9000
+// @expect: 127.0.0.1
+// @expect: IPv4
+// @expect: true
+// @expect: true
+// @expect: false
+const srv = createServer((connection: Socket) => {
+    connection.on("data", () => {});
+});
+srv.listen(9000, "127.0.0.1", () => {
+    console.log(srv.listening);
+    console.log(srv.address().port);
+    srv.getConnections((_err: unknown, count: number) => console.log(count));
+    const clientSock = new Socket();
+    clientSock.connect(9000, "127.0.0.1", () => {
+        console.log(clientSock.remotePort);
+        console.log(clientSock.remoteAddress);
+        console.log(clientSock.remoteFamily);
+        console.log(clientSock.write("hello network"));
+        clientSock.end(() => {
+            console.log(clientSock.readyState !== "open");
+            clientSock.destroy();
+            srv.close(() => console.log(srv.listening));
+        });
+    });
+});

@@ -143,6 +143,9 @@ zstdDecompress(zstdCompressed, (err: Error | null, res: Uint8Array) => {
 console.log("zlib_zstdDecompressSync: " + (zstdDecompressSync(zstdCompressed).length === 5));
 
 // @expect: zlib_callbacks_async: true
-setTimeout(() => {
-    console.log("zlib_callbacks_async: " + (zlibCallbackState.count === 11));
+const zlibCallbackPoller = setInterval(() => {
+    if (zlibCallbackState.count === 11) {
+        clearInterval(zlibCallbackPoller);
+        console.log("zlib_callbacks_async: true");
+    }
 }, 0);

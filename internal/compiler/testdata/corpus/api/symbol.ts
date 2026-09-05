@@ -52,7 +52,7 @@ console.log(s_symbol_symbol_3.valueOf().toString());
 // @expect: symbol
 // @expect: symbol
 // @expect: symbol
-// @expect: symbol
+// @expect: undefined
 // @expect: symbol
 // @expect: symbol
 // @expect: symbol

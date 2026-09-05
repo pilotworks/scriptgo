@@ -175,7 +175,7 @@ export class SocketAddress {
 export class Socket {
     connecting: boolean = false;
     destroyed: boolean = false;
-    pending: boolean = false;
+    pending: boolean = true;
     readyState: string = "closed";
     bytesRead: number = 0;
     bytesWritten: number = 0;
@@ -195,7 +195,7 @@ export class Socket {
     constructor(options: SocketOptions | null = null) {
         this.connecting = false;
         this.destroyed = false;
-        this.pending = false;
+        this.pending = true;
         this.readyState = "open";
         this._fd = -1;
     }
@@ -242,6 +242,7 @@ export class Socket {
 
     connect(optionsOrPort: number | string | SocketConnectOptions, hostOrListener: string | (() => void) | null = null, listener: (() => void) | null = null): Socket {
         this.connecting = false;
+        this.pending = false;
         this.readyState = "open";
         if (typeof optionsOrPort === "number") {
             this.remotePort = optionsOrPort;
@@ -346,6 +347,7 @@ export class Socket {
                 this._fd = -1;
             }
             this.destroyed = true;
+            this.pending = false;
             this.readyState = "closed";
             if (error !== null && error !== undefined) {
                 this.emit("error", error);
@@ -391,7 +393,7 @@ export class Server {
     _addressPort: number = 0;
     _serverFd: number = -1;
 
-    constructor(optionsOrListener: ServerOptions | (() => void) | null = null, listener: (() => void) | null = null) {
+    constructor(optionsOrListener: ServerOptions | ((socket: Socket) => void) | null = null, listener: ((socket: Socket) => void) | null = null) {
         this._serverFd = -1;
         if (typeof optionsOrListener === "function") {
             this.on("connection", optionsOrListener);
@@ -508,7 +510,7 @@ export class Server {
     }
 }
 
-export function createServer(optionsOrListener: ServerOptions | (() => void) | null = null, listener: (() => void) | null = null): Server {
+export function createServer(optionsOrListener: ServerOptions | ((socket: Socket) => void) | null = null, listener: ((socket: Socket) => void) | null = null): Server {
     return new Server(optionsOrListener, listener);
 }
 
