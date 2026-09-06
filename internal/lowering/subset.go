@@ -2,7 +2,6 @@ package lowering
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -14,8 +13,17 @@ import (
 // ValidateSubset rejects checked syntax that the current native IR cannot
 // represent. Keeping this gate in lowering prevents backend-specific policy.
 func ValidateSubset(program frontend.Program) error {
+	return ValidateSubsetWithOptions(program, Options{WarnRuntimeCasts: WarnRuntimeCasts})
+}
+
+// ValidateSubsetWithOptions validates compatibility without producing IR.
+func ValidateSubsetWithOptions(program frontend.Program, options Options) error {
 	lowerMu.Lock()
 	defer lowerMu.Unlock()
+	previousWarn := WarnRuntimeCasts
+	WarnRuntimeCasts = options.WarnRuntimeCasts || previousWarn
+	defer func() { WarnRuntimeCasts = previousWarn }()
+	ClearDiagnostics()
 	return validateSubsetLocked(program)
 }
 
@@ -311,147 +319,6 @@ func validateStatement(fileName string, statement typescriptgo.SyntaxStatement) 
 	}
 }
 
-func isHeterogeneousUnion(typ string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(typ))
-	if strings.HasSuffix(normalized, "[]") {
-		return false
-	}
-	if strings.Contains(normalized, "generator") || strings.Contains(normalized, "iterator") || strings.Contains(normalized, "string | symbol") || strings.Contains(normalized, "symbol | string") {
-		return false
-	}
-	if !strings.Contains(normalized, "|") {
-		return false
-	}
-	parts := splitTopLevelUnion(normalized)
-	if len(parts) <= 1 {
-		if len(normalized) > 1 && normalized[0] == '(' && normalized[len(normalized)-1] == ')' {
-			return isHeterogeneousUnion(strings.TrimSpace(normalized[1 : len(normalized)-1]))
-		}
-		return false
-	}
-	var nonNullish []string
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		trimmed = strings.TrimPrefix(trimmed, "(")
-		trimmed = strings.TrimSuffix(trimmed, ")")
-		if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
-			nonNullish = append(nonNullish, trimmed)
-		}
-	}
-	if len(nonNullish) <= 1 {
-		return false
-	}
-	first := toPrimitiveCategory(nonNullish[0])
-	for _, other := range nonNullish[1:] {
-		if toPrimitiveCategory(other) != first {
-			return true
-		}
-	}
-	return false
-}
-
-func toPrimitiveCategory(t string) string {
-	t = strings.TrimSpace(t)
-	if (strings.HasPrefix(t, "\"") && strings.HasSuffix(t, "\"")) || (strings.HasPrefix(t, "'") && strings.HasSuffix(t, "'")) || t == "string" {
-		return "string"
-	}
-	if _, err := strconv.ParseFloat(t, 64); err == nil || t == "number" {
-		return "number"
-	}
-	if t == "boolean" || t == "bool" || t == "true" || t == "false" {
-		return "bool"
-	}
-	if t == "bigint" {
-		return "bigint"
-	}
-	if t == "symbol" {
-		return "symbol"
-	}
-	if strings.HasSuffix(t, "[]") {
-		return "array"
-	}
-	return "object"
-}
-
-func isUnknownType(typ string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(typ))
-	return normalized == "unknown" || normalized == "unknownkeyword" || normalized == "kindunknownkeyword"
-}
-
-func isOrContainsAny(typ string) bool {
-	typ = strings.ToLower(strings.TrimSpace(typ))
-	if typ == "" {
-		return false
-	}
-	if typ == "any" || typ == "anykeyword" || typ == "kindanykeyword" {
-		return true
-	}
-	n := len(typ)
-	for i := 0; i < n; {
-		b := typ[i]
-		if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == '$' {
-			start := i
-			for i < n {
-				c := typ[i]
-				if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$' {
-					i++
-				} else {
-					break
-				}
-			}
-			word := typ[start:i]
-			if word == "any" || word == "anykeyword" || word == "kindanykeyword" {
-				return true
-			}
-		} else {
-			i++
-		}
-	}
-	return false
-}
-
-func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string) error {
-	if isOrContainsAny(typ) {
-		return subsetError(fileName, span, CodeAnyBoundary, "any type")
-	}
-	return nil
-}
-
-type Warning struct {
-	FileName string
-	Span     typescriptgo.SourceSpan
-	Code     SubsetCode
-	Message  string
-}
-
-func (w Warning) Format() string {
-	return typescriptgo.Format(w.FileName, w.Span.Start, w.Span.Length, "warning", string(w.Code), w.Message, "")
-}
-
-var (
-	warnings         []Warning
-	WarnRuntimeCasts bool
-)
-
-func ClearDiagnostics() {
-	warnings = nil
-}
-
-func GetWarnings() []Warning {
-	lowerMu.Lock()
-	defer lowerMu.Unlock()
-	return append([]Warning(nil), warnings...)
-}
-
-func recordWarning(fileName string, span typescriptgo.SourceSpan, code SubsetCode, message string) {
-	warnings = append(warnings, Warning{
-		FileName: fileName,
-		Span:     span,
-		Code:     code,
-		Message:  message,
-	})
-}
-
 func validateExpression(fileName string, expression *typescriptgo.SyntaxExpression) error {
 	switch expression.Kind {
 	case "as":
@@ -543,6 +410,9 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			if err := validateExpression(fileName, argument); err != nil {
 				return err
 			}
+		}
+		if callName(expression.Left) == "Function" {
+			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic constructor target")
 		}
 		if callName(expression.Left) == "" {
 			return subsetError(fileName, expression.Span, CodeLanguageLowering, "dynamic constructor target")
@@ -638,6 +508,9 @@ func validateExpression(fileName string, expression *typescriptgo.SyntaxExpressi
 			}
 		}
 		target := expression.Left
+		if callName(target) == "eval" {
+			return subsetError(fileName, expression.Span, CodeFunctionValue, "dynamic call target")
+		}
 		for target != nil && (target.Kind == "as" || target.Kind == "paren" || target.Kind == "cast" || target.Kind == "type_assertion" || target.Kind == "non_null") {
 			target = target.Left
 		}

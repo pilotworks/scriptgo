@@ -9,14 +9,14 @@ dynamic.
 | Tier            | Selection               | Execution model                                                                                                                                                                                    | Result when unavailable                                                                    |
 | --------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **Static**      | Default                 | Compile directly to `scriptgo` IR, LLVM, and native code. No JavaScript engine is linked.                                                                                                          | Try Dynamic only when `--dynamic` is explicitly enabled; otherwise report Unsupported.     |
-| **Dynamic**     | Opt-in with `--dynamic` | Execute a JavaScript-compatible dynamic island in embedded QuickJS-ng. This includes eligible `.js`/npm package code, `any`, and other values that cannot be represented safely by the static ABI. | Report Unsupported if the feature is not covered by the dynamic runtime contract.          |
+| **Dynamic**     | Opt-in with `--dynamic` | Classify sites that require JavaScript semantics. Milestone 8A records these sites but does not execute them because QuickJS-ng is not linked yet.                                      | Report `SG5001` until the Dynamic runtime contract and engine are available.                |
 | **Unsupported** | No valid implementation | No code is emitted for the rejected site.                                                                                                                                                          | Compile error with stable code, source span/code frame, and a rewrite hint where possible. |
 
 The key invariant is:
 
 ```text
 default       -> static native code only
---dynamic     -> static native code + explicit QuickJS-ng dynamic islands
+--dynamic     -> classify Dynamic sites; reject them with SG5001 in Milestone 8A
 unsupported   -> compile error; never silent fallback or guessed semantics
 ```
 
@@ -35,9 +35,11 @@ value remains dynamic or unsupported until its use is narrowed and proven.
 
 ## Dynamic
 
-`--dynamic` is an explicit compatibility mode for code that needs JavaScript's
-runtime value model. QuickJS-ng is embedded only in binaries that request this
-mode; the default static binary does not link an engine.
+`--dynamic` is an explicit compatibility analysis mode for code that needs
+JavaScript's runtime value model. In Milestone 8A it records Dynamic eligibility
+but does not enable execution. All-Static programs still compile, while a
+Dynamic site fails before IR generation with `SG5001`. No current build links a
+JavaScript engine.
 
 Dynamic islands may contain JavaScript npm dependencies, erased TypeScript,
 `any`, dynamic property access, function values, prototype-sensitive behavior,
@@ -49,6 +51,20 @@ Dynamic mode is not permission to compile arbitrary code incorrectly. If a
 package or operation requires Node APIs that QuickJS-ng does not provide, it
 must either use an explicitly implemented Node service adapter or fail as
 Unsupported with an actionable diagnostic.
+
+Compatibility reports are available without LLVM or Clang:
+
+```sh
+scriptgo coverage app.ts
+scriptgo coverage app.ts --dynamic
+scriptgo coverage app.ts --dynamic --format json -o coverage.json
+```
+
+The default output is a human-readable whole-program summary. Add
+`--format json` for the detailed machine-readable artifact. The JSON schema
+starts at format `1`, includes deterministic relative paths and all analyzed
+Static, Dynamic, and Unsupported sites, and may be emitted even when normal
+compilation would reject the program.
 
 ## Unsupported
 
@@ -76,6 +92,7 @@ identifies a scriptgo representation or tier decision.
 | `SG2xxx` | Static lowering / coverage      | Unlowered stdlib, tuple/Date/Map/Set operations, unsupported language lowering             |
 | `SG3xxx` | Target capability               | WASI networking, process spawning, signals, native FFI, platform APIs                      |
 | `SG4xxx` | Semantic divergence / safety    | Dense-array traps, checked casts, width-copy behavior, runtime hard traps                  |
+| `SG5xxx` | Dynamic runtime boundary        | Dynamic-eligible source site cannot execute in the current compiler build                  |
 | `SG9xxx` | Internal compiler / fallback    | Invariant violation, unreachable state, unclassified rejection                             |
 
 | Code     | Meaning                             | Typical examples                                                                       |
@@ -86,6 +103,7 @@ identifies a scriptgo representation or tier decision.
 | `SG1004` | Unresolved function value           | unpinned generic function, reassigned callable binding, unresolved dynamic call target |
 | `SG1005` | Structural flow unsupported         | dynamic property/prototype flow or incompatible record shape                           |
 | `SG1006` | `unknown` boundary                  | unnarrowed/unchecked `unknown` without static proof or checked cast                    |
+| `SG5001` | Dynamic runtime unavailable         | `--dynamic` identified an eligible site, but no Dynamic engine is linked               |
 | `SG2001` | Stdlib member not lowered           | declared API exists but has no Static lowering                                         |
 | `SG2002` | Tuple operation not lowered         | unsupported tuple method/index operation                                               |
 | `SG2003` | Date operation not lowered          | unsupported constructor, getter, parser, or formatter                                  |

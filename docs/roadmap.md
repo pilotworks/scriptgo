@@ -13,9 +13,9 @@ and Clang. Full JavaScript and npm compatibility are deferred from the MVP and
 remain the product direction.
 
 The compatibility policy is three-tiered: Static native compilation by
-default, Dynamic QuickJS-ng execution only with `--dynamic`, and Unsupported
-compile errors when neither path can preserve JavaScript semantics. The current
-MVP implements Static only.
+default, opt-in Dynamic classification with `--dynamic`, and Unsupported
+compile errors when neither path can preserve JavaScript semantics. Milestone
+8A implements analysis and reporting; QuickJS-ng execution remains pending.
 
 ## Current Baseline
 
@@ -26,7 +26,7 @@ MVP implements Static only.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
 - [x] Exceptions and async code were delivered after the original MVP baseline in Milestone 6.
 - [ ] npm/package resolution and full JavaScript compatibility remain roadmap work, not permanent non-goals.
-- [x] Static/Dynamic/Unsupported policy is documented; Dynamic execution and `--dynamic` remain unimplemented roadmap work.
+- [x] Static/Dynamic/Unsupported policy and `--dynamic` analysis mode are implemented; Dynamic execution remains roadmap work.
 
 ## Milestones
 
@@ -179,12 +179,12 @@ Dependencies: Milestone 3. Estimated scope: Medium.
 Add opt-in JavaScript execution without weakening the Static default or hiding
 semantic gaps behind native code generation.
 
-- [ ] Add `--dynamic`, disabled by default, and record the selected tier in build metadata.
+- [x] Add `--dynamic`, disabled by default, and record the selected compatibility mode in build metadata.
 - [ ] Embed QuickJS-ng only for Dynamic builds; static binaries must not link a JavaScript engine.
 - [ ] Define the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
 - [ ] Resolve eligible JavaScript/npm dependencies and `any` sites into explicit Dynamic islands.
-- [ ] Reject missing Node APIs and unsupported dynamic behavior with stable codes, spans, code frames, and rewrite hints.
-- [ ] Emit Static/Dynamic/Unsupported coverage reports for reachable source sites.
+- [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
+- [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
 - [ ] Add Node reference, QuickJS-ng, interpreter, and native boundary parity tests.
 
 ### Standard Library Compatibility Slice (In Progress)

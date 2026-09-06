@@ -36,7 +36,7 @@ func compileWithOptions(entryPath string, options BuildOptions) (string, error) 
 	if err := validateOptions(options); err != nil {
 		return "", err
 	}
-	module, err := CompileModuleWithOptions(entryPath, options)
+	module, report, err := compileModuleWithReport(entryPath, options)
 	if err != nil {
 		return "", err
 	}
@@ -48,11 +48,16 @@ func compileWithOptions(entryPath string, options BuildOptions) (string, error) 
 	}
 	hash := hashSources(module.SourceFiles)
 	return llvm.EmitWithOptions(module, llvm.Options{
-		CompilerVersion: Version,
-		RuntimeABI:      RuntimeABIVersion,
-		Target:          options.Target,
-		SourceHash:      hash,
-		Debug:           options.Debug,
+		CompilerVersion:           Version,
+		RuntimeABI:                RuntimeABIVersion,
+		Target:                    options.Target,
+		SourceHash:                hash,
+		Debug:                     options.Debug,
+		CompatibilityMode:         string(report.Mode),
+		CompatibilityReportFormat: report.Format,
+		StaticSites:               report.Summary.Static,
+		DynamicSites:              report.Summary.Dynamic,
+		UnsupportedSites:          report.Summary.Unsupported,
 	})
 }
 
@@ -108,25 +113,32 @@ func CompileModule(entryPath string) (ir.Module, error) {
 
 // CompileModuleWithOptions returns the verified typed IR for an entry point using custom build options.
 func CompileModuleWithOptions(entryPath string, options BuildOptions) (ir.Module, error) {
-	source, err := os.ReadFile(entryPath)
-	if err != nil {
-		return ir.Module{}, fmt.Errorf("read entry point %q: %w", entryPath, err)
-	}
+	module, _, err := compileModuleWithReport(entryPath, options)
+	return module, err
+}
 
-	program, err := frontend.NewProgramWithOptions(entryPath, string(source), frontend.ProgramOptions{
-		ConfigPath: options.TSConfig,
-	})
+func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module, lowering.CompatibilityReport, error) {
+	program, err := loadProgram(entryPath, options)
 	if err != nil {
-		return ir.Module{}, err
+		return ir.Module{}, lowering.CompatibilityReport{}, err
+	}
+	report, err := analyzeProgram(program, options)
+	if err != nil {
+		return ir.Module{}, lowering.CompatibilityReport{}, err
+	}
+	if options.Dynamic {
+		if err := enforceProgram(program, report, options); err != nil {
+			return ir.Module{}, report, err
+		}
 	}
 
 	module, err := lowering.LowerWithOptions(program, lowering.Options{
 		WarnRuntimeCasts: options.WarnRuntimeCasts,
 	})
 	if err != nil {
-		return ir.Module{}, err
+		return ir.Module{}, report, err
 	}
-	return module, nil
+	return module, report, nil
 }
 
 // CheckProject typechecks an entire tsconfig.json project and validates native subset rules for project files.
@@ -149,6 +161,15 @@ func CheckProject(configPath string, options BuildOptions) ([]typescriptgo.Diagn
 			Options:        result.Options,
 			Files:          result.Files,
 		}
+		report, err := analyzeProgram(prog, options)
+		if err != nil {
+			return nil, err
+		}
+		if options.Dynamic {
+			if err := enforceProgram(prog, report, options); err != nil {
+				return nil, err
+			}
+		}
 		if _, err := lowering.LowerWithOptions(prog, lowering.Options{
 			WarnRuntimeCasts: options.WarnRuntimeCasts,
 		}); err != nil {
@@ -166,7 +187,12 @@ func CheckProject(configPath string, options BuildOptions) ([]typescriptgo.Diagn
 
 // DumpIR returns the stable backend-independent IR artifact for an entry point.
 func DumpIR(entryPath string) (string, error) {
-	module, err := CompileModule(entryPath)
+	return DumpIRWithOptions(entryPath, BuildOptions{})
+}
+
+// DumpIRWithOptions returns typed IR using the selected compatibility mode.
+func DumpIRWithOptions(entryPath string, options BuildOptions) (string, error) {
+	module, err := CompileModuleWithOptions(entryPath, options)
 	if err != nil {
 		return "", err
 	}
@@ -382,15 +408,34 @@ func RunWithOptions(entryPath string, options BuildOptions) (string, error) {
 
 // Check parses, type checks, and validates the native subset for an entry point.
 func Check(entryPath string) error {
-	source, err := os.ReadFile(entryPath)
-	if err != nil {
-		return fmt.Errorf("read entry point %q: %w", entryPath, err)
-	}
-	program, err := frontend.NewProgram(entryPath, string(source))
+	return CheckWithOptions(entryPath, BuildOptions{})
+}
+
+// CheckWithOptions parses, type checks, and validates compatibility policy.
+func CheckWithOptions(entryPath string, options BuildOptions) error {
+	program, err := loadProgram(entryPath, options)
 	if err != nil {
 		return err
 	}
-	return lowering.ValidateSubset(program)
+	report, err := analyzeProgram(program, options)
+	if err != nil {
+		return err
+	}
+	if err := enforceProgram(program, report, options); err != nil {
+		return err
+	}
+	if options.Dynamic {
+		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts}); err != nil {
+			return err
+		}
+	}
+	if options.StrictCasts {
+		warns := lowering.GetWarnings()
+		if len(warns) > 0 {
+			return fmt.Errorf("strict casts: %s: %s at offset %d: %s", warns[0].Code, warns[0].FileName, warns[0].Span.Start, warns[0].Message)
+		}
+	}
+	return nil
 }
 
 var runtimeCacheMu sync.Mutex

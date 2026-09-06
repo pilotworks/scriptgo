@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: September 5, 2026
+> **Report Date**: September 6, 2026
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -18,9 +18,9 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **386** | **386 / 386 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 386 | 374 PASS plus 12 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 12 | 12 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **390** | **390 / 390 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 390 | 375 PASS plus 15 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node API Surface** | **91** | **91 / 91 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Total Test Suite Runtime** | ~5m40s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
 
@@ -40,7 +40,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`, `Symbol.dispose`, `Symbol.asyncDispose`). |
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
 | `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism (16-byte tagged value), supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
-| `any` | ⚠️ Limited | Rejected in static mode (`SG1001`) to preserve machine code type safety. Full support planned for `--dynamic` mode. |
+| `any` | ⚠️ Limited | Rejected in Static mode (`SG1001`); `--dynamic` classifies the boundary explicitly but returns `SG5001` until the Dynamic runtime exists. |
 | `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`), including tagged-value unboxing when heterogeneous tuple storage is destructured into a typed rest array. |
 | `Enum & Const Enum` | ✅ Full | Supports numeric enums, string enums, reverse mapping, and `const enum` member inlining directly into machine constants. |
 | `Union types` (`T \| U`) | ✅ Full | Flexible multi-variant primitive & object unions (e.g. `number \| string \| boolean \| null`), complete distribution with `undefined` and `null` (uninitialized defaults, variant transitions, and reassignments), flow-sensitive type narrowing (`!== undefined`, `!== null`, `typeof`, `instanceof`) unboxing directly into native CPU registers for zero-overhead arithmetic/loops, automatic boxing/unboxing, truthiness coercion, subtyping broadening across function calls, and control-flow type narrowing without manual `as` casts. |
@@ -190,10 +190,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 386
-Native Backend Parity  : 374/386 plus 12 diagnostics
-Diagnostic Parity      : 12/12
-Overall Full Parity    : 386/386 (100.0%) on macOS + Ubuntu Docker
+Total Test Cases       : 390
+Native Backend Parity  : 375/390 plus 15 diagnostics
+Diagnostic Parity      : 15/15
+Overall Full Parity    : 390/390 (100.0%) on macOS + Ubuntu Docker
 Implemented Node API  : 91/91 (100.0%) on macOS + Ubuntu Docker
 Total Time Elapsed     : 5m40.074s (macOS)
 ================================================================================
@@ -304,7 +304,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | TypeScript Feature | Current Status in ScriptGo | Detailed Description & Impact |
 | :--- | :---: | :--- |
-| **Dynamic `any`** | ❌ Rejected in Static mode | Static mode requires static types or `unknown` with type guards (`SG1001`). Arbitrary `any` usage will be supported via `--dynamic` (QuickJS-ng). |
+| **Dynamic `any`** | 🚧 Classified, not executable | Static mode rejects `any` with `SG1001`; `--dynamic` records it as Dynamic and returns `SG5001` before IR until QuickJS-ng is integrated. |
 | **`bigint`** | ✅ Full | 64-bit integer type (`100n`, `BigInt(...)`, arithmetic, bitwise, comparison operators, `.toString()`). |
 | **`symbol`** | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known symbols (`Symbol.iterator`), `.description`, `.toString()`. |
 | **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `search`, `replace` via POSIX regex runtime. |
@@ -336,7 +336,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | **NPM Packages (`node_modules`)** | ⏳ Roadmap (Milestone 8) | Automatic resolution of `node_modules` directory trees and complex `package.json` manifests is not yet implemented. |
 | **CommonJS (`require` / `module.exports`)** | ⏳ Roadmap (Milestone 8) | ESM-to-CommonJS interoperability and package loading belong to the explicit Dynamic compatibility tier. |
-| **Dynamic Island (`--dynamic`)** | ⏳ Milestone 8 | Planned hybrid execution architecture: Static portions compile to LLVM native code while eligible dynamic npm code executes through embedded QuickJS-ng. |
+| **Dynamic compatibility (`--dynamic`)** | 🚧 Foundations complete | Mode plumbing, tier analysis, human-readable summary reports, detailed `--format json` artifacts, LLVM metadata, and `SG5001` enforcement are implemented. QuickJS-ng execution and npm resolution remain pending. |
 
 ---
 
@@ -426,8 +426,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
 | npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
-| Dynamic islands with QuickJS-ng | ⏳ Planned | Milestone 8; opt-in through `--dynamic`, with no JavaScript engine in Static builds. |
-| Dynamic ABI, tier coverage reports, and boundary parity tests | ⏳ Planned | Milestone 8 prerequisites before broad npm compatibility. |
+| Dynamic islands with QuickJS-ng | ⏳ Planned | Milestone 8B; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
+| Dynamic ABI and executable boundary parity tests | ⏳ Planned | Tier coverage reports and mode metadata are complete; boxed ABI and execution remain Milestone 8B work. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |

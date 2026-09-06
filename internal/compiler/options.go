@@ -26,6 +26,7 @@ type BuildOptions struct {
 	LinkFlags        []string
 	ExtraSources     []string
 	TSConfig         string
+	Dynamic          bool
 }
 
 func (options BuildOptions) normalized() BuildOptions {

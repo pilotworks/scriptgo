@@ -12,11 +12,16 @@ import (
 
 // Options controls deterministic LLVM artifact metadata.
 type Options struct {
-	CompilerVersion string
-	RuntimeABI      string
-	Target          string
-	SourceHash      string
-	Debug           bool
+	CompilerVersion           string
+	RuntimeABI                string
+	Target                    string
+	SourceHash                string
+	Debug                     bool
+	CompatibilityMode         string
+	CompatibilityReportFormat int
+	StaticSites               int
+	DynamicSites              int
+	UnsupportedSites          int
 }
 
 // Emit converts a verified module into LLVM IR using opaque pointers.
@@ -141,12 +146,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 
 	var out strings.Builder
 	out.WriteString("; ModuleID = 'scriptgo'\n")
-	fmt.Fprintf(&out, "; scriptgo.compiler = %q\n", options.CompilerVersion)
-	fmt.Fprintf(&out, "; scriptgo.runtime-abi = %q\n", options.RuntimeABI)
-	fmt.Fprintf(&out, "; scriptgo.target = %q\n", options.Target)
-	if options.SourceHash != "" {
-		fmt.Fprintf(&out, "; scriptgo.source-sha256 = %q\n", options.SourceHash)
-	}
+	out.WriteString(formatArtifactMetadata(options))
 	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n\n")
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")

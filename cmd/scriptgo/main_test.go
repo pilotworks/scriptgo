@@ -70,6 +70,62 @@ func TestCLI_InlineEvalFlag(t *testing.T) {
 	})
 }
 
+func TestCLI_DynamicCompatibilitySurface(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "scriptgo")
+	cmd := exec.Command("go", "build", "-o", binPath, ".")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build scriptgo: %v\noutput: %s", err, string(out))
+	}
+	for _, command := range []string{"run", "build", "check", "emit", "coverage"} {
+		cmd := exec.Command(binPath, command, "--help")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s --help failed: %v\n%s", command, err, out)
+		}
+		if !strings.Contains(string(out), "--dynamic") {
+			t.Errorf("%s --help does not list --dynamic: %s", command, out)
+		}
+	}
+
+	entry := filepath.Join(tmpDir, "main.ts")
+	if err := os.WriteFile(entry, []byte("const value: any = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command(binPath, "coverage", "--dynamic", entry)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("coverage failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "ScriptGo coverage summary") || !strings.Contains(string(out), "Result: dynamic-runtime-required") {
+		t.Fatalf("unexpected compatibility output: %s", out)
+	}
+	if strings.HasPrefix(strings.TrimSpace(string(out)), "{") {
+		t.Fatalf("default compatibility output must not be JSON: %s", out)
+	}
+
+	cmd = exec.Command(binPath, "coverage", "--format", "json", "--dynamic", entry)
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("JSON coverage failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), `"mode": "dynamic-enabled"`) || !strings.Contains(string(out), `"tier": "dynamic"`) {
+		t.Fatalf("unexpected JSON compatibility output: %s", out)
+	}
+
+	cmd = exec.Command(binPath, "coverage", "--format", "yaml", entry)
+	out, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "unsupported coverage format") {
+		t.Fatalf("invalid coverage format output/error = %s / %v", out, err)
+	}
+
+	cmd = exec.Command(binPath, "check", "--dynamic", entry)
+	out, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "SG5001") {
+		t.Fatalf("dynamic check output/error = %s / %v, want SG5001", out, err)
+	}
+}
+
 func TestCLI_CheckTSConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	binPath := filepath.Join(tmpDir, "scriptgo")

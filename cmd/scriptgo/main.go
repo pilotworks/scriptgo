@@ -36,6 +36,8 @@ func main() {
 		handleCheck(normalizeFlagsFirst(os.Args[2:]))
 	case "emit":
 		handleEmit(normalizeFlagsFirst(os.Args[2:]))
+	case "coverage":
+		handleCoverage(normalizeFlagsFirst(os.Args[2:]))
 	case "version", "--version", "-V":
 		fmt.Printf("scriptgo version %s (runtime %s)\n", compiler.Version, compiler.RuntimeABIVersion)
 	case "help", "--help", "-h":
@@ -61,6 +63,8 @@ func handleHelpCommand(cmd string) {
 		printCheckUsage()
 	case "emit":
 		printEmitUsage()
+	case "coverage":
+		printCoverageUsage()
 	case "version":
 		fmt.Println("Usage: scriptgo version\n\nPrints the current compiler version and runtime ABI version.")
 	default:
@@ -77,7 +81,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "-O" || arg == "-lto" || arg == "--lto") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "-O" || arg == "-lto" || arg == "--lto") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -125,6 +129,7 @@ func handleRun(args []string) {
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	dynamic := registerDynamicFlag(fs)
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
@@ -187,6 +192,7 @@ func handleRun(args []string) {
 		StrictCasts:      *strictCasts,
 		FFIManifests:     manifests,
 		ExtraSources:     extraSources,
+		Dynamic:          *dynamic,
 	}
 
 	if *verbose {
@@ -230,6 +236,7 @@ func handleBuild(args []string) {
 	sanitize := fs.String("sanitize", "", "enable clang sanitizers (comma-separated: address,undefined,leak)")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	dynamic := registerDynamicFlag(fs)
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
@@ -308,6 +315,7 @@ func handleBuild(args []string) {
 		StrictCasts:      *strictCasts,
 		FFIManifests:     manifests,
 		ExtraSources:     extraSources,
+		Dynamic:          *dynamic,
 	}
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: build %s -> %s\n", entryPath, outputPath)
@@ -329,6 +337,7 @@ func handleCheck(args []string) {
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	dynamic := registerDynamicFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -339,6 +348,7 @@ func handleCheck(args []string) {
 	options := compiler.BuildOptions{
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
+		Dynamic:          *dynamic,
 	}
 
 	var entryPath string
@@ -469,7 +479,7 @@ func handleCheck(args []string) {
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: checking %s\n", entryPath)
 	}
-	if _, err := compiler.CompileWithOptions(entryPath, options); err != nil {
+	if err := compiler.CheckWithOptions(entryPath, options); err != nil {
 		printCompilerWarnings()
 		printError(err)
 		os.Exit(1)
@@ -491,6 +501,7 @@ func handleEmit(args []string) {
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	dynamic := registerDynamicFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
@@ -527,6 +538,7 @@ func handleEmit(args []string) {
 		Debug:            *debug,
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
+		Dynamic:          *dynamic,
 	}
 	var result string
 	var err error
@@ -536,7 +548,7 @@ func handleEmit(args []string) {
 		if *verbose {
 			fmt.Fprintf(os.Stderr, "scriptgo: emitting typed IR for %s\n", entryPath)
 		}
-		result, err = compiler.DumpIR(entryPath)
+		result, err = compiler.DumpIRWithOptions(entryPath, options)
 	case "llvm-ir":
 		if *verbose {
 			fmt.Fprintf(os.Stderr, "scriptgo: emitting LLVM IR for %s\n", entryPath)
@@ -563,149 +575,71 @@ func handleEmit(args []string) {
 	}
 }
 
-func printMainUsage() {
-	fmt.Fprintln(os.Stderr, `ScriptGo - TypeScript Native Compiler
+func handleCoverage(args []string) {
+	fs := flag.NewFlagSet("coverage", flag.ContinueOnError)
+	fs.Usage = printCoverageUsage
+	eval := fs.String("e", "", "evaluate inline script string")
+	format := fs.String("format", "summary", "coverage output format: summary, json")
+	output := fs.String("o", "", "write output to this path (default: stdout)")
+	verbose := fs.Bool("v", false, "print analysis stages to stderr")
+	dynamic := registerDynamicFlag(fs)
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		}
+		os.Exit(2)
+	}
 
-Usage:
-  scriptgo <command> [flags] <arguments>
+	var entryPath string
+	var cleanup func()
+	if *eval != "" {
+		var err error
+		entryPath, cleanup, err = createInlineSourceFile(*eval)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else if fs.NArg() == 1 {
+		var err error
+		entryPath, cleanup, err = resolveInput(fs.Arg(0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "scriptgo:", err)
+			os.Exit(1)
+		}
+		defer cleanup()
+	} else {
+		printCoverageUsage()
+		os.Exit(2)
+	}
 
-Commands:
-  run       Compile and execute a TypeScript program or code string as a native binary
-  build     Compile TypeScript into a standalone native executable
-  check     Verify TypeScript syntax, types, and native subset rules
-  emit      Emit intermediate representation (LLVM IR or Typed IR)
-  version   Print compiler and runtime ABI version
-  help      Show help for ScriptGo or a specific command
-
-Global Flags:
-  -v                     Verbose output
-  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
-  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
-  --debug                Emit native DWARF debug symbols
-  --lto <mode>           Enable link-time optimization (thin, full, none)
-  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
-  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
-  --strict-casts         Treat cast warnings as errors
-  -h, --help             Show help message
-
-Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
-}
-
-func printRunUsage() {
-	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo run [flags] <entry.ts> [-- <args...>]
-  scriptgo run [flags] -e "<code string>" [-- <args...>]
-
-Description:
-  Compiles a TypeScript file or inline code string to a temporary native binary
-  and executes it directly on host.
-
-Flags:
-  -e <string>            Evaluate inline script string
-  -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
-  -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
-  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
-  --debug                Include DWARF debug symbols
-  --lto <mode>           Enable link-time optimization (thin, full, none)
-  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
-  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
-  --strict-casts         Treat cast warnings as errors
-  -h, --help             Show this help message
-
-Examples:
-  scriptgo run app.ts
-  scriptgo run -e "console.log('hello ' + 42)"
-  scriptgo run -e "console.log(100 * 20)"
-  scriptgo run app.ts --ffi-manifest mylib.ffi.json
-  scriptgo run app.ts helper.c
-  scriptgo run --cc "zig cc" app.ts
-  scriptgo run app.ts -- arg1 arg2`)
-}
-
-func printBuildUsage() {
-	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo build [flags] <entry.ts> [sources.c...] [-o <output>]
-  scriptgo build [flags] -e "<code string>" [-o <output>]
-
-Description:
-  Compiles a TypeScript program into a standalone, optimized native executable
-  linked with the host C runtime.
-
-Flags:
-  -e <string>            Evaluate inline script string
-  -o <path>              Output binary path (default: ./<entry_name>)
-  -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
-  -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
-  --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
-  --debug                Include DWARF debug symbols (O0 with debug metadata)
-  --lto <mode>           Enable link-time optimization (thin, full, none)
-  --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
-  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
-  --strict-casts         Treat cast warnings as errors
-  -h, --help             Show this help message
-
-Examples:
-  scriptgo build server.ts
-  scriptgo build server.ts -o /usr/local/bin/server
-  scriptgo build app.ts --ffi-manifest sqlite3.ffi.json -o myapp
-  scriptgo build app.ts helper.c -o myapp
-  scriptgo build cli.ts --cc "zig cc" --target x86_64-linux-gnu -o cli_linux
-  scriptgo build cli.ts --debug --sanitize address -o cli_debug`)
-}
-
-func printCheckUsage() {
-	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo check [flags] [<entry.ts> | <tsconfig.json> | <dir>]
-  scriptgo check [flags] -p <path>
-  scriptgo check [flags] -e "<code string>"
-
-Description:
-  Type-checks and validates the reachable source graph, tsconfig.json project,
-  and native subset eligibility without invoking code generation or Clang.
-
-Flags:
-  -e <string>            Evaluate inline script string
-  -p, --project <path>   Path to tsconfig.json or project directory
-  -v                     Verbose output (print check stages and confirmation)
-  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
-  --strict-casts         Treat cast warnings as errors
-  -h, --help             Show this help message
-
-Examples:
-  scriptgo check
-  scriptgo check app.ts
-  scriptgo check tsconfig.json
-  scriptgo check -p ./src
-  scriptgo check -e "const x: number = 42; console.log(x);"
-  scriptgo check -v src/main.ts`)
-}
-
-func printEmitUsage() {
-	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo emit [flags] <entry.ts> [--mode llvm-ir|typed-ir] [-o <output>]
-  scriptgo emit [flags] -e "<code string>" [--mode llvm-ir|typed-ir] [-o <output>]
-
-Description:
-  Emits intermediate representations (Typed IR or LLVM IR) for debugging
-  and compiler inspection.
-
-Flags:
-  -e <string>            Evaluate inline script string
-  --mode <mode>          Output mode: llvm-ir (default), typed-ir
-  -o <path>              Write emitted IR to file instead of stdout
-  -v                     Verbose output (print compilation stages)
-  --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET, $TARGET, or native)
-  --debug                Include DWARF debug symbols in LLVM IR
-  --warn-runtime-casts   Warn on runtime checked casts (SG4005)
-  --strict-casts         Treat cast warnings as errors
-  -h, --help             Show this help message
-
-Examples:
-  scriptgo emit app.ts
-  scriptgo emit -e "console.log(123)" --mode typed-ir
-  scriptgo emit app.ts --mode llvm-ir -o app.ll`)
+	if *verbose {
+		fmt.Fprintf(os.Stderr, "scriptgo: analyzing coverage for %s\n", entryPath)
+	}
+	options := compiler.BuildOptions{Dynamic: *dynamic}
+	var result string
+	var err error
+	switch *format {
+	case "summary":
+		result, err = compiler.CoverageSummary(entryPath, options)
+	case "json":
+		result, err = compiler.CoverageReportJSON(entryPath, options)
+	default:
+		fmt.Fprintf(os.Stderr, "scriptgo: unsupported coverage format %q (supported: summary, json)\n", *format)
+		os.Exit(2)
+	}
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+	if *output == "" {
+		fmt.Print(result)
+		return
+	}
+	if err := os.WriteFile(*output, []byte(result), 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "scriptgo:", err)
+		os.Exit(1)
+	}
 }
 
 func printCompilerWarnings() {
