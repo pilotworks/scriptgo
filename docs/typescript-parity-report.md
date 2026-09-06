@@ -1,6 +1,6 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: September 4, 2026
+> **Report Date**: September 5, 2026
 > **Compiler Version**: `scriptgo` v0.1.0-alpha  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
@@ -129,7 +129,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Multi-level & Deep Imports | ✅ Full | Resolves multi-level closed module dependency graphs. |
 | Initialization Order | ✅ Full | Guarantees deterministic module initialization order matching ES Modules specification. |
 | `tsconfig.json` Project Checking | ✅ Full | Automatic discovery and explicit `-p` / `--project` loading of `tsconfig.json`, `compilerOptions` parsing (`target`, `module`, `strict`, `paths`, etc.), multi-file project diagnostics matching `tsc` formatting. |
-| npm / External package resolution | ⏳ In Development | Planned for Milestone 7 via Dynamic Island (QuickJS-ng). |
+| npm / External package resolution | ⏳ Roadmap | Planned for Milestone 8 via the explicit Dynamic compatibility tier (QuickJS-ng). |
 
 ---
 
@@ -334,9 +334,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Ecosystem Feature | Current Status in ScriptGo | Target Roadmap |
 | :--- | :---: | :--- |
-| **NPM Packages (`node_modules`)** | ⏳ Roadmap (Milestone 7) | Automatic resolution of `node_modules` directory trees and complex `package.json` manifests is not yet implemented. |
-| **CommonJS (`require` / `module.exports`)** | ⏳ Upcoming | ES Modules (`import`/`export`) are prioritized first. |
-| **Dynamic Island (`--dynamic`)** | ⏳ Milestone 7 | Hybrid execution architecture: Static portion compiled to LLVM Native; dynamic NPM packages executed via embedded QuickJS-ng. |
+| **NPM Packages (`node_modules`)** | ⏳ Roadmap (Milestone 8) | Automatic resolution of `node_modules` directory trees and complex `package.json` manifests is not yet implemented. |
+| **CommonJS (`require` / `module.exports`)** | ⏳ Roadmap (Milestone 8) | ESM-to-CommonJS interoperability and package loading belong to the explicit Dynamic compatibility tier. |
+| **Dynamic Island (`--dynamic`)** | ⏳ Milestone 8 | Planned hybrid execution architecture: Static portions compile to LLVM native code while eligible dynamic npm code executes through embedded QuickJS-ng. |
 
 ---
 
@@ -403,7 +403,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 1. **Circular Reference Garbage Collection**:
    - Currently, object memory relies on structured allocations and linear lifetime management. Long-running complex circular references (A -> B -> A) require tracing GC or RC cycle collection infrastructure.
 2. **Pure C Backend Generator**:
-   - Currently using LLVM IR -> Clang backend. Pure C code generation backend (for compiling in environments without LLVM) is scheduled for Milestone 6.
+   - Currently using the LLVM IR -> Clang backend. Pure C code generation remains a separate deferred portability track and is not part of the completed Milestone 6 language/runtime expansion.
 3. **Debug DWARF Source Maps**:
    - ✅ Completed: Full DWARF debug symbols (`!DILocation`, `!DISubprogram`, `!DICompileUnit`) generated for instructions and functions, enabling precise source-level stepping, breakpoints, and stack unwinding in LLDB and GDB with `--debug`.
 
@@ -422,22 +422,16 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 ## 6. Gap Resolution Roadmap
 
-```mermaid
-gantt
-    title TypeScript Gap Resolution Roadmap
-    dateFormat  YYYY-MM-DD
-    section Near-term
-    Timers (setTimeout, setInterval)       :active, 2026-09-15, 30d
-    fs.promises & Full String/Array regex  :2026-09-20, 40d
-    section Mid-term
-    Streams & EventEmitter                 :2026-10-15, 45d
-    Tracing GC for circular references     :2026-11-01, 60d
-    C Backend (Milestone 6)                :2026-11-15, 45d
-    section Long-term
-    NPM & Node Resolution                  :2026-12-15, 60d
-    Dynamic Island (QuickJS-ng / Milestone 7) :2027-01-15, 90d
-    Networking (fetch, http, net)          :2027-02-15, 60d
-```
+| Track | Status | Roadmap Alignment |
+| :--- | :---: | :--- |
+| Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
+| npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
+| Dynamic islands with QuickJS-ng | ⏳ Planned | Milestone 8; opt-in through `--dynamic`, with no JavaScript engine in Static builds. |
+| Dynamic ABI, tier coverage reports, and boundary parity tests | ⏳ Planned | Milestone 8 prerequisites before broad npm compatibility. |
+| Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
+| Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
+| Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |
+| Pure C backend | ⏳ Deferred | Separate portability/bootstrap track after LLVM/runtime ABI parity is stable. |
 
 ---
 
@@ -446,5 +440,5 @@ gantt
 ScriptGo has currently achieved **100% parity across the Core Static Subset** (Core Type-Safe TypeScript).  
 Remaining gaps are primarily concentrated in:
 1. **Highly Dynamic JS Features** such as `eval`, `Proxy`, prototype monkey-patching, unconstrained `any` (to be addressed via `--dynamic`).
-2. **Advanced Node.js I/O APIs** such as `HTTP/Networking`, `Streams`, `Child Process`, and `Timers`.
-3. **Package resolution and loading from the NPM ecosystem**.
+2. **Package resolution and loading from the npm ecosystem**, including package manifests and CommonJS/ESM interoperability.
+3. **Explicitly deferred runtime surfaces** such as WebSocket and the unsupported Node.js modules listed in section 5.5.

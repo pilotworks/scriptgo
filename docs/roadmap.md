@@ -24,7 +24,8 @@ MVP implements Static only.
 - [x] Syntax and semantic diagnostics include the source path, offset, TypeScript code, and message.
 - [x] Typed IR types, constants, arithmetic, calls, returns, printing, and a verifier exist for the MVP subset.
 - [x] MVP lowering, reference interpreter, native ABI calls, LLVM IR emission, Clang executable output, and end-to-end tests exist.
-- [ ] Exceptions, async code, npm/package resolution, and full JavaScript compatibility remain outside the MVP; these are roadmap work, not permanent non-goals.
+- [x] Exceptions and async code were delivered after the original MVP baseline in Milestone 6.
+- [ ] npm/package resolution and full JavaScript compatibility remain roadmap work, not permanent non-goals.
 - [x] Static/Dynamic/Unsupported policy is documented; Dynamic execution and `--dynamic` remain unimplemented roadmap work.
 
 ## Milestones
@@ -153,7 +154,7 @@ frontend, lowering, runtime, or backend failure.
 
 Dependencies: Milestone 3. Estimated scope: Medium.
 
-### Milestone 6: Language & Runtime Expansion (Completed)
+### Milestone 6: Language & Runtime Expansion (Completed; WebSocket Deferred)
 
 - [x] Full OOP with inheritance, class static blocks, getters/setters, polymorphic VTables, `instanceof`.
 - [x] Comprehensive Async runtime (`Promise`, `async`/`await`, microtask queue event loop).
@@ -163,8 +164,8 @@ Dependencies: Milestone 3. Estimated scope: Medium.
   - ES2024 Set Methods (`union`, `intersection`, `difference`, `symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`).
   - ES2024 Object & Array Helpers (`Promise.withResolvers`, `Object.groupBy`, `Map.groupBy`, `Array.fromAsync`).
 - Web Standards & WinterCG:
-  - [ ] Native `WebSocket` client/server (pending native engine integration; placeholder stubs purged).
   - [x] Streaming `fetch()` & WHATWG Streams (`ReadableStream`, `WritableStream`, `TransformStream`).
+  - Native `WebSocket` client/server is deferred pending native engine integration; placeholder stubs have been removed.
 
 ### Milestone 7: WebAssembly / WASI Compilation Target (Completed)
 
@@ -223,7 +224,12 @@ executable parity, and explicit rejection diagnostics for unsupported cases.
 5. CLI emit/build modes and end-to-end executable tests.
 6. Modules, arrays, static objects, and debugging artifacts; treat the object
    work as the Milestone 4 expansion rather than a primitive MVP guarantee.
-7. C backend, FFI, exceptions, and async features.
+7. Explicit Dynamic compatibility foundations: tier metadata, boundary ABI,
+   coverage reporting, and stable diagnostics before QuickJS-ng integration.
+
+The C backend remains a separate deferred portability track. FFI, exceptions,
+and async support are already implemented and are no longer future execution
+steps.
 
 Each item should leave the repository passing `go test ./...` and building with
 `go build ./cmd/scriptgo`.
