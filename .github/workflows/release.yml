@@ -131,7 +131,7 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "build_pkg/${BINARY_NAME}" ./cmd/scriptgo
           
           # Copy documentation
-          cp LICENSE README.md build_pkg/ 2>/dev/null || true
+          cp LICENSE README.md build_pkg/
           
           # Package archive
           if [ "${{ matrix.archive_format }}" = "zip" ]; then
@@ -176,16 +176,28 @@ jobs:
       - name: Prepare Manifest, Checksums & Minisign Signatures
         env:
           MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
-          MINISIGN_PASSPHRASE: ${{ secrets.MINISIGN_PASSPHRASE }}
+          MINISIGN_PUBLIC_KEY: ${{ vars.MINISIGN_PUBLIC_KEY }}
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          
-          # 1. Recreate minisign.pub directly from Secret Key
-          if [ -n "$MINISIGN_SECRET_KEY" ]; then
-            echo "$MINISIGN_SECRET_KEY" > minisign.key
-            chmod 600 minisign.key
-            minisign -R -s minisign.key -p dist/minisign.pub
+          set -euo pipefail
+
+          if [ -z "${MINISIGN_SECRET_KEY:-}" ]; then
+            echo "::error::MINISIGN_SECRET_KEY secret is required for releases."
+            exit 1
           fi
+          if [ -z "${MINISIGN_PUBLIC_KEY:-}" ]; then
+            echo "::error::MINISIGN_PUBLIC_KEY repository variable is required for releases."
+            exit 1
+          fi
+
+          # GitHub Secrets protects the passwordless CI key; temporary files are
+          # restricted to the current runner and removed when the step exits.
+          umask 077
+          key_file="$(mktemp)"
+          pub_file="$(mktemp)"
+          trap 'rm -f "$key_file" "$pub_file"' EXIT
+          printf '%s\n' "$MINISIGN_SECRET_KEY" > "$key_file"
+          printf '%s\n' "$MINISIGN_PUBLIC_KEY" > "$pub_file"
+          cp "$pub_file" dist/minisign.pub
 
           # 2. Generate release-manifest.json
           python3 - << 'EOF'
@@ -236,19 +248,11 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
           
-          # 4. Sign SHA256SUMS with Minisign
-          if [ -n "$MINISIGN_SECRET_KEY" ]; then
-            echo "Signing SHA256SUMS with Minisign..."
-            if [ -n "$MINISIGN_PASSPHRASE" ]; then
-              printf '%s\n' "$MINISIGN_PASSPHRASE" | minisign -Sm SHA256SUMS -s ../minisign.key -t "ScriptGo Release $GITHUB_REF_NAME"
-            else
-              minisign -Sm SHA256SUMS -s ../minisign.key -t "ScriptGo Release $GITHUB_REF_NAME"
-            fi
-            rm -f ../minisign.key
-            echo "Successfully generated SHA256SUMS.minisig"
-          else
-            echo "::warning::MINISIGN_SECRET_KEY secret is not set, skipping Minisign signature generation."
-          fi
+          # 4. Sign and immediately verify SHA256SUMS with Minisign
+          echo "Signing SHA256SUMS with Minisign..."
+          minisign -Sm SHA256SUMS -s "$key_file" -t "ScriptGo Release $GITHUB_REF_NAME"
+          minisign -Vm SHA256SUMS -p "$pub_file"
+          echo "Successfully generated and verified SHA256SUMS.minisig"
           cd ..
 
 
@@ -288,4 +292,3 @@ jobs:
           files: dist/*
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
