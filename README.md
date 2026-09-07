@@ -54,6 +54,32 @@
 
 ---
 
+## Installation
+
+Install the latest GitHub release on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pilotworks/scriptgo/main/install.sh | sh
+```
+
+Install a specific release or choose another destination:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pilotworks/scriptgo/main/install.sh | \
+  sh -s -- --version 0.1.0-alpha.1 --install-dir /usr/local/bin
+```
+
+The installer detects the host platform, downloads the matching release
+archive, verifies it against `SHA256SUMS`, and installs the `scriptgo` binary.
+The default destination is `~/.scriptgo`; add that directory to `PATH` if
+needed. A Clang-compatible native toolchain is still required to compile
+TypeScript programs.
+
+Run the same command again to upgrade the existing installation to the latest
+release. The installer verifies and atomically replaces the current binary.
+
+---
+
 ## CLI Usage
 
 ### Running Code
