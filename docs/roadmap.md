@@ -181,7 +181,7 @@ semantic gaps behind native code generation.
 
 - [x] Add `--dynamic`, disabled by default, and record the selected compatibility mode in build metadata.
 - [ ] Embed QuickJS-ng only for Dynamic builds; static binaries must not link a JavaScript engine.
-- [ ] Define the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
+- [x] Define and test the pre-release native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls; QuickJS-ng execution remains pending.
 - [ ] Resolve eligible JavaScript/npm dependencies and `any` sites into explicit Dynamic islands.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.

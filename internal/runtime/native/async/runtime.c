@@ -17,6 +17,8 @@ typedef enum {
 typedef struct {
 	void *fn_ptr;
 	void *env;
+	void *invoke_ptr;
+	int32_t return_tag;
 } scriptgo_closure_inner;
 
 typedef struct scriptgo_promise scriptgo_promise;
@@ -48,13 +50,11 @@ typedef struct scriptgo_promise {
 typedef struct {
     void *fn_ptr;
     void *env;
+    void *invoke_ptr;
+    int32_t return_tag;
 } scriptgo_promise_closure;
 
-typedef struct {
-    uint32_t tag;
-    uint32_t pad;
-    uint64_t payload;
-} scriptgo_async_slot;
+typedef scriptgo_value scriptgo_async_slot;
 
 typedef struct {
 	size_t count;
@@ -120,36 +120,45 @@ int scriptgo_async_frame_new(int64_t count, void **out_frame) {
     return 0;
 }
 
-int scriptgo_async_frame_set(void *frame_handle, int64_t index, uint32_t tag, uint64_t payload) {
+int scriptgo_async_frame_set(void *frame_handle, int64_t index, const scriptgo_value *value) {
     scriptgo_async_frame *frame = frame_handle;
-    if (frame == NULL || index < 0 || (size_t)index >= frame->count) return scriptgo_runtime_set_error("scriptgo async frame set out of bounds");
-    frame->slots[index].tag = tag;
-    frame->slots[index].pad = 0;
-    frame->slots[index].payload = payload;
-    return 0;
+    if (frame == NULL || value == NULL || index < 0 || (size_t)index >= frame->count) {
+        return scriptgo_runtime_set_error("scriptgo async frame set out of bounds");
+    }
+    if (scriptgo_value_validate(value) != 0) return -1;
+    scriptgo_value_release(&frame->slots[index]);
+    return scriptgo_value_clone(&frame->slots[index], value);
 }
 
-int scriptgo_async_frame_get(void *frame_handle, int64_t index, uint32_t *out_tag, uint64_t *out_payload) {
+int scriptgo_async_frame_get(void *frame_handle, int64_t index, scriptgo_value *out_value) {
     scriptgo_async_frame *frame = frame_handle;
-    if (frame == NULL || index < 0 || (size_t)index >= frame->count || out_tag == NULL || out_payload == NULL) {
+    if (frame == NULL || index < 0 || (size_t)index >= frame->count || out_value == NULL) {
         return scriptgo_runtime_set_error("scriptgo async frame get out of bounds");
     }
-    *out_tag = frame->slots[index].tag;
-    *out_payload = frame->slots[index].payload;
-    return 0;
+    return scriptgo_value_clone(out_value, &frame->slots[index]);
 }
 
 int scriptgo_async_frame_release(void *frame_handle) {
     scriptgo_async_frame *frame = frame_handle;
     if (frame == NULL) return 0;
+    for (size_t i = 0; i < frame->count; i++) scriptgo_value_release(&frame->slots[i]);
     free(frame->slots);
     free(frame);
     return 0;
 }
 
 int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
+int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1, const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4, scriptgo_value *out_value);
 
 static int scriptgo_promise_set_boxed(scriptgo_promise *p, int rejected, uint32_t tag, uint64_t payload);
+
+static int scriptgo_promise_set_canonical(scriptgo_promise *p, int rejected, const scriptgo_value *value) {
+    if (value == NULL || scriptgo_value_validate(value) != 0) {
+        return scriptgo_runtime_set_error("SG9001: malformed Promise value");
+    }
+    return scriptgo_promise_set_boxed(p, rejected, value->tag, value->payload);
+}
+
 int scriptgo_promise_resolve_existing(void *promise_handle, void *value);
 int scriptgo_promise_resolve_existing_number(void *promise_handle, double value);
 int scriptgo_promise_resolve_existing_array(void *promise_handle, void *value);
@@ -182,8 +191,7 @@ typedef struct {
 static scriptgo_reaction_result scriptgo_invoke_reaction(
     scriptgo_closure_inner *closure,
     uint32_t input_tag,
-    uint64_t input_payload,
-    uint32_t result_tag) {
+    uint64_t input_payload) {
     scriptgo_reaction_result result = {0, 0, 0};
     scriptgo_exception_frame_t *frame = scriptgo_exception_frame_new();
     if (frame == NULL) {
@@ -203,32 +211,26 @@ static scriptgo_reaction_result scriptgo_invoke_reaction(
         scriptgo_exception_frame_free(frame);
         return result;
     }
-    if (result_tag == 3) {
-        double (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
-            (double (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))closure->fn_ptr;
-        double value = fn(closure->env, input_tag, 0, input_payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        memcpy(&result.payload, &value, sizeof(value));
-    } else if (result_tag == 0) {
-        struct scriptgo_boxed_result { uint32_t tag; uint32_t pad; uint64_t payload; };
-        struct scriptgo_boxed_result (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
-            (struct scriptgo_boxed_result (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))closure->fn_ptr;
-        (void)fn(closure->env, input_tag, 0, input_payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    scriptgo_value argument = {input_tag, 0, input_payload, 0};
+    scriptgo_value value = {0};
+    if (scriptgo_closure_invoke_value(closure, 1, &argument, NULL, NULL, NULL, &value) != 0) {
+        result.threw = 1;
+        result.tag = SCRIPTGO_TAG_STRING;
+        result.payload = (uint64_t)(uintptr_t)"closure invocation failed";
     } else {
-        uint64_t (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
-            (uint64_t (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))closure->fn_ptr;
-        result.payload = fn(closure->env, input_tag, 0, input_payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        result.tag = value.tag;
+        result.payload = value.payload;
     }
-    result.tag = result_tag;
     scriptgo_exception_frame_free(frame);
     return result;
 }
 
 static void scriptgo_promise_resolver_callback(
     void *env_ptr,
-    int32_t tag0, int32_t pad0, int64_t payload0,
-    int32_t tag1, int32_t pad1, int64_t payload1,
-    int32_t tag2, int32_t pad2, int64_t payload2,
-    int32_t tag3, int32_t pad3, int64_t payload3);
+    uint32_t tag0, uint32_t pad0, uint64_t payload0,
+    uint32_t tag1, uint32_t pad1, uint64_t payload1,
+    uint32_t tag2, uint32_t pad2, uint64_t payload2,
+    uint32_t tag3, uint32_t pad3, uint64_t payload3);
 
 static int scriptgo_promise_resolver_create_internal(scriptgo_promise *promise, int reject, void **out_closure) {
     scriptgo_promise_resolver_env *env;
@@ -245,16 +247,18 @@ static int scriptgo_promise_resolver_create_internal(scriptgo_promise *promise, 
     env->reject = reject ? 1 : 0;
     closure->fn_ptr = (void *)scriptgo_promise_resolver_callback;
     closure->env = env;
+    closure->invoke_ptr = NULL;
+    closure->return_tag = SCRIPTGO_TAG_UNDEFINED;
     *out_closure = closure;
     return 0;
 }
 
 static void scriptgo_promise_resolver_callback(
     void *env_ptr,
-    int32_t tag0, int32_t pad0, int64_t payload0,
-    int32_t tag1, int32_t pad1, int64_t payload1,
-    int32_t tag2, int32_t pad2, int64_t payload2,
-    int32_t tag3, int32_t pad3, int64_t payload3) {
+    uint32_t tag0, uint32_t pad0, uint64_t payload0,
+    uint32_t tag1, uint32_t pad1, uint64_t payload1,
+    uint32_t tag2, uint32_t pad2, uint64_t payload2,
+    uint32_t tag3, uint32_t pad3, uint64_t payload3) {
     (void)tag1; (void)pad1; (void)payload1;
     (void)tag2; (void)pad2; (void)payload2;
     (void)tag3; (void)pad3; (void)payload3;
@@ -450,10 +454,10 @@ int scriptgo_event_loop_run(void) {
 					if (handler == NULL || handler->fn_ptr == NULL) {
 						scriptgo_promise_set_boxed(r->result_promise, p->state == PROMISE_REJECTED, source_tag, source_payload);
 					} else {
-						scriptgo_reaction_result callback = scriptgo_invoke_reaction(handler, source_tag, source_payload, r->result_tag);
+						scriptgo_reaction_result callback = scriptgo_invoke_reaction(handler, source_tag, source_payload);
 						if (callback.threw) {
 							scriptgo_promise_set_boxed(r->result_promise, 1, callback.tag, callback.payload);
-						} else if (r->result_tag == 0) {
+						} else if (callback.tag == 0) {
 							scriptgo_promise_set_boxed(r->result_promise, 0, 0, 0);
 						} else {
 							scriptgo_promise_set_boxed(r->result_promise, 0, callback.tag, callback.payload);
@@ -475,9 +479,10 @@ int scriptgo_event_loop_run(void) {
                 tag = 4; // string/object
                 payload = (uint64_t)(uintptr_t)task->ptr_arg;
             }
-            void (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
-                (void (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))task->closure->fn_ptr;
-            fn(task->closure->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            scriptgo_boxed_value argument = {0};
+            argument.tag = tag;
+            argument.payload = payload;
+            scriptgo_closure_invoke(task->closure, 1, &argument, NULL, NULL, NULL);
         }
         free(task);
     }
@@ -520,10 +525,10 @@ int scriptgo_promise_construct(void *executor_handle, void **out_promise) {
 	}
 
     resolve_value.tag = 7;
-    resolve_value.pad = 0;
+    resolve_value.flags = 0;
 	resolve_value.payload = (int64_t)(uintptr_t)resolve;
     reject_value.tag = 7;
-    reject_value.pad = 0;
+    reject_value.flags = 0;
     reject_value.payload = (int64_t)(uintptr_t)reject;
     if (scriptgo_closure_invoke(executor_handle, 2, &resolve_value, &reject_value, NULL, NULL) != 0) {
         return -1;
@@ -672,6 +677,31 @@ int scriptgo_promise_reject_boxed(void *promise_handle, uint32_t tag, uint64_t p
     return scriptgo_promise_set_boxed((scriptgo_promise *)promise_handle, 1, tag, payload);
 }
 
+int scriptgo_promise_resolve_value(void *promise_handle, const scriptgo_value *value) {
+    return scriptgo_promise_set_canonical((scriptgo_promise *)promise_handle, 0, value);
+}
+
+int scriptgo_promise_reject_value(void *promise_handle, const scriptgo_value *value) {
+    return scriptgo_promise_set_canonical((scriptgo_promise *)promise_handle, 1, value);
+}
+
+int scriptgo_promise_resolve_existing_value(void *promise_handle, const scriptgo_value *value) {
+    return scriptgo_promise_set_canonical((scriptgo_promise *)promise_handle, 0, value);
+}
+
+int scriptgo_promise_reject_existing_value(void *promise_handle, const scriptgo_value *value) {
+    return scriptgo_promise_set_canonical((scriptgo_promise *)promise_handle, 1, value);
+}
+
+int scriptgo_promise_resolve_unknown_value(const scriptgo_value *value, void **out_promise) {
+    scriptgo_promise *promise;
+    if (out_promise == NULL) return scriptgo_runtime_set_error("scriptgo unknown promise output missing");
+    if (scriptgo_promise_create((void **)&promise) != 0) return -1;
+    if (scriptgo_promise_set_canonical(promise, 0, value) != 0) return -1;
+    *out_promise = promise;
+    return 0;
+}
+
 int scriptgo_promise_then(void *promise_handle, void *on_fulfilled_closure, void *on_rejected_closure, uint32_t result_tag, void **out_result) {
 	scriptgo_promise *p = promise_handle;
 	scriptgo_promise *result = NULL;
@@ -800,6 +830,20 @@ int scriptgo_promise_await_boxed(void *promise_handle, uint32_t *out_tag, uint64
     return 0;
 }
 
+int scriptgo_promise_await_value(void *promise_handle, scriptgo_value *out_value) {
+    uint32_t tag;
+    uint64_t payload;
+    if (out_value == NULL) return scriptgo_runtime_set_error("scriptgo promise await output missing");
+    if (scriptgo_promise_await_boxed(promise_handle, &tag, &payload) != 0) return -1;
+    scriptgo_value_init_undefined(out_value);
+    out_value->tag = tag;
+    out_value->payload = payload;
+    if (tag == SCRIPTGO_TAG_STRING && payload != 0) {
+        out_value->aux = strlen((const char *)(uintptr_t)payload);
+    }
+    return 0;
+}
+
 static scriptgo_promise *scriptgo_find_promise(void *handle) {
     scriptgo_promise *p = all_promises;
     while (p != NULL) {
@@ -824,26 +868,21 @@ int scriptgo_promise_await_unknown(uint32_t tag, uint64_t payload, uint32_t *out
         *out_payload = payload;
         return 0;
     }
+    return scriptgo_promise_await_boxed(p, out_tag, out_payload);
+}
 
-    if (scriptgo_promise_wait(p) != 0) return -1;
-
-    if (p->tag == 3) {
-        uint64_t bits = 0;
-        memcpy(&bits, &p->num_value, sizeof(bits));
-        *out_tag = 3;
-        *out_payload = bits;
-    } else if (p->tag == 2 || p->tag == 8) {
-        *out_tag = p->tag;
-        *out_payload = p->int_value;
-    } else if (p->ptr_value == NULL) {
-        *out_tag = 1;
-        *out_payload = 0;
-    } else if (p->ptr_value == (void *)&scriptgo_undefined_sentinel) {
-        *out_tag = 0;
-        *out_payload = 0;
-    } else {
-        *out_tag = p->tag == 4 ? 4 : 5;
-        *out_payload = (uint64_t)(uintptr_t)p->ptr_value;
+int scriptgo_promise_await_unknown_value(const scriptgo_value *value, scriptgo_value *out_value) {
+    uint32_t tag;
+    uint64_t payload;
+    if (value == NULL || out_value == NULL || scriptgo_value_validate(value) != 0) {
+        return scriptgo_runtime_set_error("SG9001: malformed Promise value");
+    }
+    if (scriptgo_promise_await_unknown(value->tag, value->payload, &tag, &payload) != 0) return -1;
+    scriptgo_value_init_undefined(out_value);
+    out_value->tag = tag;
+    out_value->payload = payload;
+    if (tag == SCRIPTGO_TAG_STRING && payload != 0) {
+        out_value->aux = strlen((const char *)(uintptr_t)payload);
     }
     return 0;
 }

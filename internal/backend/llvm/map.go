@@ -103,7 +103,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.get.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("map.get.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
@@ -159,7 +159,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.has.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("map.has.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
@@ -189,7 +189,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 		if keyType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("map.del.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, keyArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("map.del.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
@@ -387,7 +387,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.add.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("set.add.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
@@ -420,7 +420,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.has.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("set.has.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
@@ -454,7 +454,7 @@ func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.
 		} else if valType == ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("set.del.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, valArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
 			e.tempCounter++
 			ptrName := fmt.Sprintf("set.del.unbox.ptr.%d", e.tempCounter)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)

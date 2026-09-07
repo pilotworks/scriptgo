@@ -6,9 +6,9 @@ not a description of TypeScript or JavaScript semantics. TypeScript parsing,
 binding, module resolution, and type checking remain owned by TypeScript-Go;
 the reference interpreter remains in [`internal/interpreter`](../../interpreter/).
 
-The repository implements a project-owned linked C ABI for primitive strings,
-dense primitive arrays, and static objects. This document freezes the contract
-used by the native backend and its ABI harness.
+The repository implements a project-owned linked C ABI for canonical boxed
+values, primitive strings, dense primitive arrays, and static objects. This
+document freezes the contract used by the native backend and its ABI harness.
 
 ## Scope And Status
 
@@ -25,8 +25,12 @@ used by the native backend and its ABI harness.
 
 ## Linked Runtime ABI v1
 
-ABI v1 is the first project-owned contract. It is limited to values that can be
-represented without allocation in the current typed IR:
+ABI v1 is the first project-owned contract and was finalized before the first
+release. It replaces the former local 16-byte boxed representation in place;
+old local artifacts have no binary compatibility and must be rebuilt. Values
+that cross boxed C boundaries use the canonical representation described below.
+
+Typed operations remain available for optimized native paths:
 
 - `number`, `bool`, and `void` use the native representations below.
 - `string` literals are borrowed immutable UTF-8 C strings; results from string
@@ -53,20 +57,70 @@ triple to the toolchain driver and never hard-codes pointer width, alignment, en
 LLVM data layout. A target is supported only when the runtime C source and the
 generated LLVM module compile and link together for that triple.
 
+### Boxed-value ABI v1
+
+The boxed-value ABI is now the frozen pre-release baseline for `unknown`,
+exceptions, and future Dynamic boundaries. It uses `scriptgo.runtime.v1` and
+replaces the former local 16-byte representation in place. Existing local
+artifacts are not binary-compatible with this layout and must be rebuilt.
+
+Every boxed value crossing a C boundary is passed by pointer and has this
+canonical 24-byte layout:
+
+```c
+typedef struct {
+    uint32_t tag;
+    uint32_t flags;
+    uint64_t payload;
+    uint64_t aux;
+} scriptgo_value;
+```
+
+Tags `0` through `9` are, respectively, `undefined`, `null`, `boolean`,
+`number`, `string`, `object`, `array`, `function`, `bigint`, and `symbol`.
+Only `SCRIPTGO_VALUE_OWNED` and `SCRIPTGO_VALUE_ENGINE_REF` are valid flags.
+Scalars are stored directly in `payload`; strings use a UTF-8 byte pointer and
+byte length in `payload`/`aux`, so embedded NUL bytes are supported. Native
+references are borrowed pointers. Engine references are owned opaque handles,
+confined to their context and thread.
+
+Use `scriptgo_value_validate`, `clone`, `move`, and `release` for ownership
+transitions. Owned values must not be copied with `memcpy`; `move` resets its
+source, `clone` creates an independent owned string or engine reference, and
+`release` always resets its argument to `undefined`. Dynamic contexts cannot be
+shut down while they have outstanding engine references.
+
+Promise integrations expose `scriptgo_promise_*_value` pointer-based helpers
+for new ABI consumers. Existing typed Promise operations and the flattened
+callback adapter remain internal implementation paths during this pre-release
+migration; they do not define the boxed-value v1 layout.
+
+Closure records carry both the generated function and a uniform LLVM adapter
+that writes a canonical result through an output pointer. An explicit return
+tag (`-1` for canonical returns, otherwise the value tag) retains the original
+function ABI for typed fast paths. Runtime callback dispatch uses the adapter
+because directly returning a 24-byte aggregate can introduce a hidden result
+pointer or otherwise differ between LLVM and C ABIs across native targets.
+
+The Dynamic call boundary returns `0` for success, `1` for a JavaScript
+exception, and `-1` for a fatal ABI/runtime invariant failure. The first
+boundary accepts only `undefined`, `null`, `boolean`, `number`, and `string`;
+input and result mismatches are catchable `TypeError`s with `SG5002` and
+`SG5003`. Malformed values, descriptors, or adapter output use `SG9001`.
+QuickJS-ng execution and Dynamic IR remain out of scope for this slice.
+
 ### Value representations
 
 | ABI v1 value | Representation | Validity and ownership |
 | --- | --- | --- |
 | `number` | IEEE-754 binary64 (`double`) | Passed and returned by value |
 | `bool` | One-bit LLVM value (`i1`) | Passed and returned by value; only `0` and `1` are valid |
-| `string` | Pointer to UTF-8 bytes terminated by one NUL byte | Literals are borrowed; primitive results are owned until `scriptgo_string_release` |
+| `string` | Pointer to UTF-8 bytes plus byte length in a boxed value | Boxed strings support embedded NUL; legacy C-string primitives retain their NUL-terminated contract |
 | `void` | No value | Used for effects and functions without a result |
 
-The v1 string contract is intentionally narrower than a future managed string
-type. String data must not contain an embedded NUL when passed to a v1 C-string
-operation. The compiler must reject or avoid such an operation rather than
-silently truncate data. A future length-aware string ABI may support embedded
-NUL bytes without changing the meaning of v1 literals.
+Legacy NUL-terminated C-string operations remain narrower than the boxed string
+representation. They must reject or avoid embedded NUL data rather than
+silently truncate it; boxed string operations use the explicit byte length.
 
 ### Ownership and lifetime
 
@@ -183,7 +237,7 @@ until the next runtime call on the same execution context. Native array
 lowering uses these operations and is covered by interpreter and native
 executable tests.
 
-## MVP Contract
+## Typed Runtime Operations
 
 ### Calling convention
 
@@ -298,14 +352,13 @@ frontend -> lowering -> typed IR -> LLVM backend -> host C ABI/toolchain
 
 ## Unsupported Runtime Surface
 
-The following are intentionally outside the MVP ABI:
+The following remain intentionally outside the current Static/Dynamic slice:
 
-- embedded-NUL or length-aware strings;
+- length-aware string operations in legacy NUL-terminated C-string APIs (the
+  boxed string representation itself supports embedded NUL bytes);
 - dynamic objects, class methods/inheritance, prototype behavior, and mutable
   field assignment;
-- `null` and `undefined` representations;
-- exceptions, stack unwinding, and panic/abort policy;
-- async scheduling, promises, timers, and event-loop integration;
+- QuickJS-ng execution and Dynamic IR integration;
 - garbage collection or reference counting; the current ABI uses explicit
   ownership and release for allocated values;
 - Node.js APIs, npm packages, filesystem, networking, and FFI in the MVP ABI;

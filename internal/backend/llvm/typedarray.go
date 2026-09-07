@@ -88,7 +88,7 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 			if slot, ok := e.varSlots[argName]; ok {
 				loaded := fmt.Sprintf("%s.is_view_load.%d", argName, e.loadCounter)
 				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
 				argName = loaded
 			}
 			tag := fmt.Sprintf("%s.is_view_tag.%d", argName, e.loadCounter)
@@ -96,8 +96,8 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 			payloadPtr := fmt.Sprintf("%s.is_view_ptr.%d", argName, e.loadCounter)
 			objectPtr := fmt.Sprintf("%s.is_view_object.%d", argName, e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, argName))
-			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, argName))
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", tag, argName))
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payload, argName))
 			out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", payloadPtr, payload))
 			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 5\n", objectPtr, tag))
 			arg = fmt.Sprintf("%s.is_view_safe.%d", argName, e.loadCounter)

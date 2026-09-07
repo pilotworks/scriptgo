@@ -53,23 +53,13 @@ func (e *functionEmitter) emitDynamicFieldGet(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
 	case ir.TypeUnknown:
-		tagSlot := instruction.Result + ".dynamic.tag.slot"
-		payloadSlot := instruction.Result + ".dynamic.payload.slot"
+		valueSlot := instruction.Result + ".dynamic.value.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", tagSlot)
-		fmt.Fprintf(out, "  %%%s = alloca i64\n", payloadSlot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, object, property, tagSlot, payloadSlot)
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", valueSlot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %%%s, ptr %%%s)\n", status, object, property, valueSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		tag := instruction.Result + ".dynamic.tag"
-		payload := instruction.Result + ".dynamic.payload"
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", tag, tagSlot)
-		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", payload, payloadSlot)
-		box0 := instruction.Result + ".dynamic.box0"
-		box1 := instruction.Result + ".dynamic.box1"
-		fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } undef, i32 %%%s, 0\n", box0, tag)
-		fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", box1, box0)
-		fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, box1, payload)
+		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, valueSlot)
 	default:
 		slot := instruction.Result + ".dynamic.ptr.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -107,24 +97,22 @@ func (e *functionEmitter) emitDynamicFieldSet(out *strings.Builder, instruction 
 		case ir.TypeBigInt:
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_set(ptr %s, ptr %%%s, i64 %%%s)\n", status, object, property, value)
 		case ir.TypeUnknown:
-			tag := fmt.Sprintf("dynamic.field.tag.%d", e.loadCounter)
-			payload := fmt.Sprintf("dynamic.field.payload.%d", e.loadCounter)
+			valueSlot := fmt.Sprintf("dynamic.field.value.slot.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, value)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, value)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %s, ptr %%%s, i32 %%%s, i64 %%%s)\n", status, object, property, tag, payload)
+			fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", valueSlot)
+			fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", value, valueSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %s, ptr %%%s, ptr %%%s)\n", status, object, property, valueSlot)
 		default:
 			boxed := fmt.Sprintf("dynamic.field.boxed.%d", e.loadCounter)
 			e.loadCounter++
 			if err := e.emitBoxValue(out, value, actualType, boxed); err != nil {
 				return err
 			}
-			tag := fmt.Sprintf("dynamic.field.tag.%d", e.loadCounter)
-			payload := fmt.Sprintf("dynamic.field.payload.%d", e.loadCounter)
+			boxedSlot := fmt.Sprintf("dynamic.field.value.slot.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, boxed)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payload, boxed)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %s, ptr %%%s, i32 %%%s, i64 %%%s)\n", status, object, property, tag, payload)
+			fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", boxedSlot)
+			fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, boxedSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %s, ptr %%%s, ptr %%%s)\n", status, object, property, boxedSlot)
 		}
 	}
 	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)

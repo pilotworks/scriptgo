@@ -44,31 +44,6 @@ void scriptgo_runtime_abort_if_failed(int status) {
     }
 }
 
-typedef enum {
-    SCRIPTGO_TAG_UNDEFINED = 0,
-    SCRIPTGO_TAG_NULL      = 1,
-    SCRIPTGO_TAG_BOOLEAN   = 2,
-    SCRIPTGO_TAG_NUMBER    = 3,
-    SCRIPTGO_TAG_STRING    = 4,
-    SCRIPTGO_TAG_OBJECT    = 5,
-    SCRIPTGO_TAG_ARRAY     = 6,
-    SCRIPTGO_TAG_FUNCTION  = 7,
-    SCRIPTGO_TAG_BIGINT    = 8,
-    SCRIPTGO_TAG_SYMBOL    = 9
-} ScriptGoTypeTag;
-
-typedef struct {
-    unsigned int tag;
-    unsigned int flags;
-    unsigned long long payload;
-} ScriptGoUnknown;
-
-typedef struct {
-    int32_t tag;
-    int32_t pad;
-    int64_t payload;
-} scriptgo_boxed_value;
-
 static const char *scriptgo_tag_name(unsigned int tag) {
     switch (tag) {
     case SCRIPTGO_TAG_UNDEFINED: return "undefined";
@@ -102,7 +77,12 @@ void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected
     scriptgo_throw_string(msg);
 }
 
-int32_t scriptgo_is_truthy_unknown(unsigned int tag, unsigned long long payload) {
+int32_t scriptgo_is_truthy_unknown(const scriptgo_value *value) {
+    unsigned int tag;
+    unsigned long long payload;
+    if (value == NULL || scriptgo_value_validate(value) != 0) return 0;
+    tag = value->tag;
+    payload = value->payload;
     switch (tag) {
     case SCRIPTGO_TAG_UNDEFINED:
     case SCRIPTGO_TAG_NULL:
@@ -126,7 +106,8 @@ int32_t scriptgo_is_truthy_unknown(unsigned int tag, unsigned long long payload)
     }
 }
 
-const char *__scriptgo_typeof_unknown(unsigned int tag) {
+const char *__scriptgo_typeof_unknown(const scriptgo_value *value) {
+    unsigned int tag = value == NULL ? SCRIPTGO_TAG_UNDEFINED : value->tag;
     switch (tag) {
     case SCRIPTGO_TAG_UNDEFINED: return "undefined";
     case SCRIPTGO_TAG_NULL:      return "object";
@@ -144,11 +125,14 @@ int scriptgo_string_from_number(double value, char **out_value);
 int scriptgo_string_from_bigint(long long value, char **out_str);
 int scriptgo_string_from_object(void *obj, char **out_str);
 
-int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigned long long payload, char **out_str) {
-    (void)padding;
-    if (out_str == NULL) {
+int scriptgo_string_from_unknown(const scriptgo_value *value, char **out_str) {
+    unsigned int tag;
+    unsigned long long payload;
+    if (value == NULL || scriptgo_value_validate(value) != 0 || out_str == NULL) {
         return -1;
     }
+    tag = value->tag;
+    payload = value->payload;
     switch (tag) {
     case SCRIPTGO_TAG_UNDEFINED:
         *out_str = strdup("undefined");
@@ -174,7 +158,15 @@ int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigne
         return scriptgo_string_from_number(u.d, out_str);
     }
     case SCRIPTGO_TAG_STRING:
-        *out_str = strdup(payload != 0 ? (char *)(uintptr_t)payload : "");
+        {
+            uint64_t length = value->aux;
+            if (length == 0 && payload != 0) length = strlen((const char *)(uintptr_t)payload);
+            if (length > (uint64_t)SIZE_MAX - 1) return -1;
+            *out_str = malloc((size_t)length + 1);
+            if (*out_str == NULL) return -1;
+            if (length != 0) memcpy(*out_str, (const void *)(uintptr_t)payload, (size_t)length);
+            (*out_str)[length] = '\0';
+        }
         return 0;
     case SCRIPTGO_TAG_BIGINT:
         return scriptgo_string_from_bigint((long long)payload, out_str);
@@ -286,22 +278,17 @@ int scriptgo_error_to_string(void *obj, char **out_str) {
     return *out_str == NULL ? scriptgo_runtime_set_error("error string allocation failed") : 0;
 }
 
-typedef struct scriptgo_exception_frame {
+struct scriptgo_exception_frame {
     jmp_buf buf;
-    const char *thrown_string;
-    double thrown_number;
-    int thrown_bool;
-    int thrown_type;
+    scriptgo_value thrown;
     struct scriptgo_exception_frame *prev;
-} scriptgo_exception_frame_t;
+};
 
 static scriptgo_exception_frame_t *scriptgo_top_frame = NULL;
+static _Thread_local char *scriptgo_exception_string_scratch = NULL;
 
 void scriptgo_exception_push(scriptgo_exception_frame_t *frame) {
-    frame->thrown_string = NULL;
-    frame->thrown_number = 0.0;
-    frame->thrown_bool = 0;
-    frame->thrown_type = 0;
+    scriptgo_value_init_undefined(&frame->thrown);
     frame->prev = scriptgo_top_frame;
     scriptgo_top_frame = frame;
 }
@@ -326,99 +313,158 @@ scriptgo_exception_frame_t *scriptgo_exception_frame_new(void) {
 void scriptgo_exception_frame_free(scriptgo_exception_frame_t *frame) {
     if (frame == NULL) return;
     scriptgo_exception_pop(frame);
+    scriptgo_value_release(&frame->thrown);
     free(frame);
 }
 
-void scriptgo_throw_string(const char *str) {
+static void scriptgo_uncaught_value(const scriptgo_value *value) {
+    if (value == NULL) exit(1);
+    if (value->tag == SCRIPTGO_TAG_OBJECT || value->tag == SCRIPTGO_TAG_ARRAY ||
+        value->tag == SCRIPTGO_TAG_FUNCTION) {
+        fprintf(stderr, "Uncaught exception object: %p\n", (void *)(uintptr_t)value->payload);
+    } else if (value->tag == SCRIPTGO_TAG_NUMBER) {
+        double number;
+        memcpy(&number, &value->payload, sizeof(number));
+        fprintf(stderr, "Uncaught exception: %g\n", number);
+    } else if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
+        fprintf(stderr, "Uncaught exception: %s\n", value->payload ? "true" : "false");
+    } else if (value->tag == SCRIPTGO_TAG_STRING) {
+        fprintf(stderr, "Uncaught exception: %.*s\n", (int)value->aux,
+                value->payload ? (const char *)(uintptr_t)value->payload : "");
+    } else if (value->tag == SCRIPTGO_TAG_NULL) {
+        fprintf(stderr, "Uncaught exception: null\n");
+    } else {
+        fprintf(stderr, "Uncaught exception: undefined\n");
+    }
+    exit(1);
+}
+
+void scriptgo_exception_throw_copy(const scriptgo_value *value) {
+    scriptgo_value copied;
+    scriptgo_value_init_undefined(&copied);
+    if (scriptgo_value_clone(&copied, value) != 0) {
+        fputs("scriptgo exception value clone failed\n", stderr);
+        abort();
+    }
     if (scriptgo_top_frame != NULL) {
         scriptgo_exception_frame_t *frame = scriptgo_top_frame;
         scriptgo_top_frame = frame->prev;
-        frame->thrown_string = str;
-        frame->thrown_type = 1;
+        scriptgo_value_release(&frame->thrown);
+        frame->thrown = copied;
         longjmp(frame->buf, 1);
     }
-    if (str != NULL && scriptgo_gc_is_registered((void *)str)) {
-        scriptgo_object_t *o = (scriptgo_object_t *)str;
-        if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
-            char *msg = NULL;
-            scriptgo_string_from_object((void*)str, &msg);
-            fprintf(stderr, "Uncaught exception object: %s type=%s\n", msg ? msg : "[object Object]", o->type_name ? o->type_name : "none");
-            if (msg) free(msg);
-            exit(1);
-        }
+    scriptgo_uncaught_value(&copied);
+    scriptgo_value_release(&copied);
+    abort();
+}
+
+void scriptgo_exception_throw_move(scriptgo_value *value) {
+    scriptgo_value moved;
+    scriptgo_value_init_undefined(&moved);
+    if (scriptgo_value_move(&moved, value) != 0) {
+        fputs("scriptgo exception value move failed\n", stderr);
+        abort();
     }
-    fprintf(stderr, "Uncaught exception: %s\n", str ? str : "");
-    exit(1);
+    if (scriptgo_top_frame != NULL) {
+        scriptgo_exception_frame_t *frame = scriptgo_top_frame;
+        scriptgo_top_frame = frame->prev;
+        scriptgo_value_release(&frame->thrown);
+        frame->thrown = moved;
+        longjmp(frame->buf, 1);
+    }
+    scriptgo_uncaught_value(&moved);
+}
+
+void scriptgo_exception_take_value(scriptgo_exception_frame_t *frame, scriptgo_value *out) {
+    if (frame == NULL || out == NULL) {
+        fputs("scriptgo exception value take failed\n", stderr);
+        abort();
+    }
+    if (scriptgo_value_move(out, &frame->thrown) != 0) abort();
+}
+
+void scriptgo_throw_string(const char *str) {
+    scriptgo_value value;
+    if (str != NULL && scriptgo_gc_is_registered((void *)str)) {
+        value.tag = SCRIPTGO_TAG_OBJECT;
+        value.flags = 0;
+        value.payload = (uint64_t)(uintptr_t)str;
+        value.aux = 0;
+    } else {
+        scriptgo_value_string_borrow(str ? str : "", str ? strlen(str) : 0, &value);
+    }
+    scriptgo_exception_throw_copy(&value);
 }
 
 void scriptgo_throw_number(double num) {
-    if (scriptgo_top_frame != NULL) {
-        scriptgo_exception_frame_t *frame = scriptgo_top_frame;
-        scriptgo_top_frame = frame->prev;
-        frame->thrown_number = num;
-        frame->thrown_type = 2;
-        longjmp(frame->buf, 1);
-    }
-    fprintf(stderr, "Uncaught exception: %g\n", num);
-    exit(1);
+    scriptgo_value value;
+    value.tag = SCRIPTGO_TAG_NUMBER;
+    value.flags = 0;
+    memcpy(&value.payload, &num, sizeof(num));
+    value.aux = 0;
+    scriptgo_exception_throw_copy(&value);
 }
 
 void scriptgo_throw_bool(int val) {
-    if (scriptgo_top_frame != NULL) {
-        scriptgo_exception_frame_t *frame = scriptgo_top_frame;
-        scriptgo_top_frame = frame->prev;
-        frame->thrown_bool = val;
-        frame->thrown_type = 3;
-        longjmp(frame->buf, 1);
-    }
-    fprintf(stderr, "Uncaught exception: %s\n", val ? "true" : "false");
-    exit(1);
+    scriptgo_value value;
+    value.tag = SCRIPTGO_TAG_BOOLEAN;
+    value.flags = 0;
+    value.payload = val != 0;
+    value.aux = 0;
+    scriptgo_exception_throw_copy(&value);
 }
 
 const char *scriptgo_exception_get_string(scriptgo_exception_frame_t *frame) {
-    return (frame && frame->thrown_string) ? frame->thrown_string : "";
+    const char *source;
+    char *copy;
+    if (frame == NULL) return "";
+    if (frame->thrown.tag == SCRIPTGO_TAG_STRING || frame->thrown.tag == SCRIPTGO_TAG_OBJECT) {
+        source = (const char *)(uintptr_t)frame->thrown.payload;
+        if (frame->thrown.tag != SCRIPTGO_TAG_STRING ||
+            (frame->thrown.flags & SCRIPTGO_VALUE_OWNED) == 0) {
+            return source != NULL ? source : "";
+        }
+        if (frame->thrown.aux > (uint64_t)SIZE_MAX - 1) return "";
+        free(scriptgo_exception_string_scratch);
+        scriptgo_exception_string_scratch = NULL;
+        copy = malloc((size_t)frame->thrown.aux + 1);
+        if (copy == NULL) return "";
+        if (frame->thrown.aux != 0 && source != NULL) {
+            memcpy(copy, source, (size_t)frame->thrown.aux);
+        }
+        copy[frame->thrown.aux] = '\0';
+        scriptgo_exception_string_scratch = copy;
+        return scriptgo_exception_string_scratch;
+    }
+    return "";
 }
 
 double scriptgo_exception_get_number(scriptgo_exception_frame_t *frame) {
-    return frame->thrown_number;
+    double value = 0.0;
+    if (frame != NULL && frame->thrown.tag == SCRIPTGO_TAG_NUMBER) {
+        memcpy(&value, &frame->thrown.payload, sizeof(value));
+    }
+    return value;
 }
 
 int scriptgo_exception_get_bool(scriptgo_exception_frame_t *frame) {
-    return frame->thrown_bool;
+    return frame != NULL && frame->thrown.tag == SCRIPTGO_TAG_BOOLEAN && frame->thrown.payload != 0;
 }
 
 int scriptgo_exception_get_tag_payload(scriptgo_exception_frame_t *frame, uint32_t *out_tag, uint64_t *out_payload) {
     if (frame == NULL || out_tag == NULL || out_payload == NULL) return -1;
-    *out_payload = 0;
-    if (frame->thrown_type == 1) {
-        *out_tag = (frame->thrown_string != NULL && scriptgo_gc_is_registered((void *)frame->thrown_string)) ? 5 : 4;
-        *out_payload = (uint64_t)(uintptr_t)frame->thrown_string;
-    } else if (frame->thrown_type == 2) {
-        *out_tag = 3;
-        memcpy(out_payload, &frame->thrown_number, sizeof(frame->thrown_number));
-    } else if (frame->thrown_type == 3) {
-        *out_tag = 2;
-        *out_payload = (uint64_t)(frame->thrown_bool != 0);
-    } else {
-        *out_tag = 0;
-    }
+    *out_tag = frame->thrown.tag;
+    *out_payload = frame->thrown.payload;
     return 0;
 }
 
 void scriptgo_exception_rethrow(scriptgo_exception_frame_t *frame) {
     if (frame == NULL) return;
-    int type = frame->thrown_type;
-    const char *str = frame->thrown_string;
-    double num = frame->thrown_number;
-    int b = frame->thrown_bool;
+    scriptgo_value value;
+    scriptgo_value_init_undefined(&value);
+    scriptgo_exception_take_value(frame, &value);
     scriptgo_exception_frame_free(frame);
-    if (type == 1) {
-        scriptgo_throw_string(str);
-    } else if (type == 2) {
-        scriptgo_throw_number(num);
-    } else if (type == 3) {
-        scriptgo_throw_bool(b);
-    }
+    scriptgo_exception_throw_move(&value);
 }
 
 void scriptgo_debugger_break(const char *file, int line) {

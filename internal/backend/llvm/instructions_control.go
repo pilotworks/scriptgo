@@ -214,7 +214,7 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 		out.WriteString("  call i32 @scriptgo_timers_drain()\n")
 		out.WriteString("  ret i32 0\n")
 	} else if strings.HasPrefix(e.function.Name, "__closure_") && (e.function.ReturnType == ir.TypeVoid || e.function.ReturnType == "") {
-		out.WriteString("  ret { i32, i32, i64 } zeroinitializer\n")
+		out.WriteString("  ret void\n")
 	} else if e.function.ReturnType == ir.TypeVoid {
 		out.WriteString("  ret void\n")
 	} else if len(instruction.Args) == 0 || instruction.Type == ir.TypeVoid {
@@ -224,7 +224,7 @@ func (e *functionEmitter) emitReturn(out *strings.Builder, instruction ir.Instru
 		case ir.TypeBool:
 			out.WriteString("  ret i1 false\n")
 		case ir.TypeUnknown:
-			out.WriteString("  ret { i32, i32, i64 } zeroinitializer\n")
+			out.WriteString("  ret { i32, i32, i64, i64 } zeroinitializer\n")
 		default:
 			out.WriteString("  ret ptr null\n")
 		}
@@ -253,12 +253,11 @@ func (e *functionEmitter) emitThrow(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i32\n", boolVal, argVal))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_bool(i32 %%%s)\n", boolVal))
 	case ir.TypeUnknown:
-		payloadVal := fmt.Sprintf("throw.payload.%d", e.loadCounter)
-		ptrVal := fmt.Sprintf("throw.ptr.%d", e.loadCounter)
+		slot := fmt.Sprintf("throw.value.%d", e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVal, argVal))
-		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, payloadVal))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", ptrVal))
+		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", slot))
+		out.WriteString(fmt.Sprintf("  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", argVal, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_throw_copy(ptr %%%s)\n", slot))
 	default:
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_throw_string(ptr %%%s)\n", argVal))
 	}

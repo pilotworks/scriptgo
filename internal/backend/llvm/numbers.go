@@ -77,7 +77,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			numVar := fmt.Sprintf("num.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, numArg)
 			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
 			numArg = numVar
 		}
@@ -98,7 +98,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			numVar := fmt.Sprintf("num.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, numArg)
 			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
 			numArg = numVar
 		}
@@ -119,7 +119,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			numVar := fmt.Sprintf("num.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, numArg)
 			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
 			numArg = numVar
 		}
@@ -140,7 +140,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			numVar := fmt.Sprintf("num.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, numArg)
 			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
 			numArg = numVar
 		}
@@ -161,7 +161,7 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			numVar := fmt.Sprintf("num.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, numArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, numArg)
 			fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", numVar, payloadVar)
 			numArg = numVar
 		}

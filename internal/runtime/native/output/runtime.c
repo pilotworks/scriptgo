@@ -82,7 +82,12 @@ static int scriptgo_console_bool(FILE *stream, int value) {
 static int scriptgo_console_bigint(FILE *stream, long long value);
 static int scriptgo_console_object(FILE *stream, void *value);
 
-static int scriptgo_console_unknown(FILE *stream, unsigned int tag, unsigned int flags, unsigned long long payload) {
+static int scriptgo_console_unknown(FILE *stream, const scriptgo_value *value) {
+    unsigned int tag;
+    unsigned long long payload;
+    if (value == NULL || scriptgo_value_validate(value) != 0) return -1;
+    tag = value->tag;
+    payload = value->payload;
     if (tag == SCRIPTGO_TAG_UNDEFINED) {
         return scriptgo_console_string(stream, "undefined");
     } else if (tag == SCRIPTGO_TAG_NULL) {
@@ -175,9 +180,10 @@ static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
             if (s == NULL) fprintf(stream, "null");
             else if (s == &scriptgo_undefined_sentinel) fprintf(stream, "undefined");
             else fprintf(stream, "'%s'", s);
-        } else if (arr->element_size == 16) {
-            uint32_t tag = *(uint32_t *)(arr->data + (size_t)i * 16);
-            uint64_t payload = *(uint64_t *)(arr->data + (size_t)i * 16 + 8);
+        } else if (arr->element_size == sizeof(scriptgo_value)) {
+            scriptgo_value *value = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
+            uint32_t tag = value->tag;
+            uint64_t payload = value->payload;
             if (tag == SCRIPTGO_TAG_UNDEFINED) fprintf(stream, "undefined");
             else if (tag == SCRIPTGO_TAG_NULL) fprintf(stream, "null");
             else if (tag == SCRIPTGO_TAG_BOOLEAN) fprintf(stream, "%s", payload ? "true" : "false");
@@ -320,9 +326,10 @@ int scriptgo_console_inspect_array(void *value, char **out_str) {
             char number[64];
             scriptgo_format_double_shortest(number, sizeof(number), *(double *)(arr->data + (size_t)i * sizeof(double)));
             pos += (size_t)snprintf(out + pos, capacity - pos, "%s", number);
-        } else if (arr->element_size == 16) {
-            uint32_t tag = *(uint32_t *)(arr->data + (size_t)i * 16);
-            uint64_t payload = *(uint64_t *)(arr->data + (size_t)i * 16 + 8);
+        } else if (arr->element_size == sizeof(scriptgo_value)) {
+            scriptgo_value *value = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
+            uint32_t tag = value->tag;
+            uint64_t payload = value->payload;
             if (tag == SCRIPTGO_TAG_STRING) {
                 const char *s = (const char *)(uintptr_t)payload;
                 pos += (size_t)snprintf(out + pos, capacity - pos, "'%s'", s == NULL ? "" : s);
@@ -354,7 +361,7 @@ int scriptgo_console_inspect_array(void *value, char **out_str) {
     int scriptgo_console_##name##_symbol(void *value) { return scriptgo_console_symbol(stream, value); } \
     int scriptgo_console_##name##_string(const char *value) { return scriptgo_console_string(stream, value); } \
     int scriptgo_console_##name##_bool(int value) { return scriptgo_console_bool(stream, value); } \
-    int scriptgo_console_##name##_unknown(unsigned int tag, unsigned int flags, unsigned long long payload) { return scriptgo_console_unknown(stream, tag, flags, payload); } \
+    int scriptgo_console_##name##_unknown(const scriptgo_value *value) { return scriptgo_console_unknown(stream, value); } \
     int scriptgo_console_##name##_buffer(void *value) { return scriptgo_console_object(stream, value); } \
     int scriptgo_console_##name##_object(void *value) { return scriptgo_console_object(stream, value); }
 

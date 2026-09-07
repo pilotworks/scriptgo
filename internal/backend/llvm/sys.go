@@ -1073,7 +1073,7 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 			payloadName := fmt.Sprintf("json.str.payload.%d", e.loadCounter)
 			ptrName := fmt.Sprintf("json.str.ptr.%d", e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, argVal)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, argVal)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
 			argVal = ptrName
 		}
@@ -1121,17 +1121,15 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 			}
 			argVal = boxedVar
 		}
-		tag := fmt.Sprintf("%s.tag", argVal)
-		padding := fmt.Sprintf("%s.pad", argVal)
-		val := fmt.Sprintf("%s.val", argVal)
-		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tag, argVal)
-		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 1\n", padding, argVal)
-		fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", val, argVal)
+		valuePtr, err := e.emitCanonicalValuePointer(out, argVal, ir.TypeUnknown, "json.value")
+		if err != nil {
+			return err
+		}
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_stringify_unknown(i32 %%%s, i32 %%%s, i64 %%%s, ptr %%%s)\n", status, tag, padding, val, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_stringify_unknown(ptr %s, ptr %%%s)\n", status, valuePtr, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
@@ -1142,10 +1140,10 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64 }\n", slot)
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_parse_unknown(ptr %%%s, ptr %%%s)\n", status, argVal, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64 }, ptr %%%s\n", instruction.Result, slot)
+		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot)
 		return nil
 	default:
 		return fmt.Errorf("unknown JSON intrinsic %q", instruction.Callee)

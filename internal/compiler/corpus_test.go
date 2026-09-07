@@ -94,6 +94,8 @@ func parseCorpusDirectives(content string) corpusDirectives {
 }
 
 func TestCorpus(t *testing.T) {
+	// Date corpus expectations must not depend on the host's local time zone.
+	t.Setenv("TZ", "UTC")
 	root := filepath.Join("testdata", "corpus")
 	cases := corpusCases(t, root)
 	if len(cases) == 0 {

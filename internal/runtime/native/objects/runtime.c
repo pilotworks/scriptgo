@@ -194,22 +194,24 @@ static int object_field_index(const scriptgo_object *object, const char *propert
     return -1;
 }
 
-int scriptgo_unknown_number_property(uint32_t tag, uint64_t payload, const char *property, double *out_value) {
+int scriptgo_unknown_number_property(const scriptgo_value *value, const char *property, double *out_value) {
     if (property == NULL || out_value == NULL) {
         return object_fail("scriptgo unknown property invalid arguments");
     }
+    if (value == NULL || scriptgo_value_validate(value) != 0) {
+        return object_fail("SG9001: malformed unknown value");
+    }
     *out_value = NAN;
-    if (tag == SCRIPTGO_OBJECT_TAG_STRING) {
+    if (value->tag == SCRIPTGO_OBJECT_TAG_STRING) {
         if (strcmp(property, "length") == 0) {
-            const char *value = (const char *)(uintptr_t)payload;
-            *out_value = value == NULL ? 0.0 : (double)strlen(value);
+            *out_value = (double)value->aux;
         }
         return 0;
     }
-    if ((tag != SCRIPTGO_OBJECT_TAG_OBJECT && tag != SCRIPTGO_OBJECT_TAG_ARRAY) || payload == 0) {
+    if ((value->tag != SCRIPTGO_OBJECT_TAG_OBJECT && value->tag != SCRIPTGO_OBJECT_TAG_ARRAY) || value->payload == 0) {
         return 0;
     }
-    void *handle = (void *)(uintptr_t)payload;
+    void *handle = (void *)(uintptr_t)value->payload;
     if (!scriptgo_gc_is_registered(handle)) {
         return 0;
     }
@@ -307,8 +309,16 @@ int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
     return 0;
 }
 
-int scriptgo_object_is_unknown(uint32_t tag0, uint64_t payload0, uint32_t tag1, uint64_t payload1, int32_t *out_result) {
+int scriptgo_object_is_unknown(const scriptgo_value *value0, const scriptgo_value *value1, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo Object.is null output");
+    if (value0 == NULL || value1 == NULL || scriptgo_value_validate(value0) != 0 ||
+        scriptgo_value_validate(value1) != 0) {
+        return object_fail("SG9001: malformed unknown value");
+    }
+    uint32_t tag0 = value0->tag;
+    uint32_t tag1 = value1->tag;
+    uint64_t payload0 = value0->payload;
+    uint64_t payload1 = value1->payload;
     if (tag0 != tag1) {
         *out_result = 0;
         return 0;
@@ -380,10 +390,18 @@ int scriptgo_object_is_unknown(uint32_t tag0, uint64_t payload0, uint32_t tag1, 
     return 0;
 }
 
-int scriptgo_object_equals_unknown(uint32_t tag0, uint64_t payload0,
-                                   uint32_t tag1, uint64_t payload1,
+int scriptgo_object_equals_unknown(const scriptgo_value *value0,
+                                   const scriptgo_value *value1,
                                    int32_t loose, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo unknown equality null output");
+    if (value0 == NULL || value1 == NULL || scriptgo_value_validate(value0) != 0 ||
+        scriptgo_value_validate(value1) != 0) {
+        return object_fail("SG9001: malformed unknown value");
+    }
+    uint32_t tag0 = value0->tag;
+    uint32_t tag1 = value1->tag;
+    uint64_t payload0 = value0->payload;
+    uint64_t payload1 = value1->payload;
     if (tag0 != tag1) {
         *out_result = (loose &&
                        ((tag0 == SCRIPTGO_TAG_UNDEFINED || tag0 == SCRIPTGO_TAG_NULL) &&
@@ -662,7 +680,10 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     return 0;
 }
 
-int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint64_t payload) {
+int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_value *value) {
+    if (value == NULL || scriptgo_value_validate(value) != 0) {
+        return object_fail("SG9001: malformed unknown value");
+    }
     if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
@@ -670,24 +691,23 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint6
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    if (tag == 2) {
-        o->fields[index] = (uintptr_t)((2ULL << 32) | (payload != 0 ? 1 : 0));
-    } else if (tag == 1) {
+    if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
+        o->fields[index] = (uintptr_t)((2ULL << 32) | (value->payload != 0 ? 1 : 0));
+    } else if (value->tag == SCRIPTGO_TAG_NULL) {
         o->fields[index] = 0;
-    } else if (tag == 0) {
+    } else if (value->tag == SCRIPTGO_TAG_UNDEFINED) {
         o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     } else {
-        o->fields[index] = (uintptr_t)payload;
+        o->fields[index] = (uintptr_t)value->payload;
     }
     return 0;
 }
 
-int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, uint64_t *out_payload) {
-    if (out_tag == NULL || out_payload == NULL) {
+int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out_value) {
+    if (out_value == NULL) {
         return 0;
     }
-    *out_tag = 0;
-    *out_payload = 0;
+    scriptgo_value_init_undefined(out_value);
     if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
         return 0;
     }
@@ -697,48 +717,50 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, 
     }
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
-        *out_tag = 0;
-        *out_payload = 0;
     } else if (val == 0) {
-        *out_tag = 1;
-        *out_payload = 0;
+        out_value->tag = SCRIPTGO_TAG_NULL;
     } else if ((val >> 32) == 2) {
-        *out_tag = 2;
-        *out_payload = (val & 1);
+        out_value->tag = SCRIPTGO_TAG_BOOLEAN;
+        out_value->payload = (val & 1);
     } else if ((val & 0xFFF8000000000000ULL) != 0) {
-        *out_tag = 3;
-        *out_payload = (uint64_t)val;
+        out_value->tag = SCRIPTGO_TAG_NUMBER;
+        out_value->payload = (uint64_t)val;
     } else {
         int gc_tag = scriptgo_gc_get_tag((void *)val);
         if (gc_tag == 2) {
-            *out_tag = 6;
+            out_value->tag = SCRIPTGO_TAG_ARRAY;
         } else if (gc_tag == 3) {
-            *out_tag = 7;
+            out_value->tag = SCRIPTGO_TAG_FUNCTION;
         } else if (gc_tag == 11) {
-            *out_tag = 9; // SCRIPTGO_TAG_SYMBOL
+            out_value->tag = SCRIPTGO_TAG_SYMBOL;
         } else if (gc_tag != 0) {
-            *out_tag = 5;
+            out_value->tag = SCRIPTGO_TAG_OBJECT;
         } else {
-            *out_tag = 4;
+            out_value->tag = SCRIPTGO_TAG_STRING;
         }
-        *out_payload = (uint64_t)val;
+        out_value->payload = (uint64_t)val;
+        if (out_value->tag == SCRIPTGO_TAG_STRING && val != 0) {
+            out_value->aux = strlen((const char *)val);
+        }
+    }
+    if (scriptgo_value_validate(out_value) != 0) {
+        return object_fail("SG9001: object unknown getter produced malformed value");
     }
     return 0;
 }
 
 int scriptgo_object_property_unknown_get(void *handle, const char *property,
-                                         uint32_t *out_tag, uint64_t *out_payload) {
+                                         scriptgo_value *out_value) {
     int index;
-    if (out_tag == NULL || out_payload == NULL) {
+    if (out_value == NULL) {
         return object_fail("scriptgo object property output is invalid");
     }
-    *out_tag = 0;
-    *out_payload = 0;
+    scriptgo_value_init_undefined(out_value);
     if (is_invalid_object_handle(handle) || property == NULL) return 0;
     if (((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     if (index < 0) return 0;
-    return scriptgo_object_unknown_get(handle, index, out_tag, out_payload);
+    return scriptgo_object_unknown_get(handle, index, out_value);
 }
 
 static int object_property_index_for_set(void *handle, const char *property) {
@@ -796,15 +818,14 @@ int scriptgo_object_property_number_get(void *handle, const char *property, doub
 }
 
 int scriptgo_object_property_string_get(void *handle, const char *property, const char **out_value) {
-    uint32_t tag;
-    uint64_t payload;
+    scriptgo_value value;
     if (out_value == NULL) return object_fail("scriptgo object property string output is invalid");
     *out_value = &scriptgo_undefined_sentinel;
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
-    if (scriptgo_object_property_unknown_get(handle, property, &tag, &payload) != 0) return -1;
-    if (tag == SCRIPTGO_TAG_STRING) {
-        *out_value = (const char *)(uintptr_t)payload;
-    } else if (tag == SCRIPTGO_TAG_NULL) {
+    if (scriptgo_object_property_unknown_get(handle, property, &value) != 0) return -1;
+    if (value.tag == SCRIPTGO_TAG_STRING) {
+        *out_value = (const char *)(uintptr_t)value.payload;
+    } else if (value.tag == SCRIPTGO_TAG_NULL) {
         *out_value = NULL;
     }
     return 0;
@@ -863,9 +884,9 @@ int scriptgo_object_property_ptr_set(void *handle, const char *property, void *v
 }
 
 int scriptgo_object_property_unknown_set(void *handle, const char *property,
-                                         uint32_t tag, uint64_t payload) {
+                                         const scriptgo_value *value) {
     int index = object_property_index_for_set(handle, property);
-    return index < 0 ? object_fail("scriptgo object property set failed") : scriptgo_object_unknown_set(handle, index, tag, payload);
+    return index < 0 ? object_fail("scriptgo object property set failed") : scriptgo_object_unknown_set(handle, index, value);
 }
 
 int scriptgo_object_type_set(void *handle, const char *type_name) {

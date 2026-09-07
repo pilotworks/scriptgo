@@ -72,17 +72,31 @@ func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) str
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.ptr_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
 			arg = loaded
 		}
 		payloadVar := fmt.Sprintf("%s.payload.%d", arg, e.loadCounter)
 		ptrVar := fmt.Sprintf("%s.ptr.%d", arg, e.loadCounter)
 		e.loadCounter++
-		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, arg))
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
 		return ptrVar
 	}
 	return e.resolveArg(out, arg)
+}
+
+// emitCanonicalValuePointer materializes an IR value for a pointer-based C ABI.
+func (e *functionEmitter) emitCanonicalValuePointer(out *strings.Builder, arg string, valueType ir.Type, prefix string) (string, error) {
+	id := e.loadCounter
+	e.loadCounter++
+	boxed := fmt.Sprintf("%s.boxed.%d", prefix, id)
+	if err := e.emitBoxValue(out, arg, valueType, boxed); err != nil {
+		return "", err
+	}
+	slot := fmt.Sprintf("%s.value.slot.%d", prefix, id)
+	out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", slot))
+	out.WriteString(fmt.Sprintf("  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot))
+	return "%" + slot, nil
 }
 
 func (e *functionEmitter) isParam(name string) bool {
@@ -218,7 +232,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if typ != ir.TypeUnknown && argType == ir.TypeUnknown {
 			payloadVar := fmt.Sprintf("payload.%d", e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadVar, arg))
+			out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadVar, arg))
 			switch typ {
 			case ir.TypeNumber:
 				numVar := fmt.Sprintf("num.%d", e.loadCounter)

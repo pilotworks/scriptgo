@@ -11,7 +11,7 @@ func arrayElementLLVMType(arrayType ir.Type) string {
 	elem := arrayElementType(arrayType)
 	t := llvmType(elem)
 	if t == "void" || t == "" {
-		return "{ i32, i32, i64 }"
+		return "{ i32, i32, i64, i64 }"
 	}
 	return t
 }
@@ -118,10 +118,10 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if arrayType == ir.TypeUnknownArray && instruction.Type != ir.TypeUnknown {
 		unknownResult := instruction.Result + ".unknown"
 		slot := unknownResult + ".slot"
-		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", slot))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get_unknown(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", unknownResult, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", unknownResult, slot))
 		e.types[unknownResult] = ir.TypeUnknown
 		cast := instruction
 		cast.Args = []string{unknownResult}
@@ -140,16 +140,16 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 			return e.emitBoxValue(out, rawVal, elemType, instruction.Result)
 		}
 		slot := instruction.Result + ".slot"
-		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64 }\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", slot))
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get_unknown(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", instruction.Result, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	}
 	slot := instruction.Result + ".slot"
 	llvmT := llvmType(instruction.Type)
 	if llvmT == "void" || llvmT == "" {
-		llvmT = "{ i32, i32, i64 }"
+		llvmT = "{ i32, i32, i64, i64 }"
 	}
 	if existingSlot, ok := e.varSlots[instruction.Result]; ok {
 		slot = existingSlot
@@ -236,12 +236,12 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 			if slot, ok := e.varSlots[arg]; ok {
 				loaded := fmt.Sprintf("%s.isarr.loaded.%d", arg, e.loadCounter)
 				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64 }, ptr %%%s\n", loaded, slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
 				arg = loaded
 			}
 			e.tempCounter++
 			tagVar := fmt.Sprintf("isarray.tag.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVar, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", tagVar, arg)
 			fmt.Fprintf(out, "  %%%s = icmp eq i32 %%%s, 6\n", instruction.Result, tagVar)
 			return nil
 		}
@@ -298,7 +298,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if arg1Type == ir.TypeUnknown && elemType != ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("push.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arg1)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, arg1)
 			paramType := llvmType(elemType)
 			switch paramType {
 			case "double":
@@ -328,26 +328,26 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 				tag = 3
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			case ir.TypeString:
 				tag = 4
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			case ir.TypeBool:
 				tag = 2
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			default:
 				tag = 5
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			}
 			arg1 = boxedName
 		}
@@ -393,7 +393,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if instruction.Type == ir.TypeBoolArray || instruction.Type == "bool[]" || instruction.Type == "boolean[]" {
 			targetElemSize = 1
 		} else if instruction.Type == ir.TypeUnknownArray || instruction.Type == "unknown[]" || instruction.Type == "any[]" {
-			targetElemSize = 16
+			targetElemSize = 24
 		}
 		resSlot := instruction.Result + ".slot"
 		fmt.Fprintf(out, "  %%%s = alloca ptr\n", resSlot)
@@ -498,7 +498,7 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		if arg1Type == ir.TypeUnknown && elemType != ir.TypeUnknown {
 			e.tempCounter++
 			payloadName := fmt.Sprintf("unshift.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", payloadName, arg1)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, arg1)
 			paramType := llvmType(elemType)
 			switch paramType {
 			case "double":
@@ -528,26 +528,26 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 				tag = 3
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			case ir.TypeString:
 				tag = 4
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			case ir.TypeBool:
 				tag = 2
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			default:
 				tag = 5
 				payload := fmt.Sprintf("box.payload.%d", e.tempCounter)
 				fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, arg1)
-				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
-				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
+				fmt.Fprintf(out, "  %%%s.0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %d, 0\n", boxedName, tag)
+				fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s.0, i64 %%%s, 2\n", boxedName, boxedName, payload)
 			}
 			arg1 = boxedName
 		}

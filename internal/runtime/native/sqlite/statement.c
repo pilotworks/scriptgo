@@ -210,10 +210,10 @@ int scriptgo_sqlite_bind_all(scriptgo_sqlite_stmt_t *stmt, void *first_param, vo
                                 }
                                 int field_idx = find_object_property_index(obj, clean_name);
                                 if (field_idx >= 0) {
-                                    uint32_t tag = 0;
-                                    uint64_t payload = 0;
-                                    scriptgo_object_unknown_get(ptr, field_idx, &tag, &payload);
-                                    scriptgo_sqlite_bind_param(stmt->stmt, p, tag, payload);
+                                    scriptgo_value value;
+                                    scriptgo_value_init_undefined(&value);
+                                    scriptgo_object_unknown_get(ptr, field_idx, &value);
+                                    scriptgo_sqlite_bind_param(stmt->stmt, p, value.tag, value.payload);
                                 }
                             }
                         }

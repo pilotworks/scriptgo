@@ -39,7 +39,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `boolean` (`true`, `false`) | ✅ Full | Maps to 1-bit boolean in IR/LLVM (`i1`). |
 | `symbol` | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known (`Symbol.iterator`, `Symbol.dispose`, `Symbol.asyncDispose`). |
 | `null` & `undefined` | ✅ Full | Explicit nullish representation, supports optional chaining `?.` and nullish coalescing `??`. |
-| `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism (16-byte tagged value), supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
+| `unknown` | ✅ Full | Type-safe boxing/unboxing mechanism using the canonical 24-byte ABI v1 value, supports locals, function parameters, class fields, `unknown[]` arrays, checked casts (`as number`), and control-flow `typeof`/`isArray` narrowing. |
 | `any` | ⚠️ Limited | Rejected in Static mode (`SG1001`); `--dynamic` classifies the boundary explicitly but returns `SG5001` until the Dynamic runtime exists. |
 | `Tuple & Extended Tuples` | ✅ Full | Fixed layout struct with type enforcement, supporting optional elements (`[string, number?]`) and rest elements (`[string, ...number[]]`), including tagged-value unboxing when heterogeneous tuple storage is destructured into a typed rest array. |
 | `Enum & Const Enum` | ✅ Full | Supports numeric enums, string enums, reverse mapping, and `const enum` member inlining directly into machine constants. |
@@ -336,7 +336,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | **NPM Packages (`node_modules`)** | ⏳ Roadmap (Milestone 8) | Automatic resolution of `node_modules` directory trees and complex `package.json` manifests is not yet implemented. |
 | **CommonJS (`require` / `module.exports`)** | ⏳ Roadmap (Milestone 8) | ESM-to-CommonJS interoperability and package loading belong to the explicit Dynamic compatibility tier. |
-| **Dynamic compatibility (`--dynamic`)** | 🚧 Foundations complete | Mode plumbing, tier analysis, human-readable summary reports, detailed `--format json` artifacts, LLVM metadata, and `SG5001` enforcement are implemented. QuickJS-ng execution and npm resolution remain pending. |
+| **Dynamic compatibility (`--dynamic`)** | 🚧 ABI foundations complete | Mode plumbing, tier analysis, coverage reports, LLVM metadata, canonical boxed values, ownership/exception/call validation, and `SG5001`/`SG5002`/`SG5003` contracts are implemented. QuickJS-ng execution, Dynamic IR, and npm resolution remain pending. |
 
 ---
 
@@ -427,7 +427,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
 | npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
 | Dynamic islands with QuickJS-ng | ⏳ Planned | Milestone 8B; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
-| Dynamic ABI and executable boundary parity tests | ⏳ Planned | Tier coverage reports and mode metadata are complete; boxed ABI and execution remain Milestone 8B work. |
+| Dynamic ABI and executable boundary parity tests | ✅ ABI harness | Canonical layout, flags, embedded-NUL strings, clone/move/release, fake engine references, context shutdown, call-boundary success/exception/mismatch/fatal cases, and cross-platform 24-byte callback return dispatch are covered; QuickJS execution remains planned. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |

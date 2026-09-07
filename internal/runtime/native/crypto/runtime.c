@@ -19,6 +19,8 @@ int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scrip
 typedef struct {
     void *fn_ptr;
     void *env;
+    void *invoke_ptr;
+    int32_t return_tag;
 } scriptgo_callback_closure;
 
 typedef struct {
@@ -163,6 +165,8 @@ int scriptgo_crypto_random_fill(void *buffer_handle, double offset_opt, double s
         ctx->buffer = buffer_handle;
         timer_callback->fn_ptr = (void *)scriptgo_random_fill_complete;
         timer_callback->env = ctx;
+        timer_callback->invoke_ptr = NULL;
+        timer_callback->return_tag = SCRIPTGO_TAG_UNDEFINED;
         if (scriptgo_timer_set_timeout(timer_callback, 0.0, &timer_id) != 0) return -1;
     }
     return 0;

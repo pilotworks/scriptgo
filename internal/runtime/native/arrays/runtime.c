@@ -6,6 +6,7 @@
 
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_set_length(void *handle, double length);
+int scriptgo_array_release(void *handle);
 
 typedef struct {
     int64_t length;
@@ -16,11 +17,11 @@ typedef struct {
     int64_t element_tag;
 } scriptgo_array;
 
-typedef struct {
-    uint32_t tag;
-    uint32_t padding;
-    uint64_t payload;
-} scriptgo_array_unknown;
+typedef scriptgo_value scriptgo_array_unknown;
+
+static int scriptgo_array_is_value_array(const scriptgo_array *array) {
+    return array != NULL && array->element_size == (int64_t)sizeof(scriptgo_value);
+}
 
 static int fail(const char *message) { return scriptgo_runtime_set_error(message); }
 
@@ -105,7 +106,7 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
     if (check_index(array, index, &offset) != 0) {
         return -1;
     }
-    if (array->element_size == 16) {
+    if (array->element_size == sizeof(scriptgo_value)) {
         memcpy(out_value, array->data + offset + 8, 8);
         return 0;
     }
@@ -116,16 +117,12 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
 int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
     scriptgo_array *array = handle;
     size_t offset;
-    uint32_t *tag_ptr;
-    uint64_t *payload_ptr;
+    scriptgo_value *result;
     if (array == NULL || out_value == NULL || array->element_size <= 0) {
         return fail("scriptgo array access failed");
     }
-    tag_ptr = (uint32_t *)out_value;
-    tag_ptr[0] = 0; // UNDEFINED
-    tag_ptr[1] = 0; // padding
-    payload_ptr = (uint64_t *)((char *)out_value + 8);
-    *payload_ptr = 0;
+    result = (scriptgo_value *)out_value;
+    scriptgo_value_init_undefined(result);
     if (index != index || index < 0 || index != (double)(int64_t)index) {
         return fail("scriptgo array index out of bounds");
     }
@@ -133,27 +130,27 @@ int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
         return 0;
     }
     offset = (size_t)index * (size_t)array->element_size;
-    if (array->element_size == 16) {
-        memcpy(out_value, array->data + offset, 16);
-        return 0;
+    if (array->element_size == sizeof(scriptgo_value)) {
+        return scriptgo_value_clone((scriptgo_value *)out_value,
+                                    (const scriptgo_value *)(array->data + offset));
     }
     if (array->element_size == 8) {
         uint64_t val;
         memcpy(&val, array->data + offset, 8);
-        *payload_ptr = val;
+        result->payload = val;
         if (array->element_tag > 0) {
-            *tag_ptr = (uint32_t)array->element_tag;
+            result->tag = (uint32_t)array->element_tag;
         } else if (val == 0) {
-            *tag_ptr = 1; // NULL
+            result->tag = 1; // NULL
         } else {
-            *tag_ptr = 5; // OBJECT / POINTER / STRING
+            result->tag = 5; // OBJECT / POINTER / STRING
         }
         return 0;
     }
     if (array->element_size == 1) {
         uint8_t val = *(array->data + offset);
-        *tag_ptr = 2; // BOOLEAN
-        *payload_ptr = (uint64_t)val;
+        result->tag = 2; // BOOLEAN
+        result->payload = (uint64_t)val;
         return 0;
     }
     memcpy(out_value, array->data + offset, (size_t)array->element_size);
@@ -177,6 +174,10 @@ int scriptgo_array_set(void *handle, double index, const void *value) {
         }
     }
     offset = (size_t)idx * (size_t)array->element_size;
+    if (scriptgo_array_is_value_array(array)) {
+        return scriptgo_value_clone((scriptgo_value *)(array->data + offset),
+                                    (const scriptgo_value *)value);
+    }
     memcpy(array->data + offset, value, (size_t)array->element_size);
     return 0;
 }
@@ -189,7 +190,7 @@ int scriptgo_array_set_typed(void *handle, double index, const void *value,
     int64_t idx;
     size_t offset;
     if (array == NULL || handle == (void *)&scriptgo_undefined_sentinel || value == NULL ||
-        array->element_size <= 0 || value_size <= 0 || value_size > 16) {
+        array->element_size <= 0 || value_size <= 0 || value_size > (int64_t)sizeof(scriptgo_value)) {
         return fail("scriptgo typed array assignment failed");
     }
     if (index != index || index < 0 || index != (double)(int64_t)index) {
@@ -200,9 +201,13 @@ int scriptgo_array_set_typed(void *handle, double index, const void *value,
         return -1;
     }
     offset = (size_t)idx * (size_t)array->element_size;
-    if (array->element_size == 16 && value_size < 16) {
+    if (scriptgo_array_is_value_array(array) && value_size == (int64_t)sizeof(scriptgo_value)) {
+        return scriptgo_value_clone((scriptgo_value *)(array->data + offset),
+                                    (const scriptgo_value *)value);
+    }
+    if (array->element_size == (int64_t)sizeof(scriptgo_value) && value_size < (int64_t)sizeof(scriptgo_value)) {
         uint32_t element_tag = (uint32_t)tag;
-        uint32_t padding = 0;
+        uint32_t flags = 0;
         uint64_t payload = 0;
         if (value_size == 1) {
             uint8_t byte_value = *(const uint8_t *)value;
@@ -222,7 +227,7 @@ int scriptgo_array_set_typed(void *handle, double index, const void *value,
             }
         }
         memcpy(array->data + offset, &element_tag, sizeof(element_tag));
-        memcpy(array->data + offset + sizeof(element_tag), &padding, sizeof(padding));
+        memcpy(array->data + offset + sizeof(element_tag), &flags, sizeof(flags));
         memcpy(array->data + offset + 8, &payload, sizeof(payload));
         return 0;
     }
@@ -258,6 +263,11 @@ int scriptgo_array_set_length(void *handle, double length) {
     int64_t new_len = (int64_t)length;
     if (new_len < 0) new_len = 0;
     if (new_len <= array->length) {
+        if (scriptgo_array_is_value_array(array)) {
+            for (int64_t i = new_len; i < array->length; i++) {
+                scriptgo_value_release((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)));
+            }
+        }
         array->length = new_len;
         return 0;
     }
@@ -286,8 +296,17 @@ int scriptgo_array_push(void *handle, const void *value, double *out_length) {
         }
         array->data = new_data;
         array->capacity = new_cap;
+        if (scriptgo_array_is_value_array(array)) {
+            memset(array->data + (size_t)array->length * sizeof(scriptgo_value), 0,
+                   (size_t)(new_cap - array->length) * sizeof(scriptgo_value));
+        }
     }
-    memcpy(array->data + (size_t)array->length * (size_t)array->element_size, value, (size_t)array->element_size);
+    if (scriptgo_array_is_value_array(array)) {
+        if (scriptgo_value_clone((scriptgo_value *)(array->data + (size_t)array->length * sizeof(scriptgo_value)),
+                                 (const scriptgo_value *)value) != 0) return -1;
+    } else {
+        memcpy(array->data + (size_t)array->length * (size_t)array->element_size, value, (size_t)array->element_size);
+    }
     array->length++;
     if (out_length != NULL) {
         *out_length = (double)array->length;
@@ -306,7 +325,13 @@ int scriptgo_array_pop(void *handle, void *out_value) {
         return 0;
     }
     offset = (size_t)(array->length - 1) * (size_t)array->element_size;
-    memcpy(out_value, array->data + offset, (size_t)array->element_size);
+    if (scriptgo_array_is_value_array(array)) {
+        scriptgo_value_init_undefined((scriptgo_value *)out_value);
+        if (scriptgo_value_move((scriptgo_value *)out_value,
+                                (scriptgo_value *)(array->data + offset)) != 0) return -1;
+    } else {
+        memcpy(out_value, array->data + offset, (size_t)array->element_size);
+    }
     array->length--;
     return 0;
 }
@@ -364,6 +389,14 @@ int scriptgo_array_slice_with_size(void *handle, double start_val, double end_va
                     uint8_t val = (uint8_t)obj->fields[start + i];
                     res->data[i] = val;
                 }
+            } else if (source_array != NULL && scriptgo_array_is_value_array(source_array)) {
+                for (int64_t i = 0; i < new_len; i++) {
+                    if (scriptgo_value_clone((scriptgo_value *)(res->data + (size_t)i * sizeof(scriptgo_value)),
+                                             (const scriptgo_value *)(src_data + (size_t)(start + i) * sizeof(scriptgo_value))) != 0) {
+                        scriptgo_array_release(res);
+                        return -1;
+                    }
+                }
             } else {
                 memcpy(res->data, (unsigned char *)src_data + (size_t)start * (size_t)element_size, (size_t)new_len * (size_t)element_size);
             }
@@ -381,6 +414,14 @@ int scriptgo_array_slice_with_size(void *handle, double start_val, double end_va
                         free(res->data);
                         free(res);
                         return fail("scriptgo array slice element size is unsupported");
+                    }
+                }
+            } else if (source_array != NULL && scriptgo_array_is_value_array(source_array)) {
+                for (int64_t i = 0; i < new_len; i++) {
+                    if (scriptgo_value_clone((scriptgo_value *)(res->data + (size_t)i * sizeof(scriptgo_value)),
+                                             (const scriptgo_value *)(src_data + (size_t)(start + i) * sizeof(scriptgo_value))) != 0) {
+                        scriptgo_array_release(res);
+                        return -1;
                     }
                 }
             } else {
@@ -490,6 +531,11 @@ int scriptgo_array_includes_ptr(void *handle, const void *target, double *out_bo
 int scriptgo_array_release(void *handle) {
     scriptgo_array *array = handle;
     if (array != NULL) {
+        if (scriptgo_array_is_value_array(array)) {
+            for (int64_t i = 0; i < array->length; i++) {
+                scriptgo_value_release((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)));
+            }
+        }
         scriptgo_gc_unregister(array);
         free(array->owned_data);
         free(array->data);
@@ -526,6 +572,10 @@ int scriptgo_array_at(void *handle, double index, void *out_value) {
         return 0;
     }
     offset = (size_t)idx * (size_t)array->element_size;
+    if (scriptgo_array_is_value_array(array)) {
+        return scriptgo_value_clone((scriptgo_value *)out_value,
+                                    (const scriptgo_value *)(array->data + offset));
+    }
     memcpy(out_value, array->data + offset, (size_t)array->element_size);
     return 0;
 }
@@ -539,8 +589,20 @@ int scriptgo_array_shift(void *handle, void *out_value) {
         memset(out_value, 0, (size_t)array->element_size);
         return 0;
     }
-    memcpy(out_value, array->data, (size_t)array->element_size);
-    if (array->length > 1) {
+    if (scriptgo_array_is_value_array(array)) {
+        scriptgo_value_init_undefined((scriptgo_value *)out_value);
+        if (scriptgo_value_move((scriptgo_value *)out_value,
+                                (scriptgo_value *)array->data) != 0) return -1;
+    } else {
+        memcpy(out_value, array->data, (size_t)array->element_size);
+    }
+    if (scriptgo_array_is_value_array(array)) {
+        for (int64_t i = 1; i < array->length; i++) {
+            if (scriptgo_value_move((scriptgo_value *)(array->data + (size_t)(i - 1) * sizeof(scriptgo_value)),
+                                    (scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value))) != 0) return -1;
+        }
+        scriptgo_value_init_undefined((scriptgo_value *)(array->data + (size_t)(array->length - 1) * sizeof(scriptgo_value)));
+    } else if (array->length > 1) {
         memmove(array->data, array->data + (size_t)array->element_size, (size_t)(array->length - 1) * (size_t)array->element_size);
     }
     array->length--;
@@ -561,10 +623,17 @@ int scriptgo_array_unshift(void *handle, const void *value, double *out_length) 
         array->data = new_data;
         array->capacity = new_cap;
     }
-    if (array->length > 0) {
+    if (scriptgo_array_is_value_array(array)) {
+        scriptgo_value_init_undefined((scriptgo_value *)(array->data + (size_t)array->length * sizeof(scriptgo_value)));
+        for (int64_t i = array->length; i > 0; i--) {
+            if (scriptgo_value_move((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)),
+                                    (scriptgo_value *)(array->data + (size_t)(i - 1) * sizeof(scriptgo_value))) != 0) return -1;
+        }
+        if (scriptgo_value_clone((scriptgo_value *)array->data, (const scriptgo_value *)value) != 0) return -1;
+    } else if (array->length > 0) {
         memmove(array->data + (size_t)array->element_size, array->data, (size_t)array->length * (size_t)array->element_size);
+        memcpy(array->data, value, (size_t)array->element_size);
     }
-    memcpy(array->data, value, (size_t)array->element_size);
     array->length++;
     if (out_length != NULL) {
         *out_length = (double)array->length;
@@ -581,6 +650,17 @@ int scriptgo_array_reverse(void *handle, void **out_array) {
     }
     if (array->length > 1) {
         size_t elem_sz = (size_t)array->element_size;
+        if (scriptgo_array_is_value_array(array)) {
+            scriptgo_value temp;
+            scriptgo_value_init_undefined(&temp);
+            for (i = 0, j = array->length - 1; i < j; i++, j--) {
+                if (scriptgo_value_move(&temp, (scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value))) != 0 ||
+                    scriptgo_value_move((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)),
+                                        (scriptgo_value *)(array->data + (size_t)j * sizeof(scriptgo_value))) != 0 ||
+                    scriptgo_value_move((scriptgo_value *)(array->data + (size_t)j * sizeof(scriptgo_value)), &temp) != 0) return -1;
+            }
+            return out_array == NULL ? 0 : (*out_array = array, 0);
+        }
         void *tmp_buf = elem_sz <= sizeof(temp) ? temp : malloc(elem_sz);
         if (tmp_buf == NULL) return fail("scriptgo array allocation failed");
         for (i = 0, j = array->length - 1; i < j; i++, j--) {
@@ -609,12 +689,29 @@ int scriptgo_array_concat(void *handle1, void *handle2, void **out_array) {
         return -1;
     }
     res = *out_array;
-    if (arr1->length > 0) {
-        memcpy(res->data, arr1->data, (size_t)arr1->length * (size_t)arr1->element_size);
-    }
-    if (arr2->length > 0) {
-        memcpy(res->data + (size_t)arr1->length * (size_t)arr1->element_size, arr2->data, (size_t)arr2->length * (size_t)arr2->element_size);
-    }
+    if (scriptgo_array_is_value_array(arr1)) {
+        scriptgo_array *empty = res;
+        empty->length = 0;
+        for (int64_t i = 0; i < arr1->length; i++) {
+            if (scriptgo_array_push(res, arr1->data + (size_t)i * sizeof(scriptgo_value), NULL) != 0) {
+                scriptgo_array_release(res);
+                return -1;
+            }
+        }
+        for (int64_t i = 0; i < arr2->length; i++) {
+            if (scriptgo_array_push(res, arr2->data + (size_t)i * sizeof(scriptgo_value), NULL) != 0) {
+                scriptgo_array_release(res);
+                return -1;
+            }
+        }
+	} else {
+		if (arr1->length > 0) {
+			memcpy(res->data, arr1->data, (size_t)arr1->length * (size_t)arr1->element_size);
+		}
+		if (arr2->length > 0) {
+			memcpy(res->data + (size_t)arr1->length * (size_t)arr1->element_size, arr2->data, (size_t)arr2->length * (size_t)arr2->element_size);
+		}
+	}
     return 0;
 }
 
@@ -646,9 +743,33 @@ int scriptgo_array_splice(void *handle, double start_val, double delete_count_va
     }
     deleted = *out_array;
     if (delete_count > 0) {
-        memcpy(deleted->data, array->data + (size_t)start * (size_t)array->element_size, (size_t)delete_count * (size_t)array->element_size);
+        if (scriptgo_array_is_value_array(array)) {
+            deleted->length = 0;
+            for (int64_t i = 0; i < delete_count; i++) {
+                if (scriptgo_array_push(deleted, array->data + (size_t)(start + i) * sizeof(scriptgo_value), NULL) != 0) {
+                    scriptgo_array_release(deleted);
+                    return -1;
+                }
+            }
+            for (int64_t i = start; i < start + delete_count; i++) {
+                scriptgo_value_release((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)));
+            }
+            remaining = length - (start + delete_count);
+            for (int64_t i = 0; i < remaining; i++) {
+                if (scriptgo_value_move((scriptgo_value *)(array->data + (size_t)(start + i) * sizeof(scriptgo_value)),
+                                        (scriptgo_value *)(array->data + (size_t)(start + delete_count + i) * sizeof(scriptgo_value))) != 0) {
+                    scriptgo_array_release(deleted);
+                    return -1;
+                }
+            }
+            for (int64_t i = length - delete_count; i < length; i++) {
+                scriptgo_value_init_undefined((scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value)));
+            }
+        } else {
+            memcpy(deleted->data, array->data + (size_t)start * (size_t)array->element_size, (size_t)delete_count * (size_t)array->element_size);
+        }
         remaining = length - (start + delete_count);
-        if (remaining > 0) {
+        if (remaining > 0 && !scriptgo_array_is_value_array(array)) {
             memmove(array->data + (size_t)start * (size_t)array->element_size, array->data + (size_t)(start + delete_count) * (size_t)array->element_size, (size_t)remaining * (size_t)array->element_size);
         }
         array->length -= delete_count;
@@ -764,13 +885,7 @@ int scriptgo_array_join_bigint(void *handle, const char *separator, char **out_s
     return 0;
 }
 
-typedef struct {
-    uint32_t tag;
-    uint32_t padding;
-    uint64_t payload;
-} scriptgo_boxed_unknown_t;
-
-int scriptgo_string_from_unknown(unsigned int tag, unsigned int padding, unsigned long long payload, char **out_str);
+int scriptgo_string_from_unknown(const scriptgo_value *value, char **out_str);
 int scriptgo_string_from_number(double value, char **out_value);
 
 int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str) {
@@ -820,9 +935,9 @@ int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_
     for (int64_t i = 0; i < array->length; i++) {
         char *val_str = NULL;
         int need_free = 0;
-        if (array->element_size == sizeof(scriptgo_boxed_unknown_t)) {
-            scriptgo_boxed_unknown_t *item = (scriptgo_boxed_unknown_t *)(array->data + (size_t)i * sizeof(scriptgo_boxed_unknown_t));
-            if (scriptgo_string_from_unknown(item->tag, item->padding, item->payload, &val_str) != 0 || val_str == NULL) {
+        if (array->element_size == sizeof(scriptgo_value)) {
+            scriptgo_value *item = (scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value));
+            if (scriptgo_string_from_unknown(item, &val_str) != 0 || val_str == NULL) {
                 val_str = "";
             } else {
                 need_free = 1;
@@ -946,8 +1061,18 @@ int scriptgo_array_to_reversed(void *handle, void **out_array) {
     }
     scriptgo_array *res = *out_array;
     size_t elem_sz = (size_t)array->element_size;
-    for (int64_t i = 0; i < array->length; i++) {
-        memcpy(res->data + (size_t)i * elem_sz, array->data + (size_t)(array->length - 1 - i) * elem_sz, elem_sz);
+    if (scriptgo_array_is_value_array(array)) {
+        for (int64_t i = 0; i < array->length; i++) {
+            if (scriptgo_value_clone((scriptgo_value *)(res->data + (size_t)i * sizeof(scriptgo_value)),
+                                     (const scriptgo_value *)(array->data + (size_t)(array->length - 1 - i) * sizeof(scriptgo_value))) != 0) {
+                scriptgo_array_release(res);
+                return -1;
+            }
+        }
+    } else {
+        for (int64_t i = 0; i < array->length; i++) {
+            memcpy(res->data + (size_t)i * elem_sz, array->data + (size_t)(array->length - 1 - i) * elem_sz, elem_sz);
+        }
     }
     return 0;
 }
@@ -1056,7 +1181,30 @@ int scriptgo_array_copy_within(void *handle, double target_val, double start_val
     }
     int64_t count = end - start;
     if (count > len - target) count = len - target;
-    if (count > 0 && start < len) {
+	if (count > 0 && start < len && scriptgo_array_is_value_array(array)) {
+		if ((uint64_t)count > SIZE_MAX / sizeof(scriptgo_value)) {
+			return fail("scriptgo array copyWithin allocation failed");
+		}
+		scriptgo_value *copied = calloc((size_t)count, sizeof(scriptgo_value));
+        if (copied == NULL) return fail("scriptgo array copyWithin allocation failed");
+        for (int64_t i = 0; i < count; i++) {
+            if (scriptgo_value_clone(&copied[i], (const scriptgo_value *)(array->data + (size_t)(start + i) * sizeof(scriptgo_value))) != 0) {
+                for (int64_t j = 0; j < i; j++) scriptgo_value_release(&copied[j]);
+                free(copied);
+                return -1;
+            }
+        }
+        for (int64_t i = 0; i < count; i++) {
+            scriptgo_value *destination = (scriptgo_value *)(array->data + (size_t)(target + i) * sizeof(scriptgo_value));
+            scriptgo_value_release(destination);
+            if (scriptgo_value_move(destination, &copied[i]) != 0) {
+                for (int64_t j = i + 1; j < count; j++) scriptgo_value_release(&copied[j]);
+                free(copied);
+                return -1;
+            }
+        }
+        free(copied);
+    } else if (count > 0 && start < len) {
         size_t elem_sz = (size_t)array->element_size;
         memmove(array->data + (size_t)target * elem_sz, array->data + (size_t)start * elem_sz, (size_t)count * elem_sz);
     }
@@ -1132,9 +1280,25 @@ int scriptgo_array_to_spliced(void *handle, double start_val, double delete_coun
     if (scriptgo_array_new(new_len, array->element_size, out_array) != 0) {
         return -1;
     }
-    scriptgo_array *res = *out_array;
-    size_t elem_sz = (size_t)array->element_size;
-    if (start > 0) {
+	scriptgo_array *res = *out_array;
+	size_t elem_sz = (size_t)array->element_size;
+	if (scriptgo_array_is_value_array(array)) {
+		res->length = 0;
+		for (int64_t i = 0; i < start; i++) {
+			if (scriptgo_array_push(res, array->data + (size_t)i * sizeof(scriptgo_value), NULL) != 0) {
+				scriptgo_array_release(res);
+				return -1;
+			}
+		}
+		for (int64_t i = start + delete_count; i < length; i++) {
+			if (scriptgo_array_push(res, array->data + (size_t)i * sizeof(scriptgo_value), NULL) != 0) {
+				scriptgo_array_release(res);
+				return -1;
+			}
+		}
+		return 0;
+	}
+	if (start > 0) {
         memcpy(res->data, array->data, (size_t)start * elem_sz);
     }
     int64_t remaining = length - (start + delete_count);

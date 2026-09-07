@@ -8,7 +8,11 @@
 typedef struct {
     void *fn_ptr;
     void *env;
+    void *invoke_ptr;
+    int32_t return_tag;
 } scriptgo_timer_closure;
+
+int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
 
 typedef struct scriptgo_timer {
     int64_t id;
@@ -159,9 +163,7 @@ int scriptgo_timers_drain(void) {
 
         if (earliest->closure != NULL && earliest->closure->fn_ptr != NULL) {
             currently_running_timer = earliest;
-            void (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
-                (void (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))earliest->closure->fn_ptr;
-            fn(earliest->closure->env, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            scriptgo_closure_invoke(earliest->closure, 0, NULL, NULL, NULL, NULL);
             currently_running_timer = NULL;
         }
 

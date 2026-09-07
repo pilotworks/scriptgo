@@ -232,11 +232,14 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig)
 	if err != nil {
 		runtimePath := filepath.Join(temporaryDir, "runtime.c")
+		if err := os.WriteFile(filepath.Join(temporaryDir, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
+			return fmt.Errorf("write temporary runtime header: %w", err)
+		}
 		runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
 		if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime file: %w", err)
 		}
-		args = []string{temporaryPath, "-x", "c", runtimePath, "-x", "none"}
+		args = []string{temporaryPath, "-x", "c", runtimePath, "-x", "none", "-I", temporaryDir}
 		args = append(args, codecConfig.compileFlags...)
 	} else {
 		args = []string{temporaryPath, runtimeObj}
@@ -478,6 +481,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	}
 
 	tmpSrcPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s-%d.c", hash[:16], os.Getpid()))
+	if err := os.WriteFile(filepath.Join(sgCache, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
+		return "", err
+	}
 	runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
 	if err := os.WriteFile(tmpSrcPath, runtimeSource, 0o644); err != nil {
 		return "", err
@@ -489,7 +495,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
 	buildArgs = append(buildArgs, codecConfig.compileFlags...)
-	buildArgs = append(buildArgs, "-ffunction-sections", "-fdata-sections", "-c", tmpSrcPath, "-o", tmpObjPath)
+	buildArgs = append(buildArgs, "-I", sgCache, "-ffunction-sections", "-fdata-sections", "-c", tmpSrcPath, "-o", tmpObjPath)
 	if options.OptLevel != "" {
 		buildArgs = append(buildArgs, "-O"+options.OptLevel)
 		if options.Debug {

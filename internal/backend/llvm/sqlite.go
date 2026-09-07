@@ -267,7 +267,7 @@ func (e *functionEmitter) emitSqliteBoxedArg(out *strings.Builder, resultName st
 		}
 	}
 	slot := fmt.Sprintf("%s.box_slot", resultName)
-	fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64 }\n", slot)
-	fmt.Fprintf(out, "  store { i32, i32, i64 } %%%s, ptr %%%s\n", boxedVar, slot)
+	fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+	fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxedVar, slot)
 	return fmt.Sprintf("%%%s", slot), nil
 }

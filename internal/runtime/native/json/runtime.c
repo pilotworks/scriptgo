@@ -201,11 +201,7 @@ int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
     return 0;
 }
 
-typedef struct {
-    uint32_t tag;
-    uint32_t padding;
-    uint64_t payload;
-} scriptgo_json_unknown;
+typedef scriptgo_value scriptgo_json_unknown;
 
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set_tag(void *handle, int64_t tag);
@@ -215,12 +211,12 @@ int scriptgo_array_length(void *handle, int64_t *out_length);
 int scriptgo_array_release(void *handle);
 int scriptgo_object_new(int64_t field_count, void **out_object);
 int scriptgo_object_type_set(void *handle, const char *type_name);
-int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint64_t payload);
+int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_value *value);
 int scriptgo_object_keys(void *handle, void **out_array);
 int scriptgo_object_property_unknown_get(void *handle, const char *property,
-                                         uint32_t *out_tag, uint64_t *out_payload);
+                                         scriptgo_value *out_value);
 
-int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t payload, char **out_str);
+int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str);
 
 static int json_append_fragment(char **buffer, size_t *length, size_t *capacity, const char *fragment) {
     size_t fragment_length;
@@ -269,21 +265,21 @@ static int json_stringify_object(void *handle, char **out_str) {
     if (json_append_character(&buffer, &length, &capacity, '{') != 0) goto fail;
     for (int64_t i = 0; i < key_count; i++) {
         const char *key = NULL;
-        uint32_t value_tag = 0;
-        uint64_t value_payload = 0;
+        scriptgo_value value;
+        scriptgo_value_init_undefined(&value);
         char *key_json = NULL;
         char *value_json = NULL;
 
         if (scriptgo_array_get(keys, (double)i, &key) != 0 || key == NULL ||
-            scriptgo_object_property_unknown_get(handle, key, &value_tag, &value_payload) != 0) {
+            scriptgo_object_property_unknown_get(handle, key, &value) != 0) {
             free(key_json);
             free(value_json);
             goto fail;
         }
         // JSON omits undefined, function, and symbol-valued object properties.
-        if (value_tag == 0 || value_tag == 7 || value_tag == 9) continue;
+        if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) continue;
         if (scriptgo_json_stringify_string(key, &key_json) != 0 ||
-            scriptgo_json_stringify_unknown(value_tag, 0, value_payload, &value_json) != 0) {
+            scriptgo_json_stringify_unknown(&value, &value_json) != 0) {
             free(key_json);
             free(value_json);
             goto fail;
@@ -384,7 +380,8 @@ static int json_parse_string_value(const char **cursor, uint64_t *out_payload) {
 static int json_parse_value(const char **cursor, scriptgo_json_unknown *out) {
     const char *input = json_skip_space(*cursor);
     if (input == NULL || out == NULL) return json_fail("scriptgo json invalid value");
-    out->padding = 0;
+    out->flags = 0;
+    out->aux = 0;
     if (strncmp(input, "null", 4) == 0) {
         out->tag = 1; out->payload = 0; *cursor = input + 4; return 0;
     }
@@ -442,7 +439,7 @@ static int json_parse_value(const char **cursor, scriptgo_json_unknown *out) {
                 input = json_skip_space(input);
                 if (*input != ':') { free(type_name); return json_fail("scriptgo json invalid object"); }
                 input = json_skip_space(input + 1);
-                if (json_parse_value(&input, &value) != 0 || scriptgo_object_unknown_set(object, index++, value.tag, value.payload) != 0) {
+                if (json_parse_value(&input, &value) != 0 || scriptgo_object_unknown_set(object, index++, &value) != 0) {
                     free(type_name);
                     return -1;
                 }
@@ -482,9 +479,12 @@ int scriptgo_json_parse_unknown(const char *input, scriptgo_json_unknown *out_va
 
 int scriptgo_string_from_object(void *obj, char **out_str);
 
-int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t payload, char **out_str) {
-    (void)padding;
-    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str) {
+    uint32_t tag;
+    uint64_t payload;
+    if (value == NULL || scriptgo_value_validate(value) != 0 || out_str == NULL) return json_fail("scriptgo json invalid argument");
+    tag = value->tag;
+    payload = value->payload;
     switch (tag) {
     case 0: // undefined
         *out_str = strdup("null");
@@ -512,21 +512,17 @@ int scriptgo_json_stringify_unknown(uint32_t tag, uint32_t padding, uint64_t pay
         }
         if (arr->element_tag == 4) {
             return scriptgo_json_stringify_string_array(arr, out_str);
-        } else if (arr->element_size == 16) {
+        } else if (arr->element_size == sizeof(scriptgo_value)) {
             size_t cap = 256, len = 0;
             char *buf = malloc(cap);
             if (buf == NULL) return json_fail("scriptgo json allocation failed");
             buf[len++] = '[';
             buf[len] = '\0';
-            typedef struct {
-                uint32_t tag;
-                uint32_t padding;
-                uint64_t payload;
-            } scriptgo_unknown_t;
+            typedef scriptgo_value scriptgo_unknown_t;
             for (int64_t i = 0; i < arr->length; i++) {
                 scriptgo_unknown_t *elem = (scriptgo_unknown_t *)(arr->data + (size_t)i * sizeof(scriptgo_unknown_t));
                 char *elem_json = NULL;
-                if (scriptgo_json_stringify_unknown(elem->tag, elem->padding, elem->payload, &elem_json) != 0) {
+                if (scriptgo_json_stringify_unknown(elem, &elem_json) != 0) {
                     free(buf);
                     return -1;
                 }

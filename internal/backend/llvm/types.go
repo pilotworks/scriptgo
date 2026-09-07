@@ -47,8 +47,8 @@ func llvmType(typ ir.Type) string {
 		return "i1"
 	case ir.TypeVoid:
 		return "void"
-	case ir.TypeUnknown, "{ i32, i32, i64 }":
-		return "{ i32, i32, i64 }"
+	case ir.TypeUnknown, "{ i32, i32, i64, i64 }":
+		return "{ i32, i32, i64, i64 }"
 	default:
 		return "ptr"
 	}
@@ -94,7 +94,7 @@ func arrayElementSizeForTarget(arrayType ir.Type, ptrSize int64) (int64, error) 
 	case ir.TypeString, ir.TypeObject, ir.TypeClosure:
 		return ptrSize, nil
 	case ir.TypeUnknown:
-		return 16, nil
+		return 24, nil
 	default:
 		if strings.HasPrefix(string(elem), "object:") || strings.HasSuffix(string(elem), "[]") {
 			return ptrSize, nil

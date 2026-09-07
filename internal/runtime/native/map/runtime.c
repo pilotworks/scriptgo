@@ -135,11 +135,11 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
     }
     scriptgo_array_inner_map *arr = entries_array;
     if (arr->data == NULL) return 0;
-    if (arr->element_size == sizeof(void *) || arr->element_size == 16) {
+    if (arr->element_size == sizeof(void *) || arr->element_size == sizeof(scriptgo_value)) {
         for (int64_t i = 0; i < arr->length; i++) {
             void *item = NULL;
-            if (arr->element_size == 16) {
-                item = (void *)*(uintptr_t *)(arr->data + (size_t)i * 16 + 8);
+            if (arr->element_size == sizeof(scriptgo_value)) {
+                item = (void *)*(uintptr_t *)(arr->data + (size_t)i * sizeof(scriptgo_value) + 8);
             } else {
                 item = *(void **)(arr->data + (size_t)i * sizeof(void *));
             }
@@ -155,9 +155,9 @@ int scriptgo_map_new_entries(void *entries_array, void **out_map) {
                 if (sub_arr->length >= 2 && sub_arr->data != NULL) {
                     const char *k = NULL;
                     const char *v = NULL;
-                    if (sub_arr->element_size == 16) {
+                    if (sub_arr->element_size == sizeof(scriptgo_value)) {
                         k = (const char *)*(uintptr_t *)(sub_arr->data + 8);
-                        v = (const char *)*(uintptr_t *)(sub_arr->data + 16 + 8);
+                        v = (const char *)*(uintptr_t *)(sub_arr->data + sizeof(scriptgo_value) + 8);
                     } else {
                         k = *(const char **)(sub_arr->data);
                         v = *(const char **)(sub_arr->data + sizeof(void *));

@@ -1,6 +1,7 @@
 package llvm
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -83,8 +84,8 @@ func TestEmitTypedIndexFromUnknownArrayUsesTaggedRead(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"call i32 @scriptgo_array_get_unknown",
-		"extractvalue { i32, i32, i64 } %value.unknown, 0",
-		"extractvalue { i32, i32, i64 } %value.unknown, 2",
+		"extractvalue { i32, i32, i64, i64 } %value.unknown, 0",
+		"extractvalue { i32, i32, i64, i64 } %value.unknown, 2",
 		"trunc i64",
 	} {
 		if !strings.Contains(output, expected) {
@@ -176,5 +177,69 @@ func TestEmitAsyncFramePersistsEntryParameter(t *testing.T) {
 	}
 	if !strings.Contains(output, "call i32 @scriptgo_async_frame_set") {
 		t.Fatalf("async entry did not persist frame values:\n%s", output)
+	}
+}
+
+func TestEmitClosureRecordsCanonicalReturnABI(t *testing.T) {
+	rawParameters := []ir.Parameter{{Name: "__env_ctx", Type: ir.TypePointer}}
+	for index := 0; index < 4; index++ {
+		rawParameters = append(rawParameters, ir.Parameter{Name: fmt.Sprintf("arg_%d$raw", index), Type: ir.TypeUnknown})
+	}
+	module := ir.Module{Functions: []ir.Function{
+		{
+			Name:       "main",
+			ReturnType: ir.TypeVoid,
+			Body: []ir.Instruction{
+				{Op: ir.OpClosure, Type: ir.TypeClosure, Result: "callback", Callee: "__closure_callback"},
+				{Op: ir.OpReturn, Type: ir.TypeVoid},
+			},
+		},
+		{
+			Name:       "__closure_callback",
+			Parameters: rawParameters,
+			ReturnType: ir.TypeUnknown,
+			Body:       []ir.Instruction{{Op: ir.OpReturn, Type: ir.TypeUnknown}},
+		},
+	}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "call i32 @scriptgo_closure_create(ptr @__closure_callback, ptr null, ptr @__closure_callback$invoke, i32 -1") {
+		t.Fatalf("closure did not record its canonical aggregate return ABI:\n%s", output)
+	}
+}
+
+func TestEmitUnknownClosureCallUsesReturnTagDispatcher(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{
+		{
+			Name:       "main",
+			ReturnType: ir.TypeVoid,
+			Body: []ir.Instruction{
+				{Op: ir.OpClosure, Type: ir.TypeClosure, Result: "callback", Callee: "__closure_callback"},
+				{Op: ir.OpClosureCall, Type: ir.TypeUnknown, Result: "result", Callee: "callback"},
+				{Op: ir.OpReturn, Type: ir.TypeVoid},
+			},
+		},
+		{
+			Name:       "__closure_callback",
+			ReturnType: ir.TypeVoid,
+			Body:       []ir.Instruction{{Op: ir.OpReturn, Type: ir.TypeVoid}},
+		},
+	}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output, "call i32 @scriptgo_closure_create(ptr @__closure_callback, ptr null, ptr @__closure_callback$invoke, i32 0") {
+		t.Fatalf("void closure did not record its return ABI:\n%s", output)
+	}
+	if !strings.Contains(output, "call i32 @scriptgo_closure_invoke_value(") {
+		t.Fatalf("unknown closure call bypassed the ABI dispatcher:\n%s", output)
+	}
+	if strings.Contains(output, "call { i32, i32, i64, i64 } (ptr, i32") {
+		t.Fatalf("unknown closure call directly used the aggregate return ABI:\n%s", output)
 	}
 }

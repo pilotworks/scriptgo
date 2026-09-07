@@ -49,7 +49,7 @@ func (e *functionEmitter) emitBufferIntrinsic(out *strings.Builder, instruction 
 		if e.types[arg] == ir.TypeUnknown || e.isParamUnknown(arg) {
 			unboxed := fmt.Sprintf("unboxed.arr.%d", e.runtimeStatus)
 			e.runtimeStatus++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", unboxed, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", unboxed, arg)
 			ptrVal := fmt.Sprintf("ptr.arr.%d", e.runtimeStatus)
 			e.runtimeStatus++
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, unboxed)
@@ -92,7 +92,7 @@ func (e *functionEmitter) emitBufferIntrinsic(out *strings.Builder, instruction 
 		if e.types[arg] == ir.TypeUnknown || e.isParamUnknown(arg) {
 			unboxed := fmt.Sprintf("unboxed.isbuf.%d", e.runtimeStatus)
 			e.runtimeStatus++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", unboxed, arg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", unboxed, arg)
 			ptrVal := fmt.Sprintf("ptr.isbuf.%d", e.runtimeStatus)
 			e.runtimeStatus++
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, unboxed)

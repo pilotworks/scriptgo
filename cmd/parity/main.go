@@ -188,6 +188,9 @@ func main() {
 	startTime := time.Now()
 	resolvedCorpus = filepath.Clean(resolvedCorpus)
 	workingDir := filepath.Dir(filepath.Dir(resolvedCorpus))
+	// Corpus date expectations are UTC-stable; keep Node and native runs aligned
+	// across developer machines and container time zones.
+	_ = os.Setenv("TZ", "UTC")
 
 	// Verify Node runtime
 	nodeCmd := os.Getenv("NODE_BIN")
@@ -571,7 +574,8 @@ func runWithNode(entry, runner, workingDir, nodePath string) (string, error) {
 			hasTSC = err == nil
 		}
 		if !hasTSC {
-			// Node 22 can execute the corpus TypeScript directly when tsc is not installed.
+			// Node 22 can execute type-only TypeScript directly, but not decorators or
+			// other syntax that requires the TypeScript transform pipeline.
 			cmd = exec.Command(nodePath, "--expose-gc", "--no-warnings", "--experimental-transform-types", absoluteEntry)
 			break
 		}

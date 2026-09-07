@@ -48,6 +48,9 @@ general TypeScript-Go and LLVM behavior.
   constructs, standard library APIs, diagnostics, or runtime capabilities are
   implemented, modified, or verified, update the parity report tables and test
   metrics accordingly.
+- Keep markdown documentation concise, complete, and actionable. Document only
+  essential context, architectural decisions, contracts, and concrete behavior;
+  avoid unnecessary filler, boilerplate, and redundant explanations.
 - Always run full regression tests and build verification on every change:
   run `go test -count=1 ./...`, `go test -count=1 ./internal/typescriptgo/...`,
   and `go build ./cmd/scriptgo`.

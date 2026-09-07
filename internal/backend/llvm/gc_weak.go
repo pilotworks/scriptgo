@@ -108,9 +108,9 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 			ptrVal = fmt.Sprintf("%s.ptr.%d", valArg, e.loadCounter)
 			tagVal = fmt.Sprintf("%s.tag.%d", valArg, e.loadCounter)
 			e.loadCounter++
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 2\n", rawVal, valArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", rawVal, valArg)
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrVal, rawVal)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64 } %%%s, 0\n", tagVal, valArg)
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", tagVal, valArg)
 		} else if valType == ir.TypeVoid {
 			ptrVal = "null"
 		} else {
@@ -148,9 +148,9 @@ func (e *functionEmitter) emitWeakIntrinsic(out *strings.Builder, instruction ir
 			box0 := fmt.Sprintf("%s.box0", instruction.Result)
 			box1 := fmt.Sprintf("%s.box1", instruction.Result)
 			fmt.Fprintf(out, "  %%%s = ptrtoint ptr %%%s to i64\n", payload, resPtr)
-			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } undef, i32 %%%s, 0\n", box0, resTag)
-			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i32 0, 1\n", box1, box0)
-			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, box1, payload)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %%%s, 0\n", box0, resTag)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s, i32 0, 1\n", box1, box0)
+			fmt.Fprintf(out, "  %%%s = insertvalue { i32, i32, i64, i64 } %%%s, i64 %%%s, 2\n", instruction.Result, box1, payload)
 		} else {
 			fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, resPtr)
 		}

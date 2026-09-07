@@ -31,7 +31,7 @@ static int read_row(scriptgo_sqlite_stmt_t *stmt, void **out_row) {
         double len = 0;
         for (int i = 0; i < col_count; i++) {
             scriptgo_sqlite_unknown_t val;
-            val.padding = 0;
+            scriptgo_value_init_undefined(&val);
             int type = sqlite3_column_type(stmt->stmt, i);
             if (type == SQLITE_NULL) {
                 val.tag = 1; val.payload = 0;
@@ -49,8 +49,13 @@ static int read_row(scriptgo_sqlite_stmt_t *stmt, void **out_row) {
                 double num = sqlite3_column_double(stmt->stmt, i);
                 memcpy(&val.payload, &num, sizeof(num));
             } else if (type == SQLITE_TEXT) {
-                val.tag = 4;
-                val.payload = (uint64_t)(uintptr_t)strdup((const char *)sqlite3_column_text(stmt->stmt, i));
+                const char *text = (const char *)sqlite3_column_text(stmt->stmt, i);
+                int bytes = sqlite3_column_bytes(stmt->stmt, i);
+                if (text == NULL || scriptgo_value_string_copy(text, (uint64_t)(bytes < 0 ? 0 : bytes), &val) != 0) {
+                    val.tag = 1;
+                    val.payload = 0;
+                    val.aux = 0;
+                }
             } else if (type == SQLITE_BLOB) {
                 const void *blob = sqlite3_column_blob(stmt->stmt, i);
                 int bytes = sqlite3_column_bytes(stmt->stmt, i);
@@ -81,7 +86,10 @@ static int read_row(scriptgo_sqlite_stmt_t *stmt, void **out_row) {
     for (int i = 0; i < col_count; i++) {
         int type = sqlite3_column_type(stmt->stmt, i);
         if (type == SQLITE_NULL) {
-            scriptgo_object_unknown_set(obj, i, 1, 0);
+            scriptgo_value value;
+            scriptgo_value_init_undefined(&value);
+            value.tag = SCRIPTGO_TAG_NULL;
+            scriptgo_object_unknown_set(obj, i, &value);
         } else if (type == SQLITE_INTEGER) {
             if (stmt->read_bigints) {
                 scriptgo_object_bigint_set(obj, i, sqlite3_column_int64(stmt->stmt, i));
@@ -102,7 +110,10 @@ static int read_row(scriptgo_sqlite_stmt_t *stmt, void **out_row) {
                 if (bytes > 0 && blob != NULL) memcpy(view->data, blob, (size_t)bytes);
                 scriptgo_object_ptr_set(obj, i, buf);
             } else {
-                scriptgo_object_unknown_set(obj, i, 1, 0);
+                scriptgo_value value;
+                scriptgo_value_init_undefined(&value);
+                value.tag = SCRIPTGO_TAG_NULL;
+                scriptgo_object_unknown_set(obj, i, &value);
             }
         }
     }

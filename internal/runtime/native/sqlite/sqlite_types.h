@@ -55,11 +55,7 @@ struct scriptgo_sqlite_session {
     scriptgo_sqlite_session_t *prev;
 };
 
-typedef struct {
-    uint32_t tag;
-    uint32_t padding;
-    uint64_t payload;
-} scriptgo_sqlite_unknown_t;
+typedef scriptgo_value scriptgo_sqlite_unknown_t;
 
 typedef struct {
     uint32_t magic;
@@ -85,8 +81,8 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value);
 int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value);
 int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value);
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
-int scriptgo_object_unknown_set(void *handle, int64_t index, uint32_t tag, uint64_t payload);
-int scriptgo_object_unknown_get(void *handle, int64_t index, uint32_t *out_tag, uint64_t *out_payload);
+int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_value *value);
+int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out_value);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set_tag(void *handle, int64_t tag);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
