@@ -192,8 +192,8 @@ jobs:
           import json, hashlib, os, datetime
 
           dist_dir = 'dist'
-          version = os.environ.get('VERSION', '')
           tag = os.environ.get('GITHUB_REF_NAME', '')
+          version = tag.removeprefix('v')
           commit = os.environ.get('GITHUB_SHA', '')
           
           pubkey_str = ""
