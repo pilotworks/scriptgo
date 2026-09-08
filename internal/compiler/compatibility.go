@@ -36,7 +36,7 @@ func enforceProgram(program frontend.Program, report lowering.CompatibilityRepor
 		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts}); err != nil {
 			return err
 		}
-		if report.Summary.Unsupported > 0 || lowering.HasDynamicImports(program) {
+		if lowering.HasDynamicImports(program) {
 			return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{})
 		}
 		return nil
