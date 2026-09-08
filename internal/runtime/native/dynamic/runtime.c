@@ -191,7 +191,7 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
                 JS_FreePropertyEnum(ctx, properties, count);
                 return -1;
             }
-            scriptgo_value_release(&native_property);
+            /* Object fields borrow the boxed payload; retain owned strings. */
             JS_FreeCString(ctx, key);
         }
         JS_FreePropertyEnum(ctx, properties, count);
@@ -240,7 +240,15 @@ int scriptgo_dynamic_call_module(const char *module_path, const char *source,
     global = JS_GetGlobalObject(ctx);
     function = JS_GetPropertyStr(ctx, global, export_name);
     JS_FreeValue(ctx, global);
-    if (!JS_IsFunction(ctx, function)) { JS_FreeValue(ctx, function); status = scriptgo_runtime_set_error("Dynamic export is not a function"); goto done; }
+    if (!JS_IsFunction(ctx, function)) {
+        JS_FreeValue(ctx, function);
+        /* `const`/`let` exports are global lexical bindings, not properties. */
+        function = JS_Eval(ctx, export_name, strlen(export_name), module_path, JS_EVAL_TYPE_GLOBAL);
+        if (JS_IsException(function) || !JS_IsFunction(ctx, function)) {
+            JS_FreeValue(ctx, function);
+            status = scriptgo_runtime_set_error("Dynamic export is not a function"); goto done;
+        }
+    }
     argv = argument_count == 0 ? NULL : (JSValue *)calloc((size_t)argument_count, sizeof(JSValue));
     if (argument_count != 0 && argv == NULL) { JS_FreeValue(ctx, function); status = scriptgo_runtime_set_error("Dynamic argument allocation failed"); goto done; }
     for (i = 0; i < argument_count; i++) {
