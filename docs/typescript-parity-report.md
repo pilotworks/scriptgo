@@ -426,8 +426,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
 | npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
-| Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named-import pure functions with primitive boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
-| Dynamic ABI and executable boundary parity tests | 🚧 Initial slice | Canonical layout and initial QuickJS execution boundary are covered for local synchronous primitive functions; broader engine-reference and parity cases remain pending. |
+| Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named/default-import synchronous functions, including declaration and expression exports, with primitive and plain object/array boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
+| Dynamic ABI and executable boundary parity tests | 🚧 Initial slice | Canonical layout and initial QuickJS execution boundary are covered for local synchronous functions, including named/default declaration and expression exports plus plain object/array boxing; broader engine-reference and parity cases remain pending. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |

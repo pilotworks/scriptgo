@@ -62,12 +62,15 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		result := SyntaxStatement{
 			Span:           span,
 			Kind:           kind,
-			Name:           node.Name().Text(),
+			DefaultExport:  ast.HasSyntacticModifier(node, ast.ModifierFlagsDefault),
 			Type:           fnType,
 			InferredType:   inferredRetType,
 			TypeParameters: syntaxTypeParameters(node.TypeParameters()),
 			IsGenerator:    isGen,
 			IsAsync:        isAsync,
+		}
+		if node.Name() != nil {
+			result.Name = node.Name().Text()
 		}
 		var bindingStmts []SyntaxStatement
 		for pIdx, parameter := range node.Parameters() {

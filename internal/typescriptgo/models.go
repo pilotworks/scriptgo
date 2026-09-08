@@ -69,6 +69,7 @@ type SyntaxFile struct {
 type SyntaxStatement struct {
 	Span           SourceSpan
 	Kind           string
+	DefaultExport  bool
 	VarDeclKind    string
 	Name           string
 	Label          string
