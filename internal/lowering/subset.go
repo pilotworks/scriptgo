@@ -34,6 +34,9 @@ func validateSubsetLocked(program frontend.Program) error {
 		return err
 	}
 	for _, file := range program.Files {
+		if isJavaScriptFile(file.FileName) {
+			continue
+		}
 		for _, statement := range file.Syntax.Statements {
 			if err := validateStatement(file.FileName, statement); err != nil {
 				return err

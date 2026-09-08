@@ -18,10 +18,11 @@ type compatibilitySiteKey struct {
 }
 
 type compatibilityCollector struct {
-	mode      CompatibilityMode
-	root      string
-	decisions map[compatibilitySiteKey]CompatibilityDecision
-	sources   map[string]string
+	mode            CompatibilityMode
+	root            string
+	decisions       map[compatibilitySiteKey]CompatibilityDecision
+	sources         map[string]string
+	dynamicBindings map[string]bool
 }
 
 func AnalyzeCompatibility(program frontend.Program, policy CompatibilityPolicy) (CompatibilityReport, error) {
@@ -40,13 +41,23 @@ func AnalyzeCompatibility(program frontend.Program, policy CompatibilityPolicy) 
 		return CompatibilityReport{}, fmt.Errorf("unknown compatibility mode %q", mode)
 	}
 	root := filepath.Dir(program.EntryPath)
-	collector := compatibilityCollector{mode: mode, root: root, decisions: make(map[compatibilitySiteKey]CompatibilityDecision), sources: make(map[string]string)}
+	collector := compatibilityCollector{mode: mode, root: root, decisions: make(map[compatibilitySiteKey]CompatibilityDecision), sources: make(map[string]string), dynamicBindings: make(map[string]bool)}
 	for _, file := range program.Files {
 		if file.Builtin {
 			continue
 		}
 		path := collector.normalizePath(file.FileName)
 		collector.sources[path] = file.Source
+		for _, reference := range file.Imports {
+			if reference.TypeOnly || !isJavaScriptFile(reference.ResolvedFileName) {
+				continue
+			}
+			for _, binding := range reference.Bindings {
+				if !binding.TypeOnly {
+					collector.dynamicBindings[binding.LocalName] = true
+				}
+			}
+		}
 		for i := range file.Syntax.Statements {
 			collector.statement(path, &file.Syntax.Statements[i])
 		}
@@ -93,7 +104,7 @@ func (c *compatibilityCollector) normalizePath(path string) string {
 }
 
 func (c *compatibilityCollector) add(path string, span typescriptgo.SourceSpan, kind string, code SubsetCode, feature, hint string, dynamicEligible bool) {
-	decision := CompatibilityDecision{Tier: TierStatic, FileName: path, Span: span, Start: span.Start, Length: span.Length, Kind: kind, Source: c.sources[path]}
+	decision := CompatibilityDecision{Tier: TierStatic, FileName: path, Span: span, Start: span.Start, Length: span.Length, Kind: kind, DynamicCapability: feature, Source: c.sources[path]}
 	if code != "" {
 		decision.Tier = TierUnsupported
 		decision.Code = code
@@ -288,6 +299,12 @@ func (c *compatibilityCollector) expression(path string, expression *typescriptg
 		allowed := map[string]bool{"identifier": true, "string": true, "call": true, "optional_call": true, "property": true, "optional_property": true, "index": true, "optional_index": true, "object_literal": true, "as": true, "non_null": true}
 		if !allowed[expression.Left.Kind] {
 			c.add(path, expression.Span, expression.Kind, CodeStructuralFlow, "nested property access", "enable --dynamic for JavaScript property semantics", true)
+			classified = true
+		}
+	}
+	if !classified && (expression.Kind == "call" || expression.Kind == "optional_call") {
+		if expression.Left != nil && expression.Left.Kind == "identifier" && c.dynamicBindings[expression.Left.Text] {
+			c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "local JavaScript module call", "enable --dynamic for JavaScript execution", true)
 			classified = true
 		}
 	}

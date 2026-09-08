@@ -33,9 +33,15 @@ func analyzeProgram(program frontend.Program, options BuildOptions) (lowering.Co
 func enforceProgram(program frontend.Program, report lowering.CompatibilityReport, options BuildOptions) error {
 	if !options.Dynamic {
 		// Preserve the established Static first-diagnostic contract exactly.
-		return lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts})
+		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts}); err != nil {
+			return err
+		}
+		if report.Summary.Unsupported > 0 || lowering.HasDynamicImports(program) {
+			return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{})
+		}
+		return nil
 	}
-	return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{})
+	return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{DynamicRuntime: true})
 }
 
 func loadCoverageReport(entryPath string, options BuildOptions) (lowering.CompatibilityReport, error) {

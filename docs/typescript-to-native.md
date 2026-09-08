@@ -59,7 +59,7 @@ not a replacement for that reference.
 ## High-Level Pipeline
 
 The compilation decision is deliberately three-tiered. The current MVP
-implements Static only; Dynamic is a planned opt-in mode described in
+implements Static by default and a constrained QuickJS-ng Dynamic island through
 [`compilation-tiers.md`](compilation-tiers.md).
 
 ```text
@@ -515,7 +515,7 @@ Useful output modes include:
 - `--emit c` for deferred C backend debugging;
 - `--print-runtime` for the runtime library and ABI version;
 - `--diagnostics` for lowering and representation decisions.
-- `--dynamic` to opt into QuickJS-ng dynamic islands (planned; disabled in the
+- `--dynamic` to opt into QuickJS-ng dynamic islands (disabled in the
   current MVP).
 
 ## MVP Scope

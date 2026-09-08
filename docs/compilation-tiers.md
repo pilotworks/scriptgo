@@ -9,14 +9,14 @@ dynamic.
 | Tier            | Selection               | Execution model                                                                                                                                                                                    | Result when unavailable                                                                    |
 | --------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **Static**      | Default                 | Compile directly to `scriptgo` IR, LLVM, and native code. No JavaScript engine is linked.                                                                                                          | Try Dynamic only when `--dynamic` is explicitly enabled; otherwise report Unsupported.     |
-| **Dynamic**     | Opt-in with `--dynamic` | Classify sites that require JavaScript semantics. Milestone 8A records these sites but does not execute them because QuickJS-ng is not linked yet.                                      | Report `SG5001` until the Dynamic runtime contract and engine are available.                |
+| **Dynamic**     | Opt-in with `--dynamic` | Execute the supported local JavaScript pure-function island through embedded QuickJS-ng.                                      | Report an actionable Dynamic boundary diagnostic when the site is outside the v1 island.                |
 | **Unsupported** | No valid implementation | No code is emitted for the rejected site.                                                                                                                                                          | Compile error with stable code, source span/code frame, and a rewrite hint where possible. |
 
 The key invariant is:
 
 ```text
 default       -> static native code only
---dynamic     -> classify Dynamic sites; reject them with SG5001 in Milestone 8A
+--dynamic     -> execute supported Dynamic sites through the embedded QuickJS-ng island
 unsupported   -> compile error; never silent fallback or guessed semantics
 ```
 
@@ -35,11 +35,10 @@ value remains dynamic or unsupported until its use is narrowed and proven.
 
 ## Dynamic
 
-`--dynamic` is an explicit compatibility analysis mode for code that needs
-JavaScript's runtime value model. In Milestone 8A it records Dynamic eligibility
-but does not enable execution. All-Static programs still compile, while a
-Dynamic site fails before IR generation with `SG5001`. No current build links a
-JavaScript engine.
+`--dynamic` is an explicit compatibility mode for code that needs JavaScript's
+runtime value model. The initial runtime supports named imports from local `.js`
+modules whose exported function has a synchronous primitive-only boundary. Other
+Dynamic sites remain rejected until later islands are implemented.
 
 Dynamic islands may contain JavaScript npm dependencies, erased TypeScript,
 `any`, dynamic property access, function values, prototype-sensitive behavior,

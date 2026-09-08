@@ -24,16 +24,17 @@ type CompatibilityPolicy struct {
 }
 
 type CompatibilityDecision struct {
-	Tier     CompatibilityTier       `json:"tier"`
-	FileName string                  `json:"path"`
-	Span     typescriptgo.SourceSpan `json:"-"`
-	Start    int                     `json:"start"`
-	Length   int                     `json:"length"`
-	Kind     string                  `json:"kind"`
-	Code     SubsetCode              `json:"code,omitempty"`
-	Message  string                  `json:"message,omitempty"`
-	Hint     string                  `json:"hint,omitempty"`
-	Source   string                  `json:"-"`
+	Tier              CompatibilityTier       `json:"tier"`
+	FileName          string                  `json:"path"`
+	Span              typescriptgo.SourceSpan `json:"-"`
+	Start             int                     `json:"start"`
+	Length            int                     `json:"length"`
+	Kind              string                  `json:"kind"`
+	Code              SubsetCode              `json:"code,omitempty"`
+	Message           string                  `json:"message,omitempty"`
+	Hint              string                  `json:"hint,omitempty"`
+	DynamicCapability string                  `json:"-"`
+	Source            string                  `json:"-"`
 }
 
 type CompatibilitySummary struct {

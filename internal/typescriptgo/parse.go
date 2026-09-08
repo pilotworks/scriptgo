@@ -117,6 +117,7 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 					opts = &core.CompilerOptions{}
 				}
 				opts.NoEmit = core.TSTrue
+				opts.AllowJs = core.TSTrue
 				opts.AllowImportingTsExtensions = core.TSTrue
 				parsedCfg.SetCompilerOptions(opts)
 				compilerOpts = CompilerOptions{
@@ -135,6 +136,7 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 			Module:                     core.ModuleKindESNext,
 			ModuleResolution:           core.ModuleResolutionKindBundler,
 			AllowImportingTsExtensions: core.TSTrue,
+			AllowJs:                    core.TSTrue,
 			Lib:                        []string{"lib.esnext.d.ts"},
 			Strict:                     core.TSTrue,
 			NoEmit:                     core.TSTrue,
@@ -177,13 +179,13 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 	ctx := context.Background()
 	files := make(map[string]*ast.SourceFile)
 	for _, file := range program.GetSourceFiles() {
-		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
+		if program.IsSourceFileDefaultLibrary(file.Path()) || !isSupportedSource(file.FileName()) {
 			continue
 		}
 		files[filepath.Clean(file.FileName())] = file
 	}
 	for _, file := range orderedSourceFiles(files, absoluteEntry, program, builtinPaths) {
-		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
+		if program.IsSourceFileDefaultLibrary(file.Path()) || !isSupportedSource(file.FileName()) {
 			continue
 		}
 		checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)

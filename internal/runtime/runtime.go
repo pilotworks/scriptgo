@@ -109,6 +109,15 @@ var dgramSource string
 //go:embed native/tls/runtime.c
 var tlsSource string
 
+//go:embed native/dynamic/runtime.c
+var dynamicAdapterSource string
+
+//go:embed native/dynamic/quickjs-amalgam.c
+var quickJSAmalgamSource string
+
+//go:embed native/dynamic/quickjs.h
+var quickJSHeader string
+
 //go:embed native/tls/root_certificates.h
 var tlsRootCertificatesHeader string
 
@@ -137,4 +146,21 @@ var sqliteSource = "#define SQLITE_THREADSAFE 1\n#define SQLITE_ENABLE_JSON1 1\n
 
 var tlsRootCertificatesSource = "#define NODE_WANT_INTERNALS 1\nstatic const char *scriptgo_tls_bundled_root_certificates[] = {\n" + tlsRootCertificatesHeader + "\n};\n#undef NODE_WANT_INTERNALS\n"
 
-var Source = []byte("#ifndef _GNU_SOURCE\n#define _GNU_SOURCE 1\n#endif\n#ifndef _DEFAULT_SOURCE\n#define _DEFAULT_SOURCE 1\n#endif\n" + ValueHeader + "\n" + valueSource + "\n" + errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + dnsSource + "\n" + netSource + "\n" + dgramSource + "\n" + tlsRootCertificatesSource + tlsSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)
+var Source = baseSource()
+
+func baseSource() []byte {
+	return []byte("#ifndef _GNU_SOURCE\n#define _GNU_SOURCE 1\n#endif\n#ifndef _DEFAULT_SOURCE\n#define _DEFAULT_SOURCE 1\n#endif\n" + ValueHeader + "\n" + valueSource + "\n" + errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + dnsSource + "\n" + netSource + "\n" + dgramSource + "\n" + tlsRootCertificatesSource + tlsSource + "\n" + objectSource + "\n" + numberSource + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + fsSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + zlibSource + "\n" + webSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)
+}
+
+// SourceForDynamic adds the embedded engine only for artifacts that need it.
+func SourceForDynamic(dynamic bool) []byte {
+	if !dynamic {
+		return Source
+	}
+	result := append([]byte(nil), Source...)
+	result = append(result, []byte("\n"+dynamicAdapterSource)...)
+	return result
+}
+
+func QuickJSSource() []byte { return []byte(quickJSAmalgamSource) }
+func QuickJSHeader() []byte { return []byte(quickJSHeader) }

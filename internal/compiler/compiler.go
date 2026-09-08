@@ -126,10 +126,8 @@ func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module,
 	if err != nil {
 		return ir.Module{}, lowering.CompatibilityReport{}, err
 	}
-	if options.Dynamic {
-		if err := enforceProgram(program, report, options); err != nil {
-			return ir.Module{}, report, err
-		}
+	if err := enforceProgram(program, report, options); err != nil {
+		return ir.Module{}, report, err
 	}
 
 	module, err := lowering.LowerWithOptions(program, lowering.Options{
@@ -229,20 +227,41 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		return fmt.Errorf("write temporary LLVM file: %w", err)
 	}
 	var args []string
-	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig)
+	dynamicRuntime := strings.Contains(output, "@scriptgo_dynamic_call")
+	runtimeSource := runtime.SourceForDynamic(dynamicRuntime)
+	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig, runtimeSource, false)
 	if err != nil {
 		runtimePath := filepath.Join(temporaryDir, "runtime.c")
 		if err := os.WriteFile(filepath.Join(temporaryDir, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime header: %w", err)
 		}
-		runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
-		if err := os.WriteFile(runtimePath, runtimeSource, 0o644); err != nil {
+		runtimeInput := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtimeSource...)
+		if err := os.WriteFile(runtimePath, runtimeInput, 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime file: %w", err)
 		}
 		args = []string{temporaryPath, "-x", "c", runtimePath, "-x", "none", "-I", temporaryDir}
 		args = append(args, codecConfig.compileFlags...)
 	} else {
 		args = []string{temporaryPath, runtimeObj}
+		if dynamicRuntime {
+			qjsPath := filepath.Join(temporaryDir, "quickjs-amalgam.c")
+			qjsObj := filepath.Join(temporaryDir, "quickjs-amalgam.o")
+			if err := os.WriteFile(qjsPath, runtime.QuickJSSource(), 0o644); err != nil {
+				return fmt.Errorf("write QuickJS-ng source: %w", err)
+			}
+			if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
+				return fmt.Errorf("write QuickJS-ng header: %w", err)
+			}
+			qjsArgs := append([]string{}, ccParts[1:]...)
+			qjsArgs = append(qjsArgs, "-I", temporaryDir, "-ffunction-sections", "-fdata-sections", "-O2", "-c", qjsPath, "-o", qjsObj)
+			if options.Target != "native" {
+				qjsArgs = append(qjsArgs, "--target="+options.Target)
+			}
+			if out, compileErr := exec.Command(ccParts[0], qjsArgs...).CombinedOutput(); compileErr != nil {
+				return fmt.Errorf("compile QuickJS-ng: %w: %s", compileErr, out)
+			}
+			args = append(args, qjsObj)
+		}
 	}
 	args = append(args, codecConfig.linkFlags...)
 
@@ -443,7 +462,7 @@ func CheckWithOptions(entryPath string, options BuildOptions) error {
 
 var runtimeCacheMu sync.Mutex
 
-func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig nativeCodecConfig) (string, error) {
+func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig nativeCodecConfig, runtimeSource []byte, dynamic bool) (string, error) {
 	if len(ccParts) == 0 {
 		return "", fmt.Errorf("no C compiler specified")
 	}
@@ -461,7 +480,11 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	}
 
 	h := sha256.New()
-	h.Write(runtime.Source)
+	h.Write(runtimeSource)
+	if dynamic || bytes.Contains(runtimeSource, []byte("#include \"quickjs.h\"")) {
+		h.Write(runtime.QuickJSSource())
+		h.Write(runtime.QuickJSHeader())
+	}
 	h.Write([]byte(options.Target))
 	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
@@ -484,8 +507,13 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	if err := os.WriteFile(filepath.Join(sgCache, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
 		return "", err
 	}
-	runtimeSource := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtime.Source...)
-	if err := os.WriteFile(tmpSrcPath, runtimeSource, 0o644); err != nil {
+	if dynamic || bytes.Contains(runtimeSource, []byte("#include \"quickjs.h\"")) {
+		if err := os.WriteFile(filepath.Join(sgCache, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
+			return "", err
+		}
+	}
+	runtimeInput := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtimeSource...)
+	if err := os.WriteFile(tmpSrcPath, runtimeInput, 0o644); err != nil {
 		return "", err
 	}
 	defer os.Remove(tmpSrcPath)
@@ -495,7 +523,8 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 
 	buildArgs := append([]string(nil), ccParts[1:]...)
 	buildArgs = append(buildArgs, codecConfig.compileFlags...)
-	buildArgs = append(buildArgs, "-I", sgCache, "-ffunction-sections", "-fdata-sections", "-c", tmpSrcPath, "-o", tmpObjPath)
+	buildArgs = append(buildArgs, "-I", sgCache, "-ffunction-sections", "-fdata-sections", "-c")
+	buildArgs = append(buildArgs, tmpSrcPath, "-o", tmpObjPath)
 	if options.OptLevel != "" {
 		buildArgs = append(buildArgs, "-O"+options.OptLevel)
 		if options.Debug {

@@ -18,6 +18,31 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
+	if expression.Left != nil && expression.Left.Kind == "identifier" {
+		if dynamic, ok := dynamicImports[expression.Left.Text]; ok {
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			returnType := toIRType(expression.InferredType)
+			if returnType == "" || returnType == ir.TypeVoid {
+				returnType = ir.TypeUnknown
+			}
+			args := make([]string, 0, len(expression.Arguments))
+			for _, argument := range expression.Arguments {
+				value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				args = append(args, value)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpDynamicCall, Type: returnType, Result: result,
+				Callee: dynamic.Path + "#" + dynamic.Export, Args: args,
+				Value: dynamic.Source, Field: dynamic.Export, FieldIndex: dynamic.Arity, Span: toIRSpan(path, expression.Span),
+			})
+			return result, returnType, nil
+		}
+	}
 	// A non-null assertion is erased at runtime. Remove it at the call
 	// boundary so `options.encode!()` follows the same closure/method path as
 	// the unasserted expression while retaining the narrowed checker type.
