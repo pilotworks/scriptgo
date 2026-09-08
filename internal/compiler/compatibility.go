@@ -33,13 +33,10 @@ func analyzeProgram(program frontend.Program, options BuildOptions) (lowering.Co
 func enforceProgram(program frontend.Program, report lowering.CompatibilityReport, options BuildOptions) error {
 	if !options.Dynamic {
 		// Preserve the established Static first-diagnostic contract exactly.
-		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts}); err != nil {
-			return err
-		}
 		if lowering.HasDynamicImports(program) {
 			return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{})
 		}
-		return nil
+		return lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts})
 	}
 	return lowering.EnforceCompatibility(report, lowering.CompatibilityCapabilities{DynamicRuntime: true})
 }

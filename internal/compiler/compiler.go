@@ -126,8 +126,10 @@ func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module,
 	if err != nil {
 		return ir.Module{}, lowering.CompatibilityReport{}, err
 	}
-	if err := enforceProgram(program, report, options); err != nil {
-		return ir.Module{}, report, err
+	if options.Dynamic || lowering.HasDynamicImports(program) {
+		if err := enforceProgram(program, report, options); err != nil {
+			return ir.Module{}, report, err
+		}
 	}
 
 	module, err := lowering.LowerWithOptions(program, lowering.Options{
