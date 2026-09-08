@@ -382,7 +382,7 @@ func knownStatementKind(kind string) bool {
 
 func knownExpressionKind(kind string) bool {
 	switch kind {
-	case "as", "non_null", "identifier", "number", "bigint", "regex", "string", "bool", "null", "undefined", "arrow_function", "array", "object_literal", "spread", "optional_index", "index", "optional_property", "property", "new", "typeof", "await", "yield", "yield_star", "unary", "postfix_unary", "binary", "template", "tagged_template", "conditional", "call", "optional_call":
+	case "as", "non_null", "identifier", "number", "bigint", "regex", "string", "bool", "null", "undefined", "arrow_function", "array", "object_literal", "property_assignment", "spread", "optional_index", "index", "optional_property", "property", "new", "typeof", "await", "yield", "yield_star", "unary", "postfix_unary", "binary", "template", "tagged_template", "conditional", "call", "optional_call":
 		return true
 	}
 	return false
