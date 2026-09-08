@@ -66,6 +66,18 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
+			if instruction.Op == ir.OpDynamicCall {
+				modulePath, exportName, _ := strings.Cut(instruction.Callee, "#")
+				if _, ok := stringsByValue[instruction.Value]; !ok {
+					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+				}
+				if _, ok := stringsByValue[modulePath]; !ok {
+					stringsByValue[modulePath] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+				}
+				if _, ok := stringsByValue[exportName]; !ok {
+					stringsByValue[exportName] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+				}
+			}
 			if instruction.Op == ir.OpObjectNew {
 				val := instruction.Value
 				if val == "" {
@@ -153,6 +165,10 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString(formatArtifactMetadata(options))
 	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n\n")
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
+	if moduleHasDynamic(module) {
+		out.WriteString("declare i32 @scriptgo_dynamic_call_module(ptr, ptr, ptr, ptr, i32, i32, i32, ptr)\n")
+		out.WriteString("declare void @scriptgo_dynamic_abort_if_failed(i32)\n")
+	}
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")
 	for _, method := range []string{"log", "info", "debug", "warn", "error"} {
 		out.WriteString(fmt.Sprintf("declare i32 @scriptgo_console_%s_number(double)\n", method))

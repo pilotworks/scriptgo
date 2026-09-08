@@ -10,6 +10,7 @@ import (
 )
 
 type corpusDirectives struct {
+	dynamic           bool
 	hasRunExpected    bool
 	runExpected       string
 	hasNativeExpected bool
@@ -53,7 +54,9 @@ func parseCorpusDirectives(content string) corpusDirectives {
 			continue
 		}
 		comment := strings.TrimLeft(strings.TrimPrefix(trimmedLeading, "//"), " \t")
-		if val, ok := parseDirectiveLine(comment, "@expect"); ok {
+		if _, ok := parseDirectiveLine(comment, "@dynamic"); ok {
+			d.dynamic = true
+		} else if val, ok := parseDirectiveLine(comment, "@expect"); ok {
 			d.hasRunExpected = true
 			runLines = append(runLines, val)
 		} else if val, ok := parseDirectiveLine(comment, "@run.expected"); ok {
@@ -128,6 +131,8 @@ func TestCorpus(t *testing.T) {
 			if content, err := os.ReadFile(entry); err == nil {
 				directives = parseCorpusDirectives(string(content))
 			}
+			caseOpts := buildOpts
+			caseOpts.Dynamic = directives.dynamic
 
 			expectations := 0
 
@@ -143,17 +148,17 @@ func TestCorpus(t *testing.T) {
 
 			if hasRunExp {
 				expectations++
-				got, err := RunWithOptions(entry, buildOpts)
+				got, err := RunWithOptions(entry, caseOpts)
 				if err != nil {
 					t.Fatalf("Run failed: %v", err)
 				}
 				if got != runExp {
 					t.Fatalf("Run output = %q, want %q", got, runExp)
 				}
-				if len(buildOpts.Sanitizers) > 0 {
+				if len(caseOpts.Sanitizers) > 0 {
 					if _, err := exec.LookPath("clang"); err == nil {
 						outputPath := filepath.Join(t.TempDir(), "main_sanitized")
-						if err := BuildWithOptions(entry, outputPath, buildOpts); err == nil {
+						if err := BuildWithOptions(entry, outputPath, caseOpts); err == nil {
 							nativeOut, err := exec.Command(outputPath).CombinedOutput()
 							if err != nil {
 								t.Fatalf("native sanitizer execution failed: %v\n%s", err, nativeOut)
@@ -182,7 +187,7 @@ func TestCorpus(t *testing.T) {
 					t.Skip("clang is not installed")
 				}
 				outputPath := filepath.Join(t.TempDir(), "main")
-				if err := BuildWithOptions(entry, outputPath, buildOpts); err != nil {
+				if err := BuildWithOptions(entry, outputPath, caseOpts); err != nil {
 					t.Fatalf("Build failed: %v", err)
 				}
 				got, err := exec.Command(outputPath).CombinedOutput()
@@ -206,7 +211,7 @@ func TestCorpus(t *testing.T) {
 
 			if hasRunErr {
 				expectations++
-				if _, err := RunWithOptions(entry, buildOpts); err == nil || !strings.Contains(err.Error(), strings.TrimSpace(runErrExp)) {
+				if _, err := RunWithOptions(entry, caseOpts); err == nil || !strings.Contains(err.Error(), strings.TrimSpace(runErrExp)) {
 					t.Fatalf("Run error = %v, want substring %q", err, strings.TrimSpace(runErrExp))
 				}
 			}

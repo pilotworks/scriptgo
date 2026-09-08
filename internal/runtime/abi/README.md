@@ -107,7 +107,8 @@ exception, and `-1` for a fatal ABI/runtime invariant failure. The first
 boundary accepts only `undefined`, `null`, `boolean`, `number`, and `string`;
 input and result mismatches are catchable `TypeError`s with `SG5002` and
 `SG5003`. Malformed values, descriptors, or adapter output use `SG9001`.
-QuickJS-ng execution and Dynamic IR remain out of scope for this slice.
+The initial Dynamic slice uses a separate QuickJS-ng adapter and Dynamic IR
+call for local synchronous JavaScript pure functions with primitive values.
 
 ### Value representations
 
@@ -358,7 +359,7 @@ The following remain intentionally outside the current Static/Dynamic slice:
   boxed string representation itself supports embedded NUL bytes);
 - dynamic objects, class methods/inheritance, prototype behavior, and mutable
   field assignment;
-- QuickJS-ng execution and Dynamic IR integration;
+- Dynamic objects, broad JavaScript module loading, and non-primitive Dynamic IR;
 - garbage collection or reference counting; the current ABI uses explicit
   ownership and release for allocated values;
 - Node.js APIs, npm packages, filesystem, networking, and FFI in the MVP ABI;

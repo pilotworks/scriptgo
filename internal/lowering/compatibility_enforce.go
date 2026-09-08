@@ -12,7 +12,7 @@ func EnforceCompatibility(report CompatibilityReport, capabilities Compatibility
 		case TierStatic:
 			continue
 		case TierDynamic:
-			if capabilities.DynamicRuntime {
+			if capabilities.DynamicRuntime && decision.DynamicCapability == "local JavaScript module call" {
 				continue
 			}
 			message := "This source site requires Dynamic execution, but the Dynamic runtime is not available in this build."

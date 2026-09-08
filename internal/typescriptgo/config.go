@@ -204,6 +204,7 @@ func CheckProject(configPath string) (ProgramResult, error) {
 		opts = &core.CompilerOptions{}
 	}
 	opts.NoEmit = core.TSTrue
+	opts.AllowJs = core.TSTrue
 	opts.AllowImportingTsExtensions = core.TSTrue
 	parsedConfig.SetCompilerOptions(opts)
 
@@ -229,7 +230,7 @@ func CheckProject(configPath string) (ProgramResult, error) {
 	ctx := context.Background()
 	files := make(map[string]*ast.SourceFile)
 	for _, file := range program.GetSourceFiles() {
-		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
+		if program.IsSourceFileDefaultLibrary(file.Path()) || !isSupportedSource(file.FileName()) {
 			continue
 		}
 		files[filepath.Clean(file.FileName())] = file
@@ -259,7 +260,7 @@ func CheckProject(configPath string) (ProgramResult, error) {
 	}
 
 	for _, file := range ordered {
-		if program.IsSourceFileDefaultLibrary(file.Path()) || !isTypeScriptSource(file.FileName()) {
+		if program.IsSourceFileDefaultLibrary(file.Path()) || !isSupportedSource(file.FileName()) {
 			continue
 		}
 		checkerInstance, done := program.GetTypeCheckerForFile(ctx, file)

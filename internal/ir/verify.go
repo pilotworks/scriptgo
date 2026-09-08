@@ -93,7 +93,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			}
 		}
 		switch instruction.Op {
-		case OpCall, OpClosureCall, OpExternCall:
+		case OpCall, OpClosureCall, OpExternCall, OpDynamicCall:
 			if instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define type", instruction.Op)
 			}
@@ -102,6 +102,9 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			}
 			if instruction.Result != "" {
 				known[instruction.Result] = instruction.Type
+			}
+			if instruction.Op == OpDynamicCall && instruction.Callee == "" {
+				return fmt.Errorf("dynamic.call instruction must define a module/export callee")
 			}
 		case OpClosure:
 			if instruction.Result == "" || instruction.Type != TypeClosure {

@@ -159,6 +159,7 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 }
 
 func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.Instruction) error {
+	originalArgs := append([]string(nil), instruction.Args...)
 	// A checked cast may intentionally read and overwrite the same local. Keep
 	// the source storage type until its argument has been resolved; otherwise
 	// assigning the destination type first turns a boxed value into a raw ptr.
@@ -340,6 +341,10 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		}
 	case ir.OpCall:
 		if err := e.emitCall(out, inst); err != nil {
+			return err
+		}
+	case ir.OpDynamicCall:
+		if err := e.emitDynamicCall(out, inst, targetResult, originalArgs); err != nil {
 			return err
 		}
 	case ir.OpClosure:

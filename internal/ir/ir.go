@@ -10,6 +10,15 @@ type Module struct {
 	Globals        []Global
 	Functions      []Function
 	Externs        []ExternFunction
+	DynamicModules []DynamicModule
+}
+
+// DynamicModule is a bundled local JavaScript module used by a Dynamic call.
+type DynamicModule struct {
+	Path   string
+	Source string
+	Export string
+	Arity  int
 }
 
 type Global struct {
@@ -196,6 +205,7 @@ const (
 	OpCheckedCast = "checked_cast"
 	OpTypeOf      = "typeof"
 	OpDebugger    = "debugger"
+	OpDynamicCall = "dynamic.call"
 )
 
 const (

@@ -59,6 +59,7 @@ type CatSummary struct {
 
 type corpusDirectives struct {
 	runner            string
+	dynamic           bool
 	hasRunExpected    bool
 	runExpected       string
 	hasNativeExpected bool
@@ -104,6 +105,8 @@ func parseCorpusDirectives(content string) corpusDirectives {
 		comment := strings.TrimLeft(strings.TrimPrefix(trimmedLeading, "//"), " \t")
 		if val, ok := parseDirectiveLine(comment, "@parity-runner"); ok {
 			d.runner = strings.TrimSpace(val)
+		} else if _, ok := parseDirectiveLine(comment, "@dynamic"); ok {
+			d.dynamic = true
 		} else if val, ok := parseDirectiveLine(comment, "@expect"); ok {
 			d.hasRunExpected = true
 			runLines = append(runLines, val)
@@ -346,6 +349,10 @@ func main() {
 			expectedTarget = buildErr
 		}
 		res.ExpectedOutput = expectedTarget
+		caseOptions := compiler.BuildOptions{
+			WorkingDir: workingDir,
+			Dynamic:    directives.dynamic,
+		}
 
 		// 1. Runtime Cases (run.expected / native.expected)
 		if hasRunExpected || hasNativeExpected {
@@ -362,7 +369,7 @@ func main() {
 			nodeMatchesTarget := !hasRunExpected || (nodeErr == nil && (nodeOut == expectedTarget || strings.TrimSpace(nodeOut) == strings.TrimSpace(expectedTarget) || strings.TrimSpace(cleanNodeOut) == strings.TrimSpace(cleanExpected)))
 
 			// Run ScriptGo Native
-			sgOut, sgErr := compiler.RunWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
+			sgOut, sgErr := compiler.RunWithOptions(entry, caseOptions)
 			res.ScriptGoOutput = sgOut
 			if sgErr != nil {
 				res.ErrorMessage = sgErr.Error()
@@ -405,9 +412,9 @@ func main() {
 
 			var sgErr error
 			if hasRunErr {
-				_, sgErr = compiler.RunWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
+				_, sgErr = compiler.RunWithOptions(entry, caseOptions)
 			} else {
-				_, sgErr = compiler.CompileWithOptions(entry, compiler.BuildOptions{WorkingDir: workingDir})
+				_, sgErr = compiler.CompileWithOptions(entry, caseOptions)
 			}
 
 			if sgErr != nil && strings.Contains(sgErr.Error(), strings.TrimSpace(errExp)) {

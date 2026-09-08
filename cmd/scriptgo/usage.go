@@ -29,7 +29,7 @@ Global Flags:
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
-  --dynamic              Analyze Dynamic-compatible sites; runtime execution is unavailable
+  --dynamic              Enable Dynamic-compatible JavaScript execution
   -h, --help             Show help message
 
 Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
@@ -55,7 +55,7 @@ Flags:
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
-  --dynamic              Analyze Dynamic-compatible sites; runtime execution is unavailable
+  --dynamic              Enable Dynamic-compatible JavaScript execution
   -h, --help             Show this help message
 
 Examples:
@@ -89,7 +89,7 @@ Flags:
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
-  --dynamic              Analyze Dynamic-compatible sites; runtime execution is unavailable
+  --dynamic              Enable Dynamic-compatible JavaScript execution
   -h, --help             Show this help message
 
 Examples:
@@ -117,7 +117,7 @@ Flags:
   -v                     Verbose output (print check stages and confirmation)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
-  --dynamic              Analyze Dynamic-compatible sites; runtime execution is unavailable
+  --dynamic              Enable Dynamic-compatible JavaScript execution
   -h, --help             Show this help message
 
 Examples:
@@ -146,7 +146,7 @@ Flags:
   --debug                Include DWARF debug symbols in LLVM IR
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
-  --dynamic              Analyze Dynamic-compatible sites; runtime execution is unavailable
+  --dynamic              Enable Dynamic-compatible JavaScript execution
   -h, --help             Show this help message
 
 Examples:

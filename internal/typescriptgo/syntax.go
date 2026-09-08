@@ -348,11 +348,11 @@ func statementCount(file *ast.SourceFile) int {
 	return len(file.Statements.Nodes)
 }
 
-func isTypeScriptSource(fileName string) bool {
+func isSupportedSource(fileName string) bool {
 	if strings.HasSuffix(fileName, ".d.ts") {
 		return false
 	}
-	for _, extension := range []string{".ts", ".tsx", ".mts", ".cts"} {
+	for _, extension := range []string{".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"} {
 		if strings.HasSuffix(fileName, extension) {
 			return true
 		}
