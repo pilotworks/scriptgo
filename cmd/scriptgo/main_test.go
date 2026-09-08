@@ -121,8 +121,8 @@ func TestCLI_DynamicCompatibilitySurface(t *testing.T) {
 
 	cmd = exec.Command(binPath, "check", "--dynamic", entry)
 	out, err = cmd.CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "SG5001") {
-		t.Fatalf("dynamic check output/error = %s / %v, want SG5001", out, err)
+	if err == nil || !strings.Contains(string(out), "SG1001") {
+		t.Fatalf("dynamic check output/error = %s / %v, want SG1001", out, err)
 	}
 }
 
