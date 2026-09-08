@@ -31,20 +31,33 @@ func collectDynamicImports(program frontend.Program) map[string]ir.DynamicModule
 				if binding.TypeOnly {
 					continue
 				}
-				arity := -1
-				for _, statement := range dependency.Syntax.Statements {
-					if (statement.Kind == "function" || statement.Kind == "async_function") && statement.Name == binding.ImportedName {
-						arity = len(statement.Parameters)
-						break
-					}
-				}
-				if arity >= 0 {
+				if arity, ok := dynamicExportArity(dependency.Syntax.Statements, binding.ImportedName); ok {
 					result[binding.LocalName] = ir.DynamicModule{Path: filepath.Clean(dependency.FileName), Source: dependency.Source, Export: binding.ImportedName, Arity: arity}
 				}
 			}
 		}
 	}
 	return result
+}
+
+func dynamicExportArity(statements []typescriptgo.SyntaxStatement, exportName string) (int, bool) {
+	for _, statement := range statements {
+		if exportName == "default" && statement.DefaultExport {
+			// Default function declarations are represented by their source name,
+			// while the module boundary addresses them as "default".
+		} else if statement.Name != exportName {
+			continue
+		}
+		switch statement.Kind {
+		case "function", "async_function":
+			return len(statement.Parameters), true
+		case "variable":
+			if statement.Expression != nil && statement.Expression.Function != nil {
+				return len(statement.Expression.Function.Parameters), true
+			}
+		}
+	}
+	return 0, false
 }
 
 func HasDynamicImports(program frontend.Program) bool {

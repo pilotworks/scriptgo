@@ -185,7 +185,7 @@ semantic gaps behind native code generation.
 - [ ] Resolve eligible JavaScript/npm dependencies and `any` sites into explicit Dynamic islands.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
-- [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local pure-function islands.
+- [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports plus boxed plain objects and arrays.
 
 ### Standard Library Compatibility Slice (In Progress)
 

@@ -112,7 +112,15 @@ func dynamicResultTag(typ ir.Type) int {
 		return 4
 	case ir.TypePointer:
 		return 1
+	case ir.TypeObject:
+		return 5
 	default:
+		if strings.HasSuffix(string(typ), "[]") {
+			return 6
+		}
+		if strings.HasPrefix(string(typ), "object:") {
+			return 5
+		}
 		return -1
 	}
 }
@@ -147,6 +155,13 @@ func (e *functionEmitter) emitDynamicResult(out *strings.Builder, typ ir.Type, b
 		fmt.Fprintf(out, "  %%%s = extractvalue %s %%%s, 2\n", payload, boxedLLVMType, boxed)
 		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", result, payload)
 	default:
+		if strings.HasSuffix(string(typ), "[]") || strings.HasPrefix(string(typ), "object:") {
+			payload := fmt.Sprintf("dynamic.ptr.payload.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue %s %%%s, 2\n", payload, boxedLLVMType, boxed)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", result, payload)
+			break
+		}
 		return fmt.Errorf("dynamic result type %q is outside the primitive boundary", typ)
 	}
 	return nil
