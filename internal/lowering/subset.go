@@ -24,6 +24,9 @@ func ValidateSubsetWithOptions(program frontend.Program, options Options) error 
 	WarnRuntimeCasts = options.WarnRuntimeCasts || previousWarn
 	defer func() { WarnRuntimeCasts = previousWarn }()
 	ClearDiagnostics()
+	if options.Dynamic {
+		program = normalizeDynamicAnyProgram(program)
+	}
 	return validateSubsetLocked(program)
 }
 

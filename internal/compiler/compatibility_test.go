@@ -111,13 +111,13 @@ func TestDynamicImportIsReportedBeforeIR(t *testing.T) {
 	}
 }
 
-func TestDynamicCompilationStopsBeforeIR(t *testing.T) {
+func TestDynamicAnyCompilesToBoxedIR(t *testing.T) {
 	entry := writeCompatibilityEntry(t, "const value: any = 42;\n")
-	if _, err := CompileWithOptions(entry, BuildOptions{Dynamic: true}); err == nil || !strings.Contains(err.Error(), "SG1001") {
-		t.Fatalf("CompileWithOptions error = %v, want SG1001", err)
+	if _, err := CompileWithOptions(entry, BuildOptions{Dynamic: true}); err != nil {
+		t.Fatalf("CompileWithOptions error = %v, want Dynamic any support", err)
 	}
-	if _, err := DumpIRWithOptions(entry, BuildOptions{Dynamic: true}); err == nil || !strings.Contains(err.Error(), "SG1001") {
-		t.Fatalf("DumpIRWithOptions error = %v, want SG1001", err)
+	if _, err := DumpIRWithOptions(entry, BuildOptions{Dynamic: true}); err != nil {
+		t.Fatalf("DumpIRWithOptions error = %v, want Dynamic any support", err)
 	}
 }
 
