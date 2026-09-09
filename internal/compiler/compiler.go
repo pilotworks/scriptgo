@@ -134,6 +134,7 @@ func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module,
 
 	module, err := lowering.LowerWithOptions(program, lowering.Options{
 		WarnRuntimeCasts: options.WarnRuntimeCasts,
+		Dynamic:          options.Dynamic,
 	})
 	if err != nil {
 		return ir.Module{}, report, err
@@ -172,6 +173,7 @@ func CheckProject(configPath string, options BuildOptions) ([]typescriptgo.Diagn
 		}
 		if _, err := lowering.LowerWithOptions(prog, lowering.Options{
 			WarnRuntimeCasts: options.WarnRuntimeCasts,
+			Dynamic:          options.Dynamic,
 		}); err != nil {
 			return nil, err
 		}
@@ -449,7 +451,7 @@ func CheckWithOptions(entryPath string, options BuildOptions) error {
 		return err
 	}
 	if options.Dynamic {
-		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts}); err != nil {
+		if err := lowering.ValidateSubsetWithOptions(program, lowering.Options{WarnRuntimeCasts: options.WarnRuntimeCasts, Dynamic: options.Dynamic}); err != nil {
 			return err
 		}
 	}

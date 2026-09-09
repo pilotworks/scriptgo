@@ -23,6 +23,7 @@ var (
 // Options specifies optional flags for the lowering phase.
 type Options struct {
 	WarnRuntimeCasts bool
+	Dynamic          bool
 }
 
 // Lower lowers the currently supported synchronous TypeScript subset.
@@ -41,6 +42,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		WarnRuntimeCasts = prevWarn
 	}()
 	checkedProgram := program
+	if options.Dynamic {
+		checkedProgram = normalizeDynamicAnyProgram(checkedProgram)
+	}
 	program = runtimeProgram(checkedProgram)
 	extraFunctions = nil
 	closureCounter = 0
