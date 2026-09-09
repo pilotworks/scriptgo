@@ -59,6 +59,7 @@ func AnalyzeCompatibility(program frontend.Program, policy CompatibilityPolicy) 
 			}
 		}
 		for i := range file.Syntax.Statements {
+			collector.dynamicAliases(file.Syntax.Statements[i])
 			collector.statement(path, &file.Syntax.Statements[i])
 		}
 	}
@@ -93,6 +94,21 @@ func AnalyzeCompatibility(program frontend.Program, policy CompatibilityPolicy) 
 		}
 	}
 	return report, nil
+}
+
+func (c *compatibilityCollector) dynamicAliases(statement typescriptgo.SyntaxStatement) {
+	if statement.Kind == "variable" && statement.Name != "" && statement.Expression != nil && statement.Expression.Kind == "identifier" && c.dynamicBindings[statement.Expression.Text] {
+		c.dynamicBindings[statement.Name] = true
+	}
+	for _, nested := range statement.Body {
+		c.dynamicAliases(nested)
+	}
+	for _, nested := range statement.Then {
+		c.dynamicAliases(nested)
+	}
+	for _, nested := range statement.Else {
+		c.dynamicAliases(nested)
+	}
 }
 
 func (c *compatibilityCollector) normalizePath(path string) string {

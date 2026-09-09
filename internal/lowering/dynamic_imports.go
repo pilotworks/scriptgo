@@ -37,7 +37,25 @@ func collectDynamicImports(program frontend.Program) map[string]ir.DynamicModule
 			}
 		}
 	}
+	for _, file := range program.Files {
+		collectDynamicImportAliases(file.Syntax.Statements, result)
+	}
 	return result
+}
+
+func collectDynamicImportAliases(statements []typescriptgo.SyntaxStatement, modules map[string]ir.DynamicModule) {
+	for _, statement := range statements {
+		if statement.Kind == "variable" && statement.Name != "" && statement.Expression != nil && statement.Expression.Kind == "identifier" {
+			if module, ok := modules[statement.Expression.Text]; ok {
+				modules[statement.Name] = module
+			}
+		}
+		collectDynamicImportAliases(statement.Body, modules)
+		collectDynamicImportAliases(statement.Then, modules)
+		collectDynamicImportAliases(statement.Else, modules)
+		collectDynamicImportAliases(statement.Catch, modules)
+		collectDynamicImportAliases(statement.Finally, modules)
+	}
 }
 
 func dynamicExportArity(statements []typescriptgo.SyntaxStatement, exportName string) (int, bool) {
