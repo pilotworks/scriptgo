@@ -304,7 +304,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | TypeScript Feature | Current Status in ScriptGo | Detailed Description & Impact |
 | :--- | :---: | :--- |
-| **Dynamic `any`** | ⚠️ Bounded executable slice | Static mode rejects `any` with `SG1001`; `--dynamic` maps bounded local values, parameters, returns, and boxed property reads to the existing `unknown` ABI. Array indexing and unsupported dynamic operations remain outside this slice. |
+| **Dynamic `any`** | ⚠️ Bounded executable slice | Static mode rejects `any` with `SG1001`; `--dynamic` maps bounded local values, parameters, returns, boxed property reads, array indexing, and aliases of local JavaScript imports to the existing boxed ABI. Arbitrary runtime function handles remain outside this slice. |
 | **`bigint`** | ✅ Full | 64-bit integer type (`100n`, `BigInt(...)`, arithmetic, bitwise, comparison operators, `.toString()`). |
 | **`symbol`** | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known symbols (`Symbol.iterator`), `.description`, `.toString()`. |
 | **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `search`, `replace` via POSIX regex runtime. |
@@ -426,7 +426,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
 | npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
-| Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named/default-import synchronous functions, bounded `any` values, and primitive/plain object/array boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
+| Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named/default-import synchronous functions, bounded `any` values and calls through aliases of those imports, plus primitive/plain object/array boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
 | Dynamic ABI and executable boundary parity tests | 🚧 Initial slice | Canonical layout and initial QuickJS execution boundary are covered for local synchronous functions, including named/default declaration and expression exports plus plain object/array boxing; broader engine-reference and parity cases remain pending. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |

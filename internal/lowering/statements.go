@@ -197,6 +197,14 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if statement.Type == "" && statement.InferredType != "" {
 			declaredType = toIRType(statement.InferredType)
 		}
+		if statement.Expression.Kind == "identifier" {
+			if _, isDynamicAlias := dynamicImports[statement.Expression.Text]; isDynamicAlias {
+				env[varResultName] = ir.TypeUnknown
+				env[statement.Name] = ir.TypeUnknown
+				env["__storage_type."+varResultName] = ir.TypeUnknown
+				return nil
+			}
+		}
 		if statement.Expression.Kind == "identifier" || statement.Expression.Kind == "this" {
 			identText := statement.Expression.Text
 			if statement.Expression.Kind == "this" {

@@ -197,7 +197,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 					return fmt.Errorf("index instruction requires array and index operands")
 				}
 				arrType, ok := known[instruction.Args[0]]
-				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString && !isTypedArrayType(arrType)) {
+				if !ok || (!strings.HasSuffix(string(arrType), "[]") && arrType != TypeString && arrType != TypeUnknown && !isTypedArrayType(arrType)) {
 					return fmt.Errorf("index instruction requires an array or string operand, got %v", arrType)
 				}
 				if known[instruction.Args[1]] != TypeNumber {
@@ -214,6 +214,10 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				} else if isTypedArrayType(arrType) {
 					if instruction.Type != TypeNumber {
 						return fmt.Errorf("index instruction on typed array must produce number")
+					}
+				} else if arrType == TypeUnknown {
+					if instruction.Type != TypeUnknown {
+						return fmt.Errorf("dynamic index instruction must produce unknown, got %s", instruction.Type)
 					}
 				} else if instruction.Type != elementType(arrType) && !isAssignableTo(instruction.Type, elementType(arrType)) {
 					return fmt.Errorf("index instruction has incompatible result type %s (expected %s for array %s, result=%s, args=%v)", instruction.Type, elementType(arrType), arrType, instruction.Result, instruction.Args)
