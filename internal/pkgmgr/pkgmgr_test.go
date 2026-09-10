@@ -1,11 +1,36 @@
 package pkgmgr
 
 import (
+	"crypto/sha512"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestSelectVersionChoosesHighestCompatibleVersion(t *testing.T) {
+	candidates := []Version{{1, 0, 0}, {1, 2, 3}, {1, 9, 0}, {2, 0, 0}}
+	selected, err := SelectVersion("^1.2.0", candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected != (Version{1, 9, 0}) {
+		t.Fatalf("selected = %s, want 1.9.0", selected)
+	}
+}
+
+func TestVerifyIntegrity(t *testing.T) {
+	data := []byte("scriptgo")
+	digest := sha512.Sum512(data)
+	integrity := "sha512-" + base64.StdEncoding.EncodeToString(digest[:])
+	if err := VerifyIntegrity(data, integrity); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyIntegrity([]byte("tampered"), integrity); err == nil {
+		t.Fatal("expected integrity mismatch")
+	}
+}
 
 func TestResolveLocalPackagePrefersExports(t *testing.T) {
 	root := t.TempDir()

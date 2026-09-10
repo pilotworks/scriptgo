@@ -8,7 +8,8 @@ compatible with the npm registry, designed along the principles of **Bun** and
 The first implementation slice is intentionally offline and local: `internal/pkgmgr`
 validates package manifests, resolves local `node_modules` entry points through
 `exports`/`module`/`main`, and reads/writes deterministic `scriptgo-lock.json`
-files. Registry fetching, SemVer solving, CAS storage, linking, and lifecycle
+files. It also provides the core SemVer selection and npm SHA-512 SRI
+verification contracts. Registry fetching, CAS storage, linking, and lifecycle
 execution remain separate follow-up slices.
 
 ## Design Principles
