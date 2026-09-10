@@ -39,6 +39,40 @@ func TestCheckResolvesLocalModules(t *testing.T) {
 	}
 }
 
+func TestCheckResolvesLocalJavaScriptPackage(t *testing.T) {
+	dir := t.TempDir()
+	packageDir := filepath.Join(dir, "node_modules", "local-package")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), []byte(`{"main":"index.js"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dependency := filepath.Join(packageDir, "index.js")
+	entry := filepath.Join(dir, "main.ts")
+	if err := os.WriteFile(dependency, []byte("module.exports = function add(left, right) { return left + right; };\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("import { add } from 'local-package';\nconsole.log(add(20, 22));\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalDependency, err := filepath.EvalSymlinks(dependency)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Files) != 2 || result.Files[0].FileName != canonicalDependency {
+		t.Fatalf("resolved files = %+v, want package JavaScript before entry", result.Files)
+	}
+	if len(result.Files[1].Imports) != 1 || result.Files[1].Imports[0].ResolvedFileName != canonicalDependency {
+		t.Fatalf("package import = %+v, want resolved JavaScript edge", result.Files[1].Imports)
+	}
+}
+
 func TestCheckResolvesBuiltinPathModule(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	source := "import * as p from 'path';\nconsole.log(p.basename('a/b.txt'));\n"

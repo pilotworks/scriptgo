@@ -202,20 +202,41 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
     return -1;
 }
 
-static char *scriptgo_dynamic_script(const char *source, size_t length) {
-    char *copy = (char *)malloc(length + 1);
-    size_t i;
-    if (copy == NULL) return NULL;
-    memcpy(copy, source, length); copy[length] = '\0';
+static char *scriptgo_dynamic_script(const char *source, size_t length, size_t *out_length) {
+	static const char prefix[] = "var module = { exports: {} }; var exports = module.exports;\n";
+	static const char suffix[] = "\nthis.__scriptgo_cjs_exports = module.exports;\n";
+	size_t prefix_length = sizeof(prefix) - 1;
+	size_t suffix_length = sizeof(suffix) - 1;
+	char *copy = (char *)malloc(prefix_length + length + suffix_length + 1);
+	size_t i;
+	if (copy == NULL) return NULL;
+	memcpy(copy, prefix, prefix_length);
+	memcpy(copy + prefix_length, source, length);
+	memcpy(copy + prefix_length + length, suffix, suffix_length);
+	copy[prefix_length + length + suffix_length] = '\0';
 	/* Turn the supported export declarations into global bindings. */
-	for (i = 0; i + 7 <= length; i++) {
-		if (i + 15 <= length && memcmp(copy + i, "export default ", 15) == 0) {
+	for (i = prefix_length; i + 7 <= prefix_length + length; i++) {
+		if (i + 15 <= prefix_length + length && memcmp(copy + i, "export default ", 15) == 0) {
 			memcpy(copy + i, "this.default = ", 15);
 		} else if (memcmp(copy + i, "export ", 7) == 0) {
 			memcpy(copy + i, "       ", 7);
 		}
 	}
-    return copy;
+	if (out_length != NULL) *out_length = prefix_length + length + suffix_length;
+	return copy;
+}
+
+static JSValue scriptgo_dynamic_export(JSContext *ctx, JSValue global, const char *export_name) {
+	JSValue function = JS_GetPropertyStr(ctx, global, export_name);
+	JSValue cjs;
+	JSValue candidate;
+	if (JS_IsFunction(ctx, function)) return function;
+	JS_FreeValue(ctx, function);
+	cjs = JS_GetPropertyStr(ctx, global, "__scriptgo_cjs_exports");
+	if (strcmp(export_name, "default") == 0 && JS_IsFunction(ctx, cjs)) return cjs;
+	candidate = JS_GetPropertyStr(ctx, cjs, export_name);
+	JS_FreeValue(ctx, cjs);
+	return candidate;
 }
 
 int scriptgo_dynamic_call_module(const char *module_path, const char *source,
@@ -223,22 +244,22 @@ int scriptgo_dynamic_call_module(const char *module_path, const char *source,
                           int32_t argument_count, int32_t expected_arity,
                           int32_t expected_tag, scriptgo_value *out_result) {
     JSRuntime *rt = NULL; JSContext *ctx = NULL; JSValue *argv = NULL;
-    JSValue global, function, result; char *script = NULL; size_t length;
+	JSValue global, function, result; char *script = NULL; size_t length, script_length;
     int32_t i, status = 0;
     if (module_path == NULL || source == NULL || export_name == NULL || out_result == NULL || argument_count < 0)
         return scriptgo_runtime_set_error("SG9001: invalid Dynamic call descriptor");
     if (expected_arity < 0 || argument_count != expected_arity)
         return scriptgo_runtime_set_error("SG5002: Dynamic call arity mismatch");
-    length = strlen(source); script = scriptgo_dynamic_script(source, length);
+	length = strlen(source); script = scriptgo_dynamic_script(source, length, &script_length);
     if (script == NULL) return scriptgo_runtime_set_error("Dynamic engine source allocation failed");
     rt = JS_NewRuntime(); ctx = rt == NULL ? NULL : JS_NewContext(rt);
     if (ctx == NULL) { free(script); if (rt != NULL) JS_FreeRuntime(rt); return scriptgo_runtime_set_error("Dynamic engine initialization failed"); }
-    result = JS_Eval(ctx, script, length, module_path, JS_EVAL_TYPE_GLOBAL);
+	result = JS_Eval(ctx, script, script_length, module_path, JS_EVAL_TYPE_GLOBAL);
     free(script);
     if (JS_IsException(result)) { JS_FreeValue(ctx, result); status = 1; goto done; }
     JS_FreeValue(ctx, result);
     global = JS_GetGlobalObject(ctx);
-    function = JS_GetPropertyStr(ctx, global, export_name);
+	function = scriptgo_dynamic_export(ctx, global, export_name);
     JS_FreeValue(ctx, global);
     if (!JS_IsFunction(ctx, function)) {
         JS_FreeValue(ctx, function);
