@@ -189,6 +189,9 @@ semantic gaps behind native code generation.
   identity, initialization-once state, relative/package dependency edges,
   named re-exports, CommonJS `require`, and ESM/CommonJS interop. Registry
   fetching, lockfiles, and package lifecycle behavior remain deferred.
+- [x] Define the offline package metadata contract: validated local manifests,
+  deterministic `exports`/`module`/`main` entry resolution, and lockfile v1
+  read/write support in `internal/pkgmgr`.
 - [x] Lower bounded `any` sites through the existing boxed `unknown` representation in Dynamic mode.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.

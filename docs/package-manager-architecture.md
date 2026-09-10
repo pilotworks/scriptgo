@@ -5,6 +5,12 @@ engine for a high-performance, native JavaScript/TypeScript package manager
 compatible with the npm registry, designed along the principles of **Bun** and
 **pnpm**.
 
+The first implementation slice is intentionally offline and local: `internal/pkgmgr`
+validates package manifests, resolves local `node_modules` entry points through
+`exports`/`module`/`main`, and reads/writes deterministic `scriptgo-lock.json`
+files. Registry fetching, SemVer solving, CAS storage, linking, and lifecycle
+execution remain separate follow-up slices.
+
 ## Design Principles
 
 - **Zero-Copy Installation**: Maximize file-system level sharing via Copy-on-Write
@@ -390,8 +396,9 @@ persistent Dynamic islands. Package-manager work must feed that existing graph
 contract rather than add a second resolver:
 
 1. **Installation Contract**: Materialize deterministic CAS-linked
-   `node_modules` trees that TypeScript-Go can resolve normally.
-2. **Package Service**: Own registry, SemVer, lockfile, integrity, CAS, and link
-   behavior in a focused internal package; `cmd/scriptgo` remains a thin caller.
+   `node_modules` trees that TypeScript-Go can resolve normally. The local
+   manifest/resolver/lockfile contract is implemented in `internal/pkgmgr`.
+2. **Package Service**: Extend that focused package with registry, SemVer,
+   integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
 3. **Builtin Commands**: Expose `scriptgo add` and `scriptgo install` only after
    the service contract and offline lockfile behavior are tested.
