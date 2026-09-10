@@ -30,6 +30,26 @@ func (m Module) Verify() error {
 			}
 		}
 	}
+	dynamicModules := make(map[string]bool, len(m.DynamicModules))
+	for _, module := range m.DynamicModules {
+		if module.Path == "" {
+			return fmt.Errorf("invalid Dynamic module descriptor")
+		}
+		if module.Kind != "esm" && module.Kind != "commonjs" {
+			return fmt.Errorf("Dynamic module %q has invalid kind %q", module.Path, module.Kind)
+		}
+		if dynamicModules[module.Path] {
+			return fmt.Errorf("duplicate Dynamic module %q", module.Path)
+		}
+		dynamicModules[module.Path] = true
+	}
+	for _, module := range m.DynamicModules {
+		for _, dependency := range module.Imports {
+			if dependency.Specifier == "" || !dynamicModules[dependency.Path] {
+				return fmt.Errorf("Dynamic module %q has invalid dependency %q", module.Path, dependency.Specifier)
+			}
+		}
+	}
 	return nil
 }
 

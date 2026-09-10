@@ -239,6 +239,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		if err := os.WriteFile(filepath.Join(temporaryDir, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime header: %w", err)
 		}
+		if dynamicRuntime {
+			if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
+				return fmt.Errorf("write temporary QuickJS-ng header: %w", err)
+			}
+		}
 		runtimeInput := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtimeSource...)
 		if err := os.WriteFile(runtimePath, runtimeInput, 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime file: %w", err)
@@ -247,25 +252,25 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = append(args, codecConfig.compileFlags...)
 	} else {
 		args = []string{temporaryPath, runtimeObj}
-		if dynamicRuntime {
-			qjsPath := filepath.Join(temporaryDir, "quickjs-amalgam.c")
-			qjsObj := filepath.Join(temporaryDir, "quickjs-amalgam.o")
-			if err := os.WriteFile(qjsPath, runtime.QuickJSSource(), 0o644); err != nil {
-				return fmt.Errorf("write QuickJS-ng source: %w", err)
-			}
-			if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
-				return fmt.Errorf("write QuickJS-ng header: %w", err)
-			}
-			qjsArgs := append([]string{}, ccParts[1:]...)
-			qjsArgs = append(qjsArgs, "-I", temporaryDir, "-ffunction-sections", "-fdata-sections", "-O2", "-c", qjsPath, "-o", qjsObj)
-			if options.Target != "native" {
-				qjsArgs = append(qjsArgs, "--target="+options.Target)
-			}
-			if out, compileErr := exec.Command(ccParts[0], qjsArgs...).CombinedOutput(); compileErr != nil {
-				return fmt.Errorf("compile QuickJS-ng: %w: %s", compileErr, out)
-			}
-			args = append(args, qjsObj)
+	}
+	if dynamicRuntime {
+		qjsPath := filepath.Join(temporaryDir, "quickjs-amalgam.c")
+		qjsObj := filepath.Join(temporaryDir, "quickjs-amalgam.o")
+		if err := os.WriteFile(qjsPath, runtime.QuickJSSource(), 0o644); err != nil {
+			return fmt.Errorf("write QuickJS-ng source: %w", err)
 		}
+		if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
+			return fmt.Errorf("write QuickJS-ng header: %w", err)
+		}
+		qjsArgs := append([]string{}, ccParts[1:]...)
+		qjsArgs = append(qjsArgs, "-I", temporaryDir, "-ffunction-sections", "-fdata-sections", "-O2", "-c", qjsPath, "-o", qjsObj)
+		if options.Target != "native" {
+			qjsArgs = append(qjsArgs, "--target="+options.Target)
+		}
+		if out, compileErr := exec.Command(ccParts[0], qjsArgs...).CombinedOutput(); compileErr != nil {
+			return fmt.Errorf("compile QuickJS-ng: %w: %s", compileErr, out)
+		}
+		args = append(args, qjsObj)
 	}
 	args = append(args, codecConfig.linkFlags...)
 

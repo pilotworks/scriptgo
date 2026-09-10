@@ -385,10 +385,13 @@ scriptgo run           # Immediate execution
 
 ## Integration with scriptgo Roadmap
 
-While `scriptgo` currently focuses on local synchronous module compilation, this
-specification provides the architectural foundation for subsequent milestones:
-1. **Module Resolution Contract**: Extending `internal/frontend` to locate
-   dependencies within CAS-linked `node_modules`.
-2. **Builtin Package Management Command**: Embedding a lightweight, native
-   `scriptgo add <pkg>` or `scriptgo install` command inside `cmd/scriptgo`.
+ScriptGo now compiles frontend-resolved local ESM/CommonJS package graphs into
+persistent Dynamic islands. Package-manager work must feed that existing graph
+contract rather than add a second resolver:
 
+1. **Installation Contract**: Materialize deterministic CAS-linked
+   `node_modules` trees that TypeScript-Go can resolve normally.
+2. **Package Service**: Own registry, SemVer, lockfile, integrity, CAS, and link
+   behavior in a focused internal package; `cmd/scriptgo` remains a thin caller.
+3. **Builtin Commands**: Expose `scriptgo add` and `scriptgo install` only after
+   the service contract and offline lockfile behavior are tested.

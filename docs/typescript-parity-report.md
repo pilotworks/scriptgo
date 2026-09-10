@@ -222,6 +222,11 @@ Total Time Elapsed     : 5m40.074s (macOS)
 | **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 19 | **100% (19/19)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
+The compiler corpus also contains 17 opt-in Dynamic cases. They cover bounded
+`any`, boxed values, exceptions, local JavaScript imports, local npm entry
+points, persistent ESM/CommonJS dependency graphs, named re-exports, and
+two-way synchronous ESM/CommonJS interoperability.
+
 ---
 
 ## 5. Missing Features & Gaps Compared to TypeScript / JavaScript
@@ -334,9 +339,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Ecosystem Feature | Current Status in ScriptGo | Target Roadmap |
 | :--- | :---: | :--- |
-| **NPM Packages (`node_modules`)** | ⚠️ Initial Dynamic slice | With `--dynamic`, TypeScript-Go resolves local package ESM/CommonJS `.js` entry points through `package.json` and ScriptGo bundles reachable modules as Dynamic islands. Registry fetching, lockfiles, and lifecycle scripts remain unsupported. |
-| **CommonJS (`require` / `module.exports`)** | ⚠️ Initial Dynamic slice | Local `main` packages support `exports.foo` and `module.exports` function exports; general `require`, interop edge cases, and lifecycle behavior remain unsupported. |
-| **Dynamic compatibility (`--dynamic`)** | 🚧 Initial island | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, and local/package `.js` pure-function execution through QuickJS-ng are implemented. Registry resolution, broad dynamic semantics, and Node service adapters remain pending. |
+| **NPM Packages (`node_modules`)** | ⚠️ Local graph slice | With `--dynamic`, TypeScript-Go resolves local package entry points and their reachable ESM/CommonJS dependencies. ScriptGo bundles the closed graph with canonical identities, initialization-once semantics, and persistent module state. Registry fetching, lockfiles, and lifecycle scripts remain unsupported. |
+| **CommonJS (`require` / `module.exports`)** | ⚠️ Synchronous graph slice | Local packages support dependency-resolved `require`, `exports.foo`, `module.exports`, named/default ESM imports of CommonJS, and synchronous CommonJS-to-ESM namespace access. Unresolved runtime-generated specifiers and lifecycle behavior remain unsupported. |
+| **Dynamic compatibility (`--dynamic`)** | 🚧 Executable graph | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, and ESM/CommonJS graph execution are implemented. Registry resolution, arbitrary function handles, async modules, and Node service adapters remain pending. |
 
 ---
 
@@ -425,9 +430,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | Track | Status | Roadmap Alignment |
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
-| npm and Node package resolution | ⚠️ Initial slice | Local `node_modules` ESM/CommonJS package entry points resolved by TypeScript-Go and bundled into Dynamic islands; registry/CAS/lockfile and broader interop remain planned. |
-| Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named/default-import synchronous functions, bounded `any` values and calls through aliases of those imports, plus primitive/plain object/array boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
-| Dynamic ABI and executable boundary parity tests | 🚧 Initial slice | Canonical layout and initial QuickJS execution boundary are covered for local synchronous functions, including named/default declaration and expression exports plus plain object/array boxing; broader engine-reference and parity cases remain pending. |
+| npm and Node package resolution | ⚠️ Local graph slice | TypeScript-Go resolves local `node_modules` package entry points and reachable ESM/CommonJS edges; ScriptGo bundles and caches the closed graph. Registry/CAS/lockfile installation remains planned. |
+| Dynamic islands with QuickJS-ng | 🚧 Executable graph | Local named/default-import synchronous functions, bounded `any`, persistent module state, re-exports, and ESM/CommonJS dependency graphs execute through QuickJS-ng; all-Static builds remain engine-free. |
+| Dynamic ABI and executable boundary parity tests | 🚧 Graph boundary | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, and plain object/array boundaries are covered; arbitrary engine-reference and async-module parity remain pending. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |

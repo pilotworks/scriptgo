@@ -38,7 +38,7 @@ func lowerCallExpression(
 			function.Body = append(function.Body, ir.Instruction{
 				Op: ir.OpDynamicCall, Type: returnType, Result: result,
 				Callee: dynamic.Path + "#" + dynamic.Export, Args: args,
-				Value: dynamic.Source, Field: dynamic.Export, FieldIndex: dynamic.Arity, Span: toIRSpan(path, expression.Span),
+				Field: dynamic.Export, FieldIndex: dynamic.Arity, Span: toIRSpan(path, expression.Span),
 			})
 			return result, returnType, nil
 		}

@@ -354,7 +354,14 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 }
 
 func importIsTypeOnly(specifier *ast.Node) bool {
-	if specifier == nil || specifier.Parent == nil || specifier.Parent.Kind != ast.KindImportDeclaration {
+	if specifier == nil || specifier.Parent == nil {
+		return false
+	}
+	if specifier.Parent.Kind == ast.KindExportDeclaration {
+		declaration := specifier.Parent.AsExportDeclaration()
+		return declaration != nil && declaration.IsTypeOnly
+	}
+	if specifier.Parent.Kind != ast.KindImportDeclaration {
 		return false
 	}
 	declaration := specifier.Parent.AsImportDeclaration()
@@ -381,7 +388,38 @@ func importIsTypeOnly(specifier *ast.Node) bool {
 }
 
 func importBindings(specifier *ast.Node) []ModuleBinding {
-	if specifier == nil || specifier.Parent == nil || specifier.Parent.Kind != ast.KindImportDeclaration {
+	if specifier == nil || specifier.Parent == nil {
+		return nil
+	}
+	if specifier.Parent.Kind == ast.KindExportDeclaration {
+		declaration := specifier.Parent.AsExportDeclaration()
+		if declaration == nil || declaration.ExportClause == nil || declaration.ExportClause.Kind != ast.KindNamedExports {
+			return nil
+		}
+		named := declaration.ExportClause.AsNamedExports()
+		if named == nil || named.Elements == nil {
+			return nil
+		}
+		bindings := make([]ModuleBinding, 0, len(named.Elements.Nodes))
+		for _, element := range named.Elements.Nodes {
+			exportSpecifier := element.AsExportSpecifier()
+			if exportSpecifier == nil || exportSpecifier.Name() == nil {
+				continue
+			}
+			exportedName := exportSpecifier.Name().Text()
+			importedName := exportedName
+			if exportSpecifier.PropertyName != nil {
+				importedName = exportSpecifier.PropertyName.Text()
+			}
+			bindings = append(bindings, ModuleBinding{
+				ImportedName: importedName,
+				LocalName:    exportedName,
+				TypeOnly:     declaration.IsTypeOnly || exportSpecifier.IsTypeOnly,
+			})
+		}
+		return bindings
+	}
+	if specifier.Parent.Kind != ast.KindImportDeclaration {
 		return nil
 	}
 	declaration := specifier.Parent.AsImportDeclaration()

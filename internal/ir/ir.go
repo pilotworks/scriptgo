@@ -13,12 +13,20 @@ type Module struct {
 	DynamicModules []DynamicModule
 }
 
-// DynamicModule is a bundled local JavaScript module used by a Dynamic call.
+// DynamicModule is a bundled JavaScript module in the closed Dynamic graph.
 type DynamicModule struct {
-	Path   string
-	Source string
-	Export string
-	Arity  int
+	Path    string
+	Source  string
+	Kind    string
+	Exports []string
+	Imports []DynamicImport
+}
+
+// DynamicImport records a frontend-resolved edge without teaching the runtime
+// Node or TypeScript module-resolution rules.
+type DynamicImport struct {
+	Specifier string
+	Path      string
 }
 
 type Global struct {

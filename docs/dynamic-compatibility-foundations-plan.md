@@ -8,6 +8,7 @@
 - **Runtime engine:** Not included in this slice
 - **Package resolution:** Not included in this slice
 - **Default behavior:** Static compilation remains unchanged
+- **Successor status:** 8B and the closed Dynamic module-graph slice are implemented; registry installation remains separate roadmap work
 
 ## Purpose
 
@@ -758,13 +759,14 @@ Milestone 8A is complete only when all of the following are true:
 - roadmap and TypeScript parity documentation match implemented behavior;
 - all mandatory regression tests and the CLI build pass.
 
-## Follow-Up: Milestone 8B
+## Follow-Up: Milestone 8C
 
-After this plan is complete, the next vertical slice should define and execute
-the smallest real Dynamic island. It should not begin with npm package
-resolution.
+The first real Dynamic island and its closed local module graph are now
+implemented. The next vertical slice should extend package installation and
+resolution around this graph contract; it should not duplicate module loading
+inside the compiler or runtime.
 
-Recommended 8B scope:
+Completed 8B/8C scope:
 
 1. Specify boxed values, validation, ownership, exception transfer, and call
    conventions in the runtime ABI documentation.

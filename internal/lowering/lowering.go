@@ -17,7 +17,7 @@ var (
 	lowerMu        sync.Mutex
 	topLevelVars   = map[string]typescriptgo.SyntaxStatement{}
 	inProgressVars = map[string]bool{}
-	dynamicImports = map[string]ir.DynamicModule{}
+	dynamicImports = map[string]dynamicImportBinding{}
 )
 
 // Options specifies optional flags for the lowering phase.
@@ -50,7 +50,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	closureCounter = 0
 	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
 	inProgressVars = map[string]bool{}
-	dynamicImports = collectDynamicImports(program)
+	var dynamicModules []ir.DynamicModule
+	dynamicImports, dynamicModules = collectDynamicImports(program)
 	program.Files = nativeSourceFiles(program.Files)
 	anonymousShapes = make(map[string]ir.ObjectShape)
 	registeredShapes = nil
@@ -74,10 +75,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	initializeClassIdentities(program)
 	initializeFunctionIdentities(program)
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
-	for _, dynamic := range dynamicImports {
-		module.DynamicModules = append(module.DynamicModules, dynamic)
-	}
-	sort.Slice(module.DynamicModules, func(i, j int) bool { return module.DynamicModules[i].Path < module.DynamicModules[j].Path })
+	module.DynamicModules = dynamicModules
 	typeAliasesIndex = map[string]string{}
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
