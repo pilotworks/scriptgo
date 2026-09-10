@@ -21,7 +21,8 @@ type Program struct {
 
 // ProgramOptions controls frontend program construction.
 type ProgramOptions struct {
-	ConfigPath string
+	ConfigPath                 string
+	AllowJavaScriptImplicitAny bool
 }
 
 func NewProgram(entryPath, source string) (Program, error) {
@@ -43,8 +44,10 @@ func NewProgramWithOptions(entryPath, source string, opts ProgramOptions) (Progr
 	if err != nil {
 		return Program{}, fmt.Errorf("check entry point %q: %w", entryPath, err)
 	}
-	if len(parsed.Diagnostics) > 0 {
-		diagnostic := parsed.Diagnostics[0]
+	for _, diagnostic := range parsed.Diagnostics {
+		if opts.AllowJavaScriptImplicitAny && diagnostic.Code == 7016 {
+			continue
+		}
 		return Program{}, fmt.Errorf("%s", typescriptgo.FormatDiagnostic(diagnostic, source))
 	}
 

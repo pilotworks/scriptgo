@@ -360,6 +360,15 @@ func isSupportedSource(fileName string) bool {
 	return false
 }
 
+func isJavaScriptSource(fileName string) bool {
+	for _, extension := range []string{".js", ".mjs", ".cjs"} {
+		if strings.HasSuffix(fileName, extension) {
+			return true
+		}
+	}
+	return false
+}
+
 func entityNameText(node *ast.Node) string {
 	if node == nil {
 		return ""

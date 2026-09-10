@@ -166,11 +166,7 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 		config = config.WithFileNames(rootFileNames)
 	}
 
-	program := compiler.NewProgram(compiler.ProgramOptions{
-		Config:         config,
-		Host:           host,
-		SingleThreaded: core.TSTrue,
-	})
+	program, config := newProgramWithResolvedJavaScript(config, host, cwd)
 
 	result := ProgramResult{
 		Options:     compilerOpts,
@@ -208,6 +204,45 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 	}
 	result.Diagnostics = append(result.Diagnostics, convertDiagnostics("program", program.GetProgramDiagnostics())...)
 	return result, nil
+}
+
+// newProgramWithResolvedJavaScript adds external JavaScript package entries as
+// roots. TypeScript-Go resolves these edges but excludes external-library JS
+// from GetSourceFiles unless they are explicit program roots.
+func newProgramWithResolvedJavaScript(config *tsoptions.ParsedCommandLine, host compiler.CompilerHost, cwd string) (*compiler.Program, *tsoptions.ParsedCommandLine) {
+	for {
+		program := compiler.NewProgram(compiler.ProgramOptions{
+			Config:         config,
+			Host:           host,
+			SingleThreaded: core.TSTrue,
+		})
+		known := make(map[string]bool, len(config.FileNames()))
+		for _, fileName := range config.FileNames() {
+			known[filepath.Clean(fileName)] = true
+		}
+		var additions []string
+		for _, file := range program.GetSourceFiles() {
+			for _, reference := range moduleReferences(program, file, cwd) {
+				if !isJavaScriptSource(reference.ResolvedFileName) {
+					continue
+				}
+				resolved := filepath.Clean(reference.ResolvedFileName)
+				if known[resolved] {
+					continue
+				}
+				if _, err := os.Stat(resolved); err != nil {
+					continue
+				}
+				known[resolved] = true
+				additions = append(additions, resolved)
+			}
+		}
+		if len(additions) == 0 {
+			return program, config
+		}
+		sort.Strings(additions)
+		config = config.WithFileNames(append(config.FileNames(), additions...))
+	}
 }
 
 func fileSymbolsWithChecker(checkerInstance *checker.Checker, file *ast.SourceFile) []Symbol {
@@ -297,7 +332,13 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 			continue
 		}
 		resolved := program.GetResolvedModuleFromModuleSpecifier(file, specifier)
-		if resolved == nil || resolved.ResolvedFileName == "" || resolved.IsExternalLibraryImport {
+		if resolved == nil || resolved.ResolvedFileName == "" {
+			continue
+		}
+		// TypeScript-Go marks node_modules files as external library imports. Keep
+		// resolved JavaScript entry points in the graph so Dynamic lowering can
+		// bundle them; declaration-only package edges remain type-checking data.
+		if resolved.IsExternalLibraryImport && !isJavaScriptSource(resolved.ResolvedFileName) {
 			continue
 		}
 		result = append(result, ModuleReference{
@@ -407,6 +448,12 @@ func orderedSourceFiles(files map[string]*ast.SourceFile, entry string, program 
 			return
 		}
 		file, ok := files[fileName]
+		if !ok {
+			if canonical, err := filepath.EvalSymlinks(fileName); err == nil {
+				canonical = filepath.Clean(canonical)
+				file, ok = files[canonical]
+			}
+		}
 		if !ok {
 			return
 		}

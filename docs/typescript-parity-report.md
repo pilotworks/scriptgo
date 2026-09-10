@@ -334,9 +334,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Ecosystem Feature | Current Status in ScriptGo | Target Roadmap |
 | :--- | :---: | :--- |
-| **NPM Packages (`node_modules`)** | ⏳ Roadmap (Milestone 8) | Automatic resolution of `node_modules` directory trees and complex `package.json` manifests is not yet implemented. |
-| **CommonJS (`require` / `module.exports`)** | ⏳ Roadmap (Milestone 8) | ESM-to-CommonJS interoperability and package loading belong to the explicit Dynamic compatibility tier. |
-| **Dynamic compatibility (`--dynamic`)** | 🚧 Initial island | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, and local `.js` pure-function execution through QuickJS-ng are implemented. npm resolution, broad dynamic semantics, and Node service adapters remain pending. |
+| **NPM Packages (`node_modules`)** | ⚠️ Initial Dynamic slice | With `--dynamic`, TypeScript-Go resolves local package ESM/CommonJS `.js` entry points through `package.json` and ScriptGo bundles reachable modules as Dynamic islands. Registry fetching, lockfiles, and lifecycle scripts remain unsupported. |
+| **CommonJS (`require` / `module.exports`)** | ⚠️ Initial Dynamic slice | Local `main` packages support `exports.foo` and `module.exports` function exports; general `require`, interop edge cases, and lifecycle behavior remain unsupported. |
+| **Dynamic compatibility (`--dynamic`)** | 🚧 Initial island | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, and local/package `.js` pure-function execution through QuickJS-ng are implemented. Registry resolution, broad dynamic semantics, and Node service adapters remain pending. |
 
 ---
 
@@ -425,7 +425,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | Track | Status | Roadmap Alignment |
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
-| npm and Node package resolution | ⏳ Planned | Milestone 8 Dynamic compatibility tier. |
+| npm and Node package resolution | ⚠️ Initial slice | Local `node_modules` ESM/CommonJS package entry points resolved by TypeScript-Go and bundled into Dynamic islands; registry/CAS/lockfile and broader interop remain planned. |
 | Dynamic islands with QuickJS-ng | 🚧 Initial slice | Local named/default-import synchronous functions, bounded `any` values and calls through aliases of those imports, plus primitive/plain object/array boxed boundaries; opt-in through `--dynamic`, with no JavaScript engine in all-Static builds. |
 | Dynamic ABI and executable boundary parity tests | 🚧 Initial slice | Canonical layout and initial QuickJS execution boundary are covered for local synchronous functions, including named/default declaration and expression exports plus plain object/array boxing; broader engine-reference and parity cases remain pending. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |

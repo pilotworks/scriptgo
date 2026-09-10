@@ -208,11 +208,7 @@ func CheckProject(configPath string) (ProgramResult, error) {
 	opts.AllowImportingTsExtensions = core.TSTrue
 	parsedConfig.SetCompilerOptions(opts)
 
-	program := compiler.NewProgram(compiler.ProgramOptions{
-		Config:         parsedConfig,
-		Host:           host,
-		SingleThreaded: core.TSTrue,
-	})
+	program, parsedConfig := newProgramWithResolvedJavaScript(parsedConfig, host, cwd)
 
 	result := ProgramResult{
 		Options: CompilerOptions{

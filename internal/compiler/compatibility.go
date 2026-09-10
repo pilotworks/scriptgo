@@ -23,7 +23,10 @@ func loadProgram(entryPath string, options BuildOptions) (frontend.Program, erro
 	if err != nil {
 		return frontend.Program{}, fmt.Errorf("read entry point %q: %w", entryPath, err)
 	}
-	return frontend.NewProgramWithOptions(entryPath, string(source), frontend.ProgramOptions{ConfigPath: options.TSConfig})
+	return frontend.NewProgramWithOptions(entryPath, string(source), frontend.ProgramOptions{
+		ConfigPath:                 options.TSConfig,
+		AllowJavaScriptImplicitAny: options.Dynamic,
+	})
 }
 
 func analyzeProgram(program frontend.Program, options BuildOptions) (lowering.CompatibilityReport, error) {
