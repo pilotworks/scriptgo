@@ -112,6 +112,9 @@ var tlsSource string
 //go:embed native/dynamic/runtime.c
 var dynamicAdapterSource string
 
+//go:embed native/dynamic/values.c
+var dynamicValuesSource string
+
 //go:embed native/dynamic/quickjs-amalgam.c
 var quickJSAmalgamSource string
 
@@ -158,7 +161,7 @@ func SourceForDynamic(dynamic bool) []byte {
 		return Source
 	}
 	result := append([]byte(nil), Source...)
-	result = append(result, []byte("\n"+dynamicAdapterSource)...)
+	result = append(result, []byte("\n"+dynamicAdapterSource+"\n"+dynamicValuesSource)...)
 	return result
 }
 

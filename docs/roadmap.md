@@ -15,7 +15,8 @@ remain the product direction.
 The compatibility policy is three-tiered: Static native compilation by
 default, opt-in Dynamic classification with `--dynamic`, and Unsupported
 compile errors when neither path can preserve JavaScript semantics. Milestone
-8A implements analysis/reporting and 8B provides the first constrained QuickJS-ng Dynamic island.
+8A implemented analysis/reporting, 8B implemented the first QuickJS-ng island,
+and the current 8C slice bundles closed ESM/CommonJS Dynamic module graphs.
 
 ## Current Baseline
 
@@ -184,12 +185,17 @@ semantic gaps behind native code generation.
 - [x] Define and test the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
 - [ ] Resolve eligible JavaScript/npm dependencies into explicit Dynamic islands.
   The first local `node_modules` slice now uses TypeScript-Go package resolution
-  and bundles resolved ESM/CommonJS `.js` entry points; registry fetching,
-  lockfiles, and package lifecycle behavior remain deferred.
+  and bundles closed ESM/CommonJS module graphs. The runtime preserves module
+  identity, initialization-once state, relative/package dependency edges,
+  named re-exports, CommonJS `require`, and ESM/CommonJS interop. Registry
+  fetching, lockfiles, and package lifecycle behavior remain deferred.
+- [x] Define the offline package metadata contract: validated local manifests,
+  deterministic `exports`/`module`/`main` entry resolution, and lockfile v1
+  read/write support in `internal/pkgmgr`.
 - [x] Lower bounded `any` sites through the existing boxed `unknown` representation in Dynamic mode.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
-- [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports plus boxed plain objects and arrays.
+- [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
 
 ### Standard Library Compatibility Slice (In Progress)
 

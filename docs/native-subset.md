@@ -9,9 +9,8 @@ resolution, and type checking.
 
 `scriptgo` has three explicit outcomes for every reachable source site:
 
-1. **Static**: compile directly to native code. This is the default and the
-   only tier implemented by the current MVP.
-2. **Dynamic**: with the planned `--dynamic` mode, execute an eligible dynamic
+1. **Static**: compile directly to native code. This remains the default.
+2. **Dynamic**: with the implemented `--dynamic` mode, execute an eligible dynamic
    island through embedded QuickJS-ng. Dynamic mode is opt-in and is never
    linked implicitly.
 3. **Unsupported**: emit a source-anchored compile error when neither static
@@ -23,7 +22,7 @@ only when the dynamic runtime explicitly supports it.
 
 | Area | Supported in Static Mode | Rejected in Static Mode (`SGxxxx`) |
 | --- | --- | --- |
-| **Files** | Closed local `.ts` module graph, supported Node.js standard modules (34 core modules via `node:*`), canonical module aliases | npm/package graphs without static types, unbundled `.js` execution |
+| **Files** | Closed local `.ts` module graph, supported Node.js standard modules (34 core modules via `node:*`), canonical module aliases | npm/package graphs without Static eligibility; eligible local JavaScript graphs require `--dynamic` |
 | **Statements** | Variables (`let`, `const`, `var`), expressions, functions, blocks, `if`/`else`, `switch`/`case` (with fallthrough), `while`, `do..while`, `for`, `for..of`, `for..in`, `for await..of`, Labeled statements (`break label`, `continue label`), `return`, `throw`, `try`/`catch`/`finally`, Explicit Resource Management (`using` & `await using`), Destructuring, Spread/Rest, Enums (numeric, string, const enums), Generators (`yield`, `yield*`), Async Generators | Dynamic imports without static specifiers |
 | **Values** | `number` (IEEE-754), `bigint` (64-bit), `string` (UTF-8), `boolean`, `symbol` (with Registry `Symbol.for`, `Symbol.keyFor`), `null`/`undefined`, `unknown` (with boxed tagged representation & control-flow narrowing), Tuples, Monomorphized Generics, Multivariant Unions (`T \| null \| undefined`), TypedArrays & `DataView`, `Map` & `Set` (including all 7 ES2024 Set methods), `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, Dense & Generic Arrays, Object records | Unresolved `any` without type narrowing (`SG1001`), untyped prototype mutation |
 | **Operators** | Numeric, bitwise & boolean operators, BigInt arithmetic, strict/abstract equality, relational comparisons, logical operators, unary operators, ternary expressions, string concat/interpolation, optional chaining (`?.`, `fn?.()`), nullish coalescing (`??`), spread/rest, bitwise atomics | Dynamic unproven runtime coercion |

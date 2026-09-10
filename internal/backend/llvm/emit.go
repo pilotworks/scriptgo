@@ -63,14 +63,22 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	if _, ok := stringsByValue[verStr]; !ok {
 		stringsByValue[verStr] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 	}
+	for _, dynamicModule := range module.DynamicModules {
+		values := []string{dynamicModule.Path, dynamicModule.Source, dynamicModule.Kind, strings.Join(dynamicModule.Exports, "\x1f")}
+		for _, dependency := range dynamicModule.Imports {
+			values = append(values, dependency.Specifier, dependency.Path)
+		}
+		for _, value := range values {
+			if _, ok := stringsByValue[value]; !ok {
+				stringsByValue[value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
+			}
+		}
+	}
 	var collectStrings func(list []ir.Instruction)
 	collectStrings = func(list []ir.Instruction) {
 		for _, instruction := range list {
 			if instruction.Op == ir.OpDynamicCall {
 				modulePath, exportName, _ := strings.Cut(instruction.Callee, "#")
-				if _, ok := stringsByValue[instruction.Value]; !ok {
-					stringsByValue[instruction.Value] = fmt.Sprintf("@.str.%d", len(stringsByValue))
-				}
 				if _, ok := stringsByValue[modulePath]; !ok {
 					stringsByValue[modulePath] = fmt.Sprintf("@.str.%d", len(stringsByValue))
 				}
@@ -166,7 +174,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n\n")
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
 	if moduleHasDynamic(module) {
-		out.WriteString("declare i32 @scriptgo_dynamic_call_module(ptr, ptr, ptr, ptr, i32, i32, i32, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_register_module(ptr, ptr, ptr, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_register_dependency(ptr, ptr, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_call_module(ptr, ptr, ptr, i32, i32, i32, ptr)\n")
 		out.WriteString("declare void @scriptgo_dynamic_abort_if_failed(i32)\n")
 	}
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")

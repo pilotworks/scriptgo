@@ -35,10 +35,6 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 	if !ok || path == "" || export == "" {
 		return fmt.Errorf("invalid dynamic callee %q", instruction.Callee)
 	}
-	sourceGlobal, ok := e.stringsByValue[instruction.Value]
-	if !ok {
-		return fmt.Errorf("dynamic module source was not interned for %q", path)
-	}
 	pathGlobal, ok := e.stringsByValue[path]
 	if !ok {
 		return fmt.Errorf("dynamic module path was not interned for %q", path)
@@ -47,8 +43,10 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 	if !ok {
 		return fmt.Errorf("dynamic export was not interned for %q", export)
 	}
+	if err := e.emitDynamicModuleRegistry(out); err != nil {
+		return err
+	}
 	pathPtr := e.dynamicStringPointer(out, pathGlobal, "dynamic.path")
-	sourcePtr := e.dynamicStringPointer(out, sourceGlobal, "dynamic.source")
 	exportPtr := e.dynamicStringPointer(out, exportGlobal, "dynamic.export")
 
 	count := len(originalArgs)
@@ -79,7 +77,7 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 	fmt.Fprintf(out, "  %%%s = alloca %s\n", outSlot, boxedLLVMType)
 	status := fmt.Sprintf("dynamic.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dynamic_call_module(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, i32 %d, i32 %d, i32 %d, ptr %%%s)\n", status, pathPtr, sourcePtr, exportPtr, argsSlot, count, instruction.FieldIndex, dynamicResultTag(instruction.Type), outSlot)
+	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dynamic_call_module(ptr %%%s, ptr %%%s, ptr %%%s, i32 %d, i32 %d, i32 %d, ptr %%%s)\n", status, pathPtr, exportPtr, argsSlot, count, instruction.FieldIndex, dynamicResultTag(instruction.Type), outSlot)
 	fmt.Fprintf(out, "  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", status)
 	boxedResult := fmt.Sprintf("dynamic.result.boxed.%d", e.loadCounter)
 	e.loadCounter++
@@ -97,6 +95,40 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 					break
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func (e *functionEmitter) emitDynamicModuleRegistry(out *strings.Builder) error {
+	for _, module := range e.module.DynamicModules {
+		pathGlobal, pathOK := e.stringsByValue[module.Path]
+		sourceGlobal, sourceOK := e.stringsByValue[module.Source]
+		kindGlobal, kindOK := e.stringsByValue[module.Kind]
+		exportsGlobal, exportsOK := e.stringsByValue[strings.Join(module.Exports, "\x1f")]
+		if !pathOK || !sourceOK || !kindOK || !exportsOK {
+			return fmt.Errorf("Dynamic module registry strings were not interned for %q", module.Path)
+		}
+		path := e.dynamicStringPointer(out, pathGlobal, "dynamic.module.path")
+		source := e.dynamicStringPointer(out, sourceGlobal, "dynamic.module.source")
+		kind := e.dynamicStringPointer(out, kindGlobal, "dynamic.module.kind")
+		exports := e.dynamicStringPointer(out, exportsGlobal, "dynamic.module.exports")
+		status := fmt.Sprintf("dynamic.module.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dynamic_register_module(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, path, source, kind, exports)
+		fmt.Fprintf(out, "  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", status)
+		for _, dependency := range module.Imports {
+			specifierGlobal, specifierOK := e.stringsByValue[dependency.Specifier]
+			resolvedGlobal, resolvedOK := e.stringsByValue[dependency.Path]
+			if !specifierOK || !resolvedOK {
+				return fmt.Errorf("Dynamic dependency strings were not interned for %q", module.Path)
+			}
+			specifier := e.dynamicStringPointer(out, specifierGlobal, "dynamic.dependency.specifier")
+			resolved := e.dynamicStringPointer(out, resolvedGlobal, "dynamic.dependency.path")
+			dependencyStatus := fmt.Sprintf("dynamic.dependency.status.%d", e.runtimeStatus)
+			e.runtimeStatus++
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dynamic_register_dependency(ptr %%%s, ptr %%%s, ptr %%%s)\n", dependencyStatus, path, specifier, resolved)
+			fmt.Fprintf(out, "  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", dependencyStatus)
 		}
 	}
 	return nil

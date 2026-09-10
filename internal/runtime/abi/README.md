@@ -103,12 +103,17 @@ because directly returning a 24-byte aggregate can introduce a hidden result
 pointer or otherwise differ between LLVM and C ABIs across native targets.
 
 The Dynamic call boundary returns `0` for success, `1` for a JavaScript
-exception, and `-1` for a fatal ABI/runtime invariant failure. The first
-boundary accepts only `undefined`, `null`, `boolean`, `number`, and `string`;
-input and result mismatches are catchable `TypeError`s with `SG5002` and
-`SG5003`. Malformed values, descriptors, or adapter output use `SG9001`.
-The initial Dynamic slice uses a separate QuickJS-ng adapter and Dynamic IR
-call for local synchronous JavaScript pure functions with primitive values.
+exception, and `-1` for a fatal ABI/runtime invariant failure. The executable
+boundary accepts `undefined`, `null`, `boolean`, `number`, `string`, and
+recursively boxed plain objects/arrays. Input and result mismatches use
+`SG5002` and `SG5003`; malformed values, graph descriptors, or adapter output
+use `SG9001`.
+
+Dynamic artifacts register a frontend-resolved closed module graph before a
+call. One QuickJS-ng runtime/context is retained for the process, so ESM and
+CommonJS modules initialize once and preserve module state. The runtime loads
+only registered canonical module IDs and resolved dependency edges; it does
+not implement Node or TypeScript package resolution.
 
 ### Value representations
 

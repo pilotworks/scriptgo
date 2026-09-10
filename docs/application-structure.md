@@ -47,6 +47,7 @@ This is the structure currently present in the repository:
 │   │   ├── abi/                 # Native runtime ABI specifications and types
 │   │   └── native/              # C runtime modules (arrays, async, closures, fs, http, net, os, web, websocket, wasi...)
 │   ├── spec/                    # Node.js API specification definitions and signatures
+│   ├── pkgmgr/                  # Local package manifests, entry resolution, and lockfiles
 │   └── typescriptgo/            # Pinned TypeScript-Go frontend adapter
 ├── examples/                    # Showcase TypeScript sample programs
 └── docs/                        # Complete architectural and parity documentation

@@ -5,6 +5,14 @@ engine for a high-performance, native JavaScript/TypeScript package manager
 compatible with the npm registry, designed along the principles of **Bun** and
 **pnpm**.
 
+The first implementation slice is intentionally offline and local: `internal/pkgmgr`
+validates package manifests, resolves local `node_modules` entry points through
+`exports`/`module`/`main`, and reads/writes deterministic `scriptgo-lock.json`
+files. It also provides the core SemVer selection and npm SHA-512 SRI
+verification contracts, plus an atomic local SHA-512 content store. Registry
+fetching, package linking, and lifecycle execution remain separate follow-up
+slices.
+
 ## Design Principles
 
 - **Zero-Copy Installation**: Maximize file-system level sharing via Copy-on-Write
@@ -385,10 +393,14 @@ scriptgo run           # Immediate execution
 
 ## Integration with scriptgo Roadmap
 
-While `scriptgo` currently focuses on local synchronous module compilation, this
-specification provides the architectural foundation for subsequent milestones:
-1. **Module Resolution Contract**: Extending `internal/frontend` to locate
-   dependencies within CAS-linked `node_modules`.
-2. **Builtin Package Management Command**: Embedding a lightweight, native
-   `scriptgo add <pkg>` or `scriptgo install` command inside `cmd/scriptgo`.
+ScriptGo now compiles frontend-resolved local ESM/CommonJS package graphs into
+persistent Dynamic islands. Package-manager work must feed that existing graph
+contract rather than add a second resolver:
 
+1. **Installation Contract**: Materialize deterministic CAS-linked
+   `node_modules` trees that TypeScript-Go can resolve normally. The local
+   manifest/resolver/lockfile contract is implemented in `internal/pkgmgr`.
+2. **Package Service**: Extend that focused package with registry, SemVer,
+   integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
+3. **Builtin Commands**: Expose `scriptgo add` and `scriptgo install` only after
+   the service contract and offline lockfile behavior are tested.
