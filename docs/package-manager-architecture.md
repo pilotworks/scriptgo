@@ -9,8 +9,9 @@ The first implementation slice is intentionally offline and local: `internal/pkg
 validates package manifests, resolves local `node_modules` entry points through
 `exports`/`module`/`main`, and reads/writes deterministic `scriptgo-lock.json`
 files. It also provides the core SemVer selection and npm SHA-512 SRI
-verification contracts. Registry fetching, CAS storage, linking, and lifecycle
-execution remain separate follow-up slices.
+verification contracts, plus an atomic local SHA-512 content store. Registry
+fetching, package linking, and lifecycle execution remain separate follow-up
+slices.
 
 ## Design Principles
 

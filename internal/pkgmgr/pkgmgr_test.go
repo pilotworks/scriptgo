@@ -32,6 +32,29 @@ func TestVerifyIntegrity(t *testing.T) {
 	}
 }
 
+func TestStorePutAndReadUsesContentAddressedPath(t *testing.T) {
+	store := Store{Root: t.TempDir()}
+	data := []byte("immutable package bytes")
+	path, err := store.Put(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+	if path2, err := store.Put(data); err != nil || path2 != path {
+		t.Fatalf("second Put = %q, %v; want %q", path2, err, path)
+	}
+	base := filepath.Base(path)
+	got, err := store.Read(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(data) {
+		t.Fatalf("Read = %q, want %q", got, data)
+	}
+}
+
 func TestResolveLocalPackagePrefersExports(t *testing.T) {
 	root := t.TempDir()
 	packageRoot := filepath.Join(root, "node_modules", "demo")
