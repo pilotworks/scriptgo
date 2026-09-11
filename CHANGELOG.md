@@ -2,6 +2,19 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.2] - 2026-09-11
+
+### Features
+- feat: close installed package execution path (#8) (a4ded45)
+- feat: add package install and Dynamic function handles (#7) (969d1ea)
+- feat: persistent Dynamic module graphs and package manager foundations (#6) (c21b8c2)
+- feat(dynamic): support local npm package islands (#5) (cbafd44)
+- feat(docs): add package manager architecture documentation (03b8211)
+- feat(dynamic): support any indexing and import aliases (#4) (367b0a1)
+- feat(dynamic): lower bounded any values (#3) (031af53)
+- feat(dynamic): extend boxed value compatibility (#2) (d6bd0b9)
+- feat(dynamic): add QuickJS-ng adapter for synchronous Dynamic runtime (#1) (19d0770)
+
 ## [0.1.0-alpha.1] - 2026-09-07
 
 ### Features
