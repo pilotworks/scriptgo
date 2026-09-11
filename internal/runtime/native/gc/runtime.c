@@ -145,6 +145,10 @@ typedef struct {
     uint64_t magic;
     int64_t field_count;
     const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
+    void *boxed_fields;
     uintptr_t fields[];
 } gc_object_layout;
 

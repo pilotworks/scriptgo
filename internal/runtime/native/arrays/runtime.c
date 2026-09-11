@@ -82,6 +82,7 @@ typedef struct {
     uint8_t extensible;
     uint8_t sealed;
     uint8_t frozen;
+    void *boxed_fields;
     uintptr_t fields[];
 } scriptgo_runtime_object_header;
 
