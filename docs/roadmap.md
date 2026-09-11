@@ -199,6 +199,7 @@ semantic gaps behind native code generation.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
 - [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
+- [x] Close the installed-package execution path: `scriptgo install` materializes a registry graph that the existing TypeScript-Go frontend and Dynamic runtime compile and execute, including nested ESM/CommonJS dependencies and offline/frozen reinstall parity.
 
 ### Standard Library Compatibility Slice (In Progress)
 
@@ -213,6 +214,20 @@ The package installation slice intentionally supports production dependencies
 and deterministic lockfile installs only. Peer/optional dependency semantics,
 registry authentication, binary shims, and lifecycle scripts remain follow-up
 work.
+
+#### 8D: Installed Package Execution (Completed)
+
+The package-manager and compiler contracts are verified as one vertical path:
+registry metadata and tarballs are installed into a deterministic lockfile/CAS
+graph, TypeScript-Go resolves the resulting `node_modules` tree, and the
+existing Dynamic module loader executes the installed ESM/CommonJS graph. The
+same project must also run after `--offline --frozen` reinstall from the local
+store. This slice deliberately does not add a second resolver or execute
+package lifecycle scripts.
+
+`run` and `build` also accept opt-in `--install`, with `--offline` and
+`--frozen` available for reproducible local builds. Without `--install`, these
+commands retain their previous behavior and never contact a registry.
 
 ### Node.js And npm Compatibility Track
 

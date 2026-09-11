@@ -22,6 +22,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | - *Native LLVM/Clang Parity* | 390 | 375 PASS plus 15 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node API Surface** | **91** | **91 / 91 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
 | **Total Test Suite Runtime** | ~5m40s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
@@ -195,6 +196,7 @@ Native Backend Parity  : 375/390 plus 15 diagnostics
 Diagnostic Parity      : 15/15
 Overall Full Parity    : 390/390 (100.0%) on macOS + Ubuntu Docker
 Implemented Node API  : 91/91 (100.0%) on macOS + Ubuntu Docker
+Installed Package   : 1/1 end-to-end path verified
 Total Time Elapsed     : 5m40.074s (macOS)
 ================================================================================
 ```
@@ -225,7 +227,9 @@ Total Time Elapsed     : 5m40.074s (macOS)
 The compiler corpus also contains 17 opt-in Dynamic cases. They cover bounded
 `any`, boxed values, exceptions, local JavaScript imports, local npm entry
 points, persistent ESM/CommonJS dependency graphs, named re-exports, and
-two-way synchronous ESM/CommonJS interoperability.
+two-way synchronous ESM/CommonJS interoperability. In addition, one compiler
+integration test verifies registry installation, nested ESM/CommonJS execution,
+and offline/frozen reinstall from the local content store.
 
 ---
 
@@ -339,7 +343,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Ecosystem Feature | Current Status in ScriptGo | Target Roadmap |
 | :--- | :---: | :--- |
-| **NPM Packages (`node_modules`)** | ⚠️ Installable Dynamic slice | `scriptgo install` resolves production dependencies from an npm-compatible registry, selects deterministic SemVer versions, verifies SHA-512 SRI tarballs, caches immutable content, writes `scriptgo-lock.json`, and hardlinks an isolated nested `node_modules` graph. Conflicting versions and optional dependencies are supported; basic peer validation is supported. Peer auto-install/metadata, registry auth, bins, and lifecycle scripts remain unsupported. |
+| **NPM Packages (`node_modules`)** | ⚠️ Installable and executable Dynamic slice | `scriptgo install` resolves production dependencies from an npm-compatible registry, selects deterministic SemVer versions, verifies SHA-512 SRI tarballs, caches immutable content, writes `scriptgo-lock.json`, and hardlinks an isolated nested `node_modules` graph. The installed graph is consumed by TypeScript-Go and executes through `scriptgo run --dynamic`, including nested ESM/CommonJS dependencies and offline/frozen reinstall parity. `run` and `build` support explicit `--install`; default commands remain network-free. Conflicting versions and optional dependencies are supported; basic peer validation is supported. Peer auto-install/metadata, registry auth, bins, and lifecycle scripts remain unsupported. |
 | **CommonJS (`require` / `module.exports`)** | ⚠️ Synchronous graph slice | Local packages support dependency-resolved `require`, `exports.foo`, `module.exports`, named/default ESM imports of CommonJS, and synchronous CommonJS-to-ESM namespace access. Unresolved runtime-generated specifiers and lifecycle behavior remain unsupported. |
 | **Dynamic compatibility (`--dynamic`)** | 🚧 Executable graph | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, ESM/CommonJS graph execution, native closure callbacks passed into Dynamic functions, bounded synchronous Dynamic function handles returned to native code, and receiver-preserving method calls are implemented. Async modules, async handles, and Node service adapters remain pending. |
 

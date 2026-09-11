@@ -172,6 +172,11 @@ func handleRun(args []string) {
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	dynamic := registerDynamicFlag(fs)
+	install := fs.Bool("install", false, "install project dependencies before compiling")
+	offline := fs.Bool("offline", false, "use only the lockfile and cached packages with --install")
+	frozen := fs.Bool("frozen", false, "use exact lockfile metadata with --install")
+	registry := fs.String("registry", "", "npm-compatible registry URL with --install")
+	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
@@ -236,6 +241,14 @@ func handleRun(args []string) {
 		ExtraSources:     extraSources,
 		Dynamic:          *dynamic,
 	}
+	if *install && *eval != "" {
+		printError(fmt.Errorf("--install cannot be used with -e"))
+		os.Exit(1)
+	}
+	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, StoreRoot: *store}); err != nil {
+		printError(err)
+		os.Exit(1)
+	}
 
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: compiling %s to native binary for execution\n", entryPath)
@@ -279,6 +292,11 @@ func handleBuild(args []string) {
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
 	dynamic := registerDynamicFlag(fs)
+	install := fs.Bool("install", false, "install project dependencies before compiling")
+	offline := fs.Bool("offline", false, "use only the lockfile and cached packages with --install")
+	frozen := fs.Bool("frozen", false, "use exact lockfile metadata with --install")
+	registry := fs.String("registry", "", "npm-compatible registry URL with --install")
+	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
@@ -358,6 +376,14 @@ func handleBuild(args []string) {
 		FFIManifests:     manifests,
 		ExtraSources:     extraSources,
 		Dynamic:          *dynamic,
+	}
+	if *install && *eval != "" {
+		printError(fmt.Errorf("--install cannot be used with -e"))
+		os.Exit(1)
+	}
+	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, StoreRoot: *store}); err != nil {
+		printError(err)
+		os.Exit(1)
 	}
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: build %s -> %s\n", entryPath, outputPath)
