@@ -26,7 +26,17 @@ type PackageManifest struct {
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
 	Bin                  PackageBin        `json:"bin,omitempty"`
 	Scripts              map[string]string `json:"scripts,omitempty"`
+	Workspaces           json.RawMessage   `json:"workspaces,omitempty"`
+	Scriptgo             ScriptgoConfig    `json:"scriptgo,omitempty"`
 	Dist                 PackageDist       `json:"dist,omitempty"`
+}
+
+// ScriptgoConfig contains non-secret project package-manager settings. Tokens
+// are read from the named environment variable and are never persisted.
+type ScriptgoConfig struct {
+	Registry         string `json:"registry,omitempty"`
+	RegistryTokenEnv string `json:"registryTokenEnv,omitempty"`
+	RegistryToken    string `json:"registryToken,omitempty"`
 }
 
 // PackageBin accepts npm's string shorthand and object form.
@@ -85,6 +95,9 @@ func loadManifest(path string, requireName bool) (PackageManifest, error) {
 	if manifest.Type != "" && manifest.Type != "module" && manifest.Type != "commonjs" {
 		return PackageManifest{}, fmt.Errorf("package manifest %q: unsupported type %q", path, manifest.Type)
 	}
+	if manifest.Scriptgo.RegistryToken != "" {
+		return PackageManifest{}, fmt.Errorf(`package manifest %q must not contain "registryToken"; use "registryTokenEnv"`, path)
+	}
 	for name, spec := range manifest.Dependencies {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
 			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid dependency %q", path, name)
@@ -113,6 +126,9 @@ func ValidateManifest(manifest PackageManifest, path string) error {
 	}
 	if manifest.Type != "" && manifest.Type != "module" && manifest.Type != "commonjs" {
 		return fmt.Errorf("package manifest %q: unsupported type %q", path, manifest.Type)
+	}
+	if manifest.Scriptgo.RegistryToken != "" {
+		return fmt.Errorf(`package manifest %q must not contain "registryToken"; use "registryTokenEnv"`, path)
 	}
 	for name, spec := range manifest.Dependencies {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {

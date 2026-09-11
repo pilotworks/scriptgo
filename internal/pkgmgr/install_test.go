@@ -136,10 +136,11 @@ func TestInstallCreatesBinAndRejectsFrozenManifestDrift(t *testing.T) {
 	defer server.Close()
 	root := t.TempDir()
 	manifestPath := filepath.Join(root, "package.json")
-	if err := os.WriteFile(manifestPath, []byte(`{"dependencies":{"demo":"^1.0.0"}}`), 0o644); err != nil {
+	t.Setenv("SCRIPTGO_TEST_REGISTRY_TOKEN", "secret-token")
+	if err := os.WriteFile(manifestPath, []byte(`{"scriptgo":{"registry":"`+server.URL+`","registryTokenEnv":"SCRIPTGO_TEST_REGISTRY_TOKEN"},"dependencies":{"demo":"^1.0.0"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Install(InstallOptions{ProjectRoot: root, Registry: Registry{BaseURL: server.URL, Token: "secret-token"}}); err != nil {
+	if _, err := Install(InstallOptions{ProjectRoot: root}); err != nil {
 		t.Fatal(err)
 	}
 	bin, err := os.Readlink(filepath.Join(root, "node_modules", ".bin", "demo"))
@@ -205,8 +206,43 @@ func TestInstallValidatesPeerDependenciesAtAncestor(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"plugin":"1.0.0"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Install(InstallOptions{ProjectRoot: root, Registry: Registry{BaseURL: server.URL}}); err == nil || !strings.Contains(err.Error(), "requires peer") {
-		t.Fatalf("missing peer error = %v", err)
+	lock, err := Install(InstallOptions{ProjectRoot: root, Registry: Registry{BaseURL: server.URL}})
+	if err != nil {
+		t.Fatalf("peer auto-install: %v", err)
+	}
+	if lock.Project.AutoPeers["react"] != "^1.0.0" {
+		t.Fatalf("auto peers = %+v", lock.Project.AutoPeers)
+	}
+}
+
+func TestInstallLinksWorkspacePackage(t *testing.T) {
+	root := t.TempDir()
+	workspaceRoot := filepath.Join(root, "packages", "shared")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"workspaces":["packages/*"],"dependencies":{"shared":"workspace:*"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "package.json"), []byte(`{"name":"shared","version":"1.2.3","main":"index.js"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "index.js"), []byte("module.exports = 42;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := Install(InstallOptions{ProjectRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lock.Packages["shared@1.2.3"].Workspace != filepath.ToSlash(filepath.Join("packages", "shared")) {
+		t.Fatalf("workspace lock entry = %+v", lock.Packages["shared@1.2.3"])
+	}
+	linked, err := os.ReadFile(filepath.Join(root, "node_modules", "shared", "index.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(linked) != "module.exports = 42;\n" {
+		t.Fatalf("workspace content = %q", linked)
 	}
 }
 

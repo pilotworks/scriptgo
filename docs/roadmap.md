@@ -240,6 +240,14 @@ peer conflicts are reported without mutating the existing project projection.
 Lifecycle scripts and native addons remain explicitly unsupported and are never
 executed.
 
+#### 8F: Workspace Package Graphs (Completed)
+
+Package projects may configure a registry/token environment source through the
+`scriptgo` manifest block, auto-install compatible missing peers at the root,
+and declare local workspace packages through standard `workspaces` patterns.
+`workspace:` protocol edges resolve to local source directories and are recorded
+in the existing lockfile graph without introducing a second module resolver.
+
 ### Node.js And npm Compatibility Track
 
 This track is the long-term product direction. It must be implemented in

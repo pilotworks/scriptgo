@@ -17,6 +17,7 @@ type LockfileProject struct {
 	Dependencies         map[string]string `json:"dependencies,omitempty"`
 	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	AutoPeers            map[string]string `json:"autoPeers,omitempty"`
 }
 
 // LockedPackage records the resolved package metadata needed for later fetch
@@ -29,6 +30,7 @@ type LockedPackage struct {
 	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
 	Bin                  PackageBin        `json:"bin,omitempty"`
+	Workspace            string            `json:"workspace,omitempty"`
 }
 
 // NewLockfile creates a stable lockfile from package metadata keyed by name.

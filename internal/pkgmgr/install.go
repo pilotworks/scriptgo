@@ -31,6 +31,7 @@ type packageNode struct {
 	Version  string
 	Manifest PackageManifest
 	Deps     map[string]string
+	Source   string
 }
 
 // Install resolves production dependencies, verifies and caches their
@@ -48,6 +49,20 @@ func Install(options InstallOptions) (Lockfile, error) {
 	manifest, err := LoadProjectManifest(manifestPath)
 	if err != nil {
 		return Lockfile{}, err
+	}
+	if manifest.Scriptgo.RegistryToken != "" {
+		return Lockfile{}, fmt.Errorf("package manifest must not contain a registry token; use registryTokenEnv or --registry-token")
+	}
+	workspaces, err := discoverWorkspaces(root, manifest.Workspaces)
+	if err != nil {
+		return Lockfile{}, err
+	}
+	registry := options.Registry
+	if registry.BaseURL == "" {
+		registry.BaseURL = manifest.Scriptgo.Registry
+	}
+	if registry.Token == "" && manifest.Scriptgo.RegistryTokenEnv != "" {
+		registry.Token = os.Getenv(manifest.Scriptgo.RegistryTokenEnv)
 	}
 	lockPath := options.Lockfile
 	if lockPath == "" {
@@ -73,8 +88,34 @@ func Install(options InstallOptions) (Lockfile, error) {
 	metadata := map[string]map[string]PackageManifest{}
 	edges := map[string]map[string]string{}
 	parents := map[string]string{}
+	autoPeers := map[string]string{}
 	var resolve func(string, string, string) (string, error)
 	resolve = func(name, spec, parent string) (string, error) {
+		if workspace, ok := workspaces[name]; ok && strings.HasPrefix(spec, "workspace:") {
+			identity := name + "@" + workspace.Manifest.Version
+			if parent != "" {
+				if edges[parent] == nil {
+					edges[parent] = map[string]string{}
+				}
+				edges[parent][name] = identity
+				parents[identity] = parent
+			}
+			if _, exists := nodes[identity]; exists {
+				return identity, nil
+			}
+			candidate := workspace.Manifest
+			nodes[identity] = &packageNode{Name: name, Version: candidate.Version, Manifest: candidate, Deps: mergedDependencies(candidate), Source: workspace.Root}
+			edges[identity] = map[string]string{}
+			for dependency, dependencySpec := range mergedDependencies(candidate) {
+				if _, resolveErr := resolve(dependency, dependencySpec, identity); resolveErr != nil {
+					if isOptional(candidate, dependency) {
+						continue
+					}
+					return "", resolveErr
+				}
+			}
+			return identity, nil
+		}
 		if parent != "" {
 			if edge := edges[parent][name]; edge != "" {
 				return edge, nil
@@ -85,7 +126,7 @@ func Install(options InstallOptions) (Lockfile, error) {
 			if options.Offline || options.Frozen {
 				versions = lockedVersions(name, locked)
 			} else {
-				versions, err = options.Registry.FetchPackage(name)
+				versions, err = registry.FetchPackage(name)
 				if err != nil {
 					return "", err
 				}
@@ -145,12 +186,32 @@ func Install(options InstallOptions) (Lockfile, error) {
 			rootEdges[name] = identity
 		}
 	}
+	for {
+		added := false
+		for identity, node := range nodes {
+			for name, spec := range node.Manifest.PeerDependencies {
+				if peerIdentity := peerCandidate(identity, name, edges, parents, rootEdges); peerIdentity != "" {
+					continue
+				}
+				peerIdentity, resolveErr := resolve(name, spec, "")
+				if resolveErr != nil {
+					return Lockfile{}, fmt.Errorf("auto-install peer for %s: %w", identity, resolveErr)
+				}
+				rootEdges[name] = peerIdentity
+				autoPeers[name] = spec
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
 	if err := validatePeerDependencies(nodes, edges, parents, rootEdges); err != nil {
 		return Lockfile{}, err
 	}
-	lock := graphLockfile(nodes, manifest)
+	lock := graphLockfile(nodes, manifest, autoPeers, root)
 	for identity, node := range nodes {
-		if err := materializePackage(store, options.Registry, options.Offline, node.Manifest); err != nil {
+		if err := materializePackage(store, registry, options.Offline, node.Manifest, node.Source); err != nil {
 			if removeOptionalNode(identity, node, nodes, edges, rootEdges, manifest) {
 				continue
 			}
@@ -158,7 +219,7 @@ func Install(options InstallOptions) (Lockfile, error) {
 		}
 	}
 	pruneGraph(nodes, edges, rootEdges)
-	lock = graphLockfile(nodes, manifest)
+	lock = graphLockfile(nodes, manifest, autoPeers, root)
 	if err := commitInstall(root, lockPath, lock, store, nodes, edges, rootEdges); err != nil {
 		return Lockfile{}, err
 	}
@@ -198,16 +259,7 @@ func lockedVersions(name string, lock Lockfile) map[string]PackageManifest {
 func validatePeerDependencies(nodes map[string]*packageNode, edges map[string]map[string]string, parents, rootEdges map[string]string) error {
 	for identity, node := range nodes {
 		for name, spec := range node.Manifest.PeerDependencies {
-			candidate := ""
-			for parent := parents[identity]; parent != ""; parent = parents[parent] {
-				candidate = edges[parent][name]
-				if candidate != "" {
-					break
-				}
-			}
-			if candidate == "" {
-				candidate = rootEdges[name]
-			}
+			candidate := peerCandidate(identity, name, edges, parents, rootEdges)
 			peer := nodes[candidate]
 			if peer == nil {
 				return fmt.Errorf("package %s requires peer %s@%s", identity, name, spec)
@@ -221,20 +273,42 @@ func validatePeerDependencies(nodes map[string]*packageNode, edges map[string]ma
 	return nil
 }
 
-func graphLockfile(nodes map[string]*packageNode, project PackageManifest) Lockfile {
+func peerCandidate(identity, name string, edges map[string]map[string]string, parents, rootEdges map[string]string) string {
+	for parent := parents[identity]; parent != ""; parent = parents[parent] {
+		if candidate := edges[parent][name]; candidate != "" {
+			return candidate
+		}
+	}
+	return rootEdges[name]
+}
+
+func graphLockfile(nodes map[string]*packageNode, project PackageManifest, autoPeers map[string]string, projectRoot string) Lockfile {
 	lock := Lockfile{LockfileVersion: 1, Project: LockfileProject{
 		Dependencies:         cloneStrings(project.Dependencies),
 		OptionalDependencies: cloneStrings(project.OptionalDependencies),
 		PeerDependencies:     cloneStrings(project.PeerDependencies),
+		AutoPeers:            cloneStrings(autoPeers),
 	}, Packages: map[string]LockedPackage{}}
 	for identity, node := range nodes {
 		lock.Packages[identity] = LockedPackage{
 			Version: node.Version, Resolved: node.Manifest.Dist.Tarball, Integrity: node.Manifest.Dist.Integrity,
 			Dependencies: cloneStrings(node.Manifest.Dependencies), OptionalDependencies: cloneStrings(node.Manifest.OptionalDependencies),
 			PeerDependencies: cloneStrings(node.Manifest.PeerDependencies), Bin: node.Manifest.Bin,
+			Workspace: workspaceLockPath(projectRoot, node.Source),
 		}
 	}
 	return lock
+}
+
+func workspaceLockPath(projectRoot, source string) string {
+	if source == "" {
+		return ""
+	}
+	relative, err := filepath.Rel(projectRoot, source)
+	if err != nil {
+		return filepath.ToSlash(source)
+	}
+	return filepath.ToSlash(relative)
 }
 
 func cloneStrings(source map[string]string) map[string]string {
@@ -269,7 +343,10 @@ func equalStrings(left, right map[string]string) bool {
 	return true
 }
 
-func materializePackage(store Store, registry Registry, offline bool, manifest PackageManifest) error {
+func materializePackage(store Store, registry Registry, offline bool, manifest PackageManifest, source string) error {
+	if source != "" {
+		return nil
+	}
 	var archive []byte
 	var err error
 	if offline {
@@ -537,7 +614,10 @@ func linkNode(store Store, nodes map[string]*packageNode, edges map[string]map[s
 	if err := os.RemoveAll(destination); err != nil {
 		return err
 	}
-	source := filepath.Join(store.Root, "packages", node.Name, node.Version)
+	source := node.Source
+	if source == "" {
+		source = filepath.Join(store.Root, "packages", node.Name, node.Version)
+	}
 	if err := linkTree(source, destination); err != nil {
 		return err
 	}
