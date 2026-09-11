@@ -65,9 +65,7 @@ func TestInstallLinksConflictingVersionsUnderTheirParents(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		name := strings.TrimPrefix(request.URL.Path, "/")
-		if strings.HasPrefix(name, "tar/") {
-			name = strings.TrimPrefix(name, "tar/")
-		}
+		name = strings.TrimPrefix(name, "tar/")
 		if strings.HasPrefix(request.URL.Path, "/tar/") {
 			archive, ok := archives[name]
 			if !ok {
