@@ -24,7 +24,29 @@ type PackageManifest struct {
 	DevDependencies      map[string]string `json:"devDependencies,omitempty"`
 	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	Bin                  PackageBin        `json:"bin,omitempty"`
+	Scripts              map[string]string `json:"scripts,omitempty"`
 	Dist                 PackageDist       `json:"dist,omitempty"`
+}
+
+// PackageBin accepts npm's string shorthand and object form.
+type PackageBin map[string]string
+
+func (bin *PackageBin) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*bin = PackageBin{}
+		if single != "" {
+			(*bin)[""] = single
+		}
+		return nil
+	}
+	var multiple map[string]string
+	if err := json.Unmarshal(data, &multiple); err != nil {
+		return fmt.Errorf("invalid bin declaration: %w", err)
+	}
+	*bin = PackageBin(multiple)
+	return nil
 }
 
 // PackageDist is the registry distribution metadata needed for installation.
@@ -68,6 +90,16 @@ func loadManifest(path string, requireName bool) (PackageManifest, error) {
 			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid dependency %q", path, name)
 		}
 	}
+	for name, spec := range manifest.OptionalDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid optional dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.PeerDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid peer dependency %q", path, name)
+		}
+	}
 	return manifest, nil
 }
 
@@ -85,6 +117,16 @@ func ValidateManifest(manifest PackageManifest, path string) error {
 	for name, spec := range manifest.Dependencies {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
 			return fmt.Errorf("package manifest %q: invalid dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.OptionalDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return fmt.Errorf("package manifest %q: invalid optional dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.PeerDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return fmt.Errorf("package manifest %q: invalid peer dependency %q", path, name)
 		}
 	}
 	return nil

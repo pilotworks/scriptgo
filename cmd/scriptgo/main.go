@@ -87,6 +87,7 @@ func handleInstall(args []string) {
 	lockfile := fs.String("lockfile", "", "lockfile path (default: <project>/scriptgo-lock.json)")
 	store := fs.String("store", "", "content store path (default: <project>/.scriptgo/store)")
 	registry := fs.String("registry", "", "npm-compatible registry URL")
+	token := fs.String("registry-token", "", "registry bearer token (default: SCRIPTGO_NPM_TOKEN or NPM_TOKEN)")
 	offline := fs.Bool("offline", false, "install only from the existing lockfile and content store")
 	frozen := fs.Bool("frozen", false, "use exact versions and metadata from the existing lockfile")
 	if err := fs.Parse(args); err != nil {
@@ -105,7 +106,7 @@ func handleInstall(args []string) {
 		Manifest:    *manifest,
 		Lockfile:    *lockfile,
 		StoreRoot:   *store,
-		Registry:    pkgmgr.Registry{BaseURL: *registry},
+		Registry:    pkgmgr.Registry{BaseURL: *registry, Token: *token},
 		Offline:     *offline,
 		Frozen:      *frozen,
 	})
@@ -123,7 +124,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "-O" || arg == "-lto" || arg == "--lto") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "--registry-token" || arg == "-O" || arg == "-lto" || arg == "--lto") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -176,6 +177,7 @@ func handleRun(args []string) {
 	offline := fs.Bool("offline", false, "use only the lockfile and cached packages with --install")
 	frozen := fs.Bool("frozen", false, "use exact lockfile metadata with --install")
 	registry := fs.String("registry", "", "npm-compatible registry URL with --install")
+	token := fs.String("registry-token", "", "registry bearer token with --install")
 	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
@@ -245,7 +247,7 @@ func handleRun(args []string) {
 		printError(fmt.Errorf("--install cannot be used with -e"))
 		os.Exit(1)
 	}
-	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, StoreRoot: *store}); err != nil {
+	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, Token: *token, StoreRoot: *store}); err != nil {
 		printError(err)
 		os.Exit(1)
 	}
@@ -296,6 +298,7 @@ func handleBuild(args []string) {
 	offline := fs.Bool("offline", false, "use only the lockfile and cached packages with --install")
 	frozen := fs.Bool("frozen", false, "use exact lockfile metadata with --install")
 	registry := fs.String("registry", "", "npm-compatible registry URL with --install")
+	token := fs.String("registry-token", "", "registry bearer token with --install")
 	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
@@ -381,7 +384,7 @@ func handleBuild(args []string) {
 		printError(fmt.Errorf("--install cannot be used with -e"))
 		os.Exit(1)
 	}
-	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, StoreRoot: *store}); err != nil {
+	if err := installForEntry(entryPath, packageInstallFlags{Install: *install, Offline: *offline, Frozen: *frozen, Registry: *registry, Token: *token, StoreRoot: *store}); err != nil {
 		printError(err)
 		os.Exit(1)
 	}

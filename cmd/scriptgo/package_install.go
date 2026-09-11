@@ -12,6 +12,7 @@ type packageInstallFlags struct {
 	Offline   bool
 	Frozen    bool
 	Registry  string
+	Token     string
 	StoreRoot string
 }
 
@@ -29,7 +30,7 @@ func installForEntry(entryPath string, flags packageInstallFlags) error {
 	if _, err := pkgmgr.Install(pkgmgr.InstallOptions{
 		ProjectRoot: root,
 		StoreRoot:   flags.StoreRoot,
-		Registry:    pkgmgr.Registry{BaseURL: flags.Registry},
+		Registry:    pkgmgr.Registry{BaseURL: flags.Registry, Token: flags.Token},
 		Offline:     flags.Offline,
 		Frozen:      flags.Frozen,
 	}); err != nil {

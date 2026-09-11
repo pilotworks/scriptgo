@@ -229,6 +229,17 @@ package lifecycle scripts.
 `--frozen` available for reproducible local builds. Without `--install`, these
 commands retain their previous behavior and never contact a registry.
 
+#### 8E: Production Install Contracts (Completed)
+
+`scriptgo install` now validates root dependency metadata in frozen mode,
+preserves optional/peer/bin metadata in lockfile v1, supports bearer registry
+authentication, rejects unsafe or oversized archive entries, and stages the
+lockfile plus `node_modules` projection before committing them atomically.
+Optional dependency failures remain non-fatal; required dependency failures and
+peer conflicts are reported without mutating the existing project projection.
+Lifecycle scripts and native addons remain explicitly unsupported and are never
+executed.
+
 ### Node.js And npm Compatibility Track
 
 This track is the long-term product direction. It must be implemented in

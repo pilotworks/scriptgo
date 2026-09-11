@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -14,6 +15,7 @@ import (
 type Registry struct {
 	BaseURL string
 	Client  *http.Client
+	Token   string
 }
 
 func (r Registry) endpoint(name string) (string, error) {
@@ -57,6 +59,7 @@ func (r Registry) getJSON(endpoint string, target any) error {
 		return err
 	}
 	request.Header.Set("Accept", "application/vnd.npm.install-v1+json, application/json")
+	r.authorize(request)
 	response, err := client.Do(request)
 	if err != nil {
 		return err
@@ -76,7 +79,12 @@ func (r Registry) download(endpoint string) ([]byte, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	response, err := client.Get(endpoint)
+	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.authorize(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -89,4 +97,17 @@ func (r Registry) download(endpoint string) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (r Registry) authorize(request *http.Request) {
+	token := strings.TrimSpace(r.Token)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("SCRIPTGO_NPM_TOKEN"))
+	}
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("NPM_TOKEN"))
+	}
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
 }
