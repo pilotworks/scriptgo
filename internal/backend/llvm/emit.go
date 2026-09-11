@@ -177,6 +177,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		out.WriteString("declare i32 @scriptgo_dynamic_register_module(ptr, ptr, ptr, ptr)\n")
 		out.WriteString("declare i32 @scriptgo_dynamic_register_dependency(ptr, ptr, ptr)\n")
 		out.WriteString("declare i32 @scriptgo_dynamic_call_module(ptr, ptr, ptr, i32, i32, i32, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_invoke_function(ptr, ptr, i32, ptr, ptr, ptr, ptr, i32, ptr)\n")
 		out.WriteString("declare void @scriptgo_dynamic_abort_if_failed(i32)\n")
 	}
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")

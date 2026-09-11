@@ -52,14 +52,22 @@ func (e *functionEmitter) emitDynamicFieldGet(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_get(ptr %s, ptr %%%s, ptr %%%s)\n", status, object, property, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
-	case ir.TypeUnknown:
+	case ir.TypeUnknown, ir.TypeDynamicFunction:
 		valueSlot := instruction.Result + ".dynamic.value.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", valueSlot)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %%%s, ptr %%%s)\n", status, object, property, valueSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, valueSlot)
+		if instruction.Type == ir.TypeUnknown {
+			fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, valueSlot)
+		} else {
+			loaded := instruction.Result + ".dynamic.value"
+			fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, valueSlot)
+			payload := instruction.Result + ".dynamic.handle"
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payload, loaded)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", instruction.Result, payload)
+		}
 	default:
 		slot := instruction.Result + ".dynamic.ptr.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

@@ -118,20 +118,22 @@ type Parameter struct {
 type Type string
 
 const (
-	TypeVoid              Type = "void"
-	TypeBool              Type = "bool"
-	TypeNumber            Type = "number"
-	TypeBigInt            Type = "bigint"
-	TypeSymbol            Type = "symbol"
-	TypeString            Type = "string"
-	TypeNumberArray       Type = "number[]"
-	TypeStringArray       Type = "string[]"
-	TypeBoolArray         Type = "bool[]"
-	TypeBigIntArray       Type = "bigint[]"
-	TypeSymbolArray       Type = "symbol[]"
-	TypeUnknownArray      Type = "unknown[]"
-	TypeObject            Type = "object"
-	TypeClosure           Type = "closure"
+	TypeVoid         Type = "void"
+	TypeBool         Type = "bool"
+	TypeNumber       Type = "number"
+	TypeBigInt       Type = "bigint"
+	TypeSymbol       Type = "symbol"
+	TypeString       Type = "string"
+	TypeNumberArray  Type = "number[]"
+	TypeStringArray  Type = "string[]"
+	TypeBoolArray    Type = "bool[]"
+	TypeBigIntArray  Type = "bigint[]"
+	TypeSymbolArray  Type = "symbol[]"
+	TypeUnknownArray Type = "unknown[]"
+	TypeObject       Type = "object"
+	TypeClosure      Type = "closure"
+	// TypeDynamicFunction is an engine-owned callable, distinct from a native closure.
+	TypeDynamicFunction   Type = "dynamic_function"
 	TypeUnknown           Type = "unknown"
 	TypeUint8Array        Type = "Uint8Array"
 	TypeInt8Array         Type = "Int8Array"
@@ -170,50 +172,53 @@ type Instruction struct {
 	// RuntimeTypeOf requests a runtime nullish check for pointer-backed values.
 	RuntimeTypeOf bool
 	FieldCount    int
-	Args          []string
-	Span          SourceSpan
-	Then          []Instruction
-	Else          []Instruction
-	Cond          []Instruction
-	Body          []Instruction
-	Step          []Instruction
-	CatchVar      string
-	Catch         []Instruction
-	Finally       []Instruction
+	// This is the receiver for a Dynamic function call; empty means undefined.
+	This     string
+	Args     []string
+	Span     SourceSpan
+	Then     []Instruction
+	Else     []Instruction
+	Cond     []Instruction
+	Body     []Instruction
+	Step     []Instruction
+	CatchVar string
+	Catch    []Instruction
+	Finally  []Instruction
 }
 
 const (
-	OpConst       = "const"
-	OpBinary      = "binary"
-	OpCompare     = "compare"
-	OpSelect      = "select"
-	OpCall        = "call"
-	OpExternCall  = "extern.call"
-	OpPrint       = "print"
-	OpParam       = "param"
-	OpReturn      = "return"
-	OpArray       = "array"
-	OpIndex       = "index"
-	OpIndexSet    = "index.set"
-	OpObjectNew   = "object.new"
-	OpFieldGet    = "field.get"
-	OpFieldSet    = "field.set"
-	OpIf          = "if"
-	OpWhile       = "while"
-	OpDoWhile     = "dowhile"
-	OpBreak       = "break"
-	OpContinue    = "continue"
-	OpAssign      = "assign"
-	OpThrow       = "throw"
-	OpTry         = "try"
-	OpClosure     = "closure"
-	OpClosureCall = "closure.call"
-	OpInstanceOf  = "instanceof"
-	OpBoxUnknown  = "box.unknown"
-	OpCheckedCast = "checked_cast"
-	OpTypeOf      = "typeof"
-	OpDebugger    = "debugger"
-	OpDynamicCall = "dynamic.call"
+	OpConst               = "const"
+	OpBinary              = "binary"
+	OpCompare             = "compare"
+	OpSelect              = "select"
+	OpCall                = "call"
+	OpExternCall          = "extern.call"
+	OpPrint               = "print"
+	OpParam               = "param"
+	OpReturn              = "return"
+	OpArray               = "array"
+	OpIndex               = "index"
+	OpIndexSet            = "index.set"
+	OpObjectNew           = "object.new"
+	OpFieldGet            = "field.get"
+	OpFieldSet            = "field.set"
+	OpIf                  = "if"
+	OpWhile               = "while"
+	OpDoWhile             = "dowhile"
+	OpBreak               = "break"
+	OpContinue            = "continue"
+	OpAssign              = "assign"
+	OpThrow               = "throw"
+	OpTry                 = "try"
+	OpClosure             = "closure"
+	OpClosureCall         = "closure.call"
+	OpInstanceOf          = "instanceof"
+	OpBoxUnknown          = "box.unknown"
+	OpCheckedCast         = "checked_cast"
+	OpTypeOf              = "typeof"
+	OpDebugger            = "debugger"
+	OpDynamicCall         = "dynamic.call"
+	OpDynamicFunctionCall = "dynamic.function.call"
 )
 
 const (

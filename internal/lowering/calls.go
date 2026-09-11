@@ -24,6 +24,9 @@ func lowerCallExpression(
 				result = nextTemp(counter)
 			}
 			returnType := toIRType(expression.InferredType)
+			if strings.Contains(expression.InferredType, "=>") {
+				returnType = ir.TypeDynamicFunction
+			}
 			if returnType == "" || returnType == ir.TypeVoid {
 				returnType = ir.TypeUnknown
 			}
@@ -40,6 +43,9 @@ func lowerCallExpression(
 				Callee: dynamic.Path + "#" + dynamic.Export, Args: args,
 				Field: dynamic.Export, FieldIndex: dynamic.Arity, Span: toIRSpan(path, expression.Span),
 			})
+			if strings.HasPrefix(string(returnType), "object:") || returnType == ir.TypeObject {
+				env[result+".dynamic"] = ir.Type("true")
+			}
 			return result, returnType, nil
 		}
 	}
@@ -511,7 +517,7 @@ func lowerCallExpression(
 						if methodName == "valueOf" {
 							return receiver, receiverType, nil
 						}
-						propVal, _, err := lowerPropertyExpression(path, &typescriptgo.SyntaxExpression{
+						propVal, propType, err := lowerPropertyExpression(path, &typescriptgo.SyntaxExpression{
 							Span:         expression.Left.Span,
 							Kind:         "property",
 							Left:         expression.Left.Left,
@@ -534,14 +540,20 @@ func lowerCallExpression(
 							if expression.InferredType != "" {
 								retType = toIRType(expression.InferredType)
 							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpClosureCall,
-								Type:   retType,
-								Result: result,
-								Callee: propVal,
-								Args:   args,
-								Span:   toIRSpan(path, expression.Span),
-							})
+							op := ir.OpClosureCall
+							if propType == ir.TypeDynamicFunction {
+								op = ir.OpDynamicFunctionCall
+							}
+							instruction := ir.Instruction{
+								Op: op, Type: retType, Result: result, Callee: propVal,
+								Args: append([]string{propVal}, args...), This: receiver,
+								Span: toIRSpan(path, expression.Span),
+							}
+							if op == ir.OpClosureCall {
+								instruction.Args = args
+								instruction.This = ""
+							}
+							function.Body = append(function.Body, instruction)
 							return result, retType, nil
 						}
 					}
@@ -870,7 +882,7 @@ func lowerCallExpression(
 		}
 		if !isModuleFunc {
 			closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
-			if err == nil && (closureType == ir.TypeClosure || closureType == "Function" || closureType == "function" || strings.Contains(string(closureType), "=>")) {
+			if err == nil && (closureType == ir.TypeDynamicFunction || closureType == ir.TypeClosure || closureType == "Function" || closureType == "function" || strings.Contains(string(closureType), "=>")) {
 				args := make([]string, 0, len(expression.Arguments))
 				for _, argument := range expression.Arguments {
 					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -895,13 +907,27 @@ func lowerCallExpression(
 						retType = parsed
 					}
 				}
+				op := ir.OpClosureCall
+				if closureType == ir.TypeDynamicFunction {
+					receiver, receiverType, receiverErr := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+					if receiverErr != nil {
+						return "", "", receiverErr
+					}
+					if receiverType == ir.TypeUnknown {
+						// Keep the boxed receiver available for the ABI call.
+					} else if receiver == "" {
+						return "", "", fmt.Errorf("dynamic method receiver is empty")
+					}
+					function.Body = append(function.Body, ir.Instruction{
+						Op: ir.OpDynamicFunctionCall, Type: retType, Result: result,
+						Callee: closureVal, This: receiver, Args: append([]string{closureVal}, args...),
+						Span: toIRSpan(path, expression.Span),
+					})
+					return result, retType, nil
+				}
 				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpClosureCall,
-					Type:   retType,
-					Result: result,
-					Callee: closureVal,
-					Args:   args,
-					Span:   toIRSpan(path, expression.Span),
+					Op: op, Type: retType, Result: result, Callee: closureVal, Args: args,
+					Span: toIRSpan(path, expression.Span),
 				})
 				return result, retType, nil
 			}
@@ -955,6 +981,29 @@ func lowerCallExpression(
 
 	calleeIsClosure := false
 	calleeType, hasCalleeType := env[callee]
+	if hasCalleeType && calleeType == ir.TypeDynamicFunction {
+		args := make([]string, 0, len(expression.Arguments)+1)
+		args = append(args, callee)
+		for _, argument := range expression.Arguments {
+			value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			args = append(args, value)
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		retType := toIRType(expression.InferredType)
+		if retType == "" {
+			retType = ir.TypeUnknown
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpDynamicFunctionCall, Type: retType, Result: result,
+			Callee: callee, Args: args, Span: toIRSpan(path, expression.Span),
+		})
+		return result, retType, nil
+	}
 	if hasCalleeType && (calleeType == ir.TypeClosure || calleeType == ir.TypeUnknown || calleeType == ir.TypeObject || calleeType == "Function" || calleeType == "function" || strings.Contains(string(calleeType), "=>")) {
 		calleeIsClosure = true
 	} else if topVar, isTop := topLevelVars[callee]; isTop && ((topVar.Expression != nil && (topVar.Expression.Kind == "arrow_function" || topVar.Expression.Kind == "function")) || strings.Contains(topVar.Type, "=>") || strings.Contains(topVar.InferredType, "=>")) {

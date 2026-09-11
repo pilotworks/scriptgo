@@ -20,7 +20,7 @@ func moduleHasDynamic(module ir.Module) bool {
 
 func hasDynamicInstruction(list []ir.Instruction) bool {
 	for _, instruction := range list {
-		if instruction.Op == ir.OpDynamicCall || hasDynamicInstruction(instruction.Then) || hasDynamicInstruction(instruction.Else) || hasDynamicInstruction(instruction.Body) || hasDynamicInstruction(instruction.Catch) || hasDynamicInstruction(instruction.Finally) {
+		if instruction.Op == ir.OpDynamicCall || instruction.Op == ir.OpDynamicFunctionCall || hasDynamicInstruction(instruction.Then) || hasDynamicInstruction(instruction.Else) || hasDynamicInstruction(instruction.Body) || hasDynamicInstruction(instruction.Catch) || hasDynamicInstruction(instruction.Finally) {
 			return true
 		}
 	}
@@ -100,6 +100,57 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 	return nil
 }
 
+func (e *functionEmitter) emitDynamicFunctionCall(out *strings.Builder, instruction ir.Instruction) error {
+	if len(instruction.Args) == 0 || len(instruction.Args) > 5 {
+		return fmt.Errorf("dynamic function call supports one callable and up to four arguments")
+	}
+	callable := e.resolveArg(out, instruction.Args[0])
+	if e.types[instruction.Args[0]] == ir.TypeUnknown {
+		payload := fmt.Sprintf("dynamic.function.handle.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = extractvalue %s %%%s, 2\n", payload, boxedLLVMType, callable))
+		callable = fmt.Sprintf("dynamic.function.handle.ptr.%d", e.loadCounter)
+		e.loadCounter++
+		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", callable, payload))
+	}
+	pointers := []string{"ptr null", "ptr null", "ptr null", "ptr null"}
+	for i, arg := range instruction.Args[1:] {
+		argType := e.types[arg]
+		pointer, err := e.emitCanonicalValuePointer(out, arg, argType, fmt.Sprintf("dynamic.function.arg.%d", i))
+		if err != nil {
+			return err
+		}
+		pointers[i] = "ptr " + pointer
+	}
+	thisPointer := e.dynamicUndefinedValuePointer(out)
+	if instruction.This != "" {
+		var err error
+		thisPointer, err = e.emitCanonicalValuePointer(out, instruction.This, e.types[instruction.This], "dynamic.function.this")
+		if err != nil {
+			return err
+		}
+	}
+	outSlot := fmt.Sprintf("dynamic.function.out.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", outSlot, boxedLLVMType))
+	status := fmt.Sprintf("dynamic.function.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_dynamic_invoke_function(ptr %%%s, ptr %s, i32 %d, %s, i32 %d, ptr %%%s)\n", status, callable, thisPointer, len(instruction.Args)-1, strings.Join(pointers, ", "), dynamicResultTag(instruction.Type), outSlot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", status))
+	boxed := fmt.Sprintf("dynamic.function.result.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", boxed, boxedLLVMType, outSlot))
+	return e.emitDynamicResult(out, instruction.Type, boxed, instruction.Result)
+}
+
+func (e *functionEmitter) dynamicUndefinedValuePointer(out *strings.Builder) string {
+	slot := fmt.Sprintf("dynamic.function.undefined.this.%d", e.loadCounter)
+	e.loadCounter++
+	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slot, boxedLLVMType))
+	out.WriteString(fmt.Sprintf("  store %s { i32 0, i32 0, i64 0, i64 0 }, ptr %%%s\n", boxedLLVMType, slot))
+	return "%" + slot
+}
+
 func (e *functionEmitter) emitDynamicModuleRegistry(out *strings.Builder) error {
 	for _, module := range e.module.DynamicModules {
 		pathGlobal, pathOK := e.stringsByValue[module.Path]
@@ -142,6 +193,8 @@ func dynamicResultTag(typ ir.Type) int {
 		return 3
 	case ir.TypeString:
 		return 4
+	case ir.TypeDynamicFunction:
+		return 7
 	case ir.TypePointer:
 		return 1
 	case ir.TypeObject:
@@ -183,6 +236,11 @@ func (e *functionEmitter) emitDynamicResult(out *strings.Builder, typ ir.Type, b
 		fmt.Fprintf(out, "  %%%s = trunc i64 %%%s to i1\n", result, payload)
 	case ir.TypeString, ir.TypePointer:
 		payload := fmt.Sprintf("dynamic.ptr.payload.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = extractvalue %s %%%s, 2\n", payload, boxedLLVMType, boxed)
+		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", result, payload)
+	case ir.TypeDynamicFunction:
+		payload := fmt.Sprintf("dynamic.function.payload.%d", e.loadCounter)
 		e.loadCounter++
 		fmt.Fprintf(out, "  %%%s = extractvalue %s %%%s, 2\n", payload, boxedLLVMType, boxed)
 		fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", result, payload)

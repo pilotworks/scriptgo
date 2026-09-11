@@ -627,7 +627,7 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 	default:
 		if strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray {
 			tag = 6 // SCRIPTGO_TAG_ARRAY
-		} else if argType == ir.TypeClosure {
+		} else if argType == ir.TypeClosure || argType == ir.TypeDynamicFunction {
 			tag = 7 // SCRIPTGO_TAG_FUNCTION
 		} else {
 			tag = 5 // SCRIPTGO_TAG_OBJECT

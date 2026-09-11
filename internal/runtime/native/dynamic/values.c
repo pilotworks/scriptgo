@@ -1,4 +1,88 @@
 /* Boxed-value conversion concatenated after the Dynamic runtime registry. */
+int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count,
+                                  const scriptgo_value *a1, const scriptgo_value *a2,
+                                  const scriptgo_value *a3, const scriptgo_value *a4,
+                                  scriptgo_value *out_value);
+int scriptgo_dynamic_adopt_function(JSValue value, scriptgo_value *out);
+int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueConst this_val,
+                                    int argc, JSValueConst *argv, JSValue *out);
+
+static JSValue scriptgo_dynamic_native_closure(JSContext *ctx, JSValueConst this_val,
+                                                int argc, JSValueConst *argv,
+                                                int magic, JSValueConst *func_data);
+static JSValue scriptgo_dynamic_engine_closure(JSContext *ctx, JSValueConst this_val,
+                                               int argc, JSValueConst *argv,
+                                               int magic, JSValueConst *func_data);
+
+static int scriptgo_dynamic_native_function_to_js(JSContext *ctx, const scriptgo_value *value, JSValue *out) {
+    JSValue data[1];
+    int64_t handle;
+    if (value == NULL || out == NULL || value->payload == 0) return -1;
+    handle = (int64_t)(intptr_t)value->payload;
+    data[0] = JS_NewInt64(ctx, handle);
+    *out = JS_NewCFunctionData(ctx, scriptgo_dynamic_native_closure, 4, 0, 1, data);
+    JS_FreeValue(ctx, data[0]);
+    return JS_IsException(*out) ? -1 : 0;
+}
+
+static int scriptgo_dynamic_engine_function_to_js(JSContext *ctx, const scriptgo_value *value, JSValue *out) {
+    JSValue data[1];
+    int64_t handle;
+    if (value == NULL || out == NULL || value->payload == 0) return -1;
+    handle = (int64_t)(intptr_t)value->payload;
+    data[0] = JS_NewInt64(ctx, handle);
+    *out = JS_NewCFunctionData(ctx, scriptgo_dynamic_engine_closure, 4, 0, 1, data);
+    JS_FreeValue(ctx, data[0]);
+    return JS_IsException(*out) ? -1 : 0;
+}
+
+static JSValue scriptgo_dynamic_native_closure(JSContext *ctx, JSValueConst this_val,
+                                                int argc, JSValueConst *argv,
+                                                int magic, JSValueConst *func_data) {
+    scriptgo_value arguments[4] = {{0}};
+    scriptgo_value result = {0};
+    JSValue result_value;
+    int64_t handle;
+    int i;
+    (void)this_val;
+    (void)magic;
+    if (argc > 4 || JS_ToInt64(ctx, &handle, func_data[0]) < 0)
+        return JS_ThrowTypeError(ctx, "SG5002: callback arity exceeds native limit");
+    for (i = 0; i < argc; i++) {
+        if (scriptgo_dynamic_from_js(ctx, argv[i], &arguments[i]) != 0) {
+            while (i > 0) scriptgo_value_release(&arguments[--i]);
+            return JS_ThrowTypeError(ctx, "SG5002: callback argument is outside the native boundary");
+        }
+    }
+    if (scriptgo_closure_invoke_value((void *)(intptr_t)handle, argc,
+                                      argc > 0 ? &arguments[0] : NULL,
+                                      argc > 1 ? &arguments[1] : NULL,
+                                      argc > 2 ? &arguments[2] : NULL,
+                                      argc > 3 ? &arguments[3] : NULL, &result) != 0) {
+        for (i = 0; i < argc; i++) scriptgo_value_release(&arguments[i]);
+        return JS_ThrowInternalError(ctx, "Dynamic native callback failed");
+    }
+    for (i = 0; i < argc; i++) scriptgo_value_release(&arguments[i]);
+    if (scriptgo_dynamic_to_js(ctx, &result, &result_value) != 0) {
+        scriptgo_value_release(&result);
+        return JS_ThrowTypeError(ctx, "SG5003: callback result is outside the native boundary");
+    }
+    scriptgo_value_release(&result);
+    return result_value;
+}
+
+static JSValue scriptgo_dynamic_engine_closure(JSContext *ctx, JSValueConst this_val,
+                                               int argc, JSValueConst *argv,
+                                               int magic, JSValueConst *func_data) {
+    int64_t handle;
+    JSValue result = JS_UNDEFINED;
+    if (argc > 4 || JS_ToInt64(ctx, &handle, func_data[0]) < 0)
+        return JS_ThrowTypeError(ctx, "SG5002: callback arity exceeds native limit");
+    if (scriptgo_dynamic_engine_call_js((uint64_t)handle, ctx, this_val, argc, argv, &result) != 0)
+        return JS_ThrowInternalError(ctx, "Dynamic function call failed");
+    return result;
+}
+
 static int scriptgo_dynamic_object_to_js(JSContext *ctx, const scriptgo_value *value, JSValue *out) {
     void *keys = NULL;
     int64_t length = 0;
@@ -31,7 +115,10 @@ static int scriptgo_dynamic_object_to_js(JSContext *ctx, const scriptgo_value *v
             scriptgo_array_release(keys);
             return -1;
         }
-        scriptgo_value_release(&field);
+        // Engine-backed functions are captured by the QuickJS adapter. Keep
+        // their engine reference alive until Dynamic runtime teardown.
+        if ((field.flags & SCRIPTGO_VALUE_ENGINE_REF) == 0)
+            scriptgo_value_release(&field);
     }
     scriptgo_array_release(keys);
     *out = object;
@@ -81,6 +168,10 @@ static int scriptgo_dynamic_to_js(JSContext *ctx, const scriptgo_value *value, J
         return scriptgo_dynamic_object_to_js(ctx, value, out);
     case SCRIPTGO_TAG_ARRAY:
         return scriptgo_dynamic_array_to_js(ctx, value, out);
+    case SCRIPTGO_TAG_FUNCTION:
+        if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0)
+            return scriptgo_dynamic_engine_function_to_js(ctx, value, out);
+        return scriptgo_dynamic_native_function_to_js(ctx, value, out);
     default: return -1;
     }
 }
@@ -112,7 +203,7 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
         out->tag = SCRIPTGO_TAG_STRING; out->flags = SCRIPTGO_VALUE_OWNED;
         out->payload = (uint64_t)(uintptr_t)copy; out->aux = (uint64_t)length; return 0;
     }
-    if (JS_IsFunction(ctx, value)) return -1;
+    if (JS_IsFunction(ctx, value)) return scriptgo_dynamic_adopt_function(value, out);
     if (JS_IsArray(value)) {
         int64_t array_length;
         void *array = NULL;

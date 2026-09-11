@@ -391,6 +391,10 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if err != nil {
 			return err
 		}
+		if env[value+".dynamic"] != "" {
+			env[varResultName+".dynamic"] = env[value+".dynamic"]
+			env[statement.Name+".dynamic"] = env[value+".dynamic"]
+		}
 		if declaredType != "" && valType == ir.TypeUnknown && declaredType != ir.TypeUnknown && !isOptionalChainExpr(statement.Expression) {
 			if value == varResultName && statement.Expression.Kind != "conditional" {
 				tempVal := nextTemp(counter)
@@ -413,7 +417,11 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		typ := valType
 		if declaredType != "" && declaredType != ir.TypeUnknown {
-			if !(strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(declaredType), "object:") && !strings.Contains(string(declaredType), "shape_") && !strings.Contains(string(declaredType), "{")) {
+			if valType == ir.TypeDynamicFunction && declaredType == ir.TypeClosure {
+				// Keep an engine function handle distinct from native closures even
+				// when TypeScript declares the variable with a function signature.
+				typ = ir.TypeDynamicFunction
+			} else if !(strings.HasPrefix(string(valType), "object:") && strings.HasPrefix(string(declaredType), "object:") && !strings.Contains(string(declaredType), "shape_") && !strings.Contains(string(declaredType), "{")) {
 				typ = declaredType
 			}
 		}

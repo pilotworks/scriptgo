@@ -851,6 +851,9 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			continue
 		}
 		fType := field.Type
+		if fType == ir.TypeClosure && env[object+".dynamic"] != "" {
+			fType = ir.TypeDynamicFunction
+		}
 		if field.Optional {
 			fType = ir.TypeUnknown
 		}
