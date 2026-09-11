@@ -183,12 +183,15 @@ semantic gaps behind native code generation.
 - [x] Add `--dynamic`, disabled by default, and record the selected compatibility mode in build metadata.
 - [x] Embed QuickJS-ng only for Dynamic builds with executable Dynamic sites; static binaries do not link a JavaScript engine.
 - [x] Define and test the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
-- [ ] Resolve eligible JavaScript/npm dependencies into explicit Dynamic islands.
+- [x] Resolve eligible JavaScript/npm dependencies into explicit Dynamic islands.
   The first local `node_modules` slice now uses TypeScript-Go package resolution
   and bundles closed ESM/CommonJS module graphs. The runtime preserves module
   identity, initialization-once state, relative/package dependency edges,
   named re-exports, CommonJS `require`, and ESM/CommonJS interop. Registry
-  fetching, lockfiles, and package lifecycle behavior remain deferred.
+  fetching, deterministic dependency installation, SRI verification, local
+  content-addressed storage, hardlink projection, and lockfile-driven offline
+  installs are now implemented by `scriptgo install`. Lifecycle scripts remain
+  deferred and are never executed by the installer.
 - [x] Define the offline package metadata contract: validated local manifests,
   deterministic `exports`/`module`/`main` entry resolution, and lockfile v1
   read/write support in `internal/pkgmgr`.
@@ -205,6 +208,11 @@ Currently, 34 core modules are available (backed by C runtime intrinsics or pure
 - **Verified / Substantially Supported Modules:** `assert`, `console`, `sqlite`, `webstreams`, `path`, `punycode`, `querystring`, `string_decoder`, `domain`, `tls` (OpenSSL), `events`, `buffer`, `os`, `crypto` (OpenSSL core), `fs` (core sync/promises), etc.
 - **Explicitly Unsupported / Deferred Modules:** `http2`, `test`, `v8`, `worker_threads`, `cluster`, `readline`, `https`, `inspector`, `tty`, `repl`, `tracing`, `sea`, `wasi`, `permissions`.
 - **Audit & Parity Tracking:** Tracked continuously via `internal/audit` against Node.js v22 LTS specs and documented in [`docs/typescript-parity-report.md`](typescript-parity-report.md).
+
+The package installation slice intentionally supports production dependencies
+and deterministic lockfile installs only. Peer/optional dependency semantics,
+registry authentication, binary shims, and lifecycle scripts remain follow-up
+work.
 
 ### Node.js And npm Compatibility Track
 

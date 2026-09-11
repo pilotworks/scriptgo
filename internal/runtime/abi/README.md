@@ -115,6 +115,15 @@ CommonJS modules initialize once and preserve module state. The runtime loads
 only registered canonical module IDs and resolved dependency edges; it does
 not implement Node or TypeScript package resolution.
 
+Native closures passed as Dynamic arguments are adapted to QuickJS callable
+objects for the duration of the Dynamic call. Their arguments and result cross
+the same boxed v1 boundary, with a maximum of four arguments. The adapter does
+not expose a raw QuickJS pointer or retain a native closure beyond its owning
+native value. Dynamic functions returned as results use a distinct engine-handle
+IR type and call path, with bounded synchronous invocation through the same
+boxed boundary. Method calls preserve their object receiver as `this`; async
+function handles remain outside this bridge.
+
 ### Value representations
 
 | ABI v1 value | Representation | Validity and ownership |

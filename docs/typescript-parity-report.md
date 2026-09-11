@@ -309,7 +309,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | TypeScript Feature | Current Status in ScriptGo | Detailed Description & Impact |
 | :--- | :---: | :--- |
-| **Dynamic `any`** | ⚠️ Bounded executable slice | Static mode rejects `any` with `SG1001`; `--dynamic` maps bounded local values, parameters, returns, boxed property reads, array indexing, and aliases of local JavaScript imports to the existing boxed ABI. Arbitrary runtime function handles remain outside this slice. |
+| **Dynamic `any`** | ⚠️ Bounded executable slice | Static mode rejects `any` with `SG1001`; `--dynamic` maps bounded local values, parameters, returns, boxed property reads, array indexing, aliases of local JavaScript imports, returned synchronous function handles, and method receivers to the existing boxed ABI. Async handles and unrestricted runtime values remain outside this slice. |
 | **`bigint`** | ✅ Full | 64-bit integer type (`100n`, `BigInt(...)`, arithmetic, bitwise, comparison operators, `.toString()`). |
 | **`symbol`** | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known symbols (`Symbol.iterator`), `.description`, `.toString()`. |
 | **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `search`, `replace` via POSIX regex runtime. |
@@ -339,9 +339,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 
 | Ecosystem Feature | Current Status in ScriptGo | Target Roadmap |
 | :--- | :---: | :--- |
-| **NPM Packages (`node_modules`)** | ⚠️ Local graph slice | With `--dynamic`, TypeScript-Go resolves local package entry points and their reachable ESM/CommonJS dependencies. ScriptGo bundles the closed graph with canonical identities, initialization-once semantics, and persistent module state. Registry fetching, lockfiles, and lifecycle scripts remain unsupported. |
+| **NPM Packages (`node_modules`)** | ⚠️ Installable Dynamic slice | `scriptgo install` resolves production dependencies from an npm-compatible registry, selects deterministic SemVer versions, verifies SHA-512 SRI tarballs, caches immutable content, writes `scriptgo-lock.json`, and hardlinks an isolated nested `node_modules` graph. Conflicting versions and optional dependencies are supported; basic peer validation is supported. Peer auto-install/metadata, registry auth, bins, and lifecycle scripts remain unsupported. |
 | **CommonJS (`require` / `module.exports`)** | ⚠️ Synchronous graph slice | Local packages support dependency-resolved `require`, `exports.foo`, `module.exports`, named/default ESM imports of CommonJS, and synchronous CommonJS-to-ESM namespace access. Unresolved runtime-generated specifiers and lifecycle behavior remain unsupported. |
-| **Dynamic compatibility (`--dynamic`)** | 🚧 Executable graph | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, and ESM/CommonJS graph execution are implemented. Registry resolution, arbitrary function handles, async modules, and Node service adapters remain pending. |
+| **Dynamic compatibility (`--dynamic`)** | 🚧 Executable graph | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, ESM/CommonJS graph execution, native closure callbacks passed into Dynamic functions, bounded synchronous Dynamic function handles returned to native code, and receiver-preserving method calls are implemented. Async modules, async handles, and Node service adapters remain pending. |
 
 ---
 
@@ -430,9 +430,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | Track | Status | Roadmap Alignment |
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
-| npm and Node package resolution | ⚠️ Local graph slice | TypeScript-Go resolves local `node_modules` package entry points and reachable ESM/CommonJS edges; ScriptGo bundles and caches the closed graph. Registry/CAS/lockfile installation remains planned. |
+| npm and Node package resolution | ⚠️ Installable Dynamic slice | `scriptgo install` provides registry metadata/tarball resolution, SemVer selection, conflicting-version graph isolation, optional dependency handling, basic peer validation, SRI verification, CAS storage, hardlink projection, and offline/frozen lockfile installs; peer auto-install and lifecycle behavior remain planned. |
 | Dynamic islands with QuickJS-ng | 🚧 Executable graph | Local named/default-import synchronous functions, bounded `any`, persistent module state, re-exports, and ESM/CommonJS dependency graphs execute through QuickJS-ng; all-Static builds remain engine-free. |
-| Dynamic ABI and executable boundary parity tests | 🚧 Graph boundary | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, and plain object/array boundaries are covered; arbitrary engine-reference and async-module parity remain pending. |
+| Dynamic ABI and executable boundary parity tests | 🚧 Graph boundary | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, plain object/array boundaries, native callbacks, returned function handles, and receiver-preserving methods are covered; arbitrary engine-reference and async-module parity remain pending. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |

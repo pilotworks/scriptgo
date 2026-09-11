@@ -291,6 +291,21 @@ uint32_t scriptgo_dynamic_context_live_refs(const scriptgo_dynamic_context *cont
     return context->live_refs;
 }
 
+void scriptgo_dynamic_context_release_all(scriptgo_dynamic_context *context) {
+    scriptgo_engine_ref *ref;
+    scriptgo_value value;
+    if (context == NULL || context->magic != SCRIPTGO_CONTEXT_MAGIC) return;
+    while ((ref = scriptgo_engine_refs) != NULL) {
+        while (ref != NULL && ref->context != context) ref = ref->next;
+        if (ref == NULL) break;
+        value.tag = ref->tag;
+        value.flags = SCRIPTGO_VALUE_OWNED | SCRIPTGO_VALUE_ENGINE_REF;
+        value.payload = (uint64_t)(uintptr_t)ref;
+        value.aux = 0;
+        scriptgo_value_release(&value);
+    }
+}
+
 int32_t scriptgo_dynamic_context_shutdown(scriptgo_dynamic_context *context) {
     if (context == NULL || context->magic != SCRIPTGO_CONTEXT_MAGIC) {
         return value_fail("SG9001: invalid dynamic context");
@@ -318,9 +333,8 @@ static uint64_t tag_bit(uint32_t tag) {
 
 static int is_boundary_value(const scriptgo_value *value) {
     if (value == NULL || scriptgo_value_validate(value) != 0) return 0;
-    if (value->tag > SCRIPTGO_TAG_STRING) return 0;
-    return value->flags == 0 || (value->tag == SCRIPTGO_TAG_STRING &&
-                                 value->flags == SCRIPTGO_VALUE_OWNED);
+    return value->flags == 0 || value->flags == SCRIPTGO_VALUE_OWNED ||
+           value->flags == (SCRIPTGO_VALUE_OWNED | SCRIPTGO_VALUE_ENGINE_REF);
 }
 
 static int boundary_matches(const scriptgo_value *value, scriptgo_value_constraint constraint) {

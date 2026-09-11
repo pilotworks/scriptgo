@@ -922,8 +922,17 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if err != nil {
 			return "", "", err
 		}
+		// A function handle returned by the Dynamic engine is callable, but it
+		// does not have the native closure layout. Preserve that ABI through a
+		// TypeScript function assertion so later calls use the Dynamic bridge.
+		if valType == ir.TypeDynamicFunction && targetIRType == ir.TypeClosure {
+			targetIRType = ir.TypeDynamicFunction
+		}
 		if result == "" {
 			result = nextTemp(counter)
+		}
+		if env[val+".dynamic"] != "" {
+			env[result+".dynamic"] = env[val+".dynamic"]
 		}
 		if targetIRType == ir.TypeUnknown {
 			function.Body = append(function.Body, ir.Instruction{
@@ -936,7 +945,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return result, ir.TypeUnknown, nil
 		}
 		srcVal := val
-		if valType != ir.TypeUnknown && !strings.HasPrefix(string(valType), "object:") && !strings.Contains(string(valType), "|") {
+		if valType != ir.TypeUnknown && valType != ir.TypeDynamicFunction && !strings.HasPrefix(string(valType), "object:") && !strings.Contains(string(valType), "|") {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpBoxUnknown,

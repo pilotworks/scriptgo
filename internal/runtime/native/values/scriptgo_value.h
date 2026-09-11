@@ -121,6 +121,8 @@ scriptgo_dynamic_context *scriptgo_dynamic_context_new(
 int32_t scriptgo_dynamic_context_shutdown(scriptgo_dynamic_context *context);
 int32_t scriptgo_dynamic_context_destroy(scriptgo_dynamic_context *context);
 uint32_t scriptgo_dynamic_context_live_refs(const scriptgo_dynamic_context *context);
+/* Releases engine values still owned by the embedding at process teardown. */
+void scriptgo_dynamic_context_release_all(scriptgo_dynamic_context *context);
 int32_t scriptgo_dynamic_call(scriptgo_dynamic_context *context,
                               const scriptgo_value *callable,
                               const scriptgo_value *this_value,

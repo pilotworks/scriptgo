@@ -5,13 +5,16 @@ engine for a high-performance, native JavaScript/TypeScript package manager
 compatible with the npm registry, designed along the principles of **Bun** and
 **pnpm**.
 
-The first implementation slice is intentionally offline and local: `internal/pkgmgr`
-validates package manifests, resolves local `node_modules` entry points through
-`exports`/`module`/`main`, and reads/writes deterministic `scriptgo-lock.json`
-files. It also provides the core SemVer selection and npm SHA-512 SRI
-verification contracts, plus an atomic local SHA-512 content store. Registry
-fetching, package linking, and lifecycle execution remain separate follow-up
-slices.
+The first implementation slice is intentionally safe and lifecycle-free:
+`internal/pkgmgr` validates package manifests, resolves local `node_modules`
+entry points through `exports`/`module`/`main`, and reads/writes deterministic
+`scriptgo-lock.json` files. `scriptgo install` now adds registry metadata and
+tarball fetching, SemVer graph selection, npm SHA-512 SRI verification, an
+atomic local SHA-512 content store, safe extraction, hardlink projection, and
+offline/frozen lockfile installs, isolated nested dependency links, multiple
+versions for SemVer conflicts, optional dependencies, and basic peer validation.
+Lifecycle execution, bins, peer auto-install/metadata, and registry authentication
+remain separate follow-up slices.
 
 ## Design Principles
 
@@ -402,5 +405,6 @@ contract rather than add a second resolver:
    manifest/resolver/lockfile contract is implemented in `internal/pkgmgr`.
 2. **Package Service**: Extend that focused package with registry, SemVer,
    integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
-3. **Builtin Commands**: Expose `scriptgo add` and `scriptgo install` only after
-   the service contract and offline lockfile behavior are tested.
+3. **Builtin Commands**: `scriptgo install` is exposed for production dependency
+   installation; `scriptgo add` remains deferred until dependency mutation and
+   peer/optional semantics are specified.

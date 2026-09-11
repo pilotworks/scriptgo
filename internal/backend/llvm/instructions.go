@@ -347,6 +347,10 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		if err := e.emitDynamicCall(out, inst, targetResult, originalArgs); err != nil {
 			return err
 		}
+	case ir.OpDynamicFunctionCall:
+		if err := e.emitDynamicFunctionCall(out, inst); err != nil {
+			return err
+		}
 	case ir.OpClosure:
 		if err := e.emitClosure(out, inst); err != nil {
 			return err

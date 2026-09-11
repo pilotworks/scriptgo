@@ -15,6 +15,7 @@ type Lockfile struct {
 // LockedPackage records the resolved package metadata needed for later fetch
 // and CAS installation stages.
 type LockedPackage struct {
+	Version      string            `json:"version,omitempty"`
 	Resolved     string            `json:"resolved,omitempty"`
 	Integrity    string            `json:"integrity,omitempty"`
 	Dependencies map[string]string `json:"dependencies,omitempty"`
@@ -31,7 +32,7 @@ func NewLockfile(manifests map[string]PackageManifest) (Lockfile, error) {
 		for dependency, spec := range manifest.Dependencies {
 			dependencies[dependency] = spec
 		}
-		lock.Packages[name] = LockedPackage{Dependencies: dependencies}
+		lock.Packages[name] = LockedPackage{Version: manifest.Version, Dependencies: dependencies}
 	}
 	return lock, nil
 }

@@ -113,7 +113,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			}
 		}
 		switch instruction.Op {
-		case OpCall, OpClosureCall, OpExternCall, OpDynamicCall:
+		case OpCall, OpClosureCall, OpExternCall, OpDynamicCall, OpDynamicFunctionCall:
 			if instruction.Type == "" {
 				return fmt.Errorf("%s instruction must define type", instruction.Op)
 			}
@@ -125,6 +125,19 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			}
 			if instruction.Op == OpDynamicCall && instruction.Callee == "" {
 				return fmt.Errorf("dynamic.call instruction must define a module/export callee")
+			}
+			if instruction.Op == OpDynamicFunctionCall {
+				if len(instruction.Args) == 0 {
+					return fmt.Errorf("dynamic.function.call requires a callable argument")
+				}
+				if callableType, ok := known[instruction.Args[0]]; !ok || callableType != TypeDynamicFunction {
+					return fmt.Errorf("dynamic.function.call requires a dynamic function handle")
+				}
+				if instruction.This != "" {
+					if _, ok := known[instruction.This]; !ok {
+						return fmt.Errorf("dynamic.function.call has unknown this value %q", instruction.This)
+					}
+				}
 			}
 		case OpClosure:
 			if instruction.Result == "" || instruction.Type != TypeClosure {

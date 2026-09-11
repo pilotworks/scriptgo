@@ -17,6 +17,7 @@ Commands:
   check     Verify TypeScript syntax, types, and native subset rules
   emit      Emit LLVM IR or Typed IR
   coverage  Analyze Static/Dynamic site coverage
+  install   Resolve, verify, cache, and link package.json dependencies
   version   Print compiler and runtime ABI version
   help      Show help for ScriptGo or a specific command
 
@@ -33,6 +34,26 @@ Global Flags:
   -h, --help             Show help message
 
 Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
+}
+
+func printInstallUsage() {
+	fmt.Fprintln(os.Stderr, `Usage:
+  scriptgo install [flags]
+
+Description:
+  Resolves production dependencies from an npm-compatible registry, verifies
+  tarballs, stores immutable package content, writes scriptgo-lock.json, and
+  links node_modules. Lifecycle scripts are not executed.
+
+Flags:
+  --project <dir>       Project directory (default: .)
+  --manifest <path>     package.json path
+  --lockfile <path>     Lockfile path
+  --store <path>        Content store path
+  --registry <url>      npm-compatible registry URL
+  --offline             Use only the lockfile and cached tarballs
+  --frozen              Use exact versions from the existing lockfile
+  -h, --help            Show this help message`)
 }
 
 func printRunUsage() {
