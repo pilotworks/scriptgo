@@ -31,6 +31,11 @@ Global Flags:
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
   --dynamic              Enable Dynamic-compatible JavaScript execution
+  --install              Install project dependencies before compiling
+  --offline              Use cached packages only with --install
+  --frozen               Use exact lockfile metadata with --install
+  --registry <url>       npm-compatible registry URL with --install
+  --store <path>         Content store path with --install
   -h, --help             Show help message
 
 Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
@@ -77,6 +82,11 @@ Flags:
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
   --dynamic              Enable Dynamic-compatible JavaScript execution
+  --install              Install project dependencies before compiling
+  --offline              Use cached packages only with --install
+  --frozen               Use exact lockfile metadata with --install
+  --registry <url>       npm-compatible registry URL with --install
+  --store <path>         Content store path with --install
   -h, --help             Show this help message
 
 Examples:
@@ -111,6 +121,11 @@ Flags:
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
   --dynamic              Enable Dynamic-compatible JavaScript execution
+  --install              Install project dependencies before compiling
+  --offline              Use cached packages only with --install
+  --frozen               Use exact lockfile metadata with --install
+  --registry <url>       npm-compatible registry URL with --install
+  --store <path>         Content store path with --install
   -h, --help             Show this help message
 
 Examples:

@@ -406,5 +406,6 @@ contract rather than add a second resolver:
 2. **Package Service**: Extend that focused package with registry, SemVer,
    integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
 3. **Builtin Commands**: `scriptgo install` is exposed for production dependency
-   installation; `scriptgo add` remains deferred until dependency mutation and
-   peer/optional semantics are specified.
+   installation and its output is consumed directly by the existing
+   TypeScript-Go/Dynamic compilation path. `scriptgo add` remains deferred until
+   dependency mutation and peer/optional semantics are specified.
