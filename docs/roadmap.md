@@ -211,10 +211,9 @@ Currently, 34 core modules are available (backed by C runtime intrinsics or pure
 - **Explicitly Unsupported / Deferred Modules:** `http2`, `test`, `v8`, `worker_threads`, `cluster`, `readline`, `https`, `inspector`, `tty`, `repl`, `tracing`, `sea`, `wasi`, `permissions`.
 - **Audit & Parity Tracking:** Tracked continuously via `internal/audit` against Node.js v22 LTS specs and documented in [`docs/typescript-parity-report.md`](typescript-parity-report.md).
 
-The package installation slice intentionally supports production dependencies
-and deterministic lockfile installs only. Peer/optional dependency semantics,
-registry authentication, binary shims, and lifecycle scripts remain follow-up
-work.
+The package installation contract supports production, optional, and peer dependencies,
+bearer registry authentication, binary shims, and workspace package graphs.
+Lifecycle scripts and native addons remain deliberately unsupported and are never executed.
 
 #### 8D: Installed Package Execution (Completed)
 
