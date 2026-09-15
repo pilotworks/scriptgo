@@ -2,6 +2,15 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.3] - 2026-09-15
+
+### Features
+- feat(dynamic): integrate host job timer scheduling and complete Milestone 8 (#10) (a04e977)
+- feat: workspace packages, bearer auth, and dynamic async promise boundary (#9) (7cd8bb4)
+
+### Documentation
+- docs: clarify completed package installation contracts in roadmap (ecd1763)
+
 ## [0.1.0-alpha.2] - 2026-09-11
 
 ### Features
