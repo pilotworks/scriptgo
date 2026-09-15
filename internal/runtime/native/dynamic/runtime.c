@@ -447,7 +447,15 @@ typedef struct scriptgo_dynamic_timer {
     int is_interval;
 } scriptgo_dynamic_timer;
 
-static void scriptgo_dynamic_timer_callback(void *env) {
+static void scriptgo_dynamic_timer_callback(void *env,
+                                            uint32_t tag0, uint32_t flags0, uint64_t payload0,
+                                            uint32_t tag1, uint32_t flags1, uint64_t payload1,
+                                            uint32_t tag2, uint32_t flags2, uint64_t payload2,
+                                            uint32_t tag3, uint32_t flags3, uint64_t payload3) {
+    (void)tag0; (void)flags0; (void)payload0;
+    (void)tag1; (void)flags1; (void)payload1;
+    (void)tag2; (void)flags2; (void)payload2;
+    (void)tag3; (void)flags3; (void)payload3;
     scriptgo_dynamic_timer *t = (scriptgo_dynamic_timer *)env;
     if (t == NULL || t->ctx == NULL) return;
     JSContext *ctx = t->ctx;
