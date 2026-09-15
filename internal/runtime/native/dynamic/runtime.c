@@ -28,6 +28,10 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_release(void *handle);
 int scriptgo_object_release(void *handle);
+int scriptgo_timer_set_timeout(void *closure_handle, double delay_ms, double *out_id);
+int scriptgo_timer_clear_timeout(double id);
+int scriptgo_timer_set_interval(void *closure_handle, double delay_ms, double *out_id);
+int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t return_tag, void **out_closure);
 
 static int scriptgo_dynamic_to_js(JSContext *ctx, const scriptgo_value *value, JSValue *out);
 static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_value *out);
@@ -434,6 +438,135 @@ static void scriptgo_dynamic_cleanup(void) {
     free(scriptgo_dynamic_modules);
 }
 
+typedef struct scriptgo_dynamic_timer {
+    JSContext *ctx;
+    JSValue callback;
+    int argc;
+    JSValue *argv;
+    double timer_id;
+    int is_interval;
+} scriptgo_dynamic_timer;
+
+static void scriptgo_dynamic_timer_callback(void *env) {
+    scriptgo_dynamic_timer *t = (scriptgo_dynamic_timer *)env;
+    if (t == NULL || t->ctx == NULL) return;
+    JSContext *ctx = t->ctx;
+    JSValue ret = JS_Call(ctx, t->callback, JS_UNDEFINED, t->argc, t->argv);
+    if (JS_IsException(ret)) {
+        JSValue ex = JS_GetException(ctx);
+        JS_FreeValue(ctx, ex);
+    }
+    JS_FreeValue(ctx, ret);
+
+    JSContext *job_ctx = NULL;
+    while (scriptgo_dynamic_runtime != NULL && JS_IsJobPending(scriptgo_dynamic_runtime)) {
+        if (JS_ExecutePendingJob(scriptgo_dynamic_runtime, &job_ctx) < 0) {
+            JSValue ex = JS_GetException(ctx);
+            JS_FreeValue(ctx, ex);
+            break;
+        }
+    }
+
+    if (!t->is_interval) {
+        for (int i = 0; i < t->argc; i++) JS_FreeValue(ctx, t->argv[i]);
+        free(t->argv);
+        JS_FreeValue(ctx, t->callback);
+        free(t);
+    }
+}
+
+static JSValue js_scriptgo_setTimeout(JSContext *ctx, JSValueConst this_val,
+                                     int argc, JSValueConst *argv) {
+    (void)this_val;
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) return JS_UNDEFINED;
+    double delay = 0;
+    if (argc > 1 && JS_ToFloat64(ctx, &delay, argv[1]) != 0) delay = 0;
+    if (delay < 0) delay = 0;
+
+    scriptgo_dynamic_timer *t = (scriptgo_dynamic_timer *)calloc(1, sizeof(*t));
+    if (t == NULL) return JS_UNDEFINED;
+    t->ctx = ctx;
+    t->callback = JS_DupValue(ctx, argv[0]);
+    t->is_interval = 0;
+    if (argc > 2) {
+        t->argc = argc - 2;
+        t->argv = (JSValue *)calloc((size_t)t->argc, sizeof(JSValue));
+        if (t->argv != NULL) {
+            for (int i = 0; i < t->argc; i++) {
+                t->argv[i] = JS_DupValue(ctx, argv[i + 2]);
+            }
+        }
+    }
+    void *closure = NULL;
+    if (scriptgo_closure_create((void *)scriptgo_dynamic_timer_callback, t, NULL, SCRIPTGO_TAG_UNDEFINED, &closure) != 0) {
+        for (int i = 0; i < t->argc; i++) JS_FreeValue(ctx, t->argv[i]);
+        free(t->argv);
+        JS_FreeValue(ctx, t->callback);
+        free(t);
+        return JS_UNDEFINED;
+    }
+    scriptgo_timer_set_timeout(closure, delay, &t->timer_id);
+    return JS_NewFloat64(ctx, t->timer_id);
+}
+
+static JSValue js_scriptgo_clearTimeout(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv) {
+    (void)this_val;
+    double id = 0;
+    if (argc > 0 && JS_ToFloat64(ctx, &id, argv[0]) == 0) {
+        scriptgo_timer_clear_timeout(id);
+    }
+    return JS_UNDEFINED;
+}
+
+static JSValue js_scriptgo_setInterval(JSContext *ctx, JSValueConst this_val,
+                                      int argc, JSValueConst *argv) {
+    (void)this_val;
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) return JS_UNDEFINED;
+    double delay = 0;
+    if (argc > 1 && JS_ToFloat64(ctx, &delay, argv[1]) != 0) delay = 0;
+    if (delay < 0) delay = 0;
+
+    scriptgo_dynamic_timer *t = (scriptgo_dynamic_timer *)calloc(1, sizeof(*t));
+    if (t == NULL) return JS_UNDEFINED;
+    t->ctx = ctx;
+    t->callback = JS_DupValue(ctx, argv[0]);
+    t->is_interval = 1;
+    if (argc > 2) {
+        t->argc = argc - 2;
+        t->argv = (JSValue *)calloc((size_t)t->argc, sizeof(JSValue));
+        if (t->argv != NULL) {
+            for (int i = 0; i < t->argc; i++) {
+                t->argv[i] = JS_DupValue(ctx, argv[i + 2]);
+            }
+        }
+    }
+    void *closure = NULL;
+    if (scriptgo_closure_create((void *)scriptgo_dynamic_timer_callback, t, NULL, SCRIPTGO_TAG_UNDEFINED, &closure) != 0) {
+        for (int i = 0; i < t->argc; i++) JS_FreeValue(ctx, t->argv[i]);
+        free(t->argv);
+        JS_FreeValue(ctx, t->callback);
+        free(t);
+        return JS_UNDEFINED;
+    }
+    scriptgo_timer_set_interval(closure, delay, &t->timer_id);
+    return JS_NewFloat64(ctx, t->timer_id);
+}
+
+static JSValue js_scriptgo_setImmediate(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv) {
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) return JS_UNDEFINED;
+    JSValueConst *new_argv = (JSValueConst *)calloc((size_t)(argc + 1), sizeof(JSValueConst));
+    if (new_argv == NULL) return JS_UNDEFINED;
+    new_argv[0] = argv[0];
+    new_argv[1] = JS_NewInt32(ctx, 0);
+    for (int i = 1; i < argc; i++) new_argv[i + 1] = argv[i];
+    JSValue res = js_scriptgo_setTimeout(ctx, this_val, argc + 1, new_argv);
+    JS_FreeValue(ctx, new_argv[1]);
+    free(new_argv);
+    return res;
+}
+
 static int scriptgo_dynamic_ensure_context(void) {
     JSValue global, require_function;
     if (scriptgo_dynamic_js_context != NULL) return 0;
@@ -450,6 +583,18 @@ static int scriptgo_dynamic_ensure_context(void) {
     require_function = JS_NewCFunction(scriptgo_dynamic_js_context, scriptgo_dynamic_require_by_path,
                                        "__scriptgo_require_module", 1);
     JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "__scriptgo_require_module", require_function);
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "setTimeout",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_setTimeout, "setTimeout", 2));
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "clearTimeout",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_clearTimeout, "clearTimeout", 1));
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "setInterval",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_setInterval, "setInterval", 2));
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "clearInterval",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_clearTimeout, "clearInterval", 1));
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "setImmediate",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_setImmediate, "setImmediate", 1));
+    JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "clearImmediate",
+                      JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_clearTimeout, "clearImmediate", 1));
     JS_FreeValue(scriptgo_dynamic_js_context, global);
     if (!scriptgo_dynamic_cleanup_registered) {
         atexit(scriptgo_dynamic_cleanup);

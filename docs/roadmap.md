@@ -175,22 +175,22 @@ Dependencies: Milestone 3. Estimated scope: Medium.
 - [x] Automated integration testing running WASM modules on Node.js WASI preview1 runtime.
 - [x] Multi-level optimization architecture (DCE, LTO, layout optimizations).
 
-### Milestone 8: Explicit Dynamic Compatibility Tier
+### Milestone 8: Explicit Dynamic Compatibility Tier (Completed)
 
 Add opt-in JavaScript execution without weakening the Static default or hiding
-semantic gaps behind native code generation.
+semantic gaps behind native code generation. All slices (8A through 8H) are now complete.
 
 - [x] Add `--dynamic`, disabled by default, and record the selected compatibility mode in build metadata.
 - [x] Embed QuickJS-ng only for Dynamic builds with executable Dynamic sites; static binaries do not link a JavaScript engine.
 - [x] Define and test the native/Dynamic ABI for boxed values, validation, ownership, exceptions, and calls.
 - [x] Resolve eligible JavaScript/npm dependencies into explicit Dynamic islands.
-  The first local `node_modules` slice now uses TypeScript-Go package resolution
+  The local `node_modules` and workspace resolution uses TypeScript-Go package resolution
   and bundles closed ESM/CommonJS module graphs. The runtime preserves module
   identity, initialization-once state, relative/package dependency edges,
   named re-exports, CommonJS `require`, and ESM/CommonJS interop. Registry
   fetching, deterministic dependency installation, SRI verification, local
-  content-addressed storage, hardlink projection, and lockfile-driven offline
-  installs are now implemented by `scriptgo install`. Lifecycle scripts remain
+  content-addressed storage, hardlink projection, bearer auth, and lockfile-driven offline/frozen
+  installs are implemented by `scriptgo install`. Lifecycle scripts remain
   deferred and are never executed by the installer.
 - [x] Define the offline package metadata contract: validated local manifests,
   deterministic `exports`/`module`/`main` entry resolution, and lockfile v1
@@ -198,9 +198,9 @@ semantic gaps behind native code generation.
 - [x] Lower bounded `any` sites through the existing boxed `unknown` representation in Dynamic mode.
 - [x] Reject Dynamic-eligible sites with `SG5001`, stable spans, and code frames until a Dynamic runtime is linked.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
-- [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
+- [x] Add Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
 - [x] Close the installed-package execution path: `scriptgo install` materializes a registry graph that the existing TypeScript-Go frontend and Dynamic runtime compile and execute, including nested ESM/CommonJS dependencies and offline/frozen reinstall parity.
-- [x] Bridge Dynamic async Promises into the native Promise runtime for immediate microtasks, while rejecting pending host jobs with `SG5004`.
+- [x] Bridge Dynamic async Promises into the native Promise runtime for immediate microtasks and active host timers, while rejecting unsupported host jobs with `SG5004`.
 
 ### Standard Library Compatibility Slice (In Progress)
 
@@ -280,6 +280,15 @@ explicit Node service adapter exists.
 - [x] Preserve fulfilled values and rejected reasons through the native Promise ABI.
 - [x] Add Dynamic async success/rejection corpus coverage.
 - [x] Reject pending host jobs with `SG5004` and provide diagnostic verification.
+
+#### 8H: Dynamic Host Jobs & Timers Scheduling (Completed)
+
+Integrates Dynamic island microtasks and asynchronous host jobs (timers) into the unified native event loop. Pending QuickJS Promises registered with timers (`setTimeout`, `setInterval`, `setImmediate`, `clearTimeout`, `clearInterval`) bridge asynchronously to native Promises and settle when the host job fires, while unhandled or unsupported host jobs without active timers continue to be safely rejected with `SG5004`.
+
+- [x] Integrate QuickJS-ng timers (`setTimeout`, `setImmediate`, `setInterval`, `clearTimeout`, `clearInterval`) with native C runtime event loop timers.
+- [x] Settle pending Dynamic Promises via `.then` fulfillment/rejection callbacks bridged to native Promises when host jobs are active.
+- [x] Preserve `SG5004` diagnostic failure when a pending Dynamic Promise requires host jobs but none are scheduled or available.
+- [x] Full corpus test coverage for timer-settled Dynamic Promises (`dynamic/async_timer`).
 
 ## Recommended Execution Order
 

@@ -9,9 +9,48 @@ int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueCons
 int scriptgo_promise_create(void **out_promise);
 int scriptgo_promise_resolve_value(void *promise_handle, const scriptgo_value *value);
 int scriptgo_promise_reject_value(void *promise_handle, const scriptgo_value *value);
+int scriptgo_timers_has_active(void);
+
+static JSValue scriptgo_dynamic_promise_bridge_fulfill(JSContext *ctx, JSValueConst this_val,
+                                                      int argc, JSValueConst *argv,
+                                                      int magic, JSValueConst *func_data) {
+    (void)this_val; (void)magic;
+    int64_t ptr_val = 0;
+    if (JS_ToBigInt64(ctx, &ptr_val, func_data[0]) != 0) return JS_UNDEFINED;
+    void *native_promise = (void *)(intptr_t)ptr_val;
+    scriptgo_value val;
+    JSValue arg = (argc > 0) ? argv[0] : JS_UNDEFINED;
+    if (scriptgo_dynamic_from_js(ctx, arg, &val) == 0) {
+        scriptgo_promise_resolve_value(native_promise, &val);
+    } else {
+        scriptgo_value err_val;
+        scriptgo_value_init_undefined(&err_val);
+        scriptgo_promise_reject_value(native_promise, &err_val);
+    }
+    return JS_UNDEFINED;
+}
+
+static JSValue scriptgo_dynamic_promise_bridge_reject(JSContext *ctx, JSValueConst this_val,
+                                                     int argc, JSValueConst *argv,
+                                                     int magic, JSValueConst *func_data) {
+    (void)this_val; (void)magic;
+    int64_t ptr_val = 0;
+    if (JS_ToBigInt64(ctx, &ptr_val, func_data[0]) != 0) return JS_UNDEFINED;
+    void *native_promise = (void *)(intptr_t)ptr_val;
+    scriptgo_value val;
+    JSValue arg = (argc > 0) ? argv[0] : JS_UNDEFINED;
+    if (scriptgo_dynamic_from_js(ctx, arg, &val) == 0) {
+        scriptgo_promise_reject_value(native_promise, &val);
+    } else {
+        scriptgo_value err_val;
+        scriptgo_value_init_undefined(&err_val);
+        scriptgo_promise_reject_value(native_promise, &err_val);
+    }
+    return JS_UNDEFINED;
+}
 
 /* Convert a QuickJS Promise into the native Promise ABI after running only
- * already-queued microtasks. Timers and other host jobs remain unsupported. */
+ * already-queued microtasks, or bridge pending state if host timers are active. */
 static int scriptgo_dynamic_materialize_promise(JSContext *ctx, JSValueConst promise,
                                                 scriptgo_value *out) {
     void *native_promise = NULL;
@@ -34,8 +73,31 @@ static int scriptgo_dynamic_materialize_promise(JSContext *ctx, JSValueConst pro
         }
         state = JS_PromiseState(ctx, promise);
     }
-    if (state == JS_PROMISE_PENDING)
-        return scriptgo_runtime_set_error("SG5004: Dynamic Promise requires an unavailable host job");
+    if (state == JS_PROMISE_PENDING) {
+        if (!scriptgo_timers_has_active()) {
+            return scriptgo_runtime_set_error("SG5004: Dynamic Promise requires an unavailable host job");
+        }
+        JSValue ptr_val = JS_NewBigInt64(ctx, (int64_t)(intptr_t)native_promise);
+        JSValue on_fulfilled = JS_NewCFunctionData(ctx, scriptgo_dynamic_promise_bridge_fulfill, 1, 0, 1, &ptr_val);
+        JSValue on_rejected = JS_NewCFunctionData(ctx, scriptgo_dynamic_promise_bridge_reject, 1, 0, 1, &ptr_val);
+        JS_FreeValue(ctx, ptr_val);
+
+        JSValue then_fn = JS_GetPropertyStr(ctx, promise, "then");
+        if (JS_IsFunction(ctx, then_fn)) {
+            JSValue then_args[2] = { on_fulfilled, on_rejected };
+            JSValue call_res = JS_Call(ctx, then_fn, promise, 2, then_args);
+            JS_FreeValue(ctx, call_res);
+        }
+        JS_FreeValue(ctx, then_fn);
+        JS_FreeValue(ctx, on_fulfilled);
+        JS_FreeValue(ctx, on_rejected);
+
+        out->tag = SCRIPTGO_TAG_PROMISE;
+        out->flags = 0;
+        out->payload = (uint64_t)(uintptr_t)native_promise;
+        out->aux = 0;
+        return 0;
+    }
 
     result = JS_PromiseResult(ctx, promise);
     if (JS_IsException(result)) {
