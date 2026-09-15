@@ -473,6 +473,7 @@ int scriptgo_typedarray_slice(void *handle, double begin, double end, void **out
     if (sub->length > 0 && sub->data != NULL && new_ta->data != NULL) {
         memcpy(new_ta->data, sub->data, (size_t)(sub->length * sub->element_size));
     }
+    scriptgo_gc_unregister(sub);
     free(sub);
     *out_array = new_ta;
     return 0;

@@ -52,7 +52,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `Map<K, V> & Set<T>` (ES2024) | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and all 7 **ES2024 Set Methods**: `union()`, `intersection()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`. |
 | `Intl (Internationalization)` | ✅ Full | Complete support for `Intl.NumberFormat`, `DateTimeFormat`, `Collator`, `Segmenter`, `DisplayNames`, `ListFormat`, `RelativeTimeFormat`, `PluralRules`, and `Intl.getCanonicalLocales`. |
 | `Explicit Resource Management (TS 5.2 / ES2024)` | ✅ Full | `using` and `await using` variable declarations automatically invoke `[Symbol.dispose]()` / `[Symbol.asyncDispose]()` in LIFO order upon exiting lexical block scopes. |
-| `WebSocket (Web Standards / WinterCG)` | ❌ Unsupported | Native WebSocket engine not yet linked (placeholder mock removed). |
+| `WebSocket (Web Standards / WinterCG)` | ✅ Full (RFC 6455) | Native RFC 6455 client engine with HTTP 101 upgrade handshake, client-side frame masking, unmasking, ping/pong, CloseEvent/MessageEvent dispatch, and non-blocking event loop polling. |
 | `Streaming Fetch & WHATWG Streams` | ✅ Full | `Response.body` tích hợp `ReadableStream` reader, stream locking, byte stream piping (`pipeThrough`), `TransformStream`, and correct nullable stream state propagation. |
 
 ---
@@ -438,9 +438,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | npm and Node package resolution | ⚠️ Installable Dynamic slice | `scriptgo install` provides registry metadata/tarball resolution, SemVer selection, conflicting-version graph isolation, optional dependency handling, peer auto-install/validation, package-configured bearer auth, workspace protocol linking, SRI verification, CAS storage, hardlink projection, and offline/frozen lockfile installs; lifecycle scripts and native addons remain unsupported. |
 | Dynamic islands with QuickJS-ng | ✅ Implemented | Local named/default-import synchronous functions, bounded `any`, persistent module state, re-exports, ESM/CommonJS dependency graphs, and async Promise timers execute through QuickJS-ng; all-Static builds remain engine-free. |
 | Dynamic ABI and executable boundary parity tests | ✅ Boundary parity | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, plain object/array boundaries, native callbacks, returned function handles, receiver-preserving methods, immediate Promise fulfillment/rejection, timer host jobs, and pending host-job rejection with `SG5004` are covered. |
-| Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
+| Native WebSocket engine | ✅ Implemented | RFC 6455 compliant native client linked into runtime with framing, handshake, ping/pong, and event loop dispatch. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
-| Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |
+| Tracing GC for circular references | ✅ Implemented | Mark-and-sweep cycle collector with O(1) hash table object registry, conservative stack/register scanning, and global root slots. |
 | Pure C backend | ⏳ Deferred | Separate portability/bootstrap track after LLVM/runtime ABI parity is stable. |
 
 ---
@@ -451,4 +451,4 @@ ScriptGo has currently achieved **100% parity across the Core Static Subset** (C
 Remaining gaps are primarily concentrated in:
 1. **Highly Dynamic JS Features** such as `eval`, `Proxy`, prototype monkey-patching, unconstrained `any` (to be addressed via `--dynamic`).
 2. **Package resolution and loading from the npm ecosystem**, including package manifests and CommonJS/ESM interoperability.
-3. **Explicitly deferred runtime surfaces** such as WebSocket and the unsupported Node.js modules listed in section 5.5.
+3. **Explicitly deferred runtime surfaces** such as the unsupported Node.js modules listed in section 5.5.

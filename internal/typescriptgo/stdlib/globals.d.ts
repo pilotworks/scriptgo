@@ -1507,3 +1507,85 @@ declare var crypto: Crypto;
 
 declare function fetch(input: unknown, init?: unknown): Promise<Response>;
 declare function require(id: string): unknown;
+
+interface CloseEventInit extends EventInit {
+    code?: number;
+    reason?: string;
+    wasClean?: boolean;
+}
+
+interface CloseEvent extends Event {
+    readonly code: number;
+    readonly reason: string;
+    readonly wasClean: boolean;
+}
+
+interface CloseEventConstructor {
+    new(type: string, eventInitDict?: CloseEventInit): CloseEvent;
+    readonly prototype: CloseEvent;
+}
+
+declare var CloseEvent: CloseEventConstructor;
+
+interface MessageEventInit<T = unknown> extends EventInit {
+    data?: T;
+    origin?: string;
+    lastEventId?: string;
+}
+
+interface MessageEvent<T = unknown> extends Event {
+    readonly data: T;
+    readonly origin: string;
+    readonly lastEventId: string;
+}
+
+interface MessageEventConstructor {
+    new <T = unknown>(type: string, eventInitDict?: MessageEventInit<T>): MessageEvent<T>;
+    readonly prototype: MessageEvent;
+}
+
+declare var MessageEvent: MessageEventConstructor;
+
+interface WebSocketEventMap {
+    "close": CloseEvent;
+    "error": Event;
+    "message": MessageEvent;
+    "open": Event;
+}
+
+interface WebSocket extends EventTarget {
+    readonly CONNECTING: number;
+    readonly OPEN: number;
+    readonly CLOSING: number;
+    readonly CLOSED: number;
+    readonly readyState: number;
+    readonly bufferedAmount: number;
+    readonly extensions: string;
+    readonly protocol: string;
+    readonly url: string;
+    binaryType: string;
+
+    onclose: ((this: WebSocket, ev: CloseEvent) => unknown) | null;
+    onerror: ((this: WebSocket, ev: Event) => unknown) | null;
+    onmessage: ((this: WebSocket, ev: MessageEvent) => unknown) | null;
+    onopen: ((this: WebSocket, ev: Event) => unknown) | null;
+
+    close(code?: number, reason?: string): void;
+    send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void;
+
+    addEventListener<K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: (this: WebSocket, ev: Event) => unknown, options?: boolean | AddEventListenerOptions): void;
+    removeEventListener<K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => unknown, options?: boolean | unknown): void;
+    removeEventListener(type: string, listener: (this: WebSocket, ev: Event) => unknown, options?: boolean | unknown): void;
+}
+
+interface WebSocketConstructor {
+    readonly CONNECTING: number;
+    readonly OPEN: number;
+    readonly CLOSING: number;
+    readonly CLOSED: number;
+    new(url: string | URL, protocols?: string | string[]): WebSocket;
+    readonly prototype: WebSocket;
+}
+
+declare var WebSocket: WebSocketConstructor;

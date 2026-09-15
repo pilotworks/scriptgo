@@ -139,6 +139,7 @@ internal/typescriptgo/stdlib/
 ├── v8.ts                           # node:v8 (heap statistics and serialization)
 ├── weak.ts                         # WeakRef & FinalizationRegistry shims
 ├── webcrypto.ts                    # Web Cryptography API
+├── ws.ts                           # WebSocket RFC 6455 Client & Web Global Implementation
 └── zlib.ts                         # node:zlib (Gzip, Deflate, Brotli, Inflate)
 ```
 

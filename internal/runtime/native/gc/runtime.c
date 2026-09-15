@@ -30,6 +30,30 @@ typedef struct scriptgo_gc_header {
 
 #include <setjmp.h>
 
+#if defined(__APPLE__)
+#include <pthread.h>
+static void *get_native_stack_bottom(void) {
+    return pthread_get_stackaddr_np(pthread_self());
+}
+#elif defined(__linux__)
+#include <pthread.h>
+static void *get_native_stack_bottom(void) {
+    pthread_attr_t attr;
+    void *stackaddr = NULL;
+    size_t stacksize = 0;
+    if (pthread_getattr_np(pthread_self(), &attr) == 0) {
+        pthread_attr_getstack(&attr, &stackaddr, &stacksize);
+        pthread_attr_destroy(&attr);
+        return (void *)((uintptr_t)stackaddr + stacksize);
+    }
+    return NULL;
+}
+#else
+static void *get_native_stack_bottom(void) {
+    return NULL;
+}
+#endif
+
 int scriptgo_runtime_set_error(const char *message);
 
 typedef struct gc_node {
@@ -45,10 +69,17 @@ typedef struct root_node {
     struct root_node *next;
 } root_node;
 
+typedef struct root_slot_node {
+    void *slot;
+    int64_t word_count;
+    struct root_slot_node *next;
+} root_slot_node;
+
 #define GC_HASH_INITIAL_CAPACITY 4096
 
 static gc_node *gc_head = NULL;
 static root_node *root_head = NULL;
+static root_slot_node *root_slot_head = NULL;
 static gc_node **gc_hash_table = NULL;
 static size_t gc_hash_capacity = 0;
 static size_t gc_hash_count = 0;
@@ -126,7 +157,10 @@ static void hash_remove(void *ptr) {
 }
 
 void scriptgo_gc_init(void *stack_bottom) {
-    if (stack_bottom != NULL) {
+    void *native_bottom = get_native_stack_bottom();
+    if (native_bottom != NULL) {
+        scriptgo_gc_stack_bottom = native_bottom;
+    } else if (stack_bottom != NULL) {
         scriptgo_gc_stack_bottom = stack_bottom;
     }
 }
@@ -227,6 +261,17 @@ int scriptgo_gc_remove_root(void *ptr) {
     return 0;
 }
 
+int scriptgo_gc_add_root_slot(void *slot, int64_t word_count) {
+    if (slot == NULL || word_count <= 0) return 0;
+    root_slot_node *r = (root_slot_node *)malloc(sizeof(root_slot_node));
+    if (r == NULL) return -1;
+    r->slot = slot;
+    r->word_count = word_count;
+    r->next = root_slot_head;
+    root_slot_head = r;
+    return 0;
+}
+
 typedef struct {
     uint64_t magic;
     int64_t field_count;
@@ -275,7 +320,7 @@ static int is_object_alive(void *ptr) {
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((no_sanitize("address", "undefined")))
 #endif
-static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t *stack_top, size_t *stack_cap) {
+static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t *stack_top, size_t stack_cap) {
     uintptr_t low = (uintptr_t)start;
     uintptr_t high = (uintptr_t)end;
     if (low > high) {
@@ -292,15 +337,7 @@ static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t 
             gc_node *n = find_node(val);
             if (n != NULL && n->header.gc_mark == 0) {
                 n->header.gc_mark = 1;
-                if (*stack_top >= *stack_cap) {
-                    size_t new_cap = (*stack_cap) * 2;
-                    gc_node **new_st = (gc_node **)realloc(mark_stack, sizeof(gc_node *) * new_cap);
-                    if (new_st != NULL) {
-                        mark_stack = new_st;
-                        *stack_cap = new_cap;
-                    }
-                }
-                if (*stack_top < *stack_cap) {
+                if (*stack_top < stack_cap) {
                     mark_stack[(*stack_top)++] = n;
                 }
             }
@@ -320,7 +357,7 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
     }
 
     // 2. Setup Mark Stack
-    size_t stack_cap = (size_t)(total_live_objects + 256);
+    size_t stack_cap = (size_t)(total_live_objects + 1024);
     gc_node **mark_stack = (gc_node **)malloc(sizeof(gc_node *) * stack_cap);
     if (mark_stack == NULL) {
         gc_in_progress = 0;
@@ -332,11 +369,6 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         gc_node *_target = (n); \
         if (_target != NULL && _target->header.gc_mark == 0) { \
             _target->header.gc_mark = 1; /* Grey */ \
-            if (stack_top >= stack_cap) { \
-                size_t _new_cap = stack_cap * 2; \
-                gc_node **_new_st = (gc_node **)realloc(mark_stack, sizeof(gc_node *) * _new_cap); \
-                if (_new_st != NULL) { mark_stack = _new_st; stack_cap = _new_cap; } \
-            } \
             if (stack_top < stack_cap) { \
                 mark_stack[stack_top++] = _target; \
             } \
@@ -351,18 +383,38 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         r = r->next;
     }
 
+    // Push global root slots
+    root_slot_node *s = root_slot_head;
+    while (s != NULL) {
+        if (s->slot != NULL) {
+            void **words = (void **)s->slot;
+            for (int64_t wi = 0; wi < s->word_count; wi++) {
+                void *val = words[wi];
+                if ((uintptr_t)val > 4096) {
+                    gc_node *child = find_node(val);
+                    GC_PUSH(child);
+                }
+            }
+        }
+        s = s->next;
+    }
+
     // Conservative stack and register scanning
     jmp_buf registers;
     memset(&registers, 0, sizeof(registers));
     setjmp(registers);
 
     // Scan registers buffer
-    gc_scan_memory(&registers, (char *)&registers + sizeof(registers), mark_stack, &stack_top, &stack_cap);
+    gc_scan_memory(&registers, (char *)&registers + sizeof(registers), mark_stack, &stack_top, stack_cap);
 
     // Scan execution stack (from caller frame up to stack bottom)
     volatile void *stack_top_ptr = __builtin_frame_address(0);
-    if (scriptgo_gc_stack_bottom != NULL) {
-        gc_scan_memory((void *)stack_top_ptr, scriptgo_gc_stack_bottom, mark_stack, &stack_top, &stack_cap);
+    void *bottom = scriptgo_gc_stack_bottom;
+    if (bottom == NULL) {
+        bottom = get_native_stack_bottom();
+    }
+    if (bottom != NULL) {
+        gc_scan_memory((void *)stack_top_ptr, bottom, mark_stack, &stack_top, stack_cap);
     }
 
     // 3. Mark phase (DFS tracing through pointer fields)
@@ -417,6 +469,21 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                 gc_node *child = find_node(c->env);
                 GC_PUSH(child);
             }
+        } else if (node->header.type_tag == SCRIPTGO_TYPE_BUFFER) {
+            typedef struct {
+                uint32_t magic;
+                int32_t kind;
+                int64_t length;
+                int64_t byte_offset;
+                int64_t element_size;
+                void *buffer;
+                unsigned char *data;
+            } gc_typedarray_layout;
+            gc_typedarray_layout *ta = (gc_typedarray_layout *)node->ptr;
+            if (ta != NULL && ta->buffer != NULL && (uintptr_t)ta->buffer > 4096) {
+                gc_node *child = find_node(ta->buffer);
+                GC_PUSH(child);
+            }
         }
     }
     free(mark_stack);
@@ -466,6 +533,16 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                     gc_array_layout *arr = (gc_array_layout *)curr->ptr;
                     free(arr->owned_data);
                     free(arr->data);
+                    free(curr->ptr);
+                } else if (curr->header.type_tag == SCRIPTGO_TYPE_ARRAYBUFFER) {
+                    typedef struct {
+                        int64_t byte_length;
+                        unsigned char *data;
+                    } gc_array_buffer_layout;
+                    gc_array_buffer_layout *buf = (gc_array_buffer_layout *)curr->ptr;
+                    if (buf != NULL && buf->data != NULL) {
+                        free(buf->data);
+                    }
                     free(curr->ptr);
                 } else if (curr->header.type_tag == SCRIPTGO_TYPE_SYMBOL) {
                     typedef struct { uint64_t id; char *description; } sym_payload;

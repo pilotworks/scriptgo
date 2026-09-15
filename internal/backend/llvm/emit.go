@@ -884,7 +884,14 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_atomics_compare_exchange(ptr, double, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_atomics_wait(ptr, double, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_atomics_notify(ptr, double, double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_gc_collect(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_gc_collect(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_gc_add_root_slot(ptr, i64)\n\n")
+	out.WriteString("declare i32 @scriptgo_websocket_connect(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_websocket_send_text(double, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_websocket_send_binary(double, ptr, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_websocket_close(double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_websocket_poll(double, ptr, ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_websocket_ready_state(double, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_intl_number_format_new(ptr, ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_intl_number_format_format(ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_intl_collator_new(ptr, ptr)\n")
@@ -1108,6 +1115,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	out.WriteString(" {\n")
 	if name == "main" {
 		out.WriteString("  call void @scriptgo_process_init(i32 %argc, ptr %argv)\n")
+		for _, g := range module.Globals {
+			gType := llvmType(g.Type)
+			if gType == "ptr" {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 1)\n", g.Name))
+			} else if gType == "{ i32, i32, i64, i64 }" {
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 3)\n", g.Name))
+			}
+		}
 	}
 	for _, parameter := range function.Parameters {
 		if !isRawCallbackParameter(parameter) {
