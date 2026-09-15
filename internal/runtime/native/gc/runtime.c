@@ -28,7 +28,12 @@ typedef struct scriptgo_gc_header {
     struct scriptgo_gc_header *prev;
 } scriptgo_gc_header;
 
+#if defined(__wasi__)
+typedef int jmp_buf[16];
+#define setjmp(env) (0)
+#else
 #include <setjmp.h>
+#endif
 
 #if defined(__APPLE__)
 #include <pthread.h>
@@ -426,9 +431,9 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             gc_object_layout *obj = (gc_object_layout *)node->ptr;
             if (obj != NULL && obj->magic == 0x53474F424A454354ULL) {
                 for (int64_t i = 0; i < obj->field_count; i++) {
-                    uintptr_t raw = obj->fields[i];
+                    uint64_t raw = (uint64_t)obj->fields[i];
                     if (raw != 0x7FF8000000000000ULL && raw > 4096) {
-                        gc_node *child = find_node((void *)raw);
+                        gc_node *child = find_node((void *)(uintptr_t)raw);
                         GC_PUSH(child);
                     }
                 }
