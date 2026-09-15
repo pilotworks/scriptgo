@@ -6,6 +6,56 @@ int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count,
 int scriptgo_dynamic_adopt_function(JSValue value, scriptgo_value *out);
 int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv, JSValue *out);
+int scriptgo_promise_create(void **out_promise);
+int scriptgo_promise_resolve_value(void *promise_handle, const scriptgo_value *value);
+int scriptgo_promise_reject_value(void *promise_handle, const scriptgo_value *value);
+
+/* Convert a QuickJS Promise into the native Promise ABI after running only
+ * already-queued microtasks. Timers and other host jobs remain unsupported. */
+static int scriptgo_dynamic_materialize_promise(JSContext *ctx, JSValueConst promise,
+                                                scriptgo_value *out) {
+    void *native_promise = NULL;
+    JSValue result;
+    scriptgo_value native_result;
+    JSPromiseStateEnum state;
+    JSContext *job_ctx = NULL;
+    int job_status;
+    int status;
+
+    if (ctx == NULL || out == NULL || !JS_IsPromise(promise)) return -1;
+    if (scriptgo_promise_create(&native_promise) != 0) return -1;
+    state = JS_PromiseState(ctx, promise);
+    while (state == JS_PROMISE_PENDING && JS_IsJobPending(JS_GetRuntime(ctx))) {
+        job_status = JS_ExecutePendingJob(JS_GetRuntime(ctx), &job_ctx);
+        if (job_status < 0) {
+            JSValue exception = JS_GetException(ctx);
+            JS_FreeValue(ctx, exception);
+            return scriptgo_runtime_set_error("Dynamic Promise microtask failed");
+        }
+        state = JS_PromiseState(ctx, promise);
+    }
+    if (state == JS_PROMISE_PENDING)
+        return scriptgo_runtime_set_error("SG5004: Dynamic Promise requires an unavailable host job");
+
+    result = JS_PromiseResult(ctx, promise);
+    if (JS_IsException(result)) {
+        JS_FreeValue(ctx, result);
+        return scriptgo_runtime_set_error("Dynamic Promise result unavailable");
+    }
+    status = scriptgo_dynamic_from_js(ctx, result, &native_result);
+    JS_FreeValue(ctx, result);
+    if (status != 0) return scriptgo_runtime_set_error("SG5003: Dynamic Promise value is outside the native boundary");
+
+    status = state == JS_PROMISE_REJECTED
+        ? scriptgo_promise_reject_value(native_promise, &native_result)
+        : scriptgo_promise_resolve_value(native_promise, &native_result);
+    if (status != 0) return status;
+    out->tag = SCRIPTGO_TAG_PROMISE;
+    out->flags = 0;
+    out->payload = (uint64_t)(uintptr_t)native_promise;
+    out->aux = 0;
+    return 0;
+}
 
 static JSValue scriptgo_dynamic_native_closure(JSContext *ctx, JSValueConst this_val,
                                                 int argc, JSValueConst *argv,
@@ -202,6 +252,9 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
         memcpy(copy, text, length); copy[length] = '\0'; JS_FreeCString(ctx, text);
         out->tag = SCRIPTGO_TAG_STRING; out->flags = SCRIPTGO_VALUE_OWNED;
         out->payload = (uint64_t)(uintptr_t)copy; out->aux = (uint64_t)length; return 0;
+    }
+    if (JS_IsPromise(value)) {
+        return scriptgo_dynamic_materialize_promise(ctx, value, out);
     }
     if (JS_IsFunction(ctx, value)) return scriptgo_dynamic_adopt_function(value, out);
     if (JS_IsArray(value)) {

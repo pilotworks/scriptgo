@@ -18,7 +18,9 @@ typedef enum {
     SCRIPTGO_TAG_ARRAY     = 6,
     SCRIPTGO_TAG_FUNCTION  = 7,
     SCRIPTGO_TAG_BIGINT    = 8,
-    SCRIPTGO_TAG_SYMBOL    = 9
+    SCRIPTGO_TAG_SYMBOL    = 9,
+    /* A native Promise handle, distinct from ordinary object references. */
+    SCRIPTGO_TAG_PROMISE   = 10
 } scriptgo_value_tag;
 
 enum {

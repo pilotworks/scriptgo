@@ -410,6 +410,17 @@ int main(void) {
     scriptgo_value_init_undefined(&promise_output);
     if (scriptgo_promise_await_unknown_value(&promise_input, &promise_output) != 0 ||
         promise_output.tag != SCRIPTGO_TAG_NUMBER || promise_output.payload != number_bits) return 19;
+    void *boxed_promise = NULL;
+    scriptgo_value boxed_promise_val;
+    if (scriptgo_promise_create(&boxed_promise) != 0 ||
+        scriptgo_promise_resolve_value(boxed_promise, &promise_input) != 0) return 20;
+    boxed_promise_val.tag = SCRIPTGO_TAG_PROMISE;
+    boxed_promise_val.flags = 0;
+    boxed_promise_val.payload = (uint64_t)(uintptr_t)boxed_promise;
+    boxed_promise_val.aux = 0;
+    scriptgo_value_init_undefined(&promise_output);
+    if (scriptgo_promise_await_unknown_value(&boxed_promise_val, &promise_output) != 0 ||
+        promise_output.tag != SCRIPTGO_TAG_NUMBER || promise_output.payload != number_bits) return 21;
     puts("ok");
     return 0;
 }

@@ -12,9 +12,22 @@ entry points through `exports`/`module`/`main`, and reads/writes deterministic
 tarball fetching, SemVer graph selection, npm SHA-512 SRI verification, an
 atomic local SHA-512 content store, safe extraction, hardlink projection, and
 offline/frozen lockfile installs, isolated nested dependency links, multiple
-versions for SemVer conflicts, optional dependencies, and basic peer validation.
-Lifecycle execution, bins, peer auto-install/metadata, and registry authentication
-remain separate follow-up slices.
+versions for SemVer conflicts, optional dependencies, peer metadata/validation,
+registry bearer authentication, and `.bin` projections. Installation is staged
+and committed atomically. Lifecycle scripts and native addons are never executed.
+
+Projects may configure a registry and an environment-variable token source in
+`package.json` without storing credentials:
+
+```json
+{"scriptgo":{"registry":"https://registry.example.test","registryTokenEnv":"SCRIPTGO_TOKEN"}}
+```
+
+Missing peer dependencies are auto-installed at the project root, recorded in
+`project.autoPeers`, and validated against the requesting package's range.
+Workspace packages declared by `workspaces` may be referenced with
+`workspace:*`, `workspace:^`, or `workspace:~`; they are linked from their
+source directories and are not downloaded from the registry.
 
 ## Design Principles
 
@@ -54,7 +67,7 @@ package.json / CLI
 5. Storage & Link Engine ──► OS-level clonefile / FICLONE / hardlinks
       │
       ▼
-6. Bins & Lifecycle ───────► node_modules/.bin links & postinstall sandbox
+6. Bins ────────────────────► node_modules/.bin links/shims
       │
       ▼
 node_modules/ + scriptgo-lock.json
@@ -407,5 +420,4 @@ contract rather than add a second resolver:
    integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
 3. **Builtin Commands**: `scriptgo install` is exposed for production dependency
    installation and its output is consumed directly by the existing
-   TypeScript-Go/Dynamic compilation path. `scriptgo add` remains deferred until
-   dependency mutation and peer/optional semantics are specified.
+   TypeScript-Go/Dynamic compilation path. `scriptgo add` remains deferred.

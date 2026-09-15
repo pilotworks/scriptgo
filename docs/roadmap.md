@@ -200,6 +200,7 @@ semantic gaps behind native code generation.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
 - [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
 - [x] Close the installed-package execution path: `scriptgo install` materializes a registry graph that the existing TypeScript-Go frontend and Dynamic runtime compile and execute, including nested ESM/CommonJS dependencies and offline/frozen reinstall parity.
+- [x] Bridge Dynamic async Promises into the native Promise runtime for immediate microtasks, while rejecting pending host jobs with `SG5004`.
 
 ### Standard Library Compatibility Slice (In Progress)
 
@@ -229,6 +230,25 @@ package lifecycle scripts.
 `--frozen` available for reproducible local builds. Without `--install`, these
 commands retain their previous behavior and never contact a registry.
 
+#### 8E: Production Install Contracts (Completed)
+
+`scriptgo install` now validates root dependency metadata in frozen mode,
+preserves optional/peer/bin metadata in lockfile v1, supports bearer registry
+authentication, rejects unsafe or oversized archive entries, and stages the
+lockfile plus `node_modules` projection before committing them atomically.
+Optional dependency failures remain non-fatal; required dependency failures and
+peer conflicts are reported without mutating the existing project projection.
+Lifecycle scripts and native addons remain explicitly unsupported and are never
+executed.
+
+#### 8F: Workspace Package Graphs (Completed)
+
+Package projects may configure a registry/token environment source through the
+`scriptgo` manifest block, auto-install compatible missing peers at the root,
+and declare local workspace packages through standard `workspaces` patterns.
+`workspace:` protocol edges resolve to local source directories and are recorded
+in the existing lockfile graph without introducing a second module resolver.
+
 ### Node.js And npm Compatibility Track
 
 This track is the long-term product direction. It must be implemented in
@@ -247,6 +267,19 @@ semantic gates rather than by widening the native subset table informally:
 
 Each gate requires Node.js reference fixtures, interpreter parity, native
 executable parity, and explicit rejection diagnostics for unsupported cases.
+
+#### 8G: Dynamic Async Boundary (Completed)
+
+Carries QuickJS Promise results across the existing boxed-value boundary and into
+the native Promise runtime. Immediate Promise settlement and microtask chaining are
+supported; pending host jobs such as timers are rejected with `SG5004` until an
+explicit Node service adapter exists.
+
+- [x] Add a distinct boxed Promise tag and preserve it through unknown `await`.
+- [x] Drain already-queued QuickJS microtasks before materializing a native Promise.
+- [x] Preserve fulfilled values and rejected reasons through the native Promise ABI.
+- [x] Add Dynamic async success/rejection corpus coverage.
+- [x] Reject pending host jobs with `SG5004` and provide diagnostic verification.
 
 ## Recommended Execution Order
 

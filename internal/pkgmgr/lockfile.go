@@ -9,16 +9,28 @@ import (
 // Lockfile is the deterministic, offline package graph contract.
 type Lockfile struct {
 	LockfileVersion int                      `json:"lockfileVersion"`
+	Project         LockfileProject          `json:"project,omitempty"`
 	Packages        map[string]LockedPackage `json:"packages"`
+}
+
+type LockfileProject struct {
+	Dependencies         map[string]string `json:"dependencies,omitempty"`
+	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
+	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	AutoPeers            map[string]string `json:"autoPeers,omitempty"`
 }
 
 // LockedPackage records the resolved package metadata needed for later fetch
 // and CAS installation stages.
 type LockedPackage struct {
-	Version      string            `json:"version,omitempty"`
-	Resolved     string            `json:"resolved,omitempty"`
-	Integrity    string            `json:"integrity,omitempty"`
-	Dependencies map[string]string `json:"dependencies,omitempty"`
+	Version              string            `json:"version,omitempty"`
+	Resolved             string            `json:"resolved,omitempty"`
+	Integrity            string            `json:"integrity,omitempty"`
+	Dependencies         map[string]string `json:"dependencies,omitempty"`
+	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
+	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	Bin                  PackageBin        `json:"bin,omitempty"`
+	Workspace            string            `json:"workspace,omitempty"`
 }
 
 // NewLockfile creates a stable lockfile from package metadata keyed by name.
@@ -28,11 +40,11 @@ func NewLockfile(manifests map[string]PackageManifest) (Lockfile, error) {
 		if err := ValidateManifest(manifest, name); err != nil {
 			return Lockfile{}, err
 		}
-		dependencies := make(map[string]string, len(manifest.Dependencies))
-		for dependency, spec := range manifest.Dependencies {
-			dependencies[dependency] = spec
+		lock.Packages[name] = LockedPackage{
+			Version: manifest.Version, Dependencies: cloneStrings(manifest.Dependencies),
+			OptionalDependencies: cloneStrings(manifest.OptionalDependencies), PeerDependencies: cloneStrings(manifest.PeerDependencies),
+			Bin: manifest.Bin,
 		}
-		lock.Packages[name] = LockedPackage{Version: manifest.Version, Dependencies: dependencies}
 	}
 	return lock, nil
 }
@@ -85,6 +97,16 @@ func ValidateLockfile(lock Lockfile) error {
 		for dependency, spec := range pkg.Dependencies {
 			if dependency == "" || spec == "" {
 				return fmt.Errorf("package %q has invalid dependency", name)
+			}
+		}
+		for dependency, spec := range pkg.OptionalDependencies {
+			if dependency == "" || spec == "" {
+				return fmt.Errorf("package %q has invalid optional dependency", name)
+			}
+		}
+		for dependency, spec := range pkg.PeerDependencies {
+			if dependency == "" || spec == "" {
+				return fmt.Errorf("package %q has invalid peer dependency", name)
 			}
 		}
 	}

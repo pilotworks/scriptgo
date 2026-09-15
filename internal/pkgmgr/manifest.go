@@ -24,7 +24,39 @@ type PackageManifest struct {
 	DevDependencies      map[string]string `json:"devDependencies,omitempty"`
 	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	Bin                  PackageBin        `json:"bin,omitempty"`
+	Scripts              map[string]string `json:"scripts,omitempty"`
+	Workspaces           json.RawMessage   `json:"workspaces,omitempty"`
+	Scriptgo             ScriptgoConfig    `json:"scriptgo,omitempty"`
 	Dist                 PackageDist       `json:"dist,omitempty"`
+}
+
+// ScriptgoConfig contains non-secret project package-manager settings. Tokens
+// are read from the named environment variable and are never persisted.
+type ScriptgoConfig struct {
+	Registry         string `json:"registry,omitempty"`
+	RegistryTokenEnv string `json:"registryTokenEnv,omitempty"`
+	RegistryToken    string `json:"registryToken,omitempty"`
+}
+
+// PackageBin accepts npm's string shorthand and object form.
+type PackageBin map[string]string
+
+func (bin *PackageBin) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*bin = PackageBin{}
+		if single != "" {
+			(*bin)[""] = single
+		}
+		return nil
+	}
+	var multiple map[string]string
+	if err := json.Unmarshal(data, &multiple); err != nil {
+		return fmt.Errorf("invalid bin declaration: %w", err)
+	}
+	*bin = PackageBin(multiple)
+	return nil
 }
 
 // PackageDist is the registry distribution metadata needed for installation.
@@ -63,9 +95,22 @@ func loadManifest(path string, requireName bool) (PackageManifest, error) {
 	if manifest.Type != "" && manifest.Type != "module" && manifest.Type != "commonjs" {
 		return PackageManifest{}, fmt.Errorf("package manifest %q: unsupported type %q", path, manifest.Type)
 	}
+	if manifest.Scriptgo.RegistryToken != "" {
+		return PackageManifest{}, fmt.Errorf(`package manifest %q must not contain "registryToken"; use "registryTokenEnv"`, path)
+	}
 	for name, spec := range manifest.Dependencies {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
 			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.OptionalDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid optional dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.PeerDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return PackageManifest{}, fmt.Errorf("package manifest %q: invalid peer dependency %q", path, name)
 		}
 	}
 	return manifest, nil
@@ -82,9 +127,22 @@ func ValidateManifest(manifest PackageManifest, path string) error {
 	if manifest.Type != "" && manifest.Type != "module" && manifest.Type != "commonjs" {
 		return fmt.Errorf("package manifest %q: unsupported type %q", path, manifest.Type)
 	}
+	if manifest.Scriptgo.RegistryToken != "" {
+		return fmt.Errorf(`package manifest %q must not contain "registryToken"; use "registryTokenEnv"`, path)
+	}
 	for name, spec := range manifest.Dependencies {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
 			return fmt.Errorf("package manifest %q: invalid dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.OptionalDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return fmt.Errorf("package manifest %q: invalid optional dependency %q", path, name)
+		}
+	}
+	for name, spec := range manifest.PeerDependencies {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(spec) == "" {
+			return fmt.Errorf("package manifest %q: invalid peer dependency %q", path, name)
 		}
 	}
 	return nil

@@ -200,6 +200,9 @@ func dynamicResultTag(typ ir.Type) int {
 	case ir.TypeObject:
 		return 5
 	default:
+		if strings.HasPrefix(string(typ), "object:Promise") {
+			return 10
+		}
 		if strings.HasSuffix(string(typ), "[]") {
 			return 6
 		}

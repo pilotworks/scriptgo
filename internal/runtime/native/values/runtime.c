@@ -72,7 +72,7 @@ void scriptgo_value_init_undefined(scriptgo_value *value) {
 }
 
 static int valid_tag(uint32_t tag) {
-    return tag <= SCRIPTGO_TAG_SYMBOL;
+    return tag <= SCRIPTGO_TAG_PROMISE;
 }
 
 int32_t scriptgo_value_validate(const scriptgo_value *value) {

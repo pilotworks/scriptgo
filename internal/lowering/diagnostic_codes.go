@@ -36,6 +36,9 @@ const (
 
 	// SG5xxx: Dynamic compatibility/runtime boundaries.
 	CodeDynamicRuntimeUnavailable SubsetCode = "SG5001"
+	CodeDynamicInputMismatch      SubsetCode = "SG5002"
+	CodeDynamicResultMismatch     SubsetCode = "SG5003"
+	CodeDynamicHostJobRequired    SubsetCode = "SG5004"
 
 	// SG9xxx: Internal compiler and fallback diagnostics.
 	CodeInternalFallback SubsetCode = "SG9001"

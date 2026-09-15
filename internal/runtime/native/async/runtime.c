@@ -860,7 +860,7 @@ int scriptgo_promise_await_unknown(uint32_t tag, uint64_t payload, uint32_t *out
     }
 
     scriptgo_promise *p = NULL;
-    if (tag == 5 && payload != 0) {
+    if ((tag == 5 || tag == 10) && payload != 0) {
         p = scriptgo_find_promise((void *)(uintptr_t)payload);
     }
     if (p == NULL) {

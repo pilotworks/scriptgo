@@ -6,6 +6,7 @@
 
 #include "quickjs.h"
 int scriptgo_runtime_set_error(const char *message);
+const char *scriptgo_runtime_last_error(void);
 void scriptgo_runtime_abort_if_failed(int status);
 
 void scriptgo_dynamic_abort_if_failed(int status) {
@@ -665,7 +666,14 @@ int scriptgo_dynamic_call_module(const char *module_path,
     }
     result = JS_Call(ctx, function, JS_UNDEFINED, argument_count, argv);
     if (JS_IsException(result)) { JS_FreeValue(ctx, result); status = 1; goto cleanup; }
-    if (scriptgo_dynamic_from_js(ctx, result, out_result) != 0) { JS_FreeValue(ctx, result); status = scriptgo_runtime_set_error("SG5003: Dynamic result mismatch"); goto cleanup; }
+    if (scriptgo_dynamic_from_js(ctx, result, out_result) != 0) {
+        JS_FreeValue(ctx, result);
+        if (scriptgo_runtime_last_error() == NULL || scriptgo_runtime_last_error()[0] == '\0') {
+            scriptgo_runtime_set_error("SG5003: Dynamic result mismatch");
+        }
+        status = -1;
+        goto cleanup;
+    }
     if (expected_tag >= 0 && (int32_t)out_result->tag != expected_tag) { scriptgo_value_release(out_result); JS_FreeValue(ctx, result); status = scriptgo_runtime_set_error("SG5003: Dynamic result mismatch"); goto cleanup; }
     JS_FreeValue(ctx, result);
 cleanup:

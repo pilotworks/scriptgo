@@ -35,6 +35,7 @@ Global Flags:
   --offline              Use cached packages only with --install
   --frozen               Use exact lockfile metadata with --install
   --registry <url>       npm-compatible registry URL with --install
+  --registry-token <t>   registry bearer token with --install
   --store <path>         Content store path with --install
   -h, --help             Show help message
 
@@ -56,6 +57,7 @@ Flags:
   --lockfile <path>     Lockfile path
   --store <path>        Content store path
   --registry <url>      npm-compatible registry URL
+  --registry-token <t>  registry bearer token (or SCRIPTGO_NPM_TOKEN/NPM_TOKEN)
   --offline             Use only the lockfile and cached tarballs
   --frozen              Use exact versions from the existing lockfile
   -h, --help            Show this help message`)
@@ -86,6 +88,7 @@ Flags:
   --offline              Use cached packages only with --install
   --frozen               Use exact lockfile metadata with --install
   --registry <url>       npm-compatible registry URL with --install
+  --registry-token <t>   registry bearer token with --install
   --store <path>         Content store path with --install
   -h, --help             Show this help message
 
