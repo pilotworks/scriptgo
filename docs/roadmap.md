@@ -200,6 +200,7 @@ semantic gaps behind native code generation.
 - [x] Emit deterministic Static/Dynamic/Unsupported coverage reports for reachable source sites.
 - [x] Add initial Node reference, QuickJS-ng, and native boundary parity coverage for local synchronous functions, including named/default declaration and expression exports, boxed plain objects and arrays, persistent module state, dependency graphs, re-exports, and ESM/CommonJS interop.
 - [x] Close the installed-package execution path: `scriptgo install` materializes a registry graph that the existing TypeScript-Go frontend and Dynamic runtime compile and execute, including nested ESM/CommonJS dependencies and offline/frozen reinstall parity.
+- [x] Bridge Dynamic async Promises into the native Promise runtime for immediate microtasks, while rejecting pending host jobs with `SG5004`.
 
 ### Standard Library Compatibility Slice (In Progress)
 
@@ -266,6 +267,19 @@ semantic gates rather than by widening the native subset table informally:
 
 Each gate requires Node.js reference fixtures, interpreter parity, native
 executable parity, and explicit rejection diagnostics for unsupported cases.
+
+#### 8G: Dynamic Async Boundary (Completed)
+
+Carries QuickJS Promise results across the existing boxed-value boundary and into
+the native Promise runtime. Immediate Promise settlement and microtask chaining are
+supported; pending host jobs such as timers are rejected with `SG5004` until an
+explicit Node service adapter exists.
+
+- [x] Add a distinct boxed Promise tag and preserve it through unknown `await`.
+- [x] Drain already-queued QuickJS microtasks before materializing a native Promise.
+- [x] Preserve fulfilled values and rejected reasons through the native Promise ABI.
+- [x] Add Dynamic async success/rejection corpus coverage.
+- [x] Reject pending host jobs with `SG5004` and provide diagnostic verification.
 
 ## Recommended Execution Order
 

@@ -105,6 +105,7 @@ identifies a scriptgo representation or tier decision.
 | `SG5001` | Dynamic runtime unavailable         | `--dynamic` identified an eligible site, but no Dynamic engine is linked               |
 | `SG5002` | Dynamic input mismatch             | A Dynamic call has the wrong arity or an argument/`this` value outside its exact ABI signature |
 | `SG5003` | Dynamic result mismatch            | A Dynamic adapter returned a value outside its exact declared result constraint       |
+| `SG5004` | Dynamic host job required          | A Dynamic Promise requires an unavailable host job (timers, network) to settle         |
 | `SG2001` | Stdlib member not lowered           | declared API exists but has no Static lowering                                         |
 | `SG2002` | Tuple operation not lowered         | unsupported tuple method/index operation                                               |
 | `SG2003` | Date operation not lowered          | unsupported constructor, getter, parser, or formatter                                  |
