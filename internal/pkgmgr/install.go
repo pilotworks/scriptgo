@@ -209,7 +209,6 @@ func Install(options InstallOptions) (Lockfile, error) {
 	if err := validatePeerDependencies(nodes, edges, parents, rootEdges); err != nil {
 		return Lockfile{}, err
 	}
-	lock := graphLockfile(nodes, manifest, autoPeers, root)
 	for identity, node := range nodes {
 		if err := materializePackage(store, registry, options.Offline, node.Manifest, node.Source); err != nil {
 			if removeOptionalNode(identity, node, nodes, edges, rootEdges, manifest) {
@@ -219,7 +218,7 @@ func Install(options InstallOptions) (Lockfile, error) {
 		}
 	}
 	pruneGraph(nodes, edges, rootEdges)
-	lock = graphLockfile(nodes, manifest, autoPeers, root)
+	lock := graphLockfile(nodes, manifest, autoPeers, root)
 	if err := commitInstall(root, lockPath, lock, store, nodes, edges, rootEdges); err != nil {
 		return Lockfile{}, err
 	}
@@ -579,10 +578,6 @@ func commitInstall(root, lockPath string, lock Lockfile, store Store, nodes map[
 	_ = os.Remove(lockBackup)
 	_ = os.RemoveAll(backup)
 	return nil
-}
-
-func linkGraph(root string, store Store, nodes map[string]*packageNode, edges map[string]map[string]string, rootEdges map[string]string) error {
-	return linkGraphAt(filepath.Join(root, "node_modules"), store, nodes, edges, rootEdges)
 }
 
 func linkGraphAt(nodeModules string, store Store, nodes map[string]*packageNode, edges map[string]map[string]string, rootEdges map[string]string) error {
