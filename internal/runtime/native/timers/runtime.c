@@ -93,6 +93,15 @@ int scriptgo_timer_clear_timeout(double id) {
     return 0;
 }
 
+int scriptgo_timers_has_active(void) {
+    scriptgo_timer *curr = timers_head;
+    while (curr != NULL) {
+        if (!curr->canceled) return 1;
+        curr = curr->next;
+    }
+    return 0;
+}
+
 int scriptgo_timer_set_interval(void *closure_handle, double delay_ms, double *out_id) {
     if (closure_handle == NULL) return timer_fail("scriptgo setInterval missing closure");
     scriptgo_timer *t = malloc(sizeof(scriptgo_timer));

@@ -130,7 +130,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Multi-level & Deep Imports | ✅ Full | Resolves multi-level closed module dependency graphs. |
 | Initialization Order | ✅ Full | Guarantees deterministic module initialization order matching ES Modules specification. |
 | `tsconfig.json` Project Checking | ✅ Full | Automatic discovery and explicit `-p` / `--project` loading of `tsconfig.json`, `compilerOptions` parsing (`target`, `module`, `strict`, `paths`, etc.), multi-file project diagnostics matching `tsc` formatting. |
-| npm / External package resolution | ⏳ Roadmap | Planned for Milestone 8 via the explicit Dynamic compatibility tier (QuickJS-ng). |
+| npm / External package resolution | ✅ Full | Resolved via TypeScript-Go with `scriptgo install` deterministic lockfile/CAS graph and explicit Dynamic tier execution (QuickJS-ng). |
 
 ---
 
@@ -224,11 +224,11 @@ Total Time Elapsed     : 5m40.074s (macOS)
 | **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 19 | **100% (19/19)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
-The compiler corpus also contains 22 opt-in Dynamic cases. They cover bounded
+The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
 `any`, boxed values, exceptions, local JavaScript imports, local npm entry
 points, persistent ESM/CommonJS dependency graphs, named re-exports,
 two-way synchronous ESM/CommonJS interoperability, Dynamic async Promise
-materialization with microtask chaining, and pending host job rejection. In addition,
+materialization with microtask chaining, host-job timer integration, and pending host job rejection. In addition,
 one compiler integration test verifies registry installation, nested ESM/CommonJS execution,
 and offline/frozen reinstall from the local content store.
 
@@ -346,7 +346,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | **NPM Packages (`node_modules`)** | ⚠️ Installable and executable Dynamic slice | `scriptgo install` resolves production dependencies from an npm-compatible registry, selects deterministic SemVer versions, verifies SHA-512 SRI tarballs, caches immutable content, writes root dependency metadata to `scriptgo-lock.json`, and atomically projects an isolated nested `node_modules` graph. Optional dependencies, peer metadata/auto-install, package-configured bearer auth, `.bin` links, workspace packages, conflicting versions, and offline/frozen drift checks are supported. Lifecycle scripts and native addons remain unsupported; installed graphs execute through the existing TypeScript-Go/Dynamic path. |
 | **CommonJS (`require` / `module.exports`)** | ⚠️ Synchronous graph slice | Local packages support dependency-resolved `require`, `exports.foo`, `module.exports`, named/default ESM imports of CommonJS, and synchronous CommonJS-to-ESM namespace access. Unresolved runtime-generated specifiers and lifecycle behavior remain unsupported. |
-| **Dynamic compatibility (`--dynamic`)** | 🚧 Executable graph | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, ESM/CommonJS graph execution, native closure callbacks passed into Dynamic functions, bounded synchronous Dynamic function handles, receiver-preserving method calls, and immediate Promise/microtask settlement across the native ABI are implemented. Host-job-backed async handles and Node service adapters remain pending. |
+| **Dynamic compatibility (`--dynamic`)** | ✅ Full (Milestone 8) | Mode plumbing, tier analysis, Dynamic IR, canonical boxed values, bounded `any` interoperability, persistent QuickJS-ng execution, module caching, re-exports, ESM/CommonJS graph execution, native closure callbacks passed into Dynamic functions, bounded synchronous Dynamic function handles, receiver-preserving method calls, immediate Promise/microtask settlement, and host-job timer event loop integration across the native ABI are implemented. |
 
 ---
 
@@ -436,8 +436,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :---: | :--- |
 | Timers, streams, EventEmitter, fetch, and core networking | ✅ Implemented | Delivered as part of the post-MVP language/runtime and standard-library expansion. |
 | npm and Node package resolution | ⚠️ Installable Dynamic slice | `scriptgo install` provides registry metadata/tarball resolution, SemVer selection, conflicting-version graph isolation, optional dependency handling, peer auto-install/validation, package-configured bearer auth, workspace protocol linking, SRI verification, CAS storage, hardlink projection, and offline/frozen lockfile installs; lifecycle scripts and native addons remain unsupported. |
-| Dynamic islands with QuickJS-ng | 🚧 Executable graph | Local named/default-import synchronous functions, bounded `any`, persistent module state, re-exports, and ESM/CommonJS dependency graphs execute through QuickJS-ng; all-Static builds remain engine-free. |
-| Dynamic ABI and executable boundary parity tests | ✅ Boundary parity | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, plain object/array boundaries, native callbacks, returned function handles, receiver-preserving methods, immediate Promise fulfillment/rejection, and pending host-job rejection with `SG5004` are covered; asynchronous host-service adapters remain follow-up work. |
+| Dynamic islands with QuickJS-ng | ✅ Implemented | Local named/default-import synchronous functions, bounded `any`, persistent module state, re-exports, ESM/CommonJS dependency graphs, and async Promise timers execute through QuickJS-ng; all-Static builds remain engine-free. |
+| Dynamic ABI and executable boundary parity tests | ✅ Boundary parity | Canonical boxed layout, exceptions, persistent module initialization, dependency caching, ESM/CommonJS interop, plain object/array boundaries, native callbacks, returned function handles, receiver-preserving methods, immediate Promise fulfillment/rejection, timer host jobs, and pending host-job rejection with `SG5004` are covered. |
 | Native WebSocket engine | ⏳ Deferred | Web Standards compatibility track; placeholder implementations remain removed. |
 | Remaining unsupported Node.js modules | ⏳ Deferred | Implement only with genuine runtime behavior and reference parity fixtures. |
 | Tracing GC for circular references | ⏳ Planned | Runtime infrastructure track independent of the Dynamic milestone numbering. |
