@@ -19,6 +19,7 @@ int scriptgo_websocket_poll(double handle, double *out_event_type, char **out_da
 int scriptgo_websocket_ready_state(double handle, double *out_state);
 
 #if !defined(_WIN32)
+#if !defined(__wasi__)
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -27,10 +28,53 @@ int scriptgo_websocket_ready_state(double handle, double *out_state);
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <signal.h>
+#endif
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #endif
+
+int scriptgo_runtime_set_error(const char *message);
+
+static int ws_fail(const char *message) {
+    return scriptgo_runtime_set_error(message);
+}
+
+#if defined(__wasi__)
+
+int scriptgo_websocket_connect(const char *url, const char *protocol, double *out_handle) {
+    if (out_handle) *out_handle = -1.0;
+    return ws_fail("WebSocket is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_websocket_send_text(double handle, const char *data, double *out_sent) {
+    if (out_sent) *out_sent = 0.0;
+    return ws_fail("WebSocket is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_websocket_send_binary(double handle, const void *data, double length, double *out_sent) {
+    if (out_sent) *out_sent = 0.0;
+    return ws_fail("WebSocket is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_websocket_close(double handle, double code, const char *reason) {
+    return ws_fail("WebSocket is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_websocket_poll(double handle, double *out_event_type, char **out_data, double *out_code, char **out_reason) {
+    if (out_event_type) *out_event_type = 0.0;
+    if (out_data) *out_data = strdup("");
+    if (out_code) *out_code = 0.0;
+    if (out_reason) *out_reason = strdup("");
+    return ws_fail("WebSocket is not supported on WebAssembly/WASI");
+}
+
+int scriptgo_websocket_ready_state(double handle, double *out_state) {
+    if (out_state) *out_state = (double)SCRIPTGO_WS_CLOSED;
+    return 0;
+}
+
+#else
 
 #if defined(SO_NOSIGPIPE)
 #define WS_HAVE_NOSIGPIPE 1
@@ -41,12 +85,6 @@ int scriptgo_websocket_ready_state(double handle, double *out_state);
 #else
 #define WS_SEND_FLAGS 0
 #endif
-
-int scriptgo_runtime_set_error(const char *message);
-
-static int ws_fail(const char *message) {
-    return scriptgo_runtime_set_error(message);
-}
 
 // -------------------------------------------------------------
 // Base64 encoding table and helper
@@ -679,3 +717,5 @@ int scriptgo_websocket_ready_state(double handle, double *out_state) {
     if (out_state) *out_state = (double)clients[slot].ready_state;
     return 0;
 }
+#endif
+

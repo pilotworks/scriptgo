@@ -9,9 +9,15 @@ int scriptgo_arraybuffer_new(int64_t byte_length, void **out_buffer);
 int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, int64_t byte_offset, void **out_array);
 int scriptgo_typedarray_from_array(int64_t kind, void *array_handle, void **out_array);
 
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252 // "TARR"
-#define SCRIPTGO_MAGIC_BUFFER     0x42554646 // "BUFF"
-#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957 // "DVIW"
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U // "TARR"
+#endif
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646U // "BUFF"
+#endif
+#ifndef SCRIPTGO_MAGIC_DATAVIEW
+#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957U // "DVIW"
+#endif
 
 typedef struct {
     int64_t byte_length;

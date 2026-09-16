@@ -17,9 +17,15 @@
 #define SCRIPTGO_MAGIC_SQLITE_STMT    0x53514C53u /* 'SQLS' */
 #define SCRIPTGO_MAGIC_SQLITE_SESSION 0x53514C4Eu /* 'SQLN' */
 
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252u
-#define SCRIPTGO_MAGIC_BUFFER     0x42554646u
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
+#endif
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646U
+#endif
+#ifndef SCRIPTGO_OBJECT_MAGIC
 #define SCRIPTGO_OBJECT_MAGIC     0x53474F424A454354ULL
+#endif
 
 typedef struct scriptgo_sqlite_stmt scriptgo_sqlite_stmt_t;
 typedef struct scriptgo_sqlite_session scriptgo_sqlite_session_t;

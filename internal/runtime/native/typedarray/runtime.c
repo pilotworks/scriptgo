@@ -6,11 +6,15 @@
 
 int scriptgo_runtime_set_error(const char *message);
 
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252 // "TARR"
-#ifndef SCRIPTGO_MAGIC_BUFFER
-#define SCRIPTGO_MAGIC_BUFFER     0x42554646 // "BUFF"
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U // "TARR"
 #endif
-#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957 // "DVIW"
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646U // "BUFF"
+#endif
+#ifndef SCRIPTGO_MAGIC_DATAVIEW
+#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957U // "DVIW"
+#endif
 #define SCRIPTGO_ARRAYBUFFER_GC_TAG 10
 
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);

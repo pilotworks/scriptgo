@@ -5,9 +5,15 @@
 #include <string.h>
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
 #define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
+#endif
+#ifndef SCRIPTGO_MAGIC_DATAVIEW
 #define SCRIPTGO_MAGIC_DATAVIEW 0x44564957U
+#endif
+#ifndef SCRIPTGO_MAGIC_BUFFER
 #define SCRIPTGO_MAGIC_BUFFER 0x42554646U
+#endif
 #define SCRIPTGO_ARRAYBUFFER_GC_TAG 10
 
 extern int scriptgo_gc_get_tag(void *ptr);
@@ -615,7 +621,7 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
         *out_value = 0;
-    } else if ((val >> 32) == 2) {
+    } else if (((uint64_t)val >> 32) == 2) {
         *out_value = (int32_t)(val & 1);
     } else {
         *out_value = (int32_t)(val != 0 ? 1 : 0);
@@ -733,7 +739,7 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
     } else if (val == 0) {
         out_value->tag = SCRIPTGO_TAG_NULL;
-    } else if ((val >> 32) == 2) {
+    } else if (((uint64_t)val >> 32) == 2) {
         out_value->tag = SCRIPTGO_TAG_BOOLEAN;
         out_value->payload = (val & 1);
     } else if ((val & 0xFFF8000000000000ULL) != 0) {
