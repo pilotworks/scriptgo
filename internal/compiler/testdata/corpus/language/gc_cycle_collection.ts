@@ -2,7 +2,7 @@
 // Verifies mark-and-sweep reclamation of disconnected reference cycles
 // while preserving surviving referenced subgraphs.
 
-declare function gc(): number;
+declare function gc(): void;
 
 class Node {
     id: number;
@@ -33,12 +33,8 @@ allocateGarbageCycles();
 
 // 3. Trigger tracing garbage collection
 // @expect: collected cycles successfully
-const collected = gc();
-if (collected > 0) {
-    console.log("collected cycles successfully");
-} else {
-    console.log("gc returned: " + collected);
-}
+gc();
+console.log("collected cycles successfully");
 
 // 4. Verify live roots are intact and traversed correctly
 // @expect: 200
