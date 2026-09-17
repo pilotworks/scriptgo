@@ -915,6 +915,11 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.execSync"}, CategoryNodeModule, "__child_process.execSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 1, 3)
 	register([]string{"__scriptgo.spawnSync"}, CategoryNodeModule, "__child_process.spawnSync", []ir.Type{ir.TypeString, ir.TypeStringArray, ir.TypeString, ir.TypeString}, ir.Type("object:SpawnSyncReturns"), 1, 4)
 	register([]string{"__scriptgo.fetchSync"}, CategoryNodeModule, "__http.fetchSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeStringArray, ir.TypeString}, ir.Type("object:FetchResponseData"), 1, 4)
+	register([]string{"__scriptgo.websocketConnect"}, CategoryWebCompat, "__websocket.connect", []ir.Type{ir.TypeString, ir.TypeString}, ir.TypeNumber, 1, 2)
+	register([]string{"__scriptgo.websocketSendText"}, CategoryWebCompat, "__websocket.sendText", []ir.Type{ir.TypeNumber, ir.TypeString}, ir.TypeNumber, 2, 2)
+	register([]string{"__scriptgo.websocketClose"}, CategoryWebCompat, "__websocket.close", []ir.Type{ir.TypeNumber, ir.TypeNumber, ir.TypeString}, ir.TypeVoid, 1, 3)
+	register([]string{"__scriptgo.websocketPoll"}, CategoryWebCompat, "__websocket.poll", []ir.Type{ir.TypeNumber}, ir.Type("object:WebSocketPollData"), 1, 1)
+	register([]string{"__scriptgo.websocketReadyState"}, CategoryWebCompat, "__websocket.readyState", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
 	register([]string{"__stream.getDefaultHighWaterMark", "__scriptgo.streamGetDefaultHighWaterMark"}, CategoryNodeModule, "__stream.getDefaultHighWaterMark", []ir.Type{ir.TypeBool}, ir.TypeNumber, 0, 1)
 	register([]string{"__stream.setDefaultHighWaterMark", "__scriptgo.streamSetDefaultHighWaterMark"}, CategoryNodeModule, "__stream.setDefaultHighWaterMark", []ir.Type{ir.TypeBool, ir.TypeNumber}, ir.TypeVoid, 2, 2)
 

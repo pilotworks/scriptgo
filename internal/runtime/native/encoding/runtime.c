@@ -6,8 +6,12 @@
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_typedarray_new(int64_t kind, int64_t length, void *buffer_handle, int64_t byte_offset, void **out_array);
 
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252
-#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
+#endif
+#ifndef SCRIPTGO_MAGIC_DATAVIEW
+#define SCRIPTGO_MAGIC_DATAVIEW   0x44564957U
+#endif
 #define SCRIPTGO_MAGIC_TEXT_ENCODER 0x54454E43
 #define SCRIPTGO_MAGIC_TEXT_DECODER 0x54444543
 

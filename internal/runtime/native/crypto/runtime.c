@@ -640,10 +640,10 @@ static int compute_raw_hash(const char *algo, const unsigned char *data, size_t 
 }
 
 #ifndef SCRIPTGO_MAGIC_BUFFER
-#define SCRIPTGO_MAGIC_BUFFER     0x42554646
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646U
 #endif
 #ifndef SCRIPTGO_MAGIC_TYPEDARRAY
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
 #endif
 
 int scriptgo_crypto_hash_digest_buffer(const char *algo, void *data_handle, const char *encoding, char **out_digest);

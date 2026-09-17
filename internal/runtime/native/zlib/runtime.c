@@ -68,8 +68,12 @@ size_t ZSTD_freeDStream(ZSTD_DStream *zds);
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_buffer_alloc(double size, const char *fill_str, double fill_num, int has_fill, int is_str_fill, void **out_buf);
 
-#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252u
-#define SCRIPTGO_MAGIC_BUFFER     0x42554646u
+#ifndef SCRIPTGO_MAGIC_TYPEDARRAY
+#define SCRIPTGO_MAGIC_TYPEDARRAY 0x54415252U
+#endif
+#ifndef SCRIPTGO_MAGIC_BUFFER
+#define SCRIPTGO_MAGIC_BUFFER     0x42554646U
+#endif
 
 typedef struct {
     uint32_t magic;

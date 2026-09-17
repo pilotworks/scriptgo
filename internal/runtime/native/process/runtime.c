@@ -13,9 +13,12 @@ static int process_fail(const char *message) { return scriptgo_runtime_set_error
 static int g_argc = 0;
 static char **g_argv = NULL;
 
+void scriptgo_gc_init(void *stack_bottom);
+
 void scriptgo_process_init(int argc, char **argv) {
     g_argc = argc;
     g_argv = argv;
+    scriptgo_gc_init(&argc);
 }
 
 int scriptgo_process_exit(double code) {

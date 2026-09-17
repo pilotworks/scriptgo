@@ -33,12 +33,15 @@ typedef struct scriptgo_gc_header {
     struct scriptgo_gc_header *prev;
 } scriptgo_gc_header;
 
-void scriptgo_gc_init(void);
+void scriptgo_gc_init(void *stack_bottom);
+void scriptgo_gc_set_threshold(int64_t threshold);
+void scriptgo_gc_register_weak_cleaner(void (*fn)(void *weak_obj, int (*is_alive)(void *ptr)));
 int scriptgo_gc_register(void *ptr, scriptgo_gc_type_tag tag, uint32_t field_count);
 int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 int scriptgo_gc_add_root(void *ptr);
 int scriptgo_gc_remove_root(void *ptr);
+int scriptgo_gc_add_root_slot(void *slot, int64_t word_count);
 int scriptgo_gc_get_tag(void *ptr);
 int scriptgo_gc_collect(int64_t *out_collected_count);
 int scriptgo_gc_get_stats(int64_t *out_live_count, int64_t *out_heap_bytes);

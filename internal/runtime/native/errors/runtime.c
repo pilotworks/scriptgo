@@ -231,7 +231,7 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
         scriptgo_object_t *o = (scriptgo_object_t *)obj;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
             if (o->type_name != NULL && (strcmp(o->type_name, "Error") == 0 || strstr(o->type_name, "Error") != NULL)) {
-                if (o->field_count > 0 && o->fields[0] != 0 && o->fields[0] != 0x7FF8000000000000ULL) {
+                if (o->field_count > 0 && o->fields[0] != 0 && (uint64_t)o->fields[0] != 0x7FF8000000000000ULL) {
                     *out_str = strdup((const char *)o->fields[0]);
                     return 0;
                 }
