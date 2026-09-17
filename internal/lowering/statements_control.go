@@ -1424,6 +1424,35 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			}
 		}
 	}
+	if expr.Kind == "identifier" {
+		varName := expr.Text
+		declStr := string(baseEnv["__decl_str."+varName])
+		if declStr == "" {
+			if topVar, ok := topLevelVars[varName]; ok {
+				declStr = topVar.Type
+				if declStr == "" {
+					declStr = topVar.InferredType
+				}
+			}
+		}
+		if declStr != "" && strings.Contains(declStr, "|") {
+			narrowedType := narrowUnionTypeString(declStr, "nullish")
+			if narrowedType != "" {
+				thenEnv[varName] = narrowedType
+			}
+		} else if expr.InferredType != "" {
+			if nonNull := nonNullishIRType(expr.InferredType); nonNull != "" && nonNull != ir.TypeUnknown && nonNull != ir.TypeVoid {
+				thenEnv[varName] = nonNull
+			}
+		}
+	}
+	if expr.Kind == "property" || expr.Kind == "member" {
+		if propertyPath := extractPropertyPath(expr); len(propertyPath) > 1 {
+			if narrowed := narrowPropertyPathType(propertyPath, expr, baseEnv, shapes, "nullish"); narrowed != "" {
+				thenEnv[strings.Join(propertyPath, ".")] = narrowed
+			}
+		}
+	}
 }
 
 func narrowPropertyPathType(propertyPath []string, expression *typescriptgo.SyntaxExpression, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape, nullishKind string) ir.Type {
