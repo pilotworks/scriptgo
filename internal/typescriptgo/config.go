@@ -69,6 +69,10 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 			vLegacy := filepath.Join(cwd, "node_modules", "webstreams", fileName)
 			virtualFiles[vLegacy] = module.Source
 			builtinPaths[vLegacy] = "webstreams"
+		} else if name == "readline/promises" {
+			vLegacy := filepath.Join(cwd, "node_modules", "readline_promises", fileName)
+			virtualFiles[vLegacy] = module.Source
+			builtinPaths[vLegacy] = "readline_promises"
 		}
 	}
 
@@ -84,6 +88,10 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 		}
 		if name == "stream/web" || name == "webstreams" {
 			nodeTypesDts.WriteString("declare module \"node:stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"stream/web\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\ndeclare module \"node:webstreams\" {\n    export * from \"webstreams\";\n    import d from \"webstreams\";\n    export default d;\n}\n")
+			continue
+		}
+		if name == "readline/promises" || name == "readline_promises" {
+			nodeTypesDts.WriteString("declare module \"node:readline/promises\" {\n    export * from \"readline/promises\";\n    import d from \"readline/promises\";\n    export default d;\n}\n")
 			continue
 		}
 		nodeTypesDts.WriteString(fmt.Sprintf("declare module \"node:%s\" {\n    export * from \"%s\";\n    import d from \"%s\";\n    export default d;\n}\n", name, name, name))

@@ -256,6 +256,7 @@ func lowerCallExpression(
 						return res, typ, err
 					}
 					className := strings.TrimPrefix(string(receiverType), "object:")
+					className = classIdentityForPath(path, className)
 					if className != "" && className != "number" && className != "string" && className != "bool" && className != "void" {
 						if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 							args := []string{receiver}
@@ -1159,6 +1160,7 @@ func lowerCallExpression(
 					if idx := strings.Index(cls, "<"); idx != -1 {
 						cls = cls[:idx]
 					}
+					cls = classIdentityForPath(path, cls)
 					mangled := cls + "_" + funcName
 					if sig, ok2 := signatures[mangled]; ok2 {
 						target = sig

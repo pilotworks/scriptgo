@@ -107,6 +107,9 @@ func loadEmbeddedStdlib(version string) error {
 	if m, ok := newModules["stream/web"]; ok {
 		newModules["webstreams"] = BuiltinModule{Name: "webstreams", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
 	}
+	if m, ok := newModules["readline/promises"]; ok {
+		newModules["readline_promises"] = BuiltinModule{Name: "readline_promises", Version: version, Source: m.Source, IsDeclaration: m.IsDeclaration}
+	}
 
 	builtinModules = newModules
 	globalsSource = newGlobals
@@ -313,6 +316,9 @@ func builtinModule(name string) (BuiltinModule, bool) {
 		return module, ok
 	case "stream/promises":
 		module, ok := builtinModules["stream_promises"]
+		return module, ok
+	case "readline/promises":
+		module, ok := builtinModules["readline_promises"]
 		return module, ok
 	}
 	return BuiltinModule{}, false

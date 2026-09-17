@@ -323,6 +323,8 @@ func moduleReferences(program *compiler.Program, file *ast.SourceFile, cwd strin
 				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "promises", "index.ts")
 			} else if module.Name == "webstreams" || module.Name == "stream/web" {
 				resolvedFileName = filepath.Join(cwd, "node_modules", "stream", "web", "index.ts")
+			} else if module.Name == "readline_promises" || module.Name == "readline/promises" {
+				resolvedFileName = filepath.Join(cwd, "node_modules", "readline", "promises", "index.ts")
 			} else if resolved != nil && resolved.ResolvedFileName != "" && !strings.HasSuffix(resolved.ResolvedFileName, ".d.ts") {
 				resolvedFileName = filepath.Clean(resolved.ResolvedFileName)
 			} else {

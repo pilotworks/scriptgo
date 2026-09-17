@@ -623,6 +623,7 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 	}
 
 	className = strings.TrimPrefix(string(objectType), "object:")
+	className = classIdentityForPath(path, className)
 
 	// Check instance getters
 	if getter, getterName, ok := findGetterInHierarchy(className, expression.Text, signatures, classHierarchy); ok {

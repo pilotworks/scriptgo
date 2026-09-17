@@ -17,10 +17,13 @@ export const builtinModules: string[] = [
     "process",
     "punycode",
     "querystring",
+    "readline",
+    "readline/promises",
     "stream",
     "string_decoder",
     "timers",
     "tls",
+    "tty",
     "url",
     "util",
     "zlib"

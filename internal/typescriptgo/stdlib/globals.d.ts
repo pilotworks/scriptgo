@@ -16,6 +16,12 @@ interface ProcessVersions {
     [key: string]: string;
 }
 
+interface ProcessStream {
+    fd: number;
+    isTTY?: boolean;
+    write?(chunk: unknown): boolean;
+}
+
 interface Process {
     argv: string[];
     env: ProcessEnv;
@@ -30,6 +36,9 @@ interface Process {
     uptime(): number;
     hrtime(time?: [number, number]): [number, number];
     nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void;
+    stdin: ProcessStream;
+    stdout: ProcessStream;
+    stderr: ProcessStream;
 }
 
 declare var process: Process;

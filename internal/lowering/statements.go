@@ -134,9 +134,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			*counter++
 			env["__ident."+statement.Name] = ir.Type(varResultName)
 		}
-		localType := toIRType(statement.Type)
+		localType := toIRTypeForPath(path, statement.Type)
 		if localType == "" {
-			localType = toIRType(statement.InferredType)
+			localType = toIRTypeForPath(path, statement.InferredType)
 		}
 		if localType == "" {
 			localType = ir.TypeUnknown
@@ -193,9 +193,9 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		}
 		inProgressVars[statement.Name] = true
 		defer delete(inProgressVars, statement.Name)
-		declaredType := toIRType(statement.Type)
+		declaredType := toIRTypeForPath(path, statement.Type)
 		if statement.Type == "" && statement.InferredType != "" {
-			declaredType = toIRType(statement.InferredType)
+			declaredType = toIRTypeForPath(path, statement.InferredType)
 		}
 		if statement.Expression.Kind == "identifier" {
 			if _, isDynamicAlias := dynamicImports[statement.Expression.Text]; isDynamicAlias {

@@ -142,7 +142,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			e.types[instruction.Result] = ir.TypeBool
 			return nil
 		}
-		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray
+		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray || strings.HasPrefix(string(argType), "tuple:")
 		resSlot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", resSlot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -488,6 +488,18 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		if instruction.Result != "" {
 			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
+	if strings.HasPrefix(instruction.Callee, "__tty.") {
+		if err := e.emitTtyIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+			if instruction.Type == ir.TypeString {
+				e.ownedStrings = append(e.ownedStrings, instruction.Result)
+			}
 		}
 		return nil
 	}
