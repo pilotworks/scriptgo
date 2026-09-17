@@ -1013,13 +1013,31 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 	case "typeof":
 		val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
+			callee := callName(expression.Left)
+			if callee != "" && isClassIdentifier(path, callee) {
+				typeStr := "function"
+				if callee == "crypto" || callee == "performance" || callee == "Math" || callee == "JSON" || callee == "Intl" || callee == "Atomics" {
+					typeStr = "object"
+				}
+				if result == "" {
+					result = nextTemp(counter)
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: result,
+					Value:  typeStr,
+					Span:   toIRSpan(path, expression.Span),
+				})
+				return result, ir.TypeString, nil
+			}
 			if expression.Left != nil && expression.Left.Kind == "identifier" {
 				name := expression.Left.Text
 				if name == "undefined" {
 					valType = ir.TypeVoid
-				} else if isGlobalConstructor(name) {
+				} else if isGlobalConstructor(name) || isClassIdentifier(path, name) {
 					typeStr := "function"
-					if name == "crypto" || name == "performance" {
+					if name == "crypto" || name == "performance" || name == "Math" || name == "JSON" || name == "Intl" || name == "Atomics" {
 						typeStr = "object"
 					}
 					if result == "" {

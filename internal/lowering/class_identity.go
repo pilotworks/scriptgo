@@ -244,3 +244,43 @@ func toIRTypeForPath(path, value string) ir.Type {
 	}
 	return typ
 }
+
+func isClassIdentifier(path, name string) bool {
+	if isGlobalConstructor(name) {
+		return true
+	}
+	switch name {
+	case "Array", "Boolean", "Date", "Error", "Function", "Map", "Number", "Object", "Promise", "RegExp", "Set", "String", "Symbol", "WeakMap", "WeakSet",
+		"EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError", "URIError", "AggregateError",
+		"ArrayBuffer", "SharedArrayBuffer", "DataView",
+		"Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array":
+		return true
+	}
+	target := classIdentityForPath(path, name)
+	if meta, ok := classHierarchy[target]; ok && !meta.IsInterface && !meta.IsTypeAlias {
+		return true
+	}
+	if meta, ok := classHierarchy[name]; ok && !meta.IsInterface && !meta.IsTypeAlias {
+		return true
+	}
+	if candidates, ok := classCandidates[name]; ok {
+		for _, c := range candidates {
+			if meta, ok := classHierarchy[c.Internal]; ok && !meta.IsInterface && !meta.IsTypeAlias {
+				return true
+			}
+		}
+	}
+	if idx := strings.Index(name, "."); idx > 0 {
+		cleanPath := filepath.Clean(path)
+		ns := name[:idx]
+		prop := name[idx+1:]
+		if targetFile, ok := classNamespacesByFile[cleanPath][ns]; ok {
+			if imported, ok := classIdentitiesByFile[targetFile][prop]; ok {
+				if meta, ok := classHierarchy[imported.Internal]; ok && !meta.IsInterface && !meta.IsTypeAlias {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}

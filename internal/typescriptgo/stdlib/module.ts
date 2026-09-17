@@ -11,6 +11,7 @@ export const builtinModules: string[] = [
     "events",
     "fs",
     "http",
+    "https",
     "net",
     "os",
     "path",
