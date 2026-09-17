@@ -534,6 +534,54 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 					module.Functions = append(module.Functions, function)
 					signatures[ctorMangled] = function
+				} else if len(fieldInits) > 0 || statement.Class.Extends != "" {
+					ctorMangled := className + "_constructor"
+					var ctorBody []typescriptgo.SyntaxStatement
+					var ctorParams []typescriptgo.SyntaxParameter
+					if statement.Class.Extends != "" {
+						var superArgs []*typescriptgo.SyntaxExpression
+						baseClass := qualifyClassType(fileName, statement.Class.Extends)
+						if baseCtor, _, found := findConstructorInHierarchy(baseClass, signatures, hierarchy); found && len(baseCtor.Parameters) > 1 {
+							for _, p := range baseCtor.Parameters[1:] {
+								ctorParams = append(ctorParams, typescriptgo.SyntaxParameter{
+									Name: p.Name,
+									Type: string(p.Type),
+								})
+								superArgs = append(superArgs, &typescriptgo.SyntaxExpression{
+									Span: statement.Span,
+									Kind: "identifier",
+									Text: p.Name,
+								})
+							}
+						}
+						ctorBody = append(ctorBody, typescriptgo.SyntaxStatement{
+							Span: statement.Span,
+							Kind: "expression",
+							Expression: &typescriptgo.SyntaxExpression{
+								Span:      statement.Span,
+								Kind:      "call",
+								Left:      &typescriptgo.SyntaxExpression{Span: statement.Span, Kind: "identifier", Text: "super"},
+								Arguments: superArgs,
+							},
+						})
+					}
+					ctorBody = append(ctorBody, fieldInits...)
+					ctorStmt := typescriptgo.SyntaxStatement{
+						Span: statement.Span,
+						Kind: "function",
+						Name: ctorMangled,
+						Type: "void",
+						Parameters: append([]typescriptgo.SyntaxParameter{
+							{Name: "this", Type: "object:" + className},
+						}, ctorParams...),
+						Body: ctorBody,
+					}
+					function, err := lowerFunction(fileName, ctorStmt, shapes, signatures)
+					if err != nil {
+						return fmt.Errorf("lower class default constructor %q: %w", ctorMangled, sourceError(fileName, statement.Span, err))
+					}
+					module.Functions = append(module.Functions, function)
+					signatures[ctorMangled] = function
 				}
 
 				// Lower methods, static methods, getters, setters
