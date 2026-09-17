@@ -101,6 +101,35 @@ class IncomingMessage extends EventEmitter {
     }
 }
 
+const METHODS: string[] = [
+    "ACL", "BIND", "CHECKOUT", "CONNECT", "COPY", "DELETE", "GET", "HEAD", "LINK",
+    "LOCK", "M-SEARCH", "MERGE", "MKACTIVITY", "MKCALENDAR", "MKCOL", "MOVE", "NOTIFY",
+    "OPTIONS", "PATCH", "POST", "PROPFIND", "PROPPATCH", "PURGE", "PUT", "REBIND",
+    "REPORT", "SEARCH", "SOURCE", "SUBSCRIBE", "TRACE", "UNBIND", "UNLINK", "UNLOCK",
+    "UNSUBSCRIBE"
+];
+
+const STATUS_CODES: Record<string, string> = {
+    "100": "Continue",
+    "101": "Switching Protocols",
+    "200": "OK",
+    "201": "Created",
+    "202": "Accepted",
+    "204": "No Content",
+    "301": "Moved Permanently",
+    "302": "Found",
+    "304": "Not Modified",
+    "400": "Bad Request",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "404": "Not Found",
+    "405": "Method Not Allowed",
+    "408": "Request Timeout",
+    "500": "Internal Server Error",
+    "502": "Bad Gateway",
+    "503": "Service Unavailable"
+};
+
 class ServerResponse extends EventEmitter {
     statusCode: number = 200;
     statusMessage: string = "OK";
@@ -158,8 +187,16 @@ class ServerResponse extends EventEmitter {
         if (typeof statusMessageOrHeaders === "string") {
             this.statusMessage = statusMessageOrHeaders;
             hdrs = headers;
-        } else if (typeof statusMessageOrHeaders === "object" && statusMessageOrHeaders !== null) {
-            hdrs = statusMessageOrHeaders as Record<string, string>;
+        } else {
+            const codeStr = String(statusCode);
+            if (STATUS_CODES[codeStr] !== undefined) {
+                this.statusMessage = STATUS_CODES[codeStr];
+            } else {
+                this.statusMessage = "OK";
+            }
+            if (typeof statusMessageOrHeaders === "object" && statusMessageOrHeaders !== null) {
+                hdrs = statusMessageOrHeaders as Record<string, string>;
+            }
         }
         if (hdrs) {
             for (const key of Object.keys(hdrs)) {
@@ -226,7 +263,14 @@ class ClientRequest extends EventEmitter {
     constructor(options: RequestOptions, callback?: (res: IncomingMessage) => void) {
         super();
         this._options = options;
-        if (options.method) this.method = options.method.toUpperCase();
+        if (options.method) {
+            const m = options.method.toUpperCase();
+            if (METHODS.indexOf(m) !== -1) {
+                this.method = m;
+            } else {
+                this.method = options.method;
+            }
+        }
         if (options.path) this.path = options.path;
         if (options.host) this.host = options.host;
         else if (options.hostname) this.host = options.hostname;
@@ -576,35 +620,6 @@ export function createServer(
     return new Server(optionsOrListener, requestListener);
 }
 
-const METHODS: string[] = [
-    "ACL", "BIND", "CHECKOUT", "CONNECT", "COPY", "DELETE", "GET", "HEAD", "LINK",
-    "LOCK", "M-SEARCH", "MERGE", "MKACTIVITY", "MKCALENDAR", "MKCOL", "MOVE", "NOTIFY",
-    "OPTIONS", "PATCH", "POST", "PROPFIND", "PROPPATCH", "PURGE", "PUT", "REBIND",
-    "REPORT", "SEARCH", "SOURCE", "SUBSCRIBE", "TRACE", "UNBIND", "UNLINK", "UNLOCK",
-    "UNSUBSCRIBE"
-];
-
-const STATUS_CODES: Record<string, string> = {
-    "100": "Continue",
-    "101": "Switching Protocols",
-    "200": "OK",
-    "201": "Created",
-    "202": "Accepted",
-    "204": "No Content",
-    "301": "Moved Permanently",
-    "302": "Found",
-    "304": "Not Modified",
-    "400": "Bad Request",
-    "401": "Unauthorized",
-    "403": "Forbidden",
-    "404": "Not Found",
-    "405": "Method Not Allowed",
-    "408": "Request Timeout",
-    "500": "Internal Server Error",
-    "502": "Bad Gateway",
-    "503": "Service Unavailable"
-};
-
 export default {
     Agent,
     globalAgent,
@@ -613,4 +628,5 @@ export default {
     get,
     createServer
 };
+
 
