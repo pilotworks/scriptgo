@@ -924,6 +924,12 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_process_pid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_ppid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_version(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_tty_isatty(double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_tty_get_window_size(double, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_tty_set_raw_mode(double, double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_tty_read(double, double, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_tty_read_line(double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_tty_write(double, ptr, double, ptr)\n\n")
 	out.WriteString("declare ptr @scriptgo_closure_alloc(i64)\n\n")
 
 	alreadyDeclared := map[string]bool{

@@ -29,6 +29,12 @@ export const versions: Record<string, string> = {
 export const platform = __scriptgo.platform();
 export const arch = __scriptgo.arch();
 
+import { ReadStream, WriteStream } from "node:tty";
+
+export const stdin = new ReadStream(0);
+export const stdout = new WriteStream(1);
+export const stderr = new WriteStream(2);
+
 export function nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void {
     callback(...args);
 }
@@ -67,6 +73,9 @@ export default {
     nextTick,
     hrtime,
     uptime,
+    stdin,
+    stdout,
+    stderr,
 };
 
 

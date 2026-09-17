@@ -982,6 +982,14 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.dgramDisconnect"}, CategoryNodeModule, "__dgram.disconnect", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 	register([]string{"__scriptgo.dgramClose"}, CategoryNodeModule, "__dgram.close", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
 
+	// TTY Intrinsics
+	register([]string{"tty.isatty", "__scriptgo.ttyIsatty", "isatty"}, CategoryNodeModule, "__tty.isatty", []ir.Type{ir.TypeNumber}, ir.TypeBool, 1, 1)
+	register([]string{"tty.getWindowSize", "__scriptgo.ttyGetWindowSize"}, CategoryNodeModule, "__tty.getWindowSize", []ir.Type{ir.TypeNumber}, ir.TypeNumberArray, 1, 1)
+	register([]string{"tty.setRawMode", "__scriptgo.ttySetRawMode"}, CategoryNodeModule, "__tty.setRawMode", []ir.Type{ir.TypeNumber, ir.TypeBool}, ir.TypeBool, 2, 2)
+	register([]string{"tty.read", "__scriptgo.ttyRead"}, CategoryNodeModule, "__tty.read", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeString, 1, 2)
+	register([]string{"tty.readLine", "__scriptgo.ttyReadLine"}, CategoryNodeModule, "__tty.readLine", []ir.Type{ir.TypeNumber}, ir.TypeString, 1, 1)
+	register([]string{"tty.write", "__scriptgo.ttyWrite"}, CategoryNodeModule, "__tty.write", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeNumber, 2, 3)
+
 	// TLS intrinsics. The TypeScript node:tls adapter owns option handling and
 	// object/event semantics; these calls expose only the native TLS ABI.
 	register([]string{"__scriptgo.tlsContextCreate"}, CategoryNodeModule, "__tls.contextCreate", []ir.Type{ir.TypeString, ir.TypeBool}, ir.TypeNumber, 7, 7)
