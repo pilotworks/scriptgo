@@ -469,9 +469,9 @@ export class Server {
         }
         try {
             this._serverFd = __scriptgo.netServerListen(host, port, backlog);
-            this.emit("listening");
+            queueMicrotask(() => this.emit("listening"));
         } catch (err) {
-            this.emit("error", err);
+            queueMicrotask(() => this.emit("error", err));
         }
         return this;
     }

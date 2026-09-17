@@ -140,19 +140,62 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 			baseCls := clsName
 			if idx := strings.Index(clsName, "<"); idx != -1 {
 				baseCls = clsName[:idx]
-			} else if idx := strings.Index(clsName, "__"); idx != -1 {
+			} else if idx := strings.Index(clsName, "__"); idx > 0 {
 				baseCls = clsName[:idx]
 			}
-			lookupKey := clsName + "." + methodName
+			qualifiedCls := classIdentityForPath(fileName, clsName)
+			if qualifiedCls != "" {
+				if stmtClass, hasStmt := classSyntax[qualifiedCls]; hasStmt {
+					hasConcrete := false
+					for _, m := range stmtClass.Methods {
+						if m.Name == methodName && len(m.TypeParameters) == 0 && m.IsStatic == !isInstance {
+							hasConcrete = true
+							break
+						}
+					}
+					if hasConcrete {
+						return
+					}
+				}
+			}
+			if stmtClass, hasStmt := classSyntax[clsName]; hasStmt {
+				hasConcrete := false
+				for _, m := range stmtClass.Methods {
+					if m.Name == methodName && len(m.TypeParameters) == 0 && m.IsStatic == !isInstance {
+						hasConcrete = true
+						break
+					}
+				}
+				if hasConcrete {
+					return
+				}
+			}
+			targetCls := qualifiedCls
+			if targetCls == "" {
+				targetCls = clsName
+			}
+			lookupKey := targetCls + "." + methodName
 			if !isInstance {
-				lookupKey = clsName + ".static." + methodName
+				lookupKey = targetCls + ".static." + methodName
 			}
 			mTemplate, ok := genericMethods[lookupKey]
-			if !ok {
+			if !ok && clsName != targetCls {
+				lookupKey = clsName + "." + methodName
+				if !isInstance {
+					lookupKey = clsName + ".static." + methodName
+				}
+				if mTemplate, ok = genericMethods[lookupKey]; ok {
+					targetCls = clsName
+				}
+			}
+			if !ok && baseCls != "" && baseCls != clsName {
 				if !isInstance {
 					mTemplate, ok = genericMethods[baseCls+".static."+methodName]
 				} else {
 					mTemplate, ok = genericMethods[baseCls+"."+methodName]
+				}
+				if ok {
+					targetCls = baseCls
 				}
 			}
 			callTypeArgs := expr.TypeArguments
@@ -162,8 +205,8 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 					typeArgs = inferTypeArgsForMethod(mTemplate, mTemplate.TypeParameters, expr.Arguments, env, funcTypes)
 				}
 				if len(typeArgs) == len(mTemplate.TypeParameters) {
-					reqMethod(clsName, methodName, typeArgs)
-					if baseCls != clsName {
+					reqMethod(targetCls, methodName, typeArgs)
+					if baseCls != "" && baseCls != targetCls {
 						reqMethod(baseCls, methodName, typeArgs)
 					}
 				}

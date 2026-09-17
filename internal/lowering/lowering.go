@@ -772,7 +772,6 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			module.Functions = append(module.Functions, df)
 		}
 	}
-
 	if err := module.Verify(); err != nil {
 		return ir.Module{}, err
 	}
