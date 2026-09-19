@@ -1002,7 +1002,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		}
 		out.WriteString(fmt.Sprintf("@%s = global %s %s\n", g.Name, gType, initVal))
 	}
-	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
+	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
 
 	for _, function := range module.Functions {
 		text, err := emitFunction(function, functions, stringsByValue, debug, module, options)
@@ -1041,7 +1041,7 @@ func emitClosureInvokeAdapter(function ir.Function) string {
 	params := "ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3"
 	args := "ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3"
 	var out strings.Builder
-	fmt.Fprintf(&out, "define internal void @%s$invoke(%s, ptr %%out) {\n", name, params)
+	fmt.Fprintf(&out, "define internal void @%s$invoke(%s, ptr %%out) nounwind {\n", name, params)
 
 	if function.ReturnType == ir.TypeUnknown {
 		fmt.Fprintf(&out, "  %%result = call %s @%s(%s)\n", valueType, name, args)
@@ -1097,7 +1097,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	name := function.Name
 	var out strings.Builder
 	if name == "main" {
-		out.WriteString("define i32 @main(i32 %argc, ptr %argv)")
+		out.WriteString("define i32 @main(i32 %argc, ptr %argv) nounwind")
 	} else {
 		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
 		parameterIndex := 0
@@ -1113,7 +1113,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
 			parameterIndex++
 		}
-		out.WriteString(")")
+		out.WriteString(") nounwind")
 	}
 	if debug != nil {
 		fmt.Fprintf(&out, " !dbg !%d", debug.functions[function.Name])

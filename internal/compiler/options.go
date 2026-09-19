@@ -27,6 +27,8 @@ type BuildOptions struct {
 	ExtraSources     []string
 	TSConfig         string
 	Dynamic          bool
+	Strip            bool
+	TargetCPU        string
 }
 
 func (options BuildOptions) normalized() BuildOptions {
@@ -58,6 +60,16 @@ func (options BuildOptions) normalized() BuildOptions {
 	if options.LTO == "" {
 		if envLTO := os.Getenv("SCRIPTGO_LTO"); envLTO != "" {
 			options.LTO = envLTO
+		}
+	}
+	if options.TargetCPU == "" {
+		if envCPU := os.Getenv("SCRIPTGO_TARGET_CPU"); envCPU != "" {
+			options.TargetCPU = envCPU
+		}
+	}
+	if !options.Strip {
+		if envStrip := os.Getenv("SCRIPTGO_STRIP"); envStrip == "1" || envStrip == "true" {
+			options.Strip = true
 		}
 	}
 	return options

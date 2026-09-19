@@ -110,3 +110,111 @@ console.log(pt.x + pt.y);
 		}
 	}
 }
+
+func TestBuildWithStrip(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	code := `
+function compute(n: number): number {
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+        sum += i * 2;
+    }
+    return sum;
+}
+console.log(compute(10));
+`
+	if err := os.WriteFile(entry, []byte(code), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	normalOutput := filepath.Join(dir, "main_normal")
+	strippedOutput := filepath.Join(dir, "main_stripped")
+
+	if err := BuildWithOptions(entry, normalOutput, BuildOptions{OptLevel: "2"}); err != nil {
+		t.Fatalf("BuildWithOptions normal failed: %v", err)
+	}
+	if err := BuildWithOptions(entry, strippedOutput, BuildOptions{OptLevel: "2", Strip: true}); err != nil {
+		t.Fatalf("BuildWithOptions stripped failed: %v", err)
+	}
+
+	resNormal, err := exec.Command(normalOutput).CombinedOutput()
+	if err != nil {
+		t.Fatalf("normal executable failed: %v\n%s", err, resNormal)
+	}
+	resStripped, err := exec.Command(strippedOutput).CombinedOutput()
+	if err != nil {
+		t.Fatalf("stripped executable failed: %v\n%s", err, resStripped)
+	}
+	if string(resNormal) != string(resStripped) || string(resStripped) != "90\n" {
+		t.Fatalf("output mismatch: normal=%q, stripped=%q, want 90\\n", resNormal, resStripped)
+	}
+
+	infoNormal, err1 := os.Stat(normalOutput)
+	infoStripped, err2 := os.Stat(strippedOutput)
+	if err1 == nil && err2 == nil {
+		if infoStripped.Size() > infoNormal.Size() {
+			t.Errorf("stripped binary size (%d) should be <= normal binary size (%d)", infoStripped.Size(), infoNormal.Size())
+		}
+	}
+}
+
+func TestBuildWithTargetCPU(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	code := `console.log("cpu-ok");`
+	if err := os.WriteFile(entry, []byte(code), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := filepath.Join(dir, "main_cpu")
+	if err := BuildWithOptions(entry, output, BuildOptions{TargetCPU: "native"}); err != nil {
+		t.Fatalf("BuildWithOptions with TargetCPU=native failed: %v", err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("executable with TargetCPU=native failed: %v\n%s", err, result)
+	}
+	if string(result) != "cpu-ok\n" {
+		t.Fatalf("executable output = %q, want %q", result, "cpu-ok\n")
+	}
+}
+
+func TestBuildOptLevels(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	code := `
+const arr = [3, 1, 4, 1, 5, 9, 2, 6];
+let acc = 0;
+for (const x of arr) {
+    acc += x;
+}
+console.log(acc);
+`
+	if err := os.WriteFile(entry, []byte(code), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, opt := range []string{"0", "1", "2", "3", "s", "z"} {
+		output := filepath.Join(dir, "main_opt_"+opt)
+		if err := BuildWithOptions(entry, output, BuildOptions{OptLevel: opt}); err != nil {
+			t.Fatalf("BuildWithOptions with OptLevel=%s failed: %v", opt, err)
+		}
+		result, err := exec.Command(output).CombinedOutput()
+		if err != nil {
+			t.Fatalf("executable with OptLevel=%s failed: %v\n%s", opt, err, result)
+		}
+		if string(result) != "31\n" {
+			t.Fatalf("executable (OptLevel=%s) output = %q, want %q", opt, result, "31\n")
+		}
+	}
+}
