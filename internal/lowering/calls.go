@@ -1152,6 +1152,15 @@ func lowerCallExpression(
 			funcName := parts[len(parts)-1]
 			if expression.Left != nil && expression.Left.Left != nil {
 				recvType := env[expression.Left.Left.Text]
+				if recvType == "" {
+					if topVar, okVar := topLevelVars[expression.Left.Left.Text]; okVar {
+						if topVar.Type != "" {
+							recvType = toIRTypeForPath(path, topVar.Type)
+						} else if topVar.InferredType != "" {
+							recvType = toIRTypeForPath(path, topVar.InferredType)
+						}
+					}
+				}
 				if recvType == "" && expression.Left.Left.InferredType != "" {
 					recvType = toIRType(expression.Left.Left.InferredType)
 				}
@@ -1164,6 +1173,9 @@ func lowerCallExpression(
 					mangled := cls + "_" + funcName
 					if sig, ok2 := signatures[mangled]; ok2 {
 						target = sig
+						ok = true
+					} else if fn, _, okFind := findMethodInHierarchy(cls, funcName, signatures, classHierarchy); okFind {
+						target = fn
 						ok = true
 					}
 				}

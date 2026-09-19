@@ -20,6 +20,7 @@ var (
 // SpecializeGenerics monomorphizes generic functions and classes based on
 // concrete type arguments at call sites, instantiations, and type annotations.
 func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
+	initializeClassIdentities(program)
 	buildClassHierarchy(program)
 	genericFuncs := map[string]typescriptgo.SyntaxStatement{}
 	genericClasses := map[string]typescriptgo.SyntaxClass{}
@@ -62,16 +63,29 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			if statement.Kind == "function" && len(statement.TypeParameters) > 0 {
 				genericFuncs[statement.Name] = statement
 			} else if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
+				qualifiedCls := classIdentityForPath(file.FileName, statement.Class.Name)
 				if len(statement.Class.TypeParameters) > 0 {
+					genericClasses[qualifiedCls] = *statement.Class
 					genericClasses[statement.Class.Name] = *statement.Class
+					genericClassKinds[qualifiedCls] = statement.Kind
 					genericClassKinds[statement.Class.Name] = statement.Kind
+				}
+				isUnique := false
+				if _, ok := classIdentitiesByName[statement.Class.Name]; ok {
+					isUnique = true
 				}
 				for _, m := range statement.Class.Methods {
 					if len(m.TypeParameters) > 0 {
 						if m.IsStatic {
-							genericMethods[statement.Class.Name+".static."+m.Name] = m
+							genericMethods[qualifiedCls+".static."+m.Name] = m
+							if isUnique {
+								genericMethods[statement.Class.Name+".static."+m.Name] = m
+							}
 						} else {
-							genericMethods[statement.Class.Name+"."+m.Name] = m
+							genericMethods[qualifiedCls+"."+m.Name] = m
+							if isUnique {
+								genericMethods[statement.Class.Name+"."+m.Name] = m
+							}
 						}
 					}
 				}
@@ -192,10 +206,12 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			mTemplate, ok = genericMethods[key]
 		}
 		if !ok && strings.Contains(className, "__") {
-			baseName := className[:strings.Index(className, "__")]
-			mTemplate, ok = genericMethods[baseName+"."+methodName]
-			if !ok {
-				mTemplate, ok = genericMethods[baseName+".static."+methodName]
+			if idx := strings.Index(className, "__"); idx > 0 {
+				baseName := className[:idx]
+				mTemplate, ok = genericMethods[baseName+"."+methodName]
+				if !ok {
+					mTemplate, ok = genericMethods[baseName+".static."+methodName]
+				}
 			}
 		}
 		if !ok || len(typeArgs) != len(mTemplate.TypeParameters) {
@@ -217,9 +233,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		for i, param := range mTemplate.TypeParameters {
 			subst[param] = typeArgs[i]
 		}
-		if strings.Contains(className, "__") {
-			baseCls := className[:strings.Index(className, "__")]
-			clsArgs := strings.Split(className[strings.Index(className, "__")+2:], "_")
+		if idx := strings.Index(className, "__"); idx > 0 {
+			baseCls := className[:idx]
+			clsArgs := strings.Split(className[idx+2:], "_")
 			if clsTemplate, ok := genericClasses[baseCls]; ok {
 				if len(clsArgs) > len(clsTemplate.TypeParameters) && len(clsTemplate.TypeParameters) > 0 {
 					numParams := len(clsTemplate.TypeParameters)
@@ -283,9 +299,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 
 		baseName := className
 		var classTypeArgs []string
-		if strings.Contains(className, "__") {
-			baseName = className[:strings.Index(className, "__")]
-			classTypeArgs = strings.Split(className[strings.Index(className, "__")+2:], "_")
+		if idx := strings.Index(className, "__"); idx > 0 {
+			baseName = className[:idx]
+			classTypeArgs = strings.Split(className[idx+2:], "_")
 		} else if strings.Contains(className, "<") && strings.HasSuffix(className, ">") {
 			idx := strings.Index(className, "<")
 			baseName = className[:idx]
@@ -296,20 +312,22 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			if idx := strings.Index(cleanExtends, "<"); idx != -1 {
 				cleanExtends = cleanExtends[:idx]
 			}
-			isSub := subMeta.Extends == className || subMeta.Extends == baseName || cleanExtends == baseName
+			isSub := (subMeta.Extends != "" && (subMeta.Extends == className || (baseName != "" && subMeta.Extends == baseName))) ||
+				(cleanExtends != "" && baseName != "" && cleanExtends == baseName)
 			if !isSub {
 				for _, imp := range subMeta.Implements {
 					cleanImp := imp
 					if idx := strings.Index(cleanImp, "<"); idx != -1 {
 						cleanImp = cleanImp[:idx]
 					}
-					if imp == className || imp == baseName || cleanImp == baseName {
+					if (imp != "" && (imp == className || (baseName != "" && imp == baseName))) ||
+						(cleanImp != "" && baseName != "" && cleanImp == baseName) {
 						isSub = true
 						break
 					}
 				}
 			}
-			if isSub && subName != className && subName != baseName {
+			if isSub && subName != className && (baseName == "" || subName != baseName) {
 				requestMethodSpec(subName, methodName, typeArgs)
 				if len(classTypeArgs) > 0 {
 					subMangled := mangleGenericName(subName, classTypeArgs)
@@ -510,8 +528,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			}
 			rewritten := rewriteStatementTypes(stmt, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
 			if rewritten.Class != nil {
+				qualName := classIdentityForPath(file.FileName, rewritten.Class.Name)
 				baseName := rewritten.Class.Name
-				if idx := strings.Index(baseName, "__"); idx != -1 {
+				if idx := strings.Index(baseName, "__"); idx > 0 {
 					baseName = baseName[:idx]
 				}
 				seen := map[string]bool{}
@@ -522,10 +541,15 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = rewritten.Class.Name
 				var candidateMethodLists [][]typescriptgo.SyntaxMethod
-				if strings.Contains(rewritten.Class.Name, "__") {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name]}
-				} else {
+				if qualName != "" && qualName != rewritten.Class.Name {
+					candidateMethodLists = append(candidateMethodLists, methodInstances[qualName])
+					if idx := strings.Index(qualName, "__"); idx > 0 {
+						candidateMethodLists = append(candidateMethodLists, methodInstances[qualName[:idx]])
+					}
+				} else if baseName != "" && baseName != rewritten.Class.Name {
 					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]}
+				} else {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name]}
 				}
 				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
@@ -543,8 +567,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			clsStmt := classInstances[file.FileName][i]
 			clsStmt = rewriteStatementTypes(clsStmt, fileEnv, genericFuncs, genericClasses, genericMethods, requestFuncSpec, requestClassSpec, requestMethodSpec, file.FileName)
 			if clsStmt.Class != nil {
+				qualName := classIdentityForPath(file.FileName, clsStmt.Class.Name)
 				baseName := clsStmt.Class.Name
-				if idx := strings.Index(baseName, "__"); idx != -1 {
+				if idx := strings.Index(baseName, "__"); idx > 0 {
 					baseName = baseName[:idx]
 				}
 				seen := map[string]bool{}
@@ -555,10 +580,15 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = clsStmt.Class.Name
 				var candidateMethodLists [][]typescriptgo.SyntaxMethod
-				if strings.Contains(clsStmt.Class.Name, "__") {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name]}
-				} else {
+				if qualName != "" && qualName != clsStmt.Class.Name {
+					candidateMethodLists = append(candidateMethodLists, methodInstances[qualName])
+					if idx := strings.Index(qualName, "__"); idx > 0 {
+						candidateMethodLists = append(candidateMethodLists, methodInstances[qualName[:idx]])
+					}
+				} else if baseName != "" && baseName != clsStmt.Class.Name {
 					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]}
+				} else {
+					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name]}
 				}
 				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
@@ -587,15 +617,27 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		for sIdx := range newStmts {
 			if newStmts[sIdx].Class != nil {
 				cls := newStmts[sIdx].Class
+				qualName := classIdentityForPath(file.FileName, cls.Name)
 				baseName := cls.Name
-				if idx := strings.Index(baseName, "__"); idx != -1 {
+				if idx := strings.Index(baseName, "__"); idx > 0 {
 					baseName = baseName[:idx]
 				}
 				seen := map[string]bool{}
 				for _, m := range cls.Methods {
 					seen[m.Name] = true
 				}
-				for _, ms := range [][]typescriptgo.SyntaxMethod{methodInstances[cls.Name], methodInstances[baseName]} {
+				var candidateLists [][]typescriptgo.SyntaxMethod
+				if qualName != "" && qualName != cls.Name {
+					candidateLists = append(candidateLists, methodInstances[qualName])
+					if idx := strings.Index(qualName, "__"); idx > 0 {
+						candidateLists = append(candidateLists, methodInstances[qualName[:idx]])
+					}
+				} else if baseName != "" && baseName != cls.Name {
+					candidateLists = [][]typescriptgo.SyntaxMethod{methodInstances[cls.Name], methodInstances[baseName]}
+				} else {
+					candidateLists = [][]typescriptgo.SyntaxMethod{methodInstances[cls.Name]}
+				}
+				for _, ms := range candidateLists {
 					for _, m := range ms {
 						if !seen[m.Name] {
 							seen[m.Name] = true

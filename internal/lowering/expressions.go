@@ -901,7 +901,18 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 			return res, typ, err
 		}
 		if inProgressVars[expression.Text] {
-			return expression.Text, ir.TypeNumber, nil
+			varTyp := ir.TypeNumber
+			if topVar, ok := topLevelVars[expression.Text]; ok {
+				if topVar.Type != "" {
+					varTyp = toIRTypeForPath(path, topVar.Type)
+				} else if topVar.InferredType != "" {
+					varTyp = toIRTypeForPath(path, topVar.InferredType)
+				}
+			}
+			if varTyp == "" {
+				varTyp = ir.TypeNumber
+			}
+			return expression.Text, varTyp, nil
 		}
 		global, ok := builtinGlobal(expression.Text)
 		if !ok {

@@ -246,15 +246,6 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpSelect, Type: srcType, Result: varResultName, Args: []string{trueConst, identText, identText}, Span: toIRSpan(path, statement.Span)})
 				}
 				return nil
-			} else if !ok {
-				global, isGlobal := builtinGlobal(statement.Expression.Text)
-				if isGlobal {
-					env[varResultName] = global.Type
-					env[statement.Name] = global.Type
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: global.Type, Result: varResultName, Value: global.Value, Span: toIRSpan(path, statement.Span)})
-					return nil
-				}
-				return fmt.Errorf("unknown identifier %q", statement.Expression.Text)
 			}
 		}
 		if declaredType == ir.TypeUnknown {

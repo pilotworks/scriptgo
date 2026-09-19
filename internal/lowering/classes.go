@@ -182,8 +182,32 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 	return result
 }
 
+func cleanGenericBase(className string) string {
+	if className == "" {
+		return ""
+	}
+	if idx := strings.Index(className, "<"); idx != -1 {
+		return className[:idx]
+	}
+	hasPrefix := strings.HasPrefix(className, "__")
+	s := className
+	if hasPrefix {
+		s = strings.TrimPrefix(className, "__")
+	}
+	parts := strings.Split(s, "__")
+	if hasPrefix {
+		return "__" + parts[0]
+	}
+	return parts[0]
+}
+
 func getInheritedFields(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxField {
 	meta, ok := hierarchy[className]
+	if !ok {
+		if candidates, hasCand := classCandidates[className]; hasCand && len(candidates) > 0 {
+			meta, ok = hierarchy[candidates[0].Internal]
+		}
+	}
 	if !ok {
 		return nil
 	}
@@ -204,10 +228,14 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []type
 					baseName = base[:idx]
 					inner := base[idx+1 : len(base)-1]
 					typeArgs = splitTypeArguments(inner)
-				} else if strings.Contains(base, "__") {
-					idx := strings.Index(base, "__")
-					baseName = base[:idx]
-					typeArgs = strings.Split(base[idx+2:], "_")
+				} else {
+					for i := len(base) - 2; i > 0; i-- {
+						if base[i] == '_' && base[i+1] == '_' && base[i-1] != '_' {
+							baseName = base[:i]
+							typeArgs = strings.Split(base[i+2:], "_")
+							break
+						}
+					}
 				}
 				baseFields = getInheritedFields(baseName, hierarchy)
 				if len(typeArgs) > 0 {
@@ -346,12 +374,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 				return fn, mangled, true
 			}
 		}
-		cleanCurr := curr
-		if idx := strings.Index(curr, "<"); idx != -1 {
-			cleanCurr = curr[:idx]
-		} else if idx := strings.Index(curr, "__"); idx != -1 {
-			cleanCurr = curr[:idx]
-		}
+		cleanCurr := cleanGenericBase(curr)
 		mangled := methodImplementationName(cleanCurr, methodName)
 		if fn, ok := signatures[mangled]; ok {
 			return fn, mangled, true
@@ -366,12 +389,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 			break
 		}
 	}
-	cleanCls := className
-	if idx := strings.Index(className, "<"); idx != -1 {
-		cleanCls = className[:idx]
-	} else if idx := strings.Index(className, "__"); idx != -1 {
-		cleanCls = className[:idx]
-	}
+	cleanCls := cleanGenericBase(className)
 	if cleanCls == "" {
 		return ir.Function{}, "", false
 	}
@@ -387,12 +405,7 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		isExact := false
 		isLoose := false
 		for _, imp := range meta.Implements {
-			impClean := imp
-			if idx := strings.Index(imp, "<"); idx != -1 {
-				impClean = imp[:idx]
-			} else if idx := strings.Index(imp, "__"); idx != -1 {
-				impClean = imp[:idx]
-			}
+			impClean := cleanGenericBase(imp)
 			impMangled := imp
 			if strings.Contains(imp, "<") && strings.HasSuffix(imp, ">") {
 				impMangled = mangleGenericTypeString(imp)
@@ -549,8 +562,17 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 	}
 	if className != "" && className != "this" {
 		for sigName, fn := range signatures {
-			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_")) && strings.HasSuffix(sigName, "_"+methodName+"_impl") {
+			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_") || strings.Contains(sigName, "_"+cleanCls+"_")) && strings.HasSuffix(sigName, "_"+methodName+"_impl") {
 				return fn, sigName, true
+			}
+		}
+		if candidates, hasCands := classCandidates[cleanCls]; hasCands {
+			for _, cand := range candidates {
+				if cand.Internal != "" && cand.Internal != className {
+					if fn, mangled, ok := findMethodInHierarchy(cand.Internal, methodName, signatures, hierarchy); ok {
+						return fn, mangled, true
+					}
+				}
 			}
 		}
 	} else {
@@ -630,8 +652,11 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 	if className == "" {
 		return ""
 	}
-	cleanBase := strings.Split(className, "__")[0]
+	cleanBase := cleanGenericBase(className)
 	fields := getInheritedFields(cleanBase, hierarchy)
+	if len(fields) == 0 {
+		fields = getInheritedFields(className, hierarchy)
+	}
 
 	// Class metadata has a separate token kind for class names and fields. The
 	// runtime needs both: class names support instanceof, while field names map
@@ -668,12 +693,7 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 				writeToken('b', base)
 				seenClasses[base] = true
 			}
-			baseName := base
-			if idx := strings.IndexAny(baseName, "<"); idx >= 0 {
-				baseName = baseName[:idx]
-			} else if idx := strings.Index(baseName, "__"); idx >= 0 {
-				baseName = baseName[:idx]
-			}
+			baseName := cleanGenericBase(base)
 			if baseName != "" && !seenClasses[baseName] {
 				writeToken('b', baseName)
 				seenClasses[baseName] = true
