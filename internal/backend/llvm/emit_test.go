@@ -243,3 +243,43 @@ func TestEmitUnknownClosureCallUsesReturnTagDispatcher(t *testing.T) {
 		t.Fatalf("unknown closure call directly used the aggregate return ABI:\n%s", output)
 	}
 }
+
+func TestEmitFunctionNounwind(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{
+		{
+			Name:       "main",
+			ReturnType: ir.TypeVoid,
+			Body: []ir.Instruction{
+				{Op: ir.OpClosure, Type: ir.TypeClosure, Result: "fn", Callee: "helper"},
+				{Op: ir.OpReturn, Type: ir.TypeVoid},
+			},
+		},
+		{
+			Name:       "helper",
+			ReturnType: ir.TypeNumber,
+			Body: []ir.Instruction{
+				{Op: ir.OpConst, Type: ir.TypeNumber, Result: "res", Value: "42"},
+				{Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"res"}},
+			},
+		},
+	}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(output, "define i32 @main(i32 %argc, ptr %argv) nounwind") {
+		t.Errorf("main function definition missing nounwind attribute:\n%s", output)
+	}
+	if !strings.Contains(output, "define internal double @helper() nounwind") {
+		t.Errorf("internal function definition missing nounwind attribute:\n%s", output)
+	}
+	if !strings.Contains(output, "define internal void @helper$invoke(ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3, ptr %out) nounwind") {
+		t.Errorf("invoke adapter definition missing nounwind attribute:\n%s", output)
+	}
+	if !strings.Contains(output, "define internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind") {
+		t.Errorf("__scriptgo_to_int32 definition missing nounwind attribute:\n%s", output)
+	}
+}
+

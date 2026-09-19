@@ -88,6 +88,13 @@ func validateOptions(options BuildOptions) error {
 			return fmt.Errorf("unsupported lto %q; supported: thin, full, none", options.LTO)
 		}
 	}
+	if options.TargetCPU != "" {
+		for _, r := range options.TargetCPU {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '+' || r == '.') {
+				return fmt.Errorf("invalid target-cpu %q", options.TargetCPU)
+			}
+		}
+	}
 	return nil
 }
 
@@ -325,6 +332,17 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	} else if options.LTO == "full" || options.LTO == "yes" || options.LTO == "true" {
 		args = append(args, "-flto")
 	}
+	if options.TargetCPU != "" {
+		args = append(args, "-mcpu="+options.TargetCPU)
+	}
+	if options.Strip {
+		t := strings.ToLower(options.Target)
+		if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin") {
+			args = append(args, "-Wl,-x")
+		} else if !strings.HasPrefix(t, "wasm") {
+			args = append(args, "-s")
+		}
+	}
 	if options.Target != "native" {
 		args = append(args, "--target="+options.Target)
 	}
@@ -359,6 +377,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	if diagnostic, err := command.CombinedOutput(); err != nil {
 		driverName := filepath.Base(ccParts[0])
 		return fmt.Errorf("%s: %w: %s", driverName, err, diagnostic)
+	}
+	if options.Strip {
+		if err := stripExecutable(filepath.Clean(outputPath), options.Target); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -502,6 +525,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	if options.LTO != "" && options.LTO != "none" {
 		h.Write([]byte("lto:" + options.LTO))
 	}
+	if options.TargetCPU != "" {
+		h.Write([]byte("cpu:" + options.TargetCPU))
+	}
 	if options.Debug {
 		h.Write([]byte("debug"))
 	}
@@ -549,6 +575,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	} else if options.LTO == "full" || options.LTO == "yes" || options.LTO == "true" {
 		buildArgs = append(buildArgs, "-flto")
 	}
+	if options.TargetCPU != "" {
+		buildArgs = append(buildArgs, "-mcpu="+options.TargetCPU)
+	}
 	if options.Target != "native" {
 		buildArgs = append(buildArgs, "--target="+options.Target)
 	}
@@ -577,4 +606,32 @@ func linkerDCEFlags(target string) []string {
 		flags = append(flags, "-fuse-ld=lld")
 	}
 	return flags
+}
+
+func stripExecutable(outputPath, target string) error {
+	t := strings.ToLower(target)
+	if strings.HasPrefix(t, "wasm") {
+		return nil
+	}
+	stripBin, err := exec.LookPath("strip")
+	if err != nil {
+		return nil
+	}
+	isDarwin := strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin")
+	var cmd *exec.Cmd
+	if isDarwin {
+		cmd = exec.Command(stripBin, "-x", outputPath)
+	} else {
+		cmd = exec.Command(stripBin, "--strip-all", outputPath)
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if !isDarwin {
+			cmdFallback := exec.Command(stripBin, "-s", outputPath)
+			if _, errFallback := cmdFallback.CombinedOutput(); errFallback == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("strip %s: %w: %s", outputPath, err, string(out))
+	}
+	return nil
 }

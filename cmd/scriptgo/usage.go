@@ -24,9 +24,12 @@ Commands:
 Global Flags:
   -v                     Verbose output
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
+  -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
   --debug                Emit native DWARF debug symbols
   --lto <mode>           Enable link-time optimization (thin, full, none)
+  -s, --strip            Strip symbols and debug tables from generated binary (build only)
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
   --warn-runtime-casts   Warn on runtime checked casts (SG4005)
   --strict-casts         Treat cast warnings as errors
@@ -77,7 +80,9 @@ Flags:
   -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
+  -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
   --debug                Include DWARF debug symbols
   --lto <mode>           Enable link-time optimization (thin, full, none)
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
@@ -117,7 +122,10 @@ Flags:
   -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
+  --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
+  -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
+  -s, --strip            Strip symbols and debug tables from generated binary
   --debug                Include DWARF debug symbols (O0 with debug metadata)
   --lto <mode>           Enable link-time optimization (thin, full, none)
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)

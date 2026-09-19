@@ -124,7 +124,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "--registry-token" || arg == "-O" || arg == "-lto" || arg == "--lto") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "--registry-token" || arg == "-O" || arg == "-lto" || arg == "--lto" || arg == "--target-cpu" || arg == "-target-cpu") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -181,6 +181,7 @@ func handleRun(args []string) {
 	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
+	targetCPU := fs.String("target-cpu", "", "target CPU architecture (e.g. native, apple-m1, x86-64-v3)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
 	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
@@ -236,6 +237,7 @@ func handleRun(args []string) {
 		Debug:            *debug,
 		OptLevel:         *optLevel,
 		LTO:              *lto,
+		TargetCPU:        *targetCPU,
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
@@ -302,6 +304,9 @@ func handleBuild(args []string) {
 	store := fs.String("store", "", "content store path with --install")
 	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
 	lto := fs.String("lto", "", "enable link-time optimization (thin, full, none)")
+	targetCPU := fs.String("target-cpu", "", "target CPU architecture (e.g. native, apple-m1, x86-64-v3)")
+	strip := fs.Bool("strip", false, "strip symbols and debug tables from generated binary")
+	fs.BoolVar(strip, "s", false, "strip symbols (shorthand)")
 	ffiManifest := fs.String("ffi-manifest", "", "path to FFI JSON metadata manifest (*.ffi.json)")
 	fs.StringVar(ffiManifest, "m", "", "path to FFI JSON metadata manifest (shorthand)")
 	if err := fs.Parse(args); err != nil {
@@ -373,6 +378,8 @@ func handleBuild(args []string) {
 		Debug:            *debug,
 		OptLevel:         *optLevel,
 		LTO:              *lto,
+		TargetCPU:        *targetCPU,
+		Strip:            *strip,
 		Sanitizers:       splitList(*sanitize),
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
