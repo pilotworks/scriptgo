@@ -18,6 +18,7 @@ Commands:
   emit      Emit LLVM IR or Typed IR
   coverage  Analyze Static/Dynamic site coverage
   install   Resolve, verify, cache, and link package.json dependencies
+  task      Run a package.json script with node_modules/.bin in PATH
   version   Print compiler and runtime ABI version
   help      Show help for ScriptGo or a specific command
 
@@ -43,6 +44,26 @@ Global Flags:
   -h, --help             Show help message
 
 Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
+}
+
+func printTaskUsage() {
+	fmt.Fprintln(os.Stderr, `Usage:
+  scriptgo task [flags] [<script>] [-- <args...>]
+
+Description:
+  Runs a specified script from package.json with ancestor node_modules/.bin
+  prepended to PATH. If no script is provided, lists available scripts.
+
+Flags:
+  --project <dir>       Project directory containing package.json (default: .)
+  --manifest <path>     package.json path (default: <project>/package.json)
+  -h, --help            Show this help message
+
+Examples:
+  scriptgo task
+  scriptgo task build
+  scriptgo task test -- --verbose
+  scriptgo task --project ./subproject start`)
 }
 
 func printInstallUsage() {

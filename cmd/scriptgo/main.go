@@ -41,6 +41,8 @@ func main() {
 		handleCoverage(normalizeFlagsFirst(os.Args[2:]))
 	case "install":
 		handleInstall(normalizeFlagsFirst(os.Args[2:]))
+	case "task":
+		handleTask(os.Args[2:])
 	case "version", "--version", "-V":
 		fmt.Printf("scriptgo version %s (runtime %s)\n", compiler.Version, compiler.RuntimeABIVersion)
 	case "help", "--help", "-h":
@@ -70,6 +72,8 @@ func handleHelpCommand(cmd string) {
 		printCoverageUsage()
 	case "install":
 		printInstallUsage()
+	case "task":
+		printTaskUsage()
 	case "version":
 		fmt.Println("Usage: scriptgo version\n\nPrints the current compiler version and runtime ABI version.")
 	default:
@@ -206,9 +210,16 @@ func handleRun(args []string) {
 		defer cleanup()
 		extraArgs = fs.Args()
 	} else if fs.NArg() >= 1 {
+		firstArg := fs.Arg(0)
 		var err error
-		entryPath, cleanup, err = resolveInput(fs.Arg(0))
+		entryPath, cleanup, err = resolveInput(firstArg)
 		if err != nil {
+			if !strings.HasSuffix(firstArg, ".ts") && !strings.HasSuffix(firstArg, ".js") && !strings.HasSuffix(firstArg, ".mts") && !strings.HasSuffix(firstArg, ".cts") {
+				if task, taskErr := pkgmgr.ResolveTask(".", "", firstArg); taskErr == nil {
+					exitCode := executeTask(task, fs.Args()[1:])
+					os.Exit(exitCode)
+				}
+			}
 			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
 			os.Exit(1)
 		}
