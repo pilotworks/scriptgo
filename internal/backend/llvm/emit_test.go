@@ -282,4 +282,3 @@ func TestEmitFunctionNounwind(t *testing.T) {
 		t.Errorf("__scriptgo_to_int32 definition missing nounwind attribute:\n%s", output)
 	}
 }
-
