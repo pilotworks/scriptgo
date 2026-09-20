@@ -1,3 +1,6 @@
+import { EventEmitter } from "node:events";
+import { Readable, Writable, StreamChunk } from "node:stream";
+
 export class Stats {
     size: number;
     mtimeMs: number;
@@ -248,6 +251,9 @@ declare namespace __scriptgo {
     function readFdSync(fd: number, buffer: Buffer, offset: number, length: number, position: number): number;
     function writeFdSync(fd: number, data: string, offset: number, length: number): number;
     function opendirSync(path: string): string[];
+    function fsWatchCreate(path: string): number;
+    function fsWatchPoll(watchId: number): FSWatchPollResult;
+    function fsWatchClose(watchId: number): void;
 }
 
 export function readFileSync(path: string): Buffer;
@@ -1066,28 +1072,449 @@ export function futimes(fd: number, atime: number, mtime: number, callback?: (er
     }
 }
 
+export interface ReadStreamOptions {
+    flags?: string;
+    encoding?: string;
+    fd?: number | null;
+    mode?: number;
+    autoClose?: boolean;
+    emitClose?: boolean;
+    start?: number;
+    end?: number;
+    highWaterMark?: number;
+}
+
+export interface WriteStreamOptions {
+    flags?: string;
+    encoding?: string;
+    fd?: number | null;
+    mode?: number;
+    autoClose?: boolean;
+    emitClose?: boolean;
+    start?: number;
+    highWaterMark?: number;
+}
+
+export class ReadStream extends Readable {
+    path: string;
+    fd: number = -1;
+    flags: string;
+    mode: number;
+    autoClose: boolean;
+    bytesRead: number = 0;
+    pos: number;
+    endPos: number = -1;
+    closed: boolean = false;
+    private _readingFile: boolean = false;
+
+    constructor(path: string, options?: ReadStreamOptions | string) {
+        super({
+            highWaterMark: typeof options === "object" && options !== null && options.highWaterMark ? options.highWaterMark : 65536,
+            encoding: typeof options === "string" ? options : (typeof options === "object" && options !== null ? options.encoding : undefined),
+        });
+        this.path = path;
+        let opts: ReadStreamOptions = {};
+        if (typeof options === "string") {
+            opts = { encoding: options };
+        } else if (options !== undefined && options !== null) {
+            opts = options;
+        }
+        this.flags = opts.flags || "r";
+        this.mode = opts.mode !== undefined ? opts.mode : 0o666;
+        this.autoClose = opts.autoClose !== undefined ? opts.autoClose : true;
+        this.pos = opts.start !== undefined ? opts.start : 0;
+        if (opts.end !== undefined) {
+            this.endPos = opts.end;
+        }
+
+        if (opts.fd !== undefined && opts.fd !== null && opts.fd >= 0) {
+            this.fd = opts.fd;
+            queueMicrotask(() => {
+                this.emit("open", this.fd);
+                this.emit("ready");
+            });
+        } else {
+            try {
+                this.fd = __scriptgo.openSync(this.path, this.flags, this.mode);
+                queueMicrotask(() => {
+                    this.emit("open", this.fd);
+                    this.emit("ready");
+                });
+            } catch (err: unknown) {
+                queueMicrotask(() => {
+                    this.emit("error", err);
+                    if (this.autoClose) {
+                        this.close();
+                    }
+                });
+            }
+        }
+    }
+
+    _read(size: number): void {
+        if (this.fd < 0 || this._readingFile || this.closed) {
+            return;
+        }
+        this._readingFile = true;
+        try {
+            const bufSize = size > 0 ? size : (this.readableHighWaterMark || 65536);
+            const buf = Buffer.alloc(bufSize);
+            let toRead = bufSize;
+            if (this.endPos >= 0) {
+                const remaining = this.endPos - (this.pos + this.bytesRead) + 1;
+                if (remaining <= 0) {
+                    this.push(null);
+                    this._readingFile = false;
+                    return;
+                }
+                if (remaining < toRead) {
+                    toRead = remaining;
+                }
+            }
+
+            const n = __scriptgo.readFdSync(this.fd, buf, 0, toRead, this.pos + this.bytesRead);
+            if (n <= 0) {
+                this.push(null);
+            } else {
+                this.bytesRead += n;
+                const chunk = buf.subarray(0, n);
+                if (this.readableEncoding) {
+                    this.push(chunk.toString(this.readableEncoding));
+                } else {
+                    this.push(chunk);
+                }
+            }
+        } catch (err: unknown) {
+            this.emit("error", err);
+            if (this.autoClose) this.close();
+        } finally {
+            this._readingFile = false;
+        }
+    }
+
+    close(callback?: (err?: Error | null) => void): void {
+        if (this.closed) {
+            if (callback) callback(null);
+            return;
+        }
+        if (this.fd >= 0) {
+            try {
+                __scriptgo.closeSync(this.fd);
+            } catch {}
+            this.fd = -1;
+        }
+        this.destroy();
+        if (callback) callback(null);
+    }
+
+    destroy(error?: Error | null): this {
+        if (this.fd >= 0) {
+            try {
+                __scriptgo.closeSync(this.fd);
+            } catch {}
+            this.fd = -1;
+        }
+        super.destroy(error);
+        return this;
+    }
+}
+
+export class WriteStream extends Writable {
+    path: string;
+    fd: number = -1;
+    flags: string;
+    mode: number;
+    autoClose: boolean;
+    bytesWritten: number = 0;
+    closed: boolean = false;
+
+    constructor(path: string, options?: WriteStreamOptions | string) {
+        super();
+        this.path = path;
+        let opts: WriteStreamOptions = {};
+        if (typeof options === "string") {
+            opts = { encoding: options };
+        } else if (options !== undefined && options !== null) {
+            opts = options;
+        }
+        this.flags = opts.flags || "w";
+        this.mode = opts.mode !== undefined ? opts.mode : 0o666;
+        this.autoClose = opts.autoClose !== undefined ? opts.autoClose : true;
+        this._autoDestroy = this.autoClose;
+
+        if (opts.fd !== undefined && opts.fd !== null && opts.fd >= 0) {
+            this.fd = opts.fd;
+            queueMicrotask(() => {
+                this.emit("open", this.fd);
+                this.emit("ready");
+            });
+        } else {
+            try {
+                this.fd = __scriptgo.openSync(this.path, this.flags, this.mode);
+                queueMicrotask(() => {
+                    this.emit("open", this.fd);
+                    this.emit("ready");
+                });
+            } catch (err: unknown) {
+                queueMicrotask(() => {
+                    this.emit("error", err);
+                    if (this.autoClose) {
+                        this.close();
+                    }
+                });
+            }
+        }
+    }
+
+    _write(chunk: StreamChunk, encoding: string, callback: (error?: Error | null) => void): void {
+        if (this.fd < 0 || this.closed) {
+            callback(new Error("write after close"));
+            return;
+        }
+        try {
+            let strVal = "";
+            if (typeof chunk === "string") {
+                strVal = chunk;
+            } else {
+                strVal = (chunk as Buffer).toString();
+            }
+            const n = __scriptgo.writeFdSync(this.fd, strVal, 0, strVal.length);
+            this.bytesWritten += n;
+            callback(null);
+        } catch (err: unknown) {
+            callback(err instanceof Error ? err : new Error(String(err)));
+        }
+    }
+
+    _final(callback: (error?: Error | null) => void): void {
+        callback(null);
+    }
+
+    close(callback?: (err?: Error | null) => void): void {
+        if (this.closed) {
+            if (callback) callback(null);
+            return;
+        }
+        if (this.fd >= 0) {
+            try {
+                __scriptgo.closeSync(this.fd);
+            } catch {}
+            this.fd = -1;
+        }
+        this.destroy();
+        if (callback) callback(null);
+    }
+
+    destroy(error?: Error | null): this {
+        if (this.fd >= 0) {
+            try {
+                __scriptgo.closeSync(this.fd);
+            } catch {}
+            this.fd = -1;
+        }
+        super.destroy(error);
+        return this;
+    }
+}
+
+export function createReadStream(path: string, options?: ReadStreamOptions | string): ReadStream {
+    return new ReadStream(path, options);
+}
+
+export function createWriteStream(path: string, options?: WriteStreamOptions | string): WriteStream {
+    return new WriteStream(path, options);
+}
+
+export interface FSWatchPollResult {
+    eventType: string;
+    filename: string;
+    hasEvent: boolean;
+}
+
+export interface WatchOptions {
+    encoding?: string;
+    persistent?: boolean;
+    recursive?: boolean;
+    signal?: unknown;
+}
+
+export type WatchEventType = "rename" | "change";
+export type WatchListener = (eventType: WatchEventType, filename: string) => void;
+
+export class FSWatcher extends EventEmitter {
+    private _watchId: number = -1;
+    private _intervalId: number | null = null;
+    private _closed: boolean = false;
+    path: string;
+
+    constructor(path: string, options?: WatchOptions | string, listener?: WatchListener) {
+        super();
+        this.path = path;
+        if (typeof listener === "function") {
+            this.on("change", listener);
+        }
+        try {
+            this._watchId = __scriptgo.fsWatchCreate(path);
+            this._intervalId = setInterval(() => {
+                this._poll();
+            }, 20);
+        } catch (err: unknown) {
+            queueMicrotask(() => {
+                this.emit("error", err);
+            });
+        }
+    }
+
+    private _poll(): void {
+        if (this._closed || this._watchId < 0) return;
+        try {
+            const res = __scriptgo.fsWatchPoll(this._watchId);
+            if (res.hasEvent) {
+                const evType: WatchEventType = res.eventType === "rename" ? "rename" : "change";
+                this.emit("change", evType, res.filename);
+            }
+        } catch {}
+    }
+
+    close(): void {
+        if (this._closed) return;
+        this._closed = true;
+        if (this._intervalId !== null) {
+            clearInterval(this._intervalId);
+            this._intervalId = null;
+        }
+        if (this._watchId >= 0) {
+            try {
+                __scriptgo.fsWatchClose(this._watchId);
+            } catch {}
+            this._watchId = -1;
+        }
+        this.emit("close");
+    }
+
+    ref(): this { return this; }
+    unref(): this { return this; }
+}
+
+export function watch(
+    filename: string,
+    optionsOrListener?: WatchOptions | string | WatchListener,
+    listener?: WatchListener
+): FSWatcher {
+    let opts: WatchOptions | string = {};
+    let cb: WatchListener | undefined = listener;
+    if (typeof optionsOrListener === "function") {
+        cb = optionsOrListener as WatchListener;
+    } else if (optionsOrListener !== undefined) {
+        opts = optionsOrListener;
+    }
+    return new FSWatcher(filename, opts, cb);
+}
+
+export interface WatchFileOptions {
+    bigint?: boolean;
+    persistent?: boolean;
+    interval?: number;
+}
+
+export type WatchFileListener = (curr: Stats, prev: Stats) => void;
+
+class StatWatcherHolder {
+    path: string;
+    intervalId: number;
+    prevStats: Stats;
+    listeners: WatchFileListener[] = [];
+
+    constructor(path: string, interval: number, initialStats: Stats) {
+        this.path = path;
+        this.prevStats = initialStats;
+        this.intervalId = setInterval(() => {
+            this._check();
+        }, interval);
+    }
+
+    private _check(): void {
+        try {
+            const curr = statSync(this.path);
+            if (curr.mtimeMs !== this.prevStats.mtimeMs || curr.size !== this.prevStats.size) {
+                const prev = this.prevStats;
+                this.prevStats = curr;
+                for (let i = 0; i < this.listeners.length; i++) {
+                    const fn = this.listeners[i];
+                    fn(curr, prev);
+                }
+            }
+        } catch {}
+    }
+}
+
+const statWatchers: Map<string, StatWatcherHolder> = new Map();
+
+export function watchFile(
+    filename: string,
+    optionsOrListener?: WatchFileOptions | WatchFileListener,
+    listener?: WatchFileListener
+): void {
+    let interval = 50;
+    let cb: WatchFileListener | undefined = listener;
+    if (typeof optionsOrListener === "function") {
+        cb = optionsOrListener as WatchFileListener;
+    } else if (typeof optionsOrListener === "object" && optionsOrListener !== null) {
+        if (typeof optionsOrListener.interval === "number" && optionsOrListener.interval > 0) {
+            interval = optionsOrListener.interval;
+        }
+    }
+    if (!cb) return;
+
+    let holder = statWatchers.get(filename);
+    if (!holder) {
+        let initStats: Stats;
+        try {
+            initStats = statSync(filename);
+        } catch {
+            initStats = new Stats(0, 0, 0, 0);
+        }
+        holder = new StatWatcherHolder(filename, interval, initStats);
+        statWatchers.set(filename, holder);
+    }
+    holder.listeners.push(cb);
+}
+
+export function unwatchFile(filename: string, listener?: WatchFileListener): void {
+    const holder = statWatchers.get(filename);
+    if (!holder) return;
+    if (listener) {
+        const nextList: WatchFileListener[] = [];
+        for (let i = 0; i < holder.listeners.length; i++) {
+            if (holder.listeners[i] !== listener) {
+                nextList.push(holder.listeners[i]);
+            }
+        }
+        holder.listeners = nextList;
+    } else {
+        holder.listeners = [];
+    }
+    if (holder.listeners.length === 0) {
+        clearInterval(holder.intervalId);
+        statWatchers.delete(filename);
+    }
+}
+
 export default {
     Stats,
     StatFs,
-    Dirent,
-    Dir,
-    FileHandle,
+    statSync,
+    lstatSync,
     readFileSync,
     writeFileSync,
     existsSync,
     unlinkSync,
-    statSync,
-    lstatSync,
-    fstatSync,
-    statfsSync,
     readdirSync,
-    copyFileSync,
-    cpSync,
-    renameSync,
-    appendFileSync,
     mkdirSync,
     rmSync,
-    rmdirSync,
+    copyFileSync,
+    renameSync,
+    appendFileSync,
     accessSync,
     chmodSync,
     lchmodSync,
@@ -1106,6 +1533,7 @@ export default {
     realpathSync,
     truncateSync,
     ftruncateSync,
+    rmdirSync,
     mkdtempSync,
     openSync,
     closeSync,
@@ -1140,4 +1568,12 @@ export default {
     close,
     rmdir,
     rm,
+    createReadStream,
+    createWriteStream,
+    ReadStream,
+    WriteStream,
+    FSWatcher,
+    watch,
+    watchFile,
+    unwatchFile,
 };

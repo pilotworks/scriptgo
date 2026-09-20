@@ -18,6 +18,8 @@ export function cwd(): string {
     return __scriptgo.cwd();
 }
 
+export let exitCode: number = 0;
+
 export const argv: string[] = __scriptgo.argv();
 export const env: Record<string, string | undefined> = {};
 export const pid = __scriptgo.pid();
@@ -61,6 +63,7 @@ export function uptime(): number {
 
 export default {
     exit,
+    exitCode,
     cwd,
     argv,
     env,

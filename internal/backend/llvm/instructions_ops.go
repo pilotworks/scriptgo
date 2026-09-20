@@ -418,11 +418,46 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
-	if leftType == ir.TypeClosure {
+	if isFunctionType(leftType) {
+		if instruction.Operator == "==" || instruction.Operator == "!=" {
+			p0Null := fmt.Sprintf("%s.p0_null.%d", instruction.Result, e.loadCounter)
+			p0Undef := fmt.Sprintf("%s.p0_undef.%d", instruction.Result, e.loadCounter)
+			p0Nullish := fmt.Sprintf("%s.p0_nullish.%d", instruction.Result, e.loadCounter)
+			p1Null := fmt.Sprintf("%s.p1_null.%d", instruction.Result, e.loadCounter)
+			p1Undef := fmt.Sprintf("%s.p1_undef.%d", instruction.Result, e.loadCounter)
+			p1Nullish := fmt.Sprintf("%s.p1_nullish.%d", instruction.Result, e.loadCounter)
+			bothNullish := fmt.Sprintf("%s.both_nullish.%d", instruction.Result, e.loadCounter)
+			rawEq := fmt.Sprintf("%s.raw_eq.%d", instruction.Result, e.loadCounter)
+			looseEq := fmt.Sprintf("%s.loose_eq.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", p0Null, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", p0Undef, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", p0Nullish, p0Null, p0Undef))
+
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", p1Null, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", p1Undef, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", p1Nullish, p1Null, p1Undef))
+
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", bothNullish, p0Nullish, p1Nullish))
+			eqVar := fmt.Sprintf("closure.eq.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_equals(ptr %%%s, ptr %%%s)\n", eqVar, arg0, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", rawEq, eqVar))
+			out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", looseEq, rawEq, bothNullish))
+
+			if instruction.Operator == "==" {
+				out.WriteString(fmt.Sprintf("  %%%s = or i1 false, %%%s\n", instruction.Result, looseEq))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", instruction.Result, looseEq))
+			}
+			e.types[instruction.Result] = ir.TypeBool
+			return nil
+		}
 		eqVar := fmt.Sprintf("closure.eq.%d", e.loadCounter)
 		e.loadCounter++
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_equals(ptr %%%s, ptr %%%s)\n", eqVar, arg0, arg1))
-		if instruction.Operator == "==" || instruction.Operator == "===" {
+		if instruction.Operator == "===" {
 			out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, eqVar))
 		} else {
 			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", instruction.Result, eqVar))
@@ -627,7 +662,7 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 	default:
 		if strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray {
 			tag = 6 // SCRIPTGO_TAG_ARRAY
-		} else if argType == ir.TypeClosure || argType == ir.TypeDynamicFunction {
+		} else if isFunctionType(argType) {
 			tag = 7 // SCRIPTGO_TAG_FUNCTION
 		} else {
 			tag = 5 // SCRIPTGO_TAG_OBJECT
@@ -724,6 +759,8 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	default:
 		if strings.HasSuffix(string(instruction.Type), "[]") {
 			expectedTag = 6
+		} else if isFunctionType(instruction.Type) {
+			expectedTag = 7
 		} else {
 			expectedTag = 5
 		}
@@ -746,7 +783,7 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	}
 	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", tagVar, argVal))
 	out.WriteString(fmt.Sprintf("  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", rawPayload, argVal))
-	if instruction.Type == ir.TypeClosure {
+	if isFunctionType(instruction.Type) {
 		cmpFn := fmt.Sprintf("cast.cmp_fn.%d", id)
 		cmpObj := fmt.Sprintf("cast.cmp_obj.%d", id)
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 7\n", cmpFn, tagVar))
@@ -811,7 +848,7 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 	e.types[instruction.Result] = ir.TypeString
 	arg := instruction.Args[0]
 	argType, ok := e.types[arg]
-	if instruction.RuntimeTypeOf && ok && llvmType(argType) == "ptr" {
+	if (instruction.RuntimeTypeOf || strings.Contains(string(argType), "|")) && ok && llvmType(argType) == "ptr" {
 		argVal := e.resolveArg(out, arg)
 		id := e.loadCounter
 		e.loadCounter++
@@ -820,22 +857,44 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 		nonNull := fmt.Sprintf("typeof.runtime_nonnull.%d", id)
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", isUndefined, argVal))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", isNull, argVal))
-
-		nonNullType := "object"
-		if argType == ir.TypeString {
-			nonNullType = "string"
-		} else if argType == ir.TypeClosure {
-			nonNullType = "function"
-		}
 		objectGlobal := e.stringsByValue["object"]
 		objectPtr := fmt.Sprintf("typeof.runtime_object.%d", e.loadCounter)
 		e.loadCounter++
 		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [7 x i8], ptr %s, i64 0, i64 0\n", objectPtr, objectGlobal))
-		valueGlobal := e.stringsByValue[nonNullType]
-		valuePtr := fmt.Sprintf("typeof.runtime_value.%d", e.loadCounter)
-		e.loadCounter++
-		valueLength := len([]byte(nonNullType)) + 1
-		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", valuePtr, valueLength, valueGlobal))
+
+		var valuePtr string
+		hasFn := strings.Contains(string(argType), "=>") || strings.Contains(string(argType), "function") || strings.Contains(string(argType), "Function")
+		if argType == ir.TypeString {
+			strGlobal := e.stringsByValue["string"]
+			sPtr := fmt.Sprintf("typeof.runtime_str.%d", e.loadCounter)
+			e.loadCounter++
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [7 x i8], ptr %s, i64 0, i64 0\n", sPtr, strGlobal))
+			valuePtr = sPtr
+		} else if hasFn {
+			tagVal := fmt.Sprintf("typeof.gc_tag.%d", e.loadCounter)
+			isFn := fmt.Sprintf("typeof.is_fn.%d", e.loadCounter)
+			fnPtr := fmt.Sprintf("typeof.runtime_fn.%d", e.loadCounter)
+			selPtr := fmt.Sprintf("typeof.runtime_fn_or_obj.%d", e.loadCounter)
+			e.loadCounter++
+			fnGlobal := e.stringsByValue["function"]
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_gc_get_tag(ptr %%%s)\n", tagVal, argVal))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 3\n", isFn, tagVal))
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [9 x i8], ptr %s, i64 0, i64 0\n", fnPtr, fnGlobal))
+			out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", selPtr, isFn, fnPtr, objectPtr))
+			valuePtr = selPtr
+		} else {
+			nonNullType := "object"
+			if isFunctionType(argType) {
+				nonNullType = "function"
+			}
+			valueGlobal := e.stringsByValue[nonNullType]
+			vPtr := fmt.Sprintf("typeof.runtime_value.%d", e.loadCounter)
+			e.loadCounter++
+			valueLength := len([]byte(nonNullType)) + 1
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", vPtr, valueLength, valueGlobal))
+			valuePtr = vPtr
+		}
+
 		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", nonNull, isNull, objectPtr, valuePtr))
 		undefGlobal := e.stringsByValue["undefined"]
 		undefPtr := fmt.Sprintf("typeof.runtime_undefined_value.%d", e.loadCounter)
@@ -845,7 +904,7 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 		return nil
 	}
 	if ok && argType != ir.TypeUnknown && !strings.Contains(string(argType), "|") && !e.isParamUnknown(arg) {
-		if argType == ir.TypeClosure {
+		if isFunctionType(argType) {
 			nullPtr := fmt.Sprintf("typeof.null.%d", e.loadCounter)
 			isNonNull := fmt.Sprintf("typeof.is_nonnull.%d", e.loadCounter)
 			e.loadCounter++

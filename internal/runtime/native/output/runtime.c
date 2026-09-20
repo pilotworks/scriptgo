@@ -283,7 +283,7 @@ int scriptgo_console_inspect_buffer(void *value, char **out_str) {
     size_t capacity;
     char *out;
     size_t pos = 0;
-    if (out_str == NULL || value == NULL || bv->magic != 0x42554646) return scriptgo_runtime_set_error("invalid buffer inspection");
+    if (out_str == NULL || value == NULL || (bv->magic != 0x42554646 && bv->magic != 0x54595041)) return scriptgo_runtime_set_error("invalid buffer inspection");
     capacity = (size_t)bv->length * 3 + 10;
     out = malloc(capacity);
     if (out == NULL) return scriptgo_runtime_set_error("buffer inspection allocation failed");

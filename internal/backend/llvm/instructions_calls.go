@@ -142,13 +142,14 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			e.types[instruction.Result] = ir.TypeBool
 			return nil
 		}
-		isArr := strings.HasSuffix(string(argType), "[]") || argType == ir.TypeNumberArray || argType == ir.TypeStringArray || argType == ir.TypeBoolArray || argType == ir.TypeBigIntArray || strings.HasPrefix(string(argType), "tuple:")
+		isNotArr := argType == ir.TypeNumber || argType == ir.TypeBool || argType == ir.TypeBigInt
 		resSlot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", resSlot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		if isArr {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_is_array(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], resSlot)
+		if !isNotArr {
+			argVal := e.resolveArg(out, instruction.Args[0])
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_is_array(ptr %%%s, ptr %%%s)\n", status, argVal, resSlot)
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_is_array(ptr null, ptr %%%s)\n", status, resSlot)
 		}
@@ -729,6 +730,18 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__fs.watch") {
+		handled, err := e.emitFSWatcherIntrinsic(out, instruction)
+		if err != nil {
+			return err
+		}
+		if handled {
+			if instruction.Result != "" {
+				e.types[instruction.Result] = instruction.Type
+			}
+			return nil
+		}
+	}
 	if strings.HasPrefix(instruction.Callee, "__dgram.") {
 		if err := e.emitDgramIntrinsic(out, instruction); err != nil {
 			return err
@@ -966,7 +979,15 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 
 	callID := e.loadCounter
 	e.loadCounter++
-	recursive := instruction.Callee == e.function.Name || strings.HasSuffix(e.function.Name, "_"+instruction.Callee)
+	hasEnvCtx := false
+	for _, p := range e.function.Parameters {
+		if p.Name == "__env_ctx" {
+			hasEnvCtx = true
+			break
+		}
+	}
+	_, isLocalVar := e.varSlots[instruction.Callee]
+	recursive := hasEnvCtx && !isLocalVar && (instruction.Callee == e.function.Name || (!strings.Contains(e.function.Name, "__") && strings.HasSuffix(e.function.Name, "_"+instruction.Callee)))
 	useValueDispatcher := !recursive && (instruction.Type == ir.TypeUnknown || instruction.Type == ir.TypeVoid)
 	fnPtrSlot := fmt.Sprintf("%s.fn_ptr_slot.%d", instruction.Result, callID)
 	fnPtr := fmt.Sprintf("%s.fn_ptr.%d", instruction.Result, callID)

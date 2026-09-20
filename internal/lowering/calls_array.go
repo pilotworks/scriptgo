@@ -265,6 +265,51 @@ func lowerArrayReceiverMethod(
 		}
 		lastResult := ""
 		for index, argument := range expression.Arguments {
+			if argument.Kind == "spread" {
+				spreadVal, spreadType, err := lowerExpression(path, argument.Left, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", true, err
+				}
+				idxVar := nextTemp(counter)
+				lenVar := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: idxVar, Value: "0", Span: toIRSpan(path, argument.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: lenVar, Callee: "__array.length", Args: []string{spreadVal}, Span: toIRSpan(path, argument.Span)})
+				condVar := nextTemp(counter)
+				var condBody []ir.Instruction
+				condBody = append(condBody, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: condVar, Operator: "<", Args: []string{idxVar, lenVar}, Span: toIRSpan(path, argument.Span)})
+				var loopBody []ir.Instruction
+				itemVar := nextTemp(counter)
+				itemType := elemType
+				if itemType == "" && spreadType != "" && strings.HasSuffix(string(spreadType), "[]") {
+					itemType = arrayElementType(spreadType)
+				}
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpIndex, Type: itemType, Result: itemVar, Args: []string{spreadVal, idxVar}, Span: toIRSpan(path, argument.Span)})
+				pushRes := nextTemp(counter)
+				if index == len(expression.Arguments)-1 && result != "" {
+					pushRes = result
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeNumber, Result: pushRes,
+					Callee: "__array.length", Args: []string{receiver},
+					Span: toIRSpan(path, argument.Span),
+				})
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: pushRes, Callee: "__array." + methodName, Args: []string{receiver, itemVar}, Span: toIRSpan(path, argument.Span)})
+				oneConst := nextTemp(counter)
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: oneConst, Value: "1", Span: toIRSpan(path, argument.Span)})
+				stepVar := nextTemp(counter)
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: stepVar, Operator: "+", Args: []string{idxVar, oneConst}, Span: toIRSpan(path, argument.Span)})
+				loopBody = append(loopBody, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeNumber, Result: idxVar, Args: []string{stepVar}, Span: toIRSpan(path, argument.Span)})
+				function.Body = append(function.Body, ir.Instruction{
+					Op:   ir.OpWhile,
+					Type: ir.TypeVoid,
+					Cond: condBody,
+					Args: []string{condVar},
+					Body: loopBody,
+					Span: toIRSpan(path, argument.Span),
+				})
+				lastResult = pushRes
+				continue
+			}
 			if argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && elemType != "" {
 				argument.InferredType = string(elemType)
 			}

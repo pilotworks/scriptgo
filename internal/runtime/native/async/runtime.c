@@ -162,6 +162,8 @@ static int scriptgo_promise_set_canonical(scriptgo_promise *p, int rejected, con
 int scriptgo_promise_resolve_existing(void *promise_handle, void *value);
 int scriptgo_promise_resolve_existing_number(void *promise_handle, double value);
 int scriptgo_promise_resolve_existing_array(void *promise_handle, void *value);
+int scriptgo_promise_resolve_existing_boxed(void *promise_handle, uint32_t tag, uint64_t payload);
+int scriptgo_promise_create(void **out_promise);
 
 static uint64_t scriptgo_promise_payload(const scriptgo_promise *p) {
     uint64_t payload = 0;
@@ -349,7 +351,11 @@ static void scriptgo_queue_promise_reactions(scriptgo_promise *p) {
 
 static int scriptgo_promise_schedule_resume_internal(scriptgo_promise *p, scriptgo_closure_inner *closure) {
     scriptgo_reaction *r;
-    if (p == NULL || closure == NULL) return scriptgo_runtime_set_error("scriptgo promise resume invalid argument");
+    if (closure == NULL) return scriptgo_runtime_set_error("scriptgo promise resume invalid argument");
+    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel) {
+        if (scriptgo_promise_create((void **)&p) != 0) return -1;
+        if (scriptgo_promise_resolve_existing_boxed(p, 0, 0) != 0) return -1;
+    }
     r = calloc(1, sizeof(*r));
     if (r == NULL) return scriptgo_runtime_set_error("scriptgo promise reaction allocation failed");
 	r->result_promise = NULL;
@@ -376,8 +382,12 @@ int scriptgo_promise_schedule_resume(void *promise_handle, void *closure_handle)
 int scriptgo_promise_schedule_resume_pair(void *promise_handle, void *fulfilled_handle, void *rejected_handle) {
     scriptgo_promise *p = promise_handle;
     scriptgo_reaction *r;
-    if (p == NULL || (fulfilled_handle == NULL && rejected_handle == NULL)) {
+    if (fulfilled_handle == NULL && rejected_handle == NULL) {
         return scriptgo_runtime_set_error("scriptgo promise resume pair invalid argument");
+    }
+    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel) {
+        if (scriptgo_promise_create((void **)&p) != 0) return -1;
+        if (scriptgo_promise_resolve_existing_boxed(p, 0, 0) != 0) return -1;
     }
     r = calloc(1, sizeof(*r));
     if (r == NULL) return scriptgo_runtime_set_error("scriptgo promise reaction allocation failed");
@@ -449,7 +459,7 @@ int scriptgo_event_loop_run(void) {
                     }
 				} else {
 					scriptgo_closure_inner *handler = p->state == PROMISE_FULFILLED ? r->on_fulfilled : r->on_rejected;
-					uint32_t source_tag = p->tag ? p->tag : 5;
+					uint32_t source_tag = (p->state == PROMISE_REJECTED && p->tag == 0) ? 5 : p->tag;
 					uint64_t source_payload = scriptgo_promise_payload(p);
 					if (handler == NULL || handler->fn_ptr == NULL) {
 						scriptgo_promise_set_boxed(r->result_promise, p->state == PROMISE_REJECTED, source_tag, source_payload);
@@ -705,7 +715,11 @@ int scriptgo_promise_resolve_unknown_value(const scriptgo_value *value, void **o
 int scriptgo_promise_then(void *promise_handle, void *on_fulfilled_closure, void *on_rejected_closure, uint32_t result_tag, void **out_result) {
 	scriptgo_promise *p = promise_handle;
 	scriptgo_promise *result = NULL;
-	if (p == NULL || out_result == NULL) return scriptgo_runtime_set_error("scriptgo promise then failed");
+	if (out_result == NULL) return scriptgo_runtime_set_error("scriptgo promise then failed");
+	if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel) {
+		if (scriptgo_promise_create((void **)&p) != 0) return -1;
+		if (scriptgo_promise_resolve_existing_boxed(p, 0, 0) != 0) return -1;
+	}
 	if (scriptgo_promise_create((void **)&result) != 0) return -1;
 	scriptgo_reaction *r = calloc(1, sizeof(*r));
     if (r == NULL) return scriptgo_runtime_set_error("scriptgo promise reaction allocation failed");

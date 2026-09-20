@@ -123,4 +123,3 @@ func TestCLI_TaskRunner(t *testing.T) {
 		}
 	})
 }
-

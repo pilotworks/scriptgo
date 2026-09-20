@@ -1072,7 +1072,7 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		runtimeTypeOf := expression.Left != nil && typeContainsNullish(expression.Left.InferredType)
+		runtimeTypeOf := expression.Left != nil && (typeContainsNullish(expression.Left.InferredType) || strings.Contains(string(valType), "|"))
 		if runtimeTypeOf && isPointerLikeType(valType) {
 			function.Body = append(function.Body, ir.Instruction{
 				Op:            ir.OpTypeOf,

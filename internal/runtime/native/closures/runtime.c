@@ -57,11 +57,32 @@ int scriptgo_closure_equals(void *h1, void *h2) {
     return (c1->fn_ptr == c2->fn_ptr && c1->env == c2->env) ? 1 : 0;
 }
 
+#ifndef SCRIPTGO_OBJECT_MAGIC
+#define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
+#endif
+
+typedef struct {
+    uint64_t magic;
+    int64_t field_count;
+    const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
+    void *boxed_fields;
+    uintptr_t fields[];
+} scriptgo_callable_object_header;
+
 int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1, const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4, scriptgo_value *out_value) {
     scriptgo_value result = {0};
     if (out_value == NULL) return scriptgo_runtime_set_error("scriptgo closure result is null");
     *out_value = result;
     if (closure_handle == NULL || closure_handle == &scriptgo_undefined_sentinel) return 0;
+    if (*(uint64_t *)closure_handle == SCRIPTGO_OBJECT_MAGIC) {
+        scriptgo_callable_object_header *obj = (scriptgo_callable_object_header *)closure_handle;
+        if (obj->field_count > 0 && obj->fields[0] != 0) {
+            closure_handle = (void *)obj->fields[0];
+        }
+    }
     scriptgo_closure *c = closure_handle;
     if (c->fn_ptr == NULL) return 0;
     scriptgo_value dummy = {0};

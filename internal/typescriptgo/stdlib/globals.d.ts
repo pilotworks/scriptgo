@@ -26,6 +26,7 @@ interface Process {
     argv: string[];
     env: ProcessEnv;
     exit(code?: number): void;
+    exitCode?: number;
     cwd(): string;
     pid: number;
     ppid: number;

@@ -851,7 +851,7 @@ export function on(
                 return Promise.resolve({ value: val, done: false });
             }
             if (finished) {
-                return Promise.resolve({ value: undefined as unknown as unknown[], done: true });
+                return Promise.resolve({ value: [], done: true });
             }
             return new Promise((resolve, reject) => {
                 waiters.push({ resolve, reject });
@@ -862,9 +862,9 @@ export function on(
             cleanup();
             while (waiters.length > 0) {
                 const waiter = waiters.shift()!;
-                waiter.resolve({ value: undefined as unknown as unknown[], done: true });
+                waiter.resolve({ value: [], done: true });
             }
-            return Promise.resolve({ value: undefined as unknown as unknown[], done: true });
+            return Promise.resolve({ value: [], done: true });
         },
         throw(err?: Error): Promise<IteratorResult<unknown[]>> {
             finished = true;

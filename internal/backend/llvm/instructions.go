@@ -251,6 +251,13 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", ptrVar, payloadVar))
 				argVal = "%" + ptrVar
 			}
+		} else if typ == ir.TypeUnknown && argType != ir.TypeUnknown {
+			boxedVar := fmt.Sprintf("boxed.%d", e.loadCounter)
+			if err := e.emitBoxValue(out, arg, argType, boxedVar); err != nil {
+				return err
+			}
+			e.types[boxedVar] = ir.TypeUnknown
+			argVal = "%" + boxedVar
 		}
 		if isGlobal {
 			out.WriteString(fmt.Sprintf("  store %s %s, ptr @%s\n", llvmType(typ), argVal, targetResult))

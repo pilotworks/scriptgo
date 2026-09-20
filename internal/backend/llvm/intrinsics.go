@@ -10,6 +10,8 @@ func intrinsicObjectDescriptor(callee string) string {
 		return "hostname:service"
 	case "__text_encoder.encode_into":
 		return "TextEncoderEncodeIntoResult"
+	case "__fs.watchPoll":
+		return "eventType:filename:hasEvent"
 	default:
 		return ""
 	}

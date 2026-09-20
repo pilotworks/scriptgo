@@ -804,6 +804,30 @@ func lowerReflectApply(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 			}
 			directArgs = append(directArgs, elVal)
 		}
+	} else if argsArg != nil {
+		arrVal, _, err := call.LowerExpression(call.Path, argsArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+		if err != nil {
+			return "", "", err
+		}
+		for i := 0; i < 4; i++ {
+			idxConst := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeNumber,
+				Result: idxConst,
+				Value:  fmt.Sprintf("%d", i),
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			item := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpIndex,
+				Type:   ir.TypeUnknown,
+				Result: item,
+				Args:   []string{arrVal, idxConst},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			directArgs = append(directArgs, item)
+		}
 	}
 
 	result := call.Result
@@ -824,20 +848,20 @@ func lowerReflectApply(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, 
 		return result, sig.ReturnType, nil
 	}
 
-	fnVal, fnType, err := call.LowerExpression(call.Path, fnArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	fnVal, _, err := call.LowerExpression(call.Path, fnArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	if err != nil {
 		return "", "", err
 	}
 
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeString,
+		Op:     ir.OpClosureCall,
+		Type:   ir.TypeUnknown,
 		Result: result,
 		Callee: fnVal,
 		Args:   directArgs,
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
-	return result, fnType, nil
+	return result, ir.TypeUnknown, nil
 }
 
 func lowerReflectConstruct(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {

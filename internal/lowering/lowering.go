@@ -739,6 +739,23 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	sort.Slice(module.Shapes, func(i, j int) bool {
 		return module.Shapes[i].Name < module.Shapes[j].Name
 	})
+	existingGlobals := make(map[string]bool, len(module.Globals))
+	for _, g := range module.Globals {
+		existingGlobals[g.Name] = true
+	}
+	for _, l := range main.Locals {
+		if !existingGlobals[l.Name] {
+			existingGlobals[l.Name] = true
+			gType := l.Type
+			if gType == "" {
+				gType = ir.TypePointer
+			}
+			module.Globals = append(module.Globals, ir.Global{
+				Name: l.Name,
+				Type: gType,
+			})
+		}
+	}
 	if len(collectNestedAwaits(main.Body)) > 0 {
 		functions, ok, err := lowerTopLevelAsyncSequence(program.EntryPath, main, shapes, signatures)
 		if err != nil {
