@@ -352,7 +352,7 @@ static void scriptgo_queue_promise_reactions(scriptgo_promise *p) {
 static int scriptgo_promise_schedule_resume_internal(scriptgo_promise *p, scriptgo_closure_inner *closure) {
     scriptgo_reaction *r;
     if (closure == NULL) return scriptgo_runtime_set_error("scriptgo promise resume invalid argument");
-    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel) {
+    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel || scriptgo_find_promise_payload((uint64_t)(uintptr_t)p) == NULL) {
         if (scriptgo_promise_create((void **)&p) != 0) return -1;
         if (scriptgo_promise_resolve_existing_boxed(p, 0, 0) != 0) return -1;
     }
@@ -385,7 +385,7 @@ int scriptgo_promise_schedule_resume_pair(void *promise_handle, void *fulfilled_
     if (fulfilled_handle == NULL && rejected_handle == NULL) {
         return scriptgo_runtime_set_error("scriptgo promise resume pair invalid argument");
     }
-    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel) {
+    if (p == NULL || p == (scriptgo_promise *)(void *)&scriptgo_undefined_sentinel || scriptgo_find_promise_payload((uint64_t)(uintptr_t)p) == NULL) {
         if (scriptgo_promise_create((void **)&p) != 0) return -1;
         if (scriptgo_promise_resolve_existing_boxed(p, 0, 0) != 0) return -1;
     }
