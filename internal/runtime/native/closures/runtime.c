@@ -46,7 +46,7 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t r
 
 void *scriptgo_closure_alloc(int64_t size) {
     if (size <= 0) size = 8;
-    return malloc((size_t)size);
+    return calloc(1, (size_t)size);
 }
 
 int scriptgo_closure_equals(void *h1, void *h2) {

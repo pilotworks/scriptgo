@@ -1323,10 +1323,28 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 				allocType = "ptr"
 			}
 			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, allocType))
+			isParam := false
 			for _, param := range function.Parameters {
 				if param.Name == varName {
 					out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", allocType, varName, slotName))
+					isParam = true
 					break
+				}
+			}
+			if !isParam {
+				switch allocType {
+				case "{ i32, i32, i64, i64 }":
+					out.WriteString(fmt.Sprintf("  store volatile %s zeroinitializer, ptr %%%s\n", allocType, slotName))
+				case "i1":
+					out.WriteString(fmt.Sprintf("  store volatile i1 false, ptr %%%s\n", slotName))
+				case "double":
+					out.WriteString(fmt.Sprintf("  store volatile double 0.0, ptr %%%s\n", slotName))
+				case "i64":
+					out.WriteString(fmt.Sprintf("  store volatile i64 0, ptr %%%s\n", slotName))
+				case "i32":
+					out.WriteString(fmt.Sprintf("  store volatile i32 0, ptr %%%s\n", slotName))
+				default:
+					out.WriteString(fmt.Sprintf("  store volatile %s null, ptr %%%s\n", allocType, slotName))
 				}
 			}
 		}

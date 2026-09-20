@@ -11,7 +11,6 @@
 // @expect: ALL CHILD PROCESS ASYNC TESTS COMPLETED
 
 import { spawn, exec, execFile } from "node:child_process";
-import { StreamChunk } from "node:stream";
 
 console.log("=== Testing spawn async ===");
 
@@ -19,7 +18,7 @@ const child = spawn("echo", ["async_spawn_success"]);
 let childOutput = "";
 
 if (child.stdout !== null) {
-    child.stdout.on("data", (chunk: StreamChunk) => {
+    child.stdout.on("data", (chunk: string) => {
         childOutput += String(chunk);
     });
 }

@@ -13,23 +13,23 @@ import assert from "node:assert";
 // @api: test.afterEach
 // @api: test.mock
 
-// @expect: ▶ Math Suite
-// @expect:   ✔ addition test (0.000ms)
-// @expect:   ✔ subtraction test (0.000ms)
-// @expect:   ﹣ skipped test (0.000ms) # SKIP
-// @expect:   ✔ todo test (0.000ms) # TODO
-// @expect: ✔ Math Suite (0.000ms)
-// @expect:   ✔ subtest 1 (0.000ms)
-// @expect:   ✔ subtest 2 (0.000ms)
-// @expect: ✔ Top level test with subtests (0.000ms)
-// @expect: ✔ Mock function verification (0.000ms)
-// @expect: ℹ tests 2
-// @expect: ℹ suites 1
-// @expect: ℹ pass 6
-// @expect: ℹ fail 0
-// @expect: ℹ cancelled 0
-// @expect: ℹ skipped 1
-// @expect: ℹ todo 1
+// @native.expected: ▶ Math Suite
+// @native.expected:   ✔ addition test (0.000ms)
+// @native.expected:   ✔ subtraction test (0.000ms)
+// @native.expected:   ﹣ skipped test (0.000ms) # SKIP
+// @native.expected:   ✔ todo test (0.000ms) # TODO
+// @native.expected: ✔ Math Suite (0.000ms)
+// @native.expected:   ✔ subtest 1 (0.000ms)
+// @native.expected:   ✔ subtest 2 (0.000ms)
+// @native.expected: ✔ Top level test with subtests (0.000ms)
+// @native.expected: ✔ Mock function verification (0.000ms)
+// @native.expected: ℹ tests 2
+// @native.expected: ℹ suites 1
+// @native.expected: ℹ pass 6
+// @native.expected: ℹ fail 0
+// @native.expected: ℹ cancelled 0
+// @native.expected: ℹ skipped 1
+// @native.expected: ℹ todo 1
 
 process.env["NODE_TEST_DETERMINISTIC"] = "1";
 let hookCounter = 0;
