@@ -81,7 +81,7 @@ typedef struct root_slot_node {
     struct root_slot_node *next;
 } root_slot_node;
 
-#define GC_HASH_INITIAL_CAPACITY 4096
+#define GC_HASH_INITIAL_CAPACITY 65536
 
 static gc_node *gc_head = NULL;
 static gc_node *gc_node_freelist = NULL;
@@ -183,7 +183,6 @@ int scriptgo_gc_collect(int64_t *out_collected_count);
 
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count) {
     if (ptr == NULL) return 0;
-    if (find_node(ptr) != NULL) return 0;
 
     gc_node *node = gc_node_freelist;
     if (node != NULL) {
