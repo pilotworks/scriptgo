@@ -2,6 +2,22 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.4] - 2026-09-21
+
+### Features
+- feat(stdlib): achieve 100% native parity for node:tty, node:readline, and node:zlib (#18) (fbf79dc)
+- feat(stdlib): implement node:test, async node:child_process, and node:fs streams & watchers (#17) (ef86de8)
+- feat(task): implement task command to run package.json scripts with argument forwarding (0104105)
+- feat(compiler): optimize toolchain and native codegen with nounwind, strip, and target-cpu (#16) (d4c318f)
+- feat: implement express-compatible static framework example and fix recursive closure and class descriptor lowering (#15) (1f0eea1)
+- feat(stdlib): implement native node:http server and client with compiler lowering fixes (#14) (4cba4f5)
+- feat(stdlib): implement native node:https module and fix typeof class lowering (#13) (58175fa)
+- feat(stdlib): implement node:tty and node:readline modules (#12) (f235a4b)
+- feat(runtime): tracing GC cycle collection & native RFC 6455 WebSocket client (#11) (1c4e40a)
+
+### Performance
+- perf(ci): parallelize parity benchmark, cache quickjs runtime, and tune test concurrency (#19) (3b3a53b)
+
 ## [0.1.0-alpha.3] - 2026-09-15
 
 ### Features
