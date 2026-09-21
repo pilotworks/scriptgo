@@ -43,6 +43,7 @@ int scriptgo_array_set_tag(void *handle, int64_t tag) {
 
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 int scriptgo_gc_unregister(void *ptr);
+int scriptgo_gc_get_tag(void *ptr);
 
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array) {
     scriptgo_array *array;
@@ -88,7 +89,7 @@ typedef struct {
 
 int scriptgo_array_get(void *handle, double index, void *out_value) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_value == NULL) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: null or sentinel in get");
     }
     if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
         scriptgo_runtime_object_header *obj = handle;
@@ -102,7 +103,7 @@ int scriptgo_array_get(void *handle, double index, void *out_value) {
     scriptgo_array *array = handle;
     size_t offset;
     if (array->element_size <= 0) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: element_size <= 0 in get");
     }
     if (check_index(array, index, &offset) != 0) {
         return -1;
@@ -120,7 +121,7 @@ int scriptgo_array_get_unknown(void *handle, double index, void *out_value) {
     size_t offset;
     scriptgo_value *result;
     if (array == NULL || out_value == NULL || array->element_size <= 0) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: null or element_size <= 0 in get_unknown");
     }
     result = (scriptgo_value *)out_value;
     scriptgo_value_init_undefined(result);
@@ -241,7 +242,7 @@ int scriptgo_array_set_typed(void *handle, double index, const void *value,
 
 int scriptgo_array_length(void *handle, int64_t *out_length) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_length == NULL) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: null or sentinel in array_length");
     }
     if (*(uint64_t *)handle == SCRIPTGO_OBJECT_MAGIC) {
         scriptgo_runtime_object_header *obj = handle;
@@ -250,7 +251,7 @@ int scriptgo_array_length(void *handle, int64_t *out_length) {
     }
     scriptgo_array *array = handle;
     if (array->element_size <= 0) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: element_size <= 0 in array_length");
     }
     *out_length = array->length;
     return 0;
@@ -259,7 +260,7 @@ int scriptgo_array_length(void *handle, int64_t *out_length) {
 int scriptgo_array_set_length(void *handle, double length) {
     scriptgo_array *array = handle;
     if (array == NULL || array->element_size <= 0) {
-        return fail("scriptgo array access failed");
+        return fail("scriptgo array access failed: array null or element_size <= 0 in set_length");
     }
     int64_t new_len = (int64_t)length;
     if (new_len < 0) new_len = 0;
@@ -631,8 +632,10 @@ int scriptgo_array_unshift(void *handle, const void *value, double *out_length) 
                                     (scriptgo_value *)(array->data + (size_t)(i - 1) * sizeof(scriptgo_value))) != 0) return -1;
         }
         if (scriptgo_value_clone((scriptgo_value *)array->data, (const scriptgo_value *)value) != 0) return -1;
-    } else if (array->length > 0) {
-        memmove(array->data + (size_t)array->element_size, array->data, (size_t)array->length * (size_t)array->element_size);
+    } else {
+        if (array->length > 0) {
+            memmove(array->data + (size_t)array->element_size, array->data, (size_t)array->length * (size_t)array->element_size);
+        }
         memcpy(array->data, value, (size_t)array->element_size);
     }
     array->length++;
@@ -1339,7 +1342,11 @@ int scriptgo_array_sort_string(void *handle, void **out_array) {
 
 int scriptgo_array_is_array(void *handle, double *out_bool) {
     if (out_bool == NULL) return fail("scriptgo isArray failed");
-    *out_bool = handle != NULL ? 1.0 : 0.0;
+    if (handle == NULL) {
+        *out_bool = 0.0;
+        return 0;
+    }
+    *out_bool = (scriptgo_gc_get_tag(handle) == 2) ? 1.0 : 0.0;
     return 0;
 }
 

@@ -39,11 +39,15 @@ func initializeFunctionIdentities(program frontend.Program) {
 
 	publicFiles := map[string]map[string]bool{}
 	filesByPrefix := map[string][]string{}
+	topLevelVariables := map[string]bool{}
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
 		prefix := functionModulePrefix(fileName, file.BuiltinName)
 		filesByPrefix[prefix] = append(filesByPrefix[prefix], fileName)
 		for _, statement := range file.Syntax.Statements {
+			if statement.Kind == "variable" && statement.Name != "" {
+				topLevelVariables[statement.Name] = true
+			}
 			if !isTopLevelFunctionDeclaration(statement) || statement.Name == "" {
 				continue
 			}
@@ -79,7 +83,7 @@ func initializeFunctionIdentities(program frontend.Program) {
 			}
 			if statement.Name == "main" && len(publicFiles[statement.Name]) == 1 {
 				identity.Internal = "main$user"
-			} else if len(publicFiles[statement.Name]) > 1 {
+			} else if len(publicFiles[statement.Name]) > 1 || topLevelVariables[statement.Name] {
 				identity.Internal = modulePrefixes[fileName] + "_" + statement.Name
 			}
 			if functionIdentitiesByFile[fileName] == nil {
@@ -93,7 +97,7 @@ func initializeFunctionIdentities(program frontend.Program) {
 		}
 	}
 	for publicName, candidates := range functionCandidates {
-		if len(candidates) == 1 {
+		if len(candidates) == 1 && !topLevelVariables[publicName] {
 			functionIdentitiesByName[publicName] = candidates[0]
 		}
 	}

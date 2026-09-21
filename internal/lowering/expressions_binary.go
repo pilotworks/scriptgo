@@ -746,6 +746,14 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 					condTemp := nextTemp(counter)
 					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
 					cond = condTemp
+				} else if isPointerLikeType(leftType) {
+					undefConst := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: leftType, Result: undefConst, Value: "undefined", Span: toIRSpan(path, expression.Span)})
+					cmpUndef := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpUndef, Operator: "!=", Args: []string{left, undefConst}, Span: toIRSpan(path, expression.Span)})
+					condTemp := nextTemp(counter)
+					function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: condTemp, Operator: "&&", Args: []string{cmpNull, cmpUndef}, Span: toIRSpan(path, expression.Span)})
+					cond = condTemp
 				}
 			}
 			if result == "" {

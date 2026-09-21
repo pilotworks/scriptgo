@@ -405,6 +405,18 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 				Span:   toIRSpan(path, statement.Span),
 			})
 			valType = declaredType
+		} else if value != varResultName {
+			assignType := declaredType
+			if assignType == "" || assignType == ir.TypeUnknown {
+				assignType = valType
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpAssign,
+				Type:   assignType,
+				Result: varResultName,
+				Args:   []string{value},
+				Span:   toIRSpan(path, statement.Span),
+			})
 		}
 		typ := valType
 		if declaredType != "" && declaredType != ir.TypeUnknown {
@@ -799,6 +811,24 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		env[statement.Name] = typ
 		return nil
 	case "index_set":
+		if statement.Left != nil && statement.Left.Kind == "property" && statement.Left.Left != nil && statement.Left.Left.Kind == "identifier" && statement.Left.Left.Text == "process" && statement.Left.Text == "env" {
+			keyVal, keyType, err := lowerExpression(path, statement.Right, "", function, env, counter, shapes, signatures)
+			if err != nil || keyType != ir.TypeString {
+				return fmt.Errorf("process.env requires string index")
+			}
+			valVal, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			if err != nil || valType != ir.TypeString {
+				return fmt.Errorf("process.env requires string value")
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeVoid,
+				Callee: "__process.set_env",
+				Args:   []string{keyVal, valVal},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
+		}
 		arrVal, arrType, err := lowerExpression(path, statement.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return err
@@ -949,6 +979,22 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			Span: toIRSpan(path, statement.Span),
 		})
 	case "field_set":
+		if statement.Left != nil && statement.Left.Kind == "property" && statement.Left.Left != nil && statement.Left.Left.Kind == "identifier" && statement.Left.Left.Text == "process" && statement.Left.Text == "env" {
+			keyTemp := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: keyTemp, Value: statement.Name, Span: toIRSpan(path, statement.Span)})
+			valVal, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+			if err != nil || valType != ir.TypeString {
+				return fmt.Errorf("process.env requires string value")
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeVoid,
+				Callee: "__process.set_env",
+				Args:   []string{keyTemp, valVal},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			return nil
+		}
 		if statement.Left != nil && statement.Left.Kind == "identifier" {
 			className := statement.Left.Text
 			if meta, isClass := classHierarchy[className]; isClass {

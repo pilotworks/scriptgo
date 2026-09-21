@@ -462,7 +462,11 @@ int scriptgo_typedarray_subarray(void *handle, double begin, double end, void **
     }
     int64_t sub_len = end_idx > start_idx ? (end_idx - start_idx) : 0;
     int64_t new_offset = ta->byte_offset + (start_idx * ta->element_size);
-    return scriptgo_typedarray_new((int64_t)ta->kind, sub_len, ta->buffer, new_offset, out_array);
+    int res = scriptgo_typedarray_new((int64_t)ta->kind, sub_len, ta->buffer, new_offset, out_array);
+    if (res == 0 && ta->magic == SCRIPTGO_MAGIC_BUFFER && out_array != NULL && *out_array != NULL) {
+        ((scriptgo_typed_array *)*out_array)->magic = SCRIPTGO_MAGIC_BUFFER;
+    }
+    return res;
 }
 
 int scriptgo_typedarray_slice(void *handle, double begin, double end, void **out_array) {
@@ -474,6 +478,9 @@ int scriptgo_typedarray_slice(void *handle, double begin, double end, void **out
     void *new_ta_handle = NULL;
     if (scriptgo_typedarray_new((int64_t)ta->kind, sub->length, NULL, 0, &new_ta_handle) != 0) return -1;
     scriptgo_typed_array *new_ta = (scriptgo_typed_array *)new_ta_handle;
+    if (ta->magic == SCRIPTGO_MAGIC_BUFFER) {
+        new_ta->magic = SCRIPTGO_MAGIC_BUFFER;
+    }
     if (sub->length > 0 && sub->data != NULL && new_ta->data != NULL) {
         memcpy(new_ta->data, sub->data, (size_t)(sub->length * sub->element_size));
     }

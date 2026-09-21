@@ -210,6 +210,8 @@ export class Readable extends Stream {
             const item = this._buffer[i];
             if (typeof item === "string") {
                 total += (item as string).length;
+            } else if (Buffer.isBuffer(item) || item instanceof Uint8Array) {
+                total += (item as Buffer).length;
             } else if (item && typeof (item as { length?: number }).length === "number") {
                 total += (item as { length: number }).length;
             } else {
@@ -283,6 +285,12 @@ export class Readable extends Stream {
                 if (this._autoDestroy) {
                     this.destroy();
                 }
+            } else if (this._buffer.length === 0 && !this.readableEnded && !this._paused) {
+                queueMicrotask(() => {
+                    if (this.readableFlowing && !this._paused && !this.readableEnded && this._buffer.length === 0) {
+                        this._read(this.readableHighWaterMark);
+                    }
+                });
             }
         }
 
@@ -305,6 +313,8 @@ export class Readable extends Stream {
             }
         } else if (event === "end" && (this.readableEnded || this.destroyed) && this._buffer.length === 0) {
             listener();
+        } else if (event === "close" && this.closed) {
+            queueMicrotask(() => listener());
         }
         return this;
     }
@@ -324,21 +334,26 @@ export class Readable extends Stream {
         this._paused = false;
         this.readableFlowing = true;
         this.emit("resume");
-        while (this._buffer.length > 0 && !this._paused) {
-            const item = this._buffer.shift();
-            this.readableLength = this._calcLength();
-            if (item !== undefined) {
-                this.emit("data", item);
+        queueMicrotask(() => {
+            if (!this.readableFlowing || this._paused) {
+                return;
             }
-        }
-        if (this._buffer.length === 0 && this.readableEnded) {
-            this.emit("end");
-            if (this._autoDestroy) {
-                this.destroy();
+            while (this._buffer.length > 0 && !this._paused) {
+                const item = this._buffer.shift();
+                this.readableLength = this._calcLength();
+                if (item !== undefined) {
+                    this.emit("data", item);
+                }
             }
-        } else if (this._buffer.length === 0 && !this.readableEnded) {
-            this._read(this.readableHighWaterMark);
-        }
+            if (this._buffer.length === 0 && this.readableEnded) {
+                this.emit("end");
+                if (this._autoDestroy) {
+                    this.destroy();
+                }
+            } else if (this._buffer.length === 0 && !this.readableEnded && !this._paused) {
+                this._read(this.readableHighWaterMark);
+            }
+        });
         return this;
     }
 
@@ -481,10 +496,10 @@ export class Readable extends Stream {
                     return { done: false, value: chunk };
                 }
                 if (self.readableEnded && self._buffer.length === 0) {
-                    return { done: true, value: undefined as unknown as StreamChunk };
+                    return { done: true, value: "" };
                 }
                 if (self.destroyed) {
-                    return { done: true, value: undefined as unknown as StreamChunk };
+                    return { done: true, value: "" };
                 }
                 return new Promise<IteratorResult<StreamChunk>>((resolve, reject) => {
                     const onData = (val: StreamChunk) => {
@@ -493,7 +508,7 @@ export class Readable extends Stream {
                     };
                     const onEnd = () => {
                         cleanup();
-                        resolve({ done: true, value: undefined as unknown as StreamChunk });
+                        resolve({ done: true, value: "" });
                     };
                     const onError = (err: Error) => {
                         cleanup();
@@ -512,7 +527,7 @@ export class Readable extends Stream {
             },
             async return(): Promise<IteratorResult<StreamChunk>> {
                 self.destroy();
-                return { done: true, value: undefined as unknown as StreamChunk };
+                return { done: true, value: "" };
             },
             async throw(err?: Error): Promise<IteratorResult<StreamChunk>> {
                 self.destroy(err);
@@ -737,6 +752,8 @@ export class Writable extends Stream {
         let chunkLen = 1;
         if (typeof chunk === "string") {
             chunkLen = (chunk as string).length;
+        } else if (Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) {
+            chunkLen = (chunk as Buffer).length;
         } else if (chunk && typeof (chunk as { length?: number }).length === "number") {
             chunkLen = (chunk as { length: number }).length;
         }
@@ -1006,6 +1023,8 @@ export class Duplex extends Readable {
         let chunkLen = 1;
         if (typeof chunk === "string") {
             chunkLen = (chunk as string).length;
+        } else if (Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) {
+            chunkLen = (chunk as Buffer).length;
         } else if (chunk && typeof (chunk as { length?: number }).length === "number") {
             chunkLen = (chunk as { length: number }).length;
         }

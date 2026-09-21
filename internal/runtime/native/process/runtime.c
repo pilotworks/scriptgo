@@ -68,6 +68,16 @@ int scriptgo_process_env(const char *key, char **out_value) {
     return 0;
 }
 
+int scriptgo_process_set_env(const char *key, const char *val) {
+    if (key == NULL || val == NULL) return process_fail("scriptgo process invalid arguments");
+#if !defined(__wasi__)
+    if (setenv(key, val, 1) != 0) {
+        return process_fail("scriptgo process setenv failed");
+    }
+#endif
+    return 0;
+}
+
 int scriptgo_process_pid(double *out_pid) {
     if (out_pid == NULL) return process_fail("scriptgo process invalid arguments");
 #if defined(__wasi__)

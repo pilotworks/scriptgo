@@ -22,6 +22,7 @@ export const builtinModules: string[] = [
     "readline/promises",
     "stream",
     "string_decoder",
+    "test",
     "timers",
     "tls",
     "tty",

@@ -127,3 +127,7 @@ func escapeString(value string) string {
 	}
 	return out.String()
 }
+
+func isFunctionType(typ ir.Type) bool {
+	return typ == ir.TypeClosure || typ == ir.TypeDynamicFunction || typ == "Function" || typ == "function" || strings.Contains(string(typ), "=>")
+}

@@ -82,7 +82,7 @@ func lowerStructuredAsyncLoopLinearMulti(path string, statement typescriptgo.Syn
 		exitPath = append(exitPath, tail...)
 	}
 	firstSegment := rewriteAsyncReturnsVoid(segments[0], promiseName, frameName, result.Span)
-	firstSegment = rewriteLoopControl(firstSegment, exitPath, runnerName, loop.Span)
+	firstSegment = rewriteLoopControl(firstSegment, exitPath, runnerName, loop.Step, asyncRunnerSelfCallArgs(), loop.Span)
 	runner.Body = append(runner.Body, ir.Instruction{Op: ir.OpIf, Type: ir.TypeVoid, Args: loop.Args, Then: append(firstSegment, multiAwaitSchedule(base, 0, awaits[0], captures)...), Else: exitPath, Span: loop.Span})
 
 	continuationFunctions := []ir.Function{runner}
@@ -93,7 +93,7 @@ func lowerStructuredAsyncLoopLinearMulti(path string, statement typescriptgo.Syn
 		nextSegment := rewriteAsyncReturnsVoid(segments[i+1], promiseName, frameName, result.Span)
 		// A break exits the loop and must execute the post-loop path (including
 		// any await after the loop), not the already-settled final tail.
-		nextSegment = rewriteLoopControl(nextSegment, exitPath, runnerName, await.Span)
+		nextSegment = rewriteLoopControl(nextSegment, exitPath, runnerName, loop.Step, asyncRunnerCallArgs(), await.Span)
 		success.Body = append(success.Body, nextSegment...)
 		if instructionListTerminates(nextSegment) {
 			// A break/return path already settled the outer promise.

@@ -867,7 +867,7 @@ func lowerCallExpression(
 		return result, retType, nil
 	}
 
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "call" || expression.Left.Kind == "paren" || expression.Left.Kind == "optional_call") {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "call" || expression.Left.Kind == "paren" || expression.Left.Kind == "optional_call" || expression.Left.Kind == "as" || expression.Left.Kind == "cast" || expression.Left.Kind == "type_assertion") {
 		isModuleFunc := false
 		if (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" {
 			if _, inEnv := env[expression.Left.Left.Text]; !inEnv {
@@ -1059,7 +1059,7 @@ func lowerCallExpression(
 		return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
 	}
 
-	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "optional_property") {
+	if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "member" || expression.Left.Kind == "index" || expression.Left.Kind == "optional_index" || expression.Left.Kind == "optional_property" || expression.Left.Kind == "as" || expression.Left.Kind == "cast" || expression.Left.Kind == "type_assertion" || expression.Left.Kind == "paren") {
 		isModuleFunc := false
 		if (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") && expression.Left.Left != nil && expression.Left.Left.Kind == "identifier" {
 			if _, inEnv := env[expression.Left.Left.Text]; !inEnv {

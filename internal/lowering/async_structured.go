@@ -66,7 +66,7 @@ func lowerStructuredAsyncLoop(path string, statement typescriptgo.SyntaxStatemen
 		tail = append(tail, settleAsyncVoid(promiseName, frameName, result.Span)...)
 	}
 	loopPrefix := rewriteAsyncReturnsVoid(bodySegments[0], promiseName, frameName, result.Span)
-	loopPrefix = rewriteLoopControl(loopPrefix, tail, runnerName, result.Span)
+	loopPrefix = rewriteLoopControl(loopPrefix, tail, runnerName, loop.Step, asyncRunnerSelfCallArgs(), result.Span)
 
 	runner := ir.Function{
 		Name:       runnerName,
@@ -103,7 +103,7 @@ func lowerStructuredAsyncLoop(path string, statement typescriptgo.SyntaxStatemen
 	// The resumed segment is no longer emitted inside a loop. Rewrite loop
 	// control before emitting it so break/continue retain their source target.
 	resumed := rewriteAsyncReturnsVoid(bodySegments[1], promiseName, frameName, result.Span)
-	resumed = rewriteLoopControl(resumed, tail, runnerName, await.Span)
+	resumed = rewriteLoopControl(resumed, tail, runnerName, loop.Step, asyncRunnerCallArgs(), await.Span)
 	success.Body = append(success.Body, resumed...)
 	if !instructionListTerminates(resumed) {
 		success.Body = append(success.Body, loop.Step...)
@@ -356,6 +356,10 @@ func asyncRunnerCallArgs() []string {
 	return []string{"__env_ctx", "__resume_raw", "__resume_arg_1$raw", "__resume_arg_2$raw", "__resume_arg_3$raw"}
 }
 
+func asyncRunnerSelfCallArgs() []string {
+	return []string{"__env_ctx", "__runner_arg_0$raw", "__runner_arg_1$raw", "__runner_arg_2$raw", "__runner_arg_3$raw"}
+}
+
 func asyncLoopCaptures(lowered ir.Function, loop ir.Instruction, segments [][]ir.Instruction, promiseName, frameName string, types map[string]ir.Type) ([]string, []string) {
 	runnerScope := append(append([]ir.Instruction{}, loop.Cond...), segments[0]...)
 	runner := asyncCaptures(runnerScope, types, lowered.Parameters)
@@ -440,7 +444,7 @@ func removeCapture(captures []string, name string) []string {
 	return result
 }
 
-func rewriteLoopControl(instructions, exit []ir.Instruction, runnerName string, span ir.SourceSpan) []ir.Instruction {
+func rewriteLoopControl(instructions, exit []ir.Instruction, runnerName string, step []ir.Instruction, callArgs []string, span ir.SourceSpan) []ir.Instruction {
 	result := make([]ir.Instruction, 0, len(instructions))
 	for _, instruction := range instructions {
 		if instruction.Op == ir.OpBreak {
@@ -448,16 +452,17 @@ func rewriteLoopControl(instructions, exit []ir.Instruction, runnerName string, 
 			continue
 		}
 		if instruction.Op == ir.OpContinue {
-			result = append(result, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: runnerName, Args: []string{}, Span: span}, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: span})
+			result = append(result, step...)
+			result = append(result, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: runnerName, Args: callArgs, Span: span}, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid, Span: span})
 			continue
 		}
-		instruction.Then = rewriteLoopControl(instruction.Then, exit, runnerName, span)
-		instruction.Else = rewriteLoopControl(instruction.Else, exit, runnerName, span)
-		instruction.Cond = rewriteLoopControl(instruction.Cond, exit, runnerName, span)
-		instruction.Body = rewriteLoopControl(instruction.Body, exit, runnerName, span)
-		instruction.Step = rewriteLoopControl(instruction.Step, exit, runnerName, span)
-		instruction.Catch = rewriteLoopControl(instruction.Catch, exit, runnerName, span)
-		instruction.Finally = rewriteLoopControl(instruction.Finally, exit, runnerName, span)
+		instruction.Then = rewriteLoopControl(instruction.Then, exit, runnerName, step, callArgs, span)
+		instruction.Else = rewriteLoopControl(instruction.Else, exit, runnerName, step, callArgs, span)
+		instruction.Cond = rewriteLoopControl(instruction.Cond, exit, runnerName, step, callArgs, span)
+		instruction.Body = rewriteLoopControl(instruction.Body, exit, runnerName, step, callArgs, span)
+		instruction.Step = rewriteLoopControl(instruction.Step, exit, runnerName, step, callArgs, span)
+		instruction.Catch = rewriteLoopControl(instruction.Catch, exit, runnerName, step, callArgs, span)
+		instruction.Finally = rewriteLoopControl(instruction.Finally, exit, runnerName, step, callArgs, span)
 		result = append(result, instruction)
 	}
 	return result

@@ -150,14 +150,20 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		parts := splitTopLevelUnion(value)
 		if len(parts) > 1 {
 			var nonNullish []string
+			hasVoid := false
 			for _, p := range parts {
 				trimmed := strings.TrimSpace(p)
-				if trimmed != "null" && trimmed != "undefined" && trimmed != "void" && trimmed != "" {
+				if trimmed == "void" {
+					hasVoid = true
+				} else if trimmed != "null" && trimmed != "undefined" && trimmed != "" {
 					nonNullish = append(nonNullish, trimmed)
 				}
 			}
 			if len(nonNullish) == 0 {
 				return ir.TypeVoid
+			}
+			if hasVoid {
+				return ir.TypeUnknown
 			}
 			hasNullish := len(nonNullish) < len(parts)
 			hasNull := false
