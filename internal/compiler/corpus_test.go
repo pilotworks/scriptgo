@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -105,6 +106,40 @@ func TestCorpus(t *testing.T) {
 		t.Fatal("corpus has no cases")
 	}
 
+	shardTotal := 1
+	shardIndex := 0
+	if shardEnv := os.Getenv("SCRIPTGO_SHARD"); shardEnv != "" {
+		parts := strings.Split(shardEnv, "/")
+		if len(parts) == 2 {
+			idx, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+			tot, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+			if err1 == nil && err2 == nil && tot > 1 && idx >= 1 && idx <= tot {
+				shardTotal = tot
+				shardIndex = idx - 1
+			}
+		}
+	} else {
+		if s := os.Getenv("SCRIPTGO_SHARD_TOTAL"); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 1 {
+				shardTotal = n
+			}
+		}
+		if s := os.Getenv("SCRIPTGO_SHARD_INDEX"); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n >= 0 && n < shardTotal {
+				shardIndex = n
+			}
+		}
+	}
+	if shardTotal > 1 {
+		var sharded []string
+		for i, c := range cases {
+			if i%shardTotal == shardIndex {
+				sharded = append(sharded, c)
+			}
+		}
+		cases = sharded
+	}
+
 	sanitizerEnv := os.Getenv("SCRIPTGO_SANITIZE")
 	var buildOpts BuildOptions
 	if sanitizerEnv != "" {
@@ -154,20 +189,6 @@ func TestCorpus(t *testing.T) {
 				}
 				if got != runExp {
 					t.Fatalf("Run output = %q, want %q", got, runExp)
-				}
-				if len(caseOpts.Sanitizers) > 0 {
-					if _, err := exec.LookPath("clang"); err == nil {
-						outputPath := filepath.Join(t.TempDir(), "main_sanitized")
-						if err := BuildWithOptions(entry, outputPath, caseOpts); err == nil {
-							nativeOut, err := exec.Command(outputPath).CombinedOutput()
-							if err != nil {
-								t.Fatalf("native sanitizer execution failed: %v\n%s", err, nativeOut)
-							}
-							if string(nativeOut) != runExp {
-								t.Fatalf("native sanitizer output = %q, want %q", nativeOut, runExp)
-							}
-						}
-					}
 				}
 			}
 

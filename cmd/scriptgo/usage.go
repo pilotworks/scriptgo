@@ -28,6 +28,7 @@ Global Flags:
   --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
+  --release              Build with production optimizations (-O3, --lto=thin, --strip)
   --debug                Emit native DWARF debug symbols
   --lto <mode>           Enable link-time optimization (thin, full, none)
   -s, --strip            Strip symbols and debug tables from generated binary (build only)
@@ -104,6 +105,7 @@ Flags:
   --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
+  --release              Build with production optimizations (-O3, --lto=thin, --strip)
   --debug                Include DWARF debug symbols
   --lto <mode>           Enable link-time optimization (thin, full, none)
   --sanitize <list>      Enable Clang sanitizers (address, undefined, leak)
@@ -146,6 +148,7 @@ Flags:
   --target-cpu <cpu>     Target CPU architecture (e.g. native, apple-m1, x86-64-v3)
   --cc <driver>          C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)
   -O <level>             Optimization level: 0, 1, 2, 3, s, z, fast (default: 2)
+  --release              Build with production optimizations (-O3, --lto=thin, --strip)
   -s, --strip            Strip symbols and debug tables from generated binary
   --debug                Include DWARF debug symbols (O0 with debug metadata)
   --lto <mode>           Enable link-time optimization (thin, full, none)

@@ -29,6 +29,7 @@ type BuildOptions struct {
 	Dynamic          bool
 	Strip            bool
 	TargetCPU        string
+	Release          bool
 }
 
 func (options BuildOptions) normalized() BuildOptions {
@@ -47,6 +48,20 @@ func (options BuildOptions) normalized() BuildOptions {
 		} else {
 			options.CC = "clang"
 		}
+	}
+	if !options.Release {
+		if envRel := os.Getenv("SCRIPTGO_RELEASE"); envRel == "1" || envRel == "true" {
+			options.Release = true
+		}
+	}
+	if options.Release {
+		if options.OptLevel == "" {
+			options.OptLevel = "3"
+		}
+		if options.LTO == "" {
+			options.LTO = "thin"
+		}
+		options.Strip = true
 	}
 	if options.OptLevel == "" {
 		if options.Debug {

@@ -11,7 +11,6 @@ import (
 	goRuntime "runtime"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
@@ -261,21 +260,24 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = []string{temporaryPath, runtimeObj}
 	}
 	if dynamicRuntime {
-		qjsPath := filepath.Join(temporaryDir, "quickjs-amalgam.c")
-		qjsObj := filepath.Join(temporaryDir, "quickjs-amalgam.o")
-		if err := os.WriteFile(qjsPath, runtime.QuickJSSource(), 0o644); err != nil {
-			return fmt.Errorf("write QuickJS-ng source: %w", err)
-		}
-		if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
-			return fmt.Errorf("write QuickJS-ng header: %w", err)
-		}
-		qjsArgs := append([]string{}, ccParts[1:]...)
-		qjsArgs = append(qjsArgs, "-I", temporaryDir, "-ffunction-sections", "-fdata-sections", "-O2", "-c", qjsPath, "-o", qjsObj)
-		if options.Target != "native" {
-			qjsArgs = append(qjsArgs, "--target="+options.Target)
-		}
-		if out, compileErr := exec.Command(ccParts[0], qjsArgs...).CombinedOutput(); compileErr != nil {
-			return fmt.Errorf("compile QuickJS-ng: %w: %s", compileErr, out)
+		qjsObj, err := getOrBuildCachedQuickJS(ccParts, options)
+		if err != nil {
+			qjsPath := filepath.Join(temporaryDir, "quickjs-amalgam.c")
+			qjsObj = filepath.Join(temporaryDir, "quickjs-amalgam.o")
+			if err := os.WriteFile(qjsPath, runtime.QuickJSSource(), 0o644); err != nil {
+				return fmt.Errorf("write QuickJS-ng source: %w", err)
+			}
+			if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
+				return fmt.Errorf("write QuickJS-ng header: %w", err)
+			}
+			qjsArgs := append([]string{}, ccParts[1:]...)
+			qjsArgs = append(qjsArgs, "-I", temporaryDir, "-ffunction-sections", "-fdata-sections", "-O2", "-c", qjsPath, "-o", qjsObj)
+			if options.Target != "native" {
+				qjsArgs = append(qjsArgs, "--target="+options.Target)
+			}
+			if out, compileErr := exec.Command(ccParts[0], qjsArgs...).CombinedOutput(); compileErr != nil {
+				return fmt.Errorf("compile QuickJS-ng: %w: %s", compileErr, out)
+			}
 		}
 		args = append(args, qjsObj)
 	}
@@ -490,108 +492,6 @@ func CheckWithOptions(entryPath string, options BuildOptions) error {
 		}
 	}
 	return nil
-}
-
-var runtimeCacheMu sync.Mutex
-
-func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig nativeCodecConfig, runtimeSource []byte, dynamic bool) (string, error) {
-	if len(ccParts) == 0 {
-		return "", fmt.Errorf("no C compiler specified")
-	}
-
-	runtimeCacheMu.Lock()
-	defer runtimeCacheMu.Unlock()
-
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		cacheDir = os.TempDir()
-	}
-	sgCache := filepath.Join(cacheDir, "scriptgo")
-	if err := os.MkdirAll(sgCache, 0o755); err != nil {
-		return "", err
-	}
-
-	h := sha256.New()
-	h.Write(runtimeSource)
-	if dynamic || bytes.Contains(runtimeSource, []byte("#include \"quickjs.h\"")) {
-		h.Write(runtime.QuickJSSource())
-		h.Write(runtime.QuickJSHeader())
-	}
-	h.Write([]byte(options.Target))
-	h.Write([]byte(options.OptLevel))
-	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
-	h.Write([]byte("sections-v1"))
-	h.Write([]byte(codecConfig.cacheKey()))
-	if options.LTO != "" && options.LTO != "none" {
-		h.Write([]byte("lto:" + options.LTO))
-	}
-	if options.TargetCPU != "" {
-		h.Write([]byte("cpu:" + options.TargetCPU))
-	}
-	if options.Debug {
-		h.Write([]byte("debug"))
-	}
-	hash := hex.EncodeToString(h.Sum(nil))
-	objPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s.o", hash[:16]))
-
-	if info, err := os.Stat(objPath); err == nil && info.Size() > 0 {
-		return objPath, nil
-	}
-
-	tmpSrcPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s-%d.c", hash[:16], os.Getpid()))
-	if err := os.WriteFile(filepath.Join(sgCache, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
-		return "", err
-	}
-	if dynamic || bytes.Contains(runtimeSource, []byte("#include \"quickjs.h\"")) {
-		if err := os.WriteFile(filepath.Join(sgCache, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
-			return "", err
-		}
-	}
-	runtimeInput := append([]byte("#line 1 \"scriptgo-runtime.c\"\n"), runtimeSource...)
-	if err := os.WriteFile(tmpSrcPath, runtimeInput, 0o644); err != nil {
-		return "", err
-	}
-	defer os.Remove(tmpSrcPath)
-
-	tmpObjPath := filepath.Join(sgCache, fmt.Sprintf("runtime-%s-%d.o", hash[:16], os.Getpid()))
-	defer os.Remove(tmpObjPath)
-
-	buildArgs := append([]string(nil), ccParts[1:]...)
-	buildArgs = append(buildArgs, codecConfig.compileFlags...)
-	buildArgs = append(buildArgs, "-I", sgCache, "-ffunction-sections", "-fdata-sections", "-c")
-	buildArgs = append(buildArgs, tmpSrcPath, "-o", tmpObjPath)
-	if options.OptLevel != "" {
-		buildArgs = append(buildArgs, "-O"+options.OptLevel)
-		if options.Debug {
-			buildArgs = append(buildArgs, "-g")
-		}
-	} else if options.Debug {
-		buildArgs = append(buildArgs, "-O0", "-g")
-	} else {
-		buildArgs = append(buildArgs, "-O2")
-	}
-	if options.LTO == "thin" {
-		buildArgs = append(buildArgs, "-flto=thin")
-	} else if options.LTO == "full" || options.LTO == "yes" || options.LTO == "true" {
-		buildArgs = append(buildArgs, "-flto")
-	}
-	if options.TargetCPU != "" {
-		buildArgs = append(buildArgs, "-mcpu="+options.TargetCPU)
-	}
-	if options.Target != "native" {
-		buildArgs = append(buildArgs, "--target="+options.Target)
-	}
-	if len(options.Sanitizers) > 0 {
-		buildArgs = append(buildArgs, "-fsanitize="+strings.Join(options.Sanitizers, ","))
-	}
-	cmd := exec.Command(ccParts[0], buildArgs...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("compile runtime: %w: %s", err, string(out))
-	}
-	if err := os.Rename(tmpObjPath, objPath); err != nil {
-		return "", err
-	}
-	return objPath, nil
 }
 
 func linkerDCEFlags(target string) []string {

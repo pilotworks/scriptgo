@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,14 +9,29 @@ import (
 	"testing"
 )
 
-func TestCLI_MissingFileInput(t *testing.T) {
-	// Build the scriptgo binary to test CLI invocations
-	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "scriptgo")
-	cmd := exec.Command("go", "build", "-o", binPath, ".")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build scriptgo: %v\noutput: %s", err, string(out))
+var testScriptGoBin string
+
+func TestMain(m *testing.M) {
+	tmpDir, err := os.MkdirTemp("", "scriptgo-cli-test-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create temp dir for test binary: %v\n", err)
+		os.Exit(1)
 	}
+	defer os.RemoveAll(tmpDir)
+
+	testScriptGoBin = filepath.Join(tmpDir, "scriptgo")
+	cmd := exec.Command("go", "build", "-o", testScriptGoBin, ".")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to build scriptgo: %v\noutput: %s\n", err, string(out))
+		os.Exit(1)
+	}
+
+	os.Exit(m.Run())
+}
+
+func TestCLI_MissingFileInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := testScriptGoBin
 
 	testCases := []struct {
 		name string
@@ -43,12 +59,7 @@ func TestCLI_MissingFileInput(t *testing.T) {
 }
 
 func TestCLI_InlineEvalFlag(t *testing.T) {
-	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "scriptgo")
-	cmd := exec.Command("go", "build", "-o", binPath, ".")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build scriptgo: %v\noutput: %s", err, string(out))
-	}
+	binPath := testScriptGoBin
 
 	t.Run("run -e", func(t *testing.T) {
 		cmd := exec.Command(binPath, "run", "-e", "console.log(42);")
@@ -72,11 +83,7 @@ func TestCLI_InlineEvalFlag(t *testing.T) {
 
 func TestCLI_DynamicCompatibilitySurface(t *testing.T) {
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "scriptgo")
-	cmd := exec.Command("go", "build", "-o", binPath, ".")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build scriptgo: %v\noutput: %s", err, string(out))
-	}
+	binPath := testScriptGoBin
 	for _, command := range []string{"run", "build", "check", "emit", "coverage"} {
 		cmd := exec.Command(binPath, command, "--help")
 		out, err := cmd.CombinedOutput()
@@ -92,7 +99,7 @@ func TestCLI_DynamicCompatibilitySurface(t *testing.T) {
 	if err := os.WriteFile(entry, []byte("const value: any = 42;\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd = exec.Command(binPath, "coverage", "--dynamic", entry)
+	cmd := exec.Command(binPath, "coverage", "--dynamic", entry)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("coverage failed: %v\n%s", err, out)
@@ -128,11 +135,7 @@ func TestCLI_DynamicCompatibilitySurface(t *testing.T) {
 
 func TestCLI_CheckTSConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "scriptgo")
-	cmd := exec.Command("go", "build", "-o", binPath, ".")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build scriptgo: %v\noutput: %s", err, string(out))
-	}
+	binPath := testScriptGoBin
 
 	projDir := filepath.Join(tmpDir, "project")
 	srcDir := filepath.Join(projDir, "src")

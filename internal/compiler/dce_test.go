@@ -205,16 +205,55 @@ console.log(acc);
 	}
 
 	for _, opt := range []string{"0", "1", "2", "3", "s", "z"} {
-		output := filepath.Join(dir, "main_opt_"+opt)
-		if err := BuildWithOptions(entry, output, BuildOptions{OptLevel: opt}); err != nil {
-			t.Fatalf("BuildWithOptions with OptLevel=%s failed: %v", opt, err)
-		}
-		result, err := exec.Command(output).CombinedOutput()
-		if err != nil {
-			t.Fatalf("executable with OptLevel=%s failed: %v\n%s", opt, err, result)
-		}
-		if string(result) != "31\n" {
-			t.Fatalf("executable (OptLevel=%s) output = %q, want %q", opt, result, "31\n")
-		}
+		opt := opt
+		t.Run("opt_"+opt, func(t *testing.T) {
+			t.Parallel()
+			output := filepath.Join(t.TempDir(), "main_opt_"+opt)
+			if err := BuildWithOptions(entry, output, BuildOptions{OptLevel: opt}); err != nil {
+				t.Fatalf("BuildWithOptions with OptLevel=%s failed: %v", opt, err)
+			}
+			result, err := exec.Command(output).CombinedOutput()
+			if err != nil {
+				t.Fatalf("executable with OptLevel=%s failed: %v\n%s", opt, err, result)
+			}
+			if string(result) != "31\n" {
+				t.Fatalf("executable (OptLevel=%s) output = %q, want %q", opt, result, "31\n")
+			}
+		})
+	}
+}
+
+func TestBuildRelease(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang is not installed")
+	}
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.ts")
+	code := `
+class Item {
+    cost: number;
+    constructor(cost: number) { this.cost = cost; }
+}
+const items = [new Item(10), new Item(20), new Item(30)];
+let total = 0;
+for (const it of items) {
+    total += it.cost;
+}
+console.log(total);
+`
+	if err := os.WriteFile(entry, []byte(code), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := filepath.Join(dir, "main_release")
+	if err := BuildWithOptions(entry, output, BuildOptions{Release: true}); err != nil {
+		t.Fatalf("BuildWithOptions with Release=true failed: %v", err)
+	}
+	result, err := exec.Command(output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("executable with Release=true failed: %v\n%s", err, result)
+	}
+	if string(result) != "60\n" {
+		t.Fatalf("executable (Release=true) output = %q, want %q", result, "60\n")
 	}
 }

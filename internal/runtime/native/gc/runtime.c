@@ -14,7 +14,8 @@ typedef enum {
     SCRIPTGO_TYPE_WEAKMAP,
     SCRIPTGO_TYPE_WEAKSET,
     SCRIPTGO_TYPE_ARRAYBUFFER,
-    SCRIPTGO_TYPE_SYMBOL
+    SCRIPTGO_TYPE_SYMBOL,
+    SCRIPTGO_TYPE_CLOSURE_ENV
 } scriptgo_gc_type_tag;
 
 typedef struct scriptgo_gc_header {
@@ -473,6 +474,17 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             if (c != NULL && c->env != NULL && (uintptr_t)c->env > 4096) {
                 gc_node *child = find_node(c->env);
                 GC_PUSH(child);
+            }
+        } else if (node->header.type_tag == SCRIPTGO_TYPE_CLOSURE_ENV) {
+            void **words = (void **)node->ptr;
+            if (words != NULL) {
+                for (uint32_t i = 0; i < node->header.field_count; i++) {
+                    void *ptr_val = words[i];
+                    if ((uintptr_t)ptr_val > 4096) {
+                        gc_node *child = find_node(ptr_val);
+                        GC_PUSH(child);
+                    }
+                }
             }
         } else if (node->header.type_tag == SCRIPTGO_TYPE_BUFFER) {
             typedef struct {
