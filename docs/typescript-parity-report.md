@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **391** | **391 / 391 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 391 | 376 PASS plus 15 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **392** | **392 / 392 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 392 | 377 PASS plus 15 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node API Surface** | **96** | **96 / 96 Full Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -146,7 +146,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Promise`** | `new Promise()`, `resolve`, `reject`, `.then()`, `.catch()`, `.finally()`, `Promise.allSettled()`, `Promise.any()`, `Promise.withResolvers()`, Microtask Queue | ✅ 100% matches Promise A+ & ES2024 specifications |
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
-| **`JSON`** | `JSON.stringify()`, `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
+| **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description`, `.toString()` | ✅ Matches primitive symbol format |
 | **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
