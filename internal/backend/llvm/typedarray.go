@@ -88,7 +88,7 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 			if slot, ok := e.varSlots[argName]; ok {
 				loaded := fmt.Sprintf("%s.is_view_load.%d", argName, e.loadCounter)
 				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
+				out.WriteString(fmt.Sprintf("  %%%s = load%s { i32, i32, i64, i64 }, ptr %%%s\n", loaded, e.vol(), slot))
 				argName = loaded
 			}
 			tag := fmt.Sprintf("%s.is_view_tag.%d", argName, e.loadCounter)

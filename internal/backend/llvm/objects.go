@@ -331,7 +331,7 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 		if argType == ir.TypeUnknown {
 			out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
 		} else {
-			out.WriteString(fmt.Sprintf("  %%%s = load volatile ptr, ptr %%%s\n", loaded, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load%s ptr, ptr %%%s\n", loaded, e.vol(), slot))
 		}
 		argVal = loaded
 	}

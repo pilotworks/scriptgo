@@ -84,7 +84,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
-				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				fmt.Fprintf(out, "  %%%s = load%s %s, ptr %%%s\n", loaded, e.vol(), llvmType(argType), slot)
 				arg = loaded
 			}
 		}
@@ -115,7 +115,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
-				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				fmt.Fprintf(out, "  %%%s = load%s %s, ptr %%%s\n", loaded, e.vol(), llvmType(argType), slot)
 				arg = loaded
 			}
 		}
@@ -145,7 +145,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else {
-				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				fmt.Fprintf(out, "  %%%s = load%s %s, ptr %%%s\n", loaded, e.vol(), llvmType(argType), slot)
 				arg = loaded
 			}
 		}
@@ -649,7 +649,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 				fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot)
 				arg = loaded
 			} else if llvmType(argType) != "void" && llvmType(argType) != "" {
-				fmt.Fprintf(out, "  %%%s = load volatile %s, ptr %%%s\n", loaded, llvmType(argType), slot)
+				fmt.Fprintf(out, "  %%%s = load%s %s, ptr %%%s\n", loaded, e.vol(), llvmType(argType), slot)
 				arg = loaded
 			}
 		}
