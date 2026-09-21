@@ -152,13 +152,15 @@ export class Interface extends EventEmitter {
         }
         this._questionCb = callback;
 
-        if (!this.input || (this.input as unknown as { fd?: number }).fd === 0) {
-            const line = __scriptgo.ttyReadLine(0);
-            if (line.length > 0 && this._questionCb) {
-                const cb = this._questionCb;
-                this._questionCb = null;
-                cb(line);
-                this.emit("line", line);
+        if (this.input instanceof StreamLike) {
+            if (this.input.isTTY && this.input.fd === 0) {
+                const line = __scriptgo.ttyReadLine(0);
+                if (line.length > 0 && this._questionCb) {
+                    const cb = this._questionCb;
+                    this._questionCb = null;
+                    cb(line);
+                    this.emit("line", line);
+                }
             }
         }
     }
@@ -222,6 +224,10 @@ export class Interface extends EventEmitter {
         } else {
             this._lineQueue.push(line);
         }
+    }
+
+    [Symbol.dispose](): void {
+        this.close();
     }
 
     [Symbol.asyncIterator](): AsyncIterableIterator<string> {
@@ -293,14 +299,17 @@ export function emitKeypressEvents(stream: EventEmitter | null | undefined, ifac
         const s = typeof b === "string" ? b : (b !== null && b !== undefined ? String(b) : "");
         for (let i = 0; i < s.length; i++) {
             const ch = s[i];
-            stream.emit("keypress", ch);
+            stream.emit("keypress", ch, { sequence: ch, name: ch, ctrl: false, meta: false, shift: false });
         }
     });
 }
 
+export { Interface as InterfaceConstructor };
+
 export default {
     StreamLike,
     Interface,
+    InterfaceConstructor: Interface,
     createInterface,
     clearLine,
     clearScreenDown,

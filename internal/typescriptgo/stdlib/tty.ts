@@ -21,13 +21,19 @@ export function isatty(fd: number): boolean {
 export class ReadStream extends EventEmitter {
     fd: number;
     isRaw: boolean = false;
-    isTTY: boolean;
+    isTTY: boolean = true;
     readable: boolean = true;
 
     constructor(fd: number, options?: Record<string, unknown>) {
         super();
+        if (typeof fd !== "number" || isNaN(fd) || fd < 0) {
+            throw new RangeError(`"fd" must be a positive integer: ${fd}`);
+        }
+        if (!isatty(fd)) {
+            throw new Error("TTY initialization failed: uv_tty_init returned EINVAL (invalid argument)");
+        }
         this.fd = fd;
-        this.isTTY = isatty(fd);
+        this.isTTY = true;
     }
 
     setRawMode(mode: boolean): this {
@@ -50,15 +56,21 @@ export class ReadStream extends EventEmitter {
 
 export class WriteStream extends EventEmitter {
     fd: number;
-    isTTY: boolean;
+    isTTY: boolean = true;
     writable: boolean = true;
-    columns: number;
-    rows: number;
+    columns: number = 80;
+    rows: number = 24;
 
     constructor(fd: number) {
         super();
+        if (typeof fd !== "number" || isNaN(fd) || fd < 0) {
+            throw new RangeError(`"fd" must be a positive integer: ${fd}`);
+        }
+        if (!isatty(fd)) {
+            throw new Error("TTY initialization failed: uv_tty_init returned EINVAL (invalid argument)");
+        }
         this.fd = fd;
-        this.isTTY = isatty(fd);
+        this.isTTY = true;
         const ws = this.getWindowSize();
         this.columns = ws[0];
         this.rows = ws[1];

@@ -403,7 +403,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				return
 			}
 			if s.Kind == "import_alias" || s.Kind == "export_alias" {
-				if targetFn, ok := index[s.Type]; ok {
+				if target, ok := functionImportsByFile[filepath.Clean(file.FileName)][s.Name]; ok {
+					if targetFn, ok := index[target.Internal]; ok {
+						index[s.Name] = targetFn
+						if defaultParamsIndex[target.Internal] != nil {
+							defaultParamsIndex[s.Name] = defaultParamsIndex[target.Internal]
+						}
+					}
+				} else if targetFn, ok := index[s.Type]; ok {
 					index[s.Name] = targetFn
 					if defaultParamsIndex[s.Type] != nil {
 						defaultParamsIndex[s.Name] = defaultParamsIndex[s.Type]

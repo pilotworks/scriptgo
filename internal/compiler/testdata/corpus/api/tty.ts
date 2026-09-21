@@ -23,22 +23,84 @@ console.log(typeof isatty(2) === "boolean");
 
 // @api: tty.ReadStream
 // @expect: true
-let readStreamOk = false;
+console.log(typeof ReadStream === "function");
+
+let rsOk = false;
 try {
     const rs = new ReadStream(0);
-    readStreamOk = (typeof rs.isTTY === "boolean" && typeof rs.isRaw === "boolean");
+    // @api: tty.ReadStream.setRawMode
+    const hasSetRawMode = typeof rs.setRawMode === "function";
+    // @api: tty.ReadStream.isRaw
+    const hasIsRaw = typeof rs.isRaw === "boolean";
+    // @api: tty.ReadStream.isTTY
+    const hasIsTTY = typeof rs.isTTY === "boolean";
+    rsOk = hasSetRawMode && hasIsRaw && hasIsTTY;
 } catch (e) {
-    readStreamOk = true;
+    rsOk = true;
 }
-console.log(readStreamOk);
+// @expect: true
+console.log(rsOk);
 
 // @api: tty.WriteStream
 // @expect: true
-let writeStreamOk = false;
+console.log(typeof WriteStream === "function");
+
+let wsOk = false;
 try {
     const ws = new WriteStream(1);
-    writeStreamOk = (typeof ws.isTTY === "boolean");
+    // @api: tty.WriteStream.clearLine
+    const hasClearLine = typeof ws.clearLine === "function";
+    // @api: tty.WriteStream.clearScreenDown
+    const hasClearScreenDown = typeof ws.clearScreenDown === "function";
+    // @api: tty.WriteStream.cursorTo
+    const hasCursorTo = typeof ws.cursorTo === "function";
+    // @api: tty.WriteStream.getColorDepth
+    const hasGetColorDepth = typeof ws.getColorDepth === "function";
+    // @api: tty.WriteStream.getWindowSize
+    const hasGetWindowSize = typeof ws.getWindowSize === "function";
+    // @api: tty.WriteStream.hasColors
+    const hasHasColors = typeof ws.hasColors === "function";
+    // @api: tty.WriteStream.moveCursor
+    const hasMoveCursor = typeof ws.moveCursor === "function";
+    // @api: tty.WriteStream.columns
+    const hasColumns = typeof ws.columns === "number" || typeof ws.columns === "undefined";
+    // @api: tty.WriteStream.rows
+    const hasRows = typeof ws.rows === "number" || typeof ws.rows === "undefined";
+    // @api: tty.WriteStream.isTTY
+    const hasIsTTY = typeof ws.isTTY === "boolean";
+    wsOk = (
+        hasClearLine &&
+        hasClearScreenDown &&
+        hasCursorTo &&
+        hasGetColorDepth &&
+        hasGetWindowSize &&
+        hasHasColors &&
+        hasMoveCursor &&
+        hasColumns &&
+        hasRows &&
+        hasIsTTY
+    );
 } catch (e) {
-    writeStreamOk = true;
+    wsOk = true;
 }
-console.log(writeStreamOk);
+// @expect: true
+console.log(wsOk);
+
+let rsNegativeFdCaught = false;
+try {
+    new ReadStream(-1);
+} catch (e) {
+    rsNegativeFdCaught = true;
+}
+// @expect: true
+console.log(rsNegativeFdCaught);
+
+let wsNegativeFdCaught = false;
+try {
+    new WriteStream(-1);
+} catch (e) {
+    wsNegativeFdCaught = true;
+}
+// @expect: true
+console.log(wsNegativeFdCaught);
+

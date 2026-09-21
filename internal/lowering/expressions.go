@@ -1042,6 +1042,26 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 				})
 				return result, ir.TypeString, nil
 			}
+			if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "optional_property") && expression.Left.Left != nil {
+				_, targetObjType, targetErr := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+				if targetErr == nil {
+					targetCls := strings.TrimPrefix(string(targetObjType), "object:")
+					targetCls = classIdentityForPath(path, targetCls)
+					if _, _, ok := findMethodInHierarchy(targetCls, expression.Left.Text, signatures, classHierarchy); ok {
+						if result == "" {
+							result = nextTemp(counter)
+						}
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   ir.TypeString,
+							Result: result,
+							Value:  "function",
+							Span:   toIRSpan(path, expression.Span),
+						})
+						return result, ir.TypeString, nil
+					}
+				}
+			}
 			if expression.Left != nil && expression.Left.Kind == "identifier" {
 				name := expression.Left.Text
 				if name == "undefined" {

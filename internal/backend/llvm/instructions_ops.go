@@ -721,6 +721,10 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 			dstType := llvmType(instruction.Type)
 			if srcType == dstType {
 				out.WriteString(fmt.Sprintf("  %%%s = bitcast %s %%%s to %s\n", instruction.Result, srcType, arg, dstType))
+			} else if srcType == "void" {
+				if dstType == "ptr" {
+					out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 0 to ptr\n", instruction.Result))
+				}
 			} else if dstType == "ptr" && srcType != "ptr" {
 				out.WriteString(fmt.Sprintf("  %%%s = inttoptr %s %%%s to ptr\n", instruction.Result, srcType, arg))
 			} else if srcType == "ptr" && dstType != "ptr" {

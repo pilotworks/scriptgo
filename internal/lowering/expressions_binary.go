@@ -362,6 +362,8 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			if valType != varType && varType != ir.TypeUnknown {
 				if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(varType), "object:") || varType == ir.TypeObject) {
 					// Polymorphic object assignment
+				} else if (varType == ir.TypeUint8Array || varType == ir.TypeBuffer) && (valType == ir.TypeUint8Array || valType == ir.TypeBuffer) {
+					// Buffer extends Uint8Array and Uint8Array is binary-compatible with Buffer
 				} else if isPointerLikeType(varType) && (valType == ir.TypeVoid || valType == ir.TypePointer) {
 					// Assigning undefined or null to a pointer-like variable
 				} else {
