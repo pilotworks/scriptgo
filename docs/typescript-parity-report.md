@@ -463,27 +463,36 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **10.4 ms** | 58.2 ms | 12.3 ms | **5.59x faster** | **1.19x faster** |
-| **Buffer Ops (10MB)** | **10.6 ms** | 68.9 ms | 18.5 ms | **6.51x faster** | **1.75x faster** |
-| **Quicksort 100k** | **25.1 ms** | 78.1 ms | 23.5 ms | **3.11x faster** | ~1.06x (on par) |
-| **Matrix Mult 256x256** | **47.1 ms** | 88.5 ms | 44.5 ms | **1.88x faster** | ~1.05x (on par) |
-| **Object Churn & GC** | **20.3 ms** | 76.8 ms | 18.2 ms | **3.78x faster** | ~1.11x (on par) |
+| **Cold Start Latency** | **8.6 ms** | 55.2 ms | 10.7 ms | **6.42x faster** | **1.24x faster** |
+| **Buffer Ops (10MB)** | **11.9 ms** | 77.4 ms | 19.2 ms | **6.48x faster** | **1.61x faster** |
+| **Mandelbrot 500x500** | **30.8 ms** | 82.0 ms | 39.6 ms | **2.67x faster** | **1.29x faster** |
+| **Quicksort 100k** | **23.3 ms** | 69.0 ms | 21.6 ms | **2.96x faster** | ~1.08x (on par) |
+| **Matrix Mult 256x256** | **45.0 ms** | 86.3 ms | 41.6 ms | **1.92x faster** | ~1.08x (on par) |
+| **Object Churn & GC** | **19.5 ms** | 73.0 ms | 18.2 ms | **3.75x faster** | ~1.07x (on par) |
+| **ES2024 Set Ops** | **75.8 ms** | 59.2 ms | 12.6 ms | 1.28x slower | 5.88x slower |
+| **Base64 Transcode** | **131.8 ms** | 101.0 ms | 33.7 ms | 1.30x slower | 3.85x slower |
+| **Binary Trees D14** | **218.4 ms** | 131.6 ms | 70.2 ms | 1.67x slower | 3.13x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 67.5 MB | 10.6 MB | **11.3x less RAM** | **1.8x less RAM** |
-| **Buffer Ops (10MB)** | **7.6 MB** | 77.0 MB | 24.4 MB | **10.1x less RAM** | **3.2x less RAM** |
-| **Quicksort 100k** | **6.9 MB** | 76.5 MB | 24.9 MB | **11.1x less RAM** | **3.6x less RAM** |
-| **Matrix Mult 256x256** | **7.8 MB** | 78.3 MB | 25.6 MB | **10.0x less RAM** | **3.3x less RAM** |
-| **Object Churn & GC** | **16.6 MB** | 102.2 MB | 29.4 MB | **6.2x less RAM** | **1.8x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 67.4 MB | 10.6 MB | **11.2x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **6.8 MB** | 76.2 MB | 24.6 MB | **11.2x less RAM** | **3.6x less RAM** |
+| **Matrix Mult 256x256** | **7.8 MB** | 79.2 MB | 26.8 MB | **10.2x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.6 MB** | 76.5 MB | 23.4 MB | **10.1x less RAM** | **3.1x less RAM** |
+| **Object Churn & GC** | **16.2 MB** | 103.4 MB | 29.5 MB | **6.4x less RAM** | **1.8x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 73.1 MB | 18.5 MB | **12.2x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **39.7 MB** | 111.7 MB | 41.7 MB | **2.8x less RAM** | **1.1x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 69.8 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
+| **Base64 Transcode** | **49.4 MB** | 109.1 MB | 55.0 MB | **2.2x less RAM** | **1.1x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
-- **Cold Start**: 34 KB native executable
-- **Quicksort / Matrices / Churn**: 51 KB – 68 KB native executables
+- **Cold Start / Mandelbrot / Set Ops**: 34 KB native executables
+- **Matrices / Churn / Binary Trees / Base64**: 51 KB native executables
+- **Quicksort / Buffer Ops**: 67 KB – 68 KB native executables
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 

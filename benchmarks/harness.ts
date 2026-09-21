@@ -52,6 +52,10 @@ const CASES: BenchmarkCase[] = [
     { name: "Matrix Mult 256x256", file: "benchmarks/suites/matrix_mult.ts", iterations: 5 },
     { name: "Buffer Ops (10MB)", file: "benchmarks/suites/buffer_ops.ts", iterations: 7 },
     { name: "Object Churn & GC", file: "benchmarks/suites/object_churn.ts", iterations: 5 },
+    { name: "Mandelbrot 500x500", file: "benchmarks/suites/mandelbrot.ts", iterations: 5 },
+    { name: "Binary Trees D14", file: "benchmarks/suites/binary_trees.ts", iterations: 5 },
+    { name: "ES2024 Set Ops", file: "benchmarks/suites/es2024_set.ts", iterations: 5 },
+    { name: "Base64 Transcode", file: "benchmarks/suites/base64_transcode.ts", iterations: 5 },
 ];
 
 function runCommandAndMeasure(cmd: string, runs: number): MetricStats {
@@ -162,7 +166,7 @@ function main(): void {
 
     const results: BenchmarkResult[] = [];
 
-    console.log("==> Measuring 5 suites across ScriptGo (AOT Native), " + nodeVer + ", and " + (hasBun ? bunVer : "Bun") + "...\n");
+    console.log("==> Measuring " + CASES.length + " suites across ScriptGo (AOT Native), " + nodeVer + ", and " + (hasBun ? bunVer : "Bun") + "...\n");
 
     for (const testCase of CASES) {
         // Compile test case to optimized native executable
