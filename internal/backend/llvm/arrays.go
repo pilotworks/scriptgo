@@ -104,12 +104,12 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 	if isTypedArrayType(arrayType) {
 		if arrayType == ir.TypeFloat64Array {
 			e.types[instruction.Result] = ir.TypeNumber
-			slot := instruction.Result + ".slot"
-			if existingSlot, ok := e.varSlots[instruction.Result]; ok {
-				slot = existingSlot
+			slot, hasSlot := e.varSlots[instruction.Result]
+			slowSlot := "%__slot_double"
+			if hasSlot {
+				slowSlot = "%" + slot
 			} else {
-				out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
-				e.varSlots[instruction.Result] = slot
+				e.localSSAs[instruction.Result] = true
 			}
 
 			id := e.labelCounter
@@ -157,15 +157,17 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 			out.WriteString(fmt.Sprintf("\n%s:\n", slowLabel))
 			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 			e.runtimeStatus++
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_typedarray_get(ptr %%%s, double %%%s, ptr %s)\n", status, arrArg, idxArg, slowSlot))
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			slowVal := fmt.Sprintf("taget.slow.val.%d", id)
-			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", slowVal, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %s\n", slowVal, slowSlot))
 			out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
 
 			out.WriteString(fmt.Sprintf("\n%s:\n", doneLabel))
 			out.WriteString(fmt.Sprintf("  %%%s = phi double [ %%%s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, fastVal, fastLabel, slowVal, slowLabel))
-			out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", instruction.Result, slot))
+			if hasSlot {
+				out.WriteString(fmt.Sprintf("  store%s double %%%s, ptr %%%s\n", e.vol(), instruction.Result, slot))
+			}
 			return nil
 		}
 		e.types[instruction.Result] = ir.TypeNumber
@@ -212,16 +214,30 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	}
-	slot := instruction.Result + ".slot"
 	llvmT := llvmType(instruction.Type)
 	if llvmT == "void" || llvmT == "" {
 		llvmT = "{ i32, i32, i64, i64 }"
 	}
-	if existingSlot, ok := e.varSlots[instruction.Result]; ok {
-		slot = existingSlot
+	slot, hasSlot := e.varSlots[instruction.Result]
+	slowSlot := slot
+	if !hasSlot {
+		switch llvmT {
+		case "double":
+			slowSlot = "%__slot_double"
+		case "ptr":
+			slowSlot = "%__slot_ptr"
+		case "i64":
+			slowSlot = "%__slot_i64"
+		case "i32":
+			slowSlot = "%__slot_i32"
+		case "i1":
+			slowSlot = "%__slot_i1"
+		default:
+			slowSlot = "%__slot_ptr"
+		}
+		e.localSSAs[instruction.Result] = true
 	} else {
-		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slot, llvmT))
-		e.varSlots[instruction.Result] = slot
+		slowSlot = "%" + slot
 	}
 
 	canFastPath := (instruction.Type == ir.TypeNumber || isPointerType(instruction.Type) || instruction.Type == ir.TypeBool) &&
@@ -299,21 +315,26 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("\n%s:\n", slowLabel))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %s)\n", status, arrArg, idxArg, slowSlot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		slowVal := fmt.Sprintf("idx.slow.val.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", slowVal, llvmT, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %s\n", slowVal, llvmT, slowSlot))
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", doneLabel))
 		out.WriteString(fmt.Sprintf("  %%%s = phi %s [ %%%s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, llvmT, fastVal, fastLabel, slowVal, slowLabel))
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", llvmT, instruction.Result, slot))
+		if hasSlot {
+			out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), llvmT, instruction.Result, slot))
+		}
 		return nil
 	}
 
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %%%s)\n", status, arrArg, idxArg, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_get(ptr %%%s, double %%%s, ptr %s)\n", status, arrArg, idxArg, slowSlot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", instruction.Result, llvmT, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %s\n", instruction.Result, llvmT, slowSlot))
+	if hasSlot {
+		out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), llvmT, instruction.Result, slot))
+	}
 	return nil
 }
 
