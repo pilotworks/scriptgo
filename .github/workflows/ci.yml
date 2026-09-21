@@ -126,20 +126,15 @@ jobs:
   # Sanitizers: AddressSanitizer & UndefinedBehaviorSanitizer (Parallel Job)
   # ============================================================================
   sanitizer:
-    name: Memory & Address Sanitizer (${{ matrix.shard }}/2)
+    name: Memory & Address Sanitizer (${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - shard: 1
-            index: 0
-          - shard: 2
-            index: 1
+        shard: ['1/2', '2/2']
     env:
       SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
-      SCRIPTGO_SHARD_TOTAL: 2
-      SCRIPTGO_SHARD_INDEX: ${{ matrix.index }}
+      SCRIPTGO_SHARD: ${{ matrix.shard }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

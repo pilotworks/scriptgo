@@ -108,14 +108,26 @@ func TestCorpus(t *testing.T) {
 
 	shardTotal := 1
 	shardIndex := 0
-	if s := os.Getenv("SCRIPTGO_SHARD_TOTAL"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 1 {
-			shardTotal = n
+	if shardEnv := os.Getenv("SCRIPTGO_SHARD"); shardEnv != "" {
+		parts := strings.Split(shardEnv, "/")
+		if len(parts) == 2 {
+			idx, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+			tot, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+			if err1 == nil && err2 == nil && tot > 1 && idx >= 1 && idx <= tot {
+				shardTotal = tot
+				shardIndex = idx - 1
+			}
 		}
-	}
-	if s := os.Getenv("SCRIPTGO_SHARD_INDEX"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n >= 0 && n < shardTotal {
-			shardIndex = n
+	} else {
+		if s := os.Getenv("SCRIPTGO_SHARD_TOTAL"); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 1 {
+				shardTotal = n
+			}
+		}
+		if s := os.Getenv("SCRIPTGO_SHARD_INDEX"); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n >= 0 && n < shardTotal {
+				shardIndex = n
+			}
 		}
 	}
 	if shardTotal > 1 {
