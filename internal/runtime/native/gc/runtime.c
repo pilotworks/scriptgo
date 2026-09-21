@@ -189,6 +189,13 @@ void scriptgo_gc_init(void *stack_bottom) {
     } else {
         scriptgo_gc_stack_bottom = get_native_stack_bottom();
     }
+    const char *env_thresh = getenv("SCRIPTGO_GC_THRESHOLD");
+    if (env_thresh != NULL) {
+        long long t = atoll(env_thresh);
+        if (t > 0) {
+            gc_threshold = (int64_t)t;
+        }
+    }
 }
 
 void scriptgo_gc_set_threshold(int64_t threshold) {
@@ -591,6 +598,9 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                         free(sym->description);
                     }
                     free(curr->ptr);
+                } else if (curr->header.type_tag == SCRIPTGO_TYPE_SET) {
+                    void scriptgo_set_free(void *handle);
+                    scriptgo_set_free(curr->ptr);
                 } else {
                     free(curr->ptr);
                 }

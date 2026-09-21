@@ -463,15 +463,15 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **8.6 ms** | 55.2 ms | 10.7 ms | **6.42x faster** | **1.24x faster** |
-| **Buffer Ops (10MB)** | **11.9 ms** | 77.4 ms | 19.2 ms | **6.48x faster** | **1.61x faster** |
-| **Mandelbrot 500x500** | **30.8 ms** | 82.0 ms | 39.6 ms | **2.67x faster** | **1.29x faster** |
-| **Quicksort 100k** | **23.3 ms** | 69.0 ms | 21.6 ms | **2.96x faster** | ~1.08x (on par) |
-| **Matrix Mult 256x256** | **45.0 ms** | 86.3 ms | 41.6 ms | **1.92x faster** | ~1.08x (on par) |
-| **Object Churn & GC** | **19.5 ms** | 73.0 ms | 18.2 ms | **3.75x faster** | ~1.07x (on par) |
-| **ES2024 Set Ops** | **75.8 ms** | 59.2 ms | 12.6 ms | 1.28x slower | 5.88x slower |
-| **Base64 Transcode** | **131.8 ms** | 101.0 ms | 33.7 ms | 1.30x slower | 3.85x slower |
-| **Binary Trees D14** | **218.4 ms** | 131.6 ms | 70.2 ms | 1.67x slower | 3.13x slower |
+| **Cold Start Latency** | **10.1 ms** | 55.7 ms | 12.2 ms | **5.52x faster** | **1.21x faster** |
+| **Buffer Ops (10MB)** | **12.3 ms** | 67.9 ms | 17.9 ms | **5.51x faster** | **1.45x faster** |
+| **Mandelbrot 500x500** | **31.1 ms** | 83.3 ms | 41.0 ms | **2.68x faster** | **1.32x faster** |
+| **Quicksort 100k** | **24.7 ms** | 71.7 ms | 25.5 ms | **2.90x faster** | **1.03x faster** |
+| **ES2024 Set Ops** | **12.5 ms** | 57.4 ms | 12.0 ms | **4.58x faster** | ~1.05x (on par) |
+| **Base64 Transcode** | **64.7 ms** | 89.8 ms | 32.4 ms | **1.39x faster** | 2.00x slower |
+| **Matrix Mult 256x256** | **47.5 ms** | 87.0 ms | 42.6 ms | **1.83x faster** | ~1.11x (on par) |
+| **Object Churn & GC** | **25.7 ms** | 74.5 ms | 17.6 ms | **2.90x faster** | 1.47x slower |
+| **Binary Trees D14** | **237.5 ms** | 125.7 ms | 71.9 ms | 1.89x slower | 3.33x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
