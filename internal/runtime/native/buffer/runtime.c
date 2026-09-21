@@ -153,10 +153,15 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
         return 0;
     }
     case ENC_BASE64: {
-        // Base64 decode
+        // Direct Base64 decode into target buffer
         size_t max_out = (in_len * 3) / 4 + 4;
-        unsigned char *tmp = malloc(max_out > 0 ? max_out : 1);
-        if (tmp == NULL) return buffer_fail("Buffer.from base64 out of memory");
+        void *arr_ptr = NULL;
+        if (scriptgo_typedarray_new(2, (int64_t)max_out, NULL, 0, &arr_ptr) != 0) {
+            return -1;
+        }
+        scriptgo_buffer_view *bv = (scriptgo_buffer_view *)arr_ptr;
+        bv->magic = SCRIPTGO_MAGIC_BUFFER;
+        unsigned char *dst = bv->data;
         size_t out_len = 0;
         size_t i = 0;
 
@@ -177,9 +182,9 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
             }
 
             uint32_t triple = ((uint32_t)v0 << 18) | ((uint32_t)v1 << 12) | ((uint32_t)v2 << 6) | (uint32_t)v3;
-            tmp[out_len] = (unsigned char)(triple >> 16);
-            tmp[out_len + 1] = (unsigned char)(triple >> 8);
-            tmp[out_len + 2] = (unsigned char)triple;
+            dst[out_len] = (unsigned char)(triple >> 16);
+            dst[out_len + 1] = (unsigned char)(triple >> 8);
+            dst[out_len + 2] = (unsigned char)triple;
             out_len += 3;
             i += 4;
         }
@@ -196,18 +201,13 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
             bits += 6;
             if (bits >= 8) {
                 bits -= 8;
-                tmp[out_len++] = (unsigned char)((buf >> bits) & 0xFF);
+                dst[out_len++] = (unsigned char)((buf >> bits) & 0xFF);
             }
         }
-        void *arr_ptr = NULL;
-        if (scriptgo_typedarray_new(2, (int64_t)out_len, NULL, 0, &arr_ptr) != 0) {
-            free(tmp);
-            return -1;
+        bv->length = (int64_t)out_len;
+        if (bv->buffer != NULL) {
+            bv->buffer->byte_length = (int64_t)out_len;
         }
-        scriptgo_buffer_view *bv = (scriptgo_buffer_view *)arr_ptr;
-        bv->magic = SCRIPTGO_MAGIC_BUFFER;
-        if (out_len > 0) memcpy(bv->data, tmp, out_len);
-        free(tmp);
         *out_buf = bv;
         return 0;
     }

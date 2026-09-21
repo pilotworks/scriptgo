@@ -463,29 +463,29 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **10.1 ms** | 55.7 ms | 12.2 ms | **5.52x faster** | **1.21x faster** |
-| **Buffer Ops (10MB)** | **12.3 ms** | 67.9 ms | 17.9 ms | **5.51x faster** | **1.45x faster** |
-| **Mandelbrot 500x500** | **31.1 ms** | 83.3 ms | 41.0 ms | **2.68x faster** | **1.32x faster** |
-| **Quicksort 100k** | **24.7 ms** | 71.7 ms | 25.5 ms | **2.90x faster** | **1.03x faster** |
-| **ES2024 Set Ops** | **12.5 ms** | 57.4 ms | 12.0 ms | **4.58x faster** | ~1.05x (on par) |
-| **Base64 Transcode** | **64.7 ms** | 89.8 ms | 32.4 ms | **1.39x faster** | 2.00x slower |
-| **Matrix Mult 256x256** | **47.5 ms** | 87.0 ms | 42.6 ms | **1.83x faster** | ~1.11x (on par) |
-| **Object Churn & GC** | **25.7 ms** | 74.5 ms | 17.6 ms | **2.90x faster** | 1.47x slower |
-| **Binary Trees D14** | **237.5 ms** | 125.7 ms | 71.9 ms | 1.89x slower | 3.33x slower |
+| **Cold Start Latency** | **9.4 ms** | 55.8 ms | 12.0 ms | **5.91x faster** | **1.27x faster** |
+| **Buffer Ops (10MB)** | **12.1 ms** | 67.7 ms | 17.5 ms | **5.60x faster** | **1.45x faster** |
+| **Mandelbrot 500x500** | **31.8 ms** | 83.6 ms | 41.0 ms | **2.63x faster** | **1.29x faster** |
+| **Quicksort 100k** | **25.5 ms** | 73.1 ms | 25.1 ms | **2.87x faster** | ~1.01x (on par) |
+| **ES2024 Set Ops** | **12.8 ms** | 58.8 ms | 12.2 ms | **4.58x faster** | ~1.05x (on par) |
+| **Object Churn & GC** | **19.8 ms** | 74.9 ms | 18.0 ms | **3.78x faster** | ~1.10x (on par) |
+| **Base64 Transcode** | **63.5 ms** | 90.9 ms | 32.9 ms | **1.43x faster** | 1.92x slower |
+| **Matrix Mult 256x256** | **46.4 ms** | 87.2 ms | 42.4 ms | **1.88x faster** | ~1.10x (on par) |
+| **Binary Trees D14** | **160.1 ms** | 126.0 ms | 72.0 ms | 1.27x slower | 2.22x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 67.4 MB | 10.6 MB | **11.2x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **6.8 MB** | 76.2 MB | 24.6 MB | **11.2x less RAM** | **3.6x less RAM** |
-| **Matrix Mult 256x256** | **7.8 MB** | 79.2 MB | 26.8 MB | **10.2x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.6 MB** | 76.5 MB | 23.4 MB | **10.1x less RAM** | **3.1x less RAM** |
-| **Object Churn & GC** | **16.2 MB** | 103.4 MB | 29.5 MB | **6.4x less RAM** | **1.8x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 67.5 MB | 10.6 MB | **11.3x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **6.8 MB** | 76.4 MB | 25.0 MB | **11.2x less RAM** | **3.7x less RAM** |
+| **Matrix Mult 256x256** | **7.8 MB** | 79.4 MB | 26.8 MB | **10.2x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.6 MB** | 76.0 MB | 23.4 MB | **10.0x less RAM** | **3.1x less RAM** |
+| **Object Churn & GC** | **15.8 MB** | 106.5 MB | 29.5 MB | **6.7x less RAM** | **1.9x less RAM** |
 | **Mandelbrot 500x500** | **6.0 MB** | 73.1 MB | 18.5 MB | **12.2x less RAM** | **3.1x less RAM** |
-| **Binary Trees D14** | **39.7 MB** | 111.7 MB | 41.7 MB | **2.8x less RAM** | **1.1x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 69.8 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
-| **Base64 Transcode** | **49.4 MB** | 109.1 MB | 55.0 MB | **2.2x less RAM** | **1.1x less RAM** |
+| **Binary Trees D14** | **36.0 MB** | 111.8 MB | 47.3 MB | **3.1x less RAM** | **1.3x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.0 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
+| **Base64 Transcode** | **39.4 MB** | 108.9 MB | 55.6 MB | **2.8x less RAM** | **1.4x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 

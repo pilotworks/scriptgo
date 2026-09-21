@@ -75,6 +75,18 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		id := e.labelCounter
 		e.labelCounter++
 
+		if objArg == "this" {
+			fieldPtr := fmt.Sprintf("fset.field_ptr.%d", id)
+			byteOffset := 40 + instruction.FieldIndex*8
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, ptrObj, byteOffset))
+			if actualType == ir.TypeNumber {
+				out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", valArg, fieldPtr))
+			} else {
+				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", valArg, fieldPtr))
+			}
+			return nil
+		}
+
 		checkLabel := fmt.Sprintf("fset.check.%d", id)
 		fastLabel := fmt.Sprintf("fset.fast.%d", id)
 		slowLabel := fmt.Sprintf("fset.slow.%d", id)

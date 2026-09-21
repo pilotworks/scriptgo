@@ -91,6 +91,31 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 		id := e.labelCounter
 		e.labelCounter++
 
+		if objArg == "this" {
+			fieldPtr := fmt.Sprintf("fget.field_ptr.%d", id)
+			byteOffset := 40 + instruction.FieldIndex*8
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, ptrObj, byteOffset))
+			typStr := "ptr"
+			if isNum {
+				typStr = "double"
+				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, fieldPtr))
+			} else {
+				rawPtr := fmt.Sprintf("fget.raw_ptr.%d", id)
+				rawI64 := fmt.Sprintf("fget.raw_i64.%d", id)
+				isNan := fmt.Sprintf("fget.is_nan.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", rawPtr, fieldPtr))
+				out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", rawI64, rawPtr))
+				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, 9221120237041090560\n", isNan, rawI64))
+				out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr @scriptgo_undefined_sentinel, ptr %%%s\n", instruction.Result, isNan, rawPtr))
+			}
+			if slot, hasSlot := e.varSlots[instruction.Result]; hasSlot {
+				out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), typStr, instruction.Result, slot))
+			} else if e.localSSAs != nil {
+				e.localSSAs[instruction.Result] = true
+			}
+			return nil
+		}
+
 		checkLabel := fmt.Sprintf("fget.check.%d", id)
 		fastLabel := fmt.Sprintf("fget.fast.%d", id)
 		slowLabel := fmt.Sprintf("fget.slow.%d", id)
