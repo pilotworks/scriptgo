@@ -282,6 +282,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_new_typed(i64, ptr, ptr)\n")
+	out.WriteString("declare ptr @scriptgo_object_new_typed_fast(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_freeze(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_seal(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_prevent_extensions(ptr, ptr)\n")
@@ -1172,7 +1173,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
 			parameterIndex++
 		}
-		out.WriteString(") nounwind")
+		if strings.HasSuffix(name, "_constructor") && len(function.Body) <= 15 {
+			out.WriteString(") alwaysinline nounwind")
+		} else {
+			out.WriteString(") nounwind")
+		}
 	}
 	if debug != nil {
 		fmt.Fprintf(&out, " !dbg !%d", debug.functions[function.Name])

@@ -91,6 +91,7 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 		id := e.labelCounter
 		e.labelCounter++
 
+		canBeUndefined := strings.Contains(string(actualFieldType), "undefined") || strings.Contains(string(instruction.Type), "undefined")
 		if objArg == "this" {
 			fieldPtr := fmt.Sprintf("fget.field_ptr.%d", id)
 			byteOffset := 40 + instruction.FieldIndex*8
@@ -99,6 +100,8 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 			if isNum {
 				typStr = "double"
 				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, fieldPtr))
+			} else if !canBeUndefined {
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, fieldPtr))
 			} else {
 				rawPtr := fmt.Sprintf("fget.raw_ptr.%d", id)
 				rawI64 := fmt.Sprintf("fget.raw_i64.%d", id)
@@ -152,6 +155,8 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 		fastVal := fmt.Sprintf("fget.fast.val.%d", id)
 		if isNum {
 			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", fastVal, fieldPtr))
+		} else if !canBeUndefined {
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", fastVal, fieldPtr))
 		} else {
 			rawPtr := fmt.Sprintf("fget.raw_ptr.%d", id)
 			rawI64 := fmt.Sprintf("fget.raw_i64.%d", id)

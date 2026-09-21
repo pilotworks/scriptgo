@@ -463,15 +463,15 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **9.4 ms** | 55.8 ms | 12.0 ms | **5.91x faster** | **1.27x faster** |
-| **Buffer Ops (10MB)** | **12.1 ms** | 67.7 ms | 17.5 ms | **5.60x faster** | **1.45x faster** |
-| **Mandelbrot 500x500** | **31.8 ms** | 83.6 ms | 41.0 ms | **2.63x faster** | **1.29x faster** |
-| **Quicksort 100k** | **25.5 ms** | 73.1 ms | 25.1 ms | **2.87x faster** | ~1.01x (on par) |
-| **ES2024 Set Ops** | **12.8 ms** | 58.8 ms | 12.2 ms | **4.58x faster** | ~1.05x (on par) |
-| **Object Churn & GC** | **19.8 ms** | 74.9 ms | 18.0 ms | **3.78x faster** | ~1.10x (on par) |
-| **Base64 Transcode** | **63.5 ms** | 90.9 ms | 32.9 ms | **1.43x faster** | 1.92x slower |
-| **Matrix Mult 256x256** | **46.4 ms** | 87.2 ms | 42.4 ms | **1.88x faster** | ~1.10x (on par) |
-| **Binary Trees D14** | **160.1 ms** | 126.0 ms | 72.0 ms | 1.27x slower | 2.22x slower |
+| **Cold Start Latency** | **8.8 ms** | 54.3 ms | 11.1 ms | **6.19x faster** | **1.26x faster** |
+| **Buffer Ops (10MB)** | **10.9 ms** | 65.1 ms | 16.4 ms | **5.96x faster** | **1.50x faster** |
+| **Mandelbrot 500x500** | **30.4 ms** | 81.0 ms | 39.5 ms | **2.66x faster** | **1.30x faster** |
+| **Quicksort 100k** | **22.8 ms** | 68.2 ms | 21.2 ms | **2.99x faster** | ~1.08x (on par) |
+| **ES2024 Set Ops** | **11.2 ms** | 57.3 ms | 10.9 ms | **5.11x faster** | ~1.03x (on par) |
+| **Object Churn & GC** | **18.3 ms** | 72.4 ms | 17.0 ms | **3.97x faster** | ~1.08x (on par) |
+| **Base64 Transcode** | **62.8 ms** | 88.3 ms | 31.9 ms | **1.41x faster** | 1.96x slower |
+| **Matrix Mult 256x256** | **44.6 ms** | 85.5 ms | 41.4 ms | **1.92x faster** | ~1.08x (on par) |
+| **Binary Trees D14** | **154.9 ms** (min 136 ms) | 123.3 ms | 69.0 ms | ~1.25x slower | ~2.2x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
@@ -508,13 +508,15 @@ The optimizer executes 4 target-independent passes on the Typed IR prior to back
 2. **Invariant Load Metadata (`!invariant.load !{}`)**: Invariant array length and data pointer loads are marked with invariant metadata, allowing backend loop optimizations without conservative alias analysis interference.
 3. **NaN-Box Direct Field Access**: Object field reads and writes bypass runtime function calls via inlined struct offsets (`getelementptr inbounds i8`), with selective NaN unboxing.
 4. **Selective Field Initialization**: Objects with constructors skip redundant zero/null default writes in caller scope, eliminating millions of dead stores during high-volume object instantiation.
+5. **Direct Fast Object Allocation & Fast Register Calling (`scriptgo_object_new_typed_fast`)**: Object creation returns the allocated pointer directly in register `x0` rather than passing temporary stack slots and status checks, eliminating 25M+ status checks and redundant spills in tight allocation loops. Non-undefined pointer field loads skip NaN checks and select instructions.
 
 ### 7.4. Tracing GC & Memory Recycling (`internal/runtime/native`)
 
 1. **Exact Capacity Small Object Layout**: Small classes (<= 8 fields) allocate 104-byte structures with direct field slots instead of generic 552-byte structures, yielding 5.3x memory reduction.
-2. **High-Speed Object & Closure Freelists**: Dead 8-field objects and closures swept by GC are recycled directly into L1-cache hot freelists, avoiding continuous kernel `malloc`/`free` calls.
+2. **High-Speed Object & Closure Freelists**: Dead 8-field objects and closures swept by GC are recycled directly into L1-cache hot freelists, avoiding continuous kernel `malloc`/`free` calls. Popping from freelist preserves intact metadata, performing only a single 32-bit store for flags.
 3. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
-4. **Surviving Root Mark Reset**: Clears marks only for surviving live roots at the end of collection rather than iterating the entire allocated heap at the beginning of a cycle.
+4. **Singly-Linked GC Heap Traversal with O(1) Bucket Unlinking**: Replaced doubly-linked `gc_head` with singly-linked list (`node->next`) while maintaining O(1) hash bucket unlinking via `node->hash_prev_ptr`, saving 8 bytes per node and 2 pointer stores per allocation.
+5. **Inline Fast-Path GC Registration (`scriptgo_gc_register_fast`)**: Fast-path object registration inlines directly into object allocation with single 64-bit header writes and cached Fibonacci hash masks, outlining collection triggers into cold paths.
 
 ---
 

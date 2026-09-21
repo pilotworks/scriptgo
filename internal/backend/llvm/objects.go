@@ -13,10 +13,6 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	}
 	e.types[instruction.Result] = instruction.Type
 	e.objects = append(e.objects, instruction.Result)
-	slot := instruction.Result + ".slot"
-	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-	e.runtimeStatus++
-	out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 
 	typeName := instruction.Value
 	if typeName == "" {
@@ -36,16 +32,12 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	}
 	if typeName != "" {
 		if strGlobal, ok := e.stringsByValue[typeName]; ok {
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new_typed(i64 %d, ptr %s, ptr %%%s)\n", status, instruction.FieldCount, strGlobal, slot))
-			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_object_new_typed_fast(i64 %d, ptr %s)\n", instruction.Result, instruction.FieldCount, strGlobal))
 			return nil
 		}
 	}
 
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_new(i64 %d, ptr %%%s)\n", status, instruction.FieldCount, slot))
-	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_object_new_typed_fast(i64 %d, ptr null)\n", instruction.Result, instruction.FieldCount))
 	return nil
 }
 

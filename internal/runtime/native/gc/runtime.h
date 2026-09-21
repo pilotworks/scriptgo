@@ -24,14 +24,17 @@ typedef enum {
 } scriptgo_gc_type_tag;
 
 typedef struct scriptgo_gc_header {
-    uint32_t type_tag : 8;
-    uint32_t gc_mark  : 2; // 0 = White, 1 = Grey, 2 = Black
-    uint32_t is_weak  : 1;
-    uint32_t is_root  : 1;
-    uint32_t reserved : 20;
+    union {
+        struct {
+            uint32_t type_tag : 8;
+            uint32_t gc_mark  : 2; // 0 = White, 1 = Grey, 2 = Black
+            uint32_t is_weak  : 1;
+            uint32_t is_root  : 1;
+            uint32_t reserved : 20;
+        };
+        uint32_t flags;
+    };
     uint32_t field_count;
-    struct scriptgo_gc_header *next;
-    struct scriptgo_gc_header *prev;
 } scriptgo_gc_header;
 
 void scriptgo_gc_init(void *stack_bottom);
