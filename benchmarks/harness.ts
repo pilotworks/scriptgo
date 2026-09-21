@@ -2,7 +2,7 @@
 
 import { execSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 
 interface BenchmarkCase {
@@ -17,13 +17,33 @@ interface MetricStats {
     maxMs: number;
 }
 
-interface BenchmarkResult {
-    name: string;
+interface BenchmarkTimeResult {
     scriptgo: MetricStats;
     node: MetricStats;
     bun: MetricStats | null;
     speedupVsNode: number;
     speedupVsBun: number | null;
+}
+
+interface BenchmarkMemoryResult {
+    scriptgoRssMb: number;
+    nodeRssMb: number;
+    bunRssMb: number | null;
+    ramSavingsVsNode: number;
+    ramSavingsVsBun: number | null;
+}
+
+interface BenchmarkBuildResult {
+    binarySizeBytes: number;
+    binarySizeFormatted: string;
+    compileTimeMs: number;
+}
+
+interface BenchmarkResult {
+    name: string;
+    time: BenchmarkTimeResult;
+    memory: BenchmarkMemoryResult;
+    build: BenchmarkBuildResult;
 }
 
 const CASES: BenchmarkCase[] = [
@@ -59,6 +79,46 @@ function runCommandAndMeasure(cmd: string, runs: number): MetricStats {
     };
 }
 
+function measurePeakRss(cmd: string): number {
+    try {
+        let timeCmd = "/usr/bin/time -l " + cmd + " 2>&1";
+        if (process.platform === "linux") {
+            timeCmd = "/usr/bin/time -v " + cmd + " 2>&1";
+        }
+        const out = execSync(timeCmd);
+        const lines = out.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            // macOS: "6291456  maximum resident set size"
+            if (line.indexOf("maximum resident set size") !== -1) {
+                const parts = line.split(" ");
+                const bytes = parseFloat(parts[0]);
+                if (!isNaN(bytes) && bytes > 0) {
+                    return Math.round((bytes / (1024 * 1024)) * 10) / 10;
+                }
+            }
+            // Linux: "Maximum resident set size (kbytes): 6144"
+            if (line.indexOf("Maximum resident set size (kbytes):") !== -1) {
+                const parts = line.split(":");
+                if (parts.length > 1) {
+                    const kbytes = parseFloat(parts[1].trim());
+                    if (!isNaN(kbytes) && kbytes > 0) {
+                        return Math.round((kbytes / 1024) * 10) / 10;
+                    }
+                }
+            }
+        }
+    } catch {}
+    return 0;
+}
+
+function formatBytes(bytes: number): string {
+    if (bytes >= 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    }
+    return Math.round(bytes / 1024) + " KB";
+}
+
 function padEnd(str: string, width: number): string {
     while (str.length < width) {
         str = str + " ";
@@ -75,7 +135,7 @@ function padStart(str: string, width: number): string {
 
 function main(): void {
     console.log("====================================================================================================");
-    console.log("               SCRIPTGO BENCHMARK HARNESS (AOT Native vs Node.js JIT vs Bun JIT)");
+    console.log("          SCRIPTGO MULTI-DIMENSIONAL BENCHMARK HARNESS (Speed, Memory & Binary Footprint)");
     console.log("====================================================================================================");
 
     // 1. Detect Node & Bun versions
@@ -100,30 +160,24 @@ function main(): void {
     execSync("go build -o " + scriptgoCli + " ./cmd/scriptgo");
     console.log("==> Compiler ready at " + scriptgoCli + "\n");
 
-    const header = padEnd("Benchmark", 22) +
-        padStart("ScriptGo (AOT)", 16) +
-        padStart(nodeVer, 16) +
-        padStart(hasBun ? bunVer : "Bun", 16) +
-        padStart("vs Node", 18) +
-        padStart("vs Bun", 18);
-
-    console.log(header);
-    console.log("-".repeat(106));
-
     const results: BenchmarkResult[] = [];
+
+    console.log("==> Measuring 5 suites across ScriptGo (AOT Native), " + nodeVer + ", and " + (hasBun ? bunVer : "Bun") + "...\n");
 
     for (const testCase of CASES) {
         // Compile test case to optimized native executable
         const binTarget = "/tmp/sg_bench_" + testCase.name.replace(/[^a-zA-Z0-9]/g, "_");
+        const compileStart = performance.now();
         execSync(scriptgoCli + " build -O 3 --release " + testCase.file + " -o " + binTarget);
+        const compileTimeMs = Math.round(performance.now() - compileStart);
+        let binarySizeBytes = 0;
+        try {
+            binarySizeBytes = statSync(binTarget).size;
+        } catch {}
 
-        // Measure ScriptGo native
+        // Measure execution times
         const sgStats = runCommandAndMeasure(binTarget, testCase.iterations);
-
-        // Measure Node.js
         const nodeStats = runCommandAndMeasure("node " + testCase.file, testCase.iterations);
-
-        // Measure Bun (if available)
         let bunStats: MetricStats | null = null;
         if (hasBun) {
             try {
@@ -137,35 +191,146 @@ function main(): void {
             speedupBun = Math.round((bunStats.medianMs / sgStats.medianMs) * 100) / 100;
         }
 
-        const sgStr = sgStats.medianMs.toFixed(1) + " ms";
-        const nodeStr = nodeStats.medianMs.toFixed(1) + " ms";
-        const bunStr = bunStats !== null ? bunStats.medianMs.toFixed(1) + " ms" : "N/A";
-        const speedupNodeStr = (speedupNode >= 1.0 ? speedupNode.toFixed(2) + "x faster" : (1 / speedupNode).toFixed(2) + "x slower");
-        let speedupBunStr = "N/A";
-        if (speedupBun !== null) {
-            speedupBunStr = (speedupBun >= 1.0 ? speedupBun.toFixed(2) + "x faster" : (1 / speedupBun).toFixed(2) + "x slower");
+        // Measure Peak RSS
+        const sgRssMb = measurePeakRss(binTarget);
+        const nodeRssMb = measurePeakRss("node " + testCase.file);
+        let bunRssMb: number | null = null;
+        if (hasBun) {
+            try {
+                bunRssMb = measurePeakRss("bun " + testCase.file);
+            } catch {}
         }
 
-        console.log(
-            padEnd(testCase.name, 22) +
-            padStart(sgStr, 16) +
-            padStart(nodeStr, 16) +
-            padStart(bunStr, 16) +
-            padStart(speedupNodeStr, 18) +
-            padStart(speedupBunStr, 18)
-        );
+        let ramSavingsVsNode = 1.0;
+        if (sgRssMb > 0 && nodeRssMb > 0) {
+            ramSavingsVsNode = Math.round((nodeRssMb / sgRssMb) * 100) / 100;
+        }
+
+        let ramSavingsVsBun: number | null = null;
+        if (hasBun && bunRssMb !== null && bunRssMb > 0 && sgRssMb > 0) {
+            ramSavingsVsBun = Math.round((bunRssMb / sgRssMb) * 100) / 100;
+        }
 
         results.push({
             name: testCase.name,
-            scriptgo: sgStats,
-            node: nodeStats,
-            bun: bunStats,
-            speedupVsNode: speedupNode,
-            speedupVsBun: speedupBun,
+            time: {
+                scriptgo: sgStats,
+                node: nodeStats,
+                bun: bunStats,
+                speedupVsNode: speedupNode,
+                speedupVsBun: speedupBun,
+            },
+            memory: {
+                scriptgoRssMb: sgRssMb,
+                nodeRssMb: nodeRssMb,
+                bunRssMb: bunRssMb,
+                ramSavingsVsNode: ramSavingsVsNode,
+                ramSavingsVsBun: ramSavingsVsBun,
+            },
+            build: {
+                binarySizeBytes: binarySizeBytes,
+                binarySizeFormatted: formatBytes(binarySizeBytes),
+                compileTimeMs: compileTimeMs,
+            },
         });
     }
 
-    console.log("=".repeat(106) + "\n");
+    // TABLE 1: EXECUTION SPEED & LATENCY
+    console.log("┌" + "─".repeat(104) + "┐");
+    console.log("│ " + padEnd("DIMENSION 1: EXECUTION LATENCY & SPEEDUP (Wall-Clock, lower is better)", 103) + "│");
+    console.log("├" + "─".repeat(104) + "┤");
+    const header1 = "│ " + padEnd("Benchmark", 22) +
+        padStart("ScriptGo (AOT)", 16) +
+        padStart(nodeVer, 15) +
+        padStart(hasBun ? bunVer : "Bun", 15) +
+        padStart("vs Node", 18) +
+        padStart("vs Bun", 16) + " │";
+    console.log(header1);
+    console.log("├" + "─".repeat(104) + "┤");
+
+    for (const r of results) {
+        const sgStr = r.time.scriptgo.medianMs.toFixed(1) + " ms";
+        const nodeStr = r.time.node.medianMs.toFixed(1) + " ms";
+        let bunStr = "N/A";
+        const bunTime = r.time.bun;
+        if (bunTime !== null) {
+            bunStr = bunTime.medianMs.toFixed(1) + " ms";
+        }
+        const speedupNodeStr = (r.time.speedupVsNode >= 1.0 ? r.time.speedupVsNode.toFixed(2) + "x faster" : (1 / r.time.speedupVsNode).toFixed(2) + "x slower");
+        let speedupBunStr = "N/A";
+        const speedupBunVal = r.time.speedupVsBun;
+        if (speedupBunVal !== null) {
+            speedupBunStr = (speedupBunVal >= 1.0 ? speedupBunVal.toFixed(2) + "x faster" : (1 / speedupBunVal).toFixed(2) + "x slower");
+        }
+        console.log(
+            "│ " + padEnd(r.name, 22) +
+            padStart(sgStr, 16) +
+            padStart(nodeStr, 15) +
+            padStart(bunStr, 15) +
+            padStart(speedupNodeStr, 18) +
+            padStart(speedupBunStr, 16) + " │"
+        );
+    }
+    console.log("└" + "─".repeat(104) + "┘\n");
+
+    // TABLE 2: MEMORY FOOTPRINT (PEAK RSS)
+    console.log("┌" + "─".repeat(104) + "┐");
+    console.log("│ " + padEnd("DIMENSION 2: MEMORY FOOTPRINT (Peak Resident Set Size, lower is better)", 103) + "│");
+    console.log("├" + "─".repeat(104) + "┤");
+    const header2 = "│ " + padEnd("Benchmark", 22) +
+        padStart("ScriptGo RSS", 16) +
+        padStart("Node RSS", 15) +
+        padStart("Bun RSS", 15) +
+        padStart("RAM vs Node", 18) +
+        padStart("RAM vs Bun", 16) + " │";
+    console.log(header2);
+    console.log("├" + "─".repeat(104) + "┤");
+
+    for (const r of results) {
+        const sgRss = r.memory.scriptgoRssMb.toFixed(1) + " MB";
+        const nodeRss = r.memory.nodeRssMb.toFixed(1) + " MB";
+        let bunRss = "N/A";
+        const bunRssVal = r.memory.bunRssMb;
+        if (bunRssVal !== null) {
+            bunRss = bunRssVal.toFixed(1) + " MB";
+        }
+        const ramNodeStr = r.memory.ramSavingsVsNode.toFixed(1) + "x less RAM";
+        let ramBunStr = "N/A";
+        const ramBunVal = r.memory.ramSavingsVsBun;
+        if (ramBunVal !== null) {
+            ramBunStr = ramBunVal.toFixed(1) + "x less RAM";
+        }
+        console.log(
+            "│ " + padEnd(r.name, 22) +
+            padStart(sgRss, 16) +
+            padStart(nodeRss, 15) +
+            padStart(bunRss, 15) +
+            padStart(ramNodeStr, 18) +
+            padStart(ramBunStr, 16) + " │"
+        );
+    }
+    console.log("└" + "─".repeat(104) + "┘\n");
+
+    // TABLE 3: ARTIFACT SIZE & COMPILE TIME
+    console.log("┌" + "─".repeat(104) + "┐");
+    console.log("│ " + padEnd("DIMENSION 3: AOT COMPILATION & STANDALONE BINARY FOOTPRINT", 103) + "│");
+    console.log("├" + "─".repeat(104) + "┤");
+    const header3 = "│ " + padEnd("Benchmark Suite", 30) +
+        padStart("Standalone Binary Size", 26) +
+        padStart("AOT Compile Duration", 24) +
+        padStart("Target Optimization", 22) + " │";
+    console.log(header3);
+    console.log("├" + "─".repeat(104) + "┤");
+
+    for (const r of results) {
+        console.log(
+            "│ " + padEnd(r.name, 30) +
+            padStart(r.build.binarySizeFormatted, 26) +
+            padStart(r.build.compileTimeMs + " ms", 24) +
+            padStart("-O3 --release --lto", 22) + " │"
+        );
+    }
+    console.log("└" + "─".repeat(104) + "┘\n");
 
     // Export results to JSON
     const reportPath = "web/src/data/benchmark-results.json";
@@ -173,7 +338,7 @@ function main(): void {
         mkdirSync(dirname(reportPath), { recursive: true });
     } catch {}
     writeFileSync(reportPath, JSON.stringify(results, null, 2));
-    console.log("✔ Benchmark report exported to " + reportPath);
+    console.log("✔ Multi-dimensional benchmark report exported to " + reportPath);
 }
 
 main();
