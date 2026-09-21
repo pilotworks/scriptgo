@@ -280,7 +280,7 @@ func runCase(caseTarget, resolvedCorpus, runnerType, workingDir, nodePath, optLe
 			errExp = runErr
 		}
 
-        var sgErr error
+		var sgErr error
 		if hasRunErr {
 			_, sgErr = compiler.RunWithOptions(entry, caseOptions)
 		} else {

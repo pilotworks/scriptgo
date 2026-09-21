@@ -598,4 +598,3 @@ func TestBuildOptionsRelease(t *testing.T) {
 		t.Errorf("env release Strip = false, want true")
 	}
 }
-

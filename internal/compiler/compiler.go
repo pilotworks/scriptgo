@@ -494,7 +494,6 @@ func CheckWithOptions(entryPath string, options BuildOptions) error {
 	return nil
 }
 
-
 func linkerDCEFlags(target string) []string {
 	t := strings.ToLower(target)
 	if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin") {

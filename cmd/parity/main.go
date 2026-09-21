@@ -244,11 +244,13 @@ func main() {
 		fmt.Printf("================================================================================\n\n")
 	}
 
-	var results []CaseResult
-	nativePassedCount := 0
-	diagPassedCount := 0
-	fullParityCount := 0
-	categoryStats := make(map[string]CatSummary)
+	var (
+		results           []CaseResult
+		nativePassedCount int
+		diagPassedCount   int
+		fullParityCount   int
+		categoryStats     map[string]CatSummary
+	)
 
 	if *recordMode {
 		for idx, caseTarget := range cases {
@@ -373,7 +375,6 @@ func main() {
 	}
 }
 
-
 func formatStatus(s ParityStatus) string {
 	switch s {
 	case StatusPass:
@@ -402,7 +403,6 @@ func progressBar(passed, total int) string {
 	}
 	return "[" + strings.Repeat("=", filled) + strings.Repeat(" ", empty) + "]"
 }
-
 
 func runExportBenchmark(corpusDir, runnerType, benchOut string) {
 	cases, err := findCorpusCases(corpusDir, "")

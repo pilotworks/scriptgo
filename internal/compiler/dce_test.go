@@ -257,4 +257,3 @@ console.log(total);
 		t.Fatalf("executable (Release=true) output = %q, want %q", result, "60\n")
 	}
 }
-
