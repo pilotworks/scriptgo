@@ -111,7 +111,7 @@ static inline size_t gc_hash_ptr(void *ptr, size_t mask) {
 
 static inline int is_possible_heap_ptr(void *ptr) {
     uintptr_t v = (uintptr_t)ptr;
-    return ((v & 0x7ULL) == 0) && (v >= 0x10000000ULL) && (v < 0x0000800000000000ULL);
+    return ((v & 0x7ULL) == 0) && (v > 4096ULL) && (v < 0x0000800000000000ULL);
 }
 
 static inline gc_node *find_node(void *ptr) {

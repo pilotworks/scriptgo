@@ -143,7 +143,7 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		llvmT = "{ i32, i32, i64, i64 }"
 	}
 	slot, hasSlot := e.varSlots[instruction.Result]
-	slowSlot := slot
+	var slowSlot string
 	if !hasSlot {
 		switch llvmT {
 		case "double":
