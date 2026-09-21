@@ -462,15 +462,10 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     object->type_name = NULL;
     object->extensible = 1;
     object->sealed = 0;
-	object->frozen = 0;
-	object->boxed_fields = calloc((size_t)capacity, sizeof(*object->boxed_fields));
-	if (object->boxed_fields == NULL) {
-		free(object);
-		return object_fail("scriptgo object allocation failed");
-	}
+    object->frozen = 0;
+    object->boxed_fields = NULL;
     for (int64_t i = 0; i < capacity; i++) {
-        uint64_t nan_bits = SCRIPTGO_OBJECT_NAN_BITS;
-        memcpy(&object->fields[i], &nan_bits, sizeof(uint64_t));
+        object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     }
     scriptgo_gc_register(object, 1, (uint32_t)capacity);
     *out_object = object;
@@ -700,9 +695,13 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
         return 0;
     }
 	scriptgo_object *o = (scriptgo_object *)handle;
-	if (o->boxed_fields[index].flags != 0 || o->boxed_fields[index].payload != 0)
+	if (o->boxed_fields != NULL && (o->boxed_fields[index].flags != 0 || o->boxed_fields[index].payload != 0))
 		scriptgo_value_release(&o->boxed_fields[index]);
 	if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
+		if (o->boxed_fields == NULL) {
+			o->boxed_fields = (scriptgo_value *)calloc(64, sizeof(scriptgo_value));
+			if (o->boxed_fields == NULL) return -1;
+		}
 		if (scriptgo_value_clone(&o->boxed_fields[index], value) != 0) return -1;
 	}
     if (index >= o->field_count) {

@@ -84,6 +84,7 @@ typedef struct root_slot_node {
 #define GC_HASH_INITIAL_CAPACITY 4096
 
 static gc_node *gc_head = NULL;
+static gc_node *gc_node_freelist = NULL;
 static root_node *root_head = NULL;
 static root_slot_node *root_slot_head = NULL;
 static gc_node **gc_hash_table = NULL;
@@ -92,7 +93,8 @@ static size_t gc_hash_count = 0;
 
 static int64_t total_allocated_bytes = 0;
 static int64_t total_live_objects = 0;
-static int64_t gc_threshold = 2048;
+#define SCRIPTGO_GC_DEFAULT_THRESHOLD 32768
+static int64_t gc_threshold = SCRIPTGO_GC_DEFAULT_THRESHOLD;
 static int gc_in_progress = 0;
 static void *scriptgo_gc_stack_bottom = NULL;
 
@@ -183,15 +185,21 @@ int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count) {
     if (ptr == NULL) return 0;
     if (find_node(ptr) != NULL) return 0;
 
-    gc_node *node = (gc_node *)malloc(sizeof(gc_node));
-    if (node == NULL) {
-        return scriptgo_runtime_set_error("scriptgo gc node allocation failed");
+    gc_node *node = gc_node_freelist;
+    if (node != NULL) {
+        gc_node_freelist = node->next;
+    } else {
+        node = (gc_node *)malloc(sizeof(gc_node));
+        if (node == NULL) {
+            return scriptgo_runtime_set_error("scriptgo gc node allocation failed");
+        }
     }
     node->ptr = ptr;
     node->header.type_tag = (uint32_t)tag;
     node->header.gc_mark = 0;
     node->header.is_weak = 0;
     node->header.is_root = 0;
+    node->header.reserved = 0;
     node->header.field_count = field_count;
     node->header.next = NULL;
     node->header.prev = NULL;
@@ -572,7 +580,8 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                     free(curr->ptr);
                 }
             }
-            free(curr);
+            curr->next = gc_node_freelist;
+            gc_node_freelist = curr;
             total_live_objects--;
             collected++;
         }
@@ -582,8 +591,8 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
     if (total_live_objects * 2 > gc_threshold) {
         gc_threshold = total_live_objects * 2;
     }
-    if (gc_threshold < 2048) {
-        gc_threshold = 2048;
+    if (gc_threshold < SCRIPTGO_GC_DEFAULT_THRESHOLD) {
+        gc_threshold = SCRIPTGO_GC_DEFAULT_THRESHOLD;
     }
 
     gc_in_progress = 0;
