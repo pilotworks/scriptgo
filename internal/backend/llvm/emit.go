@@ -281,6 +281,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_entries(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_new_typed(i64, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_freeze(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_seal(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_prevent_extensions(ptr, ptr)\n")
@@ -313,6 +314,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_property_unknown_set(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_unknown_number_property(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_type_set_static(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_get(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_instanceof(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_is_number(double, double, ptr)\n")
@@ -1219,6 +1221,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		varSlots:        make(map[string]string),
 		localSSAs:       make(map[string]bool),
 		hasTryCatch:     hasTryCatch(function.Body),
+		hasArrayResize:  hasArrayResize(function.Body),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {
@@ -1244,7 +1247,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 	collectSSADefs(function.Body, emitter.localSSAs, function.Name == "main", globalsMap, isLocalDecl)
 
-	if len(function.Captured) > 0 {
+	if len(function.Captured) == 1 && function.Captured[0].Name == "this" {
+		c := function.Captured[0]
+		slot := "this.slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		out.WriteString(fmt.Sprintf("  store%s ptr %%__env_ctx, ptr %%%s\n", emitter.vol(), slot))
+		emitter.varSlots[c.Name] = slot
+		emitter.types[c.Name] = c.Type
+	} else if len(function.Captured) > 0 {
 		fieldTypes := make([]string, len(function.Captured))
 		for i := range function.Captured {
 			fieldTypes[i] = "ptr"
@@ -1253,6 +1263,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		for i, c := range function.Captured {
 			fieldPtr := fmt.Sprintf("%s.field.%d", c.Name, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%__env_ctx, i32 0, i32 %d\n", fieldPtr, structType, i))
+			if c.Name == "this" {
+				emitter.varSlots[c.Name] = fieldPtr
+				emitter.types[c.Name] = c.Type
+				continue
+			}
 			cellPtr := fmt.Sprintf("%s.cell.%d", c.Name, i)
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", cellPtr, fieldPtr))
 			emitter.varSlots[c.Name] = cellPtr
@@ -1269,6 +1284,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		emitter.sharedEnvCells = make(map[string]string)
 	}
 	for _, capName := range capturedInBody {
+		if capName == "this" {
+			continue
+		}
 		if _, alreadyCaptured := emitter.sharedEnvCells[capName]; alreadyCaptured {
 			continue
 		}

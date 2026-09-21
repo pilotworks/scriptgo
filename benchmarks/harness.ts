@@ -85,7 +85,7 @@ function measurePeakRss(cmd: string): number {
         if (process.platform === "linux") {
             timeCmd = "/usr/bin/time -v " + cmd + " 2>&1";
         }
-        const out = execSync(timeCmd);
+        const out = String(execSync(timeCmd, { encoding: "utf-8" }));
         const lines = out.split("\n");
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -141,13 +141,13 @@ function main(): void {
     // 1. Detect Node & Bun versions
     let nodeVer = "Node.js";
     try {
-        nodeVer = "Node " + execSync("node -v").trim();
+        nodeVer = "Node " + String(execSync("node -v", { encoding: "utf-8" })).trim();
     } catch {}
 
     let hasBun = false;
     let bunVer = "Bun";
     try {
-        const out = execSync("bun -v").trim();
+        const out = String(execSync("bun -v", { encoding: "utf-8" })).trim();
         if (out.length > 0) {
             hasBun = true;
             bunVer = "Bun v" + out;

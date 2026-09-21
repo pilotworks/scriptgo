@@ -291,7 +291,7 @@ int scriptgo_array_push(void *handle, const void *value, double *out_length) {
         return fail("scriptgo array access failed");
     }
     if (array->length >= array->capacity) {
-        int64_t new_cap = array->capacity <= 0 ? 4 : array->capacity * 2;
+        int64_t new_cap = array->capacity <= 0 ? 16 : array->capacity * 2;
         unsigned char *new_data = realloc(array->data, (size_t)new_cap * (size_t)array->element_size);
         if (new_data == NULL) {
             return fail("scriptgo array reallocation failed");
@@ -306,6 +306,8 @@ int scriptgo_array_push(void *handle, const void *value, double *out_length) {
     if (scriptgo_array_is_value_array(array)) {
         if (scriptgo_value_clone((scriptgo_value *)(array->data + (size_t)array->length * sizeof(scriptgo_value)),
                                  (const scriptgo_value *)value) != 0) return -1;
+    } else if (array->element_size == 8) {
+        *(uint64_t *)(array->data + (size_t)array->length * 8) = *(const uint64_t *)value;
     } else {
         memcpy(array->data + (size_t)array->length * (size_t)array->element_size, value, (size_t)array->element_size);
     }

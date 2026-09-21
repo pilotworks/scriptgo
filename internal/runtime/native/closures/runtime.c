@@ -28,11 +28,25 @@ typedef struct {
 
 extern const char scriptgo_undefined_sentinel;
 
+static scriptgo_closure *closure_freelist = NULL;
+
+void scriptgo_closure_free(void *ptr) {
+    if (ptr == NULL) return;
+    scriptgo_closure *c = (scriptgo_closure *)ptr;
+    c->fn_ptr = (void *)closure_freelist;
+    closure_freelist = c;
+}
+
 int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t return_tag, void **out_closure) {
     scriptgo_closure *c;
     if (out_closure == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
-    c = malloc(sizeof(scriptgo_closure));
-    if (c == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
+    if (closure_freelist != NULL) {
+        c = closure_freelist;
+        closure_freelist = (scriptgo_closure *)c->fn_ptr;
+    } else {
+        c = malloc(sizeof(scriptgo_closure));
+        if (c == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
+    }
     c->fn_ptr = fn_ptr;
     c->env = env;
     c->invoke_ptr = invoke_ptr;

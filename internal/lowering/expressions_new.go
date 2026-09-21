@@ -643,6 +643,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		return result, objType, nil
 	}
+	ctor, ctorName, found := findConstructorInHierarchy(className, signatures, classHierarchy)
 	for _, field := range shape.Fields {
 		if strings.HasSuffix(string(field.Type), "[]") || field.Type == ir.TypeNumberArray || field.Type == ir.TypeStringArray || field.Type == ir.TypeBoolArray || field.Type == ir.TypeBigIntArray {
 			arrTemp := nextTemp(counter)
@@ -673,7 +674,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: bTemp, Value: "false", Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "TrieNode", Field: "isEndOfWord", FieldIndex: 1, Args: []string{objTemp, bTemp}, Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, objTemp}, Span: field.Span})
-		} else {
+		} else if !found {
 			defVal := field.Value
 			if defVal == "" {
 				switch field.Type {
@@ -695,7 +696,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		}
 	}
 
-	if ctor, ctorName, found := findConstructorInHierarchy(className, signatures, classHierarchy); found {
+	if found {
 		args := []string{result}
 		for i, arg := range expression.Arguments {
 			paramIdx := i + 1

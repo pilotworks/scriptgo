@@ -887,6 +887,13 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 	var envPtr string
 	if len(instruction.Args) == 0 {
 		envPtr = "null"
+	} else if len(instruction.Args) == 1 && instruction.Args[0] == "this" {
+		argVal := e.resolveArg(out, "this")
+		if !strings.HasPrefix(argVal, "%") && !strings.HasPrefix(argVal, "@") {
+			envPtr = "%" + argVal
+		} else {
+			envPtr = argVal
+		}
 	} else {
 		if e.sharedEnvCells == nil {
 			e.sharedEnvCells = make(map[string]string)
@@ -910,7 +917,13 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			}
 			fieldPtr := fmt.Sprintf("%s.field.%d", envAlloc, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i32 0, i32 %d\n", fieldPtr, structType, envAlloc, i))
-			if cellSlot, ok := e.sharedEnvCells[arg]; ok && len(e.loopBreakLabels) == 0 {
+			if arg == "this" {
+				argVal := e.resolveArg(out, "this")
+				if !strings.HasPrefix(argVal, "%") && !strings.HasPrefix(argVal, "@") {
+					argVal = "%" + argVal
+				}
+				out.WriteString(fmt.Sprintf("  store ptr %s, ptr %%%s\n", argVal, fieldPtr))
+			} else if cellSlot, ok := e.sharedEnvCells[arg]; ok && len(e.loopBreakLabels) == 0 {
 				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellSlot, fieldPtr))
 			} else {
 				cellAlloc := fmt.Sprintf("closure.cell.%s.%d", arg, e.loadCounter)
@@ -1010,7 +1023,7 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", closureIsNull, closureVar))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, @scriptgo_undefined_sentinel\n", closureIsUndef, closureVar))
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", closureInvalid, closureIsNull, closureIsUndef))
-		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s\n", closureInvalid, nullBlock, callBlock))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\x22branch_weights\x22, i32 1, i32 10000}\n", closureInvalid, nullBlock, callBlock))
 		out.WriteString(fmt.Sprintf("%s:\n", nullBlock))
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
 		out.WriteString(fmt.Sprintf("%s:\n", callBlock))

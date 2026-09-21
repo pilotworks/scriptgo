@@ -38,6 +38,7 @@ type functionEmitter struct {
 	terminated         bool
 	localSSAs          map[string]bool
 	hasTryCatch        bool
+	hasArrayResize     bool
 }
 
 func (e *functionEmitter) vol() string {
@@ -59,6 +60,32 @@ func hasTryCatch(instructions []ir.Instruction) bool {
 			hasTryCatch(inst.Step) ||
 			hasTryCatch(inst.Catch) ||
 			hasTryCatch(inst.Finally) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasArrayResize(instructions []ir.Instruction) bool {
+	for _, inst := range instructions {
+		switch inst.Op {
+		case ir.OpCall:
+			switch inst.Callee {
+			case "__array.push", "__array.pop", "__array.shift", "__array.unshift",
+				"__array.splice", "__array.set_length", "__array.concat",
+				"scriptgo_array_push", "scriptgo_array_pop", "scriptgo_array_shift",
+				"scriptgo_array_unshift", "scriptgo_array_splice", "scriptgo_array_set_length",
+				"push", "pop", "shift", "unshift", "splice":
+				return true
+			}
+		}
+		if hasArrayResize(inst.Then) ||
+			hasArrayResize(inst.Else) ||
+			hasArrayResize(inst.Cond) ||
+			hasArrayResize(inst.Body) ||
+			hasArrayResize(inst.Step) ||
+			hasArrayResize(inst.Catch) ||
+			hasArrayResize(inst.Finally) {
 			return true
 		}
 	}

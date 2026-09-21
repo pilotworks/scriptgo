@@ -594,6 +594,8 @@ func handleEmit(args []string) {
 	debug := fs.Bool("debug", false, "include native debug metadata")
 	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
 	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
+	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
+	release := fs.Bool("release", false, "build with release optimizations")
 	dynamic := registerDynamicFlag(fs)
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -629,6 +631,8 @@ func handleEmit(args []string) {
 	options := compiler.BuildOptions{
 		Target:           *target,
 		Debug:            *debug,
+		OptLevel:         *optLevel,
+		Release:          *release,
 		WarnRuntimeCasts: *warnRuntimeCasts,
 		StrictCasts:      *strictCasts,
 		Dynamic:          *dynamic,

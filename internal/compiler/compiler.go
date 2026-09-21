@@ -17,6 +17,7 @@ import (
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 	"github.com/pilotworks/scriptgo/internal/lowering"
+	"github.com/pilotworks/scriptgo/internal/opt"
 	"github.com/pilotworks/scriptgo/internal/runtime"
 )
 
@@ -144,6 +145,13 @@ func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module,
 	})
 	if err != nil {
 		return ir.Module{}, report, err
+	}
+	if options.OptLevel != "" && options.OptLevel != "0" {
+		optMod, err := opt.Optimize(module, opt.Options{Level: options.OptLevel})
+		if err != nil {
+			return ir.Module{}, report, err
+		}
+		module = optMod
 	}
 	return module, report, nil
 }

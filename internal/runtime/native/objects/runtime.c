@@ -32,6 +32,8 @@ typedef struct {
 	uint8_t extensible;
 	uint8_t sealed;
 	uint8_t frozen;
+	uint8_t type_name_owned;
+	uint32_t capacity;
 	scriptgo_value *boxed_fields;
 	uintptr_t fields[];
 } scriptgo_object;
@@ -448,28 +450,79 @@ int scriptgo_gc_unregister(void *ptr);
 
 #define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
 
-int scriptgo_object_new(int64_t field_count, void **out_object) {
+static scriptgo_object *object_freelist_8 = NULL;
+
+void scriptgo_object_free(void *handle) {
+    if (is_invalid_object_handle(handle)) return;
+    scriptgo_object *object = (scriptgo_object *)handle;
+    if (object->magic != SCRIPTGO_OBJECT_MAGIC) {
+        free(handle);
+        return;
+    }
+    if (object->boxed_fields != NULL) {
+        for (int64_t i = 0; i < object->field_count; i++) {
+            scriptgo_value_release(&object->boxed_fields[i]);
+        }
+        free(object->boxed_fields);
+        object->boxed_fields = NULL;
+    }
+    if (object->type_name_owned && object->type_name != NULL) {
+        free((void *)object->type_name);
+        object->type_name = NULL;
+    }
+    if (object->capacity == 8) {
+        object->fields[0] = (uintptr_t)object_freelist_8;
+        object_freelist_8 = object;
+    } else {
+        free(handle);
+    }
+}
+
+int scriptgo_object_new_typed(int64_t field_count, const char *type_name, void **out_object) {
     if (out_object == NULL || field_count < 0) {
         return object_fail("scriptgo object allocation failed");
     }
-    int64_t capacity = field_count < 64 ? 64 : field_count;
-	scriptgo_object *object = malloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
-    if (object == NULL) {
-        return object_fail("scriptgo object allocation failed");
+    uint32_t capacity = (uint32_t)(field_count == 0 ? 64 : (field_count <= 8 ? 8 : (field_count <= 16 ? 16 : (field_count <= 32 ? 32 : (field_count < 64 ? 64 : field_count)))));
+    scriptgo_object *object = NULL;
+    if (capacity == 8 && object_freelist_8 != NULL) {
+        object = object_freelist_8;
+        object_freelist_8 = (scriptgo_object *)object->fields[0];
+    } else {
+        object = malloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
+        if (object == NULL) {
+            return object_fail("scriptgo object allocation failed");
+        }
     }
     object->magic = SCRIPTGO_OBJECT_MAGIC;
     object->field_count = field_count;
-    object->type_name = NULL;
+    object->type_name = type_name;
     object->extensible = 1;
     object->sealed = 0;
     object->frozen = 0;
+    object->type_name_owned = 0;
+    object->capacity = capacity;
     object->boxed_fields = NULL;
-    for (int64_t i = 0; i < capacity; i++) {
-        object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    if (capacity == 8) {
+        object->fields[0] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[1] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[2] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[3] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[4] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[5] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[6] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        object->fields[7] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        for (uint32_t i = 0; i < capacity; i++) {
+            object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        }
     }
-    scriptgo_gc_register(object, 1, (uint32_t)capacity);
+    scriptgo_gc_register(object, 1, capacity);
     *out_object = object;
     return 0;
+}
+
+int scriptgo_object_new(int64_t field_count, void **out_object) {
+    return scriptgo_object_new_typed(field_count, NULL, out_object);
 }
 
 int scriptgo_object_freeze(void *handle, void **out_object) {
@@ -526,10 +579,13 @@ int scriptgo_object_is_extensible(void *handle, int32_t *out_result) {
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
-	if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+	if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->capacity) {
+        return 0;
+    }
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
@@ -541,7 +597,7 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         *out_value = NAN;
         return 0;
     }
@@ -555,10 +611,13 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
 }
 
 int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->capacity) {
+        return 0;
+    }
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
@@ -570,7 +629,7 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
     if (out_value == NULL) {
         return 0;
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         *out_value = &scriptgo_undefined_sentinel;
         return 0;
     }
@@ -589,10 +648,13 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
 }
 
 int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->capacity) {
+        return 0;
+    }
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
@@ -604,7 +666,7 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
     if (out_value == NULL) {
         return 0;
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         *out_value = 0;
         return 0;
     }
@@ -625,10 +687,13 @@ int scriptgo_object_bool_get(void *handle, int64_t index, int32_t *out_value) {
 }
 
 int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value) {
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->capacity) {
+        return 0;
+    }
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
@@ -640,7 +705,7 @@ int scriptgo_object_bigint_get(void *handle, int64_t index, int64_t *out_value) 
     if (out_value == NULL) {
         return 0;
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         *out_value = 0;
         return 0;
     }
@@ -654,10 +719,13 @@ int scriptgo_object_bigint_get(void *handle, int64_t index, int64_t *out_value) 
 }
 
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (index >= o->capacity) {
+        return 0;
+    }
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
@@ -669,7 +737,7 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     if (out_value == NULL) {
         return 0;
     }
-	if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+	if (is_invalid_object_handle(handle) || index < 0) {
 		*out_value = (void *)&scriptgo_undefined_sentinel;
 		return 0;
 	}
@@ -691,15 +759,18 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
     if (value == NULL || scriptgo_value_validate(value) != 0) {
         return object_fail("SG9001: malformed unknown value");
     }
-    if (is_invalid_object_handle(handle) || index < 0 || index >= 64) {
+    if (is_invalid_object_handle(handle) || index < 0) {
         return 0;
     }
 	scriptgo_object *o = (scriptgo_object *)handle;
+    if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->capacity) {
+        return 0;
+    }
 	if (o->boxed_fields != NULL && (o->boxed_fields[index].flags != 0 || o->boxed_fields[index].payload != 0))
 		scriptgo_value_release(&o->boxed_fields[index]);
 	if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
 		if (o->boxed_fields == NULL) {
-			o->boxed_fields = (scriptgo_value *)calloc(64, sizeof(scriptgo_value));
+			o->boxed_fields = (scriptgo_value *)calloc((size_t)o->capacity, sizeof(scriptgo_value));
 			if (o->boxed_fields == NULL) return -1;
 		}
 		if (scriptgo_value_clone(&o->boxed_fields[index], value) != 0) return -1;
@@ -796,6 +867,7 @@ static int object_property_index_for_set(void *handle, const char *property) {
     if (object->type_name == NULL) {
         object->type_name = strdup("");
         if (object->type_name == NULL) return -1;
+        object->type_name_owned = 1;
     }
     index = object_field_index(object, property);
     if (index >= 0) return index;
@@ -804,10 +876,11 @@ static int object_property_index_for_set(void *handle, const char *property) {
     if (strcmp(object->type_name, "__shape_empty") == 0) {
         char *dictionary_name = strdup("__json__");
         if (dictionary_name == NULL) return -1;
-        free((void *)object->type_name);
+        if (object->type_name_owned && object->type_name != NULL) free((void *)object->type_name);
         object->type_name = dictionary_name;
+        object->type_name_owned = 1;
     }
-	if (object->field_count >= 64) {
+	if (object->field_count >= object->capacity) {
 		return -1;
 	}
 	property_length = strlen(property);
@@ -822,8 +895,9 @@ static int object_property_index_for_set(void *handle, const char *property) {
 	memcpy(type_name + offset, property, property_length);
 	offset += property_length;
 	type_name[offset] = '\0';
-    free((void *)object->type_name);
+    if (object->type_name_owned && object->type_name != NULL) free((void *)object->type_name);
     object->type_name = type_name;
+    object->type_name_owned = 1;
     return (int)object->field_count;
 }
 
@@ -909,16 +983,33 @@ int scriptgo_object_property_unknown_set(void *handle, const char *property,
 }
 
 int scriptgo_object_type_set(void *handle, const char *type_name) {
-    char *owned_type_name = NULL;
     if (is_invalid_object_handle(handle)) {
         return object_fail("scriptgo object type set failed");
     }
+    scriptgo_object *object = (scriptgo_object *)handle;
+    char *owned_type_name = NULL;
     if (type_name != NULL) {
         owned_type_name = strdup(type_name);
         if (owned_type_name == NULL) return object_fail("scriptgo object type allocation failed");
     }
-    free((void *)((scriptgo_object *)handle)->type_name);
-    ((scriptgo_object *)handle)->type_name = owned_type_name;
+    if (object->type_name_owned && object->type_name != NULL) {
+        free((void *)object->type_name);
+    }
+    object->type_name = owned_type_name;
+    object->type_name_owned = (owned_type_name != NULL);
+    return 0;
+}
+
+int scriptgo_object_type_set_static(void *handle, const char *type_name) {
+    if (is_invalid_object_handle(handle)) {
+        return object_fail("scriptgo object type set failed");
+    }
+    scriptgo_object *object = (scriptgo_object *)handle;
+    if (object->type_name_owned && object->type_name != NULL) {
+        free((void *)object->type_name);
+    }
+    object->type_name = type_name;
+    object->type_name_owned = 0;
     return 0;
 }
 
@@ -1228,15 +1319,8 @@ int scriptgo_object_release(void *handle) {
     if (is_invalid_object_handle(handle)) {
         return 0;
     }
-	scriptgo_object *object = handle;
-	scriptgo_gc_unregister(object);
-	if (object->boxed_fields != NULL) {
-		for (int64_t i = 0; i < object->field_count; i++)
-			scriptgo_value_release(&object->boxed_fields[i]);
-		free(object->boxed_fields);
-	}
-    free((void *)object->type_name);
-    free(object);
+	scriptgo_gc_unregister(handle);
+	scriptgo_object_free(handle);
     return 0;
 }
 
