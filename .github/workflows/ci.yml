@@ -32,10 +32,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         go: ['1.26.x']
+    env:
+      SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Cache ScriptGo Runtime Objects
+        uses: actions/cache@v4
+        with:
+          path: .cache/scriptgo
+          key: scriptgo-runtime-${{ runner.os }}-${{ hashFiles('internal/runtime/**', 'internal/compiler/runtime_cache.go') }}
+          restore-keys: |
+            scriptgo-runtime-${{ runner.os }}-
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -43,13 +53,10 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: true
 
-      - name: Setup Node.js (for Parity Oracle & WASI execution)
+      - name: Setup Node.js (for WASI execution)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install parity Node dependencies
-        run: npm ci --prefix internal/compiler
 
       - name: Setup Zig (for WebAssembly / WASI & Cross-Compilation)
         uses: mlugg/setup-zig@v1
@@ -68,6 +75,50 @@ jobs:
       - name: Run Test Suite
         run: go test -v -count=1 ./... ./internal/typescriptgo/...
 
+  # ============================================================================
+  # Parity: Node.js vs ScriptGo Native Conformance Benchmark (Parallel Job)
+  # ============================================================================
+  parity:
+    name: Parity Benchmark (Node.js vs Native)
+    runs-on: ubuntu-latest
+    env:
+      SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache ScriptGo Runtime Objects
+        uses: actions/cache@v4
+        with:
+          path: .cache/scriptgo
+          key: scriptgo-runtime-${{ runner.os }}-${{ hashFiles('internal/runtime/**', 'internal/compiler/runtime_cache.go') }}
+          restore-keys: |
+            scriptgo-runtime-${{ runner.os }}-
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Setup Node.js (for Parity Oracle)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install parity Node dependencies
+        run: npm ci --prefix internal/compiler
+
+      - name: Setup Zig (for WebAssembly / WASI & Cross-Compilation)
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Setup Clang Runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
+
       - name: Run Node.js Parity Benchmark
         run: go run ./cmd/parity -v
 
@@ -77,9 +128,19 @@ jobs:
   sanitizer:
     name: Memory & Address Sanitizer
     runs-on: ubuntu-latest
+    env:
+      SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Cache ScriptGo Runtime Objects
+        uses: actions/cache@v4
+        with:
+          path: .cache/scriptgo
+          key: scriptgo-sanitizer-${{ runner.os }}-${{ hashFiles('internal/runtime/**', 'internal/compiler/runtime_cache.go') }}
+          restore-keys: |
+            scriptgo-sanitizer-${{ runner.os }}-
 
       - name: Setup Go
         uses: actions/setup-go@v5
