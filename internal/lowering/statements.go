@@ -3,6 +3,7 @@ package lowering
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -28,7 +29,7 @@ func lowerSyncFunction(path string, statement typescriptgo.SyntaxStatement, shap
 	if retType == "" && statement.InferredType != "" {
 		retType = statement.InferredType
 	}
-	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRType(retType)}
+	function := ir.Function{Name: statement.Name, Span: toIRSpan(path, statement.Span), ReturnType: toIRTypeForPath(path, retType)}
 	if function.ReturnType == "" {
 		function.ReturnType = ir.TypeVoid
 	}
@@ -41,7 +42,7 @@ func lowerSyncFunction(path string, statement typescriptgo.SyntaxStatement, shap
 		if pType == "" && parameter.InferredType != "" {
 			pType = parameter.InferredType
 		}
-		typ := toIRType(pType)
+		typ := toIRTypeForPath(path, pType)
 		if parameter.Rest {
 			if typ == "" || typ == ir.TypeUnknown {
 				if pType == "number[]" {
@@ -754,6 +755,8 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		if valType != varType {
 			if (strings.HasPrefix(string(valType), "object:") || valType == ir.TypeObject) && (strings.HasPrefix(string(varType), "object:") || varType == ir.TypeObject) {
 				// Polymorphic object assignment
+			} else if (varType == ir.TypeUint8Array || varType == ir.TypeBuffer) && (valType == ir.TypeUint8Array || valType == ir.TypeBuffer) {
+				// Buffer extends Uint8Array and Uint8Array is binary-compatible with Buffer
 			} else if valType == ir.TypeUnknown {
 				unboxed := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{
@@ -1211,6 +1214,13 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 		})
 	case "import_alias":
 		if statement.Name != "" && statement.Type != "" {
+			cleanFile := filepath.Clean(path)
+			if _, isFn := functionImportsByFile[cleanFile][statement.Name]; isFn {
+				return nil
+			}
+			if _, isCls := classImportsByFile[cleanFile][statement.Name]; isCls {
+				return nil
+			}
 			env["__ident."+statement.Name] = ir.Type(statement.Type)
 			if origType, ok := env[statement.Type]; ok {
 				env[statement.Name] = origType

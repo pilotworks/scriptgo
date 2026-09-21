@@ -166,9 +166,20 @@ export class Readable extends Stream {
     _paused: boolean = false;
     _autoDestroy: boolean = true;
     _disturbed: boolean = false;
+    _endEmitted: boolean = false;
     _customRead: Function | null = null;
     _customDestroy: Function | null = null;
     _pipeDests: Stream[] = [];
+
+    _emitEnd(): void {
+        if (!this._endEmitted) {
+            this._endEmitted = true;
+            this.emit("end");
+            if (this._autoDestroy) {
+                this.destroy();
+            }
+        }
+    }
 
     constructor(options?: ReadableOptions) {
         super();
@@ -260,10 +271,7 @@ export class Readable extends Stream {
         if (chunk === null) {
             this.readableEnded = true;
             if (this._buffer.length === 0) {
-                this.emit("end");
-                if (this._autoDestroy) {
-                    this.destroy();
-                }
+                this._emitEnd();
             }
             return false;
         }
@@ -281,10 +289,7 @@ export class Readable extends Stream {
                 }
             }
             if (this._buffer.length === 0 && this.readableEnded) {
-                this.emit("end");
-                if (this._autoDestroy) {
-                    this.destroy();
-                }
+                this._emitEnd();
             } else if (this._buffer.length === 0 && !this.readableEnded && !this._paused) {
                 queueMicrotask(() => {
                     if (this.readableFlowing && !this._paused && !this.readableEnded && this._buffer.length === 0) {
@@ -346,10 +351,7 @@ export class Readable extends Stream {
                 }
             }
             if (this._buffer.length === 0 && this.readableEnded) {
-                this.emit("end");
-                if (this._autoDestroy) {
-                    this.destroy();
-                }
+                this._emitEnd();
             } else if (this._buffer.length === 0 && !this.readableEnded && !this._paused) {
                 this._read(this.readableHighWaterMark);
             }
@@ -462,6 +464,7 @@ export class Readable extends Stream {
         if (this.destroyed) {
             return this;
         }
+        this._endEmitted = true;
         this.destroyed = true;
         this.readable = false;
         this.closed = true;

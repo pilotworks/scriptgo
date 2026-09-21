@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
     constants,
     deflate,
@@ -22,7 +23,18 @@ import {
     zstdCompressSync,
     zstdDecompress,
     zstdDecompressSync,
-    crc32
+    crc32,
+    createDeflate,
+    createDeflateRaw,
+    createGzip,
+    createGunzip,
+    createInflate,
+    createInflateRaw,
+    createUnzip,
+    createBrotliCompress,
+    createBrotliDecompress,
+    createZstdCompress,
+    createZstdDecompress
 } from "node:zlib";
 
 const zlibCallbackState = { count: 0 };
@@ -142,10 +154,100 @@ zstdDecompress(zstdCompressed, (err: Error | null, res: Uint8Array) => {
 // @expect: zlib_zstdDecompressSync: true
 console.log("zlib_zstdDecompressSync: " + (zstdDecompressSync(zstdCompressed).length === 5));
 
+// @api: zlib.ZlibBase
+const testBase = createGzip();
+
+// @api: zlib.ZlibBase.bytesRead
+// @api: zlib.ZlibBase.bytesWritten
+// @expect: zlib_base_bytes: true
+console.log("zlib_base_bytes: " + (testBase.bytesWritten === 0 && (testBase.bytesRead === 0 || testBase.bytesRead === undefined)));
+
+// @api: zlib.ZlibBase.reset
+testBase.reset();
+
+// @api: zlib.ZlibBase.params
+const baseParams = createGzip();
+baseParams.params(1, 0, () => {
+    zlibCallbackState.count++;
+});
+
+// @api: zlib.ZlibBase.flush
+const baseFlush = createGzip();
+baseFlush.flush(0, () => {
+    zlibCallbackState.count++;
+});
+
+// @api: zlib.ZlibBase.close
+const baseClose = createGzip();
+baseClose.close(() => {
+    zlibCallbackState.count++;
+});
+
+// @api: zlib.createDeflate
+const streamDeflate = createDeflate();
+
+// @api: zlib.createDeflateRaw
+const streamDeflateRaw = createDeflateRaw();
+
+// @api: zlib.createGzip
+const streamGzip = createGzip();
+
+// @api: zlib.createGunzip
+const streamGunzip = createGunzip();
+
+// @api: zlib.createInflate
+const streamInflate = createInflate();
+
+// @api: zlib.createInflateRaw
+const streamInflateRaw = createInflateRaw();
+
+// @api: zlib.createUnzip
+const streamUnzip = createUnzip();
+
+// @api: zlib.createBrotliCompress
+const streamBrotliCompress = createBrotliCompress();
+
+// @api: zlib.createBrotliDecompress
+const streamBrotliDecompress = createBrotliDecompress();
+
+// @api: zlib.createZstdCompress
+const streamZstdCompress = createZstdCompress();
+
+// @api: zlib.createZstdDecompress
+const streamZstdDecompress = createZstdDecompress();
+
+// @expect: zlib_factory_streams: true
+console.log("zlib_factory_streams: " + (
+    typeof streamDeflate === "object" &&
+    typeof streamDeflateRaw === "object" &&
+    typeof streamGzip === "object" &&
+    typeof streamGunzip === "object" &&
+    typeof streamInflate === "object" &&
+    typeof streamInflateRaw === "object" &&
+    typeof streamUnzip === "object" &&
+    typeof streamBrotliCompress === "object" &&
+    typeof streamBrotliDecompress === "object" &&
+    typeof streamZstdCompress === "object" &&
+    typeof streamZstdDecompress === "object"
+));
+
+// @expect: zlib_stream_pipeline: hello stream
+streamGzip.pipe(streamGunzip);
+let streamedData = "";
+streamGunzip.on("data", (chunk: Buffer) => {
+    streamedData += chunk.toString();
+});
+streamGunzip.on("end", () => {
+    console.log("zlib_stream_pipeline: " + streamedData);
+    zlibCallbackState.count++;
+});
+streamGzip.write("hello stream");
+streamGzip.end();
+
 // @expect: zlib_callbacks_async: true
 const zlibCallbackPoller = setInterval(() => {
-    if (zlibCallbackState.count === 11) {
+    if (zlibCallbackState.count === 15) {
         clearInterval(zlibCallbackPoller);
         console.log("zlib_callbacks_async: true");
     }
-}, 0);
+}, 10);

@@ -95,8 +95,84 @@ export class Interface extends EventEmitter {
         return this._rl.getCursorPos();
     }
 
+    [Symbol.dispose](): void {
+        this.close();
+    }
+
     [Symbol.asyncIterator](): AsyncIterableIterator<string> {
         return this._rl[Symbol.asyncIterator]();
+    }
+}
+
+export class Readline {
+    private _stream: EventEmitter;
+    private _actions: string[] = [];
+
+    constructor(stream: EventEmitter, options?: { autoCommit?: boolean }) {
+        this._stream = stream;
+    }
+
+    clearLine(dir: number): this {
+        let seq = "\x1b[2K";
+        if (dir < 0) {
+            seq = "\x1b[1K";
+        } else if (dir > 0) {
+            seq = "\x1b[0K";
+        }
+        this._actions.push(seq);
+        return this;
+    }
+
+    clearScreenDown(): this {
+        this._actions.push("\x1b[0J");
+        return this;
+    }
+
+    cursorTo(x: number, y?: number): this {
+        let seq = `\x1b[${x + 1}G`;
+        if (typeof y === "number") {
+            seq = `\x1b[${y + 1};${x + 1}H`;
+        }
+        this._actions.push(seq);
+        return this;
+    }
+
+    moveCursor(dx: number, dy: number): this {
+        let seq = "";
+        if (dx < 0) {
+            seq += `\x1b[${-dx}D`;
+        } else if (dx > 0) {
+            seq += `\x1b[${dx}C`;
+        }
+        if (dy < 0) {
+            seq += `\x1b[${-dy}A`;
+        } else if (dy > 0) {
+            seq += `\x1b[${dy}B`;
+        }
+        if (seq.length > 0) {
+            this._actions.push(seq);
+        }
+        return this;
+    }
+
+    commit(): Promise<void> {
+        return new Promise<void>((resolve) => {
+            const data = this._actions.join("");
+            this._actions = [];
+            if (data.length > 0) {
+                if (this._stream instanceof StreamLike) {
+                    this._stream.write(data);
+                } else {
+                    this._stream.emit("data", data);
+                }
+            }
+            resolve();
+        });
+    }
+
+    rollback(): this {
+        this._actions = [];
+        return this;
     }
 }
 
@@ -120,6 +196,7 @@ export {
 export default {
     QuestionOptions,
     Interface,
+    Readline,
     createInterface,
     clearLine,
     clearScreenDown,
