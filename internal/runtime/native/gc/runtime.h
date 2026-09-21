@@ -19,7 +19,8 @@ typedef enum {
     SCRIPTGO_TYPE_WEAKMAP,
     SCRIPTGO_TYPE_WEAKSET,
     SCRIPTGO_TYPE_ARRAYBUFFER,
-    SCRIPTGO_TYPE_SYMBOL
+    SCRIPTGO_TYPE_SYMBOL,
+    SCRIPTGO_TYPE_CLOSURE_ENV
 } scriptgo_gc_type_tag;
 
 typedef struct scriptgo_gc_header {

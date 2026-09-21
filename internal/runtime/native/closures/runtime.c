@@ -9,6 +9,7 @@ int scriptgo_array_push(void *handle, const void *value, double *out_length);
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 
 #define SCRIPTGO_CLOSURE_GC_TAG 3
+#define SCRIPTGO_CLOSURE_ENV_GC_TAG 12
 
 typedef struct {
     int64_t length;
@@ -46,7 +47,12 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t r
 
 void *scriptgo_closure_alloc(int64_t size) {
     if (size <= 0) size = 8;
-    return calloc(1, (size_t)size);
+    void *env = calloc(1, (size_t)size);
+    if (env != NULL) {
+        uint32_t words = (uint32_t)((size + sizeof(void *) - 1) / sizeof(void *));
+        scriptgo_gc_register(env, SCRIPTGO_CLOSURE_ENV_GC_TAG, words);
+    }
+    return env;
 }
 
 int scriptgo_closure_equals(void *h1, void *h2) {

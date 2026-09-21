@@ -413,11 +413,13 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 ### 5.6. Memory Management & Runtime Infrastructure
 
 1. **Circular Reference Garbage Collection**:
-   - Currently, object memory relies on structured allocations and linear lifetime management. Long-running complex circular references (A -> B -> A) require tracing GC or RC cycle collection infrastructure.
+   - ✅ Completed: Mark-and-sweep tracing cycle collector with conservative stack/register root scanning, module global variable slots, and deep DFS object and closure environment traversal (`SCRIPTGO_TYPE_CLOSURE_ENV`). Reclaims complex circular references (`Object <-> Object`, `Object <-> Closure`, and mutual closures) with zero leaks upon sweep.
 2. **Pure C Backend Generator**:
    - Currently using the LLVM IR -> Clang backend. Pure C code generation remains a separate deferred portability track and is not part of the completed Milestone 6 language/runtime expansion.
 3. **Debug DWARF Source Maps**:
    - ✅ Completed: Full DWARF debug symbols (`!DILocation`, `!DISubprogram`, `!DICompileUnit`) generated for instructions and functions, enabling precise source-level stepping, breakpoints, and stack unwinding in LLDB and GDB with `--debug`.
+4. **Production LLVM Codegen & Optimization Profile (`--release`, `-O3`, `ThinLTO`)**:
+   - ✅ Completed: Native compilation pipeline supports `-O3` vectorization and inlining, ThinLTO cross-module optimization between C runtime and emitted LLVM IR (`-flto=thin`), symbol stripping (`-s`, `--strip`), and the unified `--release` production profile.
 
 ---
 

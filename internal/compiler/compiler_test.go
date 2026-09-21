@@ -573,3 +573,29 @@ func TestCheckProject(t *testing.T) {
 		t.Fatalf("CheckProject returned unexpected diagnostics: %+v", diags)
 	}
 }
+
+func TestBuildOptionsRelease(t *testing.T) {
+	opts := BuildOptions{Release: true}.normalized()
+	if opts.OptLevel != "3" {
+		t.Errorf("release OptLevel = %q, want %q", opts.OptLevel, "3")
+	}
+	if opts.LTO != "thin" {
+		t.Errorf("release LTO = %q, want %q", opts.LTO, "thin")
+	}
+	if !opts.Strip {
+		t.Errorf("release Strip = false, want true")
+	}
+
+	t.Setenv("SCRIPTGO_RELEASE", "1")
+	envOpts := BuildOptions{}.normalized()
+	if envOpts.OptLevel != "3" {
+		t.Errorf("env release OptLevel = %q, want %q", envOpts.OptLevel, "3")
+	}
+	if envOpts.LTO != "thin" {
+		t.Errorf("env release LTO = %q, want %q", envOpts.LTO, "thin")
+	}
+	if !envOpts.Strip {
+		t.Errorf("env release Strip = false, want true")
+	}
+}
+
