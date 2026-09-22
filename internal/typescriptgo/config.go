@@ -56,23 +56,29 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 		virtualPath := filepath.Join(cwd, "node_modules", filepath.FromSlash(name), fileName)
 		virtualFiles[virtualPath] = module.Source
 		builtinPaths[virtualPath] = name
+		pkgPath := filepath.Join(cwd, "node_modules", filepath.FromSlash(name), "package.json")
+		virtualFiles[pkgPath] = fmt.Sprintf("{\n  \"name\": %q,\n  \"type\": \"module\",\n  \"main\": %q\n}\n", name, fileName)
 
 		if name == "stream/consumers" {
 			vLegacy := filepath.Join(cwd, "node_modules", "stream_consumers", fileName)
 			virtualFiles[vLegacy] = module.Source
 			builtinPaths[vLegacy] = "stream_consumers"
+			virtualFiles[filepath.Join(cwd, "node_modules", "stream_consumers", "package.json")] = fmt.Sprintf("{\n  \"name\": \"stream_consumers\",\n  \"type\": \"module\",\n  \"main\": %q\n}\n", fileName)
 		} else if name == "stream/promises" {
 			vLegacy := filepath.Join(cwd, "node_modules", "stream_promises", fileName)
 			virtualFiles[vLegacy] = module.Source
 			builtinPaths[vLegacy] = "stream_promises"
+			virtualFiles[filepath.Join(cwd, "node_modules", "stream_promises", "package.json")] = fmt.Sprintf("{\n  \"name\": \"stream_promises\",\n  \"type\": \"module\",\n  \"main\": %q\n}\n", fileName)
 		} else if name == "stream/web" {
 			vLegacy := filepath.Join(cwd, "node_modules", "webstreams", fileName)
 			virtualFiles[vLegacy] = module.Source
 			builtinPaths[vLegacy] = "webstreams"
+			virtualFiles[filepath.Join(cwd, "node_modules", "webstreams", "package.json")] = fmt.Sprintf("{\n  \"name\": \"webstreams\",\n  \"type\": \"module\",\n  \"main\": %q\n}\n", fileName)
 		} else if name == "readline/promises" {
 			vLegacy := filepath.Join(cwd, "node_modules", "readline_promises", fileName)
 			virtualFiles[vLegacy] = module.Source
 			builtinPaths[vLegacy] = "readline_promises"
+			virtualFiles[filepath.Join(cwd, "node_modules", "readline_promises", "package.json")] = fmt.Sprintf("{\n  \"name\": \"readline_promises\",\n  \"type\": \"module\",\n  \"main\": %q\n}\n", fileName)
 		}
 	}
 
@@ -98,6 +104,8 @@ func buildVirtualEnvironment(cwd string) (vfs.FS, map[string]string, map[string]
 	}
 	nodeTypesPath := filepath.Join(cwd, "node_modules", "@types", "node", "index.d.ts")
 	virtualFiles[nodeTypesPath] = nodeTypesDts.String()
+	nodeTypesPkgPath := filepath.Join(cwd, "node_modules", "@types", "node", "package.json")
+	virtualFiles[nodeTypesPkgPath] = "{\n  \"name\": \"@types/node\",\n  \"version\": \"20.0.0\",\n  \"types\": \"index.d.ts\"\n}\n"
 
 	fs := wrapvfs.Wrap(baseFS, wrapvfs.Replacements{
 		FileExists: func(path string) bool {
@@ -202,6 +210,9 @@ func CheckProject(configPath string) (ProgramResult, error) {
 	projectFileNames := append([]string(nil), parsedConfig.FileNames()...)
 	rootFiles := append([]string(nil), projectFileNames...)
 	for virtualPath := range virtualFiles {
+		if strings.HasSuffix(virtualPath, ".json") {
+			continue
+		}
 		rootFiles = append(rootFiles, virtualPath)
 	}
 	sort.Strings(rootFiles)
@@ -215,6 +226,23 @@ func CheckProject(configPath string) (ProgramResult, error) {
 	opts.AllowJs = core.TSTrue
 	opts.AllowImportingTsExtensions = core.TSTrue
 	parsedConfig.SetCompilerOptions(opts)
+
+	validationDiags := ValidateCompilerOptions(opts, absPath)
+	if len(validationDiags) > 0 {
+		result := ProgramResult{
+			Options: CompilerOptions{
+				Target:           formatTarget(opts.Target),
+				Module:           formatModule(opts.Module),
+				ModuleResolution: formatResolution(opts.ModuleResolution),
+				Strict:           opts.Strict == core.TSTrue,
+			},
+		}
+		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("config", parseErrors)...)
+		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("config", parsedConfig.GetConfigFileParsingDiagnostics())...)
+		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("config", parsedConfig.Errors)...)
+		result.Diagnostics = append(result.Diagnostics, validationDiags...)
+		return result, nil
+	}
 
 	program, parsedConfig := newProgramWithResolvedJavaScript(parsedConfig, host, cwd)
 
@@ -282,8 +310,10 @@ func CheckProject(configPath string) (ProgramResult, error) {
 			Symbols:        symbols,
 			Syntax:         syntax,
 		})
-		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
-		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("type", program.GetSemanticDiagnostics(ctx, file))...)
+		if builtinPaths[filepath.Clean(file.FileName())] == "" {
+			result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
+			result.Diagnostics = append(result.Diagnostics, convertDiagnostics("type", program.GetSemanticDiagnostics(ctx, file))...)
+		}
 	}
 	result.Diagnostics = append(result.Diagnostics, convertDiagnostics("program", program.GetProgramDiagnostics())...)
 

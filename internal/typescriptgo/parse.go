@@ -120,11 +120,18 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 				opts.AllowJs = core.TSTrue
 				opts.AllowImportingTsExtensions = core.TSTrue
 				parsedCfg.SetCompilerOptions(opts)
+				validationDiags := ValidateCompilerOptions(opts, cfgAbs)
 				compilerOpts = CompilerOptions{
 					Target:           formatTarget(opts.Target),
 					Module:           formatModule(opts.Module),
 					ModuleResolution: formatResolution(opts.ModuleResolution),
 					Strict:           opts.Strict == core.TSTrue,
+				}
+				if len(validationDiags) > 0 {
+					return ProgramResult{
+						Options:     compilerOpts,
+						Diagnostics: validationDiags,
+					}, nil
 				}
 			}
 		}
@@ -199,8 +206,10 @@ func CheckWithOptions(entryPath string, checkOpts CheckOptions) (ProgramResult, 
 			Symbols:        symbols,
 			Syntax:         syntax,
 		})
-		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
-		result.Diagnostics = append(result.Diagnostics, convertDiagnostics("type", program.GetSemanticDiagnostics(ctx, file))...)
+		if builtinPaths[filepath.Clean(file.FileName())] == "" {
+			result.Diagnostics = append(result.Diagnostics, convertDiagnostics("syntax", program.GetSyntacticDiagnostics(ctx, file))...)
+			result.Diagnostics = append(result.Diagnostics, convertDiagnostics("type", program.GetSemanticDiagnostics(ctx, file))...)
+		}
 	}
 	result.Diagnostics = append(result.Diagnostics, convertDiagnostics("program", program.GetProgramDiagnostics())...)
 	return result, nil

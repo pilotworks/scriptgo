@@ -23,6 +23,8 @@ yarn-error.log*
 tmp/
 **/tmp/
 !tmp/.gitkeep
+.scriptgo_eval_*
+.scriptgo/
 
 # Go tooling
 coverage.out

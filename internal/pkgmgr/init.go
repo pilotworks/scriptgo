@@ -82,9 +82,10 @@ func Init(opts InitOptions) (*InitResult, error) {
 		Type:    "module",
 		Main:    "index.ts",
 		Scripts: map[string]string{
-			"start": "scriptgo run index.ts",
-			"build": "scriptgo build index.ts",
-			"check": "scriptgo check index.ts",
+			"start":    "scriptgo run index.ts",
+			"build":    "scriptgo build index.ts",
+			"check":    "scriptgo check index.ts",
+			"coverage": "scriptgo coverage index.ts",
 		},
 		Dependencies:    map[string]string{},
 		DevDependencies: map[string]string{},

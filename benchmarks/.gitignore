@@ -1,0 +1,7 @@
+node_modules/
+.scriptgo/
+bin/
+dist/
+*.ll
+*.s
+*.o

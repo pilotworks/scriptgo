@@ -2,7 +2,7 @@
 
 import { execSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { writeFileSync, mkdirSync, statSync } from "node:fs";
+import { writeFileSync, mkdirSync, statSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 
 interface BenchmarkCase {
@@ -159,9 +159,10 @@ function main(): void {
     } catch {}
 
     // 2. Pre-compile ScriptGo CLI helper
+    const repoRoot = existsSync("cmd/scriptgo") ? "." : (existsSync("../cmd/scriptgo") ? ".." : ".");
     const scriptgoCli = "/tmp/scriptgo_bench_runner";
     console.log("==> Building native scriptgo compiler binary...");
-    execSync("go build -o " + scriptgoCli + " ./cmd/scriptgo");
+    execSync("go build -o " + scriptgoCli + " " + repoRoot + "/cmd/scriptgo");
     console.log("==> Compiler ready at " + scriptgoCli + "\n");
 
     const results: BenchmarkResult[] = [];
@@ -169,10 +170,11 @@ function main(): void {
     console.log("==> Measuring " + CASES.length + " suites across ScriptGo (AOT Native), " + nodeVer + ", and " + (hasBun ? bunVer : "Bun") + "...\n");
 
     for (const testCase of CASES) {
+        const suiteFile = existsSync(testCase.file) ? testCase.file : (existsSync(repoRoot + "/" + testCase.file) ? (repoRoot + "/" + testCase.file) : testCase.file.replace(/^benchmarks\//, ""));
         // Compile test case to optimized native executable
         const binTarget = "/tmp/sg_bench_" + testCase.name.replace(/[^a-zA-Z0-9]/g, "_");
         const compileStart = performance.now();
-        execSync(scriptgoCli + " build -O 3 --release " + testCase.file + " -o " + binTarget);
+        execSync(scriptgoCli + " build -O 3 --release " + suiteFile + " -o " + binTarget);
         const compileTimeMs = Math.round(performance.now() - compileStart);
         let binarySizeBytes = 0;
         try {
@@ -181,11 +183,11 @@ function main(): void {
 
         // Measure execution times
         const sgStats = runCommandAndMeasure(binTarget, testCase.iterations);
-        const nodeStats = runCommandAndMeasure("node " + testCase.file, testCase.iterations);
+        const nodeStats = runCommandAndMeasure("node " + suiteFile, testCase.iterations);
         let bunStats: MetricStats | null = null;
         if (hasBun) {
             try {
-                bunStats = runCommandAndMeasure("bun " + testCase.file, testCase.iterations);
+                bunStats = runCommandAndMeasure("bun " + suiteFile, testCase.iterations);
             } catch {}
         }
 
@@ -337,7 +339,7 @@ function main(): void {
     console.log("└" + "─".repeat(104) + "┘\n");
 
     // Export results to JSON
-    const reportPath = "web/src/data/benchmark-results.json";
+    const reportPath = repoRoot + "/web/src/data/benchmark-results.json";
     try {
         mkdirSync(dirname(reportPath), { recursive: true });
     } catch {}
