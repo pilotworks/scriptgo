@@ -183,10 +183,11 @@ static inline void hash_insert(gc_node *node) {
 }
 
 void scriptgo_gc_init(void *stack_bottom) {
-    if (stack_bottom != NULL) {
+    void *native_bottom = get_native_stack_bottom();
+    if (native_bottom != NULL) {
+        scriptgo_gc_stack_bottom = native_bottom;
+    } else if (stack_bottom != NULL) {
         scriptgo_gc_stack_bottom = stack_bottom;
-    } else {
-        scriptgo_gc_stack_bottom = get_native_stack_bottom();
     }
     if (gc_hash_table == NULL) {
         gc_hash_capacity = GC_HASH_INITIAL_CAPACITY;
@@ -210,8 +211,12 @@ void scriptgo_gc_set_threshold(int64_t threshold) {
 
 int scriptgo_gc_collect(int64_t *out_collected_count);
 
-static void __attribute__((noinline)) gc_trigger_collect(void) {
+static void *gc_in_flight_ptr = NULL;
+
+static void __attribute__((noinline)) gc_trigger_collect(void *in_flight) {
+    gc_in_flight_ptr = in_flight;
     scriptgo_gc_collect(NULL);
+    gc_in_flight_ptr = NULL;
 }
 
 static inline __attribute__((always_inline)) int scriptgo_gc_register_fast(void *ptr, int tag, uint32_t field_count) {
@@ -234,7 +239,7 @@ static inline __attribute__((always_inline)) int scriptgo_gc_register_fast(void 
     total_live_objects++;
 
     if (__builtin_expect(total_live_objects > gc_threshold && !gc_in_progress, 0)) {
-        gc_trigger_collect();
+        gc_trigger_collect(ptr);
     }
     return 0;
 }
@@ -419,6 +424,11 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         gc_node *n = find_node(r->ptr);
         GC_PUSH(n);
         r = r->next;
+    }
+
+    if (gc_in_flight_ptr != NULL) {
+        gc_node *n = find_node(gc_in_flight_ptr);
+        GC_PUSH(n);
     }
 
     // Push global root slots
