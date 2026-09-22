@@ -17,6 +17,7 @@ Commands:
   check     Verify TypeScript syntax, types, and native subset rules
   emit      Emit LLVM IR or Typed IR
   coverage  Analyze Static/Dynamic site coverage
+  init      Initialize a new ScriptGo TypeScript project
   install   Resolve, verify, cache, and link package.json dependencies
   task      Run a package.json script with node_modules/.bin in PATH
   version   Print compiler and runtime ABI version
@@ -65,6 +66,27 @@ Examples:
   scriptgo task build
   scriptgo task test -- --verbose
   scriptgo task --project ./subproject start`)
+}
+
+func printInitUsage() {
+	fmt.Fprintln(os.Stderr, `Usage:
+  scriptgo init [flags] [<directory>]
+
+Description:
+  Initializes a new ScriptGo TypeScript project with package.json,
+  tsconfig.json, index.ts, and .gitignore.
+
+Flags:
+  -y, --yes             Initialize with default settings without prompting
+  -f, --force           Overwrite existing files
+  --name <name>         Package name (defaults to directory name)
+  -h, --help            Show this help message
+
+Examples:
+  scriptgo init
+  scriptgo init my-app
+  scriptgo init --name demo-project
+  scriptgo init -f`)
 }
 
 func printInstallUsage() {

@@ -39,6 +39,8 @@ func main() {
 		handleEmit(normalizeFlagsFirst(os.Args[2:]))
 	case "coverage":
 		handleCoverage(normalizeFlagsFirst(os.Args[2:]))
+	case "init":
+		handleInit(normalizeFlagsFirst(os.Args[2:]))
 	case "install":
 		handleInstall(normalizeFlagsFirst(os.Args[2:]))
 	case "task":
@@ -70,6 +72,8 @@ func handleHelpCommand(cmd string) {
 		printEmitUsage()
 	case "coverage":
 		printCoverageUsage()
+	case "init":
+		printInitUsage()
 	case "install":
 		printInstallUsage()
 	case "task":
@@ -83,44 +87,6 @@ func handleHelpCommand(cmd string) {
 	}
 }
 
-func handleInstall(args []string) {
-	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	fs.Usage = printInstallUsage
-	project := fs.String("project", ".", "project directory containing package.json")
-	manifest := fs.String("manifest", "", "package manifest path (default: <project>/package.json)")
-	lockfile := fs.String("lockfile", "", "lockfile path (default: <project>/scriptgo-lock.json)")
-	store := fs.String("store", "", "content store path (default: <project>/.scriptgo/store)")
-	registry := fs.String("registry", "", "npm-compatible registry URL")
-	token := fs.String("registry-token", "", "registry bearer token (default: SCRIPTGO_NPM_TOKEN or NPM_TOKEN)")
-	offline := fs.Bool("offline", false, "install only from the existing lockfile and content store")
-	frozen := fs.Bool("frozen", false, "use exact versions and metadata from the existing lockfile")
-	if err := fs.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(0)
-		}
-		os.Exit(2)
-	}
-	root, err := filepath.Abs(*project)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
-		os.Exit(1)
-	}
-	lock, err := pkgmgr.Install(pkgmgr.InstallOptions{
-		ProjectRoot: root,
-		Manifest:    *manifest,
-		Lockfile:    *lockfile,
-		StoreRoot:   *store,
-		Registry:    pkgmgr.Registry{BaseURL: *registry, Token: *token},
-		Offline:     *offline,
-		Frozen:      *frozen,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "scriptgo install: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stdout, "installed %d packages\n", len(lock.Packages))
-}
-
 func normalizeFlagsFirst(args []string) []string {
 	var flags []string
 	var positionals []string
@@ -128,7 +94,7 @@ func normalizeFlagsFirst(args []string) []string {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
-			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "--registry-token" || arg == "-O" || arg == "-lto" || arg == "--lto" || arg == "--target-cpu" || arg == "-target-cpu") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if (arg == "-o" || arg == "-target" || arg == "--target" || arg == "-cc" || arg == "--cc" || arg == "-sanitize" || arg == "--sanitize" || arg == "-mode" || arg == "--mode" || arg == "-format" || arg == "--format" || arg == "-e" || arg == "--eval" || arg == "-m" || arg == "-ffi-manifest" || arg == "--ffi-manifest" || arg == "-p" || arg == "-project" || arg == "--project" || arg == "--manifest" || arg == "--lockfile" || arg == "--store" || arg == "--registry" || arg == "--registry-token" || arg == "-O" || arg == "-lto" || arg == "--lto" || arg == "--target-cpu" || arg == "-target-cpu" || arg == "-name" || arg == "--name") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				flags = append(flags, args[i])
 			}
@@ -212,15 +178,13 @@ func handleRun(args []string) {
 		extraArgs = fs.Args()
 	} else if fs.NArg() >= 1 {
 		firstArg := fs.Arg(0)
+		if task, taskErr := pkgmgr.ResolveTask(".", "", firstArg); taskErr == nil {
+			exitCode := executeTask(task, fs.Args()[1:])
+			os.Exit(exitCode)
+		}
 		var err error
 		entryPath, cleanup, err = resolveInput(firstArg)
 		if err != nil {
-			if !strings.HasSuffix(firstArg, ".ts") && !strings.HasSuffix(firstArg, ".js") && !strings.HasSuffix(firstArg, ".mts") && !strings.HasSuffix(firstArg, ".cts") {
-				if task, taskErr := pkgmgr.ResolveTask(".", "", firstArg); taskErr == nil {
-					exitCode := executeTask(task, fs.Args()[1:])
-					os.Exit(exitCode)
-				}
-			}
 			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
 			os.Exit(1)
 		}
@@ -234,8 +198,22 @@ func handleRun(args []string) {
 			}
 		}
 	} else {
-		printRunUsage()
-		os.Exit(2)
+		if task, taskErr := pkgmgr.ResolveTask(".", "", "start"); taskErr == nil {
+			exitCode := executeTask(task, nil)
+			os.Exit(exitCode)
+		}
+		if entry, cl, err := resolveInput("index.ts"); err == nil {
+			entryPath = entry
+			cleanup = cl
+			defer cleanup()
+		} else if entry, cl, err := resolveInput("main.ts"); err == nil {
+			entryPath = entry
+			cleanup = cl
+			defer cleanup()
+		} else {
+			printRunUsage()
+			os.Exit(2)
+		}
 	}
 
 	var manifests []string
