@@ -68,6 +68,9 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s.i64 = load i64, ptr %%%s\n", instruction.Result, resultSlot)
 		fmt.Fprintf(out, "  %%%s = uitofp i64 %%%s.i64 to double\n", instruction.Result, instruction.Result)
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		return nil
 	case "__array.set_length":
 		if len(instruction.Args) != 2 {

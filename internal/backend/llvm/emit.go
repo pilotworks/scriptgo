@@ -249,7 +249,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_number_to_exponential(double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_to_precision(double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_number_to_locale_string(double, ptr)\n")
-	out.WriteString("declare i32 @scriptgo_to_int32(double)\n\n")
+	out.WriteString("declare i32 @scriptgo_to_int32(double) readnone nounwind willreturn\n\n")
 	out.WriteString("declare i32 @scriptgo_array_new(i64, i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_set_tag(ptr, i64)\n")
 	out.WriteString("declare i32 @scriptgo_array_get(ptr, double, ptr)\n")
@@ -1016,7 +1016,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		}
 		out.WriteString(fmt.Sprintf("@%s = global %s %s\n", g.Name, gType, initVal))
 	}
-	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
+	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind readnone willreturn {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
 
 	for _, function := range module.Functions {
 		text, err := emitFunction(function, functions, stringsByValue, debug, module, options)
@@ -1227,6 +1227,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		localSSAs:       make(map[string]bool),
 		hasTryCatch:     hasTryCatch(function.Body),
 		hasArrayResize:  hasArrayResize(function.Body),
+		integerVars:     make(map[string]bool),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {

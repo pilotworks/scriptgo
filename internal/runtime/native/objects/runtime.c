@@ -452,6 +452,31 @@ int scriptgo_gc_unregister(void *ptr);
 
 void *scriptgo_object_freelist_8 = NULL;
 
+typedef struct scriptgo_slab_node {
+    struct scriptgo_slab_node *next;
+} scriptgo_slab_node;
+
+static scriptgo_slab_node *scriptgo_slab_8_head = NULL;
+static char *scriptgo_slab_8_curr = NULL;
+static char *scriptgo_slab_8_end = NULL;
+
+static inline void *scriptgo_slab_alloc_8(void) {
+    if (__builtin_expect(scriptgo_slab_8_curr != NULL && (size_t)(scriptgo_slab_8_end - scriptgo_slab_8_curr) >= 128, 1)) {
+        void *p = scriptgo_slab_8_curr;
+        scriptgo_slab_8_curr += 128;
+        return p;
+    }
+    const size_t SLAB_SIZE = 256 * 1024;
+    char *new_slab = (char *)malloc(SLAB_SIZE);
+    if (__builtin_expect(new_slab == NULL, 0)) return NULL;
+    scriptgo_slab_node *node = (scriptgo_slab_node *)new_slab;
+    node->next = scriptgo_slab_8_head;
+    scriptgo_slab_8_head = node;
+    scriptgo_slab_8_curr = new_slab + 256;
+    scriptgo_slab_8_end = new_slab + SLAB_SIZE;
+    return (void *)(new_slab + 128);
+}
+
 void scriptgo_object_free(void *handle) {
     if (is_invalid_object_handle(handle)) return;
     scriptgo_object *object = (scriptgo_object *)handle;
@@ -482,38 +507,21 @@ void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name)
     if (__builtin_expect(field_count < 0, 0)) {
         return NULL;
     }
-    uint32_t capacity;
     if (__builtin_expect(field_count > 0 && field_count <= 8, 1)) {
-        capacity = 8;
-    } else if (field_count == 0 || field_count > 64) {
-        capacity = (field_count == 0) ? 64 : (uint32_t)field_count;
-    } else if (field_count <= 16) {
-        capacity = 16;
-    } else if (field_count <= 32) {
-        capacity = 32;
-    } else {
-        capacity = 64;
-    }
-    scriptgo_object *object;
-    if (__builtin_expect(capacity == 8 && scriptgo_object_freelist_8 != NULL, 1)) {
-        object = (scriptgo_object *)scriptgo_object_freelist_8;
-        scriptgo_object_freelist_8 = (void *)object->fields[0];
-        object->field_count = field_count;
-        object->type_name = type_name;
-        *(uint32_t *)&object->extensible = 1;
-    } else {
-        object = (scriptgo_object *)malloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
-        if (__builtin_expect(object == NULL, 0)) {
-            return NULL;
+        scriptgo_object *object;
+        if (__builtin_expect(scriptgo_object_freelist_8 != NULL, 1)) {
+            object = (scriptgo_object *)scriptgo_object_freelist_8;
+            scriptgo_object_freelist_8 = (void *)object->fields[0];
+        } else {
+            object = (scriptgo_object *)scriptgo_slab_alloc_8();
+            if (__builtin_expect(object == NULL, 0)) return NULL;
+            object->magic = SCRIPTGO_OBJECT_MAGIC;
+            object->capacity = 8;
+            object->boxed_fields = NULL;
         }
-        object->magic = SCRIPTGO_OBJECT_MAGIC;
         object->field_count = field_count;
         object->type_name = type_name;
         *(uint32_t *)&object->extensible = 1;
-        object->capacity = capacity;
-        object->boxed_fields = NULL;
-    }
-    if (__builtin_expect(capacity == 8, 1)) {
         uint64_t nan = SCRIPTGO_OBJECT_NAN_BITS;
         object->fields[0] = nan;
         object->fields[1] = nan;
@@ -523,10 +531,31 @@ void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name)
         object->fields[5] = nan;
         object->fields[6] = nan;
         object->fields[7] = nan;
+        scriptgo_gc_register_fast(object, 1, 8);
+        return object;
+    }
+    uint32_t capacity;
+    if (field_count == 0 || field_count > 64) {
+        capacity = (field_count == 0) ? 64 : (uint32_t)field_count;
+    } else if (field_count <= 16) {
+        capacity = 16;
+    } else if (field_count <= 32) {
+        capacity = 32;
     } else {
-        for (uint32_t i = 0; i < capacity; i++) {
-            object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
-        }
+        capacity = 64;
+    }
+    scriptgo_object *object = (scriptgo_object *)malloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
+    if (__builtin_expect(object == NULL, 0)) {
+        return NULL;
+    }
+    object->magic = SCRIPTGO_OBJECT_MAGIC;
+    object->field_count = field_count;
+    object->type_name = type_name;
+    *(uint32_t *)&object->extensible = 1;
+    object->capacity = capacity;
+    object->boxed_fields = NULL;
+    for (uint32_t i = 0; i < capacity; i++) {
+        object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     }
     scriptgo_gc_register_fast(object, 1, capacity);
     return object;

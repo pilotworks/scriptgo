@@ -76,6 +76,9 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 	if err := os.WriteFile(filepath.Join(sgCache, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
 		return "", err
 	}
+	if err := os.WriteFile(filepath.Join(sgCache, "yyjson.h"), []byte(runtime.YYJSONHeader), 0o644); err != nil {
+		return "", err
+	}
 	if dynamic || bytes.Contains(runtimeSource, []byte("#include \"quickjs.h\"")) {
 		if err := os.WriteFile(filepath.Join(sgCache, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
 			return "", err

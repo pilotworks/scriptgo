@@ -39,6 +39,7 @@ type functionEmitter struct {
 	localSSAs          map[string]bool
 	hasTryCatch        bool
 	hasArrayResize     bool
+	integerVars        map[string]bool
 }
 
 func (e *functionEmitter) vol() string {
@@ -182,6 +183,9 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
 		e.loadCounter++
 		e.types[loadName] = typ
+		if e.integerVars != nil && e.integerVars[arg] {
+			e.integerVars[loadName] = true
+		}
 		out.WriteString(fmt.Sprintf("  %%%s = load%s %s, ptr %%%s\n", loadName, e.vol(), lt, slot))
 		return loadName
 	}
@@ -323,6 +327,20 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			} else {
 				slot := e.varSlots[targetResult]
 				out.WriteString(fmt.Sprintf("  store%s %s %s, ptr %%%s\n", e.vol(), llvmType(typ), argVal, slot))
+			}
+		}
+		if e.integerVars != nil {
+			cleanArg := strings.TrimPrefix(argVal, "%")
+			if e.integerVars[arg] || e.integerVars[cleanArg] {
+				e.integerVars[targetResult] = true
+				if inst.Result != targetResult {
+					e.integerVars[inst.Result] = true
+				}
+			} else {
+				delete(e.integerVars, targetResult)
+				if inst.Result != targetResult {
+					delete(e.integerVars, inst.Result)
+				}
 			}
 		}
 		return nil

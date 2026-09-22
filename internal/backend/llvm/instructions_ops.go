@@ -2,11 +2,20 @@ package llvm
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
+
+func (e *functionEmitter) isInteger(name string) bool {
+	if e.integerVars == nil {
+		return false
+	}
+	clean := strings.TrimPrefix(name, "%")
+	return e.integerVars[clean] || e.integerVars[name]
+}
 
 func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruction) error {
 	e.types[instruction.Result] = instruction.Type
@@ -19,6 +28,9 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		number, err := strconv.ParseFloat(instruction.Value, 64)
 		if err != nil {
 			return fmt.Errorf("invalid number %q: %w", instruction.Value, err)
+		}
+		if e.integerVars != nil && number == math.Floor(number) && !math.IsNaN(number) && !math.IsInf(number, 0) {
+			e.integerVars[instruction.Result] = true
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = fadd double -0.0, %s\n", instruction.Result, llvmNumber(number)))
 	case ir.TypeString:
@@ -182,11 +194,18 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if (instruction.Operator == "+" || instruction.Operator == "-" || instruction.Operator == "*" || instruction.Operator == "%") &&
+			e.isInteger(instruction.Args[0]) && e.isInteger(instruction.Args[1]) {
+			e.integerVars[instruction.Result] = true
+		}
 		out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
 		return nil
 	}
 	if bitOp, ok := map[string]string{"&": "and", "|": "or", "^": "xor"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
@@ -198,6 +217,9 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if shiftOp, ok := map[string]string{"<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
@@ -211,6 +233,9 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if instruction.Operator == ">>>" {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resU32 := instruction.Result + ".res_u32"

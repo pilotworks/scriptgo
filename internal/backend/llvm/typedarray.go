@@ -191,6 +191,9 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_length(ptr %%%s, ptr %%%s)\n", status, ptrArg, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		return nil
 
 	case "__typedarray.byteLength":

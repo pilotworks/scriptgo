@@ -253,6 +253,9 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		if err := os.WriteFile(filepath.Join(temporaryDir, "scriptgo_value.h"), []byte(runtime.ValueHeader), 0o644); err != nil {
 			return fmt.Errorf("write temporary runtime header: %w", err)
 		}
+		if err := os.WriteFile(filepath.Join(temporaryDir, "yyjson.h"), []byte(runtime.YYJSONHeader), 0o644); err != nil {
+			return fmt.Errorf("write temporary yyjson header: %w", err)
+		}
 		if dynamicRuntime {
 			if err := os.WriteFile(filepath.Join(temporaryDir, "quickjs.h"), runtime.QuickJSHeader(), 0o644); err != nil {
 				return fmt.Errorf("write temporary QuickJS-ng header: %w", err)

@@ -472,33 +472,32 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 | **Object Churn & GC** | **18.3 ms** | 72.4 ms | 17.0 ms | **3.97x faster** | ~1.08x (on par) |
 | **Base64 Transcode** | **62.8 ms** | 88.3 ms | 31.9 ms | **1.41x faster** | 1.96x slower |
 | **Matrix Mult 256x256** | **44.6 ms** | 85.5 ms | 41.4 ms | **1.92x faster** | ~1.08x (on par) |
-| **JSON Ops (50 Records)** | **31.2 ms** | 65.8 ms | 17.1 ms | **2.11x faster** | 1.82x slower |
-| **Twitter JSON (617KB)** | **47.6 ms** | 76.6 ms | 23.9 ms | **1.61x faster** | 1.99x slower |
-| **Binary Trees D14** | **154.9 ms** (min 136 ms) | 123.3 ms | 69.0 ms | ~1.25x slower | ~2.2x slower |
+| **JSON Ops (50 Records)** | **25.1 ms** (min 23 ms) | 68.3 ms | 14.3 ms | **2.72x faster** | 1.75x slower |
+| **Twitter JSON (617KB)** | **28.0 ms** (min 23 ms) | 78.2 ms | 23.1 ms | **2.79x faster** | ~1.2x (close to Bun) |
+| **Binary Trees D14** | **158.1 ms** (min 136 ms) | 134.7 ms | 73.5 ms | ~1.18x slower | ~2.1x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 67.5 MB | 10.6 MB | **11.3x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **6.8 MB** | 76.4 MB | 25.0 MB | **11.2x less RAM** | **3.7x less RAM** |
-| **Matrix Mult 256x256** | **7.8 MB** | 79.4 MB | 26.8 MB | **10.2x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.6 MB** | 76.0 MB | 23.4 MB | **10.0x less RAM** | **3.1x less RAM** |
-| **Object Churn & GC** | **15.8 MB** | 106.5 MB | 29.5 MB | **6.7x less RAM** | **1.9x less RAM** |
-| **Mandelbrot 500x500** | **6.0 MB** | 73.1 MB | 18.5 MB | **12.2x less RAM** | **3.1x less RAM** |
-| **JSON Ops (50 Records)** | **43.5 MB** | 71.5 MB | 14.0 MB | **1.6x less RAM** | 0.3x (more RAM) |
-| **Twitter JSON (617KB)** | **20.5 MB** | 79.3 MB | 26.1 MB | **3.9x less RAM** | **1.3x less RAM** |
-| **Binary Trees D14** | **36.0 MB** | 111.8 MB | 47.3 MB | **3.1x less RAM** | **1.3x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 70.0 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
-| **Base64 Transcode** | **39.4 MB** | 108.9 MB | 55.6 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 56.9 MB | 10.6 MB | **9.5x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **7.1 MB** | 76.8 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
+| **Matrix Mult 256x256** | **7.8 MB** | 79.8 MB | 26.9 MB | **10.2x less RAM** | **3.5x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.5 MB | **9.8x less RAM** | **3.0x less RAM** |
+| **Object Churn & GC** | **42.5 MB** | 104.9 MB | 29.6 MB | **2.5x less RAM** | 0.7x (competitive) |
+| **Mandelbrot 500x500** | **6.0 MB** | 74.1 MB | 18.6 MB | **12.3x less RAM** | **3.1x less RAM** |
+| **JSON Ops (50 Records)** | **43.9 MB** | 71.5 MB | 14.0 MB | **1.6x less RAM** | 0.3x (more RAM) |
+| **Twitter JSON (617KB)** | **16.5 MB** | 79.7 MB | 26.1 MB | **4.8x less RAM** | **1.6x less RAM** |
+| **Binary Trees D14** | **54.5 MB** | 111.8 MB | 42.6 MB | **2.0x less RAM** | 0.8x (competitive) |
+| **ES2024 Set Ops** | **7.0 MB** | 71.0 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.7 MB** | 109.8 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
-- **Cold Start / Mandelbrot / Set Ops**: 34 KB native executables
-- **Matrices / Churn / Binary Trees / Base64**: 51 KB native executables
-- **Quicksort / Buffer Ops / JSON Ops**: 67 KB – 68 KB native executables
-- **Twitter JSON**: 136 KB native executable (includes embedded file I/O runtime)
+- **Cold Start / Mandelbrot / Set Ops**: 34 KB – 35 KB native executables
+- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 50 KB – 68 KB native executables
+- **JSON Ops / Twitter JSON**: 165 KB – 233 KB native executables (includes embedded SIMD yyjson parser and runtime)
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 
@@ -515,14 +514,22 @@ The optimizer executes 4 target-independent passes on the Typed IR prior to back
 3. **NaN-Box Direct Field Access**: Object field reads and writes bypass runtime function calls via inlined struct offsets (`getelementptr inbounds i8`), with selective NaN unboxing.
 4. **Selective Field Initialization**: Objects with constructors skip redundant zero/null default writes in caller scope, eliminating millions of dead stores during high-volume object instantiation.
 5. **Direct Fast Object Allocation & Fast Register Calling (`scriptgo_object_new_typed_fast`)**: Object creation returns the allocated pointer directly in register `x0` rather than passing temporary stack slots and status checks, eliminating 25M+ status checks and redundant spills in tight allocation loops. Non-undefined pointer field loads skip NaN checks and select instructions.
+6. **Integer Indexing Fast-Path & Redundant Check Elimination**: Function emitter tracks variables with statically proven integer values (constants, bitwise operations, integer arithmetic, length properties, and math roundings). In array indexing (`[]` and `.set`), known integer indices bypass floating-point roundtrip checks (`sitofp` + `fcmp oeq`), cutting multiple pipeline cycles per inner-loop iteration and unlocking loop vectorization.
+7. **Pure Math & Helper Intrinsic Attributes (`readnone nounwind willreturn`)**: Core pure mathematical and bitwise conversion functions like `scriptgo_to_int32` and `__scriptgo_to_int32` are declared with `readnone nounwind willreturn`, allowing LLVM to prove that loops modifying typed arrays or buffers cannot alias or be invalidated by mathematical transformations. This enables LLVM LICM to hoist buffer metadata, magic validation, and capacity pointers out of inner loops entirely.
 
 ### 7.4. Tracing GC & Memory Recycling (`internal/runtime/native`)
 
 1. **Exact Capacity Small Object Layout**: Small classes (<= 8 fields) allocate 104-byte structures with direct field slots instead of generic 552-byte structures, yielding 5.3x memory reduction.
 2. **High-Speed Object & Closure Freelists**: Dead 8-field objects and closures swept by GC are recycled directly into L1-cache hot freelists, avoiding continuous kernel `malloc`/`free` calls. Popping from freelist preserves intact metadata, performing only a single 32-bit store for flags.
-3. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
-4. **Singly-Linked GC Heap Traversal with O(1) Bucket Unlinking**: Replaced doubly-linked `gc_head` with singly-linked list (`node->next`) while maintaining O(1) hash bucket unlinking via `node->hash_prev_ptr`, saving 8 bytes per node and 2 pointer stores per allocation.
-5. **Inline Fast-Path GC Registration (`scriptgo_gc_register_fast`)**: Fast-path object registration inlines directly into object allocation with single 64-bit header writes and cached Fibonacci hash masks, outlining collection triggers into cold paths.
+3. **Contiguous Slab Bump-Pointer Nursery Allocator for Small Objects (`capacity <= 8`)**: Implemented `scriptgo_slab_alloc_8` using 256KB memory slabs. When the freelist is empty, bump-pointer allocation instantiates 8-field objects in 3 CPU instructions without kernel malloc syscalls.
+4. **Deferred Lazy GC Hash Table Rebuild (`internal/runtime/native/gc`)**: Eliminated eager hash table insertions (`hash_insert`) during mutator execution and individual bucket unlinking (`hash_unlink_node`) during sweeping. The GC maintains a singly-linked object chain; only when collection is triggered does the GC lazily rebuild the hash table once in a tight cache-friendly linear pass over currently live objects. This slashed millions of pointer writes, bucket lookups, and cache misses from allocation loops, speeding up Binary Trees D14 by over 2.6x (from 414.8ms to 158.1ms).
+5. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
+6. **Chunked GC Node Pool Allocation & Adaptive Thresholding**: Node metadata allocations are amortized across 8192-element contiguous chunks, cutting malloc syscall overhead by over 8000x during bursts of object allocation. The GC threshold is increased with adaptive heap-size-proportional resizing, avoiding thrashing on deep object graph traversals (e.g., Binary Trees depth 14).
+
+### 7.5. SIMD Vectorization & Accelerated JSON (`yyjson`)
+
+1. **ARM NEON Vectorized Base64 Processing (`internal/runtime/native/buffer`)**: Base64 encoding utilizes ARM NEON 128-bit vector registers (`vld3q_u8`, `vqtbl4q_u8`, `vst4q_u8`) to transcode 16 input bytes to 24 output characters in a single vector instruction sequence, and decoding uses 16-byte unrolled chunk processing.
+2. **Zero-Allocation Shape Tokenizer & JSON Acceleration via yyjson (`internal/runtime/native/json`)**: Integrated yyjson for fast tokenization, combined with a single-pass zero-allocation object shape parser in `JSON.stringify` that directly reads fields from object descriptors (`__json__|...`, `:key:key:`, `__class__|...`) without allocating intermediate key arrays or doing $O(N^2)$ property lookups. Stack-allocated buffers are used for shape synthesis during `JSON.parse`.
 
 ---
 
