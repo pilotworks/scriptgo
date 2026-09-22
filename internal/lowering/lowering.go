@@ -69,7 +69,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	if err != nil {
 		return ir.Module{}, err
 	}
-	if err := validateSubsetLocked(program); err != nil {
+	if err := validateSubsetLocked(program, options); err != nil {
 		return ir.Module{}, err
 	}
 	initializeClassIdentities(program)

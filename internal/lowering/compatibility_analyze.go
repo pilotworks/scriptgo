@@ -316,6 +316,12 @@ func (c *compatibilityCollector) expression(path string, expression *typescriptg
 	if !classified {
 		switch expression.Kind {
 		case "optional_index", "index", "optional_property", "property", "unary", "postfix_unary", "binary":
+			if expression.Kind == "unary" && (expression.Operator == "!" || expression.Operator == "void") {
+				break
+			}
+			if expression.Kind == "binary" && isAllowedUnionBinaryOp(expression.Operator) {
+				break
+			}
 			var unionType string
 			if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
 				unionType = expression.Left.InferredType

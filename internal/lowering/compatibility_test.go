@@ -139,4 +139,3 @@ func TestValidateSubsetSingleSourceOfTruthParity(t *testing.T) {
 		t.Fatalf("Lower error = %v, want %s", lowerErr, CodeAnyBoundary)
 	}
 }
-

@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -18,6 +17,17 @@ func isAllowedPropertyReceiver(kind string) bool {
 		"object_literal", "array", "as", "non_null", "binary",
 		"conditional", "paren", "cast", "type_assertion", "new",
 		"template", "tagged_template", "await":
+		return true
+	default:
+		return false
+	}
+}
+
+// isAllowedUnionBinaryOp reports whether a binary operator is permitted on union operands
+// (e.g. equality checks, narrowing with instanceof/in, logical operators).
+func isAllowedUnionBinaryOp(op string) bool {
+	switch op {
+	case "instanceof", "in", "==", "!=", "===", "!==", "&&", "||", "??":
 		return true
 	default:
 		return false
@@ -48,14 +58,15 @@ func hasStringConcatUnion(expression *typescriptgo.SyntaxExpression) bool {
 	if expression == nil || expression.Operator != "+" {
 		return false
 	}
-	hasString := func(t string) bool {
-		return strings.Contains(strings.ToLower(t), "string")
-	}
-	if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) && hasString(expression.Left.InferredType) {
-		return true
-	}
-	if expression.Right != nil && isHeterogeneousUnion(expression.Right.InferredType) && hasString(expression.Right.InferredType) {
-		return true
+	for _, operand := range []*typescriptgo.SyntaxExpression{expression.Left, expression.Right} {
+		if operand == nil || !isHeterogeneousUnion(operand.InferredType) {
+			continue
+		}
+		for _, member := range splitTopLevelUnion(operand.InferredType) {
+			if toPrimitiveCategory(member) == "string" {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -81,10 +92,4 @@ func formatSubsetMessage(code SubsetCode, feature string) string {
 		return capitalized + " in native subset."
 	}
 	return capitalized + " is not supported in native subset."
-}
-
-// subsetError constructs a formatted error diagnostic for an unsupported feature.
-func subsetError(fileName string, span typescriptgo.SourceSpan, code SubsetCode, feature string) error {
-	msg := formatSubsetMessage(code, feature)
-	return fmt.Errorf("%s", typescriptgo.Format(fileName, span.Start, span.Length, "error", string(code), msg, ""))
 }

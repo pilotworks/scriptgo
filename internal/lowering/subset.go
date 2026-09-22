@@ -21,13 +21,17 @@ func ValidateSubsetWithOptions(program frontend.Program, options Options) error 
 	if options.Dynamic {
 		program = normalizeDynamicAnyProgram(program)
 	}
-	return validateSubsetLocked(program)
+	return validateSubsetLocked(program, options)
 }
 
-func validateSubsetLocked(program frontend.Program) error {
-	report, err := analyzeCompatibilityLocked(program, CompatibilityPolicy{Mode: ModeStatic})
+func validateSubsetLocked(program frontend.Program, options Options) error {
+	mode := ModeStatic
+	if options.Dynamic {
+		mode = ModeDynamicEnabled
+	}
+	report, err := analyzeCompatibilityLocked(program, CompatibilityPolicy{Mode: mode})
 	if err != nil {
 		return err
 	}
-	return EnforceCompatibility(report, CompatibilityCapabilities{})
+	return EnforceCompatibility(report, CompatibilityCapabilities{DynamicRuntime: options.Dynamic})
 }

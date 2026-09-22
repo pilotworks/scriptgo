@@ -99,13 +99,6 @@ func isOrContainsAny(typ string) bool {
 	return false
 }
 
-func validateStaticType(fileName string, span typescriptgo.SourceSpan, typ string) error {
-	if isOrContainsAny(typ) {
-		return subsetError(fileName, span, CodeAnyBoundary, "any type")
-	}
-	return nil
-}
-
 type Warning struct {
 	FileName string
 	Span     typescriptgo.SourceSpan
