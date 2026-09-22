@@ -4,6 +4,13 @@
 #include <string.h>
 #include <time.h>
 
+typedef struct {
+    uint32_t tag;
+    uint32_t flags;
+    uint64_t payload;
+    uint64_t aux;
+} scriptgo_json_unknown;
+
 int scriptgo_array_new(int64_t, int64_t, void **);
 int scriptgo_array_set(void *, double, const void *);
 int scriptgo_array_index_of_number(void *, double, double, double *);
@@ -11,6 +18,9 @@ int scriptgo_array_release(void *);
 int scriptgo_string_split(const char *, const char *, double, void **);
 int scriptgo_web_btoa(const char *, char **);
 int scriptgo_web_atob(const char *, char **);
+int scriptgo_json_parse_unknown(const char *, scriptgo_json_unknown *);
+int scriptgo_json_stringify_number_array(void *, char **);
+int scriptgo_object_release(void *);
 
 static uint64_t now_ns(void) {
     struct timespec ts;
@@ -93,10 +103,51 @@ static int bench_atob(void) {
     return 0;
 }
 
+static int bench_json_parse(void) {
+    const int64_t operations = 50000;
+    const char *payload = "{\"id\":101,\"name\":\"Alice\",\"active\":true,\"score\":99.5}";
+    uint64_t checksum = 0;
+    uint64_t start = now_ns();
+    for (int64_t i = 0; i < operations; i++) {
+        scriptgo_json_unknown out = {0};
+        if (scriptgo_json_parse_unknown(payload, &out) != 0) return 1;
+        checksum += out.tag + out.payload;
+        if (out.tag == 5 && out.payload != 0) {
+            scriptgo_object_release((void *)(uintptr_t)out.payload);
+        }
+    }
+    print_result("json.parse(object)", operations, now_ns() - start, checksum);
+    return 0;
+}
+
+static int bench_json_stringify_number_array(void) {
+    const int64_t length = 64;
+    const int64_t operations = 50000;
+    void *array = NULL;
+    uint64_t checksum = 0;
+    if (scriptgo_array_new(length, sizeof(double), &array) != 0) return 1;
+    for (int64_t i = 0; i < length; i++) {
+        double val = (double)i * 1.5;
+        if (scriptgo_array_set(array, (double)i, &val) != 0) return 2;
+    }
+    uint64_t start = now_ns();
+    for (int64_t i = 0; i < operations; i++) {
+        char *str = NULL;
+        if (scriptgo_json_stringify_number_array(array, &str) != 0 || str == NULL) return 3;
+        checksum += (unsigned char)str[0] + (unsigned char)str[1];
+        free(str);
+    }
+    print_result("json.stringify(number[])", operations, now_ns() - start, checksum);
+    scriptgo_array_release(array);
+    return 0;
+}
+
 int main(void) {
     if (bench_array_index() != 0) return 1;
     if (bench_string_split() != 0) return 2;
     if (bench_btoa() != 0) return 3;
     if (bench_atob() != 0) return 4;
+    if (bench_json_parse() != 0) return 5;
+    if (bench_json_stringify_number_array() != 0) return 6;
     return 0;
 }
