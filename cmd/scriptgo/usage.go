@@ -12,7 +12,7 @@ Usage:
   scriptgo <command> [flags] <arguments>
 
 Commands:
-  run       Compile and execute a TypeScript program or code string as a native binary
+  run       Run a package.json script or compile and execute a TypeScript program
   build     Compile TypeScript into a standalone native executable
   check     Verify TypeScript syntax, types, and native subset rules
   emit      Emit LLVM IR or Typed IR
@@ -112,12 +112,14 @@ Flags:
 
 func printRunUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
+  scriptgo run [<script>] [-- <args...>]
   scriptgo run [flags] <entry.ts> [-- <args...>]
   scriptgo run [flags] -e "<code string>" [-- <args...>]
 
 Description:
-  Compiles a TypeScript file or inline code string to a temporary native binary
-  and executes it directly on host.
+  Runs a package.json script with ancestor node_modules/.bin in PATH, or
+  compiles and executes a TypeScript file / inline code string as a native
+  binary directly on host.
 
 Flags:
   -e <string>            Evaluate inline script string
