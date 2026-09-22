@@ -93,3 +93,50 @@ func TestAnalyzeCompatibilityDoesNotMutateGenericProgram(t *testing.T) {
 		t.Fatalf("lowering after compatibility analysis failed: %v", err)
 	}
 }
+
+func TestAnalyzeCompatibilityValidPropertyReceivers(t *testing.T) {
+	code := `
+const bytes = 1048576;
+const formatted = (bytes / (1024 * 1024)).toFixed(2) + " MB";
+const arrLen = [1, 2, 3].length;
+const ternary = (bytes > 0 ? bytes : 0).toFixed(1);
+console.log(formatted, arrLen, ternary);
+`
+	program := compatibilityProgram(t, code)
+	report, err := AnalyzeCompatibility(program, CompatibilityPolicy{Mode: ModeStatic})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Summary.Unsupported != 0 {
+		t.Fatalf("unsupported sites = %d, want 0; decisions: %+v", report.Summary.Unsupported, report.Decisions)
+	}
+	if err := ValidateSubset(program); err != nil {
+		t.Fatalf("ValidateSubset failed: %v", err)
+	}
+	if _, err := Lower(program); err != nil {
+		t.Fatalf("Lower failed: %v", err)
+	}
+}
+
+func TestValidateSubsetSingleSourceOfTruthParity(t *testing.T) {
+	// Any program with unsupported constructs must be rejected consistently
+	// by both AnalyzeCompatibility, ValidateSubset, and Lower.
+	code := "const bad: any = 100;\nconsole.log(bad);\n"
+	program := compatibilityProgram(t, code)
+	report, err := AnalyzeCompatibility(program, CompatibilityPolicy{Mode: ModeStatic})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Summary.Unsupported == 0 {
+		t.Fatalf("expected unsupported sites for any in static mode")
+	}
+	valErr := ValidateSubset(program)
+	if valErr == nil || !strings.Contains(valErr.Error(), string(CodeAnyBoundary)) {
+		t.Fatalf("ValidateSubset error = %v, want %s", valErr, CodeAnyBoundary)
+	}
+	_, lowerErr := Lower(program)
+	if lowerErr == nil || !strings.Contains(lowerErr.Error(), string(CodeAnyBoundary)) {
+		t.Fatalf("Lower error = %v, want %s", lowerErr, CodeAnyBoundary)
+	}
+}
+
