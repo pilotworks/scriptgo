@@ -41,6 +41,7 @@ This is the structure currently present in the repository:
 │   ├── frontend/                # Program validation, TypeScript adapter integration, AST normalization
 │   ├── lowering/                # Checked TypeScript -> typed IR lowering, expressions, control flow, functions
 │   ├── ir/                      # Backend-independent typed IR data model, instructions, verifier
+│   ├── opt/                     # Target-independent Typed IR optimization passes (ConstFold, CSE, LICM, DCE)
 │   ├── backend/
 │   │   └── llvm/                # Typed IR -> LLVM IR code generator, target metadata, pointer sizing
 │   ├── runtime/                 # Embedded C runtime sources linked with LLVM artifacts
@@ -63,6 +64,7 @@ cmd/scriptgo/main.go
             -> github.com/microsoft/typescript-go
         -> internal/ir.Module
         -> internal/lowering.Lower
+        -> internal/opt.Optimize (when OptLevel != "0")
         -> internal/backend/llvm.Emit -> Clang / zig cc
     -> stdout, native binary output (Mach-O, ELF, PE), or WebAssembly (.wasm)
 ```
@@ -96,6 +98,13 @@ internal/
 │   ├── ir.go                    # Module/type/instruction model
 │   ├── verify.go                # IR validity checks
 │   └── dump.go                  # Stable human-readable IR output
+├── opt/                         # Target-independent Typed IR optimizations
+│   ├── opt.go                   # Pipeline runner and fixed-point loop
+│   ├── pass.go                  # Pass interface definition
+│   ├── const_fold.go            # Constant folding & algebraic simplification
+│   ├── cse.go                   # Common subexpression elimination
+│   ├── licm.go                  # Loop-invariant code motion
+│   └── dce.go                   # Dead code elimination
 ├── runtime/                     # ABI plus native runtime implementations by value family
 │   ├── README.md                # Runtime ownership and package boundaries
 │   ├── abi/README.md            # Current ABI contract
@@ -131,6 +140,7 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `internal/frontend` | Program creation, module graph, checked input, source spans | Native ABI, runtime calls, LLVM selection |
 | `internal/lowering` | Native subset checks and explicit conversion/runtime operations | Backend-specific emission or CLI behavior |
 | `internal/ir` | Backend-independent types, values, instructions, blocks, spans, verifier | TypeScript-Go internals or LLVM APIs |
+| `internal/opt` | Target-independent Typed IR optimization passes, constant folding, CSE, LICM, DCE | TypeScript AST/type checking, LLVM IR emission, runtime ABI implementation |
 | `internal/runtime` | ABI contract and native value-family services | TypeScript syntax, frontend analysis |
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
 
@@ -141,6 +151,7 @@ cmd/scriptgo
     -> internal/compiler
         -> internal/frontend -> internal/typescriptgo -> TypeScript-Go
         -> internal/lowering -> internal/ir
+        -> internal/opt -> internal/ir
         -> internal/backend/llvm -> internal/ir
 ```
 
