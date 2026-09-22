@@ -146,7 +146,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Promise`** | `new Promise()`, `resolve`, `reject`, `.then()`, `.catch()`, `.finally()`, `Promise.allSettled()`, `Promise.any()`, `Promise.withResolvers()`, Microtask Queue | ✅ 100% matches Promise A+ & ES2024 specifications |
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
-| **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes) | ✅ Matches serialization syntax |
+| **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes), roundtrip & array of objects serialization | ✅ Matches ECMAScript specification (AOT static shape lowering & native runtime C tokenizer/parser) |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description`, `.toString()` | ✅ Matches primitive symbol format |
 | **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
@@ -472,6 +472,8 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 | **Object Churn & GC** | **18.3 ms** | 72.4 ms | 17.0 ms | **3.97x faster** | ~1.08x (on par) |
 | **Base64 Transcode** | **62.8 ms** | 88.3 ms | 31.9 ms | **1.41x faster** | 1.96x slower |
 | **Matrix Mult 256x256** | **44.6 ms** | 85.5 ms | 41.4 ms | **1.92x faster** | ~1.08x (on par) |
+| **JSON Ops (50 Records)** | **31.2 ms** | 65.8 ms | 17.1 ms | **2.11x faster** | 1.82x slower |
+| **Twitter JSON (617KB)** | **47.6 ms** | 76.6 ms | 23.9 ms | **1.61x faster** | 1.99x slower |
 | **Binary Trees D14** | **154.9 ms** (min 136 ms) | 123.3 ms | 69.0 ms | ~1.25x slower | ~2.2x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
@@ -484,6 +486,8 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 | **Buffer Ops (10MB)** | **7.6 MB** | 76.0 MB | 23.4 MB | **10.0x less RAM** | **3.1x less RAM** |
 | **Object Churn & GC** | **15.8 MB** | 106.5 MB | 29.5 MB | **6.7x less RAM** | **1.9x less RAM** |
 | **Mandelbrot 500x500** | **6.0 MB** | 73.1 MB | 18.5 MB | **12.2x less RAM** | **3.1x less RAM** |
+| **JSON Ops (50 Records)** | **43.5 MB** | 71.5 MB | 14.0 MB | **1.6x less RAM** | 0.3x (more RAM) |
+| **Twitter JSON (617KB)** | **20.5 MB** | 79.3 MB | 26.1 MB | **3.9x less RAM** | **1.3x less RAM** |
 | **Binary Trees D14** | **36.0 MB** | 111.8 MB | 47.3 MB | **3.1x less RAM** | **1.3x less RAM** |
 | **ES2024 Set Ops** | **7.0 MB** | 70.0 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
 | **Base64 Transcode** | **39.4 MB** | 108.9 MB | 55.6 MB | **2.8x less RAM** | **1.4x less RAM** |
@@ -493,7 +497,8 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
 - **Cold Start / Mandelbrot / Set Ops**: 34 KB native executables
 - **Matrices / Churn / Binary Trees / Base64**: 51 KB native executables
-- **Quicksort / Buffer Ops**: 67 KB – 68 KB native executables
+- **Quicksort / Buffer Ops / JSON Ops**: 67 KB – 68 KB native executables
+- **Twitter JSON**: 136 KB native executable (includes embedded file I/O runtime)
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 

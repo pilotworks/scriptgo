@@ -15,3 +15,23 @@ console.log(JSON.stringify(42)); console.log(JSON.stringify("hello")); console.l
 // @expect: {"ok":"yes","count":42}
 const dynamicJson: unknown = JSON.parse("{\"ok\":\"yes\",\"count\":42}");
 console.log(JSON.stringify(dynamicJson));
+
+// @api: json.stringify array of numbers
+// @expect: [1,2,3,4]
+console.log(JSON.stringify([1, 2, 3, 4]));
+
+// @api: json.stringify array of objects and roundtrip
+// @expect: [{"id":1,"name":"alice"},{"id":2,"name":"bob"}]
+// @expect: [{"id":1,"name":"alice"},{"id":2,"name":"bob"}]
+interface Member {
+    id: number;
+    name: string;
+}
+const members: Member[] = [
+    { id: 1, name: "alice" },
+    { id: 2, name: "bob" },
+];
+const serializedMembers: string = JSON.stringify(members);
+console.log(serializedMembers);
+const parsedMembers: unknown = JSON.parse(serializedMembers);
+console.log(JSON.stringify(parsedMembers));

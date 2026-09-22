@@ -56,6 +56,8 @@ const CASES: BenchmarkCase[] = [
     { name: "Binary Trees D14", file: "benchmarks/suites/binary_trees.ts", iterations: 5 },
     { name: "ES2024 Set Ops", file: "benchmarks/suites/es2024_set.ts", iterations: 5 },
     { name: "Base64 Transcode", file: "benchmarks/suites/base64_transcode.ts", iterations: 5 },
+    { name: "JSON Ops (50 Records)", file: "benchmarks/suites/json_ops.ts", iterations: 5 },
+    { name: "Twitter JSON (617KB)", file: "benchmarks/suites/twitter_json.ts", iterations: 5 },
 ];
 
 function runCommandAndMeasure(cmd: string, runs: number): MetricStats {
