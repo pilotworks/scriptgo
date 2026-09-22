@@ -2,6 +2,14 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.5] - 2026-09-22
+
+### Bug Fixes
+- fix(cli): prepend self executable directory to PATH in task execution (af853fb)
+
+### Performance
+- perf(runtime,backend): multi-dimensional benchmark harness and high-throughput runtime optimizations (#20) (d9dd558)
+
 ## [0.1.0-alpha.4] - 2026-09-21
 
 ### Features
