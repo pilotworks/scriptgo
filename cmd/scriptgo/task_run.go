@@ -115,7 +115,26 @@ func executeTask(task *pkgmgr.TaskDefinition, extraArgs []string) int {
 	}
 
 	cmd.Dir = task.ProjectRoot
-	cmd.Env = pkgmgr.BuildTaskEnv(task.ProjectRoot, task.Name, os.Environ())
+	env := pkgmgr.BuildTaskEnv(task.ProjectRoot, task.Name, os.Environ())
+	if selfExe, err := os.Executable(); err == nil {
+		selfDir := filepath.Dir(selfExe)
+		var prependDirs []string
+		prependDirs = append(prependDirs, selfDir)
+		if realExe, err := filepath.EvalSymlinks(selfExe); err == nil {
+			realDir := filepath.Dir(realExe)
+			if realDir != selfDir {
+				prependDirs = append(prependDirs, realDir)
+			}
+		}
+		pathPrefix := strings.Join(prependDirs, string(os.PathListSeparator)) + string(os.PathListSeparator)
+		for i, e := range env {
+			if strings.HasPrefix(e, "PATH=") || strings.HasPrefix(e, "Path=") {
+				env[i] = e[:5] + pathPrefix + e[5:]
+				break
+			}
+		}
+	}
+	cmd.Env = env
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

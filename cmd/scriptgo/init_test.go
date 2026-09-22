@@ -42,6 +42,7 @@ func TestCLI_Init(t *testing.T) {
 		// Run the initialized project with scriptgo run start
 		runCmd := exec.Command(binPath, "run", "start")
 		runCmd.Dir = projectDir
+		runCmd.Env = append(os.Environ(), "PATH="+filepath.Dir(binPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 		runOut, runErr := runCmd.CombinedOutput()
 		if runErr != nil {
 			t.Fatalf("scriptgo run start failed: %v\noutput: %s", runErr, string(runOut))
