@@ -77,7 +77,7 @@ Native adapter + tier gate
        |                         \-- embedded QuickJS-ng
        |
        v
-Static lowering -> Typed IR
+Static lowering -> Typed IR -> Optimizer (internal/opt)
    |        |
    v        v
 LLVM IR    C code
@@ -117,7 +117,7 @@ flowchart LR
 
     subgraph Middle[Backend-independent middle end]
         LOWER[Lower checked AST<br/>make conversions, checks, runtime calls explicit]
-        VERIFY[Verify and optionally optimize<br/>Typed IR]
+        VERIFY[Verify and optimize Typed IR<br/>internal/opt: ConstFold, CSE, LICM, DCE]
         TIR[Typed IR module<br/>instructions + types + source spans]
     end
 
@@ -185,6 +185,7 @@ source + options
     -> checked program + diagnostics
     -> native subset gate
     -> lowered Typed IR
+    -> middle-end optimization (internal/opt)
     -> selected backend (LLVM or deferred C)
     -> clang and linker
     -> executable
@@ -321,6 +322,31 @@ integer arithmetic is attractive for systems code, but JavaScript numbers are
 IEEE-754 doubles and have different overflow and conversion behavior. The MVP
 should use `f64` for ordinary `number` and introduce explicit integer types or
 validated integer lowering later.
+
+### 4. Typed IR Optimizer (`internal/opt`)
+
+The middle-end optimizer performs target-independent optimizations on the
+`ir.Module` before emission to LLVM or other backends. All passes operate purely on
+the backend-independent SSA-like Typed IR, verifying invariants (`m.Verify()`) after
+each pass.
+
+The optimization pipeline runs a fixed-point iteration loop (`maxIters = 5`):
+
+1. **Constant Folding & Algebraic Simplification (`internal/opt/const_fold.go`)**:
+   Evaluates constant expressions at compile time, eliminating dead identity operations
+   (`x + 0`, `x * 1`, `x - 0`, `x * 0`), constant comparisons, and boolean logic.
+2. **Common Subexpression Elimination (`internal/opt/cse.go`)**:
+   Identifies duplicate pure expressions and redundant loads within basic blocks,
+   reusing precomputed results across instructions.
+3. **Loop-Invariant Code Motion (`internal/opt/licm.go`)**:
+   Identifies instructions invariant to loop iterations and hoists them into loop preheaders.
+4. **Dead Code Elimination (`internal/opt/dce.go`)**:
+   Prunes unused pure SSA instructions and unreachable basic blocks.
+
+Optimization levels are governed by `--opt-level`:
+- `-O0`: Optimizations are skipped entirely.
+- `-O1`: Minimal pipeline running Constant Folding and DCE.
+- `-O2`, `-O3`, `-Os`, `-Oz`, `-Ofast`: Full pipeline running ConstFold, CSE, LICM, and DCE.
 
 ## Runtime and Object Model
 

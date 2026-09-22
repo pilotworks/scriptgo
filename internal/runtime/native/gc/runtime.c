@@ -19,14 +19,17 @@ typedef enum {
 } scriptgo_gc_type_tag;
 
 typedef struct scriptgo_gc_header {
-    uint32_t type_tag : 8;
-    uint32_t gc_mark  : 2; // 0 = White, 1 = Grey, 2 = Black
-    uint32_t is_weak  : 1;
-    uint32_t is_root  : 1;
-    uint32_t reserved : 20;
+    union {
+        struct {
+            uint32_t type_tag : 8;
+            uint32_t gc_mark  : 2; // 0 = White, 1 = Grey, 2 = Black
+            uint32_t is_weak  : 1;
+            uint32_t is_root  : 1;
+            uint32_t reserved : 20;
+        };
+        uint32_t flags;
+    };
     uint32_t field_count;
-    struct scriptgo_gc_header *next;
-    struct scriptgo_gc_header *prev;
 } scriptgo_gc_header;
 
 #if defined(__wasi__)
@@ -66,8 +69,8 @@ typedef struct gc_node {
     void *ptr;
     scriptgo_gc_header header;
     struct gc_node *next;
-    struct gc_node *prev;
     struct gc_node *hash_next;
+    struct gc_node **hash_prev_ptr;
 } gc_node;
 
 typedef struct root_node {
@@ -81,30 +84,39 @@ typedef struct root_slot_node {
     struct root_slot_node *next;
 } root_slot_node;
 
-#define GC_HASH_INITIAL_CAPACITY 4096
+#define GC_HASH_INITIAL_CAPACITY 262144
 
 static gc_node *gc_head = NULL;
+static gc_node *gc_node_freelist = NULL;
 static root_node *root_head = NULL;
 static root_slot_node *root_slot_head = NULL;
 static gc_node **gc_hash_table = NULL;
 static size_t gc_hash_capacity = 0;
+static size_t gc_hash_mask = 0;
 static size_t gc_hash_count = 0;
 
 static int64_t total_allocated_bytes = 0;
 static int64_t total_live_objects = 0;
-static int64_t gc_threshold = 2048;
+#define SCRIPTGO_GC_DEFAULT_THRESHOLD 65536
+static int64_t gc_threshold = SCRIPTGO_GC_DEFAULT_THRESHOLD;
 static int gc_in_progress = 0;
 static void *scriptgo_gc_stack_bottom = NULL;
+static gc_node **gc_mark_stack = NULL;
+static size_t gc_mark_stack_cap = 0;
 
 static inline size_t gc_hash_ptr(void *ptr, size_t mask) {
-    uintptr_t v = (uintptr_t)ptr;
-    v = (v >> 3) ^ (v >> 16) ^ (v >> 24);
+    uintptr_t v = ((uintptr_t)ptr >> 4) * 0x9E3779B97F4A7C15ULL;
     return (size_t)(v & mask);
 }
 
-static gc_node *find_node(void *ptr) {
-    if (ptr == NULL || gc_hash_table == NULL || gc_hash_capacity == 0) return NULL;
-    size_t idx = gc_hash_ptr(ptr, gc_hash_capacity - 1);
+static inline int is_possible_heap_ptr(void *ptr) {
+    uintptr_t v = (uintptr_t)ptr;
+    return ((v & 0x7ULL) == 0) && (v > 4096ULL) && (v < 0x0000800000000000ULL);
+}
+
+static inline gc_node *find_node(void *ptr) {
+    if (__builtin_expect(!is_possible_heap_ptr(ptr) || gc_hash_table == NULL, 0)) return NULL;
+    size_t idx = gc_hash_ptr(ptr, gc_hash_mask);
     gc_node *curr = gc_hash_table[idx];
     while (curr != NULL) {
         if (curr->ptr == ptr) {
@@ -115,50 +127,58 @@ static gc_node *find_node(void *ptr) {
     return NULL;
 }
 
-static void hash_insert(gc_node *node) {
-    if (gc_hash_capacity == 0) {
-        gc_hash_capacity = GC_HASH_INITIAL_CAPACITY;
-        gc_hash_table = (gc_node **)calloc(gc_hash_capacity, sizeof(gc_node *));
-    } else if (gc_hash_count * 2 >= gc_hash_capacity) {
-        size_t new_cap = gc_hash_capacity * 2;
-        gc_node **new_table = (gc_node **)calloc(new_cap, sizeof(gc_node *));
-        if (new_table != NULL) {
-            for (size_t i = 0; i < gc_hash_capacity; i++) {
-                gc_node *c = gc_hash_table[i];
-                while (c != NULL) {
-                    gc_node *next = c->hash_next;
-                    size_t ni = gc_hash_ptr(c->ptr, new_cap - 1);
-                    c->hash_next = new_table[ni];
-                    new_table[ni] = c;
-                    c = next;
-                }
-            }
-            free(gc_hash_table);
-            gc_hash_table = new_table;
-            gc_hash_capacity = new_cap;
-        }
+static inline void hash_unlink_node(gc_node *node) {
+    if (__builtin_expect(node == NULL || node->hash_prev_ptr == NULL, 0)) return;
+    *node->hash_prev_ptr = node->hash_next;
+    if (node->hash_next != NULL) {
+        node->hash_next->hash_prev_ptr = node->hash_prev_ptr;
     }
-    if (gc_hash_table != NULL) {
-        size_t idx = gc_hash_ptr(node->ptr, gc_hash_capacity - 1);
-        node->hash_next = gc_hash_table[idx];
-        gc_hash_table[idx] = node;
-        gc_hash_count++;
-    }
+    node->hash_prev_ptr = NULL;
+    node->hash_next = NULL;
+    if (gc_hash_count > 0) gc_hash_count--;
 }
 
-static void hash_remove(void *ptr) {
-    if (ptr == NULL || gc_hash_table == NULL || gc_hash_capacity == 0) return;
-    size_t idx = gc_hash_ptr(ptr, gc_hash_capacity - 1);
-    gc_node **curr = &gc_hash_table[idx];
-    while (*curr != NULL) {
-        if ((*curr)->ptr == ptr) {
-            gc_node *target = *curr;
-            *curr = target->hash_next;
-            target->hash_next = NULL;
-            if (gc_hash_count > 0) gc_hash_count--;
-            return;
+static inline void hash_insert(gc_node *node) {
+    if (__builtin_expect(gc_hash_capacity == 0 || (gc_hash_count * 2 >= gc_hash_capacity), 0)) {
+        if (gc_hash_capacity == 0) {
+            gc_hash_capacity = GC_HASH_INITIAL_CAPACITY;
+            gc_hash_mask = GC_HASH_INITIAL_CAPACITY - 1;
+            gc_hash_table = (gc_node **)calloc(gc_hash_capacity, sizeof(gc_node *));
+        } else {
+            size_t new_cap = gc_hash_capacity * 2;
+            size_t new_mask = new_cap - 1;
+            gc_node **new_table = (gc_node **)calloc(new_cap, sizeof(gc_node *));
+            if (new_table != NULL) {
+                for (size_t i = 0; i < gc_hash_capacity; i++) {
+                    gc_node *c = gc_hash_table[i];
+                    while (c != NULL) {
+                        gc_node *next = c->hash_next;
+                        size_t ni = gc_hash_ptr(c->ptr, new_mask);
+                        c->hash_next = new_table[ni];
+                        c->hash_prev_ptr = &new_table[ni];
+                        if (c->hash_next != NULL) {
+                            c->hash_next->hash_prev_ptr = &c->hash_next;
+                        }
+                        new_table[ni] = c;
+                        c = next;
+                    }
+                }
+                free(gc_hash_table);
+                gc_hash_table = new_table;
+                gc_hash_capacity = new_cap;
+                gc_hash_mask = new_mask;
+            }
         }
-        curr = &(*curr)->hash_next;
+    }
+    if (__builtin_expect(gc_hash_table != NULL, 1)) {
+        size_t idx = gc_hash_ptr(node->ptr, gc_hash_mask);
+        node->hash_next = gc_hash_table[idx];
+        node->hash_prev_ptr = &gc_hash_table[idx];
+        if (node->hash_next != NULL) {
+            node->hash_next->hash_prev_ptr = &node->hash_next;
+        }
+        gc_hash_table[idx] = node;
+        gc_hash_count++;
     }
 }
 
@@ -168,6 +188,18 @@ void scriptgo_gc_init(void *stack_bottom) {
         scriptgo_gc_stack_bottom = native_bottom;
     } else if (stack_bottom != NULL) {
         scriptgo_gc_stack_bottom = stack_bottom;
+    }
+    if (gc_hash_table == NULL) {
+        gc_hash_capacity = GC_HASH_INITIAL_CAPACITY;
+        gc_hash_mask = GC_HASH_INITIAL_CAPACITY - 1;
+        gc_hash_table = (gc_node **)calloc(gc_hash_capacity, sizeof(gc_node *));
+    }
+    const char *env_thresh = getenv("SCRIPTGO_GC_THRESHOLD");
+    if (env_thresh != NULL) {
+        long long t = atoll(env_thresh);
+        if (t > 0) {
+            gc_threshold = (int64_t)t;
+        }
     }
 }
 
@@ -179,37 +211,41 @@ void scriptgo_gc_set_threshold(int64_t threshold) {
 
 int scriptgo_gc_collect(int64_t *out_collected_count);
 
-int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count) {
-    if (ptr == NULL) return 0;
-    if (find_node(ptr) != NULL) return 0;
+static void *gc_in_flight_ptr = NULL;
 
-    gc_node *node = (gc_node *)malloc(sizeof(gc_node));
-    if (node == NULL) {
-        return scriptgo_runtime_set_error("scriptgo gc node allocation failed");
+static void __attribute__((noinline)) gc_trigger_collect(void *in_flight) {
+    gc_in_flight_ptr = in_flight;
+    scriptgo_gc_collect(NULL);
+    gc_in_flight_ptr = NULL;
+}
+
+static inline __attribute__((always_inline)) int scriptgo_gc_register_fast(void *ptr, int tag, uint32_t field_count) {
+    if (__builtin_expect(ptr == NULL, 0)) return 0;
+
+    gc_node *node = gc_node_freelist;
+    if (__builtin_expect(node != NULL, 1)) {
+        gc_node_freelist = node->next;
+    } else {
+        node = (gc_node *)malloc(sizeof(gc_node));
+        if (__builtin_expect(node == NULL, 0)) {
+            return scriptgo_runtime_set_error("scriptgo gc node allocation failed");
+        }
     }
     node->ptr = ptr;
-    node->header.type_tag = (uint32_t)tag;
-    node->header.gc_mark = 0;
-    node->header.is_weak = 0;
-    node->header.is_root = 0;
-    node->header.field_count = field_count;
-    node->header.next = NULL;
-    node->header.prev = NULL;
-    node->hash_next = NULL;
-
+    *(uint64_t *)&node->header = ((uint64_t)field_count << 32) | (uint32_t)(tag & 0xFF);
     node->next = gc_head;
-    node->prev = NULL;
-    if (gc_head != NULL) {
-        gc_head->prev = node;
-    }
     gc_head = node;
     hash_insert(node);
     total_live_objects++;
 
-    if (total_live_objects > gc_threshold && !gc_in_progress) {
-        scriptgo_gc_collect(NULL);
+    if (__builtin_expect(total_live_objects > gc_threshold && !gc_in_progress, 0)) {
+        gc_trigger_collect(ptr);
     }
     return 0;
+}
+
+int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count) {
+    return scriptgo_gc_register_fast(ptr, tag, field_count);
 }
 
 int scriptgo_gc_is_registered(void *ptr) {
@@ -225,19 +261,19 @@ int scriptgo_gc_get_tag(void *ptr) {
 
 int scriptgo_gc_unregister(void *ptr) {
     if (ptr == NULL) return 0;
-    gc_node *node = find_node(ptr);
-    if (node != NULL) {
-        if (node->prev != NULL) {
-            node->prev->next = node->next;
-        } else {
-            gc_head = node->next;
+    gc_node **prev = &gc_head;
+    gc_node *curr = *prev;
+    while (curr != NULL) {
+        if (curr->ptr == ptr) {
+            *prev = curr->next;
+            hash_unlink_node(curr);
+            curr->next = gc_node_freelist;
+            gc_node_freelist = curr;
+            total_live_objects--;
+            return 0;
         }
-        if (node->next != NULL) {
-            node->next->prev = node->prev;
-        }
-        hash_remove(ptr);
-        free(node);
-        total_live_objects--;
+        prev = &curr->next;
+        curr = *prev;
     }
     return 0;
 }
@@ -285,6 +321,8 @@ typedef struct {
     uint8_t extensible;
     uint8_t sealed;
     uint8_t frozen;
+    uint8_t type_name_owned;
+    uint32_t capacity;
     void *boxed_fields;
     uintptr_t fields[];
 } gc_object_layout;
@@ -339,7 +377,7 @@ static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t 
 
     for (uintptr_t *p = (uintptr_t *)low; p < (uintptr_t *)high; p++) {
         void *val = (void *)(*p);
-        if ((uintptr_t)val > 4096) {
+        if (is_possible_heap_ptr(val)) {
             gc_node *n = find_node(val);
             if (n != NULL && n->header.gc_mark == 0) {
                 n->header.gc_mark = 1;
@@ -354,21 +392,20 @@ static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t 
 int scriptgo_gc_collect(int64_t *out_collected_count) {
     if (gc_in_progress) return 0;
     gc_in_progress = 1;
+    gc_node *curr = NULL;
 
-    // 1. Reset all marks to 0 (White)
-    gc_node *curr = gc_head;
-    while (curr != NULL) {
-        curr->header.gc_mark = 0;
-        curr = curr->next;
-    }
-
-    // 2. Setup Mark Stack
+    // 1. Setup Mark Stack
     size_t stack_cap = (size_t)(total_live_objects + 1024);
-    gc_node **mark_stack = (gc_node **)malloc(sizeof(gc_node *) * stack_cap);
-    if (mark_stack == NULL) {
-        gc_in_progress = 0;
-        return -1;
+    if (stack_cap > gc_mark_stack_cap) {
+        gc_node **new_stack = (gc_node **)realloc(gc_mark_stack, sizeof(gc_node *) * stack_cap);
+        if (new_stack == NULL) {
+            gc_in_progress = 0;
+            return -1;
+        }
+        gc_mark_stack = new_stack;
+        gc_mark_stack_cap = stack_cap;
     }
+    gc_node **mark_stack = gc_mark_stack;
     size_t stack_top = 0;
 
     #define GC_PUSH(n) do { \
@@ -389,36 +426,34 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         r = r->next;
     }
 
+    if (gc_in_flight_ptr != NULL) {
+        gc_node *n = find_node(gc_in_flight_ptr);
+        GC_PUSH(n);
+    }
+
     // Push global root slots
-    root_slot_node *s = root_slot_head;
-    while (s != NULL) {
-        if (s->slot != NULL) {
-            void **words = (void **)s->slot;
-            for (int64_t wi = 0; wi < s->word_count; wi++) {
-                void *val = words[wi];
-                if ((uintptr_t)val > 4096) {
+    root_slot_node *rs = root_slot_head;
+    while (rs != NULL) {
+        if (rs->slot != NULL && rs->word_count > 0) {
+            void **words = (void **)rs->slot;
+            for (int64_t i = 0; i < rs->word_count; i++) {
+                void *val = words[i];
+                if (is_possible_heap_ptr(val)) {
                     gc_node *child = find_node(val);
                     GC_PUSH(child);
                 }
             }
         }
-        s = s->next;
+        rs = rs->next;
     }
 
-    // Conservative stack and register scanning
-    jmp_buf registers;
-    memset(&registers, 0, sizeof(registers));
-    setjmp(registers);
+    // 2. Scan native stack & CPU registers
+    jmp_buf cpu_regs;
+    setjmp(cpu_regs);
+    volatile uintptr_t stack_top_ptr = (uintptr_t)&cpu_regs;
+    gc_scan_memory((void *)cpu_regs, (void *)((uintptr_t)cpu_regs + sizeof(cpu_regs)), mark_stack, &stack_top, stack_cap);
 
-    // Scan registers buffer
-    gc_scan_memory(&registers, (char *)&registers + sizeof(registers), mark_stack, &stack_top, stack_cap);
-
-    // Scan execution stack (from caller frame up to stack bottom)
-    volatile void *stack_top_ptr = __builtin_frame_address(0);
     void *bottom = scriptgo_gc_stack_bottom;
-    if (bottom == NULL) {
-        bottom = get_native_stack_bottom();
-    }
     if (bottom != NULL) {
         gc_scan_memory((void *)stack_top_ptr, bottom, mark_stack, &stack_top, stack_cap);
     }
@@ -430,19 +465,20 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
 
         if (node->header.type_tag == SCRIPTGO_TYPE_OBJECT) {
             gc_object_layout *obj = (gc_object_layout *)node->ptr;
-            if (obj != NULL && obj->magic == 0x53474F424A454354ULL) {
+            if (obj != NULL) {
                 for (int64_t i = 0; i < obj->field_count; i++) {
-                    uint64_t raw = (uint64_t)obj->fields[i];
-                    if (raw != 0x7FF8000000000000ULL && raw > 4096) {
-                        gc_node *child = find_node((void *)(uintptr_t)raw);
+                    void *raw = (void *)obj->fields[i];
+                    if (is_possible_heap_ptr(raw)) {
+                        gc_node *child = find_node(raw);
                         GC_PUSH(child);
                     }
                 }
-                if (obj->boxed_fields != NULL) {
+                if (__builtin_expect(obj->boxed_fields != NULL, 0)) {
                     scriptgo_value *boxed = (scriptgo_value *)obj->boxed_fields;
                     for (int64_t i = 0; i < obj->field_count; i++) {
-                        if (boxed[i].payload > 4096) {
-                            gc_node *child = find_node((void *)(uintptr_t)boxed[i].payload);
+                        void *raw = (void *)(uintptr_t)boxed[i].payload;
+                        if (is_possible_heap_ptr(raw)) {
+                            gc_node *child = find_node(raw);
                             GC_PUSH(child);
                         }
                     }
@@ -454,15 +490,16 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                 if (arr->element_size == (int64_t)sizeof(scriptgo_value)) {
                     for (int64_t i = 0; i < arr->length; i++) {
                         scriptgo_value *val = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
-                        if (val->payload > 4096) {
-                            gc_node *child = find_node((void *)(uintptr_t)val->payload);
+                        void *raw = (void *)(uintptr_t)val->payload;
+                        if (is_possible_heap_ptr(raw)) {
+                            gc_node *child = find_node(raw);
                             GC_PUSH(child);
                         }
                     }
                 } else if (arr->element_size == (int64_t)sizeof(void *)) {
                     for (int64_t i = 0; i < arr->length; i++) {
                         void *ptr_val = *(void **)(arr->data + (size_t)i * sizeof(void *));
-                        if ((uintptr_t)ptr_val > 4096) {
+                        if (is_possible_heap_ptr(ptr_val)) {
                             gc_node *child = find_node(ptr_val);
                             GC_PUSH(child);
                         }
@@ -471,7 +508,7 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             }
         } else if (node->header.type_tag == SCRIPTGO_TYPE_CLOSURE) {
             gc_closure_layout *c = (gc_closure_layout *)node->ptr;
-            if (c != NULL && c->env != NULL && (uintptr_t)c->env > 4096) {
+            if (c != NULL && is_possible_heap_ptr(c->env)) {
                 gc_node *child = find_node(c->env);
                 GC_PUSH(child);
             }
@@ -480,7 +517,7 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             if (words != NULL) {
                 for (uint32_t i = 0; i < node->header.field_count; i++) {
                     void *ptr_val = words[i];
-                    if ((uintptr_t)ptr_val > 4096) {
+                    if (is_possible_heap_ptr(ptr_val)) {
                         gc_node *child = find_node(ptr_val);
                         GC_PUSH(child);
                     }
@@ -497,55 +534,61 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                 unsigned char *data;
             } gc_typedarray_layout;
             gc_typedarray_layout *ta = (gc_typedarray_layout *)node->ptr;
-            if (ta != NULL && ta->buffer != NULL && (uintptr_t)ta->buffer > 4096) {
+            if (ta != NULL && is_possible_heap_ptr(ta->buffer)) {
                 gc_node *child = find_node(ta->buffer);
                 GC_PUSH(child);
             }
         }
     }
-    free(mark_stack);
     #undef GC_PUSH
 
     // 4. Run Weak reference cleaners
     for (int i = 0; i < weak_cleaner_count; i++) {
-        curr = gc_head;
-        while (curr != NULL) {
-            if (curr->header.is_weak) {
-                weak_cleaners[i](curr->ptr, is_object_alive);
+        gc_node *c = gc_head;
+        while (c != NULL) {
+            if (c->header.is_weak) {
+                weak_cleaners[i](c->ptr, is_object_alive);
             }
-            curr = curr->next;
+            c = c->next;
         }
     }
 
     // 5. Sweep phase: Collect and free all remaining White objects (unreachable / cyclic)
     int64_t collected = 0;
-    curr = gc_head;
+    gc_node **prev = &gc_head;
+    curr = *prev;
     while (curr != NULL) {
         gc_node *next = curr->next;
         if (curr->header.gc_mark == 0) {
-            // Unlink from all-nodes list
-            if (curr->prev != NULL) {
-                curr->prev->next = curr->next;
-            } else {
-                gc_head = curr->next;
-            }
-            if (curr->next != NULL) {
-                curr->next->prev = curr->prev;
-            }
-            // Remove from hash table
-            hash_remove(curr->ptr);
-
+            *prev = next;
+            hash_unlink_node(curr);
             // Free the object payload
             if (curr->ptr != NULL) {
                 if (curr->header.type_tag == SCRIPTGO_TYPE_OBJECT) {
-                    gc_object_layout *object = (gc_object_layout *)curr->ptr;
-                    if (object->magic == 0x53474F424A454354ULL) {
-                        free((void *)object->type_name);
-                        if (object->boxed_fields != NULL) {
-                            free(object->boxed_fields);
-                        }
+                    typedef struct {
+                        uint64_t magic;
+                        int64_t field_count;
+                        const char *type_name;
+                        uint8_t extensible;
+                        uint8_t sealed;
+                        uint8_t frozen;
+                        uint8_t type_name_owned;
+                        uint32_t capacity;
+                        void *boxed_fields;
+                        uintptr_t fields[];
+                    } sweep_obj_t;
+                    sweep_obj_t *o = (sweep_obj_t *)curr->ptr;
+                    extern void *scriptgo_object_freelist_8;
+                    if (__builtin_expect(o != NULL && o->magic == 0x53474F424A454354ULL && o->capacity == 8 && o->boxed_fields == NULL && !o->type_name_owned, 1)) {
+                        o->fields[0] = (uintptr_t)scriptgo_object_freelist_8;
+                        scriptgo_object_freelist_8 = o;
+                    } else {
+                        void scriptgo_object_free(void *handle);
+                        scriptgo_object_free(curr->ptr);
                     }
-                    free(curr->ptr);
+                } else if (curr->header.type_tag == SCRIPTGO_TYPE_CLOSURE) {
+                    void scriptgo_closure_free(void *ptr);
+                    scriptgo_closure_free(curr->ptr);
                 } else if (curr->header.type_tag == SCRIPTGO_TYPE_ARRAY) {
                     gc_array_layout *arr = (gc_array_layout *)curr->ptr;
                     free(arr->owned_data);
@@ -568,13 +611,21 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
                         free(sym->description);
                     }
                     free(curr->ptr);
+                } else if (curr->header.type_tag == SCRIPTGO_TYPE_SET) {
+                    void scriptgo_set_free(void *handle);
+                    scriptgo_set_free(curr->ptr);
                 } else {
                     free(curr->ptr);
                 }
             }
-            free(curr);
+            curr->next = gc_node_freelist;
+            gc_node_freelist = curr;
             total_live_objects--;
             collected++;
+        } else {
+            // Live object: reset mark to 0 for next collection
+            curr->header.gc_mark = 0;
+            prev = &curr->next;
         }
         curr = next;
     }
@@ -582,8 +633,8 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
     if (total_live_objects * 2 > gc_threshold) {
         gc_threshold = total_live_objects * 2;
     }
-    if (gc_threshold < 2048) {
-        gc_threshold = 2048;
+    if (gc_threshold < SCRIPTGO_GC_DEFAULT_THRESHOLD) {
+        gc_threshold = SCRIPTGO_GC_DEFAULT_THRESHOLD;
     }
 
     gc_in_progress = 0;

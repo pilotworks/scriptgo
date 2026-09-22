@@ -58,13 +58,27 @@ static inline uint64_t b_swap64_if_be(uint64_t v, int is_le) {
 static const char b64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static const char hex_chars[] = "0123456789abcdef";
 
-static int b64_val(char c) {
-    if (c >= 'A' && c <= 'Z') return c - 'A';
-    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
-    if (c >= '0' && c <= '9') return c - '0' + 52;
-    if (c == '+' || c == '-') return 62;
-    if (c == '/' || c == '_') return 63;
-    return -1;
+static const int8_t b64_lut[256] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, 62, -1, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -1, -1, -1,
+    -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, 63,
+    -1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+};
+
+static inline int b64_val(char c) {
+    return b64_lut[(unsigned char)c];
 }
 
 static int hex_val(char c) {
@@ -139,14 +153,46 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
         return 0;
     }
     case ENC_BASE64: {
-        // Base64 decode
+        // Direct Base64 decode into target buffer
         size_t max_out = (in_len * 3) / 4 + 4;
-        unsigned char *tmp = malloc(max_out > 0 ? max_out : 1);
-        if (tmp == NULL) return buffer_fail("Buffer.from base64 out of memory");
+        void *arr_ptr = NULL;
+        if (scriptgo_typedarray_new(2, (int64_t)max_out, NULL, 0, &arr_ptr) != 0) {
+            return -1;
+        }
+        scriptgo_buffer_view *bv = (scriptgo_buffer_view *)arr_ptr;
+        bv->magic = SCRIPTGO_MAGIC_BUFFER;
+        unsigned char *dst = bv->data;
         size_t out_len = 0;
+        size_t i = 0;
+
+        // Fast chunk loop: decode 4 clean base64 characters directly into 3 bytes
+        while (i + 4 <= in_len) {
+            unsigned char c0 = (unsigned char)str[i];
+            unsigned char c1 = (unsigned char)str[i + 1];
+            unsigned char c2 = (unsigned char)str[i + 2];
+            unsigned char c3 = (unsigned char)str[i + 3];
+
+            int8_t v0 = b64_lut[c0];
+            int8_t v1 = b64_lut[c1];
+            int8_t v2 = b64_lut[c2];
+            int8_t v3 = b64_lut[c3];
+
+            if ((v0 | v1 | v2 | v3) < 0) {
+                break;
+            }
+
+            uint32_t triple = ((uint32_t)v0 << 18) | ((uint32_t)v1 << 12) | ((uint32_t)v2 << 6) | (uint32_t)v3;
+            dst[out_len] = (unsigned char)(triple >> 16);
+            dst[out_len + 1] = (unsigned char)(triple >> 8);
+            dst[out_len + 2] = (unsigned char)triple;
+            out_len += 3;
+            i += 4;
+        }
+
+        // Remainder loop for padding '=' or trailing characters
         uint32_t buf = 0;
         int bits = 0;
-        for (size_t i = 0; i < in_len; i++) {
+        for (; i < in_len; i++) {
             char c = str[i];
             if (c == '=') break;
             int val = b64_val(c);
@@ -155,18 +201,13 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
             bits += 6;
             if (bits >= 8) {
                 bits -= 8;
-                tmp[out_len++] = (unsigned char)((buf >> bits) & 0xFF);
+                dst[out_len++] = (unsigned char)((buf >> bits) & 0xFF);
             }
         }
-        void *arr_ptr = NULL;
-        if (scriptgo_typedarray_new(2, (int64_t)out_len, NULL, 0, &arr_ptr) != 0) {
-            free(tmp);
-            return -1;
+        bv->length = (int64_t)out_len;
+        if (bv->buffer != NULL) {
+            bv->buffer->byte_length = (int64_t)out_len;
         }
-        scriptgo_buffer_view *bv = (scriptgo_buffer_view *)arr_ptr;
-        bv->magic = SCRIPTGO_MAGIC_BUFFER;
-        if (out_len > 0) memcpy(bv->data, tmp, out_len);
-        free(tmp);
         *out_buf = bv;
         return 0;
     }
@@ -368,16 +409,33 @@ int scriptgo_buffer_to_string(void *handle, const char *encoding_str, double sta
         char *b64_str = malloc(b64_len + 1);
         if (b64_str == NULL) return buffer_fail("Buffer.toString base64 out of memory");
         size_t o = 0;
-        for (int64_t i = 0; i < slice_len; i += 3) {
+        int64_t i = 0;
+        int64_t fast_limit = slice_len - (slice_len % 3);
+
+        // Fast chunk loop: encode 3 bytes directly into 4 base64 chars with zero branches
+        for (; i < fast_limit; i += 3) {
+            uint32_t octet_a = data[i];
+            uint32_t octet_b = data[i + 1];
+            uint32_t octet_c = data[i + 2];
+            uint32_t triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+            b64_str[o]     = b64_chars[(triple >> 18) & 0x3F];
+            b64_str[o + 1] = b64_chars[(triple >> 12) & 0x3F];
+            b64_str[o + 2] = b64_chars[(triple >> 6) & 0x3F];
+            b64_str[o + 3] = b64_chars[triple & 0x3F];
+            o += 4;
+        }
+
+        // Remainder 1 or 2 bytes with '=' padding
+        if (i < slice_len) {
             uint32_t octet_a = data[i];
             uint32_t octet_b = (i + 1 < slice_len) ? data[i + 1] : 0;
-            uint32_t octet_c = (i + 2 < slice_len) ? data[i + 2] : 0;
-            uint32_t triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+            uint32_t triple = (octet_a << 16) | (octet_b << 8);
             b64_str[o++] = b64_chars[(triple >> 18) & 0x3F];
             b64_str[o++] = b64_chars[(triple >> 12) & 0x3F];
             b64_str[o++] = (i + 1 < slice_len) ? b64_chars[(triple >> 6) & 0x3F] : '=';
-            b64_str[o++] = (i + 2 < slice_len) ? b64_chars[triple & 0x3F] : '=';
+            b64_str[o++] = '=';
         }
+
         b64_str[o] = '\0';
         *out_str = b64_str;
         return 0;

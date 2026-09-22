@@ -1284,6 +1284,11 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			varName := targetIdent.Text
 			declStr := string(baseEnv["__decl_str."+varName])
 			if declStr == "" {
+				if mangled, ok := baseEnv["__ident."+varName]; ok {
+					declStr = string(baseEnv["__decl_str."+string(mangled)])
+				}
+			}
+			if declStr == "" {
 				if topVar, ok := topLevelVars[varName]; ok {
 					declStr = topVar.Type
 					if declStr == "" {
@@ -1295,6 +1300,9 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 				narrowedType := narrowUnionTypeString(declStr, nullishKind)
 				if narrowedType != "" {
 					thenEnv[varName] = narrowedType
+					if mangled, ok := thenEnv["__ident."+varName]; ok {
+						thenEnv[string(mangled)] = narrowedType
+					}
 				}
 			}
 		}
@@ -1377,6 +1385,11 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			varName := targetIdent.Text
 			declStr := string(baseEnv["__decl_str."+varName])
 			if declStr == "" {
+				if mangled, ok := baseEnv["__ident."+varName]; ok {
+					declStr = string(baseEnv["__decl_str."+string(mangled)])
+				}
+			}
+			if declStr == "" {
 				if topVar, ok := topLevelVars[varName]; ok {
 					declStr = topVar.Type
 					if declStr == "" {
@@ -1388,6 +1401,9 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 				narrowedType := narrowUnionTypeString(declStr, nullishKind)
 				if narrowedType != "" {
 					elseEnv[varName] = narrowedType
+					if mangled, ok := elseEnv["__ident."+varName]; ok {
+						elseEnv[string(mangled)] = narrowedType
+					}
 				}
 			}
 		}
@@ -1428,6 +1444,11 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		varName := expr.Text
 		declStr := string(baseEnv["__decl_str."+varName])
 		if declStr == "" {
+			if mangled, ok := baseEnv["__ident."+varName]; ok {
+				declStr = string(baseEnv["__decl_str."+string(mangled)])
+			}
+		}
+		if declStr == "" {
 			if topVar, ok := topLevelVars[varName]; ok {
 				declStr = topVar.Type
 				if declStr == "" {
@@ -1439,10 +1460,16 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 			narrowedType := narrowUnionTypeString(declStr, "nullish")
 			if narrowedType != "" {
 				thenEnv[varName] = narrowedType
+				if mangled, ok := thenEnv["__ident."+varName]; ok {
+					thenEnv[string(mangled)] = narrowedType
+				}
 			}
 		} else if expr.InferredType != "" {
 			if nonNull := nonNullishIRType(expr.InferredType); nonNull != "" && nonNull != ir.TypeUnknown && nonNull != ir.TypeVoid {
 				thenEnv[varName] = nonNull
+				if mangled, ok := thenEnv["__ident."+varName]; ok {
+					thenEnv[string(mangled)] = nonNull
+				}
 			}
 		}
 	}

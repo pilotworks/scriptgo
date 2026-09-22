@@ -54,6 +54,10 @@ func llvmType(typ ir.Type) string {
 	}
 }
 
+func isPointerType(typ ir.Type) bool {
+	return llvmType(typ) == "ptr"
+}
+
 func arrayElementType(arrayType ir.Type) ir.Type {
 	str := string(arrayType)
 	if before, ok := strings.CutSuffix(str, "[]"); ok {

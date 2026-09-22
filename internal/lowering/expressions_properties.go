@@ -98,12 +98,12 @@ func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpress
 			if result == "" {
 				result = nextTemp(counter)
 			}
-			elem := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
-				Op: ir.OpConst, Type: ir.TypeString, Result: elem, Value: "scriptgo", Span: toIRSpan(path, expression.Span),
-			})
-			function.Body = append(function.Body, ir.Instruction{
-				Op: ir.OpArray, Type: ir.TypeStringArray, Result: result, Args: []string{elem}, Span: toIRSpan(path, expression.Span),
+				Op:     ir.OpCall,
+				Type:   ir.TypeStringArray,
+				Result: result,
+				Callee: "__process.argv",
+				Span:   toIRSpan(path, expression.Span),
 			})
 			return result, ir.TypeStringArray, nil
 		}

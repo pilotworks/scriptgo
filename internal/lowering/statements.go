@@ -143,6 +143,16 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			localType = ir.TypeUnknown
 		}
 		function.Locals = append(function.Locals, ir.Parameter{Name: varResultName, Type: localType})
+		declTypeStr := statement.Type
+		if declTypeStr == "" {
+			declTypeStr = statement.InferredType
+		}
+		if declTypeStr != "" {
+			env["__decl_str."+varResultName] = ir.Type(declTypeStr)
+			env["__decl_str."+statement.Name] = ir.Type(declTypeStr)
+		}
+		env["__storage_type."+varResultName] = localType
+		env["__storage_type."+statement.Name] = localType
 		if statement.Expression == nil {
 			if statement.Kind == "using" || statement.Kind == "await_using" {
 				return fmt.Errorf("resource %q has no initializer", statement.Name)

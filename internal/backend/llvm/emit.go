@@ -281,6 +281,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_array_entries(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_array_release(ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_object_new(i64, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_new_typed(i64, ptr, ptr)\n")
+	out.WriteString("declare ptr @scriptgo_object_new_typed_fast(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_freeze(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_seal(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_prevent_extensions(ptr, ptr)\n")
@@ -313,6 +315,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_property_unknown_set(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_unknown_number_property(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_type_set_static(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_get(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_instanceof(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_is_number(double, double, ptr)\n")
@@ -1170,7 +1173,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			out.WriteString(fmt.Sprintf("%s %%%s", llvmType(parameter.Type), parameter.Name))
 			parameterIndex++
 		}
-		out.WriteString(") nounwind")
+		if strings.HasSuffix(name, "_constructor") && len(function.Body) <= 15 {
+			out.WriteString(") alwaysinline nounwind")
+		} else {
+			out.WriteString(") nounwind")
+		}
 	}
 	if debug != nil {
 		fmt.Fprintf(&out, " !dbg !%d", debug.functions[function.Name])
@@ -1218,6 +1225,8 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		types:           make(map[string]ir.Type, len(function.Parameters)+len(module.Globals)),
 		varSlots:        make(map[string]string),
 		localSSAs:       make(map[string]bool),
+		hasTryCatch:     hasTryCatch(function.Body),
+		hasArrayResize:  hasArrayResize(function.Body),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {
@@ -1243,7 +1252,14 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 	collectSSADefs(function.Body, emitter.localSSAs, function.Name == "main", globalsMap, isLocalDecl)
 
-	if len(function.Captured) > 0 {
+	if len(function.Captured) == 1 && function.Captured[0].Name == "this" {
+		c := function.Captured[0]
+		slot := "this.slot"
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		out.WriteString(fmt.Sprintf("  store%s ptr %%__env_ctx, ptr %%%s\n", emitter.vol(), slot))
+		emitter.varSlots[c.Name] = slot
+		emitter.types[c.Name] = c.Type
+	} else if len(function.Captured) > 0 {
 		fieldTypes := make([]string, len(function.Captured))
 		for i := range function.Captured {
 			fieldTypes[i] = "ptr"
@@ -1252,6 +1268,11 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		for i, c := range function.Captured {
 			fieldPtr := fmt.Sprintf("%s.field.%d", c.Name, i)
 			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%__env_ctx, i32 0, i32 %d\n", fieldPtr, structType, i))
+			if c.Name == "this" {
+				emitter.varSlots[c.Name] = fieldPtr
+				emitter.types[c.Name] = c.Type
+				continue
+			}
 			cellPtr := fmt.Sprintf("%s.cell.%d", c.Name, i)
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", cellPtr, fieldPtr))
 			emitter.varSlots[c.Name] = cellPtr
@@ -1268,6 +1289,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		emitter.sharedEnvCells = make(map[string]string)
 	}
 	for _, capName := range capturedInBody {
+		if capName == "this" {
+			continue
+		}
 		if _, alreadyCaptured := emitter.sharedEnvCells[capName]; alreadyCaptured {
 			continue
 		}
@@ -1324,9 +1348,10 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			}
 			out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", slotName, allocType))
 			isParam := false
+			vol := emitter.vol()
 			for _, param := range function.Parameters {
 				if param.Name == varName {
-					out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", allocType, varName, slotName))
+					out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", vol, allocType, varName, slotName))
 					isParam = true
 					break
 				}
@@ -1334,17 +1359,17 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			if !isParam {
 				switch allocType {
 				case "{ i32, i32, i64, i64 }":
-					out.WriteString(fmt.Sprintf("  store volatile %s zeroinitializer, ptr %%%s\n", allocType, slotName))
+					out.WriteString(fmt.Sprintf("  store%s %s zeroinitializer, ptr %%%s\n", vol, allocType, slotName))
 				case "i1":
-					out.WriteString(fmt.Sprintf("  store volatile i1 false, ptr %%%s\n", slotName))
+					out.WriteString(fmt.Sprintf("  store%s i1 false, ptr %%%s\n", vol, slotName))
 				case "double":
-					out.WriteString(fmt.Sprintf("  store volatile double 0.0, ptr %%%s\n", slotName))
+					out.WriteString(fmt.Sprintf("  store%s double 0.0, ptr %%%s\n", vol, slotName))
 				case "i64":
-					out.WriteString(fmt.Sprintf("  store volatile i64 0, ptr %%%s\n", slotName))
+					out.WriteString(fmt.Sprintf("  store%s i64 0, ptr %%%s\n", vol, slotName))
 				case "i32":
-					out.WriteString(fmt.Sprintf("  store volatile i32 0, ptr %%%s\n", slotName))
+					out.WriteString(fmt.Sprintf("  store%s i32 0, ptr %%%s\n", vol, slotName))
 				default:
-					out.WriteString(fmt.Sprintf("  store volatile %s null, ptr %%%s\n", allocType, slotName))
+					out.WriteString(fmt.Sprintf("  store%s %s null, ptr %%%s\n", vol, allocType, slotName))
 				}
 			}
 		}

@@ -94,6 +94,24 @@ func TestCLI_TaskRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("prioritize scriptgo run cmd over file with same name", func(t *testing.T) {
+		helloFile := filepath.Join(projectDir, "hello")
+		if err := os.WriteFile(helloFile, []byte("console.log('from-file-output');"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(helloFile)
+
+		cmd := exec.Command(binPath, "run", "hello")
+		cmd.Dir = projectDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("scriptgo run hello failed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "Hello from ScriptGo Task Runner") {
+			t.Fatalf("expected package.json script to take priority over file, got: %s", string(out))
+		}
+	})
+
 	t.Run("run task with binary from node_modules/.bin in PATH", func(t *testing.T) {
 		binDir := filepath.Join(projectDir, "node_modules", ".bin")
 		if err := os.MkdirAll(binDir, 0o755); err != nil {

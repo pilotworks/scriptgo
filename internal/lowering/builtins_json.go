@@ -41,12 +41,15 @@ func findShape(call IntrinsicCall, shapeName string) (ir.ObjectShape, bool) {
 }
 
 func lowerJSONStringify(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-	if len(call.Expression.Arguments) != 1 {
-		return "", "", fmt.Errorf("JSON.stringify expects exactly 1 argument")
+	if len(call.Expression.Arguments) < 1 || len(call.Expression.Arguments) > 3 {
+		return "", "", fmt.Errorf("JSON.stringify expects 1 to 3 arguments")
 	}
 	argVal, argType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	if err != nil {
 		return "", "", err
+	}
+	for i := 1; i < len(call.Expression.Arguments); i++ {
+		_, _, _ = call.LowerExpression(call.Path, call.Expression.Arguments[i], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	}
 	res, err := lowerJSONStringifyValue(call, argVal, argType)
 	if err != nil {

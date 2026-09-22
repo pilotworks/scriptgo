@@ -804,7 +804,7 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 				}
 			}
 
-			if len(implementors) > 0 {
+			if len(implementors) > 1 {
 				sort.Slice(implementors, func(i, j int) bool {
 					return getInheritanceDepth(implementors[i], hierarchy) > getInheritanceDepth(implementors[j], hierarchy)
 				})

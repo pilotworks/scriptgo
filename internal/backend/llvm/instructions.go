@@ -37,6 +37,59 @@ type functionEmitter struct {
 	tempCounter        int
 	terminated         bool
 	localSSAs          map[string]bool
+	hasTryCatch        bool
+	hasArrayResize     bool
+}
+
+func (e *functionEmitter) vol() string {
+	if e.hasTryCatch {
+		return " volatile"
+	}
+	return ""
+}
+
+func hasTryCatch(instructions []ir.Instruction) bool {
+	for _, inst := range instructions {
+		if inst.Op == ir.OpTry {
+			return true
+		}
+		if hasTryCatch(inst.Then) ||
+			hasTryCatch(inst.Else) ||
+			hasTryCatch(inst.Cond) ||
+			hasTryCatch(inst.Body) ||
+			hasTryCatch(inst.Step) ||
+			hasTryCatch(inst.Catch) ||
+			hasTryCatch(inst.Finally) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasArrayResize(instructions []ir.Instruction) bool {
+	for _, inst := range instructions {
+		switch inst.Op {
+		case ir.OpCall:
+			switch inst.Callee {
+			case "__array.push", "__array.pop", "__array.shift", "__array.unshift",
+				"__array.splice", "__array.set_length", "__array.concat",
+				"scriptgo_array_push", "scriptgo_array_pop", "scriptgo_array_shift",
+				"scriptgo_array_unshift", "scriptgo_array_splice", "scriptgo_array_set_length",
+				"push", "pop", "shift", "unshift", "splice":
+				return true
+			}
+		}
+		if hasArrayResize(inst.Then) ||
+			hasArrayResize(inst.Else) ||
+			hasArrayResize(inst.Cond) ||
+			hasArrayResize(inst.Body) ||
+			hasArrayResize(inst.Step) ||
+			hasArrayResize(inst.Catch) ||
+			hasArrayResize(inst.Finally) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *functionEmitter) pointerSize() int64 {
@@ -72,7 +125,7 @@ func (e *functionEmitter) ensurePointerArg(out *strings.Builder, arg string) str
 		if slot, ok := e.varSlots[arg]; ok {
 			loaded := fmt.Sprintf("%s.ptr_load.%d", arg, e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load volatile { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = load%s { i32, i32, i64, i64 }, ptr %%%s\n", loaded, e.vol(), slot))
 			arg = loaded
 		}
 		payloadVar := fmt.Sprintf("%s.payload.%d", arg, e.loadCounter)
@@ -129,7 +182,7 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
 		e.loadCounter++
 		e.types[loadName] = typ
-		out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %%%s\n", loadName, lt, slot))
+		out.WriteString(fmt.Sprintf("  %%%s = load%s %s, ptr %%%s\n", loadName, e.vol(), lt, slot))
 		return loadName
 	}
 	if e.localSSAs == nil || !e.localSSAs[arg] {
@@ -265,11 +318,12 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
 			}
 		} else {
-			slot := e.varSlots[targetResult]
 			if cellSlot, isCell := e.sharedEnvCells[targetResult]; isCell {
-				slot = cellSlot
+				out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
+			} else {
+				slot := e.varSlots[targetResult]
+				out.WriteString(fmt.Sprintf("  store%s %s %s, ptr %%%s\n", e.vol(), llvmType(typ), argVal, slot))
 			}
-			out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, slot))
 		}
 		return nil
 	case ir.OpBinary:
@@ -428,7 +482,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				lt = "ptr"
 			}
 			if lt != "void" {
-				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", lt, inst.Result, slot))
+				out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), lt, inst.Result, slot))
 			}
 		}
 	}

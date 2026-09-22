@@ -71,6 +71,7 @@ module that owns the behavior.
 | `internal/frontend` | Checked program creation, reachable module graph, normalized source data, frontend diagnostics | Backend selection, native layout, runtime calls, LLVM emission, execution |
 | `internal/lowering` | Native subset validation and conversion of checked source data into backend-independent IR | Direct LLVM/C emission, native process startup, TypeScript-Go compiler policy |
 | `internal/ir` | Types, instructions, modules, source metadata, verification invariants | TypeScript AST/API usage, backend-specific syntax, runtime implementation, CLI policy |
+| `internal/opt` | Target-independent Typed IR optimization passes, dead code elimination, constant folding, CSE, LICM | TypeScript AST/API usage, backend-specific LLVM emission, runtime ABI or C source implementation |
 | `internal/runtime` | The native ABI contract and linked runtime services for values, ownership, startup, and errors | TypeScript parsing/type checking, lowering policy, backend orchestration |
 | `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions |
 
@@ -80,6 +81,7 @@ Dependency direction must remain acyclic:
 cmd/scriptgo -> compiler
 compiler -> frontend -> typescriptgo -> TypeScript-Go
 compiler -> lowering -> ir
+compiler -> opt -> ir
 compiler -> backend/llvm -> ir
 ```
 
