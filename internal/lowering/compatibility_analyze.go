@@ -28,6 +28,10 @@ type compatibilityCollector struct {
 func AnalyzeCompatibility(program frontend.Program, policy CompatibilityPolicy) (CompatibilityReport, error) {
 	lowerMu.Lock()
 	defer lowerMu.Unlock()
+	return analyzeCompatibilityLocked(program, policy)
+}
+
+func analyzeCompatibilityLocked(program frontend.Program, policy CompatibilityPolicy) (CompatibilityReport, error) {
 	var err error
 	program, err = SpecializeGenerics(cloneCompatibilityProgram(program))
 	if err != nil {
@@ -112,9 +116,12 @@ func (c *compatibilityCollector) dynamicAliases(statement typescriptgo.SyntaxSta
 }
 
 func (c *compatibilityCollector) normalizePath(path string) string {
+	if c.root == "" || c.root == "." {
+		return filepath.ToSlash(path)
+	}
 	rel, err := filepath.Rel(c.root, path)
-	if err != nil || filepath.IsAbs(rel) && rel == path {
-		return filepath.ToSlash(filepath.Base(path))
+	if err != nil || (filepath.IsAbs(rel) && rel == path) {
+		return filepath.ToSlash(path)
 	}
 	return filepath.ToSlash(filepath.Clean(rel))
 }
@@ -294,10 +301,27 @@ func (c *compatibilityCollector) expression(path string, expression *typescriptg
 	skipLeft := false
 	if expression.Kind == "as" {
 		classified = c.typed(path, expression.Span, expression.Kind, expression.Text)
+		if expression.Left != nil {
+			if expression.Left.Kind == "as" && isUnknownType(expression.Left.Text) && !isUnknownType(expression.Text) {
+				innerVal := "value"
+				if expression.Left.Left != nil && expression.Left.Left.Text != "" {
+					innerVal = expression.Left.Left.Text
+				}
+				recordWarning(path, expression.Span, CodeUnsafeDoubleCast, fmt.Sprintf("unsafe escape-hatch double assertion (%s as unknown as %s)", innerVal, expression.Text))
+			} else if WarnRuntimeCasts && (isUnknownType(expression.Left.InferredType) || (expression.Left.Kind == "as" && isUnknownType(expression.Left.Text))) && !isUnknownType(expression.Text) {
+				recordWarning(path, expression.Span, CodeWarnCheckedCast, fmt.Sprintf("runtime checked cast to %s", expression.Text))
+			}
+		}
 	}
 	if !classified {
 		switch expression.Kind {
 		case "optional_index", "index", "optional_property", "property", "unary", "postfix_unary", "binary":
+			if expression.Kind == "unary" && (expression.Operator == "!" || expression.Operator == "void") {
+				break
+			}
+			if expression.Kind == "binary" && isAllowedUnionBinaryOp(expression.Operator) {
+				break
+			}
 			var unionType string
 			if expression.Left != nil && isHeterogeneousUnion(expression.Left.InferredType) {
 				unionType = expression.Left.InferredType
@@ -312,8 +336,8 @@ func (c *compatibilityCollector) expression(path string, expression *typescriptg
 		}
 	}
 	if !classified && (expression.Kind == "property" || expression.Kind == "optional_property") && expression.Left != nil {
-		allowed := map[string]bool{"identifier": true, "string": true, "call": true, "optional_call": true, "property": true, "optional_property": true, "index": true, "optional_index": true, "object_literal": true, "as": true, "non_null": true}
-		if !allowed[expression.Left.Kind] {
+		isStaticTyped := expression.Left.InferredType != "" && !isHeterogeneousUnion(expression.Left.InferredType) && !isOrContainsAny(expression.Left.InferredType)
+		if !isAllowedPropertyReceiver(expression.Left.Kind) && !isStaticTyped {
 			c.add(path, expression.Span, expression.Kind, CodeStructuralFlow, "nested property access", "enable --dynamic for JavaScript property semantics", true)
 			classified = true
 		}

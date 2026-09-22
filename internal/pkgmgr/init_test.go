@@ -68,6 +68,9 @@ func TestInit_Basic(t *testing.T) {
 	if manifest.Scripts["start"] != "scriptgo run index.ts" {
 		t.Errorf("manifest.Scripts[start] = %q, want %q", manifest.Scripts["start"], "scriptgo run index.ts")
 	}
+	if manifest.Scripts["coverage"] != "scriptgo coverage index.ts" {
+		t.Errorf("manifest.Scripts[coverage] = %q, want %q", manifest.Scripts["coverage"], "scriptgo coverage index.ts")
+	}
 }
 
 func TestInit_ExistingConflict(t *testing.T) {

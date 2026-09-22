@@ -116,6 +116,22 @@ func resolveInput(arg string) (string, func(), error) {
 }
 
 func createInlineSourceFile(code string) (string, func(), error) {
+	cwd, err := os.Getwd()
+	if err == nil {
+		f, err := os.CreateTemp(cwd, ".scriptgo_eval_*.ts")
+		if err == nil {
+			filePath := f.Name()
+			if _, err := f.WriteString(code); err == nil {
+				_ = f.Close()
+				cleanup := func() {
+					_ = os.Remove(filePath)
+				}
+				return filePath, cleanup, nil
+			}
+			_ = f.Close()
+			_ = os.Remove(filePath)
+		}
+	}
 	tempDir, err := os.MkdirTemp("", "scriptgo-inline-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create temporary directory: %w", err)

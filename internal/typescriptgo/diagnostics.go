@@ -33,7 +33,9 @@ func convertDiagnostics(kind string, diagnostics []*ast.Diagnostic) []Diagnostic
 // FormatDiagnostic formats a Diagnostic into standard TypeScript compiler (tsc) diagnostic style.
 func FormatDiagnostic(diag Diagnostic, source string) string {
 	codeStr := ""
-	if diag.Code > 0 {
+	if diag.Code >= 6000 && diag.Code < 7000 {
+		codeStr = fmt.Sprintf("SG%d", diag.Code)
+	} else if diag.Code > 0 {
 		codeStr = fmt.Sprintf("TS%d", diag.Code)
 	}
 	category := "error"
@@ -55,7 +57,10 @@ func Format(fileName string, start, length int, category, codeStr, message, sour
 	}
 
 	displayPath := fileName
-	if cwd, err := os.Getwd(); err == nil {
+	baseName := filepath.Base(fileName)
+	if strings.HasPrefix(baseName, ".scriptgo_eval_") || strings.Contains(fileName, "scriptgo-inline-") {
+		displayPath = "[eval]"
+	} else if cwd, err := os.Getwd(); err == nil {
 		if rel, err := filepath.Rel(cwd, fileName); err == nil && !strings.HasPrefix(rel, "..") {
 			displayPath = rel
 		}

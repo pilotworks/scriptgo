@@ -1,0 +1,15 @@
+{
+  "name": "benchmarks",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "harness.ts",
+  "scripts": {
+    "start": "scriptgo run harness.ts",
+    "bench": "scriptgo run harness.ts",
+    "build": "scriptgo build harness.ts -o bin/benchmark_harness",
+    "check": "scriptgo check",
+    "coverage": "scriptgo coverage harness.ts"
+  },
+  "scriptgo": {},
+  "dist": {}
+}

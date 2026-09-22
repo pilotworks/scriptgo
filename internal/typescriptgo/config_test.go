@@ -125,20 +125,18 @@ func TestCheckDiscoversAncestorTSConfig(t *testing.T) {
 	}
 
 	tsconfigPath := filepath.Join(dir, "tsconfig.json")
-	// Strict is explicitly false
 	tsconfigContent := `{
   "compilerOptions": {
-    "strict": false,
-    "noImplicitAny": false
+    "target": "ES2022",
+    "strict": true
   }
 }`
 	if err := os.WriteFile(tsconfigPath, []byte(tsconfigContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Implicit any parameter: in strict mode this fails, with strict: false this passes
 	entryPath := filepath.Join(srcDir, "main.ts")
-	entryContent := "function greet(name) { return 'hello ' + name; }\nconsole.log(greet('world'));\n"
+	entryContent := "export function greet(name: string): string { return 'hello ' + name; }\nconsole.log(greet('world'));\n"
 	if err := os.WriteFile(entryPath, []byte(entryContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -148,9 +146,80 @@ func TestCheckDiscoversAncestorTSConfig(t *testing.T) {
 		t.Fatalf("Check failed: %v", err)
 	}
 	if len(result.Diagnostics) != 0 {
-		t.Fatalf("Check with strict:false in tsconfig returned unexpected diagnostics: %+v", result.Diagnostics)
+		t.Fatalf("Check with valid tsconfig returned unexpected diagnostics: %+v", result.Diagnostics)
 	}
-	if result.Options.Strict {
-		t.Fatalf("Check result options strict = true, want false from tsconfig")
+	if !result.Options.Strict {
+		t.Fatalf("Check result options strict = false, want true from tsconfig")
+	}
+	if result.Options.Target != "ES2022" {
+		t.Fatalf("Check result options target = %q, want ES2022 from tsconfig", result.Options.Target)
+	}
+}
+
+func hasDiagnosticCode(diags []Diagnostic, code int32) bool {
+	for _, d := range diags {
+		if d.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func TestValidateCompilerOptions_RejectsInvalidSettings(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "app.ts"), []byte("export const x = 1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Rejects strict: false
+	strictFalsePath := filepath.Join(dir, "strict_false.json")
+	if err := os.WriteFile(strictFalsePath, []byte(`{"compilerOptions":{"strict":false}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := CheckProject(strictFalsePath)
+	if err != nil {
+		t.Fatalf("CheckProject failed: %v", err)
+	}
+	if !hasDiagnosticCode(res.Diagnostics, 6001) {
+		t.Fatalf("expected SG6001 diagnostic for strict: false, got: %+v", res.Diagnostics)
+	}
+
+	// 2. Rejects target < ES2020
+	es5Path := filepath.Join(dir, "target_es5.json")
+	if err := os.WriteFile(es5Path, []byte(`{"compilerOptions":{"target":"ES5","strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err = CheckProject(es5Path)
+	if err != nil {
+		t.Fatalf("CheckProject failed: %v", err)
+	}
+	if !hasDiagnosticCode(res.Diagnostics, 6002) {
+		t.Fatalf("expected SG6002 diagnostic for target: ES5, got: %+v", res.Diagnostics)
+	}
+
+	// 3. Rejects moduleResolution: classic
+	classicPath := filepath.Join(dir, "classic_res.json")
+	if err := os.WriteFile(classicPath, []byte(`{"compilerOptions":{"moduleResolution":"classic","strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err = CheckProject(classicPath)
+	if err != nil {
+		t.Fatalf("CheckProject failed: %v", err)
+	}
+	if !hasDiagnosticCode(res.Diagnostics, 6003) {
+		t.Fatalf("expected SG6003 diagnostic for moduleResolution: classic, got: %+v", res.Diagnostics)
+	}
+
+	// 4. Rejects module: AMD
+	amdPath := filepath.Join(dir, "module_amd.json")
+	if err := os.WriteFile(amdPath, []byte(`{"compilerOptions":{"module":"AMD","strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err = CheckProject(amdPath)
+	if err != nil {
+		t.Fatalf("CheckProject failed: %v", err)
+	}
+	if !hasDiagnosticCode(res.Diagnostics, 6004) {
+		t.Fatalf("expected SG6004 diagnostic for module: AMD, got: %+v", res.Diagnostics)
 	}
 }
