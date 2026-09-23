@@ -546,15 +546,8 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             // Free the object payload
             if (curr->ptr != NULL) {
                 if (curr->header.type_tag == SCRIPTGO_TYPE_OBJECT) {
-                    gc_object_layout *o = (gc_object_layout *)curr->ptr;
-                    extern void *scriptgo_object_freelist_8;
-                    if (__builtin_expect(o != NULL && o->magic == 0x53474F424A454354ULL && o->capacity == 8 && o->boxed_fields == NULL && !o->type_name_owned, 1)) {
-                        o->fields[0] = (uintptr_t)scriptgo_object_freelist_8;
-                        scriptgo_object_freelist_8 = o;
-                    } else {
-                        void scriptgo_object_free(void *handle);
-                        scriptgo_object_free(curr->ptr);
-                    }
+                    void scriptgo_object_free(void *handle);
+                    scriptgo_object_free(curr->ptr);
                 } else if (curr->header.type_tag == SCRIPTGO_TYPE_CLOSURE) {
                     void scriptgo_closure_free(void *ptr);
                     scriptgo_closure_free(curr->ptr);

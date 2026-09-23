@@ -945,6 +945,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_tty_read_line(double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_tty_write(double, ptr, double, ptr)\n\n")
 	out.WriteString("declare ptr @scriptgo_closure_alloc(i64)\n\n")
+	out.WriteString("declare void @scriptgo_object_region_begin()\n")
+	out.WriteString("declare void @scriptgo_object_region_end()\n\n")
 
 	alreadyDeclared := map[string]bool{
 		"malloc": true, "setjmp": true, "tan": true, "atan": true, "atan2": true, "hypot": true, "drand48": true,

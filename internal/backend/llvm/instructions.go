@@ -398,6 +398,12 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return nil
 	case ir.OpPrint:
 		return e.emitPrint(out, inst)
+	case ir.OpRegionBegin:
+		out.WriteString("  call void @scriptgo_object_region_begin()\n")
+		return nil
+	case ir.OpRegionEnd:
+		out.WriteString("  call void @scriptgo_object_region_end()\n")
+		return nil
 	case ir.OpArray:
 		if err := e.emitArray(out, inst); err != nil {
 			return err

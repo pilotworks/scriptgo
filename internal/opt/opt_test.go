@@ -6,6 +6,107 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
+func TestTemporaryObjectRegionPassWrapsNonEscapingBuilderAndVisitor(t *testing.T) {
+	builder := ir.Function{
+		Name: "buildTree", ReturnType: "object:Node",
+		Body: []ir.Instruction{
+			{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1},
+			{Op: ir.OpReturn, Type: "object:Node", Args: []string{"node"}},
+		},
+	}
+	visitor := ir.Function{
+		Name: "checkTree", ReturnType: ir.TypeNumber,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"},
+			{Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"zero"}},
+		},
+	}
+	caller := ir.Function{
+		Name: "run", ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{{
+			Op: ir.OpWhile,
+			Body: []ir.Instruction{
+				{Op: ir.OpCall, Type: "object:Node", Result: "tree", Callee: "buildTree"},
+				{Op: ir.OpCall, Type: ir.TypeNumber, Result: "sum", Callee: "checkTree", Args: []string{"tree"}},
+			},
+		}},
+	}
+	m := ir.Module{Functions: []ir.Function{builder, visitor, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || !changed {
+		t.Fatalf("region pass = changed %v, err %v", changed, err)
+	}
+	body := m.Functions[2].Body[0].Body
+	if len(body) != 4 || body[0].Op != ir.OpRegionBegin || body[3].Op != ir.OpRegionEnd {
+		t.Fatalf("region boundaries = %#v", body)
+	}
+}
+
+func TestTemporaryObjectRegionPassRejectsEscapingBuilderResult(t *testing.T) {
+	builder := ir.Function{
+		Name: "buildTree", ReturnType: "object:Node",
+		Body: []ir.Instruction{
+			{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1},
+			{Op: ir.OpReturn, Type: "object:Node", Args: []string{"node"}},
+		},
+	}
+	caller := ir.Function{
+		Name: "run", ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{{
+			Op: ir.OpWhile,
+			Body: []ir.Instruction{
+				{Op: ir.OpCall, Type: "object:Node", Result: "tree", Callee: "buildTree"},
+				{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"tree"}},
+			},
+		}},
+	}
+	m := ir.Module{Functions: []ir.Function{builder, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || changed {
+		t.Fatalf("escaping result must not form a region: changed %v, err %v", changed, err)
+	}
+}
+
+func TestTemporaryObjectRegionPassOnlyWrapsLoopBodies(t *testing.T) {
+	builder := ir.Function{
+		Name: "buildTree", ReturnType: "object:Node",
+		Body: []ir.Instruction{
+			{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1},
+			{Op: ir.OpReturn, Type: "object:Node", Args: []string{"node"}},
+		},
+	}
+	visitor := ir.Function{Name: "checkTree", ReturnType: ir.TypeNumber, Body: []ir.Instruction{{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"}, {Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"zero"}}}}
+	caller := ir.Function{Name: "run", ReturnType: ir.TypeVoid, Body: []ir.Instruction{{Op: ir.OpCall, Type: "object:Node", Result: "tree", Callee: "buildTree"}, {Op: ir.OpCall, Type: ir.TypeNumber, Result: "sum", Callee: "checkTree", Args: []string{"tree"}}}}
+	m := ir.Module{Functions: []ir.Function{builder, visitor, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || changed {
+		t.Fatalf("top-level calls must not form a region: changed %v, err %v", changed, err)
+	}
+}
+
+func TestTemporaryObjectRegionPassRejectsUnsafeConstructor(t *testing.T) {
+	unsafeConstructor := ir.Function{
+		Name: "Node_constructor", ReturnType: ir.TypeVoid,
+		Parameters: []ir.Parameter{{Name: "this", Type: "object:Node"}},
+		Body:       []ir.Instruction{{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"this"}}},
+	}
+	builder := ir.Function{
+		Name: "buildTree", ReturnType: "object:Node",
+		Body: []ir.Instruction{
+			{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1},
+			{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "Node_constructor", Args: []string{"node"}},
+			{Op: ir.OpReturn, Type: "object:Node", Args: []string{"node"}},
+		},
+	}
+	visitor := ir.Function{Name: "checkTree", ReturnType: ir.TypeNumber, Body: []ir.Instruction{{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"}, {Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"zero"}}}}
+	caller := ir.Function{Name: "run", ReturnType: ir.TypeVoid, Body: []ir.Instruction{{Op: ir.OpWhile, Body: []ir.Instruction{{Op: ir.OpCall, Type: "object:Node", Result: "tree", Callee: "buildTree"}, {Op: ir.OpCall, Type: ir.TypeNumber, Result: "sum", Callee: "checkTree", Args: []string{"tree"}}}}}}
+	m := ir.Module{Functions: []ir.Function{unsafeConstructor, builder, visitor, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || changed {
+		t.Fatalf("unsafe constructor must not form a region: changed %v, err %v", changed, err)
+	}
+}
+
 func TestConstFold_AlgebraicIdentities(t *testing.T) {
 	fn := ir.Function{
 		Name:       "testFn",

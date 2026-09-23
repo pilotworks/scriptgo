@@ -450,31 +450,119 @@ int scriptgo_gc_unregister(void *ptr);
 
 #define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
 
-void *scriptgo_object_freelist_8 = NULL;
-
 typedef struct scriptgo_slab_node {
     struct scriptgo_slab_node *next;
 } scriptgo_slab_node;
 
-static scriptgo_slab_node *scriptgo_slab_8_head = NULL;
-static char *scriptgo_slab_8_curr = NULL;
-static char *scriptgo_slab_8_end = NULL;
+typedef struct {
+    void *freelist;
+    scriptgo_slab_node *slabs;
+    char *curr;
+    char *end;
+    size_t slot_size;
+} scriptgo_object_pool;
 
-static inline void *scriptgo_slab_alloc_8(void) {
-    if (__builtin_expect(scriptgo_slab_8_curr != NULL && (size_t)(scriptgo_slab_8_end - scriptgo_slab_8_curr) >= 128, 1)) {
-        void *p = scriptgo_slab_8_curr;
-        scriptgo_slab_8_curr += 128;
+typedef struct scriptgo_object_region_chunk {
+    struct scriptgo_object_region_chunk *next;
+    size_t used;
+    size_t capacity;
+    unsigned char data[];
+} scriptgo_object_region_chunk;
+
+typedef struct scriptgo_object_region {
+    struct scriptgo_object_region *parent;
+    struct scriptgo_object_region *next_free;
+    scriptgo_object_region_chunk *chunks;
+    scriptgo_object_region_chunk *current;
+} scriptgo_object_region;
+
+static scriptgo_object_region *scriptgo_active_object_region = NULL;
+static scriptgo_object_region *scriptgo_object_region_freelist = NULL;
+
+// Regions are entered only around compiler-proven non-escaping builder and
+// visitor sequences. Their allocations never reach the tracing GC.
+void scriptgo_object_region_begin(void) {
+    scriptgo_object_region *region = scriptgo_object_region_freelist;
+    if (region != NULL) {
+        scriptgo_object_region_freelist = region->next_free;
+        for (scriptgo_object_region_chunk *chunk = region->chunks; chunk != NULL; chunk = chunk->next) {
+            chunk->used = 0;
+        }
+        region->current = region->chunks;
+    } else {
+        region = (scriptgo_object_region *)calloc(1, sizeof(*region));
+        if (region == NULL) return;
+    }
+    region->parent = scriptgo_active_object_region;
+    scriptgo_active_object_region = region;
+}
+
+void scriptgo_object_region_end(void) {
+    scriptgo_object_region *region = scriptgo_active_object_region;
+    if (region == NULL) return;
+    scriptgo_active_object_region = region->parent;
+    region->parent = NULL;
+    region->next_free = scriptgo_object_region_freelist;
+    scriptgo_object_region_freelist = region;
+}
+
+static void *scriptgo_object_region_alloc(size_t size) {
+    scriptgo_object_region *region = scriptgo_active_object_region;
+    if (region == NULL) return NULL;
+    size = (size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+    scriptgo_object_region_chunk *chunk = region->current;
+    while (chunk != NULL && chunk->capacity - chunk->used < size) {
+        chunk = chunk->next;
+    }
+    if (chunk == NULL) {
+        size_t capacity = 64 * 1024;
+        if (capacity < size) capacity = size;
+        chunk = (scriptgo_object_region_chunk *)malloc(sizeof(*chunk) + capacity);
+        if (chunk == NULL) return NULL;
+        chunk->next = region->chunks;
+        chunk->used = 0;
+        chunk->capacity = capacity;
+        region->chunks = chunk;
+    }
+    region->current = chunk;
+    void *result = chunk->data + chunk->used;
+    chunk->used += size;
+    return result;
+}
+
+// Keep the common shapes compact instead of rounding every small object to 8 fields.
+static scriptgo_object_pool scriptgo_object_pools[] = {
+    {NULL, NULL, NULL, NULL, 48},  // Header plus 1 field.
+    {NULL, NULL, NULL, NULL, 56},  // Header plus 2 fields.
+    {NULL, NULL, NULL, NULL, 72},  // Header plus 4 fields.
+    {NULL, NULL, NULL, NULL, 104}, // Header plus 8 fields.
+};
+
+static inline scriptgo_object_pool *scriptgo_object_pool_for_capacity(uint32_t capacity) {
+    if (capacity == 1) return &scriptgo_object_pools[0];
+    if (capacity == 2) return &scriptgo_object_pools[1];
+    if (capacity <= 4) return &scriptgo_object_pools[2];
+    if (capacity <= 8) return &scriptgo_object_pools[3];
+    return NULL;
+}
+
+static inline void *scriptgo_slab_alloc(scriptgo_object_pool *pool) {
+    if (__builtin_expect(pool->curr != NULL && (size_t)(pool->end - pool->curr) >= pool->slot_size, 1)) {
+        void *p = pool->curr;
+        pool->curr += pool->slot_size;
         return p;
     }
     const size_t SLAB_SIZE = 256 * 1024;
     char *new_slab = (char *)malloc(SLAB_SIZE);
     if (__builtin_expect(new_slab == NULL, 0)) return NULL;
     scriptgo_slab_node *node = (scriptgo_slab_node *)new_slab;
-    node->next = scriptgo_slab_8_head;
-    scriptgo_slab_8_head = node;
-    scriptgo_slab_8_curr = new_slab + 256;
-    scriptgo_slab_8_end = new_slab + SLAB_SIZE;
-    return (void *)(new_slab + 128);
+    node->next = pool->slabs;
+    pool->slabs = node;
+    pool->curr = new_slab + 256;
+    pool->end = new_slab + SLAB_SIZE;
+    void *p = pool->curr;
+    pool->curr += pool->slot_size;
+    return p;
 }
 
 void scriptgo_object_free(void *handle) {
@@ -495,47 +583,58 @@ void scriptgo_object_free(void *handle) {
         free((void *)object->type_name);
         object->type_name = NULL;
     }
-    if (object->capacity == 8) {
-        object->fields[0] = (uintptr_t)scriptgo_object_freelist_8;
-        scriptgo_object_freelist_8 = (void *)object;
-    } else {
-        free(handle);
+    scriptgo_object_pool *pool = scriptgo_object_pool_for_capacity(object->capacity);
+    if (pool != NULL) {
+        object->fields[0] = (uintptr_t)pool->freelist;
+        pool->freelist = object;
+        return;
     }
+    free(handle);
 }
 
 void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name) {
     if (__builtin_expect(field_count < 0, 0)) {
         return NULL;
     }
-    if (__builtin_expect(field_count > 0 && field_count <= 8, 1)) {
+    // Object literals and interface shapes may acquire optional properties
+    // after construction. Only class descriptors have a fixed field layout,
+    // so they can use their exact size class safely.
+    if (__builtin_expect(field_count > 0 && field_count <= 8 && is_class_descriptor(type_name), 1)) {
+        uint32_t capacity = field_count == 1 ? 1 : field_count <= 2 ? 2 : field_count <= 4 ? 4 : 8;
+        scriptgo_object_pool *pool = scriptgo_object_pool_for_capacity(capacity);
         scriptgo_object *object;
-        if (__builtin_expect(scriptgo_object_freelist_8 != NULL, 1)) {
-            object = (scriptgo_object *)scriptgo_object_freelist_8;
-            scriptgo_object_freelist_8 = (void *)object->fields[0];
-        } else {
-            object = (scriptgo_object *)scriptgo_slab_alloc_8();
+        if (scriptgo_active_object_region != NULL) {
+            object = (scriptgo_object *)scriptgo_object_region_alloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
             if (__builtin_expect(object == NULL, 0)) return NULL;
             object->magic = SCRIPTGO_OBJECT_MAGIC;
-            object->capacity = 8;
+            object->capacity = capacity;
+            object->boxed_fields = NULL;
+        } else if (__builtin_expect(pool->freelist != NULL, 1)) {
+            object = (scriptgo_object *)pool->freelist;
+            pool->freelist = (void *)object->fields[0];
+        } else {
+            object = (scriptgo_object *)scriptgo_slab_alloc(pool);
+            if (__builtin_expect(object == NULL, 0)) return NULL;
+            object->magic = SCRIPTGO_OBJECT_MAGIC;
+            object->capacity = capacity;
             object->boxed_fields = NULL;
         }
         object->field_count = field_count;
         object->type_name = type_name;
         *(uint32_t *)&object->extensible = 1;
         uint64_t nan = SCRIPTGO_OBJECT_NAN_BITS;
-        object->fields[0] = nan;
-        object->fields[1] = nan;
-        object->fields[2] = nan;
-        object->fields[3] = nan;
-        object->fields[4] = nan;
-        object->fields[5] = nan;
-        object->fields[6] = nan;
-        object->fields[7] = nan;
-        scriptgo_gc_register_fast(object, 1, 8);
+        for (uint32_t i = 0; i < capacity; i++) {
+            object->fields[i] = nan;
+        }
+        if (scriptgo_active_object_region == NULL) {
+            scriptgo_gc_register_fast(object, 1, field_count);
+        }
         return object;
     }
     uint32_t capacity;
-    if (field_count == 0 || field_count > 64) {
+    if (field_count > 0 && field_count <= 8) {
+        capacity = 8;
+    } else if (field_count == 0 || field_count > 64) {
         capacity = (field_count == 0) ? 64 : (uint32_t)field_count;
     } else if (field_count <= 16) {
         capacity = 16;
