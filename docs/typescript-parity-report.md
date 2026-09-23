@@ -464,33 +464,33 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **10.3 ms** | 58.0 ms | 13.3 ms | **5.64x faster** | **1.30x faster** |
-| **Buffer Ops (10MB)** | **12.4 ms** | 66.7 ms | 20.9 ms | **5.40x faster** | **1.69x faster** |
-| **Mandelbrot 500x500** | **33.8 ms** | 86.2 ms | 42.5 ms | **2.55x faster** | **1.26x faster** |
-| **Quicksort 100k** | **25.1 ms** | 74.7 ms | 24.4 ms | **2.98x faster** | 1.03x slower |
-| **ES2024 Set Ops** | **13.7 ms** | 62.0 ms | 14.3 ms | **4.53x faster** | **1.05x faster** |
-| **Object Churn & GC** | **18.5 ms** | 76.8 ms | 19.3 ms | **4.16x faster** | **1.05x faster** |
-| **Base64 Transcode** | **61.9 ms** | 92.5 ms | 35.9 ms | **1.49x faster** | 1.72x slower |
-| **Matrix Mult 256x256** | **47.5 ms** | 89.3 ms | 44.2 ms | **1.88x faster** | 1.08x slower |
-| **JSON Ops (50 Records)** | **19.8 ms** | 92.3 ms | 19.0 ms | **4.65x faster** | 1.04x slower |
-| **Twitter JSON (617KB)** | **26.0 ms** | 75.1 ms | 24.0 ms | **2.89x faster** | 1.09x slower |
-| **Binary Trees D14** | **82.0 ms** | 132.6 ms | 73.8 ms | **1.62x faster** | 1.11x slower |
+| **Cold Start Latency** | **11.4 ms** | 68.1 ms | 14.7 ms | **5.94x faster** | **1.28x faster** |
+| **Buffer Ops (10MB)** | **12.9 ms** | 69.2 ms | 18.5 ms | **5.37x faster** | **1.44x faster** |
+| **Twitter JSON (617KB)** | **16.7 ms** | 77.5 ms | 24.0 ms | **4.63x faster** | **1.44x faster** |
+| **Object Churn & GC** | **18.9 ms** | 88.5 ms | 21.7 ms | **4.70x faster** | **1.15x faster** |
+| **Mandelbrot 500x500** | **32.3 ms** | 86.1 ms | 43.2 ms | **2.67x faster** | **1.34x faster** |
+| **Binary Trees D14** | **61.9 ms** | 136.8 ms | 75.6 ms | **2.21x faster** | **1.22x faster** |
+| **ES2024 Set Ops** | **13.6 ms** | 66.7 ms | 15.1 ms | **4.92x faster** | **1.11x faster** |
+| **Quicksort 100k** | **27.7 ms** | 91.4 ms | 27.5 ms | **3.30x faster** | 1.01x slower |
+| **Matrix Mult 256x256** | **51.1 ms** | 95.7 ms | 47.6 ms | **1.87x faster** | 1.08x slower |
+| **JSON Ops (50 Records)** | **17.1 ms** | 67.3 ms | 14.4 ms | **3.93x faster** | 1.19x slower |
+| **Base64 Transcode** | **40.9 ms** | 104.6 ms | 34.5 ms | **2.56x faster** | 1.19x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 56.9 MB | 10.6 MB | **9.5x less RAM** | **1.8x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 69.0 MB | 10.6 MB | **11.5x less RAM** | **1.8x less RAM** |
 | **Quicksort 100k** | **7.1 MB** | 76.8 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
-| **Matrix Mult 256x256** | **7.8 MB** | 79.8 MB | 26.9 MB | **10.2x less RAM** | **3.5x less RAM** |
-| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.5 MB | **9.8x less RAM** | **3.0x less RAM** |
-| **Object Churn & GC** | **42.5 MB** | 104.9 MB | 29.6 MB | **2.5x less RAM** | 0.7x (competitive) |
-| **Mandelbrot 500x500** | **6.0 MB** | 74.1 MB | 18.6 MB | **12.3x less RAM** | **3.1x less RAM** |
-| **JSON Ops (50 Records)** | **43.9 MB** | 71.5 MB | 14.0 MB | **1.6x less RAM** | 0.3x (more RAM) |
-| **Twitter JSON (617KB)** | **16.5 MB** | 79.7 MB | 26.1 MB | **4.8x less RAM** | **1.6x less RAM** |
-| **Binary Trees D14** | **54.5 MB** | 111.8 MB | 42.6 MB | **2.0x less RAM** | 0.8x (competitive) |
-| **ES2024 Set Ops** | **7.0 MB** | 71.0 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
-| **Base64 Transcode** | **39.7 MB** | 109.8 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **Matrix Mult 256x256** | **7.9 MB** | 79.7 MB | 26.9 MB | **10.1x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 75.6 MB | 23.6 MB | **9.7x less RAM** | **3.0x less RAM** |
+| **Object Churn & GC** | **18.4 MB** | 107.3 MB | 29.6 MB | **5.8x less RAM** | **1.6x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 74.6 MB | 18.7 MB | **12.4x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **23.4 MB** | 112.1 MB | 46.7 MB | **4.8x less RAM** | **2.0x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.5 MB | 13.1 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.7 MB** | 109.2 MB | 55.8 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **JSON Ops (50 Records)** | **8.6 MB** | 71.5 MB | 14.0 MB | **8.3x less RAM** | **1.6x less RAM** |
+| **Twitter JSON (617KB)** | **10.5 MB** | 80.6 MB | 26.1 MB | **7.7x less RAM** | **2.5x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -146,13 +147,22 @@ func TestCorpus(t *testing.T) {
 		buildOpts.Sanitizers = strings.Split(sanitizerEnv, ",")
 	}
 	buildOpts.OptLevel = "0"
-	if optEnv := os.Getenv("SCRIPTGO_OPT_LEVEL"); optEnv != "" {
-		buildOpts.OptLevel = optEnv
+	maxConcurrent := 4
+	if num := runtime.GOMAXPROCS(0); num < maxConcurrent && num > 0 {
+		maxConcurrent = num
 	}
+	if env := os.Getenv("SCRIPTGO_TEST_PARALLEL"); env != "" {
+		if n, err := strconv.Atoi(env); err == nil && n > 0 {
+			maxConcurrent = n
+		}
+	}
+	sem := make(chan struct{}, maxConcurrent)
 
 	for _, caseTarget := range cases {
 		t.Run(filepath.ToSlash(caseTarget), func(t *testing.T) {
 			t.Parallel()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			entry := caseTarget
 			caseDir := caseTarget
 			isStandalone := strings.HasSuffix(caseTarget, ".ts")
