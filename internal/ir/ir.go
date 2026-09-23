@@ -171,6 +171,12 @@ type Instruction struct {
 	DynamicField bool
 	// RuntimeTypeOf requests a runtime nullish check for pointer-backed values.
 	RuntimeTypeOf bool
+	// NoBoundsCheck indicates that the array indexing operation has been proven
+	// by the BCE pass to be within bounds and can bypass runtime bounds checking.
+	NoBoundsCheck bool
+	// Vectorize instructs backend to attach vectorization metadata (!llvm.loop.vectorize.enable)
+	// to the loop's latch branch.
+	Vectorize bool
 	FieldCount    int
 	// This is the receiver for a Dynamic function call; empty means undefined.
 	This     string

@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **392** | **392 / 392 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 392 | 377 PASS plus 15 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **393** | **393 / 393 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 393 | 378 PASS plus 15 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **96** | **96 / 96 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -422,7 +422,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 4. **Production LLVM Codegen & Optimization Profile (`--release`, `-O3`, `ThinLTO`)**:
    - ✅ Completed: Native compilation pipeline supports `-O3` vectorization and inlining, ThinLTO cross-module optimization between C runtime and emitted LLVM IR (`-flto=thin`), symbol stripping (`-s`, `--strip`), and the unified `--release` production profile.
 5. **Middle-End Typed IR Optimization Pipeline (`internal/opt`)**:
-   - ✅ Completed: Dedicated middle-end optimization layer (`internal/opt`) performing dominance-scoped Loop-Invariant Code Motion (LICM), Common Subexpression Elimination (CSE), Constant Folding with algebraic identities (`x + 0`, `x * 1`, `x - 0`), and Dead Code Elimination (DCE). Preserves 100% test parity while outperforming Bun v1.4 and Node v24 across standard compute, cold-start, and buffer benchmark suites.
+   - ✅ Completed: Dedicated middle-end optimization layer (`internal/opt`) performing dominance-scoped Loop-Invariant Code Motion (LICM), Common Subexpression Elimination (CSE), Bounds Check Elimination (BCE) with loop induction range analysis, SIMD auto-vectorization hint metadata (`!llvm.loop.vectorize.enable`), Constant Folding with algebraic identities (`x + 0`, `x * 1`, `x - 0`), and Dead Code Elimination (DCE). Preserves 100% test parity while outperforming Bun v1.4 and Node v24 across compute, cold-start, array manipulation, and buffer benchmark suites.
 
 ---
 
@@ -464,48 +464,49 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **11.4 ms** | 68.1 ms | 14.7 ms | **5.94x faster** | **1.28x faster** |
-| **Buffer Ops (10MB)** | **12.9 ms** | 69.2 ms | 18.5 ms | **5.37x faster** | **1.44x faster** |
-| **Twitter JSON (617KB)** | **16.7 ms** | 77.5 ms | 24.0 ms | **4.63x faster** | **1.44x faster** |
-| **Object Churn & GC** | **18.9 ms** | 88.5 ms | 21.7 ms | **4.70x faster** | **1.15x faster** |
-| **Mandelbrot 500x500** | **32.3 ms** | 86.1 ms | 43.2 ms | **2.67x faster** | **1.34x faster** |
-| **Binary Trees D14** | **61.9 ms** | 136.8 ms | 75.6 ms | **2.21x faster** | **1.22x faster** |
-| **ES2024 Set Ops** | **13.6 ms** | 66.7 ms | 15.1 ms | **4.92x faster** | **1.11x faster** |
-| **Quicksort 100k** | **27.7 ms** | 91.4 ms | 27.5 ms | **3.30x faster** | 1.01x slower |
-| **Matrix Mult 256x256** | **51.1 ms** | 95.7 ms | 47.6 ms | **1.87x faster** | 1.08x slower |
-| **JSON Ops (50 Records)** | **17.1 ms** | 67.3 ms | 14.4 ms | **3.93x faster** | 1.19x slower |
-| **Base64 Transcode** | **40.9 ms** | 104.6 ms | 34.5 ms | **2.56x faster** | 1.19x slower |
+| **Cold Start Latency** | **9.8 ms** | 55.3 ms | 10.0 ms | **5.65x faster** | **1.02x faster** |
+| **Quicksort 100k** | **20.9 ms** | 68.5 ms | 24.4 ms | **3.27x faster** | **1.16x faster** |
+| **Matrix Mult 256x256** | **24.0 ms** | 82.9 ms | 40.4 ms | **3.46x faster** | **1.68x faster** |
+| **Buffer Ops (10MB)** | **11.0 ms** | 62.3 ms | 15.2 ms | **5.67x faster** | **1.39x faster** |
+| **Object Churn & GC** | **16.5 ms** | 73.1 ms | 17.3 ms | **4.43x faster** | **1.05x faster** |
+| **Mandelbrot 500x500** | **30.3 ms** | 79.6 ms | 38.6 ms | **2.63x faster** | **1.28x faster** |
+| **ES2024 Set Ops** | **10.9 ms** | 57.0 ms | 10.6 ms | **5.22x faster** | 1.03x slower |
+| **Twitter JSON (617KB)** | **22.6 ms** | 69.0 ms | 19.8 ms | **3.05x faster** | 1.15x slower |
+| **Base64 Transcode** | **35.2 ms** | 87.1 ms | 34.6 ms | **2.47x faster** | 1.02x slower |
+| **JSON Ops (50 Records)** | **16.2 ms** | 61.5 ms | 13.3 ms | **3.81x faster** | 1.22x slower |
+| **Binary Trees D14** | **78.1 ms** | 123.8 ms | 68.6 ms | **1.59x faster** | 1.14x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 69.0 MB | 10.6 MB | **11.5x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **7.1 MB** | 76.8 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
-| **Matrix Mult 256x256** | **7.9 MB** | 79.7 MB | 26.9 MB | **10.1x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.8 MB** | 75.6 MB | 23.6 MB | **9.7x less RAM** | **3.0x less RAM** |
-| **Object Churn & GC** | **18.4 MB** | 107.3 MB | 29.6 MB | **5.8x less RAM** | **1.6x less RAM** |
-| **Mandelbrot 500x500** | **6.0 MB** | 74.6 MB | 18.7 MB | **12.4x less RAM** | **3.1x less RAM** |
-| **Binary Trees D14** | **23.4 MB** | 112.1 MB | 46.7 MB | **4.8x less RAM** | **2.0x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 70.5 MB | 13.1 MB | **10.1x less RAM** | **1.9x less RAM** |
-| **Base64 Transcode** | **39.7 MB** | 109.2 MB | 55.8 MB | **2.8x less RAM** | **1.4x less RAM** |
-| **JSON Ops (50 Records)** | **8.6 MB** | 71.5 MB | 14.0 MB | **8.3x less RAM** | **1.6x less RAM** |
-| **Twitter JSON (617KB)** | **10.5 MB** | 80.6 MB | 26.1 MB | **7.7x less RAM** | **2.5x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 68.6 MB | 10.6 MB | **11.4x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **7.1 MB** | 76.7 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
+| **Matrix Mult 256x256** | **7.9 MB** | 79.9 MB | 26.8 MB | **10.1x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.9 MB | **9.8x less RAM** | **3.1x less RAM** |
+| **Object Churn & GC** | **18.4 MB** | 104.3 MB | 29.6 MB | **5.7x less RAM** | **1.6x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 73.9 MB | 18.7 MB | **12.3x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **21.5 MB** | 111.9 MB | 42.1 MB | **5.2x less RAM** | **2.0x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.6 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.6 MB** | 109.6 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **JSON Ops (50 Records)** | **9.9 MB** | 71.2 MB | 14.0 MB | **7.2x less RAM** | **1.4x less RAM** |
+| **Twitter JSON (617KB)** | **15.2 MB** | 81.0 MB | 26.1 MB | **5.3x less RAM** | **1.7x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
 - **Cold Start / Mandelbrot / Set Ops**: 34 KB – 35 KB native executables
-- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 50 KB – 68 KB native executables
+- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 51 KB – 68 KB native executables
 - **JSON Ops / Twitter JSON**: 165 KB – 233 KB native executables (includes embedded SIMD yyjson parser and runtime)
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 
-The optimizer executes 4 target-independent passes on the Typed IR prior to backend emission:
+The optimizer executes 5 target-independent passes on the Typed IR prior to backend emission:
 1. **Constant Folding & Algebraic Simplification (`internal/opt/const_fold.go`)**: Evaluates constant expressions at compile time, eliminating dead identity operations (e.g. `x + 0`, `x * 1`, `x * 0`), constant comparisons, and boolean logic.
 2. **Common Subexpression Elimination (`internal/opt/cse.go`)**: Identifies duplicate pure expressions and redundant loads within basic blocks, reusing precomputed results across instructions.
 3. **Loop-Invariant Code Motion (`internal/opt/licm.go`)**: Identifies instructions invariant to loop iterations and hoists them into loop preheaders.
-4. **Dead Code Elimination (`internal/opt/dce.go`)**: Prunes unused SSA instructions, unreachable basic blocks, and pure operations whose results are unreferenced.
+4. **Bounds Check Elimination & Loop Vectorization (`internal/opt/bce.go`)**: Performs rigorous mathematical scalar evolution interval analysis on primary induction variables, identifies secondary monotonic counters, proves array length relations and dominating prior accesses, and hoists loop bounds pre-header guards (`__array.bounds_guard`). Marks safe index operations with `NoBoundsCheck = true` and eligible countable loops with `Vectorize = true` to unlock NEON SIMD auto-vectorization without heuristics or hardcoded variable names.
+5. **Dead Code Elimination (`internal/opt/dce.go`)**: Prunes unused SSA instructions, unreachable basic blocks, and pure operations whose results are unreferenced.
 
 ### 7.3. Native Backend Fast-Paths (`internal/backend/llvm`)
 

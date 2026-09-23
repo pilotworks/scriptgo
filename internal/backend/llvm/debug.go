@@ -65,6 +65,12 @@ func newDebugInfo(module ir.Module) *debugInfo {
 	return result
 }
 
+func (info *debugInfo) allocateID() int {
+	id := info.nextID
+	info.nextID++
+	return id
+}
+
 func (info *debugInfo) location(span ir.SourceSpan, funcName string, module ir.Module) string {
 	if info == nil {
 		return ""
@@ -118,7 +124,8 @@ func (info *debugInfo) metadata(module ir.Module, compilerVersion string) string
 	}
 	text.WriteString("!3 = !DISubroutineType(types: !{})\n")
 	for _, functionPath := range module.Functions {
-		text.WriteString(info.functionMetadata(functionPath, module) + "\n")
+		text.WriteString(info.functionMetadata(functionPath, module))
+		text.WriteString("\n")
 	}
 	for _, loc := range info.locList {
 		text.WriteString(fmt.Sprintf("!%d = !DILocation(line: %d, column: %d, scope: !%d)\n", loc.id, loc.line, loc.col, loc.scope))

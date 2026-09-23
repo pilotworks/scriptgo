@@ -343,3 +343,63 @@ func TestEmitFunctionNounwind(t *testing.T) {
 		t.Errorf("__scriptgo_to_int32 definition missing nounwind attribute:\n%s", output)
 	}
 }
+
+func TestEmitNoBoundsCheckAndLoopVectorize(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Parameters: []ir.Parameter{
+			{Name: "arr", Type: ir.TypeNumberArray},
+			{Name: "n", Type: ir.TypeNumber},
+		},
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "i", Value: "0"},
+			{
+				Op:        ir.OpWhile,
+				Type:      ir.TypeVoid,
+				Vectorize: true,
+				Args:      []string{"cmp"},
+				Cond: []ir.Instruction{
+					{Op: ir.OpCompare, Type: ir.TypeBool, Result: "cmp", Operator: "<", Args: []string{"i", "n"}},
+				},
+				Body: []ir.Instruction{
+					{Op: ir.OpIndex, Type: ir.TypeNumber, Result: "elem", Args: []string{"arr", "i"}, NoBoundsCheck: true},
+					{Op: ir.OpConst, Type: ir.TypeNumber, Result: "two", Value: "2"},
+					{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "res", Operator: "*", Args: []string{"elem", "two"}},
+					{Op: ir.OpIndexSet, Type: ir.TypeVoid, Args: []string{"arr", "i", "res"}, NoBoundsCheck: true},
+				},
+				Step: []ir.Instruction{
+					{Op: ir.OpConst, Type: ir.TypeNumber, Result: "one", Value: "1"},
+					{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "next_i", Operator: "+", Args: []string{"i", "one"}},
+					{Op: ir.OpAssign, Type: ir.TypeNumber, Result: "i", Args: []string{"next_i"}},
+				},
+			},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Verify NoBoundsCheck fast path bypasses slow-path call and phi node
+	if strings.Contains(output, "call i32 @scriptgo_array_get(") {
+		t.Errorf("NoBoundsCheck index should not call scriptgo_array_get:\n%s", output)
+	}
+	if strings.Contains(output, "phi double") {
+		t.Errorf("NoBoundsCheck index should not produce phi double:\n%s", output)
+	}
+	if !strings.Contains(output, "getelementptr inbounds double") {
+		t.Errorf("NoBoundsCheck index should directly compute double element pointer:\n%s", output)
+	}
+
+	// 2. Verify loop vectorization metadata
+	if !strings.Contains(output, "llvm.loop.vectorize.enable") {
+		t.Errorf("vectorized loop must emit llvm.loop.vectorize.enable metadata:\n%s", output)
+	}
+	if !strings.Contains(output, "!llvm.loop !") {
+		t.Errorf("vectorized loop latch branch must attach !llvm.loop metadata:\n%s", output)
+	}
+}
+

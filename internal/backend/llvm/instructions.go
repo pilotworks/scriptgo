@@ -42,6 +42,12 @@ type functionEmitter struct {
 	integerVars        map[string]bool
 	integerUpperBounds map[string]float64
 	usedResults        map[string]bool
+	loopMeta           *loopMetadataRecorder
+}
+
+type loopMetadataRecorder struct {
+	nextID      int
+	definitions []string
 }
 
 // usedInstructionResults records values consumed by any nested control-flow
@@ -72,6 +78,32 @@ func (e *functionEmitter) vol() string {
 		return " volatile"
 	}
 	return ""
+}
+
+func (e *functionEmitter) nextMetadataID() int {
+	if e.debug != nil {
+		return e.debug.allocateID()
+	}
+	if e.loopMeta == nil {
+		return 0
+	}
+	id := e.loopMeta.nextID
+	e.loopMeta.nextID++
+	return id
+}
+
+func (e *functionEmitter) recordVectorizeLoop() int {
+	loopID := e.nextMetadataID()
+	vecID := e.nextMetadataID()
+	unrollID := e.nextMetadataID()
+	if e.loopMeta != nil {
+		e.loopMeta.definitions = append(e.loopMeta.definitions,
+			fmt.Sprintf("!%d = distinct !{!%d, !%d, !%d}", loopID, loopID, vecID, unrollID),
+			fmt.Sprintf("!%d = !{!\"llvm.loop.vectorize.enable\", i1 1}", vecID),
+			fmt.Sprintf("!%d = !{!\"llvm.loop.unroll.enable\", i1 1}", unrollID),
+		)
+	}
+	return loopID
 }
 
 func hasTryCatch(instructions []ir.Instruction) bool {

@@ -86,6 +86,12 @@ func dumpInstructionWithIndent(instruction Instruction, indent string) string {
 			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
 		}
 	}
+	if len(instruction.Step) > 0 {
+		res += "\n" + indent + "  step:"
+		for _, inst := range instruction.Step {
+			res += "\n" + indent + "    " + dumpInstructionWithIndent(inst, indent+"    ")
+		}
+	}
 	if len(instruction.Catch) > 0 {
 		res += "\n" + indent + "  catch:"
 		for _, inst := range instruction.Catch {

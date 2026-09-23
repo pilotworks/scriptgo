@@ -72,6 +72,39 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 			e.integerVars[instruction.Result] = true
 		}
 		return nil
+	case "__array.bounds_guard":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("array.bounds_guard requires array and bound arguments")
+		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
+		boundArg := e.resolveArg(out, instruction.Args[1])
+		id := e.labelCounter
+		e.labelCounter++
+		boundI64 := fmt.Sprintf("guard.bound.i64.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", boundI64, boundArg))
+		isNotNull := fmt.Sprintf("guard.not_null.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ne ptr %%%s, null\n", isNotNull, ptrArg))
+		checkLabel := fmt.Sprintf("guard.check.%d", id)
+		failLabel := fmt.Sprintf("guard.fail.%d", id)
+		passLabel := fmt.Sprintf("guard.pass.%d", id)
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", isNotNull, checkLabel, failLabel))
+		out.WriteString(fmt.Sprintf("\n%s:\n", checkLabel))
+		lenPtr := fmt.Sprintf("guard.len.ptr.%d", id)
+		lenVal := fmt.Sprintf("guard.len.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 8\n", lenPtr, ptrArg))
+		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s, !invariant.load !{}\n", lenVal, lenPtr))
+		cmpZero := fmt.Sprintf("guard.zero.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp sle i64 %%%s, 0\n", cmpZero, boundI64))
+		cmpLen := fmt.Sprintf("guard.cmp.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ule i64 %%%s, %%%s\n", cmpLen, boundI64, lenVal))
+		cmpOk := fmt.Sprintf("guard.ok.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpOk, cmpZero, cmpLen))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", cmpOk, passLabel, failLabel))
+		out.WriteString(fmt.Sprintf("\n%s:\n", failLabel))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 -1)\n"))
+		out.WriteString(fmt.Sprintf("  unreachable\n"))
+		out.WriteString(fmt.Sprintf("\n%s:\n", passLabel))
+		return nil
 	case "__array.set_length":
 		if len(instruction.Args) != 2 {
 			return fmt.Errorf("array.set_length has invalid signature")
