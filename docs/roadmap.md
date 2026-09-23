@@ -207,8 +207,8 @@ semantic gaps behind native code generation. All slices (8A through 8H) are now 
 The standard library follows the Node.js-compatible policy in [`docs/stdlib.md`](stdlib.md).
 Currently, 34 core modules are available (backed by C runtime intrinsics or pure TypeScript implementations) covering essential APIs for buffers, crypto, file system, networking, streams, SQLite, and utilities. Unimplemented mock modules, fake stubs, and non-standard APIs have been strictly purged to ensure zero false parity:
 
-- **Verified / Substantially Supported Modules:** `assert`, `console`, `sqlite`, `webstreams`, `path`, `punycode`, `querystring`, `string_decoder`, `domain`, `tls` (OpenSSL), `events`, `buffer`, `os`, `crypto` (OpenSSL core), `fs` (core sync/promises), etc.
-- **Explicitly Unsupported / Deferred Modules:** `http2`, `test`, `v8`, `worker_threads`, `cluster`, `readline`, `https`, `inspector`, `tty`, `repl`, `tracing`, `sea`, `wasi`, `permissions`.
+- **Verified / Substantially Supported Modules:** `assert`, `console`, `sqlite`, `webstreams`, `path`, `punycode`, `querystring`, `string_decoder`, `domain`, `tls` (OpenSSL), `events`, `buffer`, `os`, `crypto` (OpenSSL core), `fs` (core sync/promises/streams/watchers), `child_process` (sync/async), `test`, `readline`, `tty`, `http`, `https`, `dgram`, `net`, `zlib`, etc.
+- **Explicitly Unsupported / Deferred Modules:** `http2`, `v8`, `worker_threads`, `cluster`, `inspector`, `repl`, `tracing`, `sea`, `wasi`, `permissions`.
 - **Audit & Parity Tracking:** Tracked continuously via `internal/audit` against Node.js v22 LTS specs and documented in [`docs/typescript-parity-report.md`](typescript-parity-report.md).
 
 The package installation contract supports production, optional, and peer dependencies,

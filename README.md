@@ -6,11 +6,11 @@
 
 [![CI](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml/badge.svg)](https://github.com/pilotworks/scriptgo/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![TypeScript Parity](<https://img.shields.io/badge/TypeScript%20Parity-100%25%20(386%2F386)-success.svg>)](docs/typescript-parity-report.md)
+[![TypeScript Core Subset Parity](<https://img.shields.io/badge/Core%20Subset%20Parity-100%25%20(392%2F392)-success.svg>)](docs/typescript-parity-report.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platforms](<https://img.shields.io/badge/Platforms-macOS%20%7C%20Linux%20%7C%20WASM%20(WASI)-lightgrey.svg>)](#toolchain--cross-compilation)
 
-**A high-performance Ahead-Of-Time (AOT) compiler compiling TypeScript to native standalone executables and WebAssembly (WASI) modules with Node.js parity.**
+**A high-performance Ahead-Of-Time (AOT) compiler compiling TypeScript to native standalone executables and WebAssembly (WASI) modules with Node.js core subset parity.**
 
 </div>
 
@@ -23,7 +23,7 @@
 ## Highlights & Features
 
 - **High-Performance AOT Compilation**: Compiles TypeScript directly to native machine code (Mach-O, ELF, PE) and WebAssembly (`.wasm`) via LLVM.
-- **Node.js Semantic Parity**: Full parity across the 386-case regression test corpus checked against Node.js v22+ (386/386, 100%).
+- **Node.js Core Subset Parity**: Full parity across the 392-case regression test corpus checked against Node.js v22+ core subset (392/392, 100%).
 - **WebAssembly / WASI Target**: First-class Ahead-Of-Time compilation to standalone `.wasm` executables with `--target wasm32-wasi`, validated on Node.js WASI and Wasmtime.
 - **Zero-Dependency Native Builds**: Automatically uses system `clang` or auto-detects `zig cc` for hassle-free out-of-the-box compilation and seamless cross-compilation (macOS, Linux, Windows, WASM).
 - **Fast Execution**: Instantly compiles and runs scripts directly or produces optimized standalone binary builds.
@@ -44,7 +44,7 @@
 
 ## Documentation
 
-- [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md) - Comprehensive TypeScript/Node.js feature matrix and parity test report.
+- [`docs/typescript-parity-report.md`](docs/typescript-parity-report.md) - Comprehensive TypeScript/Node.js core subset feature matrix and parity test report.
 - [`docs/native-subset.md`](docs/native-subset.md) - Native static subset definition and compatibility constraints.
 - [`docs/compilation-tiers.md`](docs/compilation-tiers.md) - Static, Dynamic (QuickJS-ng island), and Unsupported compilation policy.
 - [`docs/application-structure.md`](docs/application-structure.md) - Repository architecture, package ownership, and dependency direction.
