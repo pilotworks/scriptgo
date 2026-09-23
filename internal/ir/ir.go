@@ -176,8 +176,8 @@ type Instruction struct {
 	NoBoundsCheck bool
 	// Vectorize instructs backend to attach vectorization metadata (!llvm.loop.vectorize.enable)
 	// to the loop's latch branch.
-	Vectorize bool
-	FieldCount    int
+	Vectorize  bool
+	FieldCount int
 	// This is the receiver for a Dynamic function call; empty means undefined.
 	This     string
 	Args     []string

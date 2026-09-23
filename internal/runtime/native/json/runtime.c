@@ -178,6 +178,8 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
 int scriptgo_object_keys(void *handle, void **out_array);
 int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
 int scriptgo_string_from_object(void *obj, char **out_str);
+int scriptgo_object_region_contains(const void *ptr);
+int scriptgo_json_arena_contains(const void *ptr);
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
 
@@ -230,7 +232,10 @@ static inline void json_object_field_value(const scriptgo_json_object *obj, int6
             out_value->tag = SCRIPTGO_TAG_FUNCTION;
         } else if (gc_tag == 11) {
             out_value->tag = SCRIPTGO_TAG_SYMBOL;
-        } else if (gc_tag != 0 || (value != 0 && *(uint64_t *)value == SCRIPTGO_OBJECT_MAGIC)) {
+        } else if (gc_tag != 0) {
+            out_value->tag = SCRIPTGO_TAG_OBJECT;
+        } else if ((scriptgo_object_region_contains((void *)value) || scriptgo_json_arena_contains((void *)value)) &&
+                   *(uint64_t *)value == SCRIPTGO_OBJECT_MAGIC) {
             out_value->tag = SCRIPTGO_TAG_OBJECT;
         } else {
             out_value->tag = SCRIPTGO_TAG_STRING;
@@ -635,6 +640,19 @@ static void register_json_arena(void *root, json_arena *arena) {
     t->arena = arena;
     t->next = active_json_arenas;
     active_json_arenas = t;
+}
+
+int scriptgo_json_arena_contains(const void *ptr) {
+    if (active_json_arenas == NULL || ptr == NULL) return 0;
+    for (json_arena_tracker *t = active_json_arenas; t != NULL; t = t->next) {
+        if (t->arena == NULL) continue;
+        for (json_arena_chunk *c = t->arena->chunks; c != NULL; c = c->next) {
+            if ((const unsigned char *)ptr >= c->data && (const unsigned char *)ptr < c->data + c->used) {
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 static inline void *json_val_alloc(json_arena *arena, size_t size) {

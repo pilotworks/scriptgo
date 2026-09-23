@@ -337,12 +337,3 @@ func isRegionInspector(fn ir.Function) bool {
 	scan(fn.Body)
 	return valid
 }
-
-func contains(values []string, value string) bool {
-	for _, candidate := range values {
-		if candidate == value {
-			return true
-		}
-	}
-	return false
-}

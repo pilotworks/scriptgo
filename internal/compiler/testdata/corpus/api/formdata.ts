@@ -1,7 +1,6 @@
 // ScriptGo Corpus: WHATWG FormData Standard APIs
 // Consolidated test suite with inline assertions.
 
-import { FormData as NodeFormData } from "node:formdata";
 import { Blob, File } from "node:buffer";
 import "node:http";
 
@@ -80,8 +79,8 @@ if (avatarFile instanceof File) {
 const fd2 = new FormData();
 fd2.append("k1", "v1");
 fd2.append("k2", "v2");
-console.log(fd2.keys().join(","));
-console.log(fd2.values().join(","));
+console.log(Array.from(fd2.keys()).join(","));
+console.log(Array.from(fd2.values()).join(","));
 for (const [k, v] of fd2.entries()) {
     console.log(k + ":" + v);
 }
@@ -89,9 +88,9 @@ fd2.forEach((v, k) => {
     console.log(k + "=" + v);
 });
 
-// --- Imported NodeFormData check ---
+// --- Additional FormData instance check ---
 // @expect: bar
-const nfd = new NodeFormData();
+const nfd = new FormData();
 nfd.append("foo", "bar");
 console.log(nfd.get("foo"));
 

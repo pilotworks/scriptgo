@@ -402,4 +402,3 @@ func TestEmitNoBoundsCheckAndLoopVectorize(t *testing.T) {
 		t.Errorf("vectorized loop latch branch must attach !llvm.loop metadata:\n%s", output)
 	}
 }
-

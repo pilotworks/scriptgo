@@ -101,8 +101,8 @@ func (e *functionEmitter) emitArrayIntrinsic(out *strings.Builder, instruction i
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpOk, cmpZero, cmpLen))
 		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", cmpOk, passLabel, failLabel))
 		out.WriteString(fmt.Sprintf("\n%s:\n", failLabel))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 -1)\n"))
-		out.WriteString(fmt.Sprintf("  unreachable\n"))
+		out.WriteString("  call void @scriptgo_runtime_abort_if_failed(i32 -1)\n")
+		out.WriteString("  unreachable\n")
 		out.WriteString(fmt.Sprintf("\n%s:\n", passLabel))
 		return nil
 	case "__array.set_length":
