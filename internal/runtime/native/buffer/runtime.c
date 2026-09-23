@@ -264,7 +264,28 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
             i += 4;
         }
 
-        // Remainder loop for padding '=' or trailing characters
+        // Decode the final padded quartet that the clean fast paths deliberately
+        // leave behind. Padding is not in b64_lut, so it must be handled here.
+        if (i + 4 <= in_len && str[i + 2] == '=') {
+            int8_t v0 = b64_val(str[i]);
+            int8_t v1 = b64_val(str[i + 1]);
+            if (v0 >= 0 && v1 >= 0) {
+                dst[out_len++] = (unsigned char)(((uint32_t)v0 << 2) | ((uint32_t)v1 >> 4));
+                i += 4;
+            }
+        } else if (i + 4 <= in_len && str[i + 3] == '=') {
+            int8_t v0 = b64_val(str[i]);
+            int8_t v1 = b64_val(str[i + 1]);
+            int8_t v2 = b64_val(str[i + 2]);
+            if (v0 >= 0 && v1 >= 0 && v2 >= 0) {
+                uint32_t triple = ((uint32_t)v0 << 18) | ((uint32_t)v1 << 12) | ((uint32_t)v2 << 6);
+                dst[out_len++] = (unsigned char)(triple >> 16);
+                dst[out_len++] = (unsigned char)(triple >> 8);
+                i += 4;
+            }
+        }
+
+        // Accept unpadded and whitespace-containing input after the fast paths.
         uint32_t buf = 0;
         int bits = 0;
         for (; i < in_len; i++) {

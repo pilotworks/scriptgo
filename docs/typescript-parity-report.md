@@ -48,7 +48,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `Generics & Const Type Parameters` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, type aliases, and `<const T>` type parameters. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays, SharedArrayBuffer & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`..`BigUint64Array`), `SharedArrayBuffer`, `Atomics` (all 12 atomic arithmetic, bitwise, load/store, exchange, compareExchange, isLockFree, wait, and notify methods), `DataView` with binary access (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
-| `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
+| `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, padded and unpadded base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
 | `Map<K, V> & Set<T>` (ES2024) | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and all 7 **ES2024 Set Methods**: `union()`, `intersection()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`. |
 | `Intl (Internationalization)` | ✅ Full | Complete support for `Intl.NumberFormat`, `DateTimeFormat`, `Collator`, `Segmenter`, `DisplayNames`, `ListFormat`, `RelativeTimeFormat`, `PluralRules`, and `Intl.getCanonicalLocales`. |
 | `Explicit Resource Management (TS 5.2 / ES2024)` | ✅ Full | `using` and `await using` variable declarations automatically invoke `[Symbol.dispose]()` / `[Symbol.asyncDispose]()` in LIFO order upon exiting lexical block scopes. |
@@ -157,7 +157,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`node:process` / `process`**| `process.argv`, `process.env`, `process.exit()`, `process.cwd()`, `process.platform`, `process.uptime()` | ✅ Matches CLI / environment variables |
 | **`node:crypto` / `crypto`**| `createHash` (`sha256`, `sha512`, `sha1`, `md5`, `hex`, `base64`, string and binary inputs), `createHmac` (`sha256`, `sha512`, `sha1`, `md5`, string and binary inputs), `randomUUID()`, `randomBytes()`, `randomInt()`, `randomFillSync()`, `timingSafeEqual()`, `pbkdf2Sync()`, `getHashes()`, `constants` (`RSA_PKCS1_PADDING`, etc.), `Hash`, `Hmac` | ✅ 100% matches Node.js Crypto specification |
 | **`performance`** | `performance.now()` | ✅ Microsecond precision |
-| **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
+| **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64, including final padded quartets) | ✅ Matches RFC-4648 encoding standard |
 | **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `SharedArrayBuffer`, `Atomics` (all 12 methods), `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer & atomic operations |
 | **`node:buffer` / `buffer`** | `Buffer.alloc`, `Buffer.allocUnsafe`, `Buffer.from`, `Buffer.concat`, `Buffer.isBuffer`, `Buffer.byteLength`, `.toString`, `.subarray`, `.slice`, `.copy`, `.fill`, `.equals`, `.compare`, `.indexOf`, `readUInt8`/`writeUInt8`, `readInt8`/`writeInt8`, `readUInt16LE`/`BE`/`writeUInt16LE`/`BE`, `readUInt32LE`/`BE`/`writeUInt32LE`/`BE`, `readInt32LE`/`BE`/`writeInt32LE`/`BE`, `readFloatLE`/`BE`/`writeFloatLE`/`BE`, `readDoubleLE`/`BE`/`writeDoubleLE`/`BE` | ✅ 100% matches Node.js Buffer specification |
 | **`node:url` / `url`** | `URL`, `URLSearchParams`, `href`, `origin`, `protocol`, `username`, `password`, `host`, `hostname`, `port`, `pathname`, `search`, `hash`, `searchParams`, `toString`, `toJSON`, `URL.canParse()`, `get`, `getAll`, `set`, `append`, `has`, `delete`, `sort`, `size` | ✅ 100% matches WHATWG / Node.js URL specification |
@@ -464,17 +464,17 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **8.8 ms** | 54.3 ms | 11.1 ms | **6.19x faster** | **1.26x faster** |
-| **Buffer Ops (10MB)** | **10.9 ms** | 65.1 ms | 16.4 ms | **5.96x faster** | **1.50x faster** |
-| **Mandelbrot 500x500** | **30.4 ms** | 81.0 ms | 39.5 ms | **2.66x faster** | **1.30x faster** |
-| **Quicksort 100k** | **22.8 ms** | 68.2 ms | 21.2 ms | **2.99x faster** | ~1.08x (on par) |
-| **ES2024 Set Ops** | **11.2 ms** | 57.3 ms | 10.9 ms | **5.11x faster** | ~1.03x (on par) |
-| **Object Churn & GC** | **18.3 ms** | 72.4 ms | 17.0 ms | **3.97x faster** | ~1.08x (on par) |
-| **Base64 Transcode** | **62.8 ms** | 88.3 ms | 31.9 ms | **1.41x faster** | 1.96x slower |
-| **Matrix Mult 256x256** | **44.6 ms** | 85.5 ms | 41.4 ms | **1.92x faster** | ~1.08x (on par) |
-| **JSON Ops (50 Records)** | **25.1 ms** (min 23 ms) | 68.3 ms | 14.3 ms | **2.72x faster** | 1.75x slower |
-| **Twitter JSON (617KB)** | **28.0 ms** (min 23 ms) | 78.2 ms | 23.1 ms | **2.79x faster** | ~1.2x (close to Bun) |
-| **Binary Trees D14** | **158.1 ms** (min 136 ms) | 134.7 ms | 73.5 ms | ~1.18x slower | ~2.1x slower |
+| **Cold Start Latency** | **10.3 ms** | 58.0 ms | 13.3 ms | **5.64x faster** | **1.30x faster** |
+| **Buffer Ops (10MB)** | **12.4 ms** | 66.7 ms | 20.9 ms | **5.40x faster** | **1.69x faster** |
+| **Mandelbrot 500x500** | **33.8 ms** | 86.2 ms | 42.5 ms | **2.55x faster** | **1.26x faster** |
+| **Quicksort 100k** | **25.1 ms** | 74.7 ms | 24.4 ms | **2.98x faster** | 1.03x slower |
+| **ES2024 Set Ops** | **13.7 ms** | 62.0 ms | 14.3 ms | **4.53x faster** | **1.05x faster** |
+| **Object Churn & GC** | **18.5 ms** | 76.8 ms | 19.3 ms | **4.16x faster** | **1.05x faster** |
+| **Base64 Transcode** | **61.9 ms** | 92.5 ms | 35.9 ms | **1.49x faster** | 1.72x slower |
+| **Matrix Mult 256x256** | **47.5 ms** | 89.3 ms | 44.2 ms | **1.88x faster** | 1.08x slower |
+| **JSON Ops (50 Records)** | **19.8 ms** | 92.3 ms | 19.0 ms | **4.65x faster** | 1.04x slower |
+| **Twitter JSON (617KB)** | **26.0 ms** | 75.1 ms | 24.0 ms | **2.89x faster** | 1.09x slower |
+| **Binary Trees D14** | **82.0 ms** | 132.6 ms | 73.8 ms | **1.62x faster** | 1.11x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
