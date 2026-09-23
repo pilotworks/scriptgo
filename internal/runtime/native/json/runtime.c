@@ -145,6 +145,27 @@ typedef struct {
 
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set_tag(void *handle, int64_t tag);
+
+static int json_builder_number_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if (jb_char(b, '[') != 0) return -1;
+    const double *data = (const double *)arr->data;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (i > 0 && jb_char(b, ',') != 0) return -1;
+        if (jb_number(b, data[i]) != 0) return -1;
+    }
+    return jb_char(b, ']');
+}
+
+static int json_builder_string_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if (jb_char(b, '[') != 0) return -1;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (i > 0 && jb_char(b, ',') != 0) return -1;
+        const char *elem = *(const char **)(arr->data + (size_t)i * sizeof(char *));
+        const char *s = elem != NULL ? elem : "";
+        if (jb_string(b, s, strlen(s)) != 0) return -1;
+    }
+    return jb_char(b, ']');
+}
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
 int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_get(void *handle, double index, void *out_value);
@@ -177,6 +198,46 @@ int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str)
 static int json_builder_value(json_builder *b, const scriptgo_value *value);
 static int json_builder_object(json_builder *b, void *handle);
 
+// Parsed JSON objects store plain runtime values, so avoid the generic accessor's
+// cloning and validation path while preserving it for objects with boxed fields.
+static inline void json_object_field_value(const scriptgo_json_object *obj, int64_t index,
+                                           scriptgo_value *out_value) {
+    memset(out_value, 0, sizeof(*out_value));
+    if (index < 0 || index >= obj->field_count) return;
+
+    uintptr_t value = obj->fields[index];
+    if (value == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) return;
+    if (value == 0) {
+        out_value->tag = SCRIPTGO_TAG_NULL;
+    } else if (((uint64_t)value >> 32) == 2) {
+        out_value->tag = SCRIPTGO_TAG_BOOLEAN;
+        out_value->payload = value & 1;
+    } else if ((value & 0xFFF8000000000000ULL) != 0) {
+        out_value->tag = SCRIPTGO_TAG_NUMBER;
+        out_value->payload = (uint64_t)value;
+    } else {
+        int gc_tag = scriptgo_gc_get_tag((void *)value);
+        out_value->tag = gc_tag == 2 ? SCRIPTGO_TAG_ARRAY :
+                         gc_tag == 3 ? SCRIPTGO_TAG_FUNCTION :
+                         gc_tag == 11 ? SCRIPTGO_TAG_SYMBOL :
+                         gc_tag != 0 ? SCRIPTGO_TAG_OBJECT : SCRIPTGO_TAG_STRING;
+        out_value->payload = (uint64_t)value;
+    }
+}
+
+static inline void json_object_store_value(scriptgo_json_object *obj, int64_t index,
+                                           const scriptgo_value *value) {
+    if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
+        obj->fields[index] = (uintptr_t)((2ULL << 32) | (value->payload != 0));
+    } else if (value->tag == SCRIPTGO_TAG_NULL) {
+        obj->fields[index] = 0;
+    } else if (value->tag == SCRIPTGO_TAG_UNDEFINED) {
+        obj->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        obj->fields[index] = (uintptr_t)value->payload;
+    }
+}
+
 int scriptgo_json_stringify_number_array(void *handle, char **out_str) {
     if (out_str == NULL) return json_fail("scriptgo json invalid argument");
     if (handle == NULL) {
@@ -189,13 +250,7 @@ int scriptgo_json_stringify_number_array(void *handle, char **out_str) {
     }
     scriptgo_array_internal *arr = (scriptgo_array_internal *)handle;
     json_builder b = {0};
-    if (jb_char(&b, '[') != 0) goto fail;
-    double *data = (double *)arr->data;
-    for (int64_t i = 0; i < arr->length; i++) {
-        if (i > 0 && jb_char(&b, ',') != 0) goto fail;
-        if (jb_number(&b, data[i]) != 0) goto fail;
-    }
-    if (jb_char(&b, ']') != 0) goto fail;
+    if (json_builder_number_array(&b, arr) != 0) goto fail;
     *out_str = b.buf ? b.buf : strdup("[]");
     return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
 fail:
@@ -244,14 +299,7 @@ int scriptgo_json_stringify_string_array(void *handle, char **out_str) {
     if (array->element_size <= 0) return json_fail("scriptgo json invalid argument");
     if (array->element_size == 1) return scriptgo_json_stringify_bool_array(handle, out_str);
     json_builder b = {0};
-    if (jb_char(&b, '[') != 0) goto fail;
-    for (int64_t i = 0; i < array->length; i++) {
-        if (i > 0 && jb_char(&b, ',') != 0) goto fail;
-        const char *elem = *(const char **)(array->data + (size_t)i * sizeof(char *));
-        const char *s = elem != NULL ? elem : "";
-        if (jb_string(&b, s, strlen(s)) != 0) goto fail;
-    }
-    if (jb_char(&b, ']') != 0) goto fail;
+    if (json_builder_string_array(&b, array) != 0) goto fail;
     *out_str = b.buf ? b.buf : strdup("[]");
     return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
 fail:
@@ -310,8 +358,12 @@ static int json_builder_object(json_builder *b, void *handle) {
                 cursor += key_len;
 
                 scriptgo_value value;
-                scriptgo_value_init_undefined(&value);
-                scriptgo_object_unknown_get(handle, field_idx++, &value);
+                if (obj->boxed_fields == NULL) {
+                    json_object_field_value(obj, field_idx++, &value);
+                } else {
+                    scriptgo_value_init_undefined(&value);
+                    scriptgo_object_unknown_get(handle, field_idx++, &value);
+                }
                 if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) continue;
                 if (has_fields && jb_char(b, ',') != 0) return -1;
                 if (jb_string(b, key_str, key_len) != 0 ||
@@ -429,11 +481,7 @@ static int json_builder_value(json_builder *b, const scriptgo_value *value) {
         scriptgo_array_internal *arr = (scriptgo_array_internal *)(uintptr_t)payload;
         if (arr == NULL) return jb_append(b, "null", 4);
         if (arr->element_tag == 4) {
-            char *tmp = NULL;
-            if (scriptgo_json_stringify_string_array(arr, &tmp) != 0) return -1;
-            int r = jb_append(b, tmp, strlen(tmp));
-            free(tmp);
-            return r;
+            return json_builder_string_array(b, arr);
         } else if (arr->element_size == sizeof(scriptgo_value)) {
             if (jb_char(b, '[') != 0) return -1;
             for (int64_t i = 0; i < arr->length; i++) {
@@ -443,11 +491,7 @@ static int json_builder_value(json_builder *b, const scriptgo_value *value) {
             }
             return jb_char(b, ']');
         } else {
-            char *tmp = NULL;
-            if (scriptgo_json_stringify_number_array(arr, &tmp) != 0) return -1;
-            int r = jb_append(b, tmp, strlen(tmp));
-            free(tmp);
-            return r;
+            return json_builder_number_array(b, arr);
         }
     }
     case 5: // object
@@ -526,13 +570,14 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
         yyjson_val *elem;
         yyjson_arr_iter iter;
         yyjson_arr_iter_init(val, &iter);
+        scriptgo_array_internal *native_array = (scriptgo_array_internal *)array;
         int64_t idx = 0;
         while ((elem = yyjson_arr_iter_next(&iter))) {
             scriptgo_json_unknown elem_val;
-            if (convert_yyjson_val(elem, &elem_val) != 0 ||
-                scriptgo_array_set(array, (double)idx, &elem_val) != 0) {
+            if (convert_yyjson_val(elem, &elem_val) != 0) {
                 return -1;
             }
+            memcpy(native_array->data + (size_t)idx * sizeof(elem_val), &elem_val, sizeof(elem_val));
             idx++;
         }
         out->tag = 6;
@@ -585,12 +630,13 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
             type_name[type_name_len] = '\0';
 
             scriptgo_json_unknown child_val;
-            if (convert_yyjson_val(child, &child_val) != 0 ||
-                scriptgo_object_unknown_set(object, idx++, &child_val) != 0) {
+            if (convert_yyjson_val(child, &child_val) != 0) {
                 if (type_name != stack_buf) free(type_name);
                 return -1;
             }
+            json_object_store_value((scriptgo_json_object *)object, idx++, &child_val);
         }
+        ((scriptgo_json_object *)object)->field_count = idx;
         if (scriptgo_object_type_set(object, type_name) != 0) {
             if (type_name != stack_buf) free(type_name);
             return -1;

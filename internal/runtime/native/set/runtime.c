@@ -77,7 +77,7 @@ static inline uint64_t hash_ptr(void *p) {
     return u;
 }
 
-int scriptgo_set_new(void **out_set) {
+static int scriptgo_set_new_with_capacity(void **out_set, int64_t min_capacity) {
     if (out_set == NULL) return set_fail("scriptgo set new: null out_set");
     scriptgo_set_native *s = calloc(1, sizeof(scriptgo_set_native));
     if (s == NULL) return set_fail("scriptgo set new: out of memory");
@@ -85,12 +85,13 @@ int scriptgo_set_new(void **out_set) {
     s->size = 0;
     s->entry_count = 0;
     s->capacity = 16;
+    while (s->capacity < min_capacity) s->capacity *= 2;
     s->entries = calloc((size_t)s->capacity, sizeof(scriptgo_set_native_entry));
     if (s->entries == NULL) {
         free(s);
         return set_fail("scriptgo set new: out of memory");
     }
-    int64_t bucket_count = 16;
+    int64_t bucket_count = s->capacity;
     s->bucket_mask = bucket_count - 1;
     s->buckets = malloc((size_t)bucket_count * sizeof(int64_t));
     if (s->buckets == NULL) {
@@ -101,6 +102,10 @@ int scriptgo_set_new(void **out_set) {
     memset(s->buckets, -1, (size_t)bucket_count * sizeof(int64_t));
     *out_set = s;
     return 0;
+}
+
+int scriptgo_set_new(void **out_set) {
+    return scriptgo_set_new_with_capacity(out_set, 16);
 }
 
 static int set_ensure_capacity(scriptgo_set_native *s) {
@@ -647,10 +652,12 @@ static int set_add_entry_copy(scriptgo_set_native *dst, const scriptgo_set_nativ
 
 int scriptgo_set_union(void *handle_a, void *handle_b, void **out_set) {
     if (out_set == NULL) return set_fail("scriptgo_set_union: null output");
-    if (scriptgo_set_new(out_set) != 0) return -1;
-    scriptgo_set_native *dst = *out_set;
     scriptgo_set_native *sa = handle_a;
     scriptgo_set_native *sb = handle_b;
+    int64_t capacity = (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET ? sa->size : 0) +
+                       (sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET ? sb->size : 0);
+    if (scriptgo_set_new_with_capacity(out_set, capacity) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
     if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
         for (int64_t i = 0; i < sa->entry_count; i++) {
             set_add_entry_copy(dst, &sa->entries[i]);
@@ -666,10 +673,12 @@ int scriptgo_set_union(void *handle_a, void *handle_b, void **out_set) {
 
 int scriptgo_set_intersection(void *handle_a, void *handle_b, void **out_set) {
     if (out_set == NULL) return set_fail("scriptgo_set_intersection: null output");
-    if (scriptgo_set_new(out_set) != 0) return -1;
-    scriptgo_set_native *dst = *out_set;
     scriptgo_set_native *sa = handle_a;
     scriptgo_set_native *sb = handle_b;
+    int64_t capacity = (sa != NULL && sb != NULL && sa->magic == SCRIPTGO_MAGIC_SET && sb->magic == SCRIPTGO_MAGIC_SET) ?
+                       (sa->size < sb->size ? sa->size : sb->size) : 0;
+    if (scriptgo_set_new_with_capacity(out_set, capacity) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
     if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET && sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET) {
         for (int64_t i = 0; i < sa->entry_count; i++) {
             if (sa->entries[i].val_type == SCRIPTGO_SET_VAL_EMPTY) continue;
@@ -683,10 +692,11 @@ int scriptgo_set_intersection(void *handle_a, void *handle_b, void **out_set) {
 
 int scriptgo_set_difference(void *handle_a, void *handle_b, void **out_set) {
     if (out_set == NULL) return set_fail("scriptgo_set_difference: null output");
-    if (scriptgo_set_new(out_set) != 0) return -1;
-    scriptgo_set_native *dst = *out_set;
     scriptgo_set_native *sa = handle_a;
     scriptgo_set_native *sb = handle_b;
+    int64_t capacity = (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) ? sa->size : 0;
+    if (scriptgo_set_new_with_capacity(out_set, capacity) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
     if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
         for (int64_t i = 0; i < sa->entry_count; i++) {
             if (sa->entries[i].val_type == SCRIPTGO_SET_VAL_EMPTY) continue;
@@ -700,10 +710,12 @@ int scriptgo_set_difference(void *handle_a, void *handle_b, void **out_set) {
 
 int scriptgo_set_symmetric_difference(void *handle_a, void *handle_b, void **out_set) {
     if (out_set == NULL) return set_fail("scriptgo_set_symmetric_difference: null output");
-    if (scriptgo_set_new(out_set) != 0) return -1;
-    scriptgo_set_native *dst = *out_set;
     scriptgo_set_native *sa = handle_a;
     scriptgo_set_native *sb = handle_b;
+    int64_t capacity = (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET ? sa->size : 0) +
+                       (sb != NULL && sb->magic == SCRIPTGO_MAGIC_SET ? sb->size : 0);
+    if (scriptgo_set_new_with_capacity(out_set, capacity) != 0) return -1;
+    scriptgo_set_native *dst = *out_set;
     if (sa != NULL && sa->magic == SCRIPTGO_MAGIC_SET) {
         for (int64_t i = 0; i < sa->entry_count; i++) {
             if (sa->entries[i].val_type == SCRIPTGO_SET_VAL_EMPTY) continue;
