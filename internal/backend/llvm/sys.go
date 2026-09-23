@@ -1122,6 +1122,18 @@ func (e *functionEmitter) emitJsonIntrinsic(out *strings.Builder, instruction ir
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__json.stringify_object_array":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("JSON.stringify object array has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_json_stringify_object_array(ptr %%%s, ptr %%%s)\n", status, argVal, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
 	case "__json.stringify_unknown":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("JSON.stringify unknown has invalid signature")

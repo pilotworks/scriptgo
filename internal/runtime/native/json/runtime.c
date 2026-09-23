@@ -259,6 +259,32 @@ fail:
     return json_fail("scriptgo json allocation failed");
 }
 
+// Object arrays are common for typed JSON payloads. Serialize them directly
+// into one growing buffer rather than lowering every element into temporary
+// strings and repeatedly concatenating those strings.
+int scriptgo_json_stringify_object_array(void *handle, char **out_str) {
+    if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    if (handle == NULL) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    scriptgo_array_internal *array = (scriptgo_array_internal *)handle;
+    if (array->element_size != (int64_t)sizeof(void *)) return json_fail("scriptgo json invalid object array");
+    json_builder b = {0};
+    if (jb_char(&b, '[') != 0) goto fail;
+    for (int64_t i = 0; i < array->length; i++) {
+        if (i > 0 && jb_char(&b, ',') != 0) goto fail;
+        void *object = *(void **)(array->data + (size_t)i * sizeof(void *));
+        if (json_builder_object(&b, object) != 0) goto fail;
+    }
+    if (jb_char(&b, ']') != 0) goto fail;
+    *out_str = b.buf ? b.buf : strdup("[]");
+    return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+fail:
+    free(b.buf);
+    return json_fail("scriptgo json allocation failed");
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);

@@ -84,6 +84,31 @@ func TestTemporaryObjectRegionPassOnlyWrapsLoopBodies(t *testing.T) {
 	}
 }
 
+func TestTemporaryObjectRegionPassWrapsNonEscapingLoopObjects(t *testing.T) {
+	closure := ir.Function{Name: "__closure_1", ReturnType: ir.TypeNumber, Body: []ir.Instruction{{Op: ir.OpConst, Type: ir.TypeNumber, Result: "two", Value: "2"}, {Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"two"}}}}
+	constructor := ir.Function{Name: "Node_constructor", ReturnType: ir.TypeVoid, Parameters: []ir.Parameter{{Name: "this", Type: "object:Node"}}, Body: []ir.Instruction{{Op: ir.OpClosure, Type: ir.TypeClosure, Result: "action", Callee: "__closure_1", Args: []string{"this"}}, {Op: ir.OpFieldSet, Args: []string{"this", "action"}}, {Op: ir.OpReturn}}}
+	caller := ir.Function{Name: "run", ReturnType: ir.TypeVoid, Body: []ir.Instruction{{Op: ir.OpWhile, Body: []ir.Instruction{{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1}, {Op: ir.OpCall, Type: ir.TypeVoid, Callee: "Node_constructor", Args: []string{"node"}}, {Op: ir.OpFieldGet, Type: ir.TypeClosure, Result: "action", Args: []string{"node"}}, {Op: ir.OpClosureCall, Type: ir.TypeNumber, Result: "value", Callee: "action"}}}}}
+	m := ir.Module{Functions: []ir.Function{closure, constructor, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || !changed {
+		t.Fatalf("non-escaping loop objects must form a region: changed %v, err %v", changed, err)
+	}
+	body := m.Functions[2].Body[0].Body
+	if body[0].Op != ir.OpRegionBegin || body[len(body)-1].Op != ir.OpRegionEnd {
+		t.Fatalf("region boundaries = %#v", body)
+	}
+}
+
+func TestTemporaryObjectRegionPassRejectsLoopObjectAssignmentEscape(t *testing.T) {
+	constructor := ir.Function{Name: "Node_constructor", ReturnType: ir.TypeVoid, Parameters: []ir.Parameter{{Name: "this", Type: "object:Node"}}, Body: []ir.Instruction{{Op: ir.OpReturn}}}
+	caller := ir.Function{Name: "run", ReturnType: ir.TypeVoid, Body: []ir.Instruction{{Op: ir.OpWhile, Body: []ir.Instruction{{Op: ir.OpObjectNew, Type: "object:Node", Result: "node", Callee: "Node", FieldCount: 1}, {Op: ir.OpCall, Type: ir.TypeVoid, Callee: "Node_constructor", Args: []string{"node"}}, {Op: ir.OpAssign, Type: "object:Node", Result: "escaped", Args: []string{"node"}}}}}}
+	m := ir.Module{Functions: []ir.Function{constructor, caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || changed {
+		t.Fatalf("assigned loop object must not form a region: changed %v, err %v", changed, err)
+	}
+}
+
 func TestTemporaryObjectRegionPassRejectsUnsafeConstructor(t *testing.T) {
 	unsafeConstructor := ir.Function{
 		Name: "Node_constructor", ReturnType: ir.TypeVoid,

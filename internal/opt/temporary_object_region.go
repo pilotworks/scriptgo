@@ -18,6 +18,7 @@ func (p *temporaryObjectRegionPass) Run(m *ir.Module) (bool, error) {
 	builders := make(map[string]bool)
 	inspectors := make(map[string]bool)
 	constructors := make(map[string]bool)
+	loopConstructors := make(map[string]bool)
 	for _, fn := range m.Functions {
 		if isRegionConstructor(fn) {
 			constructors[fn.Name] = true
@@ -31,29 +32,37 @@ func (p *temporaryObjectRegionPass) Run(m *ir.Module) (bool, error) {
 			inspectors[fn.Name] = true
 		}
 	}
+	for _, fn := range m.Functions {
+		if isLoopRegionConstructor(fn, inspectors) {
+			loopConstructors[fn.Name] = true
+		}
+	}
 	changed := false
 	for i := range m.Functions {
-		m.Functions[i].Body = p.processBlock(m.Functions[i].Body, builders, inspectors, false, &changed)
+		m.Functions[i].Body = p.processBlock(m.Functions[i].Body, builders, inspectors, loopConstructors, false, &changed)
 	}
 	return changed, nil
 }
 
-func (p *temporaryObjectRegionPass) processBlock(body []ir.Instruction, builders, inspectors map[string]bool, regionEligible bool, changed *bool) []ir.Instruction {
+func (p *temporaryObjectRegionPass) processBlock(body []ir.Instruction, builders, inspectors, loopConstructors map[string]bool, regionEligible bool, changed *bool) []ir.Instruction {
 	for i := range body {
 		inst := &body[i]
-		inst.Cond = p.processBlock(inst.Cond, builders, inspectors, false, changed)
-		inst.Body = p.processBlock(inst.Body, builders, inspectors, inst.Op == ir.OpWhile || inst.Op == ir.OpDoWhile, changed)
-		inst.Step = p.processBlock(inst.Step, builders, inspectors, false, changed)
-		inst.Then = p.processBlock(inst.Then, builders, inspectors, false, changed)
-		inst.Else = p.processBlock(inst.Else, builders, inspectors, false, changed)
-		inst.Catch = p.processBlock(inst.Catch, builders, inspectors, false, changed)
-		inst.Finally = p.processBlock(inst.Finally, builders, inspectors, false, changed)
+		inst.Cond = p.processBlock(inst.Cond, builders, inspectors, loopConstructors, false, changed)
+		inst.Body = p.processBlock(inst.Body, builders, inspectors, loopConstructors, inst.Op == ir.OpWhile || inst.Op == ir.OpDoWhile, changed)
+		inst.Step = p.processBlock(inst.Step, builders, inspectors, loopConstructors, false, changed)
+		inst.Then = p.processBlock(inst.Then, builders, inspectors, loopConstructors, false, changed)
+		inst.Else = p.processBlock(inst.Else, builders, inspectors, loopConstructors, false, changed)
+		inst.Catch = p.processBlock(inst.Catch, builders, inspectors, loopConstructors, false, changed)
+		inst.Finally = p.processBlock(inst.Finally, builders, inspectors, loopConstructors, false, changed)
 	}
 
 	if !regionEligible {
 		return body
 	}
 	start, end, ok := regionInterval(body, builders, inspectors)
+	if !ok {
+		start, end, ok = loopTemporaryObjectInterval(body, loopConstructors)
+	}
 	if !ok {
 		return body
 	}
@@ -65,6 +74,65 @@ func (p *temporaryObjectRegionPass) processBlock(body []ir.Instruction, builders
 	result = append(result, body[end+1:]...)
 	*changed = true
 	return result
+}
+
+// loopTemporaryObjectInterval recognizes a complete loop body containing only
+// temporary class instances, their constructors, field accesses, and calls to
+// closures stored on those instances. No value may escape this interval.
+func loopTemporaryObjectInterval(body []ir.Instruction, constructors map[string]bool) (int, int, bool) {
+	if len(body) == 0 {
+		return 0, 0, false
+	}
+	objects := make(map[string]bool)
+	closures := make(map[string]bool)
+	for _, inst := range body {
+		switch inst.Op {
+		case ir.OpConst:
+		case ir.OpBinary, ir.OpCompare, ir.OpAssign:
+			if containsTemporary(inst.Args, objects, closures) {
+				return 0, 0, false
+			}
+		case ir.OpObjectNew:
+			if inst.Result == "" {
+				return 0, 0, false
+			}
+			objects[inst.Result] = true
+		case ir.OpCall:
+			if !constructors[inst.Callee] || len(inst.Args) == 0 || !objects[inst.Args[0]] {
+				return 0, 0, false
+			}
+		case ir.OpFieldSet:
+			if len(inst.Args) != 2 || !objects[inst.Args[0]] {
+				return 0, 0, false
+			}
+		case ir.OpFieldGet:
+			if len(inst.Args) != 1 || !objects[inst.Args[0]] || inst.Result == "" {
+				return 0, 0, false
+			}
+			if inst.Type == ir.TypeClosure {
+				closures[inst.Result] = true
+			}
+		case ir.OpClosureCall:
+			if !closures[inst.Callee] {
+				return 0, 0, false
+			}
+		default:
+			return 0, 0, false
+		}
+	}
+	if len(objects) == 0 {
+		return 0, 0, false
+	}
+	return 0, len(body) - 1, true
+}
+
+func containsTemporary(values []string, objects, closures map[string]bool) bool {
+	for _, value := range values {
+		if objects[value] || closures[value] {
+			return true
+		}
+	}
+	return false
 }
 
 func regionInterval(body []ir.Instruction, builders, inspectors map[string]bool) (int, int, bool) {
@@ -153,6 +221,41 @@ func isRegionConstructor(fn ir.Function) bool {
 		for _, inst := range body {
 			switch inst.Op {
 			case ir.OpConst, ir.OpBinary, ir.OpCompare, ir.OpIf, ir.OpReturn:
+			case ir.OpFieldSet:
+				if len(inst.Args) != 2 || inst.Args[0] != "this" {
+					valid = false
+				}
+			default:
+				valid = false
+			}
+			scan(inst.Cond)
+			scan(inst.Body)
+			scan(inst.Step)
+			scan(inst.Then)
+			scan(inst.Else)
+		}
+	}
+	scan(fn.Body)
+	return valid
+}
+
+// isLoopRegionConstructor permits a scalar inspector closure stored on the
+// freshly allocated receiver. The caller proves the receiver and closure die
+// at the end of the loop region.
+func isLoopRegionConstructor(fn ir.Function, inspectors map[string]bool) bool {
+	if !strings.HasSuffix(fn.Name, "_constructor") || fn.ReturnType != ir.TypeVoid || len(fn.Parameters) == 0 || fn.Parameters[0].Name != "this" {
+		return false
+	}
+	valid := true
+	var scan func([]ir.Instruction)
+	scan = func(body []ir.Instruction) {
+		for _, inst := range body {
+			switch inst.Op {
+			case ir.OpConst, ir.OpBinary, ir.OpCompare, ir.OpIf, ir.OpReturn:
+			case ir.OpClosure:
+				if !inspectors[inst.Callee] || inst.Result == "" {
+					valid = false
+				}
 			case ir.OpFieldSet:
 				if len(inst.Args) != 2 || inst.Args[0] != "this" {
 					valid = false

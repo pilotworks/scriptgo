@@ -331,6 +331,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_json_stringify_string(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_number_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_string_array(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_json_stringify_object_array(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_stringify_unknown(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_json_parse_unknown(ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_string_concat(ptr, ptr, ptr)\n")
