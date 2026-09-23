@@ -822,8 +822,6 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
     }
     if (value == &scriptgo_undefined_sentinel) {
         o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
-    } else if (value == NULL) {
-        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS;
     } else {
         o->fields[index] = (uintptr_t)value;
     }
@@ -938,8 +936,6 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     }
     if (value == (void *)&scriptgo_undefined_sentinel) {
         o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
-    } else if (value == NULL) {
-        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS;
     } else {
         o->fields[index] = (uintptr_t)value;
     }
