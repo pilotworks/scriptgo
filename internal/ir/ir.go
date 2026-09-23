@@ -222,8 +222,8 @@ const (
 	// OpRegionBegin and OpRegionEnd delimit a compiler-proven temporary object
 	// region. Objects created while active bypass tracing GC and are reclaimed
 	// together at the matching end instruction.
-	OpRegionBegin         = "region.begin"
-	OpRegionEnd           = "region.end"
+	OpRegionBegin = "region.begin"
+	OpRegionEnd   = "region.end"
 )
 
 const (
