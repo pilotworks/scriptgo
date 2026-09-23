@@ -806,7 +806,11 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    o->fields[index] = (uintptr_t)value;
+    if (value == &scriptgo_undefined_sentinel) {
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        o->fields[index] = (uintptr_t)value;
+    }
     return 0;
 }
 
@@ -824,8 +828,10 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
         return 0;
     }
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = &scriptgo_undefined_sentinel;
+    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
+        *out_value = NULL;
     } else {
         *out_value = (const char *)val;
     }
@@ -914,7 +920,11 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    o->fields[index] = (uintptr_t)value;
+    if (value == (void *)&scriptgo_undefined_sentinel) {
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        o->fields[index] = (uintptr_t)value;
+    }
     return 0;
 }
 
@@ -934,6 +944,8 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
+    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
+        *out_value = NULL;
     } else {
         *out_value = (void *)val;
     }
@@ -966,7 +978,7 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
     if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
         o->fields[index] = (uintptr_t)((2ULL << 32) | (value->payload != 0 ? 1 : 0));
     } else if (value->tag == SCRIPTGO_TAG_NULL) {
-        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS;
+        o->fields[index] = 0;
     } else if (value->tag == SCRIPTGO_TAG_UNDEFINED) {
         o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     } else {
@@ -992,12 +1004,12 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
 	}
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
-    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
+    } else if (val == 0 || val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
         out_value->tag = SCRIPTGO_TAG_NULL;
     } else if (((uint64_t)val >> 32) == 2) {
         out_value->tag = SCRIPTGO_TAG_BOOLEAN;
         out_value->payload = (val & 1);
-    } else if (val == 0 || (val & 0xFFF0000000000000ULL) != 0) {
+    } else if ((val & 0xFFF0000000000000ULL) != 0) {
         out_value->tag = SCRIPTGO_TAG_NUMBER;
         out_value->payload = (uint64_t)val;
     } else {
@@ -1008,7 +1020,7 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
             out_value->tag = SCRIPTGO_TAG_FUNCTION;
         } else if (gc_tag == 11) {
             out_value->tag = SCRIPTGO_TAG_SYMBOL;
-        } else if (gc_tag != 0) {
+        } else if (gc_tag != 0 || (val != 0 && *(uint64_t *)val == SCRIPTGO_OBJECT_MAGIC)) {
             out_value->tag = SCRIPTGO_TAG_OBJECT;
         } else {
             out_value->tag = SCRIPTGO_TAG_STRING;

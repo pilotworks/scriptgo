@@ -842,6 +842,29 @@ interface HeadersConstructor {
 
 declare var Headers: HeadersConstructor;
 
+type FormDataEntryValue = File | string;
+
+interface FormData {
+    append(name: string, value: string | Blob, fileName?: string): void;
+    delete(name: string): void;
+    get(name: string): FormDataEntryValue | null;
+    getAll(name: string): FormDataEntryValue[];
+    has(name: string): boolean;
+    set(name: string, value: string | Blob, fileName?: string): void;
+    forEach(callback: (value: FormDataEntryValue, key: string, parent: FormData) => void): void;
+    entries(): [string, FormDataEntryValue][];
+    keys(): string[];
+    values(): FormDataEntryValue[];
+    [Symbol.iterator](): IteratorObject<[string, FormDataEntryValue]>;
+}
+
+interface FormDataConstructor {
+    new(): FormData;
+    readonly prototype: FormData;
+}
+
+declare var FormData: FormDataConstructor;
+
 interface RequestInit {
     method?: string;
     headers?: Headers | Record<string, string> | [string, string][];
@@ -878,6 +901,7 @@ interface Response {
     text(): Promise<string>;
     json<T = unknown>(): Promise<T>;
     arrayBuffer(): Promise<ArrayBuffer>;
+    formData(): Promise<FormData>;
 }
 
 interface ResponseConstructor {

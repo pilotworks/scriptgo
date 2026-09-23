@@ -9,6 +9,7 @@ export const builtinModules: string[] = [
     "dgram",
     "dns",
     "events",
+    "formdata",
     "fs",
     "http",
     "https",

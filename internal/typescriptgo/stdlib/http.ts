@@ -6,18 +6,35 @@ import {
     connect as netConnect
 } from "node:net";
 import { URL } from "node:url";
+import { FormData } from "node:formdata";
+import { File } from "node:buffer";
 
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];
 
-    constructor(init: Headers | null = null) {
+    constructor(init: Headers | Record<string, string> | [string, string][] | null = null) {
         this._keys = [];
         this._values = [];
-        if (init !== null) {
-            const entries = init.entries();
-            for (let i = 0; i < entries.length; i++) {
-                this.append(entries[i][0], entries[i][1]);
+        if (init !== null && init !== undefined) {
+            if (init instanceof Headers) {
+                const entries = (init as Headers).entries();
+                for (let i = 0; i < entries.length; i++) {
+                    this.append(entries[i][0], entries[i][1]);
+                }
+            } else if (Array.isArray(init)) {
+                for (let i = 0; i < init.length; i++) {
+                    const item = init[i];
+                    if (Array.isArray(item) && item.length >= 2) {
+                        this.append(item[0], item[1]);
+                    }
+                }
+            } else if (typeof init === "object") {
+                const keys = Object.keys(init);
+                for (let i = 0; i < keys.length; i++) {
+                    const k = keys[i];
+                    this.append(k, String((init as any)[k]));
+                }
             }
         }
     }
@@ -177,8 +194,8 @@ export class Response {
         if (init.statusText !== undefined && init.statusText.length > 0) {
             st = init.statusText;
         }
-        if (init.headers instanceof Headers) {
-            h = new Headers(init.headers as Headers);
+        if (init.headers !== undefined && init.headers !== null) {
+            h = new Headers(init.headers as any);
         }
         this.status = s;
         this.statusText = st;
@@ -201,6 +218,110 @@ export class Response {
             buf[i] = this._body.charCodeAt(i);
         }
         return buf.buffer as ArrayBuffer;
+    }
+
+    async formData(): Promise<FormData> {
+        const fd = new FormData();
+        const ct = this.headers.get("content-type") || "";
+        if (ct.includes("multipart/form-data")) {
+            let boundary = "";
+            const bIdx = ct.indexOf("boundary=");
+            if (bIdx !== -1) {
+                boundary = ct.substring(bIdx + 9).trim();
+                if (boundary.startsWith('"') && boundary.endsWith('"')) {
+                    boundary = boundary.substring(1, boundary.length - 1);
+                }
+            }
+            if (boundary.length > 0) {
+                const delimiter = "--" + boundary;
+                const parts = this._body.split(delimiter);
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    if (part.length === 0 || part === "--" || part === "--\r\n" || part.startsWith("--")) {
+                        continue;
+                    }
+                    const headerEnd = part.indexOf("\r\n\r\n");
+                    const lfHeaderEnd = part.indexOf("\n\n");
+                    let headerBlock = "";
+                    let bodyBlock = "";
+                    if (headerEnd !== -1) {
+                        headerBlock = part.substring(0, headerEnd);
+                        bodyBlock = part.substring(headerEnd + 4);
+                        if (bodyBlock.endsWith("\r\n")) {
+                            bodyBlock = bodyBlock.substring(0, bodyBlock.length - 2);
+                        }
+                    } else if (lfHeaderEnd !== -1) {
+                        headerBlock = part.substring(0, lfHeaderEnd);
+                        bodyBlock = part.substring(lfHeaderEnd + 2);
+                        if (bodyBlock.endsWith("\n")) {
+                            bodyBlock = bodyBlock.substring(0, bodyBlock.length - 1);
+                        }
+                    } else {
+                        continue;
+                    }
+                    let name = "";
+                    let filename = "";
+                    let partContentType = "text/plain";
+                    const lines = headerBlock.split("\n");
+                    for (let j = 0; j < lines.length; j++) {
+                        const line = lines[j].trim();
+                        const lower = line.toLowerCase();
+                        if (lower.startsWith("content-disposition:")) {
+                            const nameMatch = line.indexOf("name=\"");
+                            if (nameMatch !== -1) {
+                                const endQuote = line.indexOf("\"", nameMatch + 6);
+                                if (endQuote !== -1) {
+                                    name = line.substring(nameMatch + 6, endQuote);
+                                }
+                            }
+                            const fnMatch = line.indexOf("filename=\"");
+                            if (fnMatch !== -1) {
+                                const fnEnd = line.indexOf("\"", fnMatch + 10);
+                                if (fnEnd !== -1) {
+                                    filename = line.substring(fnMatch + 10, fnEnd);
+                                }
+                            }
+                        } else if (lower.startsWith("content-type:")) {
+                            partContentType = line.substring(13).trim();
+                        }
+                    }
+                    if (name.length > 0) {
+                        if (filename.length > 0) {
+                            fd.append(name, new File([bodyBlock], filename, { type: partContentType }));
+                        } else {
+                            fd.append(name, bodyBlock);
+                        }
+                    }
+                }
+            }
+            return fd;
+        }
+
+        if (this._body.length > 0) {
+            const pairs = this._body.split("&");
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                if (pair.length === 0) continue;
+                const eq = pair.indexOf("=");
+                if (eq !== -1) {
+                    const rawKey = pair.substring(0, eq).replaceAll("+", " ");
+                    const rawVal = pair.substring(eq + 1).replaceAll("+", " ");
+                    try {
+                        fd.append(decodeURIComponent(rawKey), decodeURIComponent(rawVal));
+                    } catch (e) {
+                        fd.append(rawKey, rawVal);
+                    }
+                } else {
+                    const rawKey = pair.replaceAll("+", " ");
+                    try {
+                        fd.append(decodeURIComponent(rawKey), "");
+                    } catch (e) {
+                        fd.append(rawKey, "");
+                    }
+                }
+            }
+        }
+        return fd;
     }
 
     static json(data: string, init: ResponseInit = defaultResponseInit): Response {
