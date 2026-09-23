@@ -160,7 +160,26 @@ var sqliteSessionSource string
 //go:embed native/sqlite/functions.c
 var sqliteFunctionsSource string
 
-var sqliteSource = "#define SQLITE_THREADSAFE 1\n#define SQLITE_ENABLE_JSON1 1\n#define SQLITE_ENABLE_SESSION 1\n#define SQLITE_ENABLE_PREUPDATE_HOOK 1\n#define SQLITE_ENABLE_COLUMN_METADATA 1\n#define SQLITE_OMIT_DEPRECATED 1\n" + sqlite3Source + "\n" + sqliteTypesHeader + "\n" + sqliteDbSource + "\n" + sqliteStmtSource + "\n" + sqliteResultsSource + "\n" + sqliteSessionSource + "\n" + sqliteFunctionsSource
+var sqliteSource = "#undef likely\n#undef unlikely\n#undef static_inline\n#undef static_noinline\n" +
+	"#define SQLITE_THREADSAFE 1\n" +
+	"#define SQLITE_ENABLE_JSON1 1\n" +
+	"#define SQLITE_ENABLE_SESSION 1\n" +
+	"#define SQLITE_ENABLE_PREUPDATE_HOOK 1\n" +
+	"#define SQLITE_ENABLE_COLUMN_METADATA 1\n" +
+	"#define SQLITE_OMIT_DEPRECATED 1\n" +
+	"#define SQLITE_INT64_TYPE int64_t\n" +
+	"#define SQLITE_UINT64_TYPE uint64_t\n" +
+	"#define HAVE_INT8_T 1\n" +
+	"#define HAVE_UINT8_T 1\n" +
+	"#define HAVE_INT16_T 1\n" +
+	"#define HAVE_UINT16_T 1\n" +
+	"#define HAVE_INT32_T 1\n" +
+	"#define HAVE_UINT32_T 1\n" +
+	"#define HAVE_INT64_T 1\n" +
+	"#define HAVE_UINT64_T 1\n" +
+	"#define HAVE_STDINT_H 1\n" +
+	"#define HAVE_INTTYPES_H 1\n" +
+	sqlite3Source + "\n" + sqliteTypesHeader + "\n" + sqliteDbSource + "\n" + sqliteStmtSource + "\n" + sqliteResultsSource + "\n" + sqliteSessionSource + "\n" + sqliteFunctionsSource
 
 var tlsRootCertificatesSource = "#define NODE_WANT_INTERNALS 1\nstatic const char *scriptgo_tls_bundled_root_certificates[] = {\n" + tlsRootCertificatesHeader + "\n};\n#undef NODE_WANT_INTERNALS\n"
 
