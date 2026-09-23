@@ -2,6 +2,20 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.6] - 2026-09-23
+
+### Features
+- feat(benchmarks): add JSON operation suites, standard dataset, and native benchmarks (#22) (a893439)
+
+### Performance
+- perf: runtime optimizations, temporary object regions, and test runner memory control (#23) (10e0128)
+
+### Refactoring
+- refactor(lowering): unify compatibility analysis and subset validation into single source of truth (#21) (0112e6d)
+
+### Documentation
+- docs: refine Node.js parity claims to core subset (197cb39)
+
 ## [0.1.0-alpha.5] - 2026-09-22
 
 ### Bug Fixes
