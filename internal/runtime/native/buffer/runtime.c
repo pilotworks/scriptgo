@@ -118,6 +118,51 @@ static inline void scriptgo_b64_encode_neon(const unsigned char *data, size_t le
 }
 #endif
 
+#if defined(__aarch64__)
+static inline void scriptgo_b64_decode_neon(const char *input, size_t len, unsigned char *out, size_t *out_i, size_t *out_o) {
+    static const uint8_t primary_indices[16] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 0, 0, 0, 0};
+    static const uint8_t secondary_indices[16] = {1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 0, 0, 0, 0};
+    static const int8_t left_shifts[16] = {2, 4, 6, 2, 4, 6, 2, 4, 6, 2, 4, 6, 0, 0, 0, 0};
+    static const int8_t right_shifts[16] = {-4, -2, 0, -4, -2, 0, -4, -2, 0, -4, -2, 0, 0, 0, 0, 0};
+    const uint8x16_t upper_a = vdupq_n_u8('A');
+    const uint8x16_t upper_z = vdupq_n_u8('Z');
+    const uint8x16_t lower_a = vdupq_n_u8('a');
+    const uint8x16_t lower_z = vdupq_n_u8('z');
+    const uint8x16_t digit_0 = vdupq_n_u8('0');
+    const uint8x16_t digit_9 = vdupq_n_u8('9');
+    size_t i = 0;
+    size_t o = 0;
+
+    while (i + 16 <= len) {
+        uint8x16_t chars = vld1q_u8((const uint8_t *)(input + i));
+        uint8x16_t is_upper = vandq_u8(vcgeq_u8(chars, upper_a), vcleq_u8(chars, upper_z));
+        uint8x16_t is_lower = vandq_u8(vcgeq_u8(chars, lower_a), vcleq_u8(chars, lower_z));
+        uint8x16_t is_digit = vandq_u8(vcgeq_u8(chars, digit_0), vcleq_u8(chars, digit_9));
+        uint8x16_t is_plus = vceqq_u8(chars, vdupq_n_u8('+'));
+        uint8x16_t is_slash = vceqq_u8(chars, vdupq_n_u8('/'));
+        uint8x16_t is_url_plus = vceqq_u8(chars, vdupq_n_u8('-'));
+        uint8x16_t is_url_slash = vceqq_u8(chars, vdupq_n_u8('_'));
+        uint8x16_t valid = vorrq_u8(vorrq_u8(is_upper, is_lower), vorrq_u8(is_digit, vorrq_u8(is_plus, vorrq_u8(is_slash, vorrq_u8(is_url_plus, is_url_slash)))));
+        if (vminvq_u8(valid) != UINT8_MAX) break;
+
+        uint8x16_t values = vbslq_u8(is_upper, vsubq_u8(chars, upper_a), vdupq_n_u8(0));
+        values = vbslq_u8(is_lower, vaddq_u8(vsubq_u8(chars, lower_a), vdupq_n_u8(26)), values);
+        values = vbslq_u8(is_digit, vaddq_u8(vsubq_u8(chars, digit_0), vdupq_n_u8(52)), values);
+        values = vbslq_u8(vorrq_u8(is_plus, is_url_plus), vdupq_n_u8(62), values);
+        values = vbslq_u8(vorrq_u8(is_slash, is_url_slash), vdupq_n_u8(63), values);
+
+        uint8x16_t primary = vqtbl1q_u8(values, vld1q_u8(primary_indices));
+        uint8x16_t secondary = vqtbl1q_u8(values, vld1q_u8(secondary_indices));
+        uint8x16_t decoded = vorrq_u8(vshlq_u8(primary, vld1q_s8(left_shifts)), vshlq_u8(secondary, vld1q_s8(right_shifts)));
+        vst1q_u8(out + o, decoded);
+        i += 16;
+        o += 12;
+    }
+    *out_i = i;
+    *out_o = o;
+}
+#endif
+
 static int hex_val(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -201,6 +246,10 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
         unsigned char *dst = bv->data;
         size_t out_len = 0;
         size_t i = 0;
+
+#if defined(__aarch64__)
+        scriptgo_b64_decode_neon(str, in_len, dst, &i, &out_len);
+#endif
 
         // Unrolled fast chunk loop: decode 16 clean base64 characters into 12 bytes
         while (i + 16 <= in_len) {

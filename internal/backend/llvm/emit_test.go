@@ -32,6 +32,67 @@ func TestEmitArithmeticAndPrint(t *testing.T) {
 	}
 }
 
+func TestEmitDiscardedBufferWriteAvoidsReturnMaterialization(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Parameters: []ir.Parameter{
+			{Name: "buffer", Type: ir.TypeBuffer},
+		},
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "value", Value: "42"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "offset", Value: "0"},
+			{Op: ir.OpCall, Type: ir.TypeNumber, Result: "discarded", Callee: "__buffer.writeUInt32LE", Args: []string{"buffer", "value", "offset"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output, "%discarded = phi double") {
+		t.Fatalf("discarded Buffer.writeUInt32LE materialized a return value:\n%s", output)
+	}
+	if !strings.Contains(output, "i32 1, ptr null)") {
+		t.Fatalf("discarded Buffer.writeUInt32LE did not use a null result slot:\n%s", output)
+	}
+}
+
+func TestEmitSafeIntegerBitwiseUsesDirectTruncation(t *testing.T) {
+	module := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "seed", Value: "2147483647"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "multiplier", Value: "1664525"},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "product", Operator: "*", Args: []string{"seed", "multiplier"}},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "increment", Value: "1013904223"},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "sum", Operator: "+", Args: []string{"product", "increment"}},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "mask", Value: "2147483647"},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "next", Operator: "&", Args: []string{"sum", "mask"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+
+	output, err := Emit(module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"%next.l_i64 = fptoui double %sum to i64",
+		"%next.l_i32 = trunc i64 %next.l_i64 to i32",
+		"%next.r_i64 = fptoui double %mask to i64",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("safe integer bitwise output missing %q:\n%s", expected, output)
+		}
+	}
+	if strings.Contains(output, "call i32 @__scriptgo_to_int32(double %sum)") {
+		t.Errorf("safe integer bitwise fell back to ToInt32:\n%s", output)
+	}
+}
+
 func TestEmitNumberArrayAndIndex(t *testing.T) {
 	module := ir.Module{Functions: []ir.Function{{
 		Name:       "main",

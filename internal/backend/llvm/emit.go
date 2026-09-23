@@ -1218,19 +1218,21 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 
 	emitter := &functionEmitter{
-		function:        function,
-		functions:       functions,
-		stringsByValue:  stringsByValue,
-		debug:           debug,
-		module:          module,
-		compilerVersion: verStr,
-		target:          options.Target,
-		types:           make(map[string]ir.Type, len(function.Parameters)+len(module.Globals)),
-		varSlots:        make(map[string]string),
-		localSSAs:       make(map[string]bool),
-		hasTryCatch:     hasTryCatch(function.Body),
-		hasArrayResize:  hasArrayResize(function.Body),
-		integerVars:     make(map[string]bool),
+		function:           function,
+		functions:          functions,
+		stringsByValue:     stringsByValue,
+		debug:              debug,
+		module:             module,
+		compilerVersion:    verStr,
+		target:             options.Target,
+		types:              make(map[string]ir.Type, len(function.Parameters)+len(module.Globals)),
+		varSlots:           make(map[string]string),
+		localSSAs:          make(map[string]bool),
+		hasTryCatch:        hasTryCatch(function.Body),
+		hasArrayResize:     hasArrayResize(function.Body),
+		integerVars:        make(map[string]bool),
+		integerUpperBounds: make(map[string]float64),
+		usedResults:        usedInstructionResults(function.Body),
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {
