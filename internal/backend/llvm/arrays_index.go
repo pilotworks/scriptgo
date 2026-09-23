@@ -50,11 +50,7 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 
 			out.WriteString(fmt.Sprintf("\n%s:\n", checkLabel))
 			idxI64 := fmt.Sprintf("taget.i64.%d", id)
-			idxRoundtrip := fmt.Sprintf("taget.roundtrip.%d", id)
-			isInt := fmt.Sprintf("taget.is_int.%d", id)
 			out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
-			out.WriteString(fmt.Sprintf("  %%%s = sitofp i64 %%%s to double\n", idxRoundtrip, idxI64))
-			out.WriteString(fmt.Sprintf("  %%%s = fcmp oeq double %%%s, %%%s\n", isInt, idxArg, idxRoundtrip))
 
 			arrLenPtr := fmt.Sprintf("taget.len.ptr.%d", id)
 			arrLen := fmt.Sprintf("taget.len.%d", id)
@@ -62,9 +58,19 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 			out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s, !invariant.load !{}\n", arrLen, arrLenPtr))
 
 			inBounds := fmt.Sprintf("taget.in_bounds.%d", id)
-			condFast := fmt.Sprintf("taget.cond_fast.%d", id)
 			out.WriteString(fmt.Sprintf("  %%%s = icmp ult i64 %%%s, %%%s\n", inBounds, idxI64, arrLen))
-			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, isInt, inBounds))
+
+			condFast := inBounds
+			if !e.isInteger(instruction.Args[1]) && !e.isInteger(idxArg) {
+				idxRoundtrip := fmt.Sprintf("taget.roundtrip.%d", id)
+				isInt := fmt.Sprintf("taget.is_int.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = sitofp i64 %%%s to double\n", idxRoundtrip, idxI64))
+				out.WriteString(fmt.Sprintf("  %%%s = fcmp oeq double %%%s, %%%s\n", isInt, idxArg, idxRoundtrip))
+
+				condFastInt := fmt.Sprintf("taget.cond_fast.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFastInt, isInt, inBounds))
+				condFast = condFastInt
+			}
 			out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", condFast, fastLabel, slowLabel))
 
 			out.WriteString(fmt.Sprintf("\n%s:\n", fastLabel))
@@ -189,11 +195,7 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", checkLabel))
 		idxI64 := fmt.Sprintf("idx.i64.%d", id)
-		idxRoundtrip := fmt.Sprintf("idx.roundtrip.%d", id)
-		isInt := fmt.Sprintf("idx.is_int.%d", id)
 		out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
-		out.WriteString(fmt.Sprintf("  %%%s = sitofp i64 %%%s to double\n", idxRoundtrip, idxI64))
-		out.WriteString(fmt.Sprintf("  %%%s = fcmp oeq double %%%s, %%%s\n", isInt, idxArg, idxRoundtrip))
 
 		arrLen := fmt.Sprintf("idx.len.%d", id)
 		invLen := ""
@@ -202,6 +204,9 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s%s\n", arrLen, arrArg, invLen))
 
+		inBounds := fmt.Sprintf("idx.in_bounds.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp ult i64 %%%s, %%%s\n", inBounds, idxI64, arrLen))
+
 		elemSizePtr := fmt.Sprintf("idx.esize.ptr.%d", id)
 		elemSize := fmt.Sprintf("idx.esize.%d", id)
 		isExpectedSize := fmt.Sprintf("idx.is_esize.%d", id)
@@ -209,12 +214,20 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s, !invariant.load !{}\n", elemSize, elemSizePtr))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %d\n", isExpectedSize, elemSize, expectedSize))
 
-		inBounds := fmt.Sprintf("idx.in_bounds.%d", id)
-		cond1 := fmt.Sprintf("idx.cond1.%d", id)
 		condFast := fmt.Sprintf("idx.cond_fast.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = icmp ult i64 %%%s, %%%s\n", inBounds, idxI64, arrLen))
-		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", cond1, isInt, inBounds))
-		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, cond1, isExpectedSize))
+		if !e.isInteger(instruction.Args[1]) && !e.isInteger(idxArg) {
+			idxRoundtrip := fmt.Sprintf("idx.roundtrip.%d", id)
+			isInt := fmt.Sprintf("idx.is_int.%d", id)
+			out.WriteString(fmt.Sprintf("  %%%s = sitofp i64 %%%s to double\n", idxRoundtrip, idxI64))
+			out.WriteString(fmt.Sprintf("  %%%s = fcmp oeq double %%%s, %%%s\n", isInt, idxArg, idxRoundtrip))
+
+			cond1 := fmt.Sprintf("idx.cond1.%d", id)
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", cond1, isInt, inBounds))
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, cond1, isExpectedSize))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, inBounds, isExpectedSize))
+		}
+
 		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", condFast, fastLabel, slowLabel))
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", fastLabel))

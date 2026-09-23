@@ -123,6 +123,9 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 			return err
 		}
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil && (instruction.Callee == "__Math.floor" || instruction.Callee == "__Math.ceil" || instruction.Callee == "__Math.trunc" || instruction.Callee == "__Math.round") {
+			e.integerVars[instruction.Result] = true
+		}
 		return nil
 	}
 	if instruction.Callee == "__array.isArray" {

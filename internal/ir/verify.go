@@ -273,6 +273,10 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 			if len(instruction.Args) != 1 {
 				return fmt.Errorf("print instruction requires one argument")
 			}
+		case OpRegionBegin, OpRegionEnd:
+			if instruction.Result != "" || len(instruction.Args) != 0 || instruction.Type != "" {
+				return fmt.Errorf("%s instruction cannot have a result, operands, or type", instruction.Op)
+			}
 		case OpFieldSet:
 			if instruction.Type != TypeVoid || len(instruction.Args) != 2 || instruction.Field == "" || instruction.FieldIndex < 0 {
 				return fmt.Errorf("field.set requires object, value, and field")

@@ -39,6 +39,32 @@ type functionEmitter struct {
 	localSSAs          map[string]bool
 	hasTryCatch        bool
 	hasArrayResize     bool
+	integerVars        map[string]bool
+	integerUpperBounds map[string]float64
+	usedResults        map[string]bool
+}
+
+// usedInstructionResults records values consumed by any nested control-flow
+// block so emitters can omit ABI result materialization for discarded calls.
+func usedInstructionResults(instructions []ir.Instruction) map[string]bool {
+	used := make(map[string]bool)
+	var visit func([]ir.Instruction)
+	visit = func(block []ir.Instruction) {
+		for _, instruction := range block {
+			for _, arg := range instruction.Args {
+				used[arg] = true
+			}
+			visit(instruction.Then)
+			visit(instruction.Else)
+			visit(instruction.Cond)
+			visit(instruction.Body)
+			visit(instruction.Step)
+			visit(instruction.Catch)
+			visit(instruction.Finally)
+		}
+	}
+	visit(instructions)
+	return used
 }
 
 func (e *functionEmitter) vol() string {
@@ -182,6 +208,12 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 		loadName := fmt.Sprintf("%s.load.%d", arg, e.loadCounter)
 		e.loadCounter++
 		e.types[loadName] = typ
+		if e.integerVars != nil && e.integerVars[arg] {
+			e.integerVars[loadName] = true
+		}
+		if upper, ok := e.integerUpperBound(arg); ok {
+			e.integerUpperBounds[loadName] = upper
+		}
 		out.WriteString(fmt.Sprintf("  %%%s = load%s %s, ptr %%%s\n", loadName, e.vol(), lt, slot))
 		return loadName
 	}
@@ -325,6 +357,31 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				out.WriteString(fmt.Sprintf("  store%s %s %s, ptr %%%s\n", e.vol(), llvmType(typ), argVal, slot))
 			}
 		}
+		if e.integerVars != nil {
+			cleanArg := strings.TrimPrefix(argVal, "%")
+			if e.integerVars[arg] || e.integerVars[cleanArg] {
+				e.integerVars[targetResult] = true
+				if inst.Result != targetResult {
+					e.integerVars[inst.Result] = true
+				}
+			} else {
+				delete(e.integerVars, targetResult)
+				if inst.Result != targetResult {
+					delete(e.integerVars, inst.Result)
+				}
+			}
+		}
+		if upper, ok := e.integerUpperBound(arg); ok {
+			e.integerUpperBounds[targetResult] = upper
+			if inst.Result != targetResult {
+				e.integerUpperBounds[inst.Result] = upper
+			}
+		} else {
+			delete(e.integerUpperBounds, targetResult)
+			if inst.Result != targetResult {
+				delete(e.integerUpperBounds, inst.Result)
+			}
+		}
 		return nil
 	case ir.OpBinary:
 		if err := e.emitBinary(out, inst); err != nil {
@@ -380,6 +437,12 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 		return nil
 	case ir.OpPrint:
 		return e.emitPrint(out, inst)
+	case ir.OpRegionBegin:
+		out.WriteString("  call void @scriptgo_object_region_begin()\n")
+		return nil
+	case ir.OpRegionEnd:
+		out.WriteString("  call void @scriptgo_object_region_end()\n")
+		return nil
 	case ir.OpArray:
 		if err := e.emitArray(out, inst); err != nil {
 			return err
@@ -484,6 +547,13 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			if lt != "void" {
 				out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), lt, inst.Result, slot))
 			}
+		}
+		// Keep conservative integer bounds when an SSA result is stored in a
+		// local; later loop iterations reload the local under a new SSA name.
+		if upper, ok := e.integerUpperBound(inst.Result); ok {
+			e.integerUpperBounds[targetResult] = upper
+		} else {
+			delete(e.integerUpperBounds, targetResult)
 		}
 	}
 	if isGlobalResult && inst.Type != ir.TypeVoid {

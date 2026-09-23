@@ -132,6 +132,19 @@ func lowerJSONStringifyValue(call IntrinsicCall, val string, valType ir.Type) (s
 
 	case strings.HasSuffix(string(valType), "[]"):
 		elemType := ir.Type(strings.TrimSuffix(string(valType), "[]"))
+		shapeName := strings.TrimPrefix(string(elemType), "object:")
+		if shape, ok := findShape(call, shapeName); ok && !isTupleShape(shape) {
+			res := nextTemp(call.Counter)
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   ir.TypeString,
+				Result: res,
+				Callee: "__json.stringify_object_array",
+				Args:   []string{val},
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return res, nil
+		}
 		return lowerJSONStringifyArray(call, val, elemType)
 
 	case strings.HasPrefix(string(valType), "object:") || strings.HasPrefix(string(valType), "__shape_") || strings.HasPrefix(string(valType), "["):

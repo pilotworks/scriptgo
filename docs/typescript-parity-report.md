@@ -48,7 +48,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `Generics & Const Type Parameters` | ✅ Full | Monomorphization (static type specialization) for generic functions, classes, interfaces, type aliases, and `<const T>` type parameters. |
 | `Type Inference` | ✅ Full | Inherits full type inference from TypeScript-Go (local variables, return types, generic arguments). |
 | `TypedArrays, SharedArrayBuffer & DataView` | ✅ Full | Complete support for all 11 TypedArrays (`Int8Array`..`BigUint64Array`), `SharedArrayBuffer`, `Atomics` (all 12 atomic arithmetic, bitwise, load/store, exchange, compareExchange, isLockFree, wait, and notify methods), `DataView` with binary access (BE/LE), buffer slicing, subarray views, `.set()`, `.fill()`, and `ArrayBuffer.isView()`. |
-| `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
+| `Buffer & node:buffer` | ✅ Full | Complete support for global `Buffer` and `node:buffer` / `buffer` module: `Buffer.alloc`, `allocUnsafe`, `from` (utf8, hex, padded and unpadded base64, ascii, latin1, arrays, buffers), `concat`, `isBuffer`, `byteLength`, `.toString()`, `.subarray()`, `.slice()`, `.copy()`, `.fill()`, `.equals()`, `.compare()`, `.indexOf()`, and all 14 binary integer/float read/write methods (LE/BE). |
 | `Map<K, V> & Set<T>` (ES2024) | ✅ Full | Insertion-order preserving hash map and unique set collections with full method suite (`set`, `get`, `has`, `delete`, `clear`, `size`, `keys`, `values`, `entries`, `forEach`, `toString`), initial entries/values constructor, and all 7 **ES2024 Set Methods**: `union()`, `intersection()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`. |
 | `Intl (Internationalization)` | ✅ Full | Complete support for `Intl.NumberFormat`, `DateTimeFormat`, `Collator`, `Segmenter`, `DisplayNames`, `ListFormat`, `RelativeTimeFormat`, `PluralRules`, and `Intl.getCanonicalLocales`. |
 | `Explicit Resource Management (TS 5.2 / ES2024)` | ✅ Full | `using` and `await using` variable declarations automatically invoke `[Symbol.dispose]()` / `[Symbol.asyncDispose]()` in LIFO order upon exiting lexical block scopes. |
@@ -157,7 +157,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`node:process` / `process`**| `process.argv`, `process.env`, `process.exit()`, `process.cwd()`, `process.platform`, `process.uptime()` | ✅ Matches CLI / environment variables |
 | **`node:crypto` / `crypto`**| `createHash` (`sha256`, `sha512`, `sha1`, `md5`, `hex`, `base64`, string and binary inputs), `createHmac` (`sha256`, `sha512`, `sha1`, `md5`, string and binary inputs), `randomUUID()`, `randomBytes()`, `randomInt()`, `randomFillSync()`, `timingSafeEqual()`, `pbkdf2Sync()`, `getHashes()`, `constants` (`RSA_PKCS1_PADDING`, etc.), `Hash`, `Hmac` | ✅ 100% matches Node.js Crypto specification |
 | **`performance`** | `performance.now()` | ✅ Microsecond precision |
-| **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64) | ✅ Matches RFC-4648 encoding standard |
+| **`Base64`** | `btoa()`, `atob()`, `Buffer.from()` (standard base64, including final padded quartets) | ✅ Matches RFC-4648 encoding standard |
 | **`TypedArrays`** | `Uint8Array`, `Int32Array`, `Float64Array`, `ArrayBuffer`, `SharedArrayBuffer`, `Atomics` (all 12 methods), `.subarray()`, `.slice()`, `.set()`, `.fill()`, `ArrayBuffer.isView()`, `.byteLength`, `.byteOffset`, `.buffer` | ✅ 100% matches binary buffer & atomic operations |
 | **`node:buffer` / `buffer`** | `Buffer.alloc`, `Buffer.allocUnsafe`, `Buffer.from`, `Buffer.concat`, `Buffer.isBuffer`, `Buffer.byteLength`, `.toString`, `.subarray`, `.slice`, `.copy`, `.fill`, `.equals`, `.compare`, `.indexOf`, `readUInt8`/`writeUInt8`, `readInt8`/`writeInt8`, `readUInt16LE`/`BE`/`writeUInt16LE`/`BE`, `readUInt32LE`/`BE`/`writeUInt32LE`/`BE`, `readInt32LE`/`BE`/`writeInt32LE`/`BE`, `readFloatLE`/`BE`/`writeFloatLE`/`BE`, `readDoubleLE`/`BE`/`writeDoubleLE`/`BE` | ✅ 100% matches Node.js Buffer specification |
 | **`node:url` / `url`** | `URL`, `URLSearchParams`, `href`, `origin`, `protocol`, `username`, `password`, `host`, `hostname`, `port`, `pathname`, `search`, `hash`, `searchParams`, `toString`, `toJSON`, `URL.canParse()`, `get`, `getAll`, `set`, `append`, `has`, `delete`, `sort`, `size` | ✅ 100% matches WHATWG / Node.js URL specification |
@@ -464,41 +464,40 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **8.8 ms** | 54.3 ms | 11.1 ms | **6.19x faster** | **1.26x faster** |
-| **Buffer Ops (10MB)** | **10.9 ms** | 65.1 ms | 16.4 ms | **5.96x faster** | **1.50x faster** |
-| **Mandelbrot 500x500** | **30.4 ms** | 81.0 ms | 39.5 ms | **2.66x faster** | **1.30x faster** |
-| **Quicksort 100k** | **22.8 ms** | 68.2 ms | 21.2 ms | **2.99x faster** | ~1.08x (on par) |
-| **ES2024 Set Ops** | **11.2 ms** | 57.3 ms | 10.9 ms | **5.11x faster** | ~1.03x (on par) |
-| **Object Churn & GC** | **18.3 ms** | 72.4 ms | 17.0 ms | **3.97x faster** | ~1.08x (on par) |
-| **Base64 Transcode** | **62.8 ms** | 88.3 ms | 31.9 ms | **1.41x faster** | 1.96x slower |
-| **Matrix Mult 256x256** | **44.6 ms** | 85.5 ms | 41.4 ms | **1.92x faster** | ~1.08x (on par) |
-| **JSON Ops (50 Records)** | **31.2 ms** | 65.8 ms | 17.1 ms | **2.11x faster** | 1.82x slower |
-| **Twitter JSON (617KB)** | **47.6 ms** | 76.6 ms | 23.9 ms | **1.61x faster** | 1.99x slower |
-| **Binary Trees D14** | **154.9 ms** (min 136 ms) | 123.3 ms | 69.0 ms | ~1.25x slower | ~2.2x slower |
+| **Cold Start Latency** | **11.4 ms** | 68.1 ms | 14.7 ms | **5.94x faster** | **1.28x faster** |
+| **Buffer Ops (10MB)** | **12.9 ms** | 69.2 ms | 18.5 ms | **5.37x faster** | **1.44x faster** |
+| **Twitter JSON (617KB)** | **16.7 ms** | 77.5 ms | 24.0 ms | **4.63x faster** | **1.44x faster** |
+| **Object Churn & GC** | **18.9 ms** | 88.5 ms | 21.7 ms | **4.70x faster** | **1.15x faster** |
+| **Mandelbrot 500x500** | **32.3 ms** | 86.1 ms | 43.2 ms | **2.67x faster** | **1.34x faster** |
+| **Binary Trees D14** | **61.9 ms** | 136.8 ms | 75.6 ms | **2.21x faster** | **1.22x faster** |
+| **ES2024 Set Ops** | **13.6 ms** | 66.7 ms | 15.1 ms | **4.92x faster** | **1.11x faster** |
+| **Quicksort 100k** | **27.7 ms** | 91.4 ms | 27.5 ms | **3.30x faster** | 1.01x slower |
+| **Matrix Mult 256x256** | **51.1 ms** | 95.7 ms | 47.6 ms | **1.87x faster** | 1.08x slower |
+| **JSON Ops (50 Records)** | **17.1 ms** | 67.3 ms | 14.4 ms | **3.93x faster** | 1.19x slower |
+| **Base64 Transcode** | **40.9 ms** | 104.6 ms | 34.5 ms | **2.56x faster** | 1.19x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 67.5 MB | 10.6 MB | **11.3x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **6.8 MB** | 76.4 MB | 25.0 MB | **11.2x less RAM** | **3.7x less RAM** |
-| **Matrix Mult 256x256** | **7.8 MB** | 79.4 MB | 26.8 MB | **10.2x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.6 MB** | 76.0 MB | 23.4 MB | **10.0x less RAM** | **3.1x less RAM** |
-| **Object Churn & GC** | **15.8 MB** | 106.5 MB | 29.5 MB | **6.7x less RAM** | **1.9x less RAM** |
-| **Mandelbrot 500x500** | **6.0 MB** | 73.1 MB | 18.5 MB | **12.2x less RAM** | **3.1x less RAM** |
-| **JSON Ops (50 Records)** | **43.5 MB** | 71.5 MB | 14.0 MB | **1.6x less RAM** | 0.3x (more RAM) |
-| **Twitter JSON (617KB)** | **20.5 MB** | 79.3 MB | 26.1 MB | **3.9x less RAM** | **1.3x less RAM** |
-| **Binary Trees D14** | **36.0 MB** | 111.8 MB | 47.3 MB | **3.1x less RAM** | **1.3x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 70.0 MB | 12.9 MB | **10.0x less RAM** | **1.8x less RAM** |
-| **Base64 Transcode** | **39.4 MB** | 108.9 MB | 55.6 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 69.0 MB | 10.6 MB | **11.5x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **7.1 MB** | 76.8 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
+| **Matrix Mult 256x256** | **7.9 MB** | 79.7 MB | 26.9 MB | **10.1x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 75.6 MB | 23.6 MB | **9.7x less RAM** | **3.0x less RAM** |
+| **Object Churn & GC** | **18.4 MB** | 107.3 MB | 29.6 MB | **5.8x less RAM** | **1.6x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 74.6 MB | 18.7 MB | **12.4x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **23.4 MB** | 112.1 MB | 46.7 MB | **4.8x less RAM** | **2.0x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.5 MB | 13.1 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.7 MB** | 109.2 MB | 55.8 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **JSON Ops (50 Records)** | **8.6 MB** | 71.5 MB | 14.0 MB | **8.3x less RAM** | **1.6x less RAM** |
+| **Twitter JSON (617KB)** | **10.5 MB** | 80.6 MB | 26.1 MB | **7.7x less RAM** | **2.5x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
-- **Cold Start / Mandelbrot / Set Ops**: 34 KB native executables
-- **Matrices / Churn / Binary Trees / Base64**: 51 KB native executables
-- **Quicksort / Buffer Ops / JSON Ops**: 67 KB – 68 KB native executables
-- **Twitter JSON**: 136 KB native executable (includes embedded file I/O runtime)
+- **Cold Start / Mandelbrot / Set Ops**: 34 KB – 35 KB native executables
+- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 50 KB – 68 KB native executables
+- **JSON Ops / Twitter JSON**: 165 KB – 233 KB native executables (includes embedded SIMD yyjson parser and runtime)
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 
@@ -515,14 +514,23 @@ The optimizer executes 4 target-independent passes on the Typed IR prior to back
 3. **NaN-Box Direct Field Access**: Object field reads and writes bypass runtime function calls via inlined struct offsets (`getelementptr inbounds i8`), with selective NaN unboxing.
 4. **Selective Field Initialization**: Objects with constructors skip redundant zero/null default writes in caller scope, eliminating millions of dead stores during high-volume object instantiation.
 5. **Direct Fast Object Allocation & Fast Register Calling (`scriptgo_object_new_typed_fast`)**: Object creation returns the allocated pointer directly in register `x0` rather than passing temporary stack slots and status checks, eliminating 25M+ status checks and redundant spills in tight allocation loops. Non-undefined pointer field loads skip NaN checks and select instructions.
+6. **Integer Indexing Fast-Path & Redundant Check Elimination**: Function emitter tracks variables with statically proven integer values (constants, bitwise operations, integer arithmetic, length properties, and math roundings). In array indexing (`[]` and `.set`), known integer indices bypass floating-point roundtrip checks (`sitofp` + `fcmp oeq`), cutting multiple pipeline cycles per inner-loop iteration and unlocking loop vectorization.
+7. **Pure Math & Helper Intrinsic Attributes (`readnone nounwind willreturn`)**: Core pure mathematical and bitwise conversion functions like `scriptgo_to_int32` and `__scriptgo_to_int32` are declared with `readnone nounwind willreturn`, allowing LLVM to prove that loops modifying typed arrays or buffers cannot alias or be invalidated by mathematical transformations. This enables LLVM LICM to hoist buffer metadata, magic validation, and capacity pointers out of inner loops entirely.
 
 ### 7.4. Tracing GC & Memory Recycling (`internal/runtime/native`)
 
-1. **Exact Capacity Small Object Layout**: Small classes (<= 8 fields) allocate 104-byte structures with direct field slots instead of generic 552-byte structures, yielding 5.3x memory reduction.
-2. **High-Speed Object & Closure Freelists**: Dead 8-field objects and closures swept by GC are recycled directly into L1-cache hot freelists, avoiding continuous kernel `malloc`/`free` calls. Popping from freelist preserves intact metadata, performing only a single 32-bit store for flags.
-3. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
-4. **Singly-Linked GC Heap Traversal with O(1) Bucket Unlinking**: Replaced doubly-linked `gc_head` with singly-linked list (`node->next`) while maintaining O(1) hash bucket unlinking via `node->hash_prev_ptr`, saving 8 bytes per node and 2 pointer stores per allocation.
-5. **Inline Fast-Path GC Registration (`scriptgo_gc_register_fast`)**: Fast-path object registration inlines directly into object allocation with single 64-bit header writes and cached Fibonacci hash masks, outlining collection triggers into cold paths.
+1. **Exact Capacity Small Object Layout**: Classes with fixed descriptors use 1, 2, 4, or 8 direct field slots instead of rounding every object up to 8 fields. Extensible object literals retain spare capacity for later property assignment. This reduces allocation size and improves cache locality for common class shapes.
+2. **High-Speed Object & Closure Freelists**: Dead small objects and closures swept by GC are recycled directly into L1-cache hot freelists, avoiding continuous kernel `malloc`/`free` calls. Popping from freelist preserves intact metadata, performing only a single 32-bit store for flags.
+3. **Contiguous Slab Bump-Pointer Allocator for Small Objects (`capacity <= 8`)**: The runtime uses separate 256KB slabs for 1, 2, 4, and 8-field object classes. When a freelist is empty, bump-pointer allocation avoids kernel `malloc` calls while preserving exact capacity classes.
+4. **Deferred Lazy GC Hash Table Rebuild (`internal/runtime/native/gc`)**: Eliminated eager hash table insertions (`hash_insert`) during mutator execution and individual bucket unlinking (`hash_unlink_node`) during sweeping. The GC maintains a singly-linked object chain; only when collection is triggered does the GC lazily rebuild the hash table once in a tight cache-friendly linear pass over currently live objects. This slashed millions of pointer writes, bucket lookups, and cache misses from allocation loops, speeding up Binary Trees D14 by over 2.6x (from 414.8ms to 158.1ms).
+5. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
+6. **Chunked GC Node Pool Allocation & Adaptive Thresholding**: Node metadata allocations are amortized across 8192-element contiguous chunks, cutting malloc syscall overhead by over 8000x during bursts of object allocation. The GC threshold is increased with adaptive heap-size-proportional resizing, avoiding thrashing on deep object graph traversals (e.g., Binary Trees depth 14).
+7. **Compiler-Proven Temporary Object Regions**: At `-O2` and higher, a target-independent IR pass identifies a non-escaping object graph builder/visitor sequence or a complete loop-local class-object graph with scalar closure calls. The runtime allocates that graph outside tracing GC and resets the whole region after the loop iteration. Any escaping object or closure assignment, dynamic call, external call, or unsupported operation disqualifies a region.
+
+### 7.5. SIMD Vectorization & Accelerated JSON (`yyjson`)
+
+1. **ARM NEON Vectorized Base64 Processing (`internal/runtime/native/buffer`)**: Base64 encoding utilizes ARM NEON 128-bit vector registers (`vld3q_u8`, `vqtbl4q_u8`, `vst4q_u8`) to transcode 16 input bytes to 24 output characters in a single vector instruction sequence, and decoding uses 16-byte unrolled chunk processing.
+2. **Single-Pass Typed Object Array JSON (`internal/lowering`, `internal/runtime/native/json`)**: Typed arrays of class objects lower to one runtime serializer which writes every element directly into one growing buffer. This avoids the per-field temporary strings and repeated concatenation formerly emitted for static object arrays. The runtime still uses yyjson for parsing and directly reads object descriptors (`__json__|...`, `:key:key:`, `__class__|...`) without intermediate key arrays or $O(N^2)$ property lookups.
 
 ---
 

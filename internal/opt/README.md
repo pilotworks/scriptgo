@@ -26,6 +26,7 @@ All passes operate on in-memory `ir.Module` AST/SSA structures.
 | **Constant Folding** | [`const_fold.go`](const_fold.go) | Evaluates constant arithmetic/bitwise/comparison expressions at compile time. Applies algebraic identities (e.g. `x + 0`, `x * 1`, `x - 0`, `x * 0`). |
 | **CSE (Common Subexpression Elimination)** | [`cse.go`](cse.go) | Scans basic blocks to identify equivalent pure expressions and duplicate loads, eliminating redundant computations by reusing previous SSA values. |
 | **LICM (Loop-Invariant Code Motion)** | [`licm.go`](licm.go) | Identifies loops via back-edges, determines loop-invariant pure instructions, and hoists them into preheaders. |
+| **Temporary Object Regions** | [`temporary_object_region.go`](temporary_object_region.go) | Brackets compiler-proven non-escaping builder/visitor sequences and loop-local class-object graphs so they bypass tracing GC and are reclaimed together. |
 | **DCE (Dead Code Elimination)** | [`dce.go`](dce.go) | Eliminates unused pure SSA instructions whose results have zero uses, and removes unreachable basic blocks. |
 
 ## Optimization Levels
@@ -36,4 +37,4 @@ Configured via the `--opt-level` CLI flag (or `BuildOptions.OptLevel`):
 | --- | --- | --- |
 | `-O0` | *(None)* | Optimizer is bypassed entirely; returns lowered IR as-is. |
 | `-O1` | `ConstFold` &rarr; `DCE` | Fast baseline passes suitable for fast compilation. |
-| `-O2`, `-O3`, `-Os`, `-Oz`, `-Ofast` | `ConstFold` &rarr; `CSE` &rarr; `LICM` &rarr; `DCE` | Full middle-end optimization pipeline running up to 5 iterations. |
+| `-O2`, `-O3`, `-Os`, `-Oz`, `-Ofast` | `ConstFold` &rarr; `CSE` &rarr; `LICM` &rarr; `TemporaryObjectRegions` &rarr; `DCE` | Full middle-end optimization pipeline running up to 5 iterations. |

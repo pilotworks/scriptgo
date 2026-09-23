@@ -70,7 +70,6 @@ typedef struct gc_node {
     scriptgo_gc_header header;
     struct gc_node *next;
     struct gc_node *hash_next;
-    struct gc_node **hash_prev_ptr;
 } gc_node;
 
 typedef struct root_node {
@@ -84,7 +83,29 @@ typedef struct root_slot_node {
     struct root_slot_node *next;
 } root_slot_node;
 
-#define GC_HASH_INITIAL_CAPACITY 262144
+typedef struct {
+    uint64_t magic;
+    int64_t field_count;
+    const char *type_name;
+    uint8_t extensible;
+    uint8_t sealed;
+    uint8_t frozen;
+    uint8_t type_name_owned;
+    uint32_t capacity;
+    void *boxed_fields;
+    uintptr_t fields[];
+} gc_object_layout;
+
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+    int64_t element_tag;
+} gc_array_layout;
+
+#define GC_HASH_INITIAL_CAPACITY 65536
 
 static gc_node *gc_head = NULL;
 static gc_node *gc_node_freelist = NULL;
@@ -93,11 +114,11 @@ static root_slot_node *root_slot_head = NULL;
 static gc_node **gc_hash_table = NULL;
 static size_t gc_hash_capacity = 0;
 static size_t gc_hash_mask = 0;
-static size_t gc_hash_count = 0;
+static int gc_hash_dirty = 1;
 
 static int64_t total_allocated_bytes = 0;
 static int64_t total_live_objects = 0;
-#define SCRIPTGO_GC_DEFAULT_THRESHOLD 65536
+#define SCRIPTGO_GC_DEFAULT_THRESHOLD 262144
 static int64_t gc_threshold = SCRIPTGO_GC_DEFAULT_THRESHOLD;
 static int gc_in_progress = 0;
 static void *scriptgo_gc_stack_bottom = NULL;
@@ -114,8 +135,38 @@ static inline int is_possible_heap_ptr(void *ptr) {
     return ((v & 0x7ULL) == 0) && (v > 4096ULL) && (v < 0x0000800000000000ULL);
 }
 
+static void gc_hash_rebuild(void) {
+    if (!gc_hash_dirty) return;
+    size_t target_cap = GC_HASH_INITIAL_CAPACITY;
+    while (target_cap < (size_t)total_live_objects * 2) {
+        target_cap *= 2;
+    }
+    if (gc_hash_table == NULL || gc_hash_capacity != target_cap) {
+        free(gc_hash_table);
+        gc_hash_capacity = target_cap;
+        gc_hash_mask = target_cap - 1;
+        gc_hash_table = (gc_node **)calloc(gc_hash_capacity, sizeof(gc_node *));
+    } else {
+        memset(gc_hash_table, 0, gc_hash_capacity * sizeof(gc_node *));
+    }
+    if (__builtin_expect(gc_hash_table != NULL, 1)) {
+        gc_node *curr = gc_head;
+        while (curr != NULL) {
+            size_t idx = gc_hash_ptr(curr->ptr, gc_hash_mask);
+            curr->hash_next = gc_hash_table[idx];
+            gc_hash_table[idx] = curr;
+            curr = curr->next;
+        }
+    }
+    gc_hash_dirty = 0;
+}
+
 static inline gc_node *find_node(void *ptr) {
-    if (__builtin_expect(!is_possible_heap_ptr(ptr) || gc_hash_table == NULL, 0)) return NULL;
+    if (__builtin_expect(!is_possible_heap_ptr(ptr), 0)) return NULL;
+    if (__builtin_expect(gc_hash_dirty, 0)) {
+        gc_hash_rebuild();
+    }
+    if (__builtin_expect(gc_hash_table == NULL, 0)) return NULL;
     size_t idx = gc_hash_ptr(ptr, gc_hash_mask);
     gc_node *curr = gc_hash_table[idx];
     while (curr != NULL) {
@@ -125,61 +176,6 @@ static inline gc_node *find_node(void *ptr) {
         curr = curr->hash_next;
     }
     return NULL;
-}
-
-static inline void hash_unlink_node(gc_node *node) {
-    if (__builtin_expect(node == NULL || node->hash_prev_ptr == NULL, 0)) return;
-    *node->hash_prev_ptr = node->hash_next;
-    if (node->hash_next != NULL) {
-        node->hash_next->hash_prev_ptr = node->hash_prev_ptr;
-    }
-    node->hash_prev_ptr = NULL;
-    node->hash_next = NULL;
-    if (gc_hash_count > 0) gc_hash_count--;
-}
-
-static inline void hash_insert(gc_node *node) {
-    if (__builtin_expect(gc_hash_capacity == 0 || (gc_hash_count * 2 >= gc_hash_capacity), 0)) {
-        if (gc_hash_capacity == 0) {
-            gc_hash_capacity = GC_HASH_INITIAL_CAPACITY;
-            gc_hash_mask = GC_HASH_INITIAL_CAPACITY - 1;
-            gc_hash_table = (gc_node **)calloc(gc_hash_capacity, sizeof(gc_node *));
-        } else {
-            size_t new_cap = gc_hash_capacity * 2;
-            size_t new_mask = new_cap - 1;
-            gc_node **new_table = (gc_node **)calloc(new_cap, sizeof(gc_node *));
-            if (new_table != NULL) {
-                for (size_t i = 0; i < gc_hash_capacity; i++) {
-                    gc_node *c = gc_hash_table[i];
-                    while (c != NULL) {
-                        gc_node *next = c->hash_next;
-                        size_t ni = gc_hash_ptr(c->ptr, new_mask);
-                        c->hash_next = new_table[ni];
-                        c->hash_prev_ptr = &new_table[ni];
-                        if (c->hash_next != NULL) {
-                            c->hash_next->hash_prev_ptr = &c->hash_next;
-                        }
-                        new_table[ni] = c;
-                        c = next;
-                    }
-                }
-                free(gc_hash_table);
-                gc_hash_table = new_table;
-                gc_hash_capacity = new_cap;
-                gc_hash_mask = new_mask;
-            }
-        }
-    }
-    if (__builtin_expect(gc_hash_table != NULL, 1)) {
-        size_t idx = gc_hash_ptr(node->ptr, gc_hash_mask);
-        node->hash_next = gc_hash_table[idx];
-        node->hash_prev_ptr = &gc_hash_table[idx];
-        if (node->hash_next != NULL) {
-            node->hash_next->hash_prev_ptr = &node->hash_next;
-        }
-        gc_hash_table[idx] = node;
-        gc_hash_count++;
-    }
 }
 
 void scriptgo_gc_init(void *stack_bottom) {
@@ -226,17 +222,24 @@ static inline __attribute__((always_inline)) int scriptgo_gc_register_fast(void 
     if (__builtin_expect(node != NULL, 1)) {
         gc_node_freelist = node->next;
     } else {
-        node = (gc_node *)malloc(sizeof(gc_node));
-        if (__builtin_expect(node == NULL, 0)) {
+        const size_t GC_NODE_CHUNK_SIZE = 8192;
+        gc_node *chunk = (gc_node *)malloc(sizeof(gc_node) * GC_NODE_CHUNK_SIZE);
+        if (__builtin_expect(chunk == NULL, 0)) {
             return scriptgo_runtime_set_error("scriptgo gc node allocation failed");
         }
+        for (size_t i = 1; i < GC_NODE_CHUNK_SIZE - 1; i++) {
+            chunk[i].next = &chunk[i + 1];
+        }
+        chunk[GC_NODE_CHUNK_SIZE - 1].next = NULL;
+        gc_node_freelist = &chunk[1];
+        node = &chunk[0];
     }
     node->ptr = ptr;
     *(uint64_t *)&node->header = ((uint64_t)field_count << 32) | (uint32_t)(tag & 0xFF);
     node->next = gc_head;
     gc_head = node;
-    hash_insert(node);
     total_live_objects++;
+    gc_hash_dirty = 1;
 
     if (__builtin_expect(total_live_objects > gc_threshold && !gc_in_progress, 0)) {
         gc_trigger_collect(ptr);
@@ -266,10 +269,10 @@ int scriptgo_gc_unregister(void *ptr) {
     while (curr != NULL) {
         if (curr->ptr == ptr) {
             *prev = curr->next;
-            hash_unlink_node(curr);
             curr->next = gc_node_freelist;
             gc_node_freelist = curr;
             total_live_objects--;
+            gc_hash_dirty = 1;
             return 0;
         }
         prev = &curr->next;
@@ -313,28 +316,6 @@ int scriptgo_gc_add_root_slot(void *slot, int64_t word_count) {
     root_slot_head = r;
     return 0;
 }
-
-typedef struct {
-    uint64_t magic;
-    int64_t field_count;
-    const char *type_name;
-    uint8_t extensible;
-    uint8_t sealed;
-    uint8_t frozen;
-    uint8_t type_name_owned;
-    uint32_t capacity;
-    void *boxed_fields;
-    uintptr_t fields[];
-} gc_object_layout;
-
-typedef struct {
-    int64_t length;
-    int64_t capacity;
-    int64_t element_size;
-    unsigned char *data;
-    void *owned_data;
-    int64_t element_tag;
-} gc_array_layout;
 
 typedef struct {
     void *fn_ptr;
@@ -392,6 +373,7 @@ static void gc_scan_memory(void *start, void *end, gc_node **mark_stack, size_t 
 int scriptgo_gc_collect(int64_t *out_collected_count) {
     if (gc_in_progress) return 0;
     gc_in_progress = 1;
+    gc_hash_rebuild();
     gc_node *curr = NULL;
 
     // 1. Setup Mark Stack
@@ -561,31 +543,11 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         gc_node *next = curr->next;
         if (curr->header.gc_mark == 0) {
             *prev = next;
-            hash_unlink_node(curr);
             // Free the object payload
             if (curr->ptr != NULL) {
                 if (curr->header.type_tag == SCRIPTGO_TYPE_OBJECT) {
-                    typedef struct {
-                        uint64_t magic;
-                        int64_t field_count;
-                        const char *type_name;
-                        uint8_t extensible;
-                        uint8_t sealed;
-                        uint8_t frozen;
-                        uint8_t type_name_owned;
-                        uint32_t capacity;
-                        void *boxed_fields;
-                        uintptr_t fields[];
-                    } sweep_obj_t;
-                    sweep_obj_t *o = (sweep_obj_t *)curr->ptr;
-                    extern void *scriptgo_object_freelist_8;
-                    if (__builtin_expect(o != NULL && o->magic == 0x53474F424A454354ULL && o->capacity == 8 && o->boxed_fields == NULL && !o->type_name_owned, 1)) {
-                        o->fields[0] = (uintptr_t)scriptgo_object_freelist_8;
-                        scriptgo_object_freelist_8 = o;
-                    } else {
-                        void scriptgo_object_free(void *handle);
-                        scriptgo_object_free(curr->ptr);
-                    }
+                    void scriptgo_object_free(void *handle);
+                    scriptgo_object_free(curr->ptr);
                 } else if (curr->header.type_tag == SCRIPTGO_TYPE_CLOSURE) {
                     void scriptgo_closure_free(void *ptr);
                     scriptgo_closure_free(curr->ptr);
@@ -629,6 +591,7 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
         }
         curr = next;
     }
+    gc_hash_dirty = 1;
 
     if (total_live_objects * 2 > gc_threshold) {
         gc_threshold = total_live_objects * 2;

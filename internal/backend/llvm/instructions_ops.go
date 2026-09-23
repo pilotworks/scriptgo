@@ -2,11 +2,39 @@ package llvm
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
+
+func (e *functionEmitter) isInteger(name string) bool {
+	if e.integerVars == nil {
+		return false
+	}
+	clean := strings.TrimPrefix(name, "%")
+	return e.integerVars[clean] || e.integerVars[name]
+}
+
+func (e *functionEmitter) integerUpperBound(name string) (float64, bool) {
+	if e.integerUpperBounds == nil {
+		return 0, false
+	}
+	clean := strings.TrimPrefix(name, "%")
+	upper, ok := e.integerUpperBounds[clean]
+	if !ok || upper < 0 || upper > float64(1<<53-1) {
+		return 0, false
+	}
+	return upper, true
+}
+
+func (e *functionEmitter) setIntegerUpperBound(name string, upper float64) {
+	if e.integerUpperBounds == nil || upper < 0 || upper > float64(1<<53-1) {
+		return
+	}
+	e.integerUpperBounds[name] = upper
+}
 
 func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruction) error {
 	e.types[instruction.Result] = instruction.Type
@@ -19,6 +47,12 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 		number, err := strconv.ParseFloat(instruction.Value, 64)
 		if err != nil {
 			return fmt.Errorf("invalid number %q: %w", instruction.Value, err)
+		}
+		if e.integerVars != nil && number == math.Floor(number) && !math.IsNaN(number) && !math.IsInf(number, 0) {
+			e.integerVars[instruction.Result] = true
+		}
+		if number >= 0 && number == math.Floor(number) && number <= float64(1<<53-1) {
+			e.setIntegerUpperBound(instruction.Result, number)
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = fadd double -0.0, %s\n", instruction.Result, llvmNumber(number)))
 	case ir.TypeString:
@@ -182,22 +216,62 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if op, ok := map[string]string{"+": "fadd", "-": "fsub", "*": "fmul", "/": "fdiv", "%": "frem"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if (instruction.Operator == "+" || instruction.Operator == "-" || instruction.Operator == "*" || instruction.Operator == "%") &&
+			e.isInteger(instruction.Args[0]) && e.isInteger(instruction.Args[1]) {
+			e.integerVars[instruction.Result] = true
+		}
 		out.WriteString(fmt.Sprintf("  %%%s = %s double %%%s, %%%s\n", instruction.Result, op, arg0, arg1))
+		if instruction.Operator == "+" || instruction.Operator == "*" {
+			if leftUpper, ok := e.integerUpperBound(instruction.Args[0]); ok {
+				if rightUpper, ok := e.integerUpperBound(instruction.Args[1]); ok {
+					upper := leftUpper + rightUpper
+					if instruction.Operator == "*" {
+						upper = leftUpper * rightUpper
+					}
+					e.setIntegerUpperBound(instruction.Result, upper)
+				}
+			}
+		}
 		return nil
 	}
 	if bitOp, ok := map[string]string{"&": "and", "|": "or", "^": "xor"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", lI32, arg0))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", rI32, arg1))
+		leftUpper, leftIsSafeUnsigned := e.integerUpperBound(instruction.Args[0])
+		rightUpper, rightIsSafeUnsigned := e.integerUpperBound(instruction.Args[1])
+		if leftIsSafeUnsigned {
+			lI64 := instruction.Result + ".l_i64"
+			out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i64\n", lI64, arg0))
+			out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i32\n", lI32, lI64))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", lI32, arg0))
+		}
+		if rightIsSafeUnsigned {
+			rI64 := instruction.Result + ".r_i64"
+			out.WriteString(fmt.Sprintf("  %%%s = fptoui double %%%s to i64\n", rI64, arg1))
+			out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i32\n", rI32, rI64))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @__scriptgo_to_int32(double %%%s)\n", rI32, arg1))
+		}
 		out.WriteString(fmt.Sprintf("  %%%s = %s i32 %%%s, %%%s\n", resI32, bitOp, lI32, rI32))
 		out.WriteString(fmt.Sprintf("  %%%s = sitofp i32 %%%s to double\n", instruction.Result, resI32))
+		if instruction.Operator == "&" && rightIsSafeUnsigned && rightUpper <= float64(1<<31-1) {
+			e.setIntegerUpperBound(instruction.Result, rightUpper)
+		} else if instruction.Operator == "&" && leftIsSafeUnsigned && leftUpper <= float64(1<<31-1) {
+			e.setIntegerUpperBound(instruction.Result, leftUpper)
+		}
 		return nil
 	}
 	if shiftOp, ok := map[string]string{"<<": "shl", ">>": "ashr"}[instruction.Operator]; ok {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resI32 := instruction.Result + ".res_i32"
@@ -211,6 +285,9 @@ func (e *functionEmitter) emitBinary(out *strings.Builder, instruction ir.Instru
 	}
 	if instruction.Operator == ">>>" {
 		e.types[instruction.Result] = instruction.Type
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 		lI32 := instruction.Result + ".l_i32"
 		rI32 := instruction.Result + ".r_i32"
 		resU32 := instruction.Result + ".res_u32"

@@ -81,6 +81,88 @@ static inline int b64_val(char c) {
     return b64_lut[(unsigned char)c];
 }
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+static inline void scriptgo_b64_encode_neon(const unsigned char *data, size_t len, char *out, size_t *out_i, size_t *out_o) {
+    size_t i = 0;
+    size_t o = 0;
+    uint8x16x4_t lut64;
+    lut64.val[0] = vld1q_u8((const uint8_t *)b64_chars);
+    lut64.val[1] = vld1q_u8((const uint8_t *)b64_chars + 16);
+    lut64.val[2] = vld1q_u8((const uint8_t *)b64_chars + 32);
+    lut64.val[3] = vld1q_u8((const uint8_t *)b64_chars + 48);
+
+    while (i + 48 <= len) {
+        uint8x16x3_t in = vld3q_u8((const uint8_t *)(data + i));
+        uint8x16_t v0 = in.val[0];
+        uint8x16_t v1 = in.val[1];
+        uint8x16_t v2 = in.val[2];
+
+        uint8x16_t i0 = vshrq_n_u8(v0, 2);
+        uint8x16_t i1 = vorrq_u8(vshlq_n_u8(vandq_u8(v0, vdupq_n_u8(0x03)), 4), vshrq_n_u8(v1, 4));
+        uint8x16_t i2 = vorrq_u8(vshlq_n_u8(vandq_u8(v1, vdupq_n_u8(0x0f)), 2), vshrq_n_u8(v2, 6));
+        uint8x16_t i3 = vandq_u8(v2, vdupq_n_u8(0x3f));
+
+        uint8x16x4_t res;
+        res.val[0] = vqtbl4q_u8(lut64, i0);
+        res.val[1] = vqtbl4q_u8(lut64, i1);
+        res.val[2] = vqtbl4q_u8(lut64, i2);
+        res.val[3] = vqtbl4q_u8(lut64, i3);
+
+        vst4q_u8((uint8_t *)(out + o), res);
+        i += 48;
+        o += 64;
+    }
+    *out_i = i;
+    *out_o = o;
+}
+#endif
+
+#if defined(__aarch64__)
+static inline void scriptgo_b64_decode_neon(const char *input, size_t len, unsigned char *out, size_t *out_i, size_t *out_o) {
+    static const uint8_t primary_indices[16] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 0, 0, 0, 0};
+    static const uint8_t secondary_indices[16] = {1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 0, 0, 0, 0};
+    static const int8_t left_shifts[16] = {2, 4, 6, 2, 4, 6, 2, 4, 6, 2, 4, 6, 0, 0, 0, 0};
+    static const int8_t right_shifts[16] = {-4, -2, 0, -4, -2, 0, -4, -2, 0, -4, -2, 0, 0, 0, 0, 0};
+    const uint8x16_t upper_a = vdupq_n_u8('A');
+    const uint8x16_t upper_z = vdupq_n_u8('Z');
+    const uint8x16_t lower_a = vdupq_n_u8('a');
+    const uint8x16_t lower_z = vdupq_n_u8('z');
+    const uint8x16_t digit_0 = vdupq_n_u8('0');
+    const uint8x16_t digit_9 = vdupq_n_u8('9');
+    size_t i = 0;
+    size_t o = 0;
+
+    while (i + 16 <= len) {
+        uint8x16_t chars = vld1q_u8((const uint8_t *)(input + i));
+        uint8x16_t is_upper = vandq_u8(vcgeq_u8(chars, upper_a), vcleq_u8(chars, upper_z));
+        uint8x16_t is_lower = vandq_u8(vcgeq_u8(chars, lower_a), vcleq_u8(chars, lower_z));
+        uint8x16_t is_digit = vandq_u8(vcgeq_u8(chars, digit_0), vcleq_u8(chars, digit_9));
+        uint8x16_t is_plus = vceqq_u8(chars, vdupq_n_u8('+'));
+        uint8x16_t is_slash = vceqq_u8(chars, vdupq_n_u8('/'));
+        uint8x16_t is_url_plus = vceqq_u8(chars, vdupq_n_u8('-'));
+        uint8x16_t is_url_slash = vceqq_u8(chars, vdupq_n_u8('_'));
+        uint8x16_t valid = vorrq_u8(vorrq_u8(is_upper, is_lower), vorrq_u8(is_digit, vorrq_u8(is_plus, vorrq_u8(is_slash, vorrq_u8(is_url_plus, is_url_slash)))));
+        if (vminvq_u8(valid) != UINT8_MAX) break;
+
+        uint8x16_t values = vbslq_u8(is_upper, vsubq_u8(chars, upper_a), vdupq_n_u8(0));
+        values = vbslq_u8(is_lower, vaddq_u8(vsubq_u8(chars, lower_a), vdupq_n_u8(26)), values);
+        values = vbslq_u8(is_digit, vaddq_u8(vsubq_u8(chars, digit_0), vdupq_n_u8(52)), values);
+        values = vbslq_u8(vorrq_u8(is_plus, is_url_plus), vdupq_n_u8(62), values);
+        values = vbslq_u8(vorrq_u8(is_slash, is_url_slash), vdupq_n_u8(63), values);
+
+        uint8x16_t primary = vqtbl1q_u8(values, vld1q_u8(primary_indices));
+        uint8x16_t secondary = vqtbl1q_u8(values, vld1q_u8(secondary_indices));
+        uint8x16_t decoded = vorrq_u8(vshlq_u8(primary, vld1q_s8(left_shifts)), vshlq_u8(secondary, vld1q_s8(right_shifts)));
+        vst1q_u8(out + o, decoded);
+        i += 16;
+        o += 12;
+    }
+    *out_i = i;
+    *out_o = o;
+}
+#endif
+
 static int hex_val(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -165,6 +247,48 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
         size_t out_len = 0;
         size_t i = 0;
 
+#if defined(__aarch64__)
+        scriptgo_b64_decode_neon(str, in_len, dst, &i, &out_len);
+#endif
+
+        // Unrolled fast chunk loop: decode 16 clean base64 characters into 12 bytes
+        while (i + 16 <= in_len) {
+            unsigned char c0 = (unsigned char)str[i], c1 = (unsigned char)str[i + 1], c2 = (unsigned char)str[i + 2], c3 = (unsigned char)str[i + 3];
+            unsigned char c4 = (unsigned char)str[i + 4], c5 = (unsigned char)str[i + 5], c6 = (unsigned char)str[i + 6], c7 = (unsigned char)str[i + 7];
+            unsigned char c8 = (unsigned char)str[i + 8], c9 = (unsigned char)str[i + 9], c10 = (unsigned char)str[i + 10], c11 = (unsigned char)str[i + 11];
+            unsigned char c12 = (unsigned char)str[i + 12], c13 = (unsigned char)str[i + 13], c14 = (unsigned char)str[i + 14], c15 = (unsigned char)str[i + 15];
+
+            int8_t v0 = b64_lut[c0], v1 = b64_lut[c1], v2 = b64_lut[c2], v3 = b64_lut[c3];
+            int8_t v4 = b64_lut[c4], v5 = b64_lut[c5], v6 = b64_lut[c6], v7 = b64_lut[c7];
+            int8_t v8 = b64_lut[c8], v9 = b64_lut[c9], v10 = b64_lut[c10], v11 = b64_lut[c11];
+            int8_t v12 = b64_lut[c12], v13 = b64_lut[c13], v14 = b64_lut[c14], v15 = b64_lut[c15];
+
+            if ((v0 | v1 | v2 | v3 | v4 | v5 | v6 | v7 | v8 | v9 | v10 | v11 | v12 | v13 | v14 | v15) < 0) {
+                break;
+            }
+
+            uint32_t t0 = ((uint32_t)v0 << 18) | ((uint32_t)v1 << 12) | ((uint32_t)v2 << 6) | (uint32_t)v3;
+            uint32_t t1 = ((uint32_t)v4 << 18) | ((uint32_t)v5 << 12) | ((uint32_t)v6 << 6) | (uint32_t)v7;
+            uint32_t t2 = ((uint32_t)v8 << 18) | ((uint32_t)v9 << 12) | ((uint32_t)v10 << 6) | (uint32_t)v11;
+            uint32_t t3 = ((uint32_t)v12 << 18) | ((uint32_t)v13 << 12) | ((uint32_t)v14 << 6) | (uint32_t)v15;
+
+            dst[out_len]     = (unsigned char)(t0 >> 16);
+            dst[out_len + 1] = (unsigned char)(t0 >> 8);
+            dst[out_len + 2] = (unsigned char)t0;
+            dst[out_len + 3] = (unsigned char)(t1 >> 16);
+            dst[out_len + 4] = (unsigned char)(t1 >> 8);
+            dst[out_len + 5] = (unsigned char)t1;
+            dst[out_len + 6] = (unsigned char)(t2 >> 16);
+            dst[out_len + 7] = (unsigned char)(t2 >> 8);
+            dst[out_len + 8] = (unsigned char)t2;
+            dst[out_len + 9] = (unsigned char)(t3 >> 16);
+            dst[out_len + 10]= (unsigned char)(t3 >> 8);
+            dst[out_len + 11]= (unsigned char)t3;
+
+            out_len += 12;
+            i += 16;
+        }
+
         // Fast chunk loop: decode 4 clean base64 characters directly into 3 bytes
         while (i + 4 <= in_len) {
             unsigned char c0 = (unsigned char)str[i];
@@ -189,7 +313,28 @@ int scriptgo_buffer_from_string(const char *str, const char *encoding_str, void 
             i += 4;
         }
 
-        // Remainder loop for padding '=' or trailing characters
+        // Decode the final padded quartet that the clean fast paths deliberately
+        // leave behind. Padding is not in b64_lut, so it must be handled here.
+        if (i + 4 <= in_len && str[i + 2] == '=') {
+            int8_t v0 = b64_val(str[i]);
+            int8_t v1 = b64_val(str[i + 1]);
+            if (v0 >= 0 && v1 >= 0) {
+                dst[out_len++] = (unsigned char)(((uint32_t)v0 << 2) | ((uint32_t)v1 >> 4));
+                i += 4;
+            }
+        } else if (i + 4 <= in_len && str[i + 3] == '=') {
+            int8_t v0 = b64_val(str[i]);
+            int8_t v1 = b64_val(str[i + 1]);
+            int8_t v2 = b64_val(str[i + 2]);
+            if (v0 >= 0 && v1 >= 0 && v2 >= 0) {
+                uint32_t triple = ((uint32_t)v0 << 18) | ((uint32_t)v1 << 12) | ((uint32_t)v2 << 6);
+                dst[out_len++] = (unsigned char)(triple >> 16);
+                dst[out_len++] = (unsigned char)(triple >> 8);
+                i += 4;
+            }
+        }
+
+        // Accept unpadded and whitespace-containing input after the fast paths.
         uint32_t buf = 0;
         int bits = 0;
         for (; i < in_len; i++) {
@@ -411,6 +556,9 @@ int scriptgo_buffer_to_string(void *handle, const char *encoding_str, double sta
         size_t o = 0;
         int64_t i = 0;
         int64_t fast_limit = slice_len - (slice_len % 3);
+#if defined(__ARM_NEON)
+        scriptgo_b64_encode_neon(data, (size_t)fast_limit, b64_str, (size_t *)&i, &o);
+#endif
 
         // Fast chunk loop: encode 3 bytes directly into 4 base64 chars with zero branches
         for (; i < fast_limit; i += 3) {

@@ -57,6 +57,7 @@ func buildPipeline(level string) []Pass {
 			NewConstFoldPass(),
 			NewCSEPass(),
 			NewLICMPass(),
+			NewTemporaryObjectRegionPass(),
 			NewDCEPass(),
 		}
 	}

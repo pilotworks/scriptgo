@@ -30,6 +30,7 @@ func (e *functionEmitter) emitBufferWrite(out *strings.Builder, instruction ir.I
 		buf := instruction.Args[0]
 		val := instruction.Args[1]
 		off := instruction.Args[2]
+		resultUsed := e.usedResults[instruction.Result]
 		id := e.labelCounter
 		e.labelCounter++
 
@@ -54,10 +55,8 @@ func (e *functionEmitter) emitBufferWrite(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  %%bw.off_i64.%d = fptosi double %%%s to i64\n", id, off)
 		fmt.Fprintf(out, "  %%bw.len_ptr.%d = getelementptr inbounds i8, ptr %%%s, i64 8\n", id, buf)
 		fmt.Fprintf(out, "  %%bw.len.%d = load i64, ptr %%bw.len_ptr.%d, align 8, !invariant.load !{}\n", id, id)
-		fmt.Fprintf(out, "  %%bw.off_nonneg.%d = icmp sge i64 %%bw.off_i64.%d, 0\n", id, id)
-		fmt.Fprintf(out, "  %%bw.end_off.%d = add nsw i64 %%bw.off_i64.%d, 4\n", id, id)
-		fmt.Fprintf(out, "  %%bw.in_bounds.%d = icmp sle i64 %%bw.end_off.%d, %%bw.len.%d\n", id, id, id)
-		fmt.Fprintf(out, "  %%bw.bounds_ok.%d = and i1 %%bw.off_nonneg.%d, %%bw.in_bounds.%d\n", id, id, id)
+		fmt.Fprintf(out, "  %%bw.max_off.%d = sub nsw i64 %%bw.len.%d, 4\n", id, id)
+		fmt.Fprintf(out, "  %%bw.bounds_ok.%d = icmp ule i64 %%bw.off_i64.%d, %%bw.max_off.%d\n", id, id, id)
 		fmt.Fprintf(out, "  %%bw.fast_cond0.%d = and i1 %%bw.is_buf.%d, %%bw.data_not_null.%d\n", id, id, id)
 		fmt.Fprintf(out, "  %%bw.fast_cond.%d = and i1 %%bw.fast_cond0.%d, %%bw.bounds_ok.%d\n", id, id, id)
 		fmt.Fprintf(out, "  br i1 %%bw.fast_cond.%d, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n\n", id, fastLbl, slowLbl)
@@ -67,25 +66,35 @@ func (e *functionEmitter) emitBufferWrite(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  %%bw.dest.%d = getelementptr inbounds i8, ptr %%bw.data.%d, i64 %%bw.off_i64.%d\n", id, id, id)
 		fmt.Fprintf(out, "  %%bw.val_i32.%d = fptoui double %%%s to i32\n", id, val)
 		fmt.Fprintf(out, "  store i32 %%bw.val_i32.%d, ptr %%bw.dest.%d, align 1\n", id, id)
-		fmt.Fprintf(out, "  %%bw.fast_res.%d = sitofp i64 %%bw.end_off.%d to double\n", id, id)
+		if resultUsed {
+			fmt.Fprintf(out, "  %%bw.end_off.%d = add nsw i64 %%bw.off_i64.%d, 4\n", id, id)
+			fmt.Fprintf(out, "  %%bw.fast_res.%d = sitofp i64 %%bw.end_off.%d to double\n", id, id)
+		}
 		fmt.Fprintf(out, "  br label %%%s\n\n", doneLbl)
 
 		// 4. Slow path: fallback to runtime C helper
 		fmt.Fprintf(out, "%s:\n", slowLbl)
-		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, double %%%s, i32 %d, ptr %%%s)\n",
+		slot := "null"
+		if resultUsed {
+			slot = "%" + instruction.Result + ".slot"
+			fmt.Fprintf(out, "  %%%s = alloca double\n", instruction.Result+".slot")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, double %%%s, i32 %d, ptr %s)\n",
 			status, cFn, instruction.Args[0], instruction.Args[1], instruction.Args[2], isLE, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%bw.slow_res.%d = load double, ptr %%%s\n", id, slot)
+		if resultUsed {
+			fmt.Fprintf(out, "  %%bw.slow_res.%d = load double, ptr %s\n", id, slot)
+		}
 		fmt.Fprintf(out, "  br label %%%s\n\n", doneLbl)
 
-		// 5. Done: phi node
+		// 5. Merge the paths; only materialize the JS return value when used.
 		fmt.Fprintf(out, "%s:\n", doneLbl)
-		fmt.Fprintf(out, "  %%%s = phi double [ %%bw.fast_res.%d, %%%s ], [ %%bw.slow_res.%d, %%%s ]\n",
-			instruction.Result, id, fastLbl, id, slowLbl)
+		if resultUsed {
+			fmt.Fprintf(out, "  %%%s = phi double [ %%bw.fast_res.%d, %%%s ], [ %%bw.slow_res.%d, %%%s ]\n",
+				instruction.Result, id, fastLbl, id, slowLbl)
+		}
 		return nil
 	}
 

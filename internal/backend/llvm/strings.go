@@ -17,6 +17,9 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_length(ptr %%%s, ptr %%__slot_double)\n", status, instruction.Args[0])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%__slot_double\n", instruction.Result)
+		if e.integerVars != nil {
+			e.integerVars[instruction.Result] = true
+		}
 	case "__string.indexOf":
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("string.indexOf has invalid signature")
