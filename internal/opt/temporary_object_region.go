@@ -19,6 +19,17 @@ func (p *temporaryObjectRegionPass) Run(m *ir.Module) (bool, error) {
 	inspectors := make(map[string]bool)
 	constructors := make(map[string]bool)
 	loopConstructors := make(map[string]bool)
+
+	// Builtin JSON builders and inspectors
+	builders["__json.parse_unknown"] = true
+	builders["__json.parse"] = true
+	inspectors["__json.stringify_unknown"] = true
+	inspectors["__json.stringify_object_array"] = true
+	inspectors["__json.stringify_number_array"] = true
+	inspectors["__json.stringify_string_array"] = true
+	inspectors["__json.stringify_bool_array"] = true
+	inspectors["__json.inspect_object"] = true
+
 	for _, fn := range m.Functions {
 		if isRegionConstructor(fn) {
 			constructors[fn.Name] = true
@@ -135,6 +146,15 @@ func containsTemporary(values []string, objects, closures map[string]bool) bool 
 	return false
 }
 
+func containsAny(values []string, targets map[string]bool) bool {
+	for _, v := range values {
+		if targets[v] {
+			return true
+		}
+	}
+	return false
+}
+
 func regionInterval(body []ir.Instruction, builders, inspectors map[string]bool) (int, int, bool) {
 	start, end := -1, -1
 	for i, inst := range body {
@@ -144,26 +164,42 @@ func regionInterval(body []ir.Instruction, builders, inspectors map[string]bool)
 		if inst.Op != ir.OpCall || !builders[inst.Callee] || inst.Result == "" {
 			continue
 		}
+		aliases := map[string]bool{inst.Result: true}
 		consumer := -1
+		valid := true
 		for j := i + 1; j < len(body); j++ {
-			if contains(body[j].Args, inst.Result) {
-				if body[j].Op != ir.OpCall || !inspectors[body[j].Callee] {
-					return 0, 0, false
+			if containsAny(body[j].Args, aliases) {
+				if body[j].Op == ir.OpAssign && body[j].Result != "" {
+					aliases[body[j].Result] = true
+				} else if body[j].Op == ir.OpCall && inspectors[body[j].Callee] {
+					consumer = j
+				} else {
+					valid = false
+					break
 				}
-				consumer = j
 			}
 		}
-		if consumer < 0 {
+		if !valid || consumer < 0 {
 			continue
 		}
-		if start < 0 {
+		escapesAfter := false
+		for j := consumer + 1; j < len(body); j++ {
+			if containsAny(body[j].Args, aliases) {
+				escapesAfter = true
+				break
+			}
+		}
+		if escapesAfter {
+			continue
+		}
+		if start < 0 || i < start {
 			start = i
 		}
 		if consumer > end {
 			end = consumer
 		}
 	}
-	if start < 0 {
+	if start < 0 || end < start {
 		return 0, 0, false
 	}
 	for _, inst := range body[start : end+1] {

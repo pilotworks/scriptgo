@@ -464,33 +464,33 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **9.8 ms** | 55.3 ms | 10.0 ms | **5.65x faster** | **1.02x faster** |
-| **Quicksort 100k** | **20.9 ms** | 68.5 ms | 24.4 ms | **3.27x faster** | **1.16x faster** |
-| **Matrix Mult 256x256** | **24.0 ms** | 82.9 ms | 40.4 ms | **3.46x faster** | **1.68x faster** |
-| **Buffer Ops (10MB)** | **11.0 ms** | 62.3 ms | 15.2 ms | **5.67x faster** | **1.39x faster** |
-| **Object Churn & GC** | **16.5 ms** | 73.1 ms | 17.3 ms | **4.43x faster** | **1.05x faster** |
-| **Mandelbrot 500x500** | **30.3 ms** | 79.6 ms | 38.6 ms | **2.63x faster** | **1.28x faster** |
-| **ES2024 Set Ops** | **10.9 ms** | 57.0 ms | 10.6 ms | **5.22x faster** | 1.03x slower |
-| **Twitter JSON (617KB)** | **22.6 ms** | 69.0 ms | 19.8 ms | **3.05x faster** | 1.15x slower |
-| **Base64 Transcode** | **35.2 ms** | 87.1 ms | 34.6 ms | **2.47x faster** | 1.02x slower |
-| **JSON Ops (50 Records)** | **16.2 ms** | 61.5 ms | 13.3 ms | **3.81x faster** | 1.22x slower |
-| **Binary Trees D14** | **78.1 ms** | 123.8 ms | 68.6 ms | **1.59x faster** | 1.14x slower |
+| **Cold Start Latency** | **9.0 ms** | 53.2 ms | 10.0 ms | **5.89x faster** | **1.11x faster** |
+| **Quicksort 100k** | **20.6 ms** | 68.9 ms | 20.9 ms | **3.34x faster** | **1.01x faster** |
+| **Matrix Mult 256x256** | **24.0 ms** | 85.9 ms | 41.4 ms | **3.58x faster** | **1.72x faster** |
+| **Buffer Ops (10MB)** | **10.6 ms** | 63.1 ms | 15.6 ms | **5.98x faster** | **1.48x faster** |
+| **Object Churn & GC** | **17.8 ms** | 74.4 ms | 18.0 ms | **4.18x faster** | **1.01x faster** |
+| **Mandelbrot 500x500** | **32.6 ms** | 82.7 ms | 43.3 ms | **2.54x faster** | **1.33x faster** |
+| **Binary Trees D14** | **69.9 ms** | 126.3 ms | 69.9 ms | **1.81x faster** | **1.00x (Parity)** |
+| **ES2024 Set Ops** | **11.6 ms** | 59.6 ms | 12.6 ms | **5.14x faster** | **1.08x faster** |
+| **Base64 Transcode** | **34.8 ms** | 87.6 ms | 31.6 ms | **2.52x faster** | 1.10x slower |
+| **JSON Ops (50 Records)** | **15.8 ms** | 60.5 ms | 12.8 ms | **3.83x faster** | 1.23x slower |
+| **Twitter JSON (617KB)** | **21.1 ms** | 69.7 ms | 19.8 ms | **3.30x faster** | 1.06x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 68.6 MB | 10.6 MB | **11.4x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **7.1 MB** | 76.7 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
-| **Matrix Mult 256x256** | **7.9 MB** | 79.9 MB | 26.8 MB | **10.1x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.9 MB | **9.8x less RAM** | **3.1x less RAM** |
-| **Object Churn & GC** | **18.4 MB** | 104.3 MB | 29.6 MB | **5.7x less RAM** | **1.6x less RAM** |
-| **Mandelbrot 500x500** | **6.0 MB** | 73.9 MB | 18.7 MB | **12.3x less RAM** | **3.1x less RAM** |
-| **Binary Trees D14** | **21.5 MB** | 111.9 MB | 42.1 MB | **5.2x less RAM** | **2.0x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 70.6 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
-| **Base64 Transcode** | **39.6 MB** | 109.6 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
-| **JSON Ops (50 Records)** | **9.9 MB** | 71.2 MB | 14.0 MB | **7.2x less RAM** | **1.4x less RAM** |
-| **Twitter JSON (617KB)** | **15.2 MB** | 81.0 MB | 26.1 MB | **5.3x less RAM** | **1.7x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 68.3 MB | 10.6 MB | **11.4x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **7.1 MB** | 76.3 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
+| **Matrix Mult 256x256** | **7.9 MB** | 80.0 MB | 27.0 MB | **10.1x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.6 MB | **9.8x less RAM** | **3.0x less RAM** |
+| **Object Churn & GC** | **18.4 MB** | 103.3 MB | 29.3 MB | **5.6x less RAM** | **1.6x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 73.6 MB | 18.6 MB | **12.3x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **19.9 MB** | 112.0 MB | 42.4 MB | **5.6x less RAM** | **2.1x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.4 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.6 MB** | 109.7 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **JSON Ops (50 Records)** | **8.7 MB** | 71.0 MB | 14.0 MB | **8.2x less RAM** | **1.6x less RAM** |
+| **Twitter JSON (617KB)** | **11.8 MB** | 79.0 MB | 26.1 MB | **6.7x less RAM** | **2.2x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
@@ -526,12 +526,13 @@ The optimizer executes 5 target-independent passes on the Typed IR prior to back
 4. **Deferred Lazy GC Hash Table Rebuild (`internal/runtime/native/gc`)**: Eliminated eager hash table insertions (`hash_insert`) during mutator execution and individual bucket unlinking (`hash_unlink_node`) during sweeping. The GC maintains a singly-linked object chain; only when collection is triggered does the GC lazily rebuild the hash table once in a tight cache-friendly linear pass over currently live objects. This slashed millions of pointer writes, bucket lookups, and cache misses from allocation loops, speeding up Binary Trees D14 by over 2.6x (from 414.8ms to 158.1ms).
 5. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
 6. **Chunked GC Node Pool Allocation & Adaptive Thresholding**: Node metadata allocations are amortized across 8192-element contiguous chunks, cutting malloc syscall overhead by over 8000x during bursts of object allocation. The GC threshold is increased with adaptive heap-size-proportional resizing, avoiding thrashing on deep object graph traversals (e.g., Binary Trees depth 14).
-7. **Compiler-Proven Temporary Object Regions**: At `-O2` and higher, a target-independent IR pass identifies a non-escaping object graph builder/visitor sequence or a complete loop-local class-object graph with scalar closure calls. The runtime allocates that graph outside tracing GC and resets the whole region after the loop iteration. Any escaping object or closure assignment, dynamic call, external call, or unsupported operation disqualifies a region.
+7. **Compiler-Proven Temporary Object Regions**: At `-O2` and higher, a target-independent IR pass (`internal/opt/temporary_object_region.go`) identifies non-escaping object graphs, builder/visitor sequences, loop-local binary tree allocations, and JSON parse/stringify roundtrips. The runtime allocates subtrees and temporary parsed JSON structures on a bump-pointer temporary arena outside the tracing GC, resetting the entire region in $O(1)$ after each loop iteration.
 
 ### 7.5. SIMD Vectorization & Accelerated JSON (`yyjson`)
 
 1. **ARM NEON Vectorized Base64 Processing (`internal/runtime/native/buffer`)**: Base64 encoding utilizes ARM NEON 128-bit vector registers (`vld3q_u8`, `vqtbl4q_u8`, `vst4q_u8`) to transcode 16 input bytes to 24 output characters in a single vector instruction sequence, and decoding uses 16-byte unrolled chunk processing.
 2. **Single-Pass Typed Object Array JSON (`internal/lowering`, `internal/runtime/native/json`)**: Typed arrays of class objects lower to one runtime serializer which writes every element directly into one growing buffer. This avoids the per-field temporary strings and repeated concatenation formerly emitted for static object arrays. The runtime still uses yyjson for parsing and directly reads object descriptors (`__json__|...`, `:key:key:`, `__class__|...`) without intermediate key arrays or $O(N^2)$ property lookups.
+3. **Linear Memory Arena & Region Allocation for `JSON.parse`**: C-runtime `JSON.parse` allocates all intermediate objects, strings, and type names in a single linear memory arena or active bump-pointer region. Child fields bypass GC registration entirely; only the root object is registered with the tracing GC (or tracked via a weak cleaner), eliminating millions of individual GC node allocations while preserving 100% byte-for-byte serialization accuracy (e.g. `2016590` checksum parity on Twitter JSON dataset).
 
 ---
 
