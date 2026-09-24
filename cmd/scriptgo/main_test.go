@@ -271,4 +271,3 @@ func TestCLI_DirectExecutionAndAlias(t *testing.T) {
 		}
 	})
 }
-
