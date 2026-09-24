@@ -21,6 +21,34 @@ func init() {
 	}
 }
 
+func getProgramName() string {
+	if len(os.Args) > 0 {
+		base := filepath.Base(os.Args[0])
+		if base == "scg" || base == "scg.exe" {
+			return "scg"
+		}
+	}
+	return "scriptgo"
+}
+
+func shouldImplicitRun(firstArg string) bool {
+	if strings.HasPrefix(firstArg, "-") {
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(firstArg))
+	switch ext {
+	case ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs":
+		return true
+	}
+	if info, err := os.Stat(firstArg); err == nil && !info.IsDir() {
+		return true
+	}
+	if _, err := pkgmgr.ResolveTask(".", "", firstArg); err == nil {
+		return true
+	}
+	return false
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		printMainUsage()
@@ -41,12 +69,14 @@ func main() {
 		handleCoverage(normalizeFlagsFirst(os.Args[2:]))
 	case "init":
 		handleInit(normalizeFlagsFirst(os.Args[2:]))
+	case "add":
+		handleAdd(normalizeFlagsFirstForAdd(os.Args[2:]))
 	case "install":
 		handleInstall(normalizeFlagsFirst(os.Args[2:]))
 	case "task":
 		handleTask(os.Args[2:])
 	case "version", "--version", "-V":
-		fmt.Printf("scriptgo version %s (runtime %s)\n", compiler.Version, compiler.RuntimeABIVersion)
+		fmt.Printf("%s version %s (runtime %s)\n", getProgramName(), compiler.Version, compiler.RuntimeABIVersion)
 	case "help", "--help", "-h":
 		if len(os.Args) > 2 {
 			handleHelpCommand(os.Args[2])
@@ -54,7 +84,11 @@ func main() {
 		}
 		printMainUsage()
 	default:
-		fmt.Fprintf(os.Stderr, "scriptgo: unknown command %q\n\n", firstArg)
+		if shouldImplicitRun(firstArg) {
+			handleRun(normalizeFlagsFirst(os.Args[1:]))
+			return
+		}
+		fmt.Fprintf(os.Stderr, "%s: unknown command %q\n\n", getProgramName(), firstArg)
 		printMainUsage()
 		os.Exit(2)
 	}
@@ -74,14 +108,16 @@ func handleHelpCommand(cmd string) {
 		printCoverageUsage()
 	case "init":
 		printInitUsage()
+	case "add":
+		printAddUsage()
 	case "install":
 		printInstallUsage()
 	case "task":
 		printTaskUsage()
 	case "version":
-		fmt.Println("Usage: scriptgo version\n\nPrints the current compiler version and runtime ABI version.")
+		fmt.Printf("Usage: %s version\n\nPrints the current compiler version and runtime ABI version.\n", getProgramName())
 	default:
-		fmt.Fprintf(os.Stderr, "scriptgo: unknown command %q for help\n\n", cmd)
+		fmt.Fprintf(os.Stderr, "%s: unknown command %q for help\n\n", getProgramName(), cmd)
 		printMainUsage()
 		os.Exit(2)
 	}
@@ -151,6 +187,7 @@ func handleRun(args []string) {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.Usage = printRunUsage
 	eval := fs.String("e", "", "evaluate inline script string")
+	fs.StringVar(eval, "eval", "", "evaluate inline script string")
 	verbose := fs.Bool("v", false, "print compilation stages to stderr")
 	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
 	cc := fs.String("cc", "", "C compiler / toolchain driver (default: $SCRIPTGO_CC or clang)")
@@ -178,16 +215,24 @@ func handleRun(args []string) {
 		os.Exit(2)
 	}
 
+	hasEval := false
+	for _, a := range args {
+		if a == "-e" || a == "--eval" || strings.HasPrefix(a, "-e=") || strings.HasPrefix(a, "--eval=") {
+			hasEval = true
+			break
+		}
+	}
+
 	var entryPath string
 	var cleanup func()
 	var extraArgs []string
 	var extraSources []string
 
-	if *eval != "" {
+	if *eval != "" || hasEval {
 		var err error
 		entryPath, cleanup, err = createInlineSourceFile(*eval)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
+			fmt.Fprintf(os.Stderr, "%s: %v\n", getProgramName(), err)
 			os.Exit(1)
 		}
 		defer cleanup()
@@ -201,7 +246,7 @@ func handleRun(args []string) {
 		var err error
 		entryPath, cleanup, err = resolveInput(firstArg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
+			fmt.Fprintf(os.Stderr, "%s: %v\n", getProgramName(), err)
 			os.Exit(1)
 		}
 		defer cleanup()
@@ -574,162 +619,6 @@ func handleCheck(args []string) {
 	printCompilerWarnings()
 	if *verbose {
 		fmt.Fprintf(os.Stderr, "scriptgo: %s checked successfully\n", entryPath)
-	}
-}
-
-func handleEmit(args []string) {
-	fs := flag.NewFlagSet("emit", flag.ContinueOnError)
-	fs.Usage = printEmitUsage
-	eval := fs.String("e", "", "evaluate inline script string")
-	mode := fs.String("mode", "llvm-ir", "output mode: llvm-ir, typed-ir")
-	output := fs.String("o", "", "write output to this path (default: stdout)")
-	verbose := fs.Bool("v", false, "print compilation stages to stderr")
-	target := fs.String("target", "", "native target triple (default: $SCRIPTGO_TARGET or native)")
-	debug := fs.Bool("debug", false, "include native debug metadata")
-	warnRuntimeCasts := fs.Bool("warn-runtime-casts", false, "warn on runtime checked casts")
-	strictCasts := fs.Bool("strict-casts", false, "treat cast warnings as errors")
-	optLevel := fs.String("O", "", "optimization level (0, 1, 2, 3, s, z, fast)")
-	release := fs.Bool("release", false, "build with release optimizations")
-	dynamic := registerDynamicFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(0)
-		}
-		os.Exit(2)
-	}
-
-	var entryPath string
-	var cleanup func()
-
-	if *eval != "" {
-		var err error
-		entryPath, cleanup, err = createInlineSourceFile(*eval)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "scriptgo:", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-	} else if fs.NArg() == 1 {
-		var err error
-		entryPath, cleanup, err = resolveInput(fs.Arg(0))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "scriptgo:", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-	} else {
-		printEmitUsage()
-		os.Exit(2)
-	}
-
-	options := compiler.BuildOptions{
-		Target:           *target,
-		Debug:            *debug,
-		OptLevel:         *optLevel,
-		Release:          *release,
-		WarnRuntimeCasts: *warnRuntimeCasts,
-		StrictCasts:      *strictCasts,
-		Dynamic:          *dynamic,
-	}
-	var result string
-	var err error
-
-	switch *mode {
-	case "typed-ir":
-		if *verbose {
-			fmt.Fprintf(os.Stderr, "scriptgo: emitting typed IR for %s\n", entryPath)
-		}
-		result, err = compiler.DumpIRWithOptions(entryPath, options)
-	case "llvm-ir":
-		if *verbose {
-			fmt.Fprintf(os.Stderr, "scriptgo: emitting LLVM IR for %s\n", entryPath)
-		}
-		result, err = compiler.CompileWithOptions(entryPath, options)
-	default:
-		fmt.Fprintf(os.Stderr, "scriptgo: unsupported emit mode %q (supported: llvm-ir, typed-ir)\n", *mode)
-		os.Exit(2)
-	}
-
-	printCompilerWarnings()
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-
-	if *output == "" {
-		fmt.Print(result)
-		return
-	}
-	if err := os.WriteFile(*output, []byte(result), 0o644); err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
-		os.Exit(1)
-	}
-}
-
-func handleCoverage(args []string) {
-	fs := flag.NewFlagSet("coverage", flag.ContinueOnError)
-	fs.Usage = printCoverageUsage
-	eval := fs.String("e", "", "evaluate inline script string")
-	format := fs.String("format", "summary", "coverage output format: summary, json")
-	output := fs.String("o", "", "write output to this path (default: stdout)")
-	verbose := fs.Bool("v", false, "print analysis stages to stderr")
-	dynamic := registerDynamicFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(0)
-		}
-		os.Exit(2)
-	}
-
-	var entryPath string
-	var cleanup func()
-	if *eval != "" {
-		var err error
-		entryPath, cleanup, err = createInlineSourceFile(*eval)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "scriptgo:", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-	} else if fs.NArg() == 1 {
-		var err error
-		entryPath, cleanup, err = resolveInput(fs.Arg(0))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "scriptgo:", err)
-			os.Exit(1)
-		}
-		defer cleanup()
-	} else {
-		printCoverageUsage()
-		os.Exit(2)
-	}
-
-	if *verbose {
-		fmt.Fprintf(os.Stderr, "scriptgo: analyzing coverage for %s\n", entryPath)
-	}
-	options := compiler.BuildOptions{Dynamic: *dynamic}
-	var result string
-	var err error
-	switch *format {
-	case "summary":
-		result, err = compiler.CoverageSummary(entryPath, options)
-	case "json":
-		result, err = compiler.CoverageReportJSON(entryPath, options)
-	default:
-		fmt.Fprintf(os.Stderr, "scriptgo: unsupported coverage format %q (supported: summary, json)\n", *format)
-		os.Exit(2)
-	}
-	if err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-	if *output == "" {
-		fmt.Print(result)
-		return
-	}
-	if err := os.WriteFile(*output, []byte(result), 0o644); err != nil {
-		fmt.Fprintln(os.Stderr, "scriptgo:", err)
-		os.Exit(1)
 	}
 }
 

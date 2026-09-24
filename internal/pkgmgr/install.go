@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -180,6 +179,13 @@ func Install(options InstallOptions) (Lockfile, error) {
 		}
 		rootEdges[name] = identity
 	}
+	for name, spec := range manifest.DevDependencies {
+		identity, resolveErr := resolve(name, spec, "")
+		if resolveErr != nil {
+			return Lockfile{}, resolveErr
+		}
+		rootEdges[name] = identity
+	}
 	for name, spec := range manifest.OptionalDependencies {
 		identity, resolveErr := resolve(name, spec, "")
 		if resolveErr == nil {
@@ -284,6 +290,7 @@ func peerCandidate(identity, name string, edges map[string]map[string]string, pa
 func graphLockfile(nodes map[string]*packageNode, project PackageManifest, autoPeers map[string]string, projectRoot string) Lockfile {
 	lock := Lockfile{LockfileVersion: 1, Project: LockfileProject{
 		Dependencies:         cloneStrings(project.Dependencies),
+		DevDependencies:      cloneStrings(project.DevDependencies),
 		OptionalDependencies: cloneStrings(project.OptionalDependencies),
 		PeerDependencies:     cloneStrings(project.PeerDependencies),
 		AutoPeers:            cloneStrings(autoPeers),
@@ -323,6 +330,7 @@ func cloneStrings(source map[string]string) map[string]string {
 
 func validateProjectLock(manifest PackageManifest, lock Lockfile) error {
 	if !equalStrings(manifest.Dependencies, lock.Project.Dependencies) ||
+		!equalStrings(manifest.DevDependencies, lock.Project.DevDependencies) ||
 		!equalStrings(manifest.OptionalDependencies, lock.Project.OptionalDependencies) ||
 		!equalStrings(manifest.PeerDependencies, lock.Project.PeerDependencies) {
 		return fmt.Errorf("frozen install rejected: project manifest dependencies differ from lockfile")
@@ -646,53 +654,6 @@ func linkTree(source, destination string) error {
 		if err := os.Link(src, dst); err != nil {
 			return fmt.Errorf("hardlink %q: %w", dst, err)
 		}
-	}
-	return nil
-}
-
-func linkBins(nodeModules string, nodes map[string]*packageNode, rootEdges map[string]string) error {
-	binDir := filepath.Join(nodeModules, ".bin")
-	for _, identity := range rootEdges {
-		node := nodes[identity]
-		if node == nil {
-			continue
-		}
-		for name, target := range node.Manifest.Bin {
-			if name == "" {
-				name = node.Name
-			}
-			if filepath.Base(name) != name || filepath.IsAbs(target) || strings.HasPrefix(filepath.Clean(filepath.FromSlash(target)), ".."+string(filepath.Separator)) {
-				return fmt.Errorf("invalid bin declaration for %s", node.Name)
-			}
-			if err := os.MkdirAll(binDir, 0o755); err != nil {
-				return err
-			}
-			if err := linkBin(binDir, name, node.Name, target); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func linkBin(binDir, name, packageName, target string) error {
-	linkTarget := filepath.Join("..", filepath.FromSlash(packageName), filepath.FromSlash(target))
-	if runtime.GOOS != "windows" {
-		if err := os.Symlink(linkTarget, filepath.Join(binDir, name)); err != nil {
-			return fmt.Errorf("link bin %s: %w", name, err)
-		}
-		return nil
-	}
-	cmdTarget := strings.ReplaceAll(linkTarget, "/", "\\")
-	relativeTarget := strings.TrimPrefix(cmdTarget, `..\`)
-	cmd := fmt.Sprintf("@echo off\r\n\"%%~dp0\\%s\" %%*\r\n", relativeTarget)
-	if err := os.WriteFile(filepath.Join(binDir, name+".cmd"), []byte(cmd), 0o755); err != nil {
-		return fmt.Errorf("write bin shim %s: %w", name, err)
-	}
-	powershellTarget := strings.ReplaceAll(relativeTarget, `\`, "/")
-	powershell := fmt.Sprintf("& (Join-Path $PSScriptRoot '%s') $args\r\n", powershellTarget)
-	if err := os.WriteFile(filepath.Join(binDir, name+".ps1"), []byte(powershell), 0o755); err != nil {
-		return fmt.Errorf("write PowerShell bin shim %s: %w", name, err)
 	}
 	return nil
 }

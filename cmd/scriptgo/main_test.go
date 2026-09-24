@@ -201,3 +201,73 @@ func TestCLI_CheckTSConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestCLI_DirectExecutionAndAlias(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := testScriptGoBin
+
+	tsFile := filepath.Join(tmpDir, "hello.ts")
+	if err := os.WriteFile(tsFile, []byte("console.log('direct_file_works');\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("scriptgo -e code", func(t *testing.T) {
+		cmd := exec.Command(binPath, "-e", "console.log('direct_eval_works');")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("expected scriptgo -e to succeed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "direct_eval_works") {
+			t.Errorf("unexpected output: %s", string(out))
+		}
+	})
+
+	t.Run("scriptgo file.ts", func(t *testing.T) {
+		cmd := exec.Command(binPath, tsFile)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("expected scriptgo file.ts to succeed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "direct_file_works") {
+			t.Errorf("unexpected output: %s", string(out))
+		}
+	})
+
+	scgBin := filepath.Join(tmpDir, "scg")
+	if err := os.Symlink(binPath, scgBin); err != nil {
+		t.Skipf("symlink not supported on this platform: %v", err)
+	}
+
+	t.Run("scg -e code", func(t *testing.T) {
+		cmd := exec.Command(scgBin, "-e", "console.log('scg_eval_works');")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("expected scg -e to succeed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "scg_eval_works") {
+			t.Errorf("unexpected output: %s", string(out))
+		}
+	})
+
+	t.Run("scg file.ts", func(t *testing.T) {
+		cmd := exec.Command(scgBin, tsFile)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("expected scg file.ts to succeed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "direct_file_works") {
+			t.Errorf("unexpected output: %s", string(out))
+		}
+	})
+
+	t.Run("scg version", func(t *testing.T) {
+		cmd := exec.Command(scgBin, "version")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("expected scg version to succeed: %v\noutput: %s", err, string(out))
+		}
+		if !strings.Contains(string(out), "scg version") {
+			t.Errorf("unexpected output: %s", string(out))
+		}
+	})
+}
