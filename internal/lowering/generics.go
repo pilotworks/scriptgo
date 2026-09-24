@@ -20,6 +20,7 @@ var (
 // SpecializeGenerics monomorphizes generic functions and classes based on
 // concrete type arguments at call sites, instantiations, and type annotations.
 func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
+	initializeTypeAliases(program)
 	initializeClassIdentities(program)
 	buildClassHierarchy(program)
 	genericFuncs := map[string]typescriptgo.SyntaxStatement{}
@@ -443,6 +444,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			concreteMethods = append(concreteMethods, specCls.Methods[i])
 		}
 		specCls.Methods = concreteMethods
+
 
 		kind := genericClassKinds[name]
 		if kind == "" {

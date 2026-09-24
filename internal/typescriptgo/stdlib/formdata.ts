@@ -12,15 +12,16 @@ export class FormDataEntry {
     }
 }
 
-class FormDataIterator {
-    private _values: unknown[];
+export class FormDataIterator<T = unknown> {
+    private _values: T[];
     private _index: number = 0;
 
-    constructor(values: unknown[]) {
+    constructor(values: T[]) {
         this._values = values;
+        this._index = 0;
     }
 
-    next(): { value: unknown; done: boolean } {
+    next(): { value: T | undefined; done: boolean } {
         if (this._index < this._values.length) {
             const value = this._values[this._index];
             this._index = this._index + 1;
@@ -29,7 +30,7 @@ class FormDataIterator {
         return { value: undefined, done: true };
     }
 
-    [Symbol.iterator](): FormDataIterator {
+    [Symbol.iterator](): FormDataIterator<T> {
         return this;
     }
 }
@@ -114,32 +115,32 @@ export class FormData {
         }
     }
 
-    entries(): [string, FormDataEntryValue][] {
+    entries(): FormDataIterator<[string, FormDataEntryValue]> {
         const res: [string, FormDataEntryValue][] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push([this._entries[i].name, this._entries[i].value]);
         }
-        return res;
+        return new FormDataIterator<[string, FormDataEntryValue]>(res);
     }
 
-    keys(): string[] {
+    keys(): FormDataIterator<string> {
         const res: string[] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push(this._entries[i].name);
         }
-        return res;
+        return new FormDataIterator<string>(res);
     }
 
-    values(): FormDataEntryValue[] {
+    values(): FormDataIterator<FormDataEntryValue> {
         const res: FormDataEntryValue[] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push(this._entries[i].value);
         }
-        return res;
+        return new FormDataIterator<FormDataEntryValue>(res);
     }
 
-    [Symbol.iterator](): FormDataIterator {
-        return new FormDataIterator(this.entries());
+    [Symbol.iterator](): FormDataIterator<[string, FormDataEntryValue]> {
+        return this.entries();
     }
 
     private _toEntryValue(value: unknown, fileName?: string): FormDataEntryValue {
