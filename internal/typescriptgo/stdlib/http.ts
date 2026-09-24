@@ -9,6 +9,29 @@ import { URL } from "node:url";
 import { FormData } from "node:formdata";
 import { File } from "node:buffer";
 
+export class HeadersIterator<T = unknown> {
+    private _values: T[];
+    private _index: number = 0;
+
+    constructor(values: T[]) {
+        this._values = values;
+        this._index = 0;
+    }
+
+    next(): { value: T | undefined; done: boolean } {
+        if (this._index < this._values.length) {
+            const value = this._values[this._index];
+            this._index = this._index + 1;
+            return { value: value, done: false };
+        }
+        return { value: undefined, done: true };
+    }
+
+    [Symbol.iterator](): HeadersIterator<T> {
+        return this;
+    }
+}
+
 export class Headers {
     _keys: string[] = [];
     _values: string[] = [];
@@ -18,9 +41,9 @@ export class Headers {
         this._values = [];
         if (init !== null && init !== undefined) {
             if (init instanceof Headers) {
-                const entries = (init as Headers).entries();
-                for (let i = 0; i < entries.length; i++) {
-                    this.append(entries[i][0], entries[i][1]);
+                const other = init as Headers;
+                for (let i = 0; i < other._keys.length; i++) {
+                    this.append(other._keys[i], other._values[i]);
                 }
             } else if (Array.isArray(init)) {
                 for (let i = 0; i < init.length; i++) {
@@ -103,21 +126,25 @@ export class Headers {
         }
     }
 
-    entries(): string[][] {
-        const res: string[][] = [];
+    entries(): HeadersIterator<[string, string]> {
+        const res: [string, string][] = [];
         for (let i = 0; i < this._keys.length; i++) {
-            const pair: string[] = [this._keys[i], this._values[i]];
+            const pair: [string, string] = [this._keys[i], this._values[i]];
             res.push(pair);
         }
-        return res;
+        return new HeadersIterator<[string, string]>(res);
     }
 
-    keys(): string[] {
-        return this._keys;
+    keys(): HeadersIterator<string> {
+        return new HeadersIterator<string>(this._keys);
     }
 
-    values(): string[] {
-        return this._values;
+    values(): HeadersIterator<string> {
+        return new HeadersIterator<string>(this._values);
+    }
+
+    [Symbol.iterator](): HeadersIterator<[string, string]> {
+        return this.entries();
     }
 }
 
@@ -409,11 +436,10 @@ export async function fetch(input: unknown, init: RequestInit = defaultRequestIn
     if (init.headers instanceof Headers) {
         headers = init.headers as Headers;
     }
-    const headerEntries = headers.entries();
     const flatHeaders: string[] = [];
-    for (let i = 0; i < headerEntries.length; i++) {
-        flatHeaders.push(headerEntries[i][0]);
-        flatHeaders.push(headerEntries[i][1]);
+    for (let i = 0; i < headers._keys.length; i++) {
+        flatHeaders.push(headers._keys[i]);
+        flatHeaders.push(headers._values[i]);
     }
     const raw = __scriptgo.fetchSync(url, method, flatHeaders, body);
     const respHeaders = new Headers();

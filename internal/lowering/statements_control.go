@@ -209,35 +209,93 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 		// Intl.Segments is iterable but is not an array-backed value.
 		arrType = ir.Type("Intl.Segment[]")
 	}
-	if (strings.Contains(string(arrType), "Generator") || strings.Contains(string(arrType), "Iterator")) && !strings.Contains(string(arrType), "MapIterator") && !strings.Contains(string(arrType), "SetIterator") {
-		shapeName := strings.TrimPrefix(string(arrType), "object:")
+	isIteratorOrIterable := false
+	shapeName := ""
+	if strings.HasPrefix(string(arrType), "object:") {
+		shapeName = strings.TrimPrefix(string(arrType), "object:")
+		if _, _, ok := findMethodInHierarchy(shapeName, "next", signatures, classHierarchy); ok {
+			isIteratorOrIterable = true
+		} else if _, _, ok := findMethodInHierarchy(shapeName, "Symbol.iterator", signatures, classHierarchy); ok {
+			isIteratorOrIterable = true
+		}
+	}
+	if !isIteratorOrIterable && (strings.Contains(string(arrType), "Generator") || strings.Contains(string(arrType), "Iterator")) && !strings.Contains(string(arrType), "MapIterator") && !strings.Contains(string(arrType), "SetIterator") {
+		isIteratorOrIterable = true
+		shapeName = strings.TrimPrefix(string(arrType), "object:")
+	}
+
+	if isIteratorOrIterable {
+		if fnIter, mangledIter, okIter := findMethodInHierarchy(shapeName, "Symbol.iterator", signatures, classHierarchy); okIter {
+			iterRes := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   fnIter.ReturnType,
+				Result: iterRes,
+				Callee: mangledIter,
+				Args:   []string{arrVal},
+				Span:   toIRSpan(path, statement.Span),
+			})
+			arrVal = iterRes
+			arrType = fnIter.ReturnType
+			shapeName = strings.TrimPrefix(string(arrType), "object:")
+		}
+
 		nextFn := shapeName + "_next"
 		targetNext, hasNext := signatures[nextFn]
+		if !hasNext {
+			if fn, mangled, ok := findMethodInHierarchy(shapeName, "next", signatures, classHierarchy); ok {
+				targetNext = fn
+				nextFn = mangled
+				hasNext = true
+			}
+		}
 		valType := ir.TypeNumber
 		resShapeName := ""
+		doneFieldIndex := 0
+		valFieldIndex := 1
 		if hasNext {
 			resShapeName = strings.TrimPrefix(string(targetNext.ReturnType), "object:")
-			if resShape, ok := shapes[resShapeName]; ok && len(resShape.Fields) > 1 {
-				valType = resShape.Fields[1].Type
+			if resShape, ok := shapes[resShapeName]; ok {
+				for idx, f := range resShape.Fields {
+					if f.Name == "done" {
+						doneFieldIndex = idx
+					} else if f.Name == "value" {
+						valFieldIndex = idx
+						valType = f.Type
+					}
+				}
 			}
 		} else {
-			if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") && strings.HasSuffix(strings.TrimSpace(statement.Expression.InferredType), ">") {
-				inferred := strings.TrimSpace(statement.Expression.InferredType)
-				idx := strings.Index(inferred, "<")
-				inner := inferred[idx+1 : len(inferred)-1]
-				parts := splitTypeArguments(inner)
-				if len(parts) > 0 {
-					valType = toIRType(parts[0])
-				}
-			} else if strings.Contains(string(arrType), "<") && strings.HasSuffix(string(arrType), ">") {
-				idx := strings.Index(string(arrType), "<")
-				inner := string(arrType)[idx+1 : len(string(arrType))-1]
-				parts := splitTypeArguments(inner)
-				if len(parts) > 0 {
-					valType = toIRType(parts[0])
+			nextFn = "__generator.next"
+			resShapeName = fmt.Sprintf("IteratorResult_%s", valType)
+		}
+
+		typeArg := ""
+		if statement.Expression != nil && strings.Contains(statement.Expression.InferredType, "<") && strings.HasSuffix(strings.TrimSpace(statement.Expression.InferredType), ">") {
+			inferred := strings.TrimSpace(statement.Expression.InferredType)
+			idx := strings.Index(inferred, "<")
+			inner := inferred[idx+1 : len(inferred)-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) > 0 {
+				typeArg = parts[0]
+			}
+		} else if strings.Contains(string(arrType), "<") && strings.HasSuffix(string(arrType), ">") {
+			idx := strings.Index(string(arrType), "<")
+			inner := string(arrType)[idx+1 : len(string(arrType))-1]
+			parts := splitTypeArguments(inner)
+			if len(parts) > 0 {
+				typeArg = parts[0]
+			}
+		}
+		if typeArg != "" {
+			if specialized := toIRType(typeArg); specialized != "" {
+				if valType == "object:T" || valType == "T" || strings.HasPrefix(string(valType), "object:T") || valType == ir.TypeUnknown || valType == ir.TypeNumber {
+					valType = specialized
 				}
 			}
-			nextFn = "__generator.next"
+		}
+
+		if !hasNext {
 			resShapeName = fmt.Sprintf("IteratorResult_%s", valType)
 			if _, exists := shapes[resShapeName]; !exists {
 				shapes[resShapeName] = ir.ObjectShape{
@@ -280,7 +338,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			Result:     doneVal,
 			Callee:     resShapeName,
 			Field:      "done",
-			FieldIndex: 0,
+			FieldIndex: doneFieldIndex,
 			Args:       []string{resVal},
 			Span:       toIRSpan(path, statement.Span),
 		})
@@ -302,7 +360,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			Result:     valVal,
 			Callee:     resShapeName,
 			Field:      "value",
-			FieldIndex: 1,
+			FieldIndex: valFieldIndex,
 			Args:       []string{resVal},
 			Span:       toIRSpan(path, statement.Span),
 		})

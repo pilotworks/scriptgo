@@ -8,18 +8,16 @@ class URLSearchParamEntry {
     }
 }
 
-class URLSearchParamsIterator {
-    // Kept optional for compatibility with code that probes array-like values;
-    // real iterators do not expose a length property.
-    length?: number;
-    private _values: unknown[];
+export class URLSearchParamsIterator<T = unknown> {
+    private _values: T[];
     private _index: number = 0;
 
-    constructor(values: unknown[]) {
+    constructor(values: T[]) {
         this._values = values;
+        this._index = 0;
     }
 
-    next(): { value: unknown; done: boolean } {
+    next(): { value: T | undefined; done: boolean } {
         if (this._index < this._values.length) {
             const value = this._values[this._index];
             this._index = this._index + 1;
@@ -28,7 +26,7 @@ class URLSearchParamsIterator {
         return { value: undefined, done: true };
     }
 
-    [Symbol.iterator](): URLSearchParamsIterator {
+    [Symbol.iterator](): URLSearchParamsIterator<T> {
         return this;
     }
 }
@@ -149,28 +147,32 @@ export class URLSearchParams {
         }
     }
 
-    entries(): [string, string][] {
+    entries(): URLSearchParamsIterator<[string, string]> {
         const res: [string, string][] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push([this._entries[i].name, this._entries[i].value]);
         }
-        return res;
+        return new URLSearchParamsIterator<[string, string]>(res);
     }
 
-    keys(): string[] {
+    keys(): URLSearchParamsIterator<string> {
         const res: string[] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push(this._entries[i].name);
         }
-        return res;
+        return new URLSearchParamsIterator<string>(res);
     }
 
-    values(): string[] {
+    values(): URLSearchParamsIterator<string> {
         const res: string[] = [];
         for (let i = 0; i < this._entries.length; i++) {
             res.push(this._entries[i].value);
         }
-        return res;
+        return new URLSearchParamsIterator<string>(res);
+    }
+
+    [Symbol.iterator](): URLSearchParamsIterator<[string, string]> {
+        return this.entries();
     }
 
     forEach(fn: (value: string, name: string, parent: URLSearchParams) => void, thisArg: unknown = null): void {

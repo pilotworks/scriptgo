@@ -317,4 +317,3 @@ func symbolKind(flags ast.SymbolFlags) string {
 	}
 	return "symbol"
 }
-

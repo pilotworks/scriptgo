@@ -779,6 +779,11 @@ declare function clearInterval(id: number | undefined): void;
 declare function setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): number;
 declare function clearImmediate(id: number | undefined): void;
 
+interface URLSearchParamsIterator<T> extends IterableIterator<T> {
+    next(): IteratorResult<T>;
+    [Symbol.iterator](): URLSearchParamsIterator<T>;
+}
+
 interface URLSearchParams {
     append(name: string, value: string): void;
     delete(name: string): void;
@@ -789,6 +794,10 @@ interface URLSearchParams {
     sort(): void;
     toString(): string;
     readonly size: number;
+    entries(): URLSearchParamsIterator<[string, string]>;
+    keys(): URLSearchParamsIterator<string>;
+    values(): URLSearchParamsIterator<string>;
+    [Symbol.iterator](): URLSearchParamsIterator<[string, string]>;
 }
 
 interface URLSearchParamsConstructor {
@@ -823,6 +832,11 @@ interface URLConstructor {
 
 declare var URL: URLConstructor;
 
+interface HeadersIterator<T> extends IterableIterator<T> {
+    next(): IteratorResult<T>;
+    [Symbol.iterator](): HeadersIterator<T>;
+}
+
 interface Headers {
     append(name: string, value: string): void;
     delete(name: string): void;
@@ -830,9 +844,10 @@ interface Headers {
     has(name: string): boolean;
     set(name: string, value: string): void;
     forEach(callback: (value: string, name: string, parent: Headers) => void): void;
-    entries(): [string, string][];
-    keys(): string[];
-    values(): string[];
+    entries(): HeadersIterator<[string, string]>;
+    keys(): HeadersIterator<string>;
+    values(): HeadersIterator<string>;
+    [Symbol.iterator](): HeadersIterator<[string, string]>;
 }
 
 interface HeadersConstructor {
@@ -844,6 +859,11 @@ declare var Headers: HeadersConstructor;
 
 type FormDataEntryValue = File | string;
 
+interface FormDataIterator<T> extends IterableIterator<T> {
+    next(): IteratorResult<T>;
+    [Symbol.iterator](): FormDataIterator<T>;
+}
+
 interface FormData {
     append(name: string, value: string | Blob, fileName?: string): void;
     delete(name: string): void;
@@ -852,10 +872,10 @@ interface FormData {
     has(name: string): boolean;
     set(name: string, value: string | Blob, fileName?: string): void;
     forEach(callback: (value: FormDataEntryValue, key: string, parent: FormData) => void): void;
-    entries(): [string, FormDataEntryValue][];
-    keys(): string[];
-    values(): FormDataEntryValue[];
-    [Symbol.iterator](): IteratorObject<[string, FormDataEntryValue]>;
+    entries(): FormDataIterator<[string, FormDataEntryValue]>;
+    keys(): FormDataIterator<string>;
+    values(): FormDataIterator<FormDataEntryValue>;
+    [Symbol.iterator](): FormDataIterator<[string, FormDataEntryValue]>;
 }
 
 interface FormDataConstructor {
@@ -972,6 +992,11 @@ interface ArrayConstructor {
 interface IteratorResult<T, TReturn = unknown> {
     done: boolean;
     value: T;
+}
+
+interface IterableIterator<T, TReturn = unknown, TNext = unknown> {
+    next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
+    [Symbol.iterator](): IterableIterator<T, TReturn, TNext>;
 }
 
 interface IteratorObject<T, TReturn = undefined, TNext = unknown> {

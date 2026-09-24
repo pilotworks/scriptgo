@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func isBuiltinGeneric(name string) bool {
@@ -60,16 +61,34 @@ func mangleGenericName(name string, typeArgs []string) string {
 
 func splitTypeArguments(s string) []string {
 	var res []string
-	depth := 0
+	angleDepth := 0
+	bracketDepth := 0
+	braceDepth := 0
+	parenDepth := 0
 	start := 0
 	for i, r := range s {
-		if r == '<' {
-			depth++
-		} else if r == '>' {
-			depth--
-		} else if r == ',' && depth == 0 {
-			res = append(res, strings.TrimSpace(s[start:i]))
-			start = i + 1
+		switch r {
+		case '<':
+			angleDepth++
+		case '>':
+			angleDepth--
+		case '[':
+			bracketDepth++
+		case ']':
+			bracketDepth--
+		case '{':
+			braceDepth++
+		case '}':
+			braceDepth--
+		case '(':
+			parenDepth++
+		case ')':
+			parenDepth--
+		case ',':
+			if angleDepth == 0 && bracketDepth == 0 && braceDepth == 0 && parenDepth == 0 {
+				res = append(res, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
 		}
 	}
 	if start < len(s) {
@@ -137,8 +156,8 @@ func substituteType(typ string, subst map[string]string) string {
 			return res
 		}
 	}
-	if strings.Contains(clean, "|") {
-		parts := strings.Split(clean, "|")
+	parts := splitTopLevelUnion(clean)
+	if len(parts) > 1 {
 		var newParts []string
 		for _, p := range parts {
 			newParts = append(newParts, substituteType(strings.TrimSpace(p), subst))
@@ -189,7 +208,74 @@ func substituteType(typ string, subst map[string]string) string {
 		}
 		return res
 	}
+	if strings.HasPrefix(clean, "{") && strings.HasSuffix(clean, "}") {
+		inner := strings.TrimSpace(clean[1 : len(clean)-1])
+		var parts []string
+		start := 0
+		depth := 0
+		for i, r := range inner {
+			switch r {
+			case '<', '(', '[', '{':
+				depth++
+			case '>', ')', ']', '}':
+				depth--
+			case ';', ',':
+				if depth == 0 {
+					p := strings.TrimSpace(inner[start:i])
+					if p != "" {
+						parts = append(parts, p)
+					}
+					start = i + 1
+				}
+			}
+		}
+		if start < len(inner) {
+			p := strings.TrimSpace(inner[start:])
+			if p != "" {
+				parts = append(parts, p)
+			}
+		}
+		var newFields []string
+		for _, part := range parts {
+			colonIdx := strings.Index(part, ":")
+			if colonIdx != -1 {
+				name := strings.TrimSpace(part[:colonIdx])
+				fType := strings.TrimSpace(part[colonIdx+1:])
+				substFType := substituteType(fType, subst)
+				newFields = append(newFields, name+": "+substFType)
+			} else {
+				newFields = append(newFields, part)
+			}
+		}
+		res := "{ " + strings.Join(newFields, "; ") + " }"
+		if hasObj {
+			return "object:" + res
+		}
+		return res
+	}
 	if strings.HasPrefix(clean, "__shape_") {
+		var shapeFields []ir.Field
+		if s, ok := anonymousShapes[clean]; ok && len(s.Fields) > 0 {
+			shapeFields = s.Fields
+		} else if s, ok := registeredShapes[clean]; ok && len(s.Fields) > 0 {
+			shapeFields = s.Fields
+		}
+		if len(shapeFields) > 0 {
+			var newFields []ir.Field
+			for _, f := range shapeFields {
+				sub := substituteType(string(f.Type), subst)
+				newFields = append(newFields, ir.Field{
+					Name: f.Name,
+					Type: toIRType(sub),
+				})
+			}
+			name := anonymousShapeName(newFields)
+			registerAnonymousShape(name, newFields)
+			if hasObj {
+				return "object:" + name
+			}
+			return name
+		}
 		cleanShape := strings.TrimPrefix(clean, "__shape_")
 		tokens := strings.Split(cleanShape, "_")
 		var newTokens []string
@@ -242,7 +328,7 @@ func substituteType(typ string, subst map[string]string) string {
 	}
 	if val, ok := subst[clean]; ok {
 		if hasObj {
-			return "object:" + val
+			return string(toIRType(val))
 		}
 		return val
 	}
