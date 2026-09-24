@@ -274,8 +274,18 @@ int scriptgo_os_get_priority(double pid, double *out_val) {
 }
 
 int scriptgo_os_set_priority(double pid, double priority) {
+    if (priority < -20.0 || priority > 19.0) {
+        return os_fail("priority must be between -20 and 19");
+    }
 #if !defined(__wasi__)
     if (setpriority(PRIO_PROCESS, (id_t)(int)pid, (int)priority) != 0) {
+        if (errno == EACCES || errno == EPERM) {
+            errno = 0;
+            int cur = getpriority(PRIO_PROCESS, (id_t)(int)pid);
+            if (errno == 0 && cur == (int)priority) {
+                return 0;
+            }
+        }
         return os_fail("failed to set process priority");
     }
 #endif
