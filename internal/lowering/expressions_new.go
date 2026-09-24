@@ -991,7 +991,7 @@ func isGlobalConstructor(name string) bool {
 	case "Blob", "Buffer", "ByteLengthQueuingStrategy",
 		"CompressionStream", "CountQueuingStrategy", "Crypto", "CryptoKey",
 		"CustomEvent", "DecompressionStream", "Event",
-		"EventTarget", "File", "Headers",
+		"EventTarget", "File", "FormData", "Headers",
 		"PerformanceEntry", "PerformanceMark", "PerformanceMeasure", "PerformanceObserver",
 		"PerformanceObserverEntryList", "PerformanceResourceTiming",
 		"ReadableByteStreamController", "ReadableStream", "ReadableStreamBYOBReader",

@@ -50,6 +50,7 @@ func buildPipeline(level string) []Pass {
 	case "1":
 		return []Pass{
 			NewConstFoldPass(),
+			NewBCEPass(),
 			NewDCEPass(),
 		}
 	default: // "2", "3", "s", "z", "fast"
@@ -57,6 +58,7 @@ func buildPipeline(level string) []Pass {
 			NewConstFoldPass(),
 			NewCSEPass(),
 			NewLICMPass(),
+			NewBCEPass(),
 			NewTemporaryObjectRegionPass(),
 			NewDCEPass(),
 		}

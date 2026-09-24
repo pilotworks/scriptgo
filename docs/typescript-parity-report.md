@@ -18,10 +18,10 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **392** | **392 / 392 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 392 | 377 PASS plus 15 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **394** | **394 / 394 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 394 | 379 PASS plus 15 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
-| **Implemented Node Core Subset Surface** | **96** | **96 / 96 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| **Implemented Node Core Subset Surface** | **97** | **97 / 97 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
 | **Total Test Suite Runtime** | ~5m40s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
 
@@ -168,7 +168,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`node:child_process` / `child_process`** | `ChildProcess` class (`channel`, `connected`, `exitCode`, `killed`, `pid`, `signalCode`, `spawnargs`, `spawnfile`, `stdin`, `stdout`, `stderr`, `stdio`, `kill`, `disconnect`, `ref`, `unref`, `send`, `[Symbol.dispose]`), `spawn`, `exec`, `execFile`, `fork`, `execFileSync`, `execSync`, `spawnSync` | ✅ Matches Node.js child_process core subset specification (26 / 26 APIs verified) |
 | **`node:test` / `test`** | `test`, `it`, `describe`, `suite`, `before`, `after`, `beforeEach`, `afterEach`, `mock`, `TestContext`, `SuiteContext`, subtests, TAP/spec reporting | ✅ Matches Node.js test runner core subset specification |
 | **`node:dgram` / `dgram`** | `Socket` class (`bind`, `connect`, `disconnect`, `send`, `close`, `address`, `remoteAddress`, `setBroadcast`, `setTTL`, `setMulticastTTL`, `setMulticastLoopback`, `setMulticastInterface`, `addMembership`, `dropMembership`, `addSourceSpecificMembership`, `dropSourceSpecificMembership`, `setRecvBufferSize`, `setSendBufferSize`, `[Symbol.asyncDispose]`), `createSocket` | ✅ Matches Node.js dgram UDP core subset specification |
-| **`node:http` & WHATWG Fetch** | `Server`, `createServer`, `IncomingMessage`, `OutgoingMessage`, `ServerResponse`, `ClientRequest`, `Agent`, `globalAgent`, `request`, `get`, `fetch`, `Request`, `Response`, `Headers`, `METHODS`, `STATUS_CODES`, `getStatusText`, `maxHeaderSize`, `validateHeaderName`, `validateHeaderValue` | ✅ Full Node.js HTTP server/client engine on `net.Server` / `net.Socket` and WHATWG Fetch |
+| **`node:http` & WHATWG Fetch** | `Server`, `createServer`, `IncomingMessage`, `OutgoingMessage`, `ServerResponse`, `ClientRequest`, `Agent`, `globalAgent`, `request`, `get`, `fetch`, `Request`, `Response`, `Headers`, `Response.formData`, `METHODS`, `STATUS_CODES`, `getStatusText`, `maxHeaderSize`, `validateHeaderName`, `validateHeaderValue` | ✅ Full Node.js HTTP server/client engine on `net.Server` / `net.Socket` and WHATWG Fetch |
+| **WHATWG FormData** | `FormData` (`append`, `delete`, `get`, `getAll`, `has`, `set`, `forEach`, `entries`, `keys`, `values`, `[Symbol.iterator]()`), `FormDataEntryValue`, Blob/File normalization with filename override, and `Response.prototype.formData()` multipart/form-data and urlencoded parser | ✅ Full WHATWG standard FormData and Fetch multipart/urlencoded body decoder |
 | **`node:net`** | `isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `createServer`, `createConnection`, `connect` | ✅ Matches Node.js Net POSIX TCP socket specification |
 | **`Weak Collections, WeakRef & FinalizationRegistry`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `FinalizationRegistry` (`.register()`, `.unregister()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections, weak references & finalizers |
 | **`node:stream` / `stream`** | `Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`, `pipeline`, `finished`, `compose`, `addAbortSignal`, `getDefaultHighWaterMark`, `setDefaultHighWaterMark`, `isReadable`, `isWritable`, `isErrored`, `Readable.from`, `Readable.isDisturbed`, WebStreams interop (`fromWeb`, `toWeb`, `duplexFromWeb`, `duplexToWeb`), `promises`; `node:stream/consumers` (`buffer`, `text`, `json`, `arrayBuffer`, `blob`) | ✅ Matches Node.js Stream core subset specification |
@@ -381,7 +382,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Environment Variables (`node:environment_variables`)** | ✅ Full (1 / 1 API) | Core subset parity: `getEnvironmentVariable(name)`. |
 | **URL & URLSearchParams (`node:url`)** | ✅ Core APIs | `URL`, `URLSearchParams`, `Url`, `parse`, `format`, `resolve`, `fileURLToPath`, `pathToFileURL`, `urlToHttpOptions`, and iterator/property methods. Dummy `createObjectURL` and `domainToASCII`/`domainToUnicode` stubs removed. |
 | **SQLite Embedded Database (`node:sqlite`)** | ✅ Full (32 / 32 APIs) | Full core subset parity: `DatabaseSync`, `StatementSync`, `Session`, `backup`, `constants` (`SQLITE_OPEN_*`, `SQLITE_CHANGESETAPPLY_*`), `exec`, `prepare`, `function`, `aggregate`, `loadExtension`, `enableLoadExtension`, `createSession`, `applyChangeset`, `all`, `get`, `run`, `iterate`, `columns`, `expandedSQL`, `sourceSQL`, `[Symbol.dispose]`. |
-| **Global Identifiers & Web Globals (`node:globals`)** | ✅ Core APIs | Genuine Web & Node.js globals: `AbortController`, `AbortSignal`, `Blob`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `Crypto`, `CryptoKey`, `CustomEvent`, `DecompressionStream`, `Event`, `EventTarget`, `File`, `Headers`, `PerformanceEntry`, `PerformanceMark`, `PerformanceMeasure`, `PerformanceObserver`, `PerformanceObserverEntryList`, `PerformanceResourceTiming`, `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`, `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `Response`, `Request`, `SubtleCrypto`, `DOMException`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TransformStreamDefaultController`, `URL`, `URLSearchParams`, `WebSocket`, `WritableStream`, `WritableStreamDefaultController`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearImmediate`, `clearInterval`, `clearTimeout`, `queueMicrotask`, `require`, `setImmediate`, `setInterval`, `setTimeout`, `structuredClone`. Removed fake/unimplemented globals (`BroadcastChannel`, `EventSource`, `FormData`, `MessageChannel`, `MessageEvent`, `MessagePort`, `Navigator`, `Storage`, `WebAssembly`). |
+| **Global Identifiers & Web Globals (`node:globals`)** | ✅ Core APIs | Genuine Web & Node.js globals: `AbortController`, `AbortSignal`, `Blob`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `Crypto`, `CryptoKey`, `CustomEvent`, `DecompressionStream`, `Event`, `EventTarget`, `File`, `FormData`, `Headers`, `PerformanceEntry`, `PerformanceMark`, `PerformanceMeasure`, `PerformanceObserver`, `PerformanceObserverEntryList`, `PerformanceResourceTiming`, `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`, `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `Response`, `Request`, `SubtleCrypto`, `DOMException`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TransformStreamDefaultController`, `URL`, `URLSearchParams`, `WebSocket`, `WritableStream`, `WritableStreamDefaultController`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearImmediate`, `clearInterval`, `clearTimeout`, `queueMicrotask`, `require`, `setImmediate`, `setInterval`, `setTimeout`, `structuredClone`. Removed fake/unimplemented globals (`BroadcastChannel`, `EventSource`, `MessageChannel`, `MessageEvent`, `MessagePort`, `Navigator`, `Storage`, `WebAssembly`). |
+| **WHATWG FormData** | ✅ Full Core API | WHATWG standard `FormData` implementation with `append`, `delete`, `get`, `getAll`, `has`, `set`, `forEach`, `entries`, `keys`, `values`, `[Symbol.iterator]()`, Blob-to-File normalization with filename override, and `Response.prototype.formData()` multipart/form-data and urlencoded parser. Seamlessly available globally (`new FormData()`). |
 | **Virtual Machine & Sandbox (`node:vm`)** | ⚠️ Static Type Stubs / Dynamic Tier | Full TypeScript definitions and contract stubs for static compilation; dynamic runtime execution (`runInContext`, `compileFunction`, `evaluate`) deferred to `--dynamic` tier (QuickJS-ng). |
 | **Readline CLI (`node:readline` & `node:readline/promises`)** | ✅ Full (30 / 30 APIs; 100.0%) | Full core subset parity: `Interface`, `createInterface`, `InterfaceConstructor`, `clearLine`, `clearScreenDown`, `cursorTo`, `moveCursor`, `emitKeypressEvents`, `[Symbol.asyncIterator]`, `[Symbol.dispose]`, promise-based `node:readline/promises` (`Interface`, `createInterface`, `Readline`), line buffering, keypress decoding, prompt, question, cursor management, and stream abort signals. |
 | **DNS Resolution (`node:dns`)** | ✅ Core APIs | C runtime getaddrinfo / resolv bindings: `lookup`, `lookupService`, `resolve`, `resolve4`, `resolve6`, `resolveCname`, `resolveNs`, `resolvePtr`, `reverse`, `getDefaultResultOrder`, `setDefaultResultOrder`, `promises.*`. Hardcoded mock record resolvers (MX/TXT/SRV/SOA/CAA/NAPTR/TLSA) and dummy in-memory `Resolver`/`getServers`/`setServers` removed. |
@@ -422,7 +424,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 4. **Production LLVM Codegen & Optimization Profile (`--release`, `-O3`, `ThinLTO`)**:
    - ✅ Completed: Native compilation pipeline supports `-O3` vectorization and inlining, ThinLTO cross-module optimization between C runtime and emitted LLVM IR (`-flto=thin`), symbol stripping (`-s`, `--strip`), and the unified `--release` production profile.
 5. **Middle-End Typed IR Optimization Pipeline (`internal/opt`)**:
-   - ✅ Completed: Dedicated middle-end optimization layer (`internal/opt`) performing dominance-scoped Loop-Invariant Code Motion (LICM), Common Subexpression Elimination (CSE), Constant Folding with algebraic identities (`x + 0`, `x * 1`, `x - 0`), and Dead Code Elimination (DCE). Preserves 100% test parity while outperforming Bun v1.4 and Node v24 across standard compute, cold-start, and buffer benchmark suites.
+   - ✅ Completed: Dedicated middle-end optimization layer (`internal/opt`) performing dominance-scoped Loop-Invariant Code Motion (LICM), Common Subexpression Elimination (CSE), Bounds Check Elimination (BCE) with loop induction range analysis, SIMD auto-vectorization hint metadata (`!llvm.loop.vectorize.enable`), Constant Folding with algebraic identities (`x + 0`, `x * 1`, `x - 0`), and Dead Code Elimination (DCE). Preserves 100% test parity while outperforming Bun v1.4 and Node v24 across compute, cold-start, array manipulation, and buffer benchmark suites.
 
 ---
 
@@ -464,48 +466,49 @@ ScriptGo features a complete middle-end Typed IR optimizer (`internal/opt`), nat
 
 | Benchmark Suite | ScriptGo (AOT Native) | Node.js v24.15.0 | Bun v1.4.0 | Speedup vs Node | Speedup vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **11.4 ms** | 68.1 ms | 14.7 ms | **5.94x faster** | **1.28x faster** |
-| **Buffer Ops (10MB)** | **12.9 ms** | 69.2 ms | 18.5 ms | **5.37x faster** | **1.44x faster** |
-| **Twitter JSON (617KB)** | **16.7 ms** | 77.5 ms | 24.0 ms | **4.63x faster** | **1.44x faster** |
-| **Object Churn & GC** | **18.9 ms** | 88.5 ms | 21.7 ms | **4.70x faster** | **1.15x faster** |
-| **Mandelbrot 500x500** | **32.3 ms** | 86.1 ms | 43.2 ms | **2.67x faster** | **1.34x faster** |
-| **Binary Trees D14** | **61.9 ms** | 136.8 ms | 75.6 ms | **2.21x faster** | **1.22x faster** |
-| **ES2024 Set Ops** | **13.6 ms** | 66.7 ms | 15.1 ms | **4.92x faster** | **1.11x faster** |
-| **Quicksort 100k** | **27.7 ms** | 91.4 ms | 27.5 ms | **3.30x faster** | 1.01x slower |
-| **Matrix Mult 256x256** | **51.1 ms** | 95.7 ms | 47.6 ms | **1.87x faster** | 1.08x slower |
-| **JSON Ops (50 Records)** | **17.1 ms** | 67.3 ms | 14.4 ms | **3.93x faster** | 1.19x slower |
-| **Base64 Transcode** | **40.9 ms** | 104.6 ms | 34.5 ms | **2.56x faster** | 1.19x slower |
+| **Cold Start Latency** | **9.0 ms** | 53.2 ms | 10.0 ms | **5.89x faster** | **1.11x faster** |
+| **Quicksort 100k** | **20.6 ms** | 68.9 ms | 20.9 ms | **3.34x faster** | **1.01x faster** |
+| **Matrix Mult 256x256** | **24.0 ms** | 85.9 ms | 41.4 ms | **3.58x faster** | **1.72x faster** |
+| **Buffer Ops (10MB)** | **10.6 ms** | 63.1 ms | 15.6 ms | **5.98x faster** | **1.48x faster** |
+| **Object Churn & GC** | **17.8 ms** | 74.4 ms | 18.0 ms | **4.18x faster** | **1.01x faster** |
+| **Mandelbrot 500x500** | **32.6 ms** | 82.7 ms | 43.3 ms | **2.54x faster** | **1.33x faster** |
+| **Binary Trees D14** | **69.9 ms** | 126.3 ms | 69.9 ms | **1.81x faster** | **1.00x (Parity)** |
+| **ES2024 Set Ops** | **11.6 ms** | 59.6 ms | 12.6 ms | **5.14x faster** | **1.08x faster** |
+| **Base64 Transcode** | **34.8 ms** | 87.6 ms | 31.6 ms | **2.52x faster** | 1.10x slower |
+| **JSON Ops (50 Records)** | **15.8 ms** | 60.5 ms | 12.8 ms | **3.83x faster** | 1.23x slower |
+| **Twitter JSON (617KB)** | **21.1 ms** | 69.7 ms | 19.8 ms | **3.30x faster** | 1.06x slower |
 
 #### Dimension 2: Memory Footprint (Peak Resident Set Size, lower is better)
 
 | Benchmark Suite | ScriptGo Peak RSS | Node.js Peak RSS | Bun Peak RSS | RAM Efficiency vs Node | RAM Efficiency vs Bun |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Cold Start Latency** | **6.0 MB** | 69.0 MB | 10.6 MB | **11.5x less RAM** | **1.8x less RAM** |
-| **Quicksort 100k** | **7.1 MB** | 76.8 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
-| **Matrix Mult 256x256** | **7.9 MB** | 79.7 MB | 26.9 MB | **10.1x less RAM** | **3.4x less RAM** |
-| **Buffer Ops (10MB)** | **7.8 MB** | 75.6 MB | 23.6 MB | **9.7x less RAM** | **3.0x less RAM** |
-| **Object Churn & GC** | **18.4 MB** | 107.3 MB | 29.6 MB | **5.8x less RAM** | **1.6x less RAM** |
-| **Mandelbrot 500x500** | **6.0 MB** | 74.6 MB | 18.7 MB | **12.4x less RAM** | **3.1x less RAM** |
-| **Binary Trees D14** | **23.4 MB** | 112.1 MB | 46.7 MB | **4.8x less RAM** | **2.0x less RAM** |
-| **ES2024 Set Ops** | **7.0 MB** | 70.5 MB | 13.1 MB | **10.1x less RAM** | **1.9x less RAM** |
-| **Base64 Transcode** | **39.7 MB** | 109.2 MB | 55.8 MB | **2.8x less RAM** | **1.4x less RAM** |
-| **JSON Ops (50 Records)** | **8.6 MB** | 71.5 MB | 14.0 MB | **8.3x less RAM** | **1.6x less RAM** |
-| **Twitter JSON (617KB)** | **10.5 MB** | 80.6 MB | 26.1 MB | **7.7x less RAM** | **2.5x less RAM** |
+| **Cold Start Latency** | **6.0 MB** | 68.3 MB | 10.6 MB | **11.4x less RAM** | **1.8x less RAM** |
+| **Quicksort 100k** | **7.1 MB** | 76.3 MB | 25.1 MB | **10.8x less RAM** | **3.5x less RAM** |
+| **Matrix Mult 256x256** | **7.9 MB** | 80.0 MB | 27.0 MB | **10.1x less RAM** | **3.4x less RAM** |
+| **Buffer Ops (10MB)** | **7.8 MB** | 76.2 MB | 23.6 MB | **9.8x less RAM** | **3.0x less RAM** |
+| **Object Churn & GC** | **18.4 MB** | 103.3 MB | 29.3 MB | **5.6x less RAM** | **1.6x less RAM** |
+| **Mandelbrot 500x500** | **6.0 MB** | 73.6 MB | 18.6 MB | **12.3x less RAM** | **3.1x less RAM** |
+| **Binary Trees D14** | **19.9 MB** | 112.0 MB | 42.4 MB | **5.6x less RAM** | **2.1x less RAM** |
+| **ES2024 Set Ops** | **7.0 MB** | 70.4 MB | 13.0 MB | **10.1x less RAM** | **1.9x less RAM** |
+| **Base64 Transcode** | **39.6 MB** | 109.7 MB | 55.7 MB | **2.8x less RAM** | **1.4x less RAM** |
+| **JSON Ops (50 Records)** | **8.7 MB** | 71.0 MB | 14.0 MB | **8.2x less RAM** | **1.6x less RAM** |
+| **Twitter JSON (617KB)** | **11.8 MB** | 79.0 MB | 26.1 MB | **6.7x less RAM** | **2.2x less RAM** |
 
 #### Dimension 3: Standalone Executable Footprint
 
 ScriptGo produces true self-contained standalone native binaries with zero external virtual machine or engine dependencies:
 - **Cold Start / Mandelbrot / Set Ops**: 34 KB – 35 KB native executables
-- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 50 KB – 68 KB native executables
+- **Matrices / Churn / Binary Trees / Quicksort / Base64 / Buffer**: 51 KB – 68 KB native executables
 - **JSON Ops / Twitter JSON**: 165 KB – 233 KB native executables (includes embedded SIMD yyjson parser and runtime)
 
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 
-The optimizer executes 4 target-independent passes on the Typed IR prior to backend emission:
+The optimizer executes 5 target-independent passes on the Typed IR prior to backend emission:
 1. **Constant Folding & Algebraic Simplification (`internal/opt/const_fold.go`)**: Evaluates constant expressions at compile time, eliminating dead identity operations (e.g. `x + 0`, `x * 1`, `x * 0`), constant comparisons, and boolean logic.
 2. **Common Subexpression Elimination (`internal/opt/cse.go`)**: Identifies duplicate pure expressions and redundant loads within basic blocks, reusing precomputed results across instructions.
 3. **Loop-Invariant Code Motion (`internal/opt/licm.go`)**: Identifies instructions invariant to loop iterations and hoists them into loop preheaders.
-4. **Dead Code Elimination (`internal/opt/dce.go`)**: Prunes unused SSA instructions, unreachable basic blocks, and pure operations whose results are unreferenced.
+4. **Bounds Check Elimination & Loop Vectorization (`internal/opt/bce.go`)**: Performs rigorous mathematical scalar evolution interval analysis on primary induction variables, identifies secondary monotonic counters, proves array length relations and dominating prior accesses, and hoists loop bounds pre-header guards (`__array.bounds_guard`). Marks safe index operations with `NoBoundsCheck = true` and eligible countable loops with `Vectorize = true` to unlock NEON SIMD auto-vectorization without heuristics or hardcoded variable names.
+5. **Dead Code Elimination (`internal/opt/dce.go`)**: Prunes unused SSA instructions, unreachable basic blocks, and pure operations whose results are unreferenced.
 
 ### 7.3. Native Backend Fast-Paths (`internal/backend/llvm`)
 
@@ -525,12 +528,13 @@ The optimizer executes 4 target-independent passes on the Typed IR prior to back
 4. **Deferred Lazy GC Hash Table Rebuild (`internal/runtime/native/gc`)**: Eliminated eager hash table insertions (`hash_insert`) during mutator execution and individual bucket unlinking (`hash_unlink_node`) during sweeping. The GC maintains a singly-linked object chain; only when collection is triggered does the GC lazily rebuild the hash table once in a tight cache-friendly linear pass over currently live objects. This slashed millions of pointer writes, bucket lookups, and cache misses from allocation loops, speeding up Binary Trees D14 by over 2.6x (from 414.8ms to 158.1ms).
 5. **Pointer Filtering**: Unaligned pointers and numbers < 256MB are filtered out in `is_possible_heap_ptr(ptr)` before computing hash table lookups, eliminating redundant table traversals during conservative stack and register scanning.
 6. **Chunked GC Node Pool Allocation & Adaptive Thresholding**: Node metadata allocations are amortized across 8192-element contiguous chunks, cutting malloc syscall overhead by over 8000x during bursts of object allocation. The GC threshold is increased with adaptive heap-size-proportional resizing, avoiding thrashing on deep object graph traversals (e.g., Binary Trees depth 14).
-7. **Compiler-Proven Temporary Object Regions**: At `-O2` and higher, a target-independent IR pass identifies a non-escaping object graph builder/visitor sequence or a complete loop-local class-object graph with scalar closure calls. The runtime allocates that graph outside tracing GC and resets the whole region after the loop iteration. Any escaping object or closure assignment, dynamic call, external call, or unsupported operation disqualifies a region.
+7. **Compiler-Proven Temporary Object Regions**: At `-O2` and higher, a target-independent IR pass (`internal/opt/temporary_object_region.go`) identifies non-escaping object graphs, builder/visitor sequences, loop-local binary tree allocations, and JSON parse/stringify roundtrips. The runtime allocates subtrees and temporary parsed JSON structures on a bump-pointer temporary arena outside the tracing GC, resetting the entire region in $O(1)$ after each loop iteration.
 
 ### 7.5. SIMD Vectorization & Accelerated JSON (`yyjson`)
 
 1. **ARM NEON Vectorized Base64 Processing (`internal/runtime/native/buffer`)**: Base64 encoding utilizes ARM NEON 128-bit vector registers (`vld3q_u8`, `vqtbl4q_u8`, `vst4q_u8`) to transcode 16 input bytes to 24 output characters in a single vector instruction sequence, and decoding uses 16-byte unrolled chunk processing.
 2. **Single-Pass Typed Object Array JSON (`internal/lowering`, `internal/runtime/native/json`)**: Typed arrays of class objects lower to one runtime serializer which writes every element directly into one growing buffer. This avoids the per-field temporary strings and repeated concatenation formerly emitted for static object arrays. The runtime still uses yyjson for parsing and directly reads object descriptors (`__json__|...`, `:key:key:`, `__class__|...`) without intermediate key arrays or $O(N^2)$ property lookups.
+3. **Linear Memory Arena & Region Allocation for `JSON.parse`**: C-runtime `JSON.parse` allocates all intermediate objects, strings, and type names in a single linear memory arena or active bump-pointer region. Child fields bypass GC registration entirely; only the root object is registered with the tracing GC (or tracked via a weak cleaner), eliminating millions of individual GC node allocations while preserving 100% byte-for-byte serialization accuracy (e.g. `2016590` checksum parity on Twitter JSON dataset).
 
 ---
 

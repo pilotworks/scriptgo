@@ -261,3 +261,59 @@ func TestLICM_HoistInvariantIndex(t *testing.T) {
 		t.Errorf("expected 'ai = index [a, i]' to be hoisted before while loop")
 	}
 }
+
+func TestTemporaryObjectRegionPassWrapsJSONParseStringifyLoop(t *testing.T) {
+	caller := ir.Function{
+		Name:       "run",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{{
+			Op: ir.OpWhile,
+			Body: []ir.Instruction{
+				{Op: ir.OpCall, Type: ir.TypeString, Result: "jsonStr", Callee: "__json.stringify_object_array"},
+				{Op: ir.OpCall, Type: ir.TypeUnknown, Result: "t1", Callee: "__json.parse_unknown", Args: []string{"jsonStr"}},
+				{Op: ir.OpAssign, Type: ir.TypeUnknown, Result: "parsed", Args: []string{"t1"}},
+				{Op: ir.OpCall, Type: ir.TypeString, Result: "roundtripStr", Callee: "__json.stringify_unknown", Args: []string{"parsed"}},
+				{Op: ir.OpCall, Type: ir.TypeNumber, Result: "len", Callee: "__string.length", Args: []string{"roundtripStr"}},
+			},
+		}},
+	}
+	m := ir.Module{Functions: []ir.Function{caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || !changed {
+		t.Fatalf("JSON parse/stringify in loop must form a region: changed %v, err %v", changed, err)
+	}
+	body := m.Functions[0].Body[0].Body
+	hasRegionBegin, hasRegionEnd := false, false
+	for _, inst := range body {
+		if inst.Op == ir.OpRegionBegin {
+			hasRegionBegin = true
+		}
+		if inst.Op == ir.OpRegionEnd {
+			hasRegionEnd = true
+		}
+	}
+	if !hasRegionBegin || !hasRegionEnd {
+		t.Fatalf("expected region boundaries in body: %#v", body)
+	}
+}
+
+func TestTemporaryObjectRegionPassRejectsEscapingJSONParse(t *testing.T) {
+	caller := ir.Function{
+		Name:       "run",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{{
+			Op: ir.OpWhile,
+			Body: []ir.Instruction{
+				{Op: ir.OpCall, Type: ir.TypeString, Result: "jsonStr", Callee: "__json.stringify_object_array"},
+				{Op: ir.OpCall, Type: ir.TypeUnknown, Result: "t1", Callee: "__json.parse_unknown", Args: []string{"jsonStr"}},
+				{Op: ir.OpAssign, Type: ir.TypeUnknown, Result: "parsed", Args: []string{"t1"}},
+				{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"parsed"}},
+			},
+		}},
+	}
+	m := ir.Module{Functions: []ir.Function{caller}}
+	changed, err := NewTemporaryObjectRegionPass().Run(&m)
+	if err != nil || changed {
+		t.Fatalf("escaping JSON parsed object must not form a region: changed %v, err %v", changed, err)
+	}
+}

@@ -1021,8 +1021,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	}
 	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind readnone willreturn {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
 
+	loopMeta := &loopMetadataRecorder{}
 	for _, function := range module.Functions {
-		text, err := emitFunction(function, functions, stringsByValue, debug, module, options)
+		text, err := emitFunction(function, functions, stringsByValue, debug, module, options, loopMeta)
 		if err != nil {
 			return "", err
 		}
@@ -1030,6 +1031,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		if closureCallees[function.Name] {
 			out.WriteString(emitClosureInvokeAdapter(function))
 		}
+	}
+	for _, def := range loopMeta.definitions {
+		out.WriteString(def + "\n")
 	}
 	if debug != nil {
 		out.WriteString(debug.metadata(module, options.CompilerVersion))
@@ -1151,7 +1155,7 @@ func mangleFunctionName(name string) string {
 	}
 }
 
-func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module, options Options) (string, error) {
+func emitFunction(function ir.Function, functions map[string]ir.Function, stringsByValue map[string]string, debug *debugInfo, module ir.Module, options Options, loopMeta *loopMetadataRecorder) (string, error) {
 	isClosure := strings.HasPrefix(function.Name, "__closure_")
 	returnType := llvmType(function.ReturnType)
 	if function.ReturnType == ir.TypeBool {
@@ -1233,6 +1237,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		integerVars:        make(map[string]bool),
 		integerUpperBounds: make(map[string]float64),
 		usedResults:        usedInstructionResults(function.Body),
+		loopMeta:           loopMeta,
 	}
 	globalsMap := make(map[string]bool, len(module.Globals))
 	for _, g := range module.Globals {

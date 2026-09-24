@@ -92,7 +92,7 @@ static inline int jb_number(json_builder *b, double value) {
     }
     if (jb_reserve(b, 32) != 0) return -1;
     int written;
-    if (value == (double)(int64_t)value && fabs(value) < 1e15) {
+    if (value == (double)(int64_t)value && fabs(value) < 9e18) {
         written = snprintf(b->buf + b->len, 32, "%lld", (long long)value);
     } else {
         written = snprintf(b->buf + b->len, 32, "%g", value);
@@ -178,6 +178,8 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
 int scriptgo_object_keys(void *handle, void **out_array);
 int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
 int scriptgo_string_from_object(void *obj, char **out_str);
+int scriptgo_object_region_contains(const void *ptr);
+int scriptgo_json_arena_contains(const void *ptr);
 
 #define SCRIPTGO_OBJECT_MAGIC 0x53474F424A454354ULL
 
@@ -198,6 +200,13 @@ int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str)
 static int json_builder_value(json_builder *b, const scriptgo_value *value);
 static int json_builder_object(json_builder *b, void *handle);
 
+#ifndef SCRIPTGO_OBJECT_NAN_BITS
+#define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
+#endif
+#ifndef SCRIPTGO_OBJECT_NULL_BITS
+#define SCRIPTGO_OBJECT_NULL_BITS 0x7FF8000000000001ULL
+#endif
+
 // Parsed JSON objects store plain runtime values, so avoid the generic accessor's
 // cloning and validation path while preserving it for objects with boxed fields.
 static inline void json_object_field_value(const scriptgo_json_object *obj, int64_t index,
@@ -207,20 +216,30 @@ static inline void json_object_field_value(const scriptgo_json_object *obj, int6
 
     uintptr_t value = obj->fields[index];
     if (value == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) return;
-    if (value == 0) {
+    if (value == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
         out_value->tag = SCRIPTGO_TAG_NULL;
     } else if (((uint64_t)value >> 32) == 2) {
         out_value->tag = SCRIPTGO_TAG_BOOLEAN;
         out_value->payload = value & 1;
-    } else if ((value & 0xFFF8000000000000ULL) != 0) {
+    } else if (value == 0 || (value & 0xFFF0000000000000ULL) != 0) {
         out_value->tag = SCRIPTGO_TAG_NUMBER;
         out_value->payload = (uint64_t)value;
     } else {
         int gc_tag = scriptgo_gc_get_tag((void *)value);
-        out_value->tag = gc_tag == 2 ? SCRIPTGO_TAG_ARRAY :
-                         gc_tag == 3 ? SCRIPTGO_TAG_FUNCTION :
-                         gc_tag == 11 ? SCRIPTGO_TAG_SYMBOL :
-                         gc_tag != 0 ? SCRIPTGO_TAG_OBJECT : SCRIPTGO_TAG_STRING;
+        if (gc_tag == 2) {
+            out_value->tag = SCRIPTGO_TAG_ARRAY;
+        } else if (gc_tag == 3) {
+            out_value->tag = SCRIPTGO_TAG_FUNCTION;
+        } else if (gc_tag == 11) {
+            out_value->tag = SCRIPTGO_TAG_SYMBOL;
+        } else if (gc_tag != 0) {
+            out_value->tag = SCRIPTGO_TAG_OBJECT;
+        } else if ((scriptgo_object_region_contains((void *)value) || scriptgo_json_arena_contains((void *)value)) &&
+                   *(uint64_t *)value == SCRIPTGO_OBJECT_MAGIC) {
+            out_value->tag = SCRIPTGO_TAG_OBJECT;
+        } else {
+            out_value->tag = SCRIPTGO_TAG_STRING;
+        }
         out_value->payload = (uint64_t)value;
     }
 }
@@ -230,7 +249,7 @@ static inline void json_object_store_value(scriptgo_json_object *obj, int64_t in
     if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
         obj->fields[index] = (uintptr_t)((2ULL << 32) | (value->payload != 0));
     } else if (value->tag == SCRIPTGO_TAG_NULL) {
-        obj->fields[index] = 0;
+        obj->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS;
     } else if (value->tag == SCRIPTGO_TAG_UNDEFINED) {
         obj->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     } else {
@@ -529,7 +548,121 @@ int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str)
     return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
 }
 
-static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
+int scriptgo_object_region_active(void);
+void *scriptgo_object_region_alloc(size_t size);
+int scriptgo_gc_register_fast(void *ptr, int tag, uint32_t field_count);
+
+typedef struct json_arena_chunk {
+    struct json_arena_chunk *next;
+    size_t used;
+    size_t capacity;
+    unsigned char data[] __attribute__((aligned(8)));
+} json_arena_chunk;
+
+typedef struct json_arena {
+    json_arena_chunk *chunks;
+    json_arena_chunk *current;
+} json_arena;
+
+static void *json_arena_alloc(json_arena *arena, size_t size) {
+    if (arena == NULL) return NULL;
+    size = (size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+    json_arena_chunk *chunk = arena->current;
+    if (__builtin_expect(chunk != NULL && chunk->capacity - chunk->used >= size, 1)) {
+        void *res = chunk->data + chunk->used;
+        chunk->used += size;
+        return res;
+    }
+    size_t capacity = chunk != NULL ? chunk->capacity * 2 : 256 * 1024;
+    if (capacity > 4 * 1024 * 1024) capacity = 4 * 1024 * 1024;
+    if (capacity < size) capacity = size;
+    json_arena_chunk *nc = (json_arena_chunk *)malloc(sizeof(*nc) + capacity);
+    if (nc == NULL) return NULL;
+    nc->next = NULL;
+    nc->used = size;
+    nc->capacity = capacity;
+    if (chunk != NULL) {
+        chunk->next = nc;
+    } else {
+        arena->chunks = nc;
+    }
+    arena->current = nc;
+    return nc->data;
+}
+
+static void json_arena_free(json_arena *arena) {
+    if (arena == NULL) return;
+    json_arena_chunk *c = arena->chunks;
+    while (c != NULL) {
+        json_arena_chunk *next = c->next;
+        free(c);
+        c = next;
+    }
+    free(arena);
+}
+
+typedef struct json_arena_tracker {
+    void *root;
+    json_arena *arena;
+    struct json_arena_tracker *next;
+} json_arena_tracker;
+
+static json_arena_tracker *active_json_arenas = NULL;
+static int json_cleaner_registered = 0;
+
+static void json_arena_gc_cleaner(void *weak_obj, int (*is_alive)(void *ptr)) {
+    (void)weak_obj;
+    json_arena_tracker **prev = &active_json_arenas;
+    json_arena_tracker *curr = *prev;
+    while (curr != NULL) {
+        if (!is_alive(curr->root)) {
+            *prev = curr->next;
+            json_arena_free(curr->arena);
+            json_arena_tracker *to_free = curr;
+            curr = curr->next;
+            free(to_free);
+        } else {
+            prev = &curr->next;
+            curr = curr->next;
+        }
+    }
+}
+
+static void register_json_arena(void *root, json_arena *arena) {
+    if (!json_cleaner_registered) {
+        void scriptgo_gc_register_weak_cleaner(void (*fn)(void *weak_obj, int (*is_alive)(void *ptr)));
+        scriptgo_gc_register_weak_cleaner(json_arena_gc_cleaner);
+        json_cleaner_registered = 1;
+    }
+    json_arena_tracker *t = (json_arena_tracker *)malloc(sizeof(json_arena_tracker));
+    if (t == NULL) return;
+    t->root = root;
+    t->arena = arena;
+    t->next = active_json_arenas;
+    active_json_arenas = t;
+}
+
+int scriptgo_json_arena_contains(const void *ptr) {
+    if (active_json_arenas == NULL || ptr == NULL) return 0;
+    for (json_arena_tracker *t = active_json_arenas; t != NULL; t = t->next) {
+        if (t->arena == NULL) continue;
+        for (json_arena_chunk *c = t->arena->chunks; c != NULL; c = c->next) {
+            if ((const unsigned char *)ptr >= c->data && (const unsigned char *)ptr < c->data + c->used) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static inline void *json_val_alloc(json_arena *arena, size_t size) {
+    if (scriptgo_object_region_active()) {
+        return scriptgo_object_region_alloc(size);
+    }
+    return json_arena_alloc(arena, size);
+}
+
+static int convert_yyjson_val_arena(yyjson_val *val, scriptgo_json_unknown *out, json_arena *arena, int is_root) {
     if (val == NULL || out == NULL) return -1;
     out->flags = 0;
     out->aux = 0;
@@ -553,7 +686,7 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
         out->tag = 4;
         size_t len = yyjson_get_len(val);
         const char *s = yyjson_get_str(val);
-        char *copy = (char *)malloc(len + 1);
+        char *copy = (char *)json_val_alloc(arena, len + 1);
         if (copy == NULL) return json_fail("scriptgo json allocation failed");
         memcpy(copy, s, len);
         copy[len] = '\0';
@@ -574,11 +707,14 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
         int64_t idx = 0;
         while ((elem = yyjson_arr_iter_next(&iter))) {
             scriptgo_json_unknown elem_val;
-            if (convert_yyjson_val(elem, &elem_val) != 0) {
+            if (convert_yyjson_val_arena(elem, &elem_val, arena, 0) != 0) {
                 return -1;
             }
             memcpy(native_array->data + (size_t)idx * sizeof(elem_val), &elem_val, sizeof(elem_val));
             idx++;
+        }
+        if (is_root && arena != NULL) {
+            register_json_arena(native_array, arena);
         }
         out->tag = 6;
         out->payload = (uint64_t)(uintptr_t)array;
@@ -586,9 +722,22 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
     }
     case YYJSON_TYPE_OBJ: {
         size_t count = yyjson_obj_size(val);
-        void *object = NULL;
-        if (scriptgo_object_new((int64_t)count, &object) != 0) return -1;
-        
+        uint32_t capacity = (uint32_t)count;
+        if (capacity < 1) capacity = 1;
+        scriptgo_json_object *object = (scriptgo_json_object *)json_val_alloc(arena, sizeof(scriptgo_json_object) + (size_t)capacity * sizeof(uintptr_t));
+        if (object == NULL) return json_fail("scriptgo json allocation failed");
+        object->magic = SCRIPTGO_OBJECT_MAGIC;
+        object->field_count = (int64_t)count;
+        object->extensible = 1;
+        object->sealed = 0;
+        object->frozen = 0;
+        object->type_name_owned = 0;
+        object->capacity = capacity;
+        object->boxed_fields = NULL;
+        for (uint32_t i = 0; i < capacity; i++) {
+            object->fields[i] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+        }
+
         char stack_buf[512];
         char *type_name = stack_buf;
         size_t type_name_cap = sizeof(stack_buf);
@@ -630,19 +779,24 @@ static int convert_yyjson_val(yyjson_val *val, scriptgo_json_unknown *out) {
             type_name[type_name_len] = '\0';
 
             scriptgo_json_unknown child_val;
-            if (convert_yyjson_val(child, &child_val) != 0) {
+            if (convert_yyjson_val_arena(child, &child_val, arena, 0) != 0) {
                 if (type_name != stack_buf) free(type_name);
                 return -1;
             }
-            json_object_store_value((scriptgo_json_object *)object, idx++, &child_val);
+            json_object_store_value(object, idx++, &child_val);
         }
-        ((scriptgo_json_object *)object)->field_count = idx;
-        if (scriptgo_object_type_set(object, type_name) != 0) {
-            if (type_name != stack_buf) free(type_name);
-            return -1;
+        object->field_count = idx;
+        char *tn_copy = (char *)json_val_alloc(arena, type_name_len + 1);
+        if (tn_copy != NULL) {
+            memcpy(tn_copy, type_name, type_name_len + 1);
+            object->type_name = tn_copy;
         }
         if (type_name != stack_buf) {
             free(type_name);
+        }
+        if (is_root && arena != NULL) {
+            scriptgo_gc_register_fast(object, 1, object->capacity);
+            register_json_arena(object, arena);
         }
         out->tag = 5;
         out->payload = (uint64_t)(uintptr_t)object;
@@ -672,7 +826,14 @@ int scriptgo_json_parse_unknown(const char *input, scriptgo_json_unknown *out_va
         yyjson_doc_free(doc);
         return json_fail("scriptgo json invalid value");
     }
-    int status = convert_yyjson_val(root, out_value);
+    json_arena *arena = NULL;
+    if (!scriptgo_object_region_active()) {
+        arena = (json_arena *)calloc(1, sizeof(json_arena));
+    }
+    int status = convert_yyjson_val_arena(root, out_value, arena, 1);
+    if (status != 0 && arena != NULL) {
+        json_arena_free(arena);
+    }
     yyjson_doc_free(doc);
     return status;
 }

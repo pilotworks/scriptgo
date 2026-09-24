@@ -449,6 +449,7 @@ int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 
 #define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
+#define SCRIPTGO_OBJECT_NULL_BITS 0x7FF8000000000001ULL
 
 typedef struct scriptgo_slab_node {
     struct scriptgo_slab_node *next;
@@ -478,6 +479,23 @@ typedef struct scriptgo_object_region {
 
 static scriptgo_object_region *scriptgo_active_object_region = NULL;
 static scriptgo_object_region *scriptgo_object_region_freelist = NULL;
+int scriptgo_object_region_active(void) {
+    return scriptgo_active_object_region != NULL;
+}
+
+int scriptgo_object_region_contains(const void *ptr) {
+    if (scriptgo_active_object_region == NULL || ptr == NULL) return 0;
+    for (scriptgo_object_region *r = scriptgo_active_object_region; r != NULL; r = r->parent) {
+        for (scriptgo_object_region_chunk *c = r->chunks; c != NULL; c = c->next) {
+            if ((const unsigned char *)ptr >= c->data && (const unsigned char *)ptr < c->data + c->used) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+extern int scriptgo_json_arena_contains(const void *ptr);
 
 // Regions are entered only around compiler-proven non-escaping builder and
 // visitor sequences. Their allocations never reach the tracing GC.
@@ -485,10 +503,10 @@ void scriptgo_object_region_begin(void) {
     scriptgo_object_region *region = scriptgo_object_region_freelist;
     if (region != NULL) {
         scriptgo_object_region_freelist = region->next_free;
-        for (scriptgo_object_region_chunk *chunk = region->chunks; chunk != NULL; chunk = chunk->next) {
-            chunk->used = 0;
-        }
         region->current = region->chunks;
+        if (region->current != NULL) {
+            region->current->used = 0;
+        }
     } else {
         region = (scriptgo_object_region *)calloc(1, sizeof(*region));
         if (region == NULL) return;
@@ -506,28 +524,49 @@ void scriptgo_object_region_end(void) {
     scriptgo_object_region_freelist = region;
 }
 
-static void *scriptgo_object_region_alloc(size_t size) {
+static void *scriptgo_object_region_alloc_slow(scriptgo_object_region *region, size_t size) {
+    scriptgo_object_region_chunk *chunk = region->current;
+    if (chunk != NULL && chunk->next != NULL) {
+        chunk = chunk->next;
+        chunk->used = 0;
+        region->current = chunk;
+        if (chunk->capacity - chunk->used >= size) {
+            void *result = chunk->data + chunk->used;
+            chunk->used += size;
+            return result;
+        }
+    }
+    size_t capacity = 512 * 1024;
+    if (chunk != NULL && chunk->capacity * 2 > capacity) {
+        capacity = chunk->capacity * 2;
+        if (capacity > 4 * 1024 * 1024) capacity = 4 * 1024 * 1024;
+    }
+    if (capacity < size) capacity = size;
+    scriptgo_object_region_chunk *new_chunk = (scriptgo_object_region_chunk *)malloc(sizeof(*new_chunk) + capacity);
+    if (new_chunk == NULL) return NULL;
+    new_chunk->next = NULL;
+    new_chunk->used = size;
+    new_chunk->capacity = capacity;
+    if (chunk != NULL) {
+        chunk->next = new_chunk;
+    } else {
+        region->chunks = new_chunk;
+    }
+    region->current = new_chunk;
+    return new_chunk->data;
+}
+
+void *scriptgo_object_region_alloc(size_t size) {
     scriptgo_object_region *region = scriptgo_active_object_region;
-    if (region == NULL) return NULL;
+    if (__builtin_expect(region == NULL, 0)) return NULL;
     size = (size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
     scriptgo_object_region_chunk *chunk = region->current;
-    while (chunk != NULL && chunk->capacity - chunk->used < size) {
-        chunk = chunk->next;
+    if (__builtin_expect(chunk != NULL && chunk->capacity - chunk->used >= size, 1)) {
+        void *result = chunk->data + chunk->used;
+        chunk->used += size;
+        return result;
     }
-    if (chunk == NULL) {
-        size_t capacity = 64 * 1024;
-        if (capacity < size) capacity = size;
-        chunk = (scriptgo_object_region_chunk *)malloc(sizeof(*chunk) + capacity);
-        if (chunk == NULL) return NULL;
-        chunk->next = region->chunks;
-        chunk->used = 0;
-        chunk->capacity = capacity;
-        region->chunks = chunk;
-    }
-    region->current = chunk;
-    void *result = chunk->data + chunk->used;
-    chunk->used += size;
-    return result;
+    return scriptgo_object_region_alloc_slow(region, size);
 }
 
 // Keep the common shapes compact instead of rounding every small object to 8 fields.
@@ -596,6 +635,23 @@ void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name)
     if (__builtin_expect(field_count < 0, 0)) {
         return NULL;
     }
+    if (__builtin_expect(scriptgo_active_object_region != NULL, 0)) {
+        uint32_t capacity = (uint32_t)field_count;
+        if (capacity < 1) capacity = 1;
+        scriptgo_object *object = (scriptgo_object *)scriptgo_object_region_alloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
+        if (__builtin_expect(object == NULL, 0)) return NULL;
+        object->magic = SCRIPTGO_OBJECT_MAGIC;
+        object->field_count = field_count;
+        object->type_name = type_name;
+        *(uint32_t *)&object->extensible = 1;
+        object->capacity = capacity;
+        object->boxed_fields = NULL;
+        uint64_t nan = SCRIPTGO_OBJECT_NAN_BITS;
+        for (uint32_t i = 0; i < capacity; i++) {
+            object->fields[i] = nan;
+        }
+        return object;
+    }
     // Object literals and interface shapes may acquire optional properties
     // after construction. Only class descriptors have a fixed field layout,
     // so they can use their exact size class safely.
@@ -603,13 +659,7 @@ void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name)
         uint32_t capacity = field_count == 1 ? 1 : field_count <= 2 ? 2 : field_count <= 4 ? 4 : 8;
         scriptgo_object_pool *pool = scriptgo_object_pool_for_capacity(capacity);
         scriptgo_object *object;
-        if (scriptgo_active_object_region != NULL) {
-            object = (scriptgo_object *)scriptgo_object_region_alloc(sizeof(*object) + (size_t)capacity * sizeof(object->fields[0]));
-            if (__builtin_expect(object == NULL, 0)) return NULL;
-            object->magic = SCRIPTGO_OBJECT_MAGIC;
-            object->capacity = capacity;
-            object->boxed_fields = NULL;
-        } else if (__builtin_expect(pool->freelist != NULL, 1)) {
+        if (__builtin_expect(pool->freelist != NULL, 1)) {
             object = (scriptgo_object *)pool->freelist;
             pool->freelist = (void *)object->fields[0];
         } else {
@@ -626,9 +676,7 @@ void *scriptgo_object_new_typed_fast(int64_t field_count, const char *type_name)
         for (uint32_t i = 0; i < capacity; i++) {
             object->fields[i] = nan;
         }
-        if (scriptgo_active_object_region == NULL) {
-            scriptgo_gc_register_fast(object, 1, field_count);
-        }
+        scriptgo_gc_register_fast(object, 1, field_count);
         return object;
     }
     uint32_t capacity;
@@ -772,7 +820,11 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    o->fields[index] = (uintptr_t)value;
+    if (value == &scriptgo_undefined_sentinel) {
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        o->fields[index] = (uintptr_t)value;
+    }
     return 0;
 }
 
@@ -790,8 +842,10 @@ int scriptgo_object_string_get(void *handle, int64_t index, const char **out_val
         return 0;
     }
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == 0) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = &scriptgo_undefined_sentinel;
+    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS || val == 0) {
+        *out_value = NULL;
     } else {
         *out_value = (const char *)val;
     }
@@ -880,7 +934,11 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
     if (index >= o->field_count) {
         o->field_count = index + 1;
     }
-    o->fields[index] = (uintptr_t)value;
+    if (value == (void *)&scriptgo_undefined_sentinel) {
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    } else {
+        o->fields[index] = (uintptr_t)value;
+    }
     return 0;
 }
 
@@ -900,6 +958,8 @@ int scriptgo_object_ptr_get(void *handle, int64_t index, void **out_value) {
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
         *out_value = (void *)&scriptgo_undefined_sentinel;
+    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS || val == 0) {
+        *out_value = NULL;
     } else {
         *out_value = (void *)val;
     }
@@ -932,7 +992,7 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
     if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
         o->fields[index] = (uintptr_t)((2ULL << 32) | (value->payload != 0 ? 1 : 0));
     } else if (value->tag == SCRIPTGO_TAG_NULL) {
-        o->fields[index] = 0;
+        o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS;
     } else if (value->tag == SCRIPTGO_TAG_UNDEFINED) {
         o->fields[index] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
     } else {
@@ -958,12 +1018,12 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
 	}
     uintptr_t val = o->fields[index];
     if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
-    } else if (val == 0) {
+    } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
         out_value->tag = SCRIPTGO_TAG_NULL;
     } else if (((uint64_t)val >> 32) == 2) {
         out_value->tag = SCRIPTGO_TAG_BOOLEAN;
         out_value->payload = (val & 1);
-    } else if ((val & 0xFFF8000000000000ULL) != 0) {
+    } else if (val == 0 || (val & 0xFFF0000000000000ULL) != 0) {
         out_value->tag = SCRIPTGO_TAG_NUMBER;
         out_value->payload = (uint64_t)val;
     } else {
@@ -975,6 +1035,9 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
         } else if (gc_tag == 11) {
             out_value->tag = SCRIPTGO_TAG_SYMBOL;
         } else if (gc_tag != 0) {
+            out_value->tag = SCRIPTGO_TAG_OBJECT;
+        } else if ((scriptgo_object_region_contains((void *)val) || scriptgo_json_arena_contains((void *)val)) &&
+                   *(uint64_t *)val == SCRIPTGO_OBJECT_MAGIC) {
             out_value->tag = SCRIPTGO_TAG_OBJECT;
         } else {
             out_value->tag = SCRIPTGO_TAG_STRING;

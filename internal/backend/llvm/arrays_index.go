@@ -36,6 +36,24 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 				e.localSSAs[instruction.Result] = true
 			}
 
+			if instruction.NoBoundsCheck {
+				id := e.labelCounter
+				e.labelCounter++
+				idxI64 := fmt.Sprintf("taget.i64.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
+				dataPtrPtr := fmt.Sprintf("taget.data.ptr.%d", id)
+				dataPtr := fmt.Sprintf("taget.data.%d", id)
+				elemPtr := fmt.Sprintf("taget.elem.ptr.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 40\n", dataPtrPtr, arrArg))
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s, !invariant.load !{}\n", dataPtr, dataPtrPtr))
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds double, ptr %%%s, i64 %%%s\n", elemPtr, dataPtr, idxI64))
+				out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, elemPtr))
+				if hasSlot {
+					out.WriteString(fmt.Sprintf("  store%s double %%%s, ptr %%%s\n", e.vol(), instruction.Result, slot))
+				}
+				return nil
+			}
+
 			id := e.labelCounter
 			e.labelCounter++
 
@@ -174,6 +192,40 @@ func (e *functionEmitter) emitIndex(out *strings.Builder, instruction ir.Instruc
 		arrayType != ir.TypeUnknownArray && arrayType != ""
 
 	if canFastPath {
+		if instruction.NoBoundsCheck {
+			id := e.labelCounter
+			e.labelCounter++
+			idxI64 := fmt.Sprintf("idx.i64.%d", id)
+			out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
+
+			dataPtrPtr := fmt.Sprintf("idx.data.ptr.%d", id)
+			dataPtr := fmt.Sprintf("idx.data.%d", id)
+			elemPtr := fmt.Sprintf("idx.elem.ptr.%d", id)
+			invData := ""
+			if !e.hasArrayResize {
+				invData = ", !invariant.load !{}"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 24\n", dataPtrPtr, arrArg))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s%s\n", dataPtr, dataPtrPtr, invData))
+
+			elemPtrType := llvmT
+			if instruction.Type == ir.TypeBool {
+				elemPtrType = "i8"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i64 %%%s\n", elemPtr, elemPtrType, dataPtr, idxI64))
+			if instruction.Type == ir.TypeBool {
+				rawByte := fmt.Sprintf("idx.raw.byte.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = load i8, ptr %%%s\n", rawByte, elemPtr))
+				out.WriteString(fmt.Sprintf("  %%%s = icmp ne i8 %%%s, 0\n", instruction.Result, rawByte))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", instruction.Result, elemPtrType, elemPtr))
+			}
+			if hasSlot {
+				out.WriteString(fmt.Sprintf("  store%s %s %%%s, ptr %%%s\n", e.vol(), llvmT, instruction.Result, slot))
+			}
+			return nil
+		}
+
 		expectedSize := int64(8)
 		if instruction.Type == ir.TypeBool {
 			expectedSize = 1

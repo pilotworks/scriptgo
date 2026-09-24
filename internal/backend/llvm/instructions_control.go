@@ -108,6 +108,11 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", bodyLabel))
 	}
 
+	var loopMetaID int
+	if instruction.Vectorize {
+		loopMetaID = e.recordVectorizeLoop()
+	}
+
 	out.WriteString(fmt.Sprintf("%s:\n", bodyLabel))
 	e.terminated = false
 	for _, inst := range instruction.Body {
@@ -116,7 +121,11 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 		}
 	}
 	if !e.terminated {
-		out.WriteString(fmt.Sprintf("  br label %%%s\n", targetCont))
+		if instruction.Vectorize && len(instruction.Step) == 0 {
+			out.WriteString(fmt.Sprintf("  br label %%%s, !llvm.loop !%d\n", targetCont, loopMetaID))
+		} else {
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", targetCont))
+		}
 	}
 
 	if len(instruction.Step) > 0 {
@@ -128,7 +137,11 @@ func (e *functionEmitter) emitWhile(out *strings.Builder, instruction ir.Instruc
 			}
 		}
 		if !e.terminated {
-			out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+			if instruction.Vectorize {
+				out.WriteString(fmt.Sprintf("  br label %%%s, !llvm.loop !%d\n", condLabel, loopMetaID))
+			} else {
+				out.WriteString(fmt.Sprintf("  br label %%%s\n", condLabel))
+			}
 		}
 	}
 

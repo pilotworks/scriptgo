@@ -27,6 +27,21 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	}
 	if isTypedArrayType(arrayType) {
 		if arrayType == ir.TypeFloat64Array {
+			if instruction.NoBoundsCheck {
+				id := e.labelCounter
+				e.labelCounter++
+				idxI64 := fmt.Sprintf("taset.i64.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
+				dataPtrPtr := fmt.Sprintf("taset.data.ptr.%d", id)
+				dataPtr := fmt.Sprintf("taset.data.%d", id)
+				elemPtr := fmt.Sprintf("taset.elem.ptr.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 40\n", dataPtrPtr, arrArg))
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s, !invariant.load !{}\n", dataPtr, dataPtrPtr))
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds double, ptr %%%s, i64 %%%s\n", elemPtr, dataPtr, idxI64))
+				out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", valArg, elemPtr))
+				return nil
+			}
+
 			id := e.labelCounter
 			e.labelCounter++
 			checkLabel := fmt.Sprintf("taset.check.%d", id)
@@ -95,6 +110,36 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 		arrayType != ir.TypeUnknownArray && arrayType != ""
 
 	if canFastPath {
+		if instruction.NoBoundsCheck {
+			id := e.labelCounter
+			e.labelCounter++
+			idxI64 := fmt.Sprintf("idxset.i64.%d", id)
+			out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
+			dataPtrPtr := fmt.Sprintf("idxset.data.ptr.%d", id)
+			dataPtr := fmt.Sprintf("idxset.data.%d", id)
+			elemPtr := fmt.Sprintf("idxset.elem.ptr.%d", id)
+			invData := ""
+			if !e.hasArrayResize {
+				invData = ", !invariant.load !{}"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 24\n", dataPtrPtr, arrArg))
+			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s%s\n", dataPtr, dataPtrPtr, invData))
+
+			elemPtrType := elemLLVMType
+			if elemType == ir.TypeBool {
+				elemPtrType = "i8"
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds %s, ptr %%%s, i64 %%%s\n", elemPtr, elemPtrType, dataPtr, idxI64))
+			if elemType == ir.TypeBool {
+				boolByte := fmt.Sprintf("idxset.bool.byte.%d", id)
+				out.WriteString(fmt.Sprintf("  %%%s = zext i1 %%%s to i8\n", boolByte, valArg))
+				out.WriteString(fmt.Sprintf("  store i8 %%%s, ptr %%%s\n", boolByte, elemPtr))
+			} else {
+				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemPtrType, valArg, elemPtr))
+			}
+			return nil
+		}
+
 		expectedSize := int64(8)
 		if elemType == ir.TypeBool {
 			expectedSize = 1
