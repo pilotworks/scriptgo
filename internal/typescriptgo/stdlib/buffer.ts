@@ -122,7 +122,7 @@ type BlobPart = string | Buffer | Uint8Array | ArrayBuffer | Blob;
 export class Blob {
     size: number = 0;
     type: string = "";
-    private _bytes: Buffer = Buffer.alloc(0);
+    _bytes: Buffer = Buffer.alloc(0);
 
     constructor(sources: BlobPart[] = [], options?: { type?: string }) {
         const parts: Buffer[] = [];

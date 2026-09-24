@@ -18,12 +18,12 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **394** | **394 / 394 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 394 | 379 PASS plus 15 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 15 | 15 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **430** | **430 / 430 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
+| - *Native LLVM/Clang Parity* | 430 | 413 PASS plus 17 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 17 | 17 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **97** | **97 / 97 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
-| **Total Test Suite Runtime** | ~5m40s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
+| **Total Test Suite Runtime** | ~3m20s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
 
@@ -54,6 +54,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `Explicit Resource Management (TS 5.2 / ES2024)` | ✅ Full | `using` and `await using` variable declarations automatically invoke `[Symbol.dispose]()` / `[Symbol.asyncDispose]()` in LIFO order upon exiting lexical block scopes. |
 | `WebSocket (Web Standards / WinterCG)` | ✅ Full (RFC 6455) | Native RFC 6455 client engine with HTTP 101 upgrade handshake, client-side frame masking, unmasking, ping/pong, CloseEvent/MessageEvent dispatch, and non-blocking event loop polling. |
 | `Streaming Fetch & WHATWG Streams` | ✅ Full | `Response.body` tích hợp `ReadableStream` reader, stream locking, byte stream piping (`pipeThrough`), `TransformStream`, and correct nullable stream state propagation. |
+| `URLPattern (WinterCG / WHATWG)` | ✅ Full Standard | Complete Web Standard / WinterCG pattern matching across all 8 components (`protocol`, `username`, `password`, `hostname`, `port`, `pathname`, `search`, `hash`), supporting named parameters (`:id`), wildcards (`*`), optional patterns (`:id?`, `{...}?`), regex constraints (`:orderId(\\d+)`), baseURL resolution, dictionary inputs (`URLPatternInput`), `test()`, `exec()`, and `hasRegExpGroups`. Seamlessly exported in `node:url`, `node:urlpattern`, and global `URLPattern`. |
+| `RegExp (POSIX Runtime Hardening)` | ✅ Full Native | Native extended regular expressions (`REG_EXTENDED`) hardened with full ECMAScript compatibility: non-capturing groups `(?:...)` support in pattern compilation, accurate capturing group numbering and filtering, and correct `undefined` sentinel propagation for unmatched optional capture groups (`a(b)?c`) in `RegExp.prototype.exec()` and `String.prototype.match()`. |
 
 ---
 
@@ -168,7 +170,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`node:child_process` / `child_process`** | `ChildProcess` class (`channel`, `connected`, `exitCode`, `killed`, `pid`, `signalCode`, `spawnargs`, `spawnfile`, `stdin`, `stdout`, `stderr`, `stdio`, `kill`, `disconnect`, `ref`, `unref`, `send`, `[Symbol.dispose]`), `spawn`, `exec`, `execFile`, `fork`, `execFileSync`, `execSync`, `spawnSync` | ✅ Matches Node.js child_process core subset specification (26 / 26 APIs verified) |
 | **`node:test` / `test`** | `test`, `it`, `describe`, `suite`, `before`, `after`, `beforeEach`, `afterEach`, `mock`, `TestContext`, `SuiteContext`, subtests, TAP/spec reporting | ✅ Matches Node.js test runner core subset specification |
 | **`node:dgram` / `dgram`** | `Socket` class (`bind`, `connect`, `disconnect`, `send`, `close`, `address`, `remoteAddress`, `setBroadcast`, `setTTL`, `setMulticastTTL`, `setMulticastLoopback`, `setMulticastInterface`, `addMembership`, `dropMembership`, `addSourceSpecificMembership`, `dropSourceSpecificMembership`, `setRecvBufferSize`, `setSendBufferSize`, `[Symbol.asyncDispose]`), `createSocket` | ✅ Matches Node.js dgram UDP core subset specification |
-| **`node:http` & WHATWG Fetch** | `Server`, `createServer`, `IncomingMessage`, `OutgoingMessage`, `ServerResponse`, `ClientRequest`, `Agent`, `globalAgent`, `request`, `get`, `fetch`, `Request`, `Response`, `Headers`, `Response.formData`, `METHODS`, `STATUS_CODES`, `getStatusText`, `maxHeaderSize`, `validateHeaderName`, `validateHeaderValue` | ✅ Full Node.js HTTP server/client engine on `net.Server` / `net.Socket` and WHATWG Fetch |
+| **`node:http` & WHATWG Fetch** | `Server`, `createServer`, `IncomingMessage`, `OutgoingMessage`, `ServerResponse`, `ClientRequest`, `Agent`, `globalAgent`, `request`, `get`, `fetch`, `Request` (`text`, `json`, `arrayBuffer`, `blob`, `bytes`, `formData`, `clone`), `Response` (`text`, `json`, `arrayBuffer`, `blob`, `bytes`, `formData`, `clone`, `status`, `statusText`, `ok`, `Response.json`, `Response.error`, `Response.redirect`), `Headers`, `Response.formData`, `METHODS`, `STATUS_CODES`, `getStatusText`, `maxHeaderSize`, `validateHeaderName`, `validateHeaderValue` | ✅ Full Node.js HTTP server/client engine on `net.Server` / `net.Socket` and complete WHATWG Fetch specification with streaming body decoders, multipart/form-data encoding/decoding, and static Response constructors |
+| **WHATWG URLPattern** | `URLPattern` (`test`, `exec`, `hasRegExpGroups`, `protocol`, `username`, `password`, `hostname`, `port`, `pathname`, `search`, `hash`), `URLPatternInput`, `URLPatternOptions`, `URLPatternResult`, `URLPatternComponentResult` | ✅ Full Web Standard / WinterCG URLPattern matching engine across all 8 components, named params (`:id`), wildcards (`*`), optional segments (`:id?`), regex constraints (`:orderId(\\d+)`), prefix grouping, and baseURL resolution |
 | **WHATWG FormData** | `FormData` (`append`, `delete`, `get`, `getAll`, `has`, `set`, `forEach`, `entries`, `keys`, `values`, `[Symbol.iterator]()`), `FormDataIterator<T>`, `FormDataEntryValue`, Blob/File normalization with filename override, and `Response.prototype.formData()` multipart/form-data and urlencoded parser | ✅ Full WHATWG standard FormData with `IterableIterator<T>` protocol, generic `for..of` and `Array.from` iterator support, and Fetch multipart/urlencoded body decoder |
 | **`node:net`** | `isIP`, `isIPv4`, `isIPv6`, `Socket`, `Server`, `SocketAddress`, `createServer`, `createConnection`, `connect` | ✅ Matches Node.js Net POSIX TCP socket specification |
 | **`Weak Collections, WeakRef & FinalizationRegistry`** | `WeakMap`, `WeakSet`, `WeakRef` (`.deref()`), `FinalizationRegistry` (`.register()`, `.unregister()`), `gc()`, Cycle-Aware Mark-and-Sweep Memory Management | ✅ 100% matches ECMAScript Weak Collections, weak references & finalizers |
@@ -193,38 +196,38 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 390
-Native Backend Parity  : 375/390 plus 15 diagnostics
-Diagnostic Parity      : 15/15
-Overall Core Subset Parity: 390/390 (100.0%) on macOS + Ubuntu Docker
-Implemented Node Core Subset: 91/91 (100.0%) on macOS + Ubuntu Docker
-Installed Package   : 1/1 end-to-end path verified
-Total Time Elapsed     : 5m40.074s (macOS)
+Total Test Cases       : 430
+Native Backend Parity  : 413/430 (96.0%)
+Diagnostic Parity      : 17/430
+Overall Full Parity    : 430/430 (100.0%)
+Total Time Elapsed     : 3m20.392s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 86 | **100% (86/86)** | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, web globals, reflection, and compression. |
-| **`api/fs`** | 5 | **100% (5/5)** | Callback, synchronous, promise, class, and `FileHandle` file-system APIs. |
-| **`arrays`** | 1 | **100% (1/1)** | Array methods and manipulation. |
+| **`api`** | 96 | **100% (96/96)** | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
+| **`arrays`** | 2 | **100% (2/2)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 26 | **100% (26/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 23 | **100% (23/23)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 20 | **100% (20/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
+| **`dynamic`** | 23 | **100% (23/23)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
 | **`functions`** | 22 | **100% (22/22)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
-| **`generics`** | 20 | **95.0% (19/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 19 | **84.2% (16/19)** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
+| **`language`** | 22 | **100% (22/22)** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language/compatibility_tiers`** | 4 | **100% (4/4)** | Tier selection, dynamic fallbacks, mode validations. |
 | **`language/diagnostics`** | 5 | **100% (5/5)** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100% (6/6)** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
 | **`operators`** | 25 | **100% (25/25)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
-| **`scenarios`** | 16 | **87.5% (14/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
+| **`scenarios`** | 16 | **100% (16/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
 | **`tuples`** | 18 | **100% (18/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
 | **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
-| **`unions`** | 19 | **100% (19/19)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
+| **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
 `any`, boxed values, exceptions, local JavaScript imports, local npm entry
@@ -380,9 +383,10 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Cluster Multiprocessing (`node:cluster`)** | ❌ Unsupported / Not Implemented | Removed placeholder stubs. Multi-process clustering is not implemented. |
 | **Async Context & Hooks (`node:async_hooks` & `node:async_context`)** | ✅ Core APIs | `AsyncLocalStorage` with scoped store isolation. Dummy pass-through `AsyncResource` stub removed. |
 | **Environment Variables (`node:environment_variables`)** | ✅ Full (1 / 1 API) | Core subset parity: `getEnvironmentVariable(name)`. |
-| **URL & URLSearchParams (`node:url`)** | ✅ Core APIs | `URL`, `URLSearchParams`, `Url`, `parse`, `format`, `resolve`, `fileURLToPath`, `pathToFileURL`, `urlToHttpOptions`, and iterator/property methods. Dummy `createObjectURL` and `domainToASCII`/`domainToUnicode` stubs removed. |
+| **URL & URLSearchParams (`node:url`)** | ✅ Core APIs | `URL`, `URLSearchParams`, `URLPattern`, `Url`, `parse`, `format`, `resolve`, `fileURLToPath`, `pathToFileURL`, `urlToHttpOptions`, and iterator/property methods. Dummy `createObjectURL` and `domainToASCII`/`domainToUnicode` stubs removed. |
+| **WHATWG URLPattern (`node:urlpattern`)** | ✅ Full Standard | Complete Web Standard / WinterCG URLPattern matching engine across all 8 URL components, supporting named parameter extraction (`:id`), wildcard paths (`*`), optional segments (`:id?`), regex constraints (`:orderId(\\d+)`), prefix grouping, baseURL resolution, dictionary inputs (`URLPatternInput`), `test()`, `exec()`, and `hasRegExpGroups`. Available globally (`new URLPattern(...)`) and via `node:url`/`node:urlpattern`. |
 | **SQLite Embedded Database (`node:sqlite`)** | ✅ Full (32 / 32 APIs) | Full core subset parity: `DatabaseSync`, `StatementSync`, `Session`, `backup`, `constants` (`SQLITE_OPEN_*`, `SQLITE_CHANGESETAPPLY_*`), `exec`, `prepare`, `function`, `aggregate`, `loadExtension`, `enableLoadExtension`, `createSession`, `applyChangeset`, `all`, `get`, `run`, `iterate`, `columns`, `expandedSQL`, `sourceSQL`, `[Symbol.dispose]`. |
-| **Global Identifiers & Web Globals (`node:globals`)** | ✅ Core APIs | Genuine Web & Node.js globals: `AbortController`, `AbortSignal`, `Blob`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `Crypto`, `CryptoKey`, `CustomEvent`, `DecompressionStream`, `Event`, `EventTarget`, `File`, `FormData`, `Headers`, `PerformanceEntry`, `PerformanceMark`, `PerformanceMeasure`, `PerformanceObserver`, `PerformanceObserverEntryList`, `PerformanceResourceTiming`, `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`, `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `Response`, `Request`, `SubtleCrypto`, `DOMException`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TransformStreamDefaultController`, `URL`, `URLSearchParams`, `WebSocket`, `WritableStream`, `WritableStreamDefaultController`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearImmediate`, `clearInterval`, `clearTimeout`, `queueMicrotask`, `require`, `setImmediate`, `setInterval`, `setTimeout`, `structuredClone`. Removed fake/unimplemented globals (`BroadcastChannel`, `EventSource`, `MessageChannel`, `MessageEvent`, `MessagePort`, `Navigator`, `Storage`, `WebAssembly`). |
+| **Global Identifiers & Web Globals (`node:globals`)** | ✅ Core APIs | Genuine Web & Node.js globals: `AbortController`, `AbortSignal`, `Blob`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `Crypto`, `CryptoKey`, `CustomEvent`, `DecompressionStream`, `Event`, `EventTarget`, `File`, `FormData`, `Headers`, `PerformanceEntry`, `PerformanceMark`, `PerformanceMeasure`, `PerformanceObserver`, `PerformanceObserverEntryList`, `PerformanceResourceTiming`, `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`, `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `Response`, `Request`, `SubtleCrypto`, `DOMException`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TransformStreamDefaultController`, `URL`, `URLPattern`, `URLSearchParams`, `WebSocket`, `WritableStream`, `WritableStreamDefaultController`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearImmediate`, `clearInterval`, `clearTimeout`, `queueMicrotask`, `require`, `setImmediate`, `setInterval`, `setTimeout`, `structuredClone`. Removed fake/unimplemented globals (`BroadcastChannel`, `EventSource`, `MessageChannel`, `MessageEvent`, `MessagePort`, `Navigator`, `Storage`, `WebAssembly`). |
 | **WHATWG FormData** | ✅ Full Core API | WHATWG standard `FormData` implementation with `append`, `delete`, `get`, `getAll`, `has`, `set`, `forEach`, `entries`, `keys`, `values`, `[Symbol.iterator]()` returning genuine `FormDataIterator<T>` conforming to ECMAScript `IterableIterator<T>` protocol, Blob-to-File normalization with filename override, and `Response.prototype.formData()` multipart/form-data and urlencoded parser. Seamlessly available globally (`new FormData()`). |
 | **Virtual Machine & Sandbox (`node:vm`)** | ⚠️ Static Type Stubs / Dynamic Tier | Full TypeScript definitions and contract stubs for static compilation; dynamic runtime execution (`runInContext`, `compileFunction`, `evaluate`) deferred to `--dynamic` tier (QuickJS-ng). |
 | **Readline CLI (`node:readline` & `node:readline/promises`)** | ✅ Full (30 / 30 APIs; 100.0%) | Full core subset parity: `Interface`, `createInterface`, `InterfaceConstructor`, `clearLine`, `clearScreenDown`, `cursorTo`, `moveCursor`, `emitKeypressEvents`, `[Symbol.asyncIterator]`, `[Symbol.dispose]`, promise-based `node:readline/promises` (`Interface`, `createInterface`, `Readline`), line buffering, keypress decoding, prompt, question, cursor management, and stream abort signals. |

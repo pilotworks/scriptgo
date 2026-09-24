@@ -5,9 +5,9 @@ import {
     ServerOptions as NetServerOptions,
     connect as netConnect
 } from "node:net";
-import { URL } from "node:url";
+import { URL, URLSearchParams } from "node:url";
 import { FormData } from "node:formdata";
-import { File } from "node:buffer";
+import { Blob, File } from "node:buffer";
 
 export class HeadersIterator<T = unknown> {
     private _values: T[];
@@ -148,10 +148,149 @@ export class Headers {
     }
 }
 
+function encodeFormDataBody(formData: FormData): { body: string; contentType: string } {
+    const boundary = "----ScriptGoFormBoundary" + String(Date.now()) + String(Math.floor(Math.random() * 1000000));
+    const entries = formData.entries();
+    let body = "";
+    for (let it = entries.next(); !it.done; it = entries.next()) {
+        const entry = it.value;
+        if (!entry) continue;
+        const name = entry[0];
+        const val = entry[1];
+        body += "--" + boundary + "\r\n";
+        if (val instanceof File) {
+            const file = val as File;
+            const filename = file.name && file.name.length > 0 ? file.name : "blob";
+            const fileType = file.type && file.type.length > 0 ? file.type : "application/octet-stream";
+            body += "Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + filename + "\"\r\n";
+            body += "Content-Type: " + fileType + "\r\n\r\n";
+            body += file._bytes.toString() + "\r\n";
+        } else if (val instanceof Blob) {
+            const blob = val as Blob;
+            const fileType = blob.type && blob.type.length > 0 ? blob.type : "application/octet-stream";
+            body += "Content-Disposition: form-data; name=\"" + name + "\"; filename=\"blob\"\r\n";
+            body += "Content-Type: " + fileType + "\r\n\r\n";
+            body += blob._bytes.toString() + "\r\n";
+        } else {
+            body += "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n";
+            body += String(val) + "\r\n";
+        }
+    }
+    body += "--" + boundary + "--\r\n";
+    return {
+        body: body,
+        contentType: "multipart/form-data; boundary=" + boundary
+    };
+}
+
+function parseFormDataFromBody(rawBody: string, headers: Headers): FormData {
+    const fd = new FormData();
+    const ct = headers.get("content-type") || "";
+    if (ct.includes("multipart/form-data")) {
+        let boundary = "";
+        const bIdx = ct.indexOf("boundary=");
+        if (bIdx !== -1) {
+            boundary = ct.substring(bIdx + 9).trim();
+            if (boundary.startsWith('"') && boundary.endsWith('"')) {
+                boundary = boundary.substring(1, boundary.length - 1);
+            }
+        }
+        if (boundary.length > 0) {
+            const delimiter = "--" + boundary;
+            const parts = rawBody.split(delimiter);
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (part.length === 0 || part === "--" || part === "--\r\n" || part.startsWith("--")) {
+                    continue;
+                }
+                const headerEnd = part.indexOf("\r\n\r\n");
+                const lfHeaderEnd = part.indexOf("\n\n");
+                let headerBlock = "";
+                let bodyBlock = "";
+                if (headerEnd !== -1) {
+                    headerBlock = part.substring(0, headerEnd);
+                    bodyBlock = part.substring(headerEnd + 4);
+                    if (bodyBlock.endsWith("\r\n")) {
+                        bodyBlock = bodyBlock.substring(0, bodyBlock.length - 2);
+                    }
+                } else if (lfHeaderEnd !== -1) {
+                    headerBlock = part.substring(0, lfHeaderEnd);
+                    bodyBlock = part.substring(lfHeaderEnd + 2);
+                    if (bodyBlock.endsWith("\n")) {
+                        bodyBlock = bodyBlock.substring(0, bodyBlock.length - 1);
+                    }
+                } else {
+                    continue;
+                }
+                let name = "";
+                let filename = "";
+                let partContentType = "text/plain";
+                const lines = headerBlock.split("\n");
+                for (let j = 0; j < lines.length; j++) {
+                    const line = lines[j].trim();
+                    const lower = line.toLowerCase();
+                    if (lower.startsWith("content-disposition:")) {
+                        const nameMatch = line.indexOf("name=\"");
+                        if (nameMatch !== -1) {
+                            const endQuote = line.indexOf("\"", nameMatch + 6);
+                            if (endQuote !== -1) {
+                                name = line.substring(nameMatch + 6, endQuote);
+                            }
+                        }
+                        const fnMatch = line.indexOf("filename=\"");
+                        if (fnMatch !== -1) {
+                            const fnEnd = line.indexOf("\"", fnMatch + 10);
+                            if (fnEnd !== -1) {
+                                filename = line.substring(fnMatch + 10, fnEnd);
+                            }
+                        }
+                    } else if (lower.startsWith("content-type:")) {
+                        partContentType = line.substring(13).trim();
+                    }
+                }
+                if (name.length > 0) {
+                    if (filename.length > 0) {
+                        fd.append(name, new File([bodyBlock], filename, { type: partContentType }));
+                    } else {
+                        fd.append(name, bodyBlock);
+                    }
+                }
+            }
+        }
+        return fd;
+    }
+
+    if (rawBody.length > 0) {
+        const pairs = rawBody.split("&");
+        for (let i = 0; i < pairs.length; i++) {
+            const pair = pairs[i];
+            if (pair.length === 0) continue;
+            const eq = pair.indexOf("=");
+            if (eq !== -1) {
+                const rawKey = pair.substring(0, eq).replaceAll("+", " ");
+                const rawVal = pair.substring(eq + 1).replaceAll("+", " ");
+                try {
+                    fd.append(decodeURIComponent(rawKey), decodeURIComponent(rawVal));
+                } catch (e) {
+                    fd.append(rawKey, rawVal);
+                }
+            } else {
+                const rawKey = pair.replaceAll("+", " ");
+                try {
+                    fd.append(decodeURIComponent(rawKey), "");
+                } catch (e) {
+                    fd.append(rawKey, "");
+                }
+            }
+        }
+    }
+    return fd;
+}
+
 export interface RequestInit {
     method?: string;
     headers?: unknown;
-    body?: string | null;
+    body?: unknown;
 }
 
 const defaultRequestInit: RequestInit = { method: "", headers: null, body: "" };
@@ -164,15 +303,16 @@ export class Request {
 
     constructor(input: unknown, init: RequestInit = defaultRequestInit) {
         if (typeof input === "string") {
-            this.url = input;
+            this.url = input as string;
             this.method = "GET";
             this.headers = new Headers();
             this.body = "";
         } else if (input instanceof Request) {
-            this.url = input.url;
-            this.method = input.method;
-            this.headers = new Headers(input.headers);
-            this.body = input.body;
+            const other = input as Request;
+            this.url = other.url;
+            this.method = other.method;
+            this.headers = new Headers(other.headers);
+            this.body = other.body;
         } else {
             this.url = "";
             this.method = "GET";
@@ -183,12 +323,76 @@ export class Request {
         if (init.method !== undefined && init.method.length > 0) {
             this.method = init.method.toUpperCase();
         }
-        if (init.headers instanceof Headers) {
-            this.headers = init.headers as Headers;
+        if (init.headers !== undefined && init.headers !== null) {
+            if (init.headers instanceof Headers) {
+                this.headers = init.headers as Headers;
+            } else {
+                this.headers = new Headers(init.headers as any);
+            }
         }
-        if (init.body !== undefined && init.body !== null && init.body.length > 0) {
-            this.body = init.body;
+        if (init.body !== undefined && init.body !== null) {
+            const b = init.body as any;
+            if (typeof b === "string") {
+                this.body = b as string;
+            } else if (b instanceof FormData) {
+                const enc = encodeFormDataBody(b as FormData);
+                this.body = enc.body;
+                if (!this.headers.has("content-type")) {
+                    this.headers.set("content-type", enc.contentType);
+                }
+            } else if (b instanceof URLSearchParams) {
+                this.body = (b as URLSearchParams).toString();
+                if (!this.headers.has("content-type")) {
+                    this.headers.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8");
+                }
+            } else if (b instanceof Blob) {
+                this.body = (b as Blob)._bytes.toString();
+                if (!this.headers.has("content-type") && (b as Blob).type.length > 0) {
+                    this.headers.set("content-type", (b as Blob).type);
+                }
+            } else {
+                this.body = String(b);
+            }
         }
+    }
+
+    async text(): Promise<string> {
+        return this.body;
+    }
+
+    async json<T = unknown>(): Promise<T> {
+        return JSON.parse(this.body) as T;
+    }
+
+    async arrayBuffer(): Promise<ArrayBuffer> {
+        const buf = new Uint8Array(this.body.length);
+        for (let i = 0; i < this.body.length; i++) {
+            buf[i] = this.body.charCodeAt(i);
+        }
+        return buf.buffer as ArrayBuffer;
+    }
+
+    async blob(): Promise<Blob> {
+        const ct = this.headers.get("content-type") || "";
+        return new Blob([this.body], { type: ct });
+    }
+
+    async bytes(): Promise<Uint8Array> {
+        const ab = await this.arrayBuffer();
+        return new Uint8Array(ab);
+    }
+
+    async formData(): Promise<FormData> {
+        return parseFormDataFromBody(this.body, this.headers);
+    }
+
+    clone(): Request {
+        const init: RequestInit = {
+            method: this.method,
+            headers: new Headers(this.headers),
+            body: this.body
+        };
+        return new Request(this.url, init);
     }
 }
 
@@ -209,21 +413,51 @@ export class Response {
     body: unknown = null;
     _body: string = "";
 
-    constructor(body: string = "", init: ResponseInit = defaultResponseInit) {
-        this._body = body;
+    constructor(body: unknown = "", init: ResponseInit = defaultResponseInit) {
         this.body = null;
         let s = 200;
         let st = "OK";
         let h = new Headers();
-        if (init.status !== undefined && init.status > 0) {
+        if (init.status !== undefined && init.status !== null) {
             s = init.status;
         }
-        if (init.statusText !== undefined && init.statusText.length > 0) {
+        if (init.statusText !== undefined && init.statusText !== null) {
             st = init.statusText;
         }
         if (init.headers !== undefined && init.headers !== null) {
-            h = new Headers(init.headers as any);
+            if (init.headers instanceof Headers) {
+                h = new Headers(init.headers as Headers);
+            } else {
+                h = new Headers(init.headers as any);
+            }
         }
+
+        let bodyStr = "";
+        if (body !== undefined && body !== null) {
+            const b = body as any;
+            if (typeof b === "string") {
+                bodyStr = b as string;
+            } else if (b instanceof FormData) {
+                const enc = encodeFormDataBody(b as FormData);
+                bodyStr = enc.body;
+                if (!h.has("content-type")) {
+                    h.set("content-type", enc.contentType);
+                }
+            } else if (b instanceof URLSearchParams) {
+                bodyStr = (b as URLSearchParams).toString();
+                if (!h.has("content-type")) {
+                    h.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8");
+                }
+            } else if (b instanceof Blob) {
+                bodyStr = (b as Blob)._bytes.toString();
+                if (!h.has("content-type") && (b as Blob).type.length > 0) {
+                    h.set("content-type", (b as Blob).type);
+                }
+            } else {
+                bodyStr = String(b);
+            }
+        }
+        this._body = bodyStr;
         this.status = s;
         this.statusText = st;
         this.ok = (s >= 200 && s < 300);
@@ -247,114 +481,37 @@ export class Response {
         return buf.buffer as ArrayBuffer;
     }
 
-    async formData(): Promise<FormData> {
-        const fd = new FormData();
+    async blob(): Promise<Blob> {
         const ct = this.headers.get("content-type") || "";
-        if (ct.includes("multipart/form-data")) {
-            let boundary = "";
-            const bIdx = ct.indexOf("boundary=");
-            if (bIdx !== -1) {
-                boundary = ct.substring(bIdx + 9).trim();
-                if (boundary.startsWith('"') && boundary.endsWith('"')) {
-                    boundary = boundary.substring(1, boundary.length - 1);
-                }
-            }
-            if (boundary.length > 0) {
-                const delimiter = "--" + boundary;
-                const parts = this._body.split(delimiter);
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    if (part.length === 0 || part === "--" || part === "--\r\n" || part.startsWith("--")) {
-                        continue;
-                    }
-                    const headerEnd = part.indexOf("\r\n\r\n");
-                    const lfHeaderEnd = part.indexOf("\n\n");
-                    let headerBlock = "";
-                    let bodyBlock = "";
-                    if (headerEnd !== -1) {
-                        headerBlock = part.substring(0, headerEnd);
-                        bodyBlock = part.substring(headerEnd + 4);
-                        if (bodyBlock.endsWith("\r\n")) {
-                            bodyBlock = bodyBlock.substring(0, bodyBlock.length - 2);
-                        }
-                    } else if (lfHeaderEnd !== -1) {
-                        headerBlock = part.substring(0, lfHeaderEnd);
-                        bodyBlock = part.substring(lfHeaderEnd + 2);
-                        if (bodyBlock.endsWith("\n")) {
-                            bodyBlock = bodyBlock.substring(0, bodyBlock.length - 1);
-                        }
-                    } else {
-                        continue;
-                    }
-                    let name = "";
-                    let filename = "";
-                    let partContentType = "text/plain";
-                    const lines = headerBlock.split("\n");
-                    for (let j = 0; j < lines.length; j++) {
-                        const line = lines[j].trim();
-                        const lower = line.toLowerCase();
-                        if (lower.startsWith("content-disposition:")) {
-                            const nameMatch = line.indexOf("name=\"");
-                            if (nameMatch !== -1) {
-                                const endQuote = line.indexOf("\"", nameMatch + 6);
-                                if (endQuote !== -1) {
-                                    name = line.substring(nameMatch + 6, endQuote);
-                                }
-                            }
-                            const fnMatch = line.indexOf("filename=\"");
-                            if (fnMatch !== -1) {
-                                const fnEnd = line.indexOf("\"", fnMatch + 10);
-                                if (fnEnd !== -1) {
-                                    filename = line.substring(fnMatch + 10, fnEnd);
-                                }
-                            }
-                        } else if (lower.startsWith("content-type:")) {
-                            partContentType = line.substring(13).trim();
-                        }
-                    }
-                    if (name.length > 0) {
-                        if (filename.length > 0) {
-                            fd.append(name, new File([bodyBlock], filename, { type: partContentType }));
-                        } else {
-                            fd.append(name, bodyBlock);
-                        }
-                    }
-                }
-            }
-            return fd;
-        }
-
-        if (this._body.length > 0) {
-            const pairs = this._body.split("&");
-            for (let i = 0; i < pairs.length; i++) {
-                const pair = pairs[i];
-                if (pair.length === 0) continue;
-                const eq = pair.indexOf("=");
-                if (eq !== -1) {
-                    const rawKey = pair.substring(0, eq).replaceAll("+", " ");
-                    const rawVal = pair.substring(eq + 1).replaceAll("+", " ");
-                    try {
-                        fd.append(decodeURIComponent(rawKey), decodeURIComponent(rawVal));
-                    } catch (e) {
-                        fd.append(rawKey, rawVal);
-                    }
-                } else {
-                    const rawKey = pair.replaceAll("+", " ");
-                    try {
-                        fd.append(decodeURIComponent(rawKey), "");
-                    } catch (e) {
-                        fd.append(rawKey, "");
-                    }
-                }
-            }
-        }
-        return fd;
+        return new Blob([this._body], { type: ct });
     }
 
-    static json(data: string, init: ResponseInit = defaultResponseInit): Response {
+    async bytes(): Promise<Uint8Array> {
+        const ab = await this.arrayBuffer();
+        return new Uint8Array(ab);
+    }
+
+    async formData(): Promise<FormData> {
+        return parseFormDataFromBody(this._body, this.headers);
+    }
+
+    clone(): Response {
+        const init: ResponseInit = {
+            status: this.status,
+            statusText: this.statusText,
+            headers: new Headers(this.headers)
+        };
+        const cloned = new Response(this._body, init);
+        cloned.url = this.url;
+        return cloned;
+    }
+
+    static json(data: unknown, init: ResponseInit = defaultResponseInit): Response {
         let headers = new Headers();
         if (init.headers instanceof Headers) {
             headers = new Headers(init.headers as Headers);
+        } else if (init.headers !== null && init.headers !== undefined) {
+            headers = new Headers(init.headers as any);
         }
         if (!headers.has("content-type")) {
             headers.set("content-type", "application/json");
@@ -372,7 +529,8 @@ export class Response {
             statusText: st,
             headers: headers
         };
-        return new Response(data, respInit);
+        const bodyStr = typeof data === "string" ? data : JSON.stringify(data);
+        return new Response(bodyStr, respInit);
     }
 
     static error(): Response {
@@ -415,45 +573,29 @@ declare namespace __scriptgo {
 }
 
 export async function fetch(input: unknown, init: RequestInit = defaultRequestInit): Promise<Response> {
-    let url = "";
-    let method = "GET";
-    let body = "";
-    let headers: Headers = new Headers();
-    if (typeof input === "string") {
-        url = input;
-    } else if (input instanceof Request) {
-        url = input.url;
-        method = input.method;
-        body = input.body;
-        headers = input.headers;
-    }
-    if (init.method !== undefined && init.method.length > 0) {
-        method = init.method;
-    }
-    if (init.body !== undefined && init.body !== null && init.body.length > 0) {
-        body = init.body;
-    }
-    if (init.headers instanceof Headers) {
-        headers = init.headers as Headers;
-    }
+    const req = (input instanceof Request && init === defaultRequestInit)
+        ? (input as Request)
+        : new Request(input, init);
+
     const flatHeaders: string[] = [];
-    for (let i = 0; i < headers._keys.length; i++) {
-        flatHeaders.push(headers._keys[i]);
-        flatHeaders.push(headers._values[i]);
+    for (let i = 0; i < req.headers._keys.length; i++) {
+        flatHeaders.push(req.headers._keys[i]);
+        flatHeaders.push(req.headers._values[i]);
     }
-    const raw = __scriptgo.fetchSync(url, method, flatHeaders, body);
+    const raw = __scriptgo.fetchSync(req.url, req.method, flatHeaders, req.body);
     const respHeaders = new Headers();
     for (let i = 0; i < raw.headers.length; i += 2) {
         if (i + 1 < raw.headers.length) {
             respHeaders.append(raw.headers[i], raw.headers[i + 1]);
         }
     }
-    const respInit: ResponseInit = {
+    const resp = new Response(raw.body, {
         status: raw.status,
         statusText: raw.statusText,
         headers: respHeaders
-    };
-    return new Response(raw.body, respInit);
+    });
+    resp.url = req.url;
+    return resp;
 }
 
 export const METHODS: string[] = [
