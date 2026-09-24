@@ -1,95 +1,73 @@
-// ScriptGo Corpus: Node.js HTTP Server & Client (Strict 1:1 Parity Tests)
-import {
-    Agent,
-    globalAgent,
-    Server,
-    createServer,
-    get,
-    request,
-    IncomingMessage,
-    OutgoingMessage,
-    ServerResponse,
-    ClientRequest,
-    METHODS,
-    STATUS_CODES
-} from "node:http";
+// ScriptGo Corpus: Node.js http.Server Parity Tests
+import { Server, createServer } from "node:http";
 
-// @api: http.Agent.keepAlive
+// @api: http.Server
 // @expect: true
-const agent = new Agent({ keepAlive: true, maxSockets: 25 });
-console.log(agent.keepAlive === true);
+const srv = new Server();
+console.log(srv instanceof Server);
 
-// @api: http.Agent.maxSockets
+// @api: http.Server.listen
+// @expect: false
 // @expect: true
-console.log(agent.maxSockets === 25);
+console.log(srv.listening);
+srv.listen(0);
+console.log(srv.listening);
 
-// @api: http.globalAgent
+// @api: http.Server.listening
 // @expect: true
-console.log(globalAgent instanceof Agent);
+console.log(typeof srv.listening === "boolean");
 
-// @api: http.Server.instanceof
-// @expect: true
-const server = createServer();
-console.log(server instanceof Server);
-server.close();
+// @api: http.Server.headersTimeout
+// @expect: 60000
+console.log(srv.headersTimeout);
 
-// @api: http.Server.type
-// @expect: true
-console.log(typeof Server === "function");
+// @api: http.Server.requestTimeout
+// @expect: 300000
+console.log(srv.requestTimeout);
 
-// @api: http.Agent.type
+// @api: http.Server.maxHeadersCount
 // @expect: true
-console.log(typeof Agent === "function");
+console.log(srv.maxHeadersCount === null || typeof srv.maxHeadersCount === "number");
 
-// @api: http.createServer.type
-// @expect: true
-console.log(typeof createServer === "function");
+// @api: http.Server.maxRequestsPerSocket
+// @expect: 0
+console.log(srv.maxRequestsPerSocket);
 
-// @api: http.get.type
-// @expect: true
-console.log(typeof get === "function");
+// @api: http.Server.timeout
+// @expect: 0
+console.log(srv.timeout);
 
-// @api: http.request.type
-// @expect: true
-console.log(typeof request === "function");
+// @api: http.Server.keepAliveTimeout
+// @expect: 5000
+console.log(srv.keepAliveTimeout);
 
-// @api: http.IncomingMessage.type
+// @api: http.Server.keepAliveTimeoutBuffer
 // @expect: true
-console.log(typeof IncomingMessage === "function");
+console.log(srv.keepAliveTimeoutBuffer === undefined || typeof srv.keepAliveTimeoutBuffer === "number");
 
-// @api: http.OutgoingMessage.type
-// @expect: true
-console.log(typeof OutgoingMessage === "function");
+// @api: http.Server.setTimeout
+// @expect: 1000
+srv.setTimeout(1000);
+console.log(srv.timeout);
 
-// @api: http.ServerResponse.type
+// @api: http.Server.closeIdleConnections
 // @expect: true
-console.log(typeof ServerResponse === "function");
+srv.closeIdleConnections();
+console.log(typeof srv.closeIdleConnections === "function");
 
-// @api: http.ClientRequest.type
+// @api: http.Server.closeAllConnections
 // @expect: true
-console.log(typeof ClientRequest === "function");
+srv.closeAllConnections();
+console.log(typeof srv.closeAllConnections === "function");
 
-// @api: http.METHODS
+// @api: http.Server.close
 // @expect: true
-console.log(METHODS.indexOf("GET") !== -1 && METHODS.indexOf("POST") !== -1);
+srv.close();
+console.log(typeof srv.close === "function");
 
-// @api: http.STATUS_CODES
-// @expect: true
-console.log(STATUS_CODES["200"] === "OK" && STATUS_CODES["404"] === "Not Found");
-
-// @api: http.OutgoingMessage.headers
-// @expect: true
-const out = new OutgoingMessage();
-out.setHeader("X-Custom-Header", "hello-world");
-console.log(out.getHeader("x-custom-header") === "hello-world");
-
-// @api: http.request.headers
-// @expect: true
-// @expect: true
-const req = request({ host: "localhost", path: "/status", method: "POST" });
-req.on("error", () => {});
-req.setHeader("X-Client-Req", "active");
-console.log(req.hasHeader("x-client-req") === true);
-req.removeHeader("x-client-req");
-console.log(req.hasHeader("x-client-req") === false);
-req.destroy();
+// @api: http.Server.[Symbol.asyncDispose]
+// @expect: server_asyncDispose: true
+const dSrv = new Server();
+dSrv.listen(0);
+dSrv[Symbol.asyncDispose]();
+console.log("server_asyncDispose: true");

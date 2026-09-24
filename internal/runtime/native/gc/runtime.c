@@ -322,6 +322,7 @@ typedef struct {
     void *env;
     void *invoke_ptr;
     int32_t return_tag;
+    void *properties;
 } gc_closure_layout;
 
 // Weak references hooks
@@ -492,6 +493,10 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             gc_closure_layout *c = (gc_closure_layout *)node->ptr;
             if (c != NULL && is_possible_heap_ptr(c->env)) {
                 gc_node *child = find_node(c->env);
+                GC_PUSH(child);
+            }
+            if (c != NULL && is_possible_heap_ptr(c->properties)) {
+                gc_node *child = find_node(c->properties);
                 GC_PUSH(child);
             }
         } else if (node->header.type_tag == SCRIPTGO_TYPE_CLOSURE_ENV) {

@@ -359,6 +359,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_string_from_bigint(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_bigint_locale(i64, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_error_to_string(ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_error_capture_stack(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_from_bool(i32, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_slice(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_string_trim(ptr, ptr)\n")
@@ -473,6 +474,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_net_socket_write(double, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_socket_read(double, double, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_socket_close(double)\n")
+	out.WriteString("declare i32 @scriptgo_net_socket_set_nodelay(double, double)\n")
+	out.WriteString("declare i32 @scriptgo_net_socket_set_keepalive(double, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_net_server_listen(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_server_accept(double, ptr, ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_dgram_socket_create(double, ptr)\n")
@@ -935,7 +938,17 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_os_tmpdir(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_os_uptime(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_os_totalmem(ptr)\n")
-	out.WriteString("declare i32 @scriptgo_os_freemem(ptr)\n\n")
+	out.WriteString("declare i32 @scriptgo_os_freemem(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_available_parallelism(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_hostname(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_loadavg(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_cpus(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_network_interfaces(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_user_info(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_machine(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_version(ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_get_priority(double, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_os_set_priority(double, double)\n\n")
 	out.WriteString("declare i32 @scriptgo_process_pid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_ppid(ptr)\n")
 	out.WriteString("declare i32 @scriptgo_process_version(ptr)\n\n")
@@ -1164,7 +1177,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	name := function.Name
 	var out strings.Builder
 	if name == "main" {
-		out.WriteString("define i32 @main(i32 %argc, ptr %argv) nounwind")
+		out.WriteString("define i32 @main(i32 %argc, ptr %argv) nounwind \"frame-pointer\"=\"all\"")
 	} else {
 		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
 		parameterIndex := 0
@@ -1181,9 +1194,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 			parameterIndex++
 		}
 		if strings.HasSuffix(name, "_constructor") && len(function.Body) <= 15 {
-			out.WriteString(") alwaysinline nounwind")
+			out.WriteString(") alwaysinline nounwind \"frame-pointer\"=\"all\"")
 		} else {
-			out.WriteString(") nounwind")
+			out.WriteString(") nounwind \"frame-pointer\"=\"all\"")
 		}
 	}
 	if debug != nil {

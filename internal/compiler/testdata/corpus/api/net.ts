@@ -82,6 +82,12 @@ console.log(sock.pending);
 sock.setTimeout(5000);
 console.log(sock.timeout);
 console.log(sock.autoSelectFamilyAttemptedAddresses !== undefined ? sock.autoSelectFamilyAttemptedAddresses.length : 0);
+// @api: socket.setNoDelay
+// @api: socket.setKeepAlive
+// @expect: true
+// @expect: true
+console.log(sock.setNoDelay(true) === sock);
+console.log(sock.setKeepAlive(true, 1000) === sock);
 sock.destroy();
 
 // Server state is observed only after the listening callback, matching Node's

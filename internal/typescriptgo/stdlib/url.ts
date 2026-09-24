@@ -1,3 +1,7 @@
+import { toASCII, toUnicode } from "node:punycode";
+import { Buffer, registerBlobObjectURL, revokeBlobObjectURL, resolveObjectURL } from "node:buffer";
+
+
 class URLSearchParamEntry {
     name: string;
     value: string;
@@ -492,6 +496,14 @@ export class URL {
         }
         return null;
     }
+
+    static createObjectURL(blob: Blob): string {
+        return registerBlobObjectURL(blob);
+    }
+
+    static revokeObjectURL(url: string): void {
+        revokeBlobObjectURL(url);
+    }
 }
 
 export class Url {
@@ -504,7 +516,7 @@ export class Url {
     pathname: string = "";
     port: string = "";
     protocol: string = "";
-    query: string = "";
+    query: string | Record<string, string> = "";
     search: string = "";
     slashes: boolean = false;
 }
@@ -523,7 +535,30 @@ export function parse(urlString: string, parseQueryString: boolean = false, slas
     u.path = urlObj.search.length > 0 ? urlObj.pathname + urlObj.search : urlObj.pathname;
     u.auth = urlObj.username.length > 0 ? (urlObj.password.length > 0 ? urlObj.username + ":" + urlObj.password : urlObj.username) : "";
     u.slashes = urlString.indexOf("//") >= 0;
-    u.query = u.search.indexOf("?") === 0 ? u.search.slice(1, u.search.length) : u.search;
+    const rawQuery = u.search.indexOf("?") === 0 ? u.search.slice(1, u.search.length) : u.search;
+    if (parseQueryString) {
+        const queryObj: Record<string, string> = {};
+        if (rawQuery.length > 0) {
+            const pairs = rawQuery.split("&");
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                if (pair.length > 0) {
+                    const eqIdx = pair.indexOf("=");
+                    if (eqIdx >= 0) {
+                        const k = decodeURIComponent(pair.slice(0, eqIdx).replace(/\+/g, " "));
+                        const v = decodeURIComponent(pair.slice(eqIdx + 1).replace(/\+/g, " "));
+                        queryObj[k] = v;
+                    } else {
+                        const k = decodeURIComponent(pair.replace(/\+/g, " "));
+                        queryObj[k] = "";
+                    }
+                }
+            }
+        }
+        u.query = queryObj;
+    } else {
+        u.query = rawQuery;
+    }
     return u;
 }
 
@@ -592,6 +627,41 @@ export function urlToHttpOptions(url: URL): HttpOptionsResult {
     };
 }
 
+export function domainToASCII(domain: string): string {
+    if (typeof domain !== "string" || domain.length === 0) {
+        return "";
+    }
+    return toASCII(domain);
+}
+
+export function domainToUnicode(domain: string): string {
+    if (typeof domain !== "string" || domain.length === 0) {
+        return "";
+    }
+    return toUnicode(domain);
+}
+
+export function fileURLToPathBuffer(url: string | URL, options?: { windows?: boolean }): Buffer {
+    const p = fileURLToPath(typeof url === "string" ? url : url.href);
+    return Buffer.from(p);
+}
+
+export default {
+    URL,
+    URLSearchParams,
+    Url,
+    domainToASCII,
+    domainToUnicode,
+    fileURLToPath,
+    fileURLToPathBuffer,
+    format,
+    parse,
+    pathToFileURL,
+    resolve,
+    urlToHttpOptions,
+    URLPattern
+};
+
 export {
     URLPattern,
     URLPatternInput,
@@ -599,4 +669,5 @@ export {
     URLPatternComponentResult,
     URLPatternOptions
 } from "node:urlpattern";
+
 

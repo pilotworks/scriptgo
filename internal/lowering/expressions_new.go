@@ -461,7 +461,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeSet, nil
 	}
 
-	if className == "TextEncoder" {
+	if className == "TextEncoder" || strings.HasSuffix(className, ".TextEncoder") {
 		if result == "" {
 			result = nextTemp(counter)
 		}
@@ -475,7 +475,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeTextEncoder, nil
 	}
 
-	if className == "TextDecoder" {
+	if className == "TextDecoder" || strings.HasSuffix(className, ".TextDecoder") {
 		if result == "" {
 			result = nextTemp(counter)
 		}
@@ -614,7 +614,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		stackVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: publicName + ": " + path, Span: toIRSpan(path, expression.Span),
+			Op: ir.OpCall, Type: ir.TypeString, Callee: "__error.captureStack", Result: stackVal, Args: []string{nameVal, msgVal}, Span: toIRSpan(path, expression.Span),
 		})
 		causeVal := nextTemp(counter)
 		causeFound := false

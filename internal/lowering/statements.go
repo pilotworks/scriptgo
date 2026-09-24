@@ -1116,6 +1116,28 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			}
 		}
 		if !ok {
+			if className == "closure" || strings.HasPrefix(className, "__closure_") || className == "object" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || objType == ir.TypeObject || objType == ir.TypeUnknown {
+				propNameConst := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpConst,
+					Type:   ir.TypeString,
+					Result: propNameConst,
+					Value:  statement.Name,
+					Span:   toIRSpan(path, statement.Span),
+				})
+				val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return err
+				}
+				function.Body = append(function.Body, ir.Instruction{
+					Op:     ir.OpCall,
+					Type:   ir.TypeVoid,
+					Callee: "__object.set_prop",
+					Args:   []string{objVal, propNameConst, val},
+					Span:   toIRSpan(path, statement.Span),
+				})
+				return nil
+			}
 			return fmt.Errorf("field set on unknown object shape %q", className)
 		}
 		fIndex := fieldIndex(shape, statement.Name)

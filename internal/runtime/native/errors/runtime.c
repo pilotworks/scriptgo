@@ -21,6 +21,10 @@ typedef int jmp_buf[16];
 #define longjmp(env, val) abort()
 #else
 #include <setjmp.h>
+#if !defined(_WIN32)
+#include <execinfo.h>
+#include <dlfcn.h>
+#endif
 #endif
 #include <math.h>
 
@@ -471,4 +475,45 @@ void scriptgo_exception_rethrow(scriptgo_exception_frame_t *frame) {
 void scriptgo_debugger_break(const char *file, int line) {
     (void)file;
     (void)line;
+}
+
+int scriptgo_error_capture_stack(const char *name, const char *msg, char **out_stack) {
+    if (out_stack == NULL) return -1;
+    const char *err_name = (name != NULL && strlen(name) > 0) ? name : "Error";
+    const char *err_msg = (msg != NULL) ? msg : "";
+
+    size_t cap = 4096;
+    char *res = malloc(cap);
+    if (res == NULL) return -1;
+    res[0] = '\0';
+    if (strlen(err_msg) > 0) {
+        snprintf(res, cap, "%s: %s\n", err_name, err_msg);
+    } else {
+        snprintf(res, cap, "%s\n", err_name);
+    }
+
+#if !defined(__wasi__) && !defined(_WIN32)
+    void *buffer[32];
+    int n = backtrace(buffer, 32);
+    for (int i = 1; i < n; i++) {
+        Dl_info info;
+        char frame[256];
+        if (dladdr(buffer[i], &info) && info.dli_sname) {
+            const char *sname = info.dli_sname;
+#ifdef __APPLE__
+            if (sname[0] == '_') sname++;
+#endif
+            snprintf(frame, sizeof(frame), "    at %s (%s:1:1)\n", sname, info.dli_fname ? info.dli_fname : "unknown");
+        } else {
+            snprintf(frame, sizeof(frame), "    at anonymous (unknown:1:1)\n");
+        }
+        size_t cur_len = strlen(res);
+        if (cur_len + strlen(frame) + 1 < cap) {
+            strcat(res, frame);
+        }
+    }
+#endif
+
+    *out_stack = res;
+    return 0;
 }

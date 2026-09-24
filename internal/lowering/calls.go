@@ -1274,18 +1274,20 @@ func lowerCallExpression(
 			value = boxed
 		}
 		if pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeClosure && valType != ir.TypeClosure {
-			if sig, isSig := signatures[value]; isSig {
-				closureSlot := nextTemp(counter)
-				calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpClosure,
-					Type:   ir.TypeClosure,
-					Result: closureSlot,
-					Callee: calleeName,
-					Args:   nil,
-					Span:   toIRSpan(path, argument.Span),
-				})
-				value = closureSlot
+			if !strings.HasPrefix(value, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
+				if sig, isSig := signatures[value]; isSig {
+					closureSlot := nextTemp(counter)
+					calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+					function.Body = append(function.Body, ir.Instruction{
+						Op:     ir.OpClosure,
+						Type:   ir.TypeClosure,
+						Result: closureSlot,
+						Callee: calleeName,
+						Args:   nil,
+						Span:   toIRSpan(path, argument.Span),
+					})
+					value = closureSlot
+				}
 			}
 		}
 		if pIdx < len(target.Parameters) && isPointerLikeType(target.Parameters[pIdx].Type) && (argument.Kind == "null" || argument.Kind == "undefined") {
@@ -1359,6 +1361,21 @@ func lowerCallExpression(
 						})
 						args = append(args, boolConst)
 						continue
+					} else if isPointerLikeType(target.Parameters[i].Type) && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
+						valStr := "null"
+						if initExpr.Kind == "undefined" {
+							valStr = "undefined"
+						}
+						nullConst := nextTemp(counter)
+						function.Body = append(function.Body, ir.Instruction{
+							Op:     ir.OpConst,
+							Type:   target.Parameters[i].Type,
+							Result: nullConst,
+							Value:  valStr,
+							Span:   toIRSpan(path, initExpr.Span),
+						})
+						args = append(args, nullConst)
+						continue
 					}
 					val, valType, err := lowerExpression(path, initExpr, "", function, env, counter, shapes, signatures)
 					if err != nil {
@@ -1377,18 +1394,20 @@ func lowerCallExpression(
 						val = boxed
 					}
 					if i < len(target.Parameters) && target.Parameters[i].Type == ir.TypeClosure && valType != ir.TypeClosure {
-						if sig, isSig := signatures[val]; isSig {
-							closureSlot := nextTemp(counter)
-							calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpClosure,
-								Type:   ir.TypeClosure,
-								Result: closureSlot,
-								Callee: calleeName,
-								Args:   nil,
-								Span:   toIRSpan(path, initExpr.Span),
-							})
-							val = closureSlot
+						if !strings.HasPrefix(val, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
+							if sig, isSig := signatures[val]; isSig {
+								closureSlot := nextTemp(counter)
+								calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+								function.Body = append(function.Body, ir.Instruction{
+									Op:     ir.OpClosure,
+									Type:   ir.TypeClosure,
+									Result: closureSlot,
+									Callee: calleeName,
+									Args:   nil,
+									Span:   toIRSpan(path, initExpr.Span),
+								})
+								val = closureSlot
+							}
 						}
 					}
 					pName := target.Parameters[i].Name

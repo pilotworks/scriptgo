@@ -828,6 +828,8 @@ interface URLConstructor {
     new(url: string, base?: string | URL): URL;
     readonly prototype: URL;
     canParse(url: string, base?: string | URL): boolean;
+    createObjectURL(blob: Blob): string;
+    revokeObjectURL(url: string): void;
 }
 
 declare var URL: URLConstructor;

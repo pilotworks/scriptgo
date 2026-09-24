@@ -1053,6 +1053,36 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
     return 0;
 }
 
+#define SCRIPTGO_CLOSURE_GC_TAG 3
+
+typedef struct {
+    void *fn_ptr;
+    void *env;
+    void *invoke_ptr;
+    int32_t return_tag;
+    void *properties;
+} scriptgo_closure_handle;
+
+extern int scriptgo_gc_get_tag(void *ptr);
+
+static void *resolve_object_handle(void *handle, int for_set) {
+    if (is_invalid_object_handle(handle)) return NULL;
+    if (((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
+        return handle;
+    }
+    if (scriptgo_gc_get_tag(handle) == SCRIPTGO_CLOSURE_GC_TAG) {
+        scriptgo_closure_handle *c = (scriptgo_closure_handle *)handle;
+        if (c->properties == NULL) {
+            if (!for_set) return NULL;
+            if (scriptgo_object_new_typed(0, "__shape_empty", &c->properties) != 0) {
+                return NULL;
+            }
+        }
+        return c->properties;
+    }
+    return NULL;
+}
+
 int scriptgo_object_property_unknown_get(void *handle, const char *property,
                                          scriptgo_value *out_value) {
     int index;
@@ -1060,8 +1090,8 @@ int scriptgo_object_property_unknown_get(void *handle, const char *property,
         return object_fail("scriptgo object property output is invalid");
     }
     scriptgo_value_init_undefined(out_value);
-    if (is_invalid_object_handle(handle) || property == NULL) return 0;
-    if (((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    handle = resolve_object_handle(handle, 0);
+    if (handle == NULL || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     if (index < 0) return 0;
     return scriptgo_object_unknown_get(handle, index, out_value);
@@ -1119,6 +1149,7 @@ int scriptgo_object_property_number_get(void *handle, const char *property, doub
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property number output is invalid");
     *out_value = NAN;
+    handle = resolve_object_handle(handle, 0);
 	if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_number_get(handle, index, out_value);
@@ -1128,6 +1159,7 @@ int scriptgo_object_property_string_get(void *handle, const char *property, cons
     scriptgo_value value;
     if (out_value == NULL) return object_fail("scriptgo object property string output is invalid");
     *out_value = &scriptgo_undefined_sentinel;
+    handle = resolve_object_handle(handle, 0);
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     if (scriptgo_object_property_unknown_get(handle, property, &value) != 0) return -1;
     if (value.tag == SCRIPTGO_TAG_STRING) {
@@ -1139,6 +1171,7 @@ int scriptgo_object_property_string_get(void *handle, const char *property, cons
 }
 
 int scriptgo_object_property_string_set(void *handle, const char *property, const char *value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property string set failed") : scriptgo_object_string_set(handle, index, value);
 }
@@ -1147,6 +1180,7 @@ int scriptgo_object_property_bool_get(void *handle, const char *property, int32_
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property bool output is invalid");
     *out_value = 0;
+    handle = resolve_object_handle(handle, 0);
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_bool_get(handle, index, out_value);
@@ -1156,6 +1190,7 @@ int scriptgo_object_property_bigint_get(void *handle, const char *property, int6
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property bigint output is invalid");
     *out_value = 0;
+    handle = resolve_object_handle(handle, 0);
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_bigint_get(handle, index, out_value);
@@ -1165,33 +1200,39 @@ int scriptgo_object_property_ptr_get(void *handle, const char *property, void **
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property pointer output is invalid");
     *out_value = (void *)&scriptgo_undefined_sentinel;
+    handle = resolve_object_handle(handle, 0);
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_ptr_get(handle, index, out_value);
 }
 
 int scriptgo_object_property_number_set(void *handle, const char *property, double value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property number set failed") : scriptgo_object_number_set(handle, index, value);
 }
 
 int scriptgo_object_property_bool_set(void *handle, const char *property, int32_t value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property bool set failed") : scriptgo_object_bool_set(handle, index, value);
 }
 
 int scriptgo_object_property_bigint_set(void *handle, const char *property, int64_t value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property bigint set failed") : scriptgo_object_bigint_set(handle, index, value);
 }
 
 int scriptgo_object_property_ptr_set(void *handle, const char *property, void *value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property pointer set failed") : scriptgo_object_ptr_set(handle, index, value);
 }
 
 int scriptgo_object_property_unknown_set(void *handle, const char *property,
                                          const scriptgo_value *value) {
+    handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property set failed") : scriptgo_object_unknown_set(handle, index, value);
 }
@@ -1432,6 +1473,14 @@ static int object_key_storage_size(const scriptgo_object *object, size_t *out_si
 }
 
 int scriptgo_object_keys(void *handle, void **out_array) {
+    if (out_array == NULL || is_invalid_object_handle(handle)) {
+        return object_fail("scriptgo object keys arguments are invalid");
+    }
+    handle = resolve_object_handle(handle, 0);
+    if (handle == NULL) {
+        if (scriptgo_array_new(0, (int64_t)sizeof(char *), out_array) != 0) return -1;
+        return scriptgo_array_set_tag(*out_array, SCRIPTGO_OBJECT_TAG_STRING);
+    }
     scriptgo_object *object = (scriptgo_object *)handle;
     int count;
     int index = 0;
@@ -1439,7 +1488,7 @@ int scriptgo_object_keys(void *handle, void **out_array) {
     size_t storage_offset = 0;
     char *storage = NULL;
 
-    if (out_array == NULL || is_invalid_object_handle(handle) || object->magic != SCRIPTGO_OBJECT_MAGIC) {
+    if (object->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object keys arguments are invalid");
     }
     count = object_key_count(object);

@@ -56,3 +56,41 @@ console.log(os.devNull === "/dev/null" || os.devNull === "\\\\.\\nul");
 // @api: os.constants
 // @expect: true
 console.log(os.constants.signals.SIGINT === 2);
+
+// @api: os.availableParallelism
+// @expect: true
+console.log(os.availableParallelism() >= 1);
+
+// @api: os.endianness
+// @expect: true
+console.log(os.endianness() === "BE" || os.endianness() === "LE");
+
+// @api: os.hostname
+// @expect: true
+console.log(os.hostname().length > 0);
+
+// @api: os.loadavg
+// @expect: true
+console.log(Array.isArray(os.loadavg()) && os.loadavg().length === 3);
+
+// @api: os.cpus
+// @expect: true
+console.log(Array.isArray(os.cpus()) && os.cpus().length >= 1 && os.cpus()[0].model.length > 0);
+
+// @api: os.networkInterfaces
+// @expect: true
+console.log(typeof os.networkInterfaces() === "object" && os.networkInterfaces() !== null);
+
+// @api: os.userInfo
+// @expect: true
+console.log(os.userInfo().username.length > 0);
+
+// @api: os.getPriority
+// @expect: true
+console.log(typeof os.getPriority() === "number");
+
+// @api: os.setPriority
+// @expect: true
+const currentPrio = os.getPriority();
+os.setPriority(currentPrio);
+console.log(true);

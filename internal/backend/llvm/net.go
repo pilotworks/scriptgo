@@ -90,6 +90,30 @@ func (e *functionEmitter) emitNetIntrinsic(out *strings.Builder, instruction ir.
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 
+	case "__net.socketSetNoDelay":
+		// Args: [fd: number, no_delay: number] -> void
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("net.socketSetNoDelay requires 2 arguments")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_net_socket_set_nodelay(double %%%s, double %%%s)\n",
+			status, resolvedArgs[0], resolvedArgs[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
+	case "__net.socketSetKeepAlive":
+		// Args: [fd: number, enable: number, initial_delay: number] -> void
+		if len(instruction.Args) < 3 {
+			return fmt.Errorf("net.socketSetKeepAlive requires 3 arguments")
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_net_socket_set_keepalive(double %%%s, double %%%s, double %%%s)\n",
+			status, resolvedArgs[0], resolvedArgs[1], resolvedArgs[2])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
+
 	case "__net.serverListen":
 		// Args: [host: string, port: number, backlog: number] -> server_fd: number
 		if len(instruction.Args) < 3 {

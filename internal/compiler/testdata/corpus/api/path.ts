@@ -61,3 +61,10 @@ console.log(path.posix.sep === "/");
 // @api: path.win32
 // @expect: true
 console.log(path.win32.sep === "\\");
+
+// @api: path.matchesGlob
+// @expect: true
+// @expect: false
+console.log(path.matchesGlob("/foo/bar", "/foo/*"));
+console.log(path.matchesGlob("/foo/bar/baz", "/foo/*"));
+

@@ -11,20 +11,21 @@ export class StreamLike extends EventEmitter {
     isTTY: boolean = false;
     _hasKeypressEvents: boolean = false;
 
-    write(data: string): boolean {
+    write(data: string, callback?: () => void): boolean {
+        if (callback) callback();
         return true;
     }
     clearLine(dir: number, callback?: () => void): boolean {
-        return true;
+        return clearLine(this, dir, callback);
     }
     clearScreenDown(callback?: () => void): boolean {
-        return true;
+        return clearScreenDown(this, callback);
     }
     cursorTo(x: number, y?: number, callback?: () => void): boolean {
-        return true;
+        return cursorTo(this, x, y, callback);
     }
     moveCursor(dx: number, dy: number, callback?: () => void): boolean {
-        return true;
+        return moveCursor(this, dx, dy, callback);
     }
 }
 
@@ -262,32 +263,57 @@ export function createInterface(
 }
 
 export function clearLine(stream: EventEmitter | null | undefined, dir: number, callback?: () => void): boolean {
-    if (stream && stream instanceof StreamLike) {
-        return stream.clearLine(dir, callback);
+    if (stream && typeof (stream as any).write === "function") {
+        let esc = "\x1b[2K";
+        if (dir < 0) {
+            esc = "\x1b[1K";
+        } else if (dir > 0) {
+            esc = "\x1b[0K";
+        }
+        return (stream as any).write(esc, callback);
     }
     if (callback) callback();
     return true;
 }
 
 export function clearScreenDown(stream: EventEmitter | null | undefined, callback?: () => void): boolean {
-    if (stream && stream instanceof StreamLike) {
-        return stream.clearScreenDown(callback);
+    if (stream && typeof (stream as any).write === "function") {
+        return (stream as any).write("\x1b[0J", callback);
     }
     if (callback) callback();
     return true;
 }
 
 export function cursorTo(stream: EventEmitter | null | undefined, x: number, y?: number, callback?: () => void): boolean {
-    if (stream && stream instanceof StreamLike) {
-        return stream.cursorTo(x, y, callback);
+    if (stream && typeof (stream as any).write === "function") {
+        let esc = "";
+        if (typeof y !== "number") {
+            esc = `\x1b[${x + 1}G`;
+        } else {
+            esc = `\x1b[${y + 1};${x + 1}H`;
+        }
+        return (stream as any).write(esc, callback);
     }
     if (callback) callback();
     return true;
 }
 
 export function moveCursor(stream: EventEmitter | null | undefined, dx: number, dy: number, callback?: () => void): boolean {
-    if (stream && stream instanceof StreamLike) {
-        return stream.moveCursor(dx, dy, callback);
+    if (stream && typeof (stream as any).write === "function") {
+        let esc = "";
+        if (dx < 0) {
+            esc += `\x1b[${-dx}D`;
+        } else if (dx > 0) {
+            esc += `\x1b[${dx}C`;
+        }
+        if (dy < 0) {
+            esc += `\x1b[${-dy}A`;
+        } else if (dy > 0) {
+            esc += `\x1b[${dy}B`;
+        }
+        if (esc.length > 0) {
+            return (stream as any).write(esc, callback);
+        }
     }
     if (callback) callback();
     return true;

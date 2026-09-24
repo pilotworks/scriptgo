@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <signal.h>
 #endif
 #else
 #include <winsock2.h>
@@ -48,6 +49,14 @@ int scriptgo_net_socket_read(double fd_num, double max_len_num, char **out_data,
 }
 
 int scriptgo_net_socket_close(double fd_num) {
+    return 0;
+}
+
+int scriptgo_net_socket_set_nodelay(double fd_num, double no_delay_num) {
+    return 0;
+}
+
+int scriptgo_net_socket_set_keepalive(double fd_num, double enable_num, double initial_delay_num) {
     return 0;
 }
 
@@ -87,6 +96,14 @@ int scriptgo_net_socket_create(double family, double sock_type, double *out_fd) 
     // Set reuseaddr
     int opt = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
+
+#if defined(SO_NOSIGPIPE)
+    int nosigpipe = 1;
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&nosigpipe, sizeof(nosigpipe));
+#endif
+#if defined(SIGPIPE)
+    signal(SIGPIPE, SIG_IGN);
+#endif
 
     *out_fd = (double)fd;
     return 0;
@@ -135,7 +152,11 @@ int scriptgo_net_socket_write(double fd_num, const char *data, double len_num, d
     }
 
     size_t len = (size_t)len_num;
+#if defined(MSG_NOSIGNAL)
+    ssize_t n = send(fd, data, len, MSG_NOSIGNAL);
+#else
     ssize_t n = send(fd, data, len, 0);
+#endif
     if (n < 0) {
         *out_written = 0.0;
         return 0;
@@ -184,6 +205,38 @@ int scriptgo_net_socket_close(double fd_num) {
         closesocket(fd);
 #endif
     }
+    return 0;
+}
+
+int scriptgo_net_socket_set_nodelay(double fd_num, double no_delay_num) {
+    int fd = (int)fd_num;
+    if (fd < 0) return 0;
+    int opt = (no_delay_num != 0.0) ? 1 : 0;
+#if !defined(_WIN32)
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const void *)&opt, sizeof(opt));
+#else
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const char *)&opt, sizeof(opt));
+#endif
+    return 0;
+}
+
+int scriptgo_net_socket_set_keepalive(double fd_num, double enable_num, double initial_delay_num) {
+    int fd = (int)fd_num;
+    if (fd < 0) return 0;
+    int opt = (enable_num != 0.0) ? 1 : 0;
+#if !defined(_WIN32)
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const void *)&opt, sizeof(opt));
+    if (opt && initial_delay_num > 0.0) {
+        int delay = (int)initial_delay_num;
+#if defined(TCP_KEEPIDLE)
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (const void *)&delay, sizeof(delay));
+#elif defined(TCP_KEEPALIVE)
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (const void *)&delay, sizeof(delay));
+#endif
+    }
+#else
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const char *)&opt, sizeof(opt));
+#endif
     return 0;
 }
 

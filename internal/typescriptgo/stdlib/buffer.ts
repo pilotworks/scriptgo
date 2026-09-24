@@ -195,3 +195,26 @@ export function isAscii(input: Buffer | Uint8Array): boolean {
     }
     return true;
 }
+
+const _blobStore = new Map<string, Blob>();
+let _blobStoreCounter = 0;
+
+export function registerBlobObjectURL(blob: Blob): string {
+    if (!blob) {
+        throw new TypeError("Failed to execute 'createObjectURL' on 'URL': parameter 1 is not of type 'Blob'");
+    }
+    _blobStoreCounter++;
+    const id = "blob:nodedata:" + _blobStoreCounter;
+    _blobStore.set(id, blob);
+    return id;
+}
+
+export function revokeBlobObjectURL(id: string): void {
+    _blobStore.delete(id);
+}
+
+export function resolveObjectURL(id: string): Blob | undefined {
+    return _blobStore.get(id);
+}
+
+
