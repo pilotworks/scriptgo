@@ -179,11 +179,61 @@ export class MockPropertyContext {
   }
 }
 
+export interface MockTimerEntry {
+  id: number;
+  fireTime: number;
+  callback: Function;
+  isInterval: boolean;
+  delay: number;
+}
+
 export class MockTimers {
-  enable(options?: { apis?: string[] }): void {}
-  reset(): void {}
-  tick(ms: number): void {}
-  runAll(): void {}
+  private _enabled: boolean = false;
+  private _now: number = 0;
+  private _queue: MockTimerEntry[] = [];
+  private _nextId: number = 1;
+
+  enable(options?: { apis?: string[] }): void {
+    this._enabled = true;
+    this._now = 0;
+    this._queue = [];
+  }
+
+  reset(): void {
+    this._enabled = false;
+    this._now = 0;
+    this._queue = [];
+  }
+
+  tick(ms: number): void {
+    if (!this._enabled) return;
+    this._now += ms;
+    this._queue.sort((a, b) => a.fireTime - b.fireTime);
+    const remaining: MockTimerEntry[] = [];
+    for (const t of this._queue) {
+      if (t.fireTime <= this._now) {
+        t.callback();
+        if (t.isInterval) {
+          t.fireTime += t.delay;
+          remaining.push(t);
+        }
+      } else {
+        remaining.push(t);
+      }
+    }
+    this._queue = remaining;
+  }
+
+  runAll(): void {
+    if (!this._enabled) return;
+    while (this._queue.length > 0) {
+      this._queue.sort((a, b) => a.fireTime - b.fireTime);
+      const t = this._queue.shift();
+      if (!t) break;
+      this._now = t.fireTime;
+      t.callback();
+    }
+  }
 }
 
 export type MockFunction = ((...args: unknown[]) => unknown) & { mock: MockFunctionContext };

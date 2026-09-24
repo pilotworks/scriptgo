@@ -614,7 +614,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		})
 		stackVal := nextTemp(counter)
 		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: stackVal, Value: publicName + ": " + path, Span: toIRSpan(path, expression.Span),
+			Op: ir.OpCall, Type: ir.TypeString, Callee: "__error.captureStack", Result: stackVal, Args: []string{nameVal, msgVal}, Span: toIRSpan(path, expression.Span),
 		})
 		causeVal := nextTemp(counter)
 		causeFound := false

@@ -16,6 +16,8 @@ declare namespace __scriptgo {
     function cpus(): string;
     function networkInterfaces(): string;
     function userInfo(): string;
+    function machine(): string;
+    function version(): string;
     function getPriority(pid: number): number;
     function setPriority(pid: number, priority: number): void;
 }
@@ -87,15 +89,11 @@ export function tmpdir(): string {
 }
 
 export function machine(): string {
-    const a = arch();
-    if (a === "arm64" || a === "aarch64") {
-        return "arm64";
-    }
-    return "x86_64";
+    return __scriptgo.machine();
 }
 
 export function version(): string {
-    return type() + " " + release();
+    return __scriptgo.version();
 }
 
 export function availableParallelism(): number {

@@ -918,6 +918,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.cpus"}, CategoryNodeModule, "__os.cpus", nil, ir.TypeString, 0, 0)
 	register([]string{"__scriptgo.networkInterfaces"}, CategoryNodeModule, "__os.network_interfaces", nil, ir.TypeString, 0, 0)
 	register([]string{"__scriptgo.userInfo"}, CategoryNodeModule, "__os.user_info", nil, ir.TypeString, 0, 0)
+	register([]string{"os.machine", "__scriptgo.machine", "machine"}, CategoryNodeModule, "__os.machine", nil, ir.TypeString, 0, 0)
+	register([]string{"os.version", "__scriptgo.version", "version"}, CategoryNodeModule, "__os.version", nil, ir.TypeString, 0, 0)
 	register([]string{"__scriptgo.getPriority"}, CategoryNodeModule, "__os.get_priority", []ir.Type{ir.TypeNumber}, ir.TypeNumber, 1, 1)
 	register([]string{"__scriptgo.setPriority"}, CategoryNodeModule, "__os.set_priority", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
 	register([]string{"__scriptgo.execSync"}, CategoryNodeModule, "__child_process.execSync", []ir.Type{ir.TypeString, ir.TypeString, ir.TypeString}, ir.TypeString, 1, 3)

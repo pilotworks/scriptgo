@@ -960,7 +960,24 @@ export class OutgoingMessage extends EventEmitter {
         }
     }
 
-    flushHeaders(): void {}
+    flushHeaders(): void {
+        this._implicitHeader();
+        if (this.headersSent) return;
+        this.headersSent = true;
+        if (this.socket && typeof (this.socket as any).write === "function") {
+            let headerStr = "";
+            for (const k of Object.keys(this._headers)) {
+                const name = this._rawHeaderNames[k] || k;
+                headerStr += `${name}: ${this._headers[k]}\r\n`;
+            }
+            headerStr += "\r\n";
+            (this.socket as any).write(headerStr);
+        }
+    }
+
+    _implicitHeader(): void {
+        throw new Error("ERR_METHOD_NOT_IMPLEMENTED: The _implicitHeader() method is not implemented");
+    }
 
     cork(): void {
         this.writableCorked = this.writableCorked + 1;
@@ -1133,6 +1150,12 @@ export class ServerResponse extends OutgoingMessage {
         head += "\r\n";
         if (this.socket) {
             this.socket.write(head);
+        }
+    }
+
+    override flushHeaders(): void {
+        if (!this.headersSent) {
+            this._sendHeaders();
         }
     }
 
@@ -1404,6 +1427,8 @@ export class ClientRequest extends OutgoingMessage {
             this.once("response", callback);
         }
     }
+
+    override _implicitHeader(): void {}
 
     setNoDelay(noDelay: boolean = true): void {
         if (this.socket && typeof (this.socket as any).setNoDelay === "function") {

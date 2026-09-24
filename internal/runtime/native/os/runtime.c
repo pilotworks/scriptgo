@@ -9,10 +9,17 @@
 
 #if !defined(__wasi__)
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#include <net/if_dl.h>
+#elif defined(__linux__)
+#include <netpacket/packet.h>
+#include <net/ethernet.h>
+#endif
 #endif
 
 #if defined(__APPLE__)
@@ -106,6 +113,32 @@ int scriptgo_os_release(char **out_str) {
     struct utsname uts;
     if (uname(&uts) == 0) {
         *out_str = strdup(uts.release);
+    } else {
+        *out_str = strdup("unknown");
+    }
+    return 0;
+}
+
+int scriptgo_os_machine(char **out_str) {
+    if (out_str == NULL) {
+        return os_fail("scriptgo os invalid argument");
+    }
+    struct utsname uts;
+    if (uname(&uts) == 0) {
+        *out_str = strdup(uts.machine);
+    } else {
+        *out_str = strdup("unknown");
+    }
+    return 0;
+}
+
+int scriptgo_os_version(char **out_str) {
+    if (out_str == NULL) {
+        return os_fail("scriptgo os invalid argument");
+    }
+    struct utsname uts;
+    if (uname(&uts) == 0) {
+        *out_str = strdup(uts.version);
     } else {
         *out_str = strdup("unknown");
     }
@@ -349,6 +382,61 @@ int scriptgo_os_cpus(char **out_str) {
     return 0;
 }
 
+#if !defined(__wasi__)
+static void scriptgo_get_mac_for_ifname(struct ifaddrs *ifap, const char *ifname, char *out_mac, size_t out_len) {
+    strncpy(out_mac, "00:00:00:00:00:00", out_len - 1);
+    out_mac[out_len - 1] = '\0';
+    for (struct ifaddrs *ifa = ifap; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_name == NULL || strcmp(ifa->ifa_name, ifname) != 0 || ifa->ifa_addr == NULL) {
+            continue;
+        }
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+        if (ifa->ifa_addr->sa_family == AF_LINK) {
+            struct sockaddr_dl *sdl = (struct sockaddr_dl *)ifa->ifa_addr;
+            if (sdl->sdl_alen == 6) {
+                unsigned char *p = (unsigned char *)LLADDR(sdl);
+                snprintf(out_mac, out_len, "%02x:%02x:%02x:%02x:%02x:%02x",
+                    p[0], p[1], p[2], p[3], p[4], p[5]);
+                return;
+            }
+        }
+#elif defined(__linux__) && defined(AF_PACKET)
+        if (ifa->ifa_addr->sa_family == AF_PACKET) {
+            struct sockaddr_ll *sll = (struct sockaddr_ll *)ifa->ifa_addr;
+            if (sll->sll_halen == 6) {
+                unsigned char *p = sll->sll_addr;
+                snprintf(out_mac, out_len, "%02x:%02x:%02x:%02x:%02x:%02x",
+                    p[0], p[1], p[2], p[3], p[4], p[5]);
+                return;
+            }
+        }
+#endif
+    }
+}
+
+static int scriptgo_count_prefix4(uint32_t netmask_nbo) {
+    uint32_t m = ntohl(netmask_nbo);
+    int p = 0;
+    while (m > 0) {
+        if (m & 1) p++;
+        m >>= 1;
+    }
+    return p;
+}
+
+static int scriptgo_count_prefix6(const uint8_t *bytes) {
+    int p = 0;
+    for (int i = 0; i < 16; i++) {
+        uint8_t b = bytes[i];
+        while (b > 0) {
+            if (b & 1) p++;
+            b >>= 1;
+        }
+    }
+    return p;
+}
+#endif
+
 int scriptgo_os_network_interfaces(char **out_str) {
     if (out_str == NULL) {
         return os_fail("scriptgo os invalid argument");
@@ -393,6 +481,24 @@ int scriptgo_os_network_interfaces(char **out_str) {
         int is_internal = (ifa->ifa_flags & IFF_LOOPBACK) ? 1 : 0;
         const char *fam_str = (family == AF_INET) ? "IPv4" : "IPv6";
 
+        char mac[32] = "00:00:00:00:00:00";
+        scriptgo_get_mac_for_ifname(ifap, ifa->ifa_name, mac, sizeof(mac));
+
+        char cidr[INET6_ADDRSTRLEN + 16] = "";
+        int prefix = 0;
+        if (family == AF_INET) {
+            if (ifa->ifa_netmask) {
+                struct sockaddr_in *smask = (struct sockaddr_in *)ifa->ifa_netmask;
+                prefix = scriptgo_count_prefix4(smask->sin_addr.s_addr);
+            }
+        } else {
+            if (ifa->ifa_netmask) {
+                struct sockaddr_in6 *smask = (struct sockaddr_in6 *)ifa->ifa_netmask;
+                prefix = scriptgo_count_prefix6(smask->sin6_addr.s6_addr);
+            }
+        }
+        snprintf(cidr, sizeof(cidr), "%s/%d", ip, prefix);
+
         if (strcmp(last_ifname, ifa->ifa_name) != 0) {
             if (last_ifname[0] != '\0') {
                 buf[offset++] = ']';
@@ -415,8 +521,8 @@ int scriptgo_os_network_interfaces(char **out_str) {
             buf = next;
         }
         int entry = snprintf(buf + offset, cap - offset,
-            "{\"address\":\"%s\",\"netmask\":\"%s\",\"family\":\"%s\",\"mac\":\"00:00:00:00:00:00\",\"internal\":%s,\"cidr\":\"%s/24\"}",
-            ip, mask, fam_str, is_internal ? "true" : "false", ip);
+            "{\"address\":\"%s\",\"netmask\":\"%s\",\"family\":\"%s\",\"mac\":\"%s\",\"internal\":%s,\"cidr\":\"%s\"}",
+            ip, mask, fam_str, mac, is_internal ? "true" : "false", cidr);
         offset += (size_t)entry;
     }
     if (last_ifname[0] != '\0') {

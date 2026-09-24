@@ -242,10 +242,6 @@ console.log(true);
 
 // @api: url.fileURLToPathBuffer
 // @expect: /path/to/file.txt
-if (typeof url.fileURLToPathBuffer !== "undefined") {
-    console.log(url.fileURLToPathBuffer("file:///path/to/file.txt").toString());
-} else {
-    console.log("/path/to/file.txt");
-}
+console.log(url.fileURLToPathBuffer("file:///path/to/file.txt").toString());
 
 

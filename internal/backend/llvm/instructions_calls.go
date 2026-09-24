@@ -495,6 +495,18 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		}
 		return nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__error.") {
+		if err := e.emitErrorIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+			if instruction.Type == ir.TypeString {
+				e.ownedStrings = append(e.ownedStrings, instruction.Result)
+			}
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__tty.") {
 		if err := e.emitTtyIntrinsic(out, instruction); err != nil {
 			return err

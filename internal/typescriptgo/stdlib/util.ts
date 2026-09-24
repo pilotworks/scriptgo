@@ -425,6 +425,9 @@ export interface CallSite {
 }
 
 export function getCallSites(frameCount: number = 10, options?: { sourceMap?: boolean }): CallSite[] {
+    if (frameCount < 1 || frameCount > 200) {
+        throw new RangeError(`The value of "frameCount" is out of range. It must be >= 1 && <= 200. Received ${frameCount}`);
+    }
     const err = new Error();
     const stack = err.stack || "";
     const lines = stack.split("\n");
@@ -469,17 +472,6 @@ export function getCallSites(frameCount: number = 10, options?: { sourceMap?: bo
         });
 
         if (sites.length >= frameCount) break;
-    }
-
-    if (sites.length === 0) {
-        sites.push({
-            functionName: "",
-            scriptName: "main.ts",
-            scriptId: "1",
-            lineNumber: 1,
-            columnNumber: 1,
-            column: 1,
-        });
     }
 
     return sites;
@@ -897,7 +889,7 @@ export function getSystemErrorName(err: number): string {
     if (entry) {
         return entry[0];
     }
-    return "";
+    return "Unknown system error " + err;
 }
 
 export function getSystemErrorMessage(err: number): string {
@@ -905,7 +897,7 @@ export function getSystemErrorMessage(err: number): string {
     if (entry) {
         return entry[1];
     }
-    return "";
+    return "Unknown system error " + err;
 }
 
 export function parseEnv(content: string): Record<string, string> {
