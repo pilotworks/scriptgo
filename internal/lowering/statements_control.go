@@ -309,7 +309,6 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 			}
 		}
 
-
 		condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
 		condConst := nextTemp(counter)
 		condFunc.Body = append(condFunc.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: condConst, Value: "true", Span: toIRSpan(path, statement.Span)})

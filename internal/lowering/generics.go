@@ -445,7 +445,6 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		}
 		specCls.Methods = concreteMethods
 
-
 		kind := genericClassKinds[name]
 		if kind == "" {
 			kind = "class"
