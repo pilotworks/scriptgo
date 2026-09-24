@@ -5,6 +5,8 @@ All notable changes to ScriptGo will be documented in this file.
 ## [0.1.0-alpha.6] - 2026-09-23
 
 ### Features
+- feat(cli): support direct execution ('scriptgo file.ts', 'scriptgo -e "code"') and 'scg' CLI alias
+- feat(pkgmgr): implement scriptgo add to resolve, record, and install dependencies
 - feat(benchmarks): add JSON operation suites, standard dataset, and native benchmarks (#22) (a893439)
 
 ### Performance

@@ -30,21 +30,34 @@ func (r Registry) endpoint(name string) (string, error) {
 	return u.String(), nil
 }
 
-// FetchPackage returns all published versions for one package name.
-func (r Registry) FetchPackage(name string) (map[string]PackageManifest, error) {
+// PackageMetadata contains registry metadata for a package including dist-tags.
+type PackageMetadata struct {
+	Name     string                     `json:"name"`
+	DistTags map[string]string          `json:"dist-tags"`
+	Versions map[string]PackageManifest `json:"versions"`
+}
+
+// FetchPackageMetadata returns all published versions and dist-tags for one package name.
+func (r Registry) FetchPackageMetadata(name string) (PackageMetadata, error) {
 	endpoint, err := r.endpoint(name)
 	if err != nil {
-		return nil, err
+		return PackageMetadata{}, err
 	}
-	var payload struct {
-		Name     string                     `json:"name"`
-		Versions map[string]PackageManifest `json:"versions"`
-	}
+	var payload PackageMetadata
 	if err := r.getJSON(endpoint, &payload); err != nil {
-		return nil, fmt.Errorf("fetch package %q metadata: %w", name, err)
+		return PackageMetadata{}, fmt.Errorf("fetch package %q metadata: %w", name, err)
 	}
 	if len(payload.Versions) == 0 {
-		return nil, fmt.Errorf("registry returned no versions for %q", name)
+		return PackageMetadata{}, fmt.Errorf("registry returned no versions for %q", name)
+	}
+	return payload, nil
+}
+
+// FetchPackage returns all published versions for one package name.
+func (r Registry) FetchPackage(name string) (map[string]PackageManifest, error) {
+	payload, err := r.FetchPackageMetadata(name)
+	if err != nil {
+		return nil, err
 	}
 	return payload.Versions, nil
 }

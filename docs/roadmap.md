@@ -248,6 +248,16 @@ and declare local workspace packages through standard `workspaces` patterns.
 `workspace:` protocol edges resolve to local source directories and are recorded
 in the existing lockfile graph without introducing a second module resolver.
 
+#### 8G: Package Addition (scriptgo add) (Completed)
+
+`scriptgo add` resolves package versions from an npm-compatible registry or local
+workspaces, records them into `package.json` (`dependencies`, `devDependencies`,
+`optionalDependencies`, or `peerDependencies`), preserves formatting and top-level
+key ordering, and triggers deterministic installation into `node_modules` and
+`scriptgo-lock.json`. Supports `-D`/`--dev`, `-O`/`--optional`, `--peer`, and `-E`/`--exact`.
+If installation fails, `package.json` is rolled back atomically.
+
+
 ### Node.js And npm Compatibility Track
 
 This track is the long-term product direction. It must be implemented in

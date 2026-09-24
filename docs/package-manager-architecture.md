@@ -418,6 +418,8 @@ contract rather than add a second resolver:
    manifest/resolver/lockfile contract is implemented in `internal/pkgmgr`.
 2. **Package Service**: Extend that focused package with registry, SemVer,
    integrity, CAS, and link behavior; `cmd/scriptgo` remains a thin caller.
-3. **Builtin Commands**: `scriptgo install` is exposed for production dependency
+3. **Builtin Commands**: `scriptgo install` is exposed for dependency
    installation and its output is consumed directly by the existing
-   TypeScript-Go/Dynamic compilation path. `scriptgo add` remains deferred.
+   TypeScript-Go/Dynamic compilation path. `scriptgo add` resolves package
+   versions from registries or local workspaces, records them into `package.json`,
+   and triggers deterministic installation.

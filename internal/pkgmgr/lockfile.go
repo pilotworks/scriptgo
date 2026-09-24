@@ -15,6 +15,7 @@ type Lockfile struct {
 
 type LockfileProject struct {
 	Dependencies         map[string]string `json:"dependencies,omitempty"`
+	DevDependencies      map[string]string `json:"devDependencies,omitempty"`
 	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
 	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
 	AutoPeers            map[string]string `json:"autoPeers,omitempty"`

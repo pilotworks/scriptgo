@@ -6,10 +6,16 @@ import (
 )
 
 func printMainUsage() {
-	fmt.Fprintln(os.Stderr, `ScriptGo - TypeScript Native Compiler
+	prog := getProgramName()
+	fmt.Fprintf(os.Stderr, `ScriptGo - TypeScript Native Compiler
 
 Usage:
-  scriptgo <command> [flags] <arguments>
+  %[1]s [flags] <entry.ts> [-- <args...>]
+  %[1]s [flags] -e "<code string>" [-- <args...>]
+  %[1]s <command> [flags] <arguments>
+
+Alias:
+  scg (can be used interchangeably with scriptgo)
 
 Commands:
   run       Run a package.json script or compile and execute a TypeScript program
@@ -18,10 +24,11 @@ Commands:
   emit      Emit LLVM IR or Typed IR
   coverage  Analyze Static/Dynamic site coverage
   init      Initialize a new ScriptGo TypeScript project
+  add       Add dependencies to package.json and install them
   install   Resolve, verify, cache, and link package.json dependencies
   task      Run a package.json script with node_modules/.bin in PATH
   version   Print compiler and runtime ABI version
-  help      Show help for ScriptGo or a specific command
+  help      Show help for %[1]s or a specific command
 
 Global Flags:
   -v                     Verbose output
@@ -45,7 +52,7 @@ Global Flags:
   --store <path>         Content store path with --install
   -h, --help             Show help message
 
-Use 'scriptgo help <command>' or 'scriptgo <command> --help' for detailed command usage.`)
+Use '%[1]s help <command>' or '%[1]s <command> --help' for detailed command usage.`, prog)
 }
 
 func printTaskUsage() {
@@ -89,6 +96,37 @@ Examples:
   scriptgo init -f`)
 }
 
+func printAddUsage() {
+	fmt.Fprintln(os.Stderr, `Usage:
+  scriptgo add [flags] <package...>
+
+Description:
+  Resolves package versions from an npm-compatible registry or local workspace,
+  records them in package.json, and installs them into node_modules and
+  scriptgo-lock.json.
+
+Flags:
+  --project <dir>       Project directory containing package.json (default: .)
+  --manifest <path>     package.json path (default: <project>/package.json)
+  --lockfile <path>     Lockfile path (default: <project>/scriptgo-lock.json)
+  --store <path>        Content store path (default: <project>/.scriptgo/store)
+  --registry <url>      npm-compatible registry URL
+  --registry-token <t>  registry bearer token (or SCRIPTGO_NPM_TOKEN/NPM_TOKEN)
+  -D, --dev             Add to devDependencies
+  -O, --optional        Add to optionalDependencies
+  --peer                Add to peerDependencies
+  -E, --exact           Save exact version instead of ^x.y.z
+  --offline             Use only cached tarballs and lockfile
+  -h, --help            Show this help message
+
+Examples:
+  scriptgo add lodash
+  scriptgo add chalk@4.1.2
+  scriptgo add -D typescript @types/node
+  scriptgo add -E express
+  scriptgo add --optional redis`)
+}
+
 func printInstallUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
   scriptgo install [flags]
@@ -111,10 +149,13 @@ Flags:
 }
 
 func printRunUsage() {
-	fmt.Fprintln(os.Stderr, `Usage:
-  scriptgo run [<script>] [-- <args...>]
-  scriptgo run [flags] <entry.ts> [-- <args...>]
-  scriptgo run [flags] -e "<code string>" [-- <args...>]
+	prog := getProgramName()
+	fmt.Fprintf(os.Stderr, `Usage:
+  %[1]s [flags] <entry.ts> [-- <args...>]
+  %[1]s [flags] -e "<code string>" [-- <args...>]
+  %[1]s run [<script>] [-- <args...>]
+  %[1]s run [flags] <entry.ts> [-- <args...>]
+  %[1]s run [flags] -e "<code string>" [-- <args...>]
 
 Description:
   Runs a package.json script with ancestor node_modules/.bin in PATH, or
@@ -122,7 +163,7 @@ Description:
   binary directly on host.
 
 Flags:
-  -e <string>            Evaluate inline script string
+  -e, --eval <string>    Evaluate inline script string
   -m, --ffi-manifest     Path to FFI JSON metadata manifest (*.ffi.json)
   -v                     Verbose output (print compilation stages)
   --target <triple>      Target architecture triple (default: $SCRIPTGO_TARGET or native)
@@ -145,13 +186,15 @@ Flags:
   -h, --help             Show this help message
 
 Examples:
-  scriptgo run app.ts
-  scriptgo run -e "console.log('hello ' + 42)"
-  scriptgo run -e "console.log(100 * 20)"
-  scriptgo run app.ts --ffi-manifest mylib.ffi.json
-  scriptgo run app.ts helper.c
-  scriptgo run --cc "zig cc" app.ts
-  scriptgo run app.ts -- arg1 arg2`)
+  %[1]s app.ts
+  %[1]s -e "console.log('hello ' + 42)"
+  %[1]s run app.ts
+  %[1]s run -e "console.log(100 * 20)"
+  %[1]s run app.ts --ffi-manifest mylib.ffi.json
+  %[1]s run app.ts helper.c
+  %[1]s run --cc "zig cc" app.ts
+  %[1]s run app.ts -- arg1 arg2
+`, prog)
 }
 
 func printBuildUsage() {

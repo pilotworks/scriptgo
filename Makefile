@@ -1,14 +1,16 @@
 .PHONY: all build test test-frontend test-parity test-sanitizers audit lint clean release help
 
 BINARY_NAME=scriptgo
+ALIAS_NAME=scg
 BUILD_DIR=bin
 
 all: build test
 
-## build: Build the scriptgo CLI binary
+## build: Build the scriptgo CLI binary and scg alias
 build:
 	@echo "==> Building $(BINARY_NAME)..."
 	go build -o $(BINARY_NAME) ./cmd/scriptgo
+	@ln -sf $(BINARY_NAME) $(ALIAS_NAME)
 
 ## test: Run full unit and integration test suite
 test:
@@ -51,7 +53,7 @@ release:
 ## clean: Clean up build artifacts and temporary files
 clean:
 	@echo "==> Cleaning up build artifacts..."
-	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_NAME) $(ALIAS_NAME)
 	rm -rf $(BUILD_DIR)
 
 ## help: Display this help message
