@@ -132,8 +132,10 @@ export function getPriority(pid: number = 0): number {
     return __scriptgo.getPriority(pid);
 }
 
-export function setPriority(pidOrPriority: number, priority?: number): void {
-    if (priority === undefined) {
+export function setPriority(priority: number): void;
+export function setPriority(pid: number, priority: number): void;
+export function setPriority(pidOrPriority: number, priority: number = 999): void {
+    if (priority === 999) {
         __scriptgo.setPriority(0, pidOrPriority);
     } else {
         __scriptgo.setPriority(pidOrPriority, priority);
