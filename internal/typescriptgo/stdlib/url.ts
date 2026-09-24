@@ -591,3 +591,12 @@ export function urlToHttpOptions(url: URL): HttpOptionsResult {
         auth: url.username.length > 0 ? (url.password.length > 0 ? url.username + ":" + url.password : url.username) : null
     };
 }
+
+export {
+    URLPattern,
+    URLPatternInput,
+    URLPatternResult,
+    URLPatternComponentResult,
+    URLPatternOptions
+} from "node:urlpattern";
+

@@ -14,6 +14,7 @@ var webGlobalModules = map[string]string{
 	"FormData":        "formdata",
 	"URLSearchParams": "url",
 	"URL":             "url",
+	"URLPattern":      "urlpattern",
 	"Headers":         "http",
 	"Response":        "http",
 	"Request":         "http",

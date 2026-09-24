@@ -28,6 +28,7 @@ export const builtinModules: string[] = [
     "tls",
     "tty",
     "url",
+    "urlpattern",
     "util",
     "zlib"
 ];

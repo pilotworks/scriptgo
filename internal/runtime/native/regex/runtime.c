@@ -10,63 +10,138 @@ int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_set(void *array, double index, const void *element);
 
-static char *normalize_pattern(const char *pattern) {
-    if (pattern == NULL) return NULL;
+extern const char scriptgo_undefined_sentinel;
+
+#define MAX_REGEX_GROUPS 64
+
+typedef struct {
+    char *pattern;
+    int posix_group_count;
+    int js_group_count;
+    int is_capturing[MAX_REGEX_GROUPS];
+} normalized_regex_t;
+
+static int normalize_pattern_full(const char *pattern, normalized_regex_t *out) {
+    if (pattern == NULL || out == NULL) return -1;
     size_t len = strlen(pattern);
     char *buf = malloc(len * 16 + 1);
-    if (buf == NULL) return NULL;
-    size_t out = 0;
-    for (size_t i = 0; i < len; i++) {
+    if (buf == NULL) return -1;
+
+    out->posix_group_count = 0;
+    out->js_group_count = 0;
+    for (int g = 0; g < MAX_REGEX_GROUPS; g++) {
+        out->is_capturing[g] = 0;
+    }
+
+    size_t out_idx = 0;
+    size_t i = 0;
+    int in_bracket = 0;
+
+    while (i < len) {
         if (pattern[i] == '\\' && i + 1 < len) {
             char next = pattern[i + 1];
-            if (next == 'd') {
-                const char *rep = "[0-9]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
-                i++;
+            if (!in_bracket) {
+                if (next == 'd') {
+                    const char *rep = "[0-9]";
+                    size_t rlen = 5;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                } else if (next == 'D') {
+                    const char *rep = "[^0-9]";
+                    size_t rlen = 6;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                } else if (next == 'w') {
+                    const char *rep = "[a-zA-Z0-9_]";
+                    size_t rlen = 12;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                } else if (next == 'W') {
+                    const char *rep = "[^a-zA-Z0-9_]";
+                    size_t rlen = 13;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                } else if (next == 's') {
+                    const char *rep = "[ \t\r\n\f\v]";
+                    size_t rlen = 8;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                } else if (next == 'S') {
+                    const char *rep = "[^ \t\r\n\f\v]";
+                    size_t rlen = 9;
+                    memcpy(buf + out_idx, rep, rlen);
+                    out_idx += rlen;
+                    i += 2;
+                    continue;
+                }
+            }
+            buf[out_idx++] = '\\';
+            buf[out_idx++] = next;
+            i += 2;
+            continue;
+        }
+
+        if (pattern[i] == '[') {
+            in_bracket = 1;
+            buf[out_idx++] = pattern[i++];
+            if (i < len && pattern[i] == '^') {
+                buf[out_idx++] = pattern[i++];
+            }
+            if (i < len && pattern[i] == ']') {
+                buf[out_idx++] = pattern[i++];
+            }
+            continue;
+        }
+
+        if (pattern[i] == ']' && in_bracket) {
+            in_bracket = 0;
+            buf[out_idx++] = pattern[i++];
+            continue;
+        }
+
+        if (!in_bracket && pattern[i] == '(') {
+            if (i + 2 < len && pattern[i + 1] == '?' && pattern[i + 2] == ':') {
+                out->posix_group_count++;
+                if (out->posix_group_count < MAX_REGEX_GROUPS) {
+                    out->is_capturing[out->posix_group_count] = 0;
+                }
+                buf[out_idx++] = '(';
+                i += 3;
                 continue;
-            } else if (next == 'D') {
-                const char *rep = "[^0-9]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
-                i++;
-                continue;
-            } else if (next == 'w') {
-                const char *rep = "[a-zA-Z0-9_]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
-                i++;
-                continue;
-            } else if (next == 'W') {
-                const char *rep = "[^a-zA-Z0-9_]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
-                i++;
-                continue;
-            } else if (next == 's') {
-                const char *rep = "[ \t\r\n\f\v]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
-                i++;
-                continue;
-            } else if (next == 'S') {
-                const char *rep = "[^ \t\r\n\f\v]";
-                size_t rlen = strlen(rep);
-                memcpy(buf + out, rep, rlen);
-                out += rlen;
+            } else {
+                out->posix_group_count++;
+                if (out->posix_group_count < MAX_REGEX_GROUPS) {
+                    out->is_capturing[out->posix_group_count] = 1;
+                }
+                out->js_group_count++;
+                buf[out_idx++] = '(';
                 i++;
                 continue;
             }
         }
-        buf[out++] = pattern[i];
+
+        buf[out_idx++] = pattern[i++];
     }
-    buf[out] = '\0';
-    return buf;
+
+    buf[out_idx] = '\0';
+    out->pattern = buf;
+    return 0;
+}
+
+static char *normalize_pattern(const char *pattern) {
+    normalized_regex_t norm;
+    if (normalize_pattern_full(pattern, &norm) != 0) return NULL;
+    return norm.pattern;
 }
 
 int scriptgo_regex_test(const char *pattern, const char *flags, const char *str, double *out_bool) {
@@ -113,15 +188,27 @@ int scriptgo_regex_exec_stateful(const char *pattern, const char *flags, const c
         if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
     }
     regex_t re;
-    char *norm = normalize_pattern(pattern);
-    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
-        if (norm) free(norm);
+    normalized_regex_t norm;
+    if (normalize_pattern_full(pattern, &norm) != 0) {
+        return scriptgo_runtime_set_error("regex normalization failed");
+    }
+    if (regcomp(&re, norm.pattern, cflags) != 0) {
+        free(norm.pattern);
         return scriptgo_runtime_set_error("invalid regular expression");
     }
-    if (norm) free(norm);
-    regmatch_t pmatch[16];
-    int status = regexec(&re, str + last_idx, 16, pmatch, 0);
+    free(norm.pattern);
+
+    size_t nmatch = re.re_nsub + 1;
+    if (nmatch < 1) nmatch = 1;
+    regmatch_t *pmatch = malloc(nmatch * sizeof(regmatch_t));
+    if (pmatch == NULL) {
+        regfree(&re);
+        return scriptgo_runtime_set_error("regex match allocation failed");
+    }
+
+    int status = regexec(&re, str + last_idx, nmatch, pmatch, 0);
     if (status != 0) {
+        free(pmatch);
         regfree(&re);
         if (is_global && inout_last_index != NULL) *inout_last_index = 0.0;
         *out_array = NULL;
@@ -130,22 +217,45 @@ int scriptgo_regex_exec_stateful(const char *pattern, const char *flags, const c
     if (is_global && inout_last_index != NULL) {
         *inout_last_index = (double)(last_idx + pmatch[0].rm_eo);
     }
-    int count = 0;
-    for (int i = 0; i < 16; i++) {
-        if (pmatch[i].rm_so != -1) count++;
-    }
+
+    int result_count = 1 + norm.js_group_count;
     regfree(&re);
-    int err = scriptgo_array_new(count, sizeof(const char*), out_array);
-    if (err != 0) return err;
-    for (int i = 0; i < count; i++) {
-        int len = pmatch[i].rm_eo - pmatch[i].rm_so;
-        char *sub = malloc(len + 1);
-        if (sub != NULL) {
-            memcpy(sub, str + last_idx + pmatch[i].rm_so, len);
-            sub[len] = '\0';
-            scriptgo_array_set(*out_array, (double)i, &sub);
-        }
+
+    int err = scriptgo_array_new(result_count, sizeof(const char *), out_array);
+    if (err != 0) {
+        free(pmatch);
+        return err;
     }
+
+    int len0 = pmatch[0].rm_eo - pmatch[0].rm_so;
+    char *sub0 = malloc(len0 + 1);
+    if (sub0 != NULL) {
+        memcpy(sub0, str + last_idx + pmatch[0].rm_so, len0);
+        sub0[len0] = '\0';
+        scriptgo_array_set(*out_array, 0.0, &sub0);
+    }
+
+    int js_idx = 1;
+    for (int p = 1; p <= norm.posix_group_count && (size_t)p < nmatch; p++) {
+        if (!norm.is_capturing[p]) {
+            continue;
+        }
+        if (pmatch[p].rm_so == -1) {
+            const char *undef = &scriptgo_undefined_sentinel;
+            scriptgo_array_set(*out_array, (double)js_idx, &undef);
+        } else {
+            int len = pmatch[p].rm_eo - pmatch[p].rm_so;
+            char *sub = malloc(len + 1);
+            if (sub != NULL) {
+                memcpy(sub, str + last_idx + pmatch[p].rm_so, len);
+                sub[len] = '\0';
+                scriptgo_array_set(*out_array, (double)js_idx, &sub);
+            }
+        }
+        js_idx++;
+    }
+
+    free(pmatch);
     return 0;
 }
 

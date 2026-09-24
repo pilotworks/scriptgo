@@ -832,6 +832,61 @@ interface URLConstructor {
 
 declare var URL: URLConstructor;
 
+interface URLPatternComponentResult {
+    input: string;
+    groups: Record<string, string | undefined>;
+}
+
+interface URLPatternResult {
+    inputs: (string | URLPatternInput)[];
+    protocol: URLPatternComponentResult;
+    username: URLPatternComponentResult;
+    password: URLPatternComponentResult;
+    hostname: URLPatternComponentResult;
+    port: URLPatternComponentResult;
+    pathname: URLPatternComponentResult;
+    search: URLPatternComponentResult;
+    hash: URLPatternComponentResult;
+}
+
+interface URLPatternInput {
+    protocol?: string;
+    username?: string;
+    password?: string;
+    hostname?: string;
+    port?: string;
+    pathname?: string;
+    search?: string;
+    hash?: string;
+    baseURL?: string;
+}
+
+interface URLPatternOptions {
+    ignoreCase?: boolean;
+}
+
+interface URLPattern {
+    readonly protocol: string;
+    readonly username: string;
+    readonly password: string;
+    readonly hostname: string;
+    readonly port: string;
+    readonly pathname: string;
+    readonly search: string;
+    readonly hash: string;
+    readonly hasRegExpGroups: boolean;
+    test(input?: string | URLPatternInput, baseURL?: string): boolean;
+    exec(input?: string | URLPatternInput, baseURL?: string): URLPatternResult | null;
+}
+
+interface URLPatternConstructor {
+    new(input?: string | URLPatternInput, baseURL?: string, options?: URLPatternOptions): URLPattern;
+    new(input?: string | URLPatternInput, options?: URLPatternOptions): URLPattern;
+    readonly prototype: URLPattern;
+}
+
+declare var URLPattern: URLPatternConstructor;
+
 interface HeadersIterator<T> extends IterableIterator<T> {
     next(): IteratorResult<T>;
     [Symbol.iterator](): HeadersIterator<T>;
@@ -885,10 +940,12 @@ interface FormDataConstructor {
 
 declare var FormData: FormDataConstructor;
 
+type BodyInit = string | Blob | FormData | URLSearchParams | ArrayBuffer | Uint8Array;
+
 interface RequestInit {
     method?: string;
-    headers?: Headers | Record<string, string> | [string, string][];
-    body?: string | null;
+    headers?: Headers | Record<string, string> | [string, string][] | unknown;
+    body?: BodyInit | null;
 }
 
 interface Request {
@@ -896,6 +953,13 @@ interface Request {
     readonly method: string;
     readonly headers: Headers;
     readonly body: string | null;
+    text(): Promise<string>;
+    json<T = unknown>(): Promise<T>;
+    arrayBuffer(): Promise<ArrayBuffer>;
+    blob(): Promise<Blob>;
+    bytes(): Promise<Uint8Array>;
+    formData(): Promise<FormData>;
+    clone(): Request;
 }
 
 interface RequestConstructor {
@@ -908,7 +972,7 @@ declare var Request: RequestConstructor;
 interface ResponseInit {
     status?: number;
     statusText?: string;
-    headers?: Headers | Record<string, string> | [string, string][];
+    headers?: Headers | Record<string, string> | [string, string][] | unknown;
 }
 
 interface Response {
@@ -921,11 +985,14 @@ interface Response {
     text(): Promise<string>;
     json<T = unknown>(): Promise<T>;
     arrayBuffer(): Promise<ArrayBuffer>;
+    blob(): Promise<Blob>;
+    bytes(): Promise<Uint8Array>;
     formData(): Promise<FormData>;
+    clone(): Response;
 }
 
 interface ResponseConstructor {
-    new(body?: string | null, init?: ResponseInit): Response;
+    new(body?: BodyInit | null, init?: ResponseInit): Response;
     readonly prototype: Response;
     json(data: unknown, init?: ResponseInit): Response;
     error(): Response;
