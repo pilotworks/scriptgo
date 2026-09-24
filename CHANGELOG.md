@@ -2,6 +2,15 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.7] - 2026-09-24
+
+### Features
+- feat(pkgmgr,cli): support scriptgo add, direct file execution, and scg alias (#28) (e813adc)
+- feat(stdlib): 100% verified parity for node:path, node:url, node:os, node:util, and node:http (#27) (3df27ae)
+- feat(stdlib): implement WHATWG Fetch Request/Response and URLPattern with regex hardening (#26) (0f369ba)
+- feat(stdlib,lowering): implement WHATWG IterableIterator and generic Array.from/for..of iterator support (#25) (6a37efb)
+- feat: WHATWG FormData, linear arena for JSON, and BCE/loop vectorization (#24) (e905f4e)
+
 ## [0.1.0-alpha.6] - 2026-09-23
 
 ### Features
