@@ -461,7 +461,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeSet, nil
 	}
 
-	if className == "TextEncoder" {
+	if className == "TextEncoder" || strings.HasSuffix(className, ".TextEncoder") {
 		if result == "" {
 			result = nextTemp(counter)
 		}
@@ -475,7 +475,7 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 		return result, ir.TypeTextEncoder, nil
 	}
 
-	if className == "TextDecoder" {
+	if className == "TextDecoder" || strings.HasSuffix(className, ".TextDecoder") {
 		if result == "" {
 			result = nextTemp(counter)
 		}

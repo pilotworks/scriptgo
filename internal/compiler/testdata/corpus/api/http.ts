@@ -1,21 +1,26 @@
 // ScriptGo Corpus: Http Standard Builtin APIs
-// Consolidated test suite with inline assertions.
-
 import {
     METHODS,
     STATUS_CODES,
     maxHeaderSize,
     validateHeaderName,
-    validateHeaderValue
+    validateHeaderValue,
+    globalAgent,
+    createServer,
+    get,
+    request,
+    setMaxIdleHTTPParsers,
+    WebSocket,
+    Agent
 } from "node:http";
 
-// @api: METHODS
+// @api: http.METHODS
 // @expect: true
 // @expect: GET
 console.log(METHODS.length > 0);
 console.log(METHODS[6]);
 
-// @api: STATUS_CODES
+// @api: http.STATUS_CODES
 // @expect: OK
 // @expect: Not Found
 console.log(STATUS_CODES["200"]);
@@ -31,6 +36,33 @@ console.log("valid");
 validateHeaderValue("Content-Type", "application/json");
 console.log("val-ok");
 
-// @api: maxHeaderSize
+// @api: http.maxHeaderSize
 // @expect: 16384
 console.log(maxHeaderSize);
+
+// @api: http.globalAgent
+// @expect: true
+console.log(globalAgent instanceof Agent);
+
+// @api: http.setMaxIdleHTTPParsers
+// @expect: max-parsers-ok
+setMaxIdleHTTPParsers(500);
+console.log("max-parsers-ok");
+
+// @api: http.createServer
+// @expect: true
+const srv = createServer();
+console.log(typeof srv.listen === "function");
+srv.close();
+
+// @api: http.get
+// @expect: true
+console.log(typeof get === "function");
+
+// @api: http.request
+// @expect: true
+console.log(typeof request === "function");
+
+// @api: http.WebSocket
+// @expect: true
+console.log(typeof WebSocket === "function");

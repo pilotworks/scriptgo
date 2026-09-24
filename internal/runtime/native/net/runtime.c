@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <signal.h>
 #endif
 #else
 #include <winsock2.h>
@@ -88,6 +89,14 @@ int scriptgo_net_socket_create(double family, double sock_type, double *out_fd) 
     int opt = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
 
+#if defined(SO_NOSIGPIPE)
+    int nosigpipe = 1;
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&nosigpipe, sizeof(nosigpipe));
+#endif
+#if defined(SIGPIPE)
+    signal(SIGPIPE, SIG_IGN);
+#endif
+
     *out_fd = (double)fd;
     return 0;
 }
@@ -135,7 +144,11 @@ int scriptgo_net_socket_write(double fd_num, const char *data, double len_num, d
     }
 
     size_t len = (size_t)len_num;
+#if defined(MSG_NOSIGNAL)
+    ssize_t n = send(fd, data, len, MSG_NOSIGNAL);
+#else
     ssize_t n = send(fd, data, len, 0);
+#endif
     if (n < 0) {
         *out_written = 0.0;
         return 0;

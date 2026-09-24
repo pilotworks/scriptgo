@@ -229,3 +229,78 @@ console.log("mimeparams_values: " + (mparams.values() !== null));
 // @api: MIMEParams.entries
 // @expect: mimeparams_entries: true
 console.log("mimeparams_entries: " + (mparams.entries() !== null));
+
+// @api: MIMEParams.[Symbol.iterator]
+// @expect: mimeparams_iter: true
+const iter = mparams[Symbol.iterator]();
+console.log("mimeparams_iter: " + (typeof iter === "object" && iter !== null));
+
+// @api: util.debuglog
+// @expect: debuglog_res: true
+const debugFn = util.debuglog("test");
+console.log("debuglog_res: " + (typeof debugFn === "function" && typeof debugFn.enabled === "boolean"));
+
+// @api: util.debug
+// @expect: debug_res: true
+console.log("debug_res: " + (typeof util.debug === "function"));
+
+// @api: util.diff
+// @expect: diff_res: true
+const diffRes = util.diff("12345678", "12!!5!7!");
+console.log("diff_res: " + (Array.isArray(diffRes) && diffRes.length > 0));
+
+// @api: util.getCallSites
+// @expect: getCallSites_res: true
+const cs = util.getCallSites();
+console.log("getCallSites_res: " + (Array.isArray(cs) && cs.length > 0 && typeof cs[0].lineNumber === "number"));
+
+// @api: util.setTraceSigInt
+// @expect: setTraceSigInt_res: true
+if (typeof util.setTraceSigInt === "function") {
+    util.setTraceSigInt(false);
+}
+console.log("setTraceSigInt_res: true");
+
+// @api: util.inherits
+// @expect: inherits_res: true
+function SuperFn() {}
+function SubFn() {}
+util.inherits(SubFn, SuperFn);
+console.log("inherits_res: " + ((SubFn as unknown as Record<string, unknown>).super_ === SuperFn));
+
+// @api: util.parseArgs
+// @expect: parseArgs_res: bar
+const parsed = util.parseArgs({
+    args: ["--foo", "bar"],
+    options: { foo: { type: "string" } },
+});
+console.log("parseArgs_res: " + parsed.values.foo);
+
+// @api: util.transferableAbortController
+// @expect: transferableAbortController_res: true
+const tac = util.transferableAbortController();
+console.log("transferableAbortController_res: " + (tac !== null && typeof tac.abort === "function"));
+
+// @api: util.transferableAbortSignal
+// @expect: transferableAbortSignal_res: true
+const tas = util.transferableAbortSignal(tac.signal);
+console.log("transferableAbortSignal_res: " + (tas !== null && typeof tas.aborted === "boolean"));
+
+// @api: util.aborted
+// @expect: aborted_res: true
+const abortPromise = util.aborted(tac.signal, {});
+console.log("aborted_res: " + (abortPromise !== null && typeof abortPromise === "object"));
+
+// @api: new util.util.TextDecoder
+// @expect: textdecoder_inst: true
+const dec = new util.TextDecoder("utf-8");
+console.log("textdecoder_inst: " + (dec.encoding === "utf-8"));
+
+// @api: new util.util.TextEncoder
+// @expect: textencoder_inst: true
+const enc = new util.TextEncoder();
+console.log("textencoder_inst: " + (enc.encoding === "utf-8"));
+
+// @api: util.log
+// @expect: log_res: true
+console.log("log_res: " + (typeof util.log === "function"));

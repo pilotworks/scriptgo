@@ -455,7 +455,9 @@ func lowerClosureExpression(
 	if result == "" {
 		result = nextTemp(counter)
 	}
-	signatures[result] = targetFn
+	if !strings.HasPrefix(result, "%") {
+		signatures[result] = targetFn
+	}
 	env[result+".retType"] = targetFn.ReturnType
 
 	callerFn.Body = append(callerFn.Body, ir.Instruction{

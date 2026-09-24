@@ -991,7 +991,8 @@ func (e *functionEmitter) emitWebIntrinsic(out *strings.Builder, instruction ir.
 
 func (e *functionEmitter) emitOsIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
-	case "__os.platform", "__os.arch", "__os.homedir", "__os.type", "__os.release", "__os.tmpdir":
+	case "__os.platform", "__os.arch", "__os.homedir", "__os.type", "__os.release", "__os.tmpdir",
+		"__os.hostname", "__os.loadavg", "__os.cpus", "__os.network_interfaces", "__os.user_info":
 		if len(instruction.Args) != 0 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("%s has invalid signature", instruction.Callee)
 		}
@@ -1004,7 +1005,7 @@ func (e *functionEmitter) emitOsIntrinsic(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
-	case "__os.uptime", "__os.totalmem", "__os.freemem":
+	case "__os.uptime", "__os.totalmem", "__os.freemem", "__os.available_parallelism":
 		if len(instruction.Args) != 0 || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("%s has invalid signature", instruction.Callee)
 		}
@@ -1016,6 +1017,27 @@ func (e *functionEmitter) emitOsIntrinsic(out *strings.Builder, instruction ir.I
 		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s)\n", status, cFn, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__os.get_priority":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeNumber {
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_os_get_priority(double %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__os.set_priority":
+		if len(instruction.Args) != 2 || instruction.Type != ir.TypeVoid {
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_os_set_priority(double %%%s, double %%%s)\n", status, instruction.Args[0], instruction.Args[1])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
 	default:
 		return fmt.Errorf("unknown os intrinsic %q", instruction.Callee)

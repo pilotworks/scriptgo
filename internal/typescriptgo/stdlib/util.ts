@@ -1,6 +1,7 @@
 // ScriptGo Standard Library: node:util
 
 import { deepStrictEqual } from "node:assert";
+import { AbortController, AbortSignal } from "node:events";
 
 export class MIMEParams {
     private _entries: Array<[string, string]> = [];
@@ -80,6 +81,10 @@ export class MIMEParams {
     }
 
     entries(): Array<[string, string]> {
+        return this._entries;
+    }
+
+    [Symbol.iterator](): Array<[string, string]> {
         return this._entries;
     }
 }
@@ -339,6 +344,472 @@ export function log(string: string): void {
     console.log(`${d.toLocaleDateString()} ${d.toLocaleTimeString()} - ${string}`);
 }
 
+export function debug(string: string): void {
+    console.error(string);
+}
+
+export function debuglog(section: string, callback?: (fn: (...args: unknown[]) => void) => void): ((...args: unknown[]) => void) & { enabled: boolean } {
+    let envVal = "";
+    if (typeof process !== "undefined" && typeof process.env !== "undefined" && typeof process.env.NODE_DEBUG === "string") {
+        envVal = process.env.NODE_DEBUG;
+    }
+    const reg = new RegExp(`\\b${section}\\b`, "i");
+    const enabled = reg.test(envVal);
+    const fn = ((...args: unknown[]): void => {
+        if (enabled) {
+            let pid = 0;
+            if (typeof process !== "undefined" && typeof process.pid === "number") {
+                pid = process.pid;
+            }
+            const prefix = `${section.toUpperCase()} ${pid}: `;
+            console.error(prefix + args.map(a => String(a)).join(" "));
+        }
+    }) as ((...args: unknown[]) => void) & { enabled: boolean };
+    fn.enabled = enabled;
+    if (callback) {
+        callback(fn);
+    }
+    return fn;
+}
+
+export function inherits(ctor: Function, superCtor: Function): void {
+    if (ctor === undefined || ctor === null) {
+        throw new TypeError('The "ctor" argument must be of type Function.');
+    }
+    if (superCtor === undefined || superCtor === null) {
+        throw new TypeError('The "superCtor" argument must be of type Function.');
+    }
+    (ctor as unknown as Record<string, unknown>).super_ = superCtor;
+}
+
+let _traceSigInt = false;
+export function setTraceSigInt(enable: boolean): void {
+    _traceSigInt = enable;
+}
+
+export function transferableAbortController(): AbortController {
+    return new AbortController();
+}
+
+export function transferableAbortSignal(signal: AbortSignal): AbortSignal {
+    if (signal === undefined || signal === null) {
+        throw new TypeError('The "signal" argument must be an instance of AbortSignal');
+    }
+    return signal;
+}
+
+export function aborted(signal: AbortSignal, resource: object): Promise<void> {
+    if (signal === undefined || signal === null) {
+        throw new TypeError('The "signal" argument must be an instance of AbortSignal');
+    }
+    if (resource === undefined || resource === null || typeof resource !== "object") {
+        throw new TypeError('The "resource" argument must be of type object');
+    }
+    if (signal.aborted) {
+        return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => {
+            resolve();
+        }, { once: true });
+    });
+}
+
+export interface CallSite {
+    functionName: string;
+    scriptName: string;
+    scriptId: string;
+    lineNumber: number;
+    columnNumber: number;
+    column?: number;
+}
+
+export function getCallSites(frameCount: number = 10, options?: { sourceMap?: boolean }): CallSite[] {
+    const err = new Error();
+    const stack = err.stack || "";
+    const lines = stack.split("\n");
+    const sites: CallSite[] = [];
+    let idCounter = 1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line.startsWith("at ")) continue;
+        const entry = line.slice(3).trim();
+        if (entry.includes("getCallSites")) continue;
+
+        let fnName = "";
+        let loc = entry;
+        const parenIdx = entry.indexOf("(");
+        if (parenIdx !== -1 && entry.endsWith(")")) {
+            fnName = entry.slice(0, parenIdx).trim();
+            loc = entry.slice(parenIdx + 1, entry.length - 1).trim();
+        }
+
+        let scriptName = loc;
+        let lineNum = 1;
+        let colNum = 1;
+
+        const parts = loc.split(":");
+        if (parts.length >= 3) {
+            colNum = parseInt(parts[parts.length - 1], 10) || 1;
+            lineNum = parseInt(parts[parts.length - 2], 10) || 1;
+            scriptName = parts.slice(0, parts.length - 2).join(":");
+        } else if (parts.length === 2) {
+            lineNum = parseInt(parts[1], 10) || 1;
+            scriptName = parts[0];
+        }
+
+        sites.push({
+            functionName: fnName,
+            scriptName: scriptName,
+            scriptId: String(idCounter++),
+            lineNumber: lineNum,
+            columnNumber: colNum,
+            column: colNum,
+        });
+
+        if (sites.length >= frameCount) break;
+    }
+
+    if (sites.length === 0) {
+        sites.push({
+            functionName: "",
+            scriptName: "main.ts",
+            scriptId: "1",
+            lineNumber: 1,
+            columnNumber: 1,
+            column: 1,
+        });
+    }
+
+    return sites;
+}
+
+export type DiffResult = Array<[number, string]>;
+
+export function diff(actual: string, expected: string): DiffResult {
+    const aSeq: string[] = actual.split("");
+    const bSeq: string[] = expected.split("");
+
+    const n = aSeq.length;
+    const m = bSeq.length;
+
+    if (n === m) {
+        let same = true;
+        for (let i = 0; i < n; i++) {
+            if (aSeq[i] !== bSeq[i]) {
+                same = false;
+                break;
+            }
+        }
+        if (same) return [];
+    }
+
+    const max = n + m;
+    const offset = max;
+    const history: number[][] = [];
+    const v: number[] = new Array<number>(2 * max + 1);
+    for (let i = 0; i < v.length; i++) v[i] = 0;
+
+    let foundD = -1;
+    for (let d = 0; d <= max; d++) {
+        const vCopy = v.slice();
+        history.push(vCopy);
+        for (let k = -d; k <= d; k += 2) {
+            let x: number;
+            if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+                x = v[offset + k + 1];
+            } else {
+                x = v[offset + k - 1] + 1;
+            }
+            let y = x - k;
+            while (x < n && y < m && aSeq[x] === bSeq[y]) {
+                x++;
+                y++;
+            }
+            v[offset + k] = x;
+            if (x >= n && y >= m) {
+                foundD = d;
+                break;
+            }
+        }
+        if (foundD !== -1) break;
+    }
+
+    const result: DiffResult = [];
+    let curX = n;
+    let curY = m;
+
+    for (let d = foundD; d > 0; d--) {
+        const prevV = history[d];
+        const k = curX - curY;
+        let prevK: number;
+        if (k === -d || (k !== d && prevV[offset + k - 1] < prevV[offset + k + 1])) {
+            prevK = k + 1;
+        } else {
+            prevK = k - 1;
+        }
+        const prevX = prevV[offset + prevK];
+        const prevY = prevX - prevK;
+
+        while (curX > prevX && curY > prevY) {
+            result.unshift([0, aSeq[curX - 1]]);
+            curX--;
+            curY--;
+        }
+
+        if (d > 0) {
+            if (curX === prevX) {
+                result.unshift([-1, bSeq[prevY]]);
+                curY = prevY;
+            } else {
+                result.unshift([1, aSeq[prevX]]);
+                curX = prevX;
+            }
+        }
+    }
+
+    while (curX > 0 && curY > 0) {
+        result.unshift([0, aSeq[curX - 1]]);
+        curX--;
+        curY--;
+    }
+
+    return result;
+}
+
+export interface ParseArgsOptionConfig {
+    type: "string" | "boolean";
+    short?: string;
+    multiple?: boolean;
+    default?: string | boolean | string[] | boolean[];
+}
+
+export interface ParseArgsConfig {
+    args?: string[];
+    options?: Record<string, ParseArgsOptionConfig>;
+    strict?: boolean;
+    allowPositionals?: boolean;
+    tokens?: boolean;
+}
+
+export interface ParseArgsToken {
+    kind: "option" | "positional" | "option-terminator";
+    index: number;
+    name?: string;
+    rawName?: string;
+    value?: string | boolean | undefined;
+    inlineValue?: boolean;
+}
+
+export interface ParseArgsResult {
+    values: Record<string, unknown>;
+    positionals: string[];
+    tokens?: ParseArgsToken[];
+}
+
+export function parseArgs(config?: ParseArgsConfig): ParseArgsResult {
+    const conf = config || {};
+    const args: string[] = conf.args !== undefined ? conf.args : (typeof process !== "undefined" && Array.isArray(process.argv) ? process.argv.slice(2) : []);
+    const options = conf.options || {};
+    const strict = conf.strict !== false;
+    const allowPositionals = conf.allowPositionals !== undefined ? conf.allowPositionals : !strict;
+    const returnTokens = conf.tokens === true;
+
+    const shortToLong: Record<string, string> = {};
+    for (const optName in options) {
+        const opt = options[optName];
+        if (opt.short) {
+            shortToLong[opt.short] = optName;
+        }
+    }
+
+    const values: Record<string, unknown> = {};
+    for (const optName in options) {
+        const opt = options[optName];
+        if (opt.default !== undefined) {
+            values[optName] = opt.default;
+        } else if (opt.multiple) {
+            values[optName] = [];
+        }
+    }
+
+    const positionals: string[] = [];
+    const tokens: ParseArgsToken[] = [];
+    let parsingOptions = true;
+    let i = 0;
+
+    while (i < args.length) {
+        const arg = args[i];
+
+        if (parsingOptions && arg === "--") {
+            parsingOptions = false;
+            if (returnTokens) {
+                tokens.push({ kind: "option-terminator", index: i });
+            }
+            i++;
+            continue;
+        }
+
+        if (parsingOptions && arg.startsWith("--") && arg.length > 2) {
+            const eqIdx = arg.indexOf("=");
+            let rawOptName: string;
+            let inlineVal: string | undefined = undefined;
+            if (eqIdx !== -1) {
+                rawOptName = arg.slice(2, eqIdx);
+                inlineVal = arg.slice(eqIdx + 1);
+            } else {
+                rawOptName = arg.slice(2);
+            }
+
+            const optDef = options[rawOptName];
+            if (strict && !optDef) {
+                throw new TypeError(`Unknown option '--${rawOptName}'`);
+            }
+
+            const optType = optDef ? optDef.type : (inlineVal !== undefined ? "string" : "boolean");
+            let val: string | boolean;
+
+            if (optType === "boolean") {
+                if (inlineVal !== undefined) {
+                    if (inlineVal === "true") val = true;
+                    else if (inlineVal === "false") val = false;
+                    else if (strict) throw new TypeError(`Option '--${rawOptName}' does not take a value`);
+                    else val = true;
+                } else {
+                    val = true;
+                }
+            } else {
+                if (inlineVal !== undefined) {
+                    val = inlineVal;
+                } else if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+                    i++;
+                    val = args[i];
+                } else if (strict) {
+                    throw new TypeError(`Option '--${rawOptName}' requires a value`);
+                } else {
+                    val = "";
+                }
+            }
+
+            if (optDef && optDef.multiple) {
+                const arr = (values[rawOptName] as unknown[]) || [];
+                arr.push(val);
+                values[rawOptName] = arr;
+            } else {
+                values[rawOptName] = val;
+            }
+
+            if (returnTokens) {
+                tokens.push({
+                    kind: "option",
+                    name: rawOptName,
+                    rawName: arg.slice(0, eqIdx !== -1 ? eqIdx : arg.length),
+                    index: i,
+                    value: val,
+                    inlineValue: inlineVal !== undefined,
+                });
+            }
+            i++;
+            continue;
+        }
+
+        if (parsingOptions && arg.startsWith("-") && arg.length > 1) {
+            const shortStr = arg.slice(1);
+            const eqIdx = shortStr.indexOf("=");
+            if (eqIdx !== -1) {
+                const s = shortStr.slice(0, eqIdx);
+                const inlineVal = shortStr.slice(eqIdx + 1);
+                const longName = shortToLong[s] || s;
+                const optDef = options[longName];
+                if (strict && !optDef) throw new TypeError(`Unknown option '-${s}'`);
+                const val = optDef && optDef.type === "boolean" ? (inlineVal === "true") : inlineVal;
+                if (optDef && optDef.multiple) {
+                    const arr = (values[longName] as unknown[]) || [];
+                    arr.push(val);
+                    values[longName] = arr;
+                } else {
+                    values[longName] = val;
+                }
+                if (returnTokens) {
+                    tokens.push({
+                        kind: "option",
+                        name: longName,
+                        rawName: `-${s}`,
+                        index: i,
+                        value: val,
+                        inlineValue: true,
+                    });
+                }
+                i++;
+                continue;
+            }
+
+            for (let cIdx = 0; cIdx < shortStr.length; cIdx++) {
+                const s = shortStr[cIdx];
+                const longName = shortToLong[s] || s;
+                const optDef = options[longName];
+                if (strict && !optDef) throw new TypeError(`Unknown option '-${s}'`);
+
+                const optType = optDef ? optDef.type : "boolean";
+                if (optType === "boolean") {
+                    if (optDef && optDef.multiple) {
+                        const arr = (values[longName] as unknown[]) || [];
+                        arr.push(true);
+                        values[longName] = arr;
+                    } else {
+                        values[longName] = true;
+                    }
+                    if (returnTokens) {
+                        tokens.push({ kind: "option", name: longName, rawName: `-${s}`, index: i, value: true });
+                    }
+                } else {
+                    let val: string;
+                    if (cIdx + 1 < shortStr.length) {
+                        val = shortStr.slice(cIdx + 1);
+                        cIdx = shortStr.length;
+                    } else if (i + 1 < args.length) {
+                        i++;
+                        val = args[i];
+                    } else if (strict) {
+                        throw new TypeError(`Option '-${s}' requires a value`);
+                    } else {
+                        val = "";
+                    }
+                    if (optDef && optDef.multiple) {
+                        const arr = (values[longName] as unknown[]) || [];
+                        arr.push(val);
+                        values[longName] = arr;
+                    } else {
+                        values[longName] = val;
+                    }
+                    if (returnTokens) {
+                        tokens.push({ kind: "option", name: longName, rawName: `-${s}`, index: i, value: val });
+                    }
+                    break;
+                }
+            }
+            i++;
+            continue;
+        }
+
+        if (strict && !allowPositionals) {
+            throw new TypeError(`Unexpected positional argument: '${arg}'`);
+        }
+        positionals.push(arg);
+        if (returnTokens) {
+            tokens.push({ kind: "positional", index: i, value: arg });
+        }
+        i++;
+    }
+
+    const res: ParseArgsResult = { values, positionals };
+    if (returnTokens) {
+        res.tokens = tokens;
+    }
+    return res;
+}
+
 export function stripVTControlCharacters(str: string): string {
     let res = "";
     let i = 0;
@@ -441,7 +912,7 @@ export function parseEnv(content: string): Record<string, string> {
     const result: Record<string, string> = {};
     const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+        let line = lines[i].trim();
         if (line.length === 0 || line.startsWith("#")) continue;
         const eqIdx = line.indexOf("=");
         if (eqIdx >= 0) {
@@ -450,10 +921,27 @@ export function parseEnv(content: string): Record<string, string> {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
                 val = val.slice(1, val.length - 1);
             }
-        result[key] = val;
+            result[key] = val;
         }
     }
     return result;
+}
+
+export class TextDecoder {
+    readonly encoding: string = "utf-8";
+    readonly fatal: boolean = false;
+    readonly ignoreBOM: boolean = false;
+    constructor(label?: string, options?: { fatal?: boolean; ignoreBOM?: boolean }) {}
+    decode(input?: Uint8Array, options?: { stream?: boolean }): string {
+        return "";
+    }
+}
+
+export class TextEncoder {
+    readonly encoding: string = "utf-8";
+    encode(input?: string): Uint8Array {
+        return new Uint8Array(0);
+    }
 }
 
 export default {
@@ -489,4 +977,17 @@ export default {
     getSystemErrorName,
     getSystemErrorMessage,
     parseEnv,
+    diff,
+    parseArgs,
+    debuglog,
+    debug,
+    log,
+    inherits,
+    getCallSites,
+    setTraceSigInt,
+    transferableAbortController,
+    transferableAbortSignal,
+    aborted,
+    TextDecoder,
+    TextEncoder,
 };

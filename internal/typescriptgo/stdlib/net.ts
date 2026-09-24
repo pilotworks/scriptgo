@@ -365,6 +365,13 @@ export class Socket {
         return this;
     }
 
+    setKeepAlive(enable: boolean = false, initialDelay: number = 0): Socket {
+        return this;
+    }
+
+    setNoDelay(noDelay: boolean = true): Socket {
+        return this;
+    }
 
     address(): { port: number, family: string, address: string } {
         return {

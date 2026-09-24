@@ -178,6 +178,62 @@ export function toNamespacedPath(path: string): string {
     return path;
 }
 
+export function matchesGlob(path: string, pattern: string): boolean {
+    if (typeof path !== "string" || typeof pattern !== "string") {
+        throw new TypeError("path and pattern must be strings");
+    }
+    if (pattern === "*") {
+        return path.indexOf("/") === -1;
+    }
+    if (pattern === "**") {
+        return true;
+    }
+
+    let rx = "^";
+    let inClass = false;
+    for (let i = 0; i < pattern.length; i++) {
+        const c = pattern[i];
+        if (inClass) {
+            if (c === "]") {
+                inClass = false;
+                rx += "]";
+            } else if (c === "\\") {
+                rx += "\\\\";
+            } else {
+                rx += c;
+            }
+            continue;
+        }
+        if (c === "*") {
+            if (i + 1 < pattern.length && pattern[i + 1] === "*") {
+                i++;
+                if (i + 1 < pattern.length && pattern[i + 1] === "/") {
+                    i++;
+                    rx += "(?:.*\\/)?";
+                } else {
+                    rx += ".*";
+                }
+            } else {
+                rx += "[^\\/]*";
+            }
+        } else if (c === "?") {
+            rx += "[^\\/]";
+        } else if (c === "[") {
+            inClass = true;
+            rx += "[";
+        } else if (c === "." || c === "(" || c === ")" || c === "+" || c === "^" || c === "$" || c === "{" || c === "}" || c === "|") {
+            rx += "\\" + c;
+        } else if (c === "\\") {
+            rx += "\\\\";
+        } else {
+            rx += c;
+        }
+    }
+    rx += "$";
+    const reg = new RegExp(rx);
+    return reg.test(path);
+}
+
 export const posix = {
     join,
     dirname,
@@ -190,6 +246,7 @@ export const posix = {
     parse,
     format,
     toNamespacedPath,
+    matchesGlob,
     sep: "/",
     delimiter: ":",
 };
@@ -206,6 +263,7 @@ export const win32 = {
     parse,
     format,
     toNamespacedPath,
+    matchesGlob,
     sep: "\\",
     delimiter: ";",
 };
@@ -222,8 +280,10 @@ export default {
     parse,
     format,
     toNamespacedPath,
+    matchesGlob,
     sep,
     delimiter,
     posix,
     win32,
 };
+

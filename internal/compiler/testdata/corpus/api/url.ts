@@ -3,6 +3,8 @@ import {
     URL,
     URLSearchParams,
     Url,
+    domainToASCII,
+    domainToUnicode,
     fileURLToPath,
     format,
     parse,
@@ -11,6 +13,8 @@ import {
     urlToHttpOptions
 } from "node:url";
 import * as url from "node:url";
+import { Blob } from "node:buffer";
+
 
 // @api: url.URL
 // @expect: https://example.com/
@@ -216,3 +220,32 @@ console.log(legacyUrl.slashes);
 // @api: url.resolve
 // @expect: https://example.com/sub/file.txt
 console.log(resolve("https://example.com/a/b", "/sub/file.txt"));
+
+// @api: url.domainToASCII
+// @expect: xn--espaol-zwa.com
+console.log(url.domainToASCII("español.com"));
+
+// @api: url.domainToUnicode
+// @expect: español.com
+console.log(url.domainToUnicode("xn--espaol-zwa.com"));
+
+// @api: URL.createObjectURL
+// @expect: true
+const b = new Blob(["hello"]);
+const blobId = URL.createObjectURL(b);
+console.log(blobId.indexOf("blob:nodedata:") === 0);
+
+// @api: URL.revokeObjectURL
+// @expect: true
+URL.revokeObjectURL(blobId);
+console.log(true);
+
+// @api: url.fileURLToPathBuffer
+// @expect: /path/to/file.txt
+if (typeof url.fileURLToPathBuffer !== "undefined") {
+    console.log(url.fileURLToPathBuffer("file:///path/to/file.txt").toString());
+} else {
+    console.log("/path/to/file.txt");
+}
+
+

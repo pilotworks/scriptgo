@@ -1,3 +1,7 @@
+import { toASCII, toUnicode } from "node:punycode";
+import { Buffer, registerBlobObjectURL, revokeBlobObjectURL, resolveObjectURL } from "node:buffer";
+
+
 class URLSearchParamEntry {
     name: string;
     value: string;
@@ -492,6 +496,14 @@ export class URL {
         }
         return null;
     }
+
+    static createObjectURL(blob: Blob): string {
+        return registerBlobObjectURL(blob);
+    }
+
+    static revokeObjectURL(url: string): void {
+        revokeBlobObjectURL(url);
+    }
 }
 
 export class Url {
@@ -592,6 +604,41 @@ export function urlToHttpOptions(url: URL): HttpOptionsResult {
     };
 }
 
+export function domainToASCII(domain: string): string {
+    if (typeof domain !== "string" || domain.length === 0) {
+        return "";
+    }
+    return toASCII(domain);
+}
+
+export function domainToUnicode(domain: string): string {
+    if (typeof domain !== "string" || domain.length === 0) {
+        return "";
+    }
+    return toUnicode(domain);
+}
+
+export function fileURLToPathBuffer(url: string | URL, options?: { windows?: boolean }): Buffer {
+    const p = fileURLToPath(typeof url === "string" ? url : url.href);
+    return Buffer.from(p);
+}
+
+export default {
+    URL,
+    URLSearchParams,
+    Url,
+    domainToASCII,
+    domainToUnicode,
+    fileURLToPath,
+    fileURLToPathBuffer,
+    format,
+    parse,
+    pathToFileURL,
+    resolve,
+    urlToHttpOptions,
+    URLPattern
+};
+
 export {
     URLPattern,
     URLPatternInput,
@@ -599,4 +646,5 @@ export {
     URLPatternComponentResult,
     URLPatternOptions
 } from "node:urlpattern";
+
 

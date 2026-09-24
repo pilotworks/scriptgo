@@ -495,7 +495,7 @@ func (e *functionEmitter) emitCompare(out *strings.Builder, instruction ir.Instr
 		out.WriteString(fmt.Sprintf("  %%%s = icmp %s i64 %%%s, %%%s\n", instruction.Result, predicate, arg0, arg1))
 		return nil
 	}
-	if isFunctionType(leftType) {
+	if isFunctionType(leftType) || isFunctionType(rightType) || leftType == ir.TypeClosure || rightType == ir.TypeClosure {
 		if instruction.Operator == "==" || instruction.Operator == "!=" {
 			p0Null := fmt.Sprintf("%s.p0_null.%d", instruction.Result, e.loadCounter)
 			p0Undef := fmt.Sprintf("%s.p0_undef.%d", instruction.Result, e.loadCounter)
@@ -870,6 +870,12 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 7\n", cmpFn, tagVar))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 5\n", cmpObj, tagVar))
 		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpVar, cmpFn, cmpObj))
+	} else if expectedTag == 5 {
+		cmpObj := fmt.Sprintf("cast.cmp_obj.%d", id)
+		cmpFn := fmt.Sprintf("cast.cmp_fn.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 5\n", cmpObj, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 7\n", cmpFn, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", cmpVar, cmpObj, cmpFn))
 	} else {
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, %d\n", cmpVar, tagVar, expectedTag))
 	}

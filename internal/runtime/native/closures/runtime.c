@@ -24,15 +24,28 @@ typedef struct {
     void *env;
     void *invoke_ptr;
     int32_t return_tag;
+    void *properties;
 } scriptgo_closure;
 
 extern const char scriptgo_undefined_sentinel;
+int scriptgo_gc_add_root(void *ptr);
 
 static scriptgo_closure *closure_freelist = NULL;
+
+typedef struct static_closure_node {
+    void *fn_ptr;
+    void *invoke_ptr;
+    int32_t return_tag;
+    scriptgo_closure *closure;
+    struct static_closure_node *next;
+} static_closure_node;
+
+static static_closure_node *static_closure_head = NULL;
 
 void scriptgo_closure_free(void *ptr) {
     if (ptr == NULL) return;
     scriptgo_closure *c = (scriptgo_closure *)ptr;
+    c->properties = NULL;
     c->fn_ptr = (void *)closure_freelist;
     closure_freelist = c;
 }
@@ -40,6 +53,16 @@ void scriptgo_closure_free(void *ptr) {
 int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t return_tag, void **out_closure) {
     scriptgo_closure *c;
     if (out_closure == NULL) return scriptgo_runtime_set_error("scriptgo closure allocation failed");
+    if (env == NULL) {
+        static_closure_node *curr = static_closure_head;
+        while (curr != NULL) {
+            if (curr->fn_ptr == fn_ptr && curr->invoke_ptr == invoke_ptr && curr->return_tag == return_tag) {
+                *out_closure = curr->closure;
+                return 0;
+            }
+            curr = curr->next;
+        }
+    }
     if (closure_freelist != NULL) {
         c = closure_freelist;
         closure_freelist = (scriptgo_closure *)c->fn_ptr;
@@ -51,9 +74,22 @@ int scriptgo_closure_create(void *fn_ptr, void *env, void *invoke_ptr, int32_t r
     c->env = env;
     c->invoke_ptr = invoke_ptr;
     c->return_tag = return_tag;
+    c->properties = NULL;
     if (scriptgo_gc_register(c, SCRIPTGO_CLOSURE_GC_TAG, 0) != 0) {
         free(c);
         return scriptgo_runtime_set_error("scriptgo closure registration failed");
+    }
+    if (env == NULL) {
+        static_closure_node *node = (static_closure_node *)malloc(sizeof(static_closure_node));
+        if (node != NULL) {
+            node->fn_ptr = fn_ptr;
+            node->invoke_ptr = invoke_ptr;
+            node->return_tag = return_tag;
+            node->closure = c;
+            node->next = static_closure_head;
+            static_closure_head = node;
+            scriptgo_gc_add_root(c);
+        }
     }
     *out_closure = c;
     return 0;
