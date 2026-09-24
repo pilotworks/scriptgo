@@ -6,9 +6,9 @@
 #include <pwd.h>
 #include <sys/time.h>
 #include <errno.h>
-#include <sys/resource.h>
 
 #if !defined(__wasi__)
+#include <sys/resource.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
