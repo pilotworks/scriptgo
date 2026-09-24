@@ -977,6 +977,8 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	register([]string{"__scriptgo.netSocketWrite"}, CategoryNodeModule, "__net.socketWrite", []ir.Type{ir.TypeNumber, ir.TypeString, ir.TypeNumber}, ir.TypeNumber, 3, 3)
 	register([]string{"__scriptgo.netSocketRead"}, CategoryNodeModule, "__net.socketRead", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeString, 2, 2)
 	register([]string{"__scriptgo.netSocketClose"}, CategoryNodeModule, "__net.socketClose", []ir.Type{ir.TypeNumber}, ir.TypeVoid, 1, 1)
+	register([]string{"__scriptgo.netSocketSetNoDelay"}, CategoryNodeModule, "__net.socketSetNoDelay", []ir.Type{ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 2, 2)
+	register([]string{"__scriptgo.netSocketSetKeepAlive"}, CategoryNodeModule, "__net.socketSetKeepAlive", []ir.Type{ir.TypeNumber, ir.TypeNumber, ir.TypeNumber}, ir.TypeVoid, 3, 3)
 	register([]string{"__scriptgo.netServerListen"}, CategoryNodeModule, "__net.serverListen", []ir.Type{ir.TypeString, ir.TypeNumber, ir.TypeNumber}, ir.TypeNumber, 3, 3)
 	register([]string{"__scriptgo.netServerAccept"}, CategoryNodeModule, "__net.serverAccept", []ir.Type{ir.TypeNumber}, ir.TypeObject, 1, 1)
 

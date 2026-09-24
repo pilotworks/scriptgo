@@ -298,8 +298,13 @@ console.log("textdecoder_inst: " + (dec.encoding === "utf-8"));
 
 // @api: new util.util.TextEncoder
 // @expect: textencoder_inst: true
+// @expect: textencoder_encode: 11
+// @expect: textdecoder_decode: hello world
 const enc = new util.TextEncoder();
 console.log("textencoder_inst: " + (enc.encoding === "utf-8"));
+const encodedBytes = enc.encode("hello world");
+console.log("textencoder_encode: " + encodedBytes.length);
+console.log("textdecoder_decode: " + dec.decode(encodedBytes));
 
 // @api: util.log
 // @expect: log_res: true

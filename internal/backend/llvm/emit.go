@@ -473,6 +473,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_net_socket_write(double, ptr, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_socket_read(double, double, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_socket_close(double)\n")
+	out.WriteString("declare i32 @scriptgo_net_socket_set_nodelay(double, double)\n")
+	out.WriteString("declare i32 @scriptgo_net_socket_set_keepalive(double, double, double)\n")
 	out.WriteString("declare i32 @scriptgo_net_server_listen(ptr, double, double, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_net_server_accept(double, ptr, ptr, ptr)\n\n")
 	out.WriteString("declare i32 @scriptgo_dgram_socket_create(double, ptr)\n")

@@ -6,6 +6,8 @@ declare namespace __scriptgo {
     function netSocketWrite(fd: number, data: string, len: number): number;
     function netSocketRead(fd: number, maxLen: number): string;
     function netSocketClose(fd: number): void;
+    function netSocketSetNoDelay(fd: number, noDelay: number): void;
+    function netSocketSetKeepAlive(fd: number, enable: number, initialDelay: number): void;
     function netServerListen(host: string, port: number, backlog: number): number;
 }
 
@@ -189,6 +191,9 @@ export class Socket {
     timeout: number = 0;
     autoSelectFamilyAttemptedAddresses: string[] = [];
     _fd: number = -1;
+    _noDelay: boolean = false;
+    _keepAlive: boolean = false;
+    _keepAliveInitialDelay: number = 0;
 
     _buckets: NetEventBucket[] = [];
 
@@ -263,6 +268,12 @@ export class Socket {
         try {
             if (this._fd < 0) {
                 this._fd = __scriptgo.netSocketCreate(4, 1);
+            }
+            if (this._noDelay) {
+                try { __scriptgo.netSocketSetNoDelay(this._fd, 1); } catch {}
+            }
+            if (this._keepAlive) {
+                try { __scriptgo.netSocketSetKeepAlive(this._fd, 1, this._keepAliveInitialDelay); } catch {}
             }
             __scriptgo.netSocketConnect(this._fd, this.remoteAddress, this.remotePort);
             this.emit("connect");
@@ -366,10 +377,23 @@ export class Socket {
     }
 
     setKeepAlive(enable: boolean = false, initialDelay: number = 0): Socket {
+        this._keepAlive = enable;
+        this._keepAliveInitialDelay = initialDelay;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.netSocketSetKeepAlive(this._fd, enable ? 1 : 0, initialDelay);
+            } catch {}
+        }
         return this;
     }
 
     setNoDelay(noDelay: boolean = true): Socket {
+        this._noDelay = noDelay;
+        if (this._fd >= 0) {
+            try {
+                __scriptgo.netSocketSetNoDelay(this._fd, noDelay ? 1 : 0);
+            } catch {}
+        }
         return this;
     }
 

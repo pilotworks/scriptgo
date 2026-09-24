@@ -931,16 +931,93 @@ export class TextDecoder {
     readonly encoding: string = "utf-8";
     readonly fatal: boolean = false;
     readonly ignoreBOM: boolean = false;
-    constructor(label?: string, options?: { fatal?: boolean; ignoreBOM?: boolean }) {}
+
+    constructor(label: string = "utf-8", options?: { fatal?: boolean; ignoreBOM?: boolean }) {
+        if (label) this.encoding = label;
+        if (options) {
+            if (options.fatal !== undefined) this.fatal = options.fatal;
+            if (options.ignoreBOM !== undefined) this.ignoreBOM = options.ignoreBOM;
+        }
+    }
+
     decode(input?: Uint8Array, options?: { stream?: boolean }): string {
-        return "";
+        if (!input || input.length === 0) return "";
+        let s = "";
+        let i = 0;
+        while (i < input.length) {
+            const b = input[i++];
+            if (b < 0x80) {
+                s += String.fromCharCode(b);
+            } else if ((b & 0xe0) === 0xc0) {
+                if (i >= input.length) break;
+                const b2 = input[i++];
+                s += String.fromCharCode(((b & 0x1f) << 6) | (b2 & 0x3f));
+            } else if ((b & 0xf0) === 0xe0) {
+                if (i + 1 >= input.length) break;
+                const b2 = input[i++];
+                const b3 = input[i++];
+                s += String.fromCharCode(((b & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f));
+            } else if ((b & 0xf8) === 0xf0) {
+                if (i + 2 >= input.length) break;
+                const b2 = input[i++];
+                const b3 = input[i++];
+                const b4 = input[i++];
+                let cp = ((b & 0x07) << 18) | ((b2 & 0x3f) << 12) | ((b3 & 0x3f) << 6) | (b4 & 0x3f);
+                cp -= 0x10000;
+                s += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff));
+            } else {
+                s += String.fromCharCode(b);
+            }
+        }
+        return s;
     }
 }
 
 export class TextEncoder {
     readonly encoding: string = "utf-8";
-    encode(input?: string): Uint8Array {
-        return new Uint8Array(0);
+
+    encode(input: string = ""): Uint8Array {
+        let len = 0;
+        for (let i = 0; i < input.length; i++) {
+            const code = input.charCodeAt(i);
+            if (code < 0x80) len += 1;
+            else if (code < 0x800) len += 2;
+            else if (code >= 0xd800 && code <= 0xdbff) { len += 4; i++; }
+            else len += 3;
+        }
+        const bytes = new Uint8Array(len);
+        let pos = 0;
+        for (let i = 0; i < input.length; i++) {
+            let code = input.charCodeAt(i);
+            if (code < 0x80) {
+                bytes[pos++] = code;
+            } else if (code < 0x800) {
+                bytes[pos++] = 0xc0 | (code >> 6);
+                bytes[pos++] = 0x80 | (code & 0x3f);
+            } else if (code >= 0xd800 && code <= 0xdbff) {
+                i++;
+                const low = input.charCodeAt(i);
+                const cp = 0x10000 + (((code & 0x3ff) << 10) | (low & 0x3ff));
+                bytes[pos++] = 0xf0 | (cp >> 18);
+                bytes[pos++] = 0x80 | ((cp >> 12) & 0x3f);
+                bytes[pos++] = 0x80 | ((cp >> 6) & 0x3f);
+                bytes[pos++] = 0x80 | (cp & 0x3f);
+            } else {
+                bytes[pos++] = 0xe0 | (code >> 12);
+                bytes[pos++] = 0x80 | ((code >> 6) & 0x3f);
+                bytes[pos++] = 0x80 | (code & 0x3f);
+            }
+        }
+        return bytes;
+    }
+
+    encodeInto(input: string, destination: Uint8Array): { read: number; written: number } {
+        const encoded = this.encode(input);
+        const toCopy = Math.min(encoded.length, destination.length);
+        for (let i = 0; i < toCopy; i++) {
+            destination[i] = encoded[i];
+        }
+        return { read: toCopy, written: toCopy };
     }
 }
 
