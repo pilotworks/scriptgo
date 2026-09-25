@@ -59,9 +59,9 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 					if b := elem.AsBindingElement(); b != nil {
 						pName := ""
 						if b.PropertyName != nil {
-							pName = b.PropertyName.Text()
+							pName = syntaxMemberName(b.PropertyName)
 						} else if b.Name() != nil {
-							pName = b.Name().Text()
+							pName = syntaxMemberName(b.Name())
 						}
 						t := resolveInferredType(chk, b.Name())
 						if t == "" || t == "void" {
@@ -102,9 +102,9 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 
 		propName := ""
 		if binding.PropertyName != nil {
-			propName = binding.PropertyName.Text()
+			propName = syntaxMemberName(binding.PropertyName)
 		} else if binding.Name() != nil {
-			propName = binding.Name().Text()
+			propName = syntaxMemberName(binding.Name())
 		}
 
 		targetNode := binding.Name()
@@ -234,9 +234,9 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 							if sb := sub.AsBindingElement(); sb != nil {
 								pName := ""
 								if sb.PropertyName != nil {
-									pName = sb.PropertyName.Text()
+									pName = syntaxMemberName(sb.PropertyName)
 								} else if sb.Name() != nil {
-									pName = sb.Name().Text()
+									pName = syntaxMemberName(sb.Name())
 								}
 								st := resolveInferredType(chk, sb.Name())
 								if st == "" || st == "void" || st == "undefined" {
@@ -682,7 +682,7 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 		if objLit != nil && objLit.Properties != nil {
 			for _, prop := range objLit.Properties.Nodes {
 				if prop.Kind == ast.KindShorthandPropertyAssignment {
-					propName := prop.Name().Text()
+					propName := syntaxMemberName(prop.Name())
 					stmts = append(stmts, SyntaxStatement{
 						Span: sourceSpan(prop),
 						Kind: "assign",
@@ -696,7 +696,7 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 					})
 				} else if prop.Kind == ast.KindPropertyAssignment {
 					pAssign := prop.AsPropertyAssignment()
-					propName := pAssign.Name().Text()
+					propName := syntaxMemberName(pAssign.Name())
 					if pAssign.Initializer != nil {
 						if pAssign.Initializer.Kind == ast.KindIdentifier {
 							stmts = append(stmts, SyntaxStatement{

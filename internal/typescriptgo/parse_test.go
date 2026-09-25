@@ -432,3 +432,31 @@ console.log(num, str);
 		}
 	}
 }
+
+func TestCheckSupportsComputedPropertyNameInTypes(t *testing.T) {
+	entry := filepath.Join(t.TempDir(), "main.ts")
+	source := `
+const S: symbol = Symbol("tag");
+type WithComputed = {
+	[S]: string;
+	name: string;
+};
+type UnionWithComputed = { [S]: number } | { name: string };
+const obj: WithComputed = {
+	[S]: "hello",
+	name: "world",
+};
+console.log(obj.name);
+`
+	if err := os.WriteFile(entry, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Check(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("Check returned unexpected diagnostics for computed properties: %+v", result.Diagnostics)
+	}
+}

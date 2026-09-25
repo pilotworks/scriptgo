@@ -79,6 +79,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
 | Tagged Template Expressions (`` tag`Hello ${name}` ``) | ✅ Full | Calls function/closure with `TemplateStringsArray` and interpolated argument list. |
 | Optional Chaining & Optional Call (`?.`, `fn?.()`, `obj?.method?.()`, `arr?.[idx]`) | ✅ Full | Short-circuits property access, element indexing, and function calls when receiver is nullish without evaluating argument/index side-effects. Native unboxed number returns IEEE-754 NaN when short-circuited. |
+| Computed Property Names (`[expr]`, `[Symbol.xxx]`) | ✅ Full | Supported in object literals, type aliases, union types, and interface definitions; AST extraction gracefully handles computed property expressions without unhandled node panics. |
 | `debugger;` Statement | ✅ Full | Breakpoint hook in native runtime (`scriptgo_debugger_break`), instruction-level DWARF location mapping, compliant no-op in headless execution adhering to ECMAScript standard. |
 
 ---
