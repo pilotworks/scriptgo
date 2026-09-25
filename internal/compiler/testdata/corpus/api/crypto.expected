@@ -1,0 +1,19 @@
+cr_hash: 32 32
+cr_hmac: 32
+cr_hash_bytes: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad 9c196e32dc0175f86f4b1cb89289d6619de6bee699e4c378e68309ed97a1a6ab
+cr_hash_binary: 47ffa3ea45a70b8a41c2c0825df323c00a8b7a01c1ea06083cc41dddcc001123 963d16d355f11798a5434eaadf01feab4e09e8b31ddbdbc85a4c9a05f8dfb0b5
+cr_x509: false 01 CN=Test true
+cr_props: 1 true true
+cr_sync: true true 32 32 16 true
+cr_scrypt: 4cac4540992d51feeaefe4668bbfed7222f02b445aaffbbe60cfec110fb2735c
+cr_hkdf: fe8f9615d2374c0d17f77d1aeaf408c2e75fe0466073d0def23c733e2f862dfd
+cr_async: true
+cr_keyobject: secret 32 true true 32
+cr_rsa_keygen: public private rsa 2048
+cr_cipher_cbc: Hello, ScriptGo Crypto!
+cr_cipher_gcm: GCM authenticated payload 16 gcm
+cr_sign_verify: true true
+cr_asym_encrypt: Secret RSA Message
+cr_dh: true 0 true true
+cr_ecdh: true 32
+cr_misc: 0 0 object

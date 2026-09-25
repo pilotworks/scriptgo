@@ -17,6 +17,45 @@ declare namespace __scriptgo {
     function pbkdf2Sync(password: string, salt: string, iterations: number, keylen: number, digest?: string): Buffer;
     function hkdfSync(digest: string, ikm: string, salt: string, info: string, keylen: number): ArrayBuffer;
     function scryptSync(password: string, salt: string, keylen: number): Buffer;
+    function cipherCreate(algorithm: string, key: Buffer, iv: Buffer, isEncrypt: number): object;
+    function cipherUpdate(ctx: object, input: Buffer): Buffer;
+    function cipherFinal(ctx: object): Buffer;
+    function cipherSetAAD(ctx: object, aad: Buffer): void;
+    function cipherGetTag(ctx: object): Buffer;
+    function cipherSetTag(ctx: object, tag: Buffer): void;
+    function cipherSetAutoPadding(ctx: object, autoPadding: number): void;
+    function cipherDestroy(ctx: object): void;
+    function getCipherInfo(nameOrNid: string): string;
+    function cryptoSign(algorithm: string, data: Buffer, key: string): Buffer;
+    function cryptoVerify(algorithm: string, data: Buffer, key: string, signature: Buffer): boolean;
+    function publicEncrypt(key: string, buffer: Buffer, padding: number): Buffer;
+    function publicDecrypt(key: string, buffer: Buffer, padding: number): Buffer;
+    function privateEncrypt(key: string, buffer: Buffer, padding: number): Buffer;
+    function privateDecrypt(key: string, buffer: Buffer, padding: number): Buffer;
+    function generateKeyPairSync(type: string, modulusLength: number, namedCurve: string): string;
+    function keyDetails(key: string): string;
+    function dhCreate(prime: Buffer, generator: Buffer): object;
+    function dhCreateGroup(name: string): object;
+    function dhGenerateKeys(dh: object): Buffer;
+    function dhComputeSecret(dh: object, otherPublicKey: Buffer): Buffer;
+    function dhGetKey(dh: object, which: number): Buffer;
+    function dhSetKey(dh: object, which: number, key: Buffer): void;
+    function dhDestroy(dh: object): void;
+    function ecdhCreate(curveName: string): object;
+    function ecdhGenerateKeys(ecdh: object): Buffer;
+    function ecdhComputeSecret(ecdh: object, otherPublicKey: Buffer): Buffer;
+    function ecdhGetKey(ecdh: object, which: number): Buffer;
+    function ecdhSetKey(ecdh: object, which: number, key: Buffer): void;
+    function ecdhDestroy(ecdh: object): void;
+    function spkacVerify(spkac: string): boolean;
+    function spkacExportChallenge(spkac: string): string;
+    function spkacExportPublicKey(spkac: string): string;
+    function x509CheckPrivateKey(cert: string, key: string): boolean;
+    function x509Verify(cert: string, pubkey: string): boolean;
+    function getFips(): number;
+    function setFips(enable: number): void;
+    function secureHeapUsed(): string;
+    function setEngine(engine: string, flags: number): void;
 }
 
 type CryptoBinary = string | Buffer | Uint8Array | ArrayBuffer;
@@ -104,6 +143,126 @@ function formatFingerprintCrypto(hexStr: string): string {
     return parts.join(":");
 }
 
+export type KeyObjectType = "secret" | "public" | "private";
+
+export interface AsymmetricKeyDetails {
+    modulusLength?: number;
+    publicExponent?: bigint | number;
+    hashAlgorithm?: string;
+    mgf1HashAlgorithm?: string;
+    saltLength?: number;
+    divisorLength?: number;
+    namedCurve?: string;
+}
+
+export class KeyObject {
+    readonly type: KeyObjectType;
+    readonly asymmetricKeyType?: string;
+    readonly asymmetricKeyDetails?: AsymmetricKeyDetails;
+    readonly symmetricKeySize?: number;
+    private _rawKey: string | Buffer;
+
+    constructor(type: KeyObjectType = "secret", rawKey: string | Buffer = "") {
+        this.type = type;
+        this._rawKey = rawKey;
+        if (type === "secret") {
+            this.symmetricKeySize = typeof rawKey === "string" ? Buffer.byteLength(rawKey) : (rawKey as Buffer).length;
+            this.asymmetricKeyType = undefined;
+            this.asymmetricKeyDetails = undefined;
+        } else {
+            const detailsRaw = __scriptgo.keyDetails(String(rawKey));
+            try {
+                const parsed = JSON.parse(detailsRaw) as { asymmetricKeyType?: string, modulusLength?: number };
+                this.asymmetricKeyType = parsed.asymmetricKeyType || "rsa";
+                this.asymmetricKeyDetails = { modulusLength: parsed.modulusLength || 2048 };
+            } catch {
+                this.asymmetricKeyType = "rsa";
+                this.asymmetricKeyDetails = { modulusLength: 2048 };
+            }
+        }
+    }
+
+    export(options?: { type?: string, format?: string }): string | Buffer {
+        if (this.type === "secret") {
+            return typeof this._rawKey === "string" ? Buffer.from(this._rawKey) : this._rawKey;
+        }
+        return String(this._rawKey);
+    }
+
+    equals(other: KeyObject): boolean {
+        if (!other || this.type !== other.type) return false;
+        return String(this.export()) === String(other.export());
+    }
+
+    toCryptoKey(algorithm: unknown, extractable: boolean, keyUsages: string[]): unknown {
+        return {
+            type: this.type,
+            extractable: extractable,
+            algorithm: algorithm,
+            usages: keyUsages
+        };
+    }
+}
+
+export function createSecretKey(key: CryptoBinary, encoding?: string): KeyObject {
+    return new KeyObject("secret", toCryptoBuffer(key, encoding));
+}
+
+export function createPublicKey(key: string | Buffer | KeyObject): KeyObject {
+    if (key instanceof KeyObject) return key;
+    return new KeyObject("public", String(key));
+}
+
+export function createPrivateKey(key: string | Buffer | KeyObject): KeyObject {
+    if (key instanceof KeyObject) return key;
+    return new KeyObject("private", String(key));
+}
+
+export interface GenerateKeyPairOptions {
+    modulusLength?: number;
+    namedCurve?: string;
+    publicKeyEncoding?: { type: string, format: string };
+    privateKeyEncoding?: { type: string, format: string };
+}
+
+export function generateKeyPairSync(type: "rsa" | "ec" | "ed25519" | string, options: GenerateKeyPairOptions = {}): { publicKey: KeyObject | string, privateKey: KeyObject | string } {
+    const modLen = options.modulusLength || 2048;
+    const curve = options.namedCurve || "prime256v1";
+    const raw = __scriptgo.generateKeyPairSync(type, modLen, curve);
+    const parsed = JSON.parse(raw) as { publicKey: string, privateKey: string };
+    if (options.publicKeyEncoding) {
+        return { publicKey: parsed.publicKey, privateKey: parsed.privateKey };
+    }
+    return {
+        publicKey: new KeyObject("public", parsed.publicKey),
+        privateKey: new KeyObject("private", parsed.privateKey)
+    };
+}
+
+export function generateKeyPair(type: string, options: GenerateKeyPairOptions, callback: (err: Error | null, publicKey: unknown, privateKey: unknown) => void): void {
+    try {
+        const res = generateKeyPairSync(type, options);
+        callback(null, res.publicKey, res.privateKey);
+    } catch (e: unknown) {
+        callback(e as Error, null, null);
+    }
+}
+
+export function generateKeySync(type: "hmac" | "aes", options: { length: number }): KeyObject {
+    const len = options.length ? Math.floor(options.length / 8) : 32;
+    const bytes = __scriptgo.randomBytes(len);
+    return new KeyObject("secret", bytes);
+}
+
+export function generateKey(type: "hmac" | "aes", options: { length: number }, callback: (err: Error | null, key: KeyObject | null) => void): void {
+    try {
+        const key = generateKeySync(type, options);
+        callback(null, key);
+    } catch (e: unknown) {
+        callback(e as Error, null);
+    }
+}
+
 export class X509Certificate {
     ca: boolean = false;
     fingerprint: string = "";
@@ -113,7 +272,7 @@ export class X509Certificate {
     issuer: string = "";
     issuerCertificate: X509Certificate | undefined = undefined;
     keyUsage: string[] = [];
-    publicKey: Record<string, unknown> = { type: "public" };
+    publicKey: KeyObject = new KeyObject("public", "");
     raw: Buffer = Buffer.alloc(0);
     serialNumber: string = "";
     subject: string = "";
@@ -253,6 +412,16 @@ export class X509Certificate {
 
     toString(): string {
         return this._pem.length > 0 ? this._pem : "-----BEGIN CERTIFICATE-----\n" + this.fingerprint256 + "\n-----END CERTIFICATE-----";
+    }
+
+    checkPrivateKey(privateKey: KeyObject): boolean {
+        const keyPem = String(privateKey.export());
+        return __scriptgo.x509CheckPrivateKey(this._pem, keyPem);
+    }
+
+    verify(publicKey: KeyObject): boolean {
+        const pubPem = String(publicKey.export());
+        return __scriptgo.x509Verify(this._pem, pubPem);
     }
 }
 
@@ -471,27 +640,511 @@ export function timingSafeEqual(a: Buffer, b: Buffer): boolean {
     return __scriptgo.timingSafeEqual(a, b);
 }
 
+export class Certificate {
+    constructor() {}
+
+    static verifySpkac(spkac: CryptoBinary, encoding?: string): boolean {
+        const str = typeof spkac === "string" ? spkac : toCryptoBuffer(spkac, encoding).toString("utf8");
+        return __scriptgo.spkacVerify(str);
+    }
+
+    static exportChallenge(spkac: CryptoBinary, encoding?: string): Buffer {
+        const str = typeof spkac === "string" ? spkac : toCryptoBuffer(spkac, encoding).toString("utf8");
+        const chal = __scriptgo.spkacExportChallenge(str);
+        return Buffer.from(chal, "utf8");
+    }
+
+    static exportPublicKey(spkac: CryptoBinary, encoding?: string): Buffer {
+        const str = typeof spkac === "string" ? spkac : toCryptoBuffer(spkac, encoding).toString("utf8");
+        const pub = __scriptgo.spkacExportPublicKey(str);
+        return Buffer.from(pub, "utf8");
+    }
+
+    verifySpkac(spkac: CryptoBinary, encoding?: string): boolean {
+        return Certificate.verifySpkac(spkac, encoding);
+    }
+
+    exportChallenge(spkac: CryptoBinary, encoding?: string): Buffer {
+        return Certificate.exportChallenge(spkac, encoding);
+    }
+
+    exportPublicKey(spkac: CryptoBinary, encoding?: string): Buffer {
+        return Certificate.exportPublicKey(spkac, encoding);
+    }
+}
+
+export class Cipher extends EventEmitter {
+    private _ctx: object;
+
+    constructor(algorithm: string, key: CryptoBinary | KeyObject, iv: CryptoBinary | null, options?: unknown) {
+        super();
+        const keyBuf = key instanceof KeyObject ? toCryptoBuffer(key.export()) : toCryptoBuffer(key);
+        const ivBuf = iv ? toCryptoBuffer(iv) : Buffer.alloc(0);
+        this._ctx = __scriptgo.cipherCreate(algorithm, keyBuf, ivBuf, 1);
+    }
+
+    update(data: CryptoBinary, inputEncoding?: string): Buffer;
+    update(data: CryptoBinary, inputEncoding: string | undefined, outputEncoding: string): string;
+    update(data: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string;
+    update(data: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string {
+        const inBuf = toCryptoBuffer(data, inputEncoding);
+        const outBuf = __scriptgo.cipherUpdate(this._ctx, inBuf);
+        if (outputEncoding !== undefined) {
+            return outBuf.toString(outputEncoding);
+        }
+        return outBuf;
+    }
+
+    final(): Buffer;
+    final(outputEncoding: string): string;
+    final(outputEncoding?: string): Buffer | string;
+    final(outputEncoding?: string): Buffer | string {
+        const outBuf = __scriptgo.cipherFinal(this._ctx);
+        if (outputEncoding !== undefined) {
+            return outBuf.toString(outputEncoding);
+        }
+        return outBuf;
+    }
+
+    setAAD(buffer: Buffer, options?: unknown): this {
+        __scriptgo.cipherSetAAD(this._ctx, buffer);
+        return this;
+    }
+
+    getAuthTag(): Buffer {
+        return __scriptgo.cipherGetTag(this._ctx);
+    }
+
+    setAutoPadding(autoPadding: boolean = true): this {
+        __scriptgo.cipherSetAutoPadding(this._ctx, autoPadding ? 1 : 0);
+        return this;
+    }
+}
+
+export class Decipher extends EventEmitter {
+    private _ctx: object;
+
+    constructor(algorithm: string, key: CryptoBinary | KeyObject, iv: CryptoBinary | null, options?: unknown) {
+        super();
+        const keyBuf = key instanceof KeyObject ? toCryptoBuffer(key.export()) : toCryptoBuffer(key);
+        const ivBuf = iv ? toCryptoBuffer(iv) : Buffer.alloc(0);
+        this._ctx = __scriptgo.cipherCreate(algorithm, keyBuf, ivBuf, 0);
+    }
+
+    update(data: CryptoBinary, inputEncoding?: string): Buffer;
+    update(data: CryptoBinary, inputEncoding: string | undefined, outputEncoding: string): string;
+    update(data: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string;
+    update(data: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string {
+        const inBuf = toCryptoBuffer(data, inputEncoding);
+        const outBuf = __scriptgo.cipherUpdate(this._ctx, inBuf);
+        if (outputEncoding !== undefined) {
+            return outBuf.toString(outputEncoding);
+        }
+        return outBuf;
+    }
+
+    final(): Buffer;
+    final(outputEncoding: string): string;
+    final(outputEncoding?: string): Buffer | string;
+    final(outputEncoding?: string): Buffer | string {
+        const outBuf = __scriptgo.cipherFinal(this._ctx);
+        if (outputEncoding !== undefined) {
+            return outBuf.toString(outputEncoding);
+        }
+        return outBuf;
+    }
+
+    setAAD(buffer: Buffer, options?: unknown): this {
+        __scriptgo.cipherSetAAD(this._ctx, buffer);
+        return this;
+    }
+
+    setAuthTag(buffer: Buffer, encoding?: string): this {
+        __scriptgo.cipherSetTag(this._ctx, buffer);
+        return this;
+    }
+
+    setAutoPadding(autoPadding: boolean = true): this {
+        __scriptgo.cipherSetAutoPadding(this._ctx, autoPadding ? 1 : 0);
+        return this;
+    }
+}
+
+export function createCipheriv(algorithm: string, key: CryptoBinary | KeyObject, iv: CryptoBinary | null, options?: unknown): Cipher {
+    return new Cipher(algorithm, key, iv, options);
+}
+
+export function createDecipheriv(algorithm: string, key: CryptoBinary | KeyObject, iv: CryptoBinary | null, options?: unknown): Decipher {
+    return new Decipher(algorithm, key, iv, options);
+}
+
+export interface CipherInfo {
+    name: string;
+    nid: number;
+    blockSize: number;
+    ivLength: number;
+    keyLength: number;
+    mode: string;
+}
+
+export function getCipherInfo(nameOrNid: string | number, options?: unknown): CipherInfo | undefined {
+    const raw = __scriptgo.getCipherInfo(String(nameOrNid));
+    if (!raw || raw === "{}") return undefined;
+    try {
+        return JSON.parse(raw) as CipherInfo;
+    } catch {
+        return undefined;
+    }
+}
+
+export class Sign extends EventEmitter {
+    private _algorithm: string;
+    private _data: Buffer;
+
+    constructor(algorithm: string = "sha256", options?: unknown) {
+        super();
+        this._algorithm = algorithm;
+        this._data = Buffer.alloc(0);
+    }
+
+    update(data: CryptoBinary, inputEncoding?: string): this {
+        this._data = Buffer.concat([this._data, toCryptoBuffer(data, inputEncoding)]);
+        return this;
+    }
+
+    sign(privateKey: KeyObject | string | { key: string | KeyObject, passphrase?: string }): Buffer;
+    sign(privateKey: KeyObject | string | { key: string | KeyObject, passphrase?: string }, outputEncoding: string): string;
+    sign(privateKey: KeyObject | string | { key: string | KeyObject, passphrase?: string }, outputEncoding?: string): Buffer | string;
+    sign(privateKey: KeyObject | string | { key: string | KeyObject, passphrase?: string }, outputEncoding?: string): Buffer | string {
+        let keyPem = "";
+        if (privateKey instanceof KeyObject) {
+            keyPem = String(privateKey.export());
+        } else if (typeof privateKey === "string") {
+            keyPem = privateKey;
+        } else if (typeof privateKey === "object" && privateKey !== null) {
+            const k = (privateKey as { key: string | KeyObject }).key;
+            keyPem = k instanceof KeyObject ? String(k.export()) : String(k);
+        }
+        const sigBuf = __scriptgo.cryptoSign(this._algorithm, this._data, keyPem);
+        if (outputEncoding !== undefined) {
+            return sigBuf.toString(outputEncoding);
+        }
+        return sigBuf;
+    }
+}
+
+export class Verify extends EventEmitter {
+    private _algorithm: string;
+    private _data: Buffer;
+
+    constructor(algorithm: string = "sha256", options?: unknown) {
+        super();
+        this._algorithm = algorithm;
+        this._data = Buffer.alloc(0);
+    }
+
+    update(data: CryptoBinary, inputEncoding?: string): this {
+        this._data = Buffer.concat([this._data, toCryptoBuffer(data, inputEncoding)]);
+        return this;
+    }
+
+    verify(publicKey: KeyObject | string | { key: string | KeyObject }, signature: CryptoBinary, signatureEncoding?: string): boolean {
+        let keyPem = "";
+        if (publicKey instanceof KeyObject) {
+            keyPem = String(publicKey.export());
+        } else if (typeof publicKey === "string") {
+            keyPem = publicKey;
+        } else if (typeof publicKey === "object" && publicKey !== null) {
+            const k = (publicKey as { key: string | KeyObject }).key;
+            keyPem = k instanceof KeyObject ? String(k.export()) : String(k);
+        }
+        const sigBuf = toCryptoBuffer(signature, signatureEncoding);
+        return __scriptgo.cryptoVerify(this._algorithm, this._data, keyPem, sigBuf);
+    }
+}
+
+export function createSign(algorithm: string, options?: unknown): Sign {
+    return new Sign(algorithm, options);
+}
+
+export function createVerify(algorithm: string, options?: unknown): Verify {
+    return new Verify(algorithm, options);
+}
+
+export class DiffieHellman {
+    protected _handle: object;
+    verifyError: number = 0;
+
+    constructor(prime: CryptoBinary | number, primeEncoding?: string | number, generator?: CryptoBinary | number, generatorEncoding?: string) {
+        let primeBuf: Buffer;
+        let genBuf: Buffer = Buffer.alloc(0);
+        if (typeof prime === "number") {
+            const pGroup = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF";
+            primeBuf = Buffer.from(pGroup, "hex");
+            genBuf = Buffer.from([typeof primeEncoding === "number" ? primeEncoding : 2]);
+        } else {
+            primeBuf = toCryptoBuffer(prime, typeof primeEncoding === "string" ? primeEncoding : undefined);
+            if (generator !== undefined) {
+                if (typeof generator === "number") {
+                    genBuf = Buffer.from([generator]);
+                } else {
+                    genBuf = toCryptoBuffer(generator, generatorEncoding);
+                }
+            } else {
+                genBuf = Buffer.from([2]);
+            }
+        }
+        this._handle = __scriptgo.dhCreate(primeBuf, genBuf);
+    }
+
+    generateKeys(): Buffer;
+    generateKeys(encoding: string): string;
+    generateKeys(encoding?: string): Buffer | string;
+    generateKeys(encoding?: string): Buffer | string {
+        const buf = __scriptgo.dhGenerateKeys(this._handle);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    computeSecret(otherPublicKey: CryptoBinary): Buffer;
+    computeSecret(otherPublicKey: CryptoBinary, outputEncoding: string): string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding: string, outputEncoding: string): string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string {
+        const otherBuf = toCryptoBuffer(otherPublicKey, inputEncoding);
+        const sec = __scriptgo.dhComputeSecret(this._handle, otherBuf);
+        return outputEncoding !== undefined ? sec.toString(outputEncoding) : sec;
+    }
+
+    getPrime(): Buffer;
+    getPrime(encoding: string): string;
+    getPrime(encoding?: string): Buffer | string;
+    getPrime(encoding?: string): Buffer | string {
+        const buf = __scriptgo.dhGetKey(this._handle, 0);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    getGenerator(): Buffer;
+    getGenerator(encoding: string): string;
+    getGenerator(encoding?: string): Buffer | string;
+    getGenerator(encoding?: string): Buffer | string {
+        const buf = __scriptgo.dhGetKey(this._handle, 1);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    getPublicKey(): Buffer;
+    getPublicKey(encoding: string): string;
+    getPublicKey(encoding?: string): Buffer | string;
+    getPublicKey(encoding?: string): Buffer | string {
+        const buf = __scriptgo.dhGetKey(this._handle, 2);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    getPrivateKey(): Buffer;
+    getPrivateKey(encoding: string): string;
+    getPrivateKey(encoding?: string): Buffer | string;
+    getPrivateKey(encoding?: string): Buffer | string {
+        const buf = __scriptgo.dhGetKey(this._handle, 3);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    setPublicKey(publicKey: CryptoBinary, encoding?: string): this {
+        __scriptgo.dhSetKey(this._handle, 2, toCryptoBuffer(publicKey, encoding));
+        return this;
+    }
+
+    setPrivateKey(privateKey: CryptoBinary, encoding?: string): this {
+        __scriptgo.dhSetKey(this._handle, 3, toCryptoBuffer(privateKey, encoding));
+        return this;
+    }
+}
+
+export class DiffieHellmanGroup extends DiffieHellman {
+    constructor(name: string) {
+        super(2048);
+        this._handle = __scriptgo.dhCreateGroup(name);
+    }
+}
+
+export function createDiffieHellman(prime: unknown, primeEncoding?: unknown, generator?: unknown, generatorEncoding?: unknown): DiffieHellman {
+    return new DiffieHellman(prime as any, primeEncoding as any, generator as any, generatorEncoding as any);
+}
+
+export function createDiffieHellmanGroup(name: string): DiffieHellmanGroup {
+    return new DiffieHellmanGroup(name);
+}
+
+export function getDiffieHellman(name: string): DiffieHellmanGroup {
+    return new DiffieHellmanGroup(name);
+}
+
+export class ECDH {
+    private _handle: object;
+
+    constructor(curveName: string) {
+        this._handle = __scriptgo.ecdhCreate(curveName);
+    }
+
+    generateKeys(): Buffer;
+    generateKeys(encoding: string, format?: string): string;
+    generateKeys(encoding?: string, format?: string): Buffer | string;
+    generateKeys(encoding?: string, format?: string): Buffer | string {
+        const buf = __scriptgo.ecdhGenerateKeys(this._handle);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    computeSecret(otherPublicKey: CryptoBinary): Buffer;
+    computeSecret(otherPublicKey: CryptoBinary, outputEncoding: string): string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding: string, outputEncoding: string): string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string;
+    computeSecret(otherPublicKey: CryptoBinary, inputEncoding?: string, outputEncoding?: string): Buffer | string {
+        const otherBuf = toCryptoBuffer(otherPublicKey, inputEncoding);
+        const sec = __scriptgo.ecdhComputeSecret(this._handle, otherBuf);
+        return outputEncoding !== undefined ? sec.toString(outputEncoding) : sec;
+    }
+
+    getPublicKey(): Buffer;
+    getPublicKey(encoding: string, format?: string): string;
+    getPublicKey(encoding?: string, format?: string): Buffer | string;
+    getPublicKey(encoding?: string, format?: string): Buffer | string {
+        const buf = __scriptgo.ecdhGetKey(this._handle, 0);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    getPrivateKey(): Buffer;
+    getPrivateKey(encoding: string): string;
+    getPrivateKey(encoding?: string): Buffer | string;
+    getPrivateKey(encoding?: string): Buffer | string {
+        const buf = __scriptgo.ecdhGetKey(this._handle, 1);
+        return encoding !== undefined ? buf.toString(encoding) : buf;
+    }
+
+    setPublicKey(publicKey: CryptoBinary, encoding?: string): this {
+        __scriptgo.ecdhSetKey(this._handle, 0, toCryptoBuffer(publicKey, encoding));
+        return this;
+    }
+
+    setPrivateKey(privateKey: CryptoBinary, encoding?: string): this {
+        __scriptgo.ecdhSetKey(this._handle, 1, toCryptoBuffer(privateKey, encoding));
+        return this;
+    }
+}
+
+export function createECDH(curveName: string): ECDH {
+    return new ECDH(curveName);
+}
+
+function extractKeyPemAndPadding(key: KeyObject | string | { key: string | KeyObject, padding?: number }): { pem: string, padding: number } {
+    let pem = "";
+    let padding = 1;
+    if (key instanceof KeyObject) {
+        pem = String(key.export());
+    } else if (typeof key === "string") {
+        pem = key;
+    } else if (typeof key === "object" && key !== null) {
+        const k = (key as { key: string | KeyObject, padding?: number }).key;
+        pem = k instanceof KeyObject ? String(k.export()) : String(k);
+        if (typeof (key as { padding?: number }).padding === "number") {
+            padding = (key as { padding?: number }).padding!;
+        }
+    }
+    return { pem, padding };
+}
+
+export function publicEncrypt(key: KeyObject | string | { key: string | KeyObject, padding?: number }, buffer: CryptoBinary): Buffer {
+    const { pem, padding } = extractKeyPemAndPadding(key);
+    return __scriptgo.publicEncrypt(pem, toCryptoBuffer(buffer), padding);
+}
+
+export function publicDecrypt(key: KeyObject | string | { key: string | KeyObject, padding?: number }, buffer: CryptoBinary): Buffer {
+    const { pem, padding } = extractKeyPemAndPadding(key);
+    return __scriptgo.publicDecrypt(pem, toCryptoBuffer(buffer), padding);
+}
+
+export function privateEncrypt(key: KeyObject | string | { key: string | KeyObject, padding?: number }, buffer: CryptoBinary): Buffer {
+    const { pem, padding } = extractKeyPemAndPadding(key);
+    return __scriptgo.privateEncrypt(pem, toCryptoBuffer(buffer), padding);
+}
+
+export function privateDecrypt(key: KeyObject | string | { key: string | KeyObject, padding?: number }, buffer: CryptoBinary): Buffer {
+    const { pem, padding } = extractKeyPemAndPadding(key);
+    return __scriptgo.privateDecrypt(pem, toCryptoBuffer(buffer), padding);
+}
+
+export function getFips(): number {
+    return __scriptgo.getFips();
+}
+
+export function setFips(enable: boolean | number): void {
+    __scriptgo.setFips(enable ? 1 : 0);
+}
+
+export function secureHeapUsed(): unknown {
+    const raw = __scriptgo.secureHeapUsed();
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return { total: 0, min: 0, used: 0, util: 0 };
+    }
+}
+
+export function setEngine(engine: string, flags?: number): void {
+    __scriptgo.setEngine(engine, flags || 0);
+}
+
+export let fips: number = 0;
+
 export default {
+    Certificate,
+    Cipher,
+    Decipher,
+    DiffieHellman,
+    DiffieHellmanGroup,
+    ECDH,
     Hash,
     Hmac,
+    KeyObject,
+    Sign,
+    Verify,
     X509Certificate,
     constants,
     subtle,
     webcrypto,
     checkPrime,
     checkPrimeSync,
+    createCipheriv,
+    createDecipheriv,
+    createDiffieHellman,
+    createDiffieHellmanGroup,
+    createECDH,
     createHash,
     createHmac,
+    createPrivateKey,
+    createPublicKey,
+    createSecretKey,
+    createSign,
+    createVerify,
+    fips,
+    generateKey,
+    generateKeyPair,
+    generateKeyPairSync,
+    generateKeySync,
     generatePrime,
     generatePrimeSync,
+    getCipherInfo,
     getCiphers,
     getCurves,
+    getDiffieHellman,
+    getFips,
     getHashes,
     getRandomValues,
     hkdf,
     hkdfSync,
     pbkdf2,
     pbkdf2Sync,
+    privateDecrypt,
+    privateEncrypt,
+    publicDecrypt,
+    publicEncrypt,
     randomBytes,
     randomFill,
     randomFillSync,
@@ -499,5 +1152,8 @@ export default {
     randomUUID,
     scrypt,
     scryptSync,
+    secureHeapUsed,
+    setEngine,
+    setFips,
     timingSafeEqual,
 };
