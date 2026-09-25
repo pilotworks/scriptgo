@@ -619,8 +619,6 @@ func (e *functionEmitter) emitProcessIntrinsic(out *strings.Builder, instruction
 	}
 }
 
-
-
 func (e *functionEmitter) emitDateIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
 	case "__date.now":
