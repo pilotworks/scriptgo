@@ -14,6 +14,9 @@ func lowerNewExpression(path string, expression *typescriptgo.SyntaxExpression, 
 	if res, typ, handled, err := lowerIntlNew(path, expression, rawClassName, result, function, env, counter, shapes, signatures); handled {
 		return res, typ, err
 	}
+	if className == "Proxy" {
+		return lowerProxyNew(path, expression, result, function, env, counter, shapes, signatures)
+	}
 	if className == "RegExp" {
 		ensureRegExpShape(shapes)
 	}

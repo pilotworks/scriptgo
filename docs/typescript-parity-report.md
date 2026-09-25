@@ -340,7 +340,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Dynamic `import('./mod')`** | ❌ Unsupported | Currently supports closed static module graphs only (AOT static linking). |
 | **`eval()` & `new Function()`** | ❌ Unavailable in Native | Native machine binaries cannot interpret arbitrary JS strings at runtime (requires `--dynamic`). |
 | **`Reflect` Namespace** | ✅ Full | All 19 standard ECMAScript & metadata APIs (`get`, `set`, `has`, `deleteProperty`, `ownKeys`, `defineProperty`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, `apply`, `construct`, `getMetadata`, `getOwnMetadata`, `hasMetadata`, `hasOwnMetadata`, `defineMetadata`, `metadata`) supported in Static Tier. |
-| **`Proxy` Objects** | ⏳ Roadmap (Dynamic) | Dynamic field interception traps (get/set traps on arbitrary dynamic objects) slated for `--dynamic` tier. |
+| **`Proxy` Objects** | ✅ Supported (--dynamic) | Basic Proxy interception traps (`get`, `set`, `has`, `apply`, `deleteProperty`, `ownKeys`) supported in the Dynamic tier (QuickJS-ng). Dynamic `any` method calls, prototype traversal, and unconstrained dynamic invocations with arbitrary argument arity are supported. |
 | **Prototype Chain Manipulation** | ❌ Rejected | `Object.setPrototypeOf`, `__proto__`, `Object.defineProperty` (runtime dynamic getters/setters) are disabled to preserve static struct layouts. |
 
 ---

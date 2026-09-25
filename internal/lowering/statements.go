@@ -901,7 +901,7 @@ func lowerStatement(path string, statement typescriptgo.SyntaxStatement, functio
 			if err != nil {
 				return err
 			}
-			if idxType == ir.TypeString {
+			if idxType == ir.TypeString || idxType == ir.TypeUnknown {
 				val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return err

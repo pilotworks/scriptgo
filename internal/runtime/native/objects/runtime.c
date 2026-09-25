@@ -21,8 +21,39 @@ extern int scriptgo_gc_is_registered(void *ptr);
 
 extern const char scriptgo_undefined_sentinel;
 
+int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
+int scriptgo_object_property_unknown_set(void *handle, const char *property, const scriptgo_value *value);
+int scriptgo_array_length(void *handle, int64_t *out_length);
+
 static inline int is_invalid_object_handle(void *handle) {
     return handle == NULL || handle == (void *)&scriptgo_undefined_sentinel;
+}
+
+typedef struct scriptgo_object_engine_ref_entry {
+    void *object;
+    void *ref;
+    struct scriptgo_object_engine_ref_entry *next;
+} scriptgo_object_engine_ref_entry;
+
+static scriptgo_object_engine_ref_entry *scriptgo_object_engine_refs = NULL;
+
+void scriptgo_object_attach_engine_ref(void *object, void *ref) {
+    if (object == NULL || ref == NULL) return;
+    scriptgo_object_engine_ref_entry *entry = (scriptgo_object_engine_ref_entry *)malloc(sizeof(*entry));
+    if (!entry) return;
+    entry->object = object;
+    entry->ref = ref;
+    entry->next = scriptgo_object_engine_refs;
+    scriptgo_object_engine_refs = entry;
+}
+
+void *scriptgo_object_get_engine_ref(void *object) {
+    scriptgo_object_engine_ref_entry *curr = scriptgo_object_engine_refs;
+    while (curr) {
+        if (curr->object == object) return curr->ref;
+        curr = curr->next;
+    }
+    return NULL;
 }
 
 typedef struct {
@@ -221,8 +252,30 @@ int scriptgo_unknown_number_property(const scriptgo_value *value, const char *pr
         return 0;
     }
     void *handle = (void *)(uintptr_t)value->payload;
+    if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0 || *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value prop_val;
+        scriptgo_value_init_undefined(&prop_val);
+        if (scriptgo_object_property_unknown_get(handle, property, &prop_val) == 0) {
+            if (prop_val.tag == SCRIPTGO_TAG_NUMBER) {
+                union { uint64_t u; double d; } bits;
+                bits.u = prop_val.payload;
+                *out_value = bits.d;
+                return 0;
+            }
+        }
+        return 0;
+    }
     if (!scriptgo_gc_is_registered(handle)) {
         return 0;
+    }
+    if (value->tag == SCRIPTGO_OBJECT_TAG_ARRAY || scriptgo_gc_get_tag(handle) == 2) {
+        if (strcmp(property, "length") == 0) {
+            int64_t len = 0;
+            if (scriptgo_array_length(handle, &len) == 0) {
+                *out_value = (double)len;
+                return 0;
+            }
+        }
     }
     uint32_t magic = *(uint32_t *)handle;
     if (magic == SCRIPTGO_MAGIC_TYPEDARRAY) {
@@ -1067,6 +1120,9 @@ extern int scriptgo_gc_get_tag(void *ptr);
 
 static void *resolve_object_handle(void *handle, int for_set) {
     if (is_invalid_object_handle(handle)) return NULL;
+    if (*(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        return handle;
+    }
     if (((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
         return handle;
     }
@@ -1090,10 +1146,39 @@ int scriptgo_object_property_unknown_get(void *handle, const char *property,
         return object_fail("scriptgo object property output is invalid");
     }
     scriptgo_value_init_undefined(out_value);
+    if (handle == NULL || property == NULL) return 0;
+    if (*(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_dynamic_hook_prop_get != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)handle;
+            return scriptgo_dynamic_hook_prop_get(ref->handle, property, out_value);
+        }
+        return 0;
+    }
+    if (scriptgo_gc_get_tag(handle) == 2) {
+        if (strcmp(property, "length") == 0) {
+            int64_t len = 0;
+            if (scriptgo_array_length(handle, &len) == 0) {
+                out_value->tag = SCRIPTGO_TAG_NUMBER;
+                union { double d; uint64_t u; } bits;
+                bits.d = (double)len;
+                out_value->payload = bits.u;
+                return 0;
+            }
+        }
+        return 0;
+    }
     handle = resolve_object_handle(handle, 0);
-    if (handle == NULL || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    if (handle == NULL) return 0;
+    if (((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
-    if (index < 0) return 0;
+    if (index < 0) {
+        void *ref_ptr = scriptgo_object_get_engine_ref(handle);
+        if (ref_ptr != NULL && scriptgo_dynamic_hook_prop_get != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)ref_ptr;
+            return scriptgo_dynamic_hook_prop_get(ref->handle, property, out_value);
+        }
+        return 0;
+    }
     return scriptgo_object_unknown_get(handle, index, out_value);
 }
 
@@ -1149,8 +1234,30 @@ int scriptgo_object_property_number_get(void *handle, const char *property, doub
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property number output is invalid");
     *out_value = NAN;
+    if (handle == NULL || property == NULL) return 0;
+    if (*(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value val;
+        scriptgo_value_init_undefined(&val);
+        if (scriptgo_object_property_unknown_get(handle, property, &val) != 0) return -1;
+        if (val.tag == SCRIPTGO_TAG_NUMBER) {
+            union { uint64_t u; double d; } bits;
+            bits.u = val.payload;
+            *out_value = bits.d;
+        }
+        return 0;
+    }
+    if (scriptgo_gc_get_tag(handle) == 2) {
+        if (strcmp(property, "length") == 0) {
+            int64_t len = 0;
+            if (scriptgo_array_length(handle, &len) == 0) {
+                *out_value = (double)len;
+                return 0;
+            }
+        }
+        return 0;
+    }
     handle = resolve_object_handle(handle, 0);
-	if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+	if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_number_get(handle, index, out_value);
 }
@@ -1160,6 +1267,15 @@ int scriptgo_object_property_string_get(void *handle, const char *property, cons
     if (out_value == NULL) return object_fail("scriptgo object property string output is invalid");
     *out_value = &scriptgo_undefined_sentinel;
     handle = resolve_object_handle(handle, 0);
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_object_property_unknown_get(handle, property, &value) != 0) return -1;
+        if (value.tag == SCRIPTGO_TAG_STRING) {
+            *out_value = (const char *)(uintptr_t)value.payload;
+        } else if (value.tag == SCRIPTGO_TAG_NULL) {
+            *out_value = NULL;
+        }
+        return 0;
+    }
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     if (scriptgo_object_property_unknown_get(handle, property, &value) != 0) return -1;
     if (value.tag == SCRIPTGO_TAG_STRING) {
@@ -1171,6 +1287,14 @@ int scriptgo_object_property_string_get(void *handle, const char *property, cons
 }
 
 int scriptgo_object_property_string_set(void *handle, const char *property, const char *value) {
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value sval;
+        scriptgo_value_init_undefined(&sval);
+        sval.tag = SCRIPTGO_TAG_STRING;
+        sval.payload = (uint64_t)(uintptr_t)value;
+        sval.aux = value ? strlen(value) : 0;
+        return scriptgo_object_property_unknown_set(handle, property, &sval);
+    }
     handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property string set failed") : scriptgo_object_string_set(handle, index, value);
@@ -1181,6 +1305,15 @@ int scriptgo_object_property_bool_get(void *handle, const char *property, int32_
     if (out_value == NULL) return object_fail("scriptgo object property bool output is invalid");
     *out_value = 0;
     handle = resolve_object_handle(handle, 0);
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value val;
+        scriptgo_value_init_undefined(&val);
+        if (scriptgo_object_property_unknown_get(handle, property, &val) != 0) return -1;
+        if (val.tag == SCRIPTGO_TAG_BOOLEAN) {
+            *out_value = val.payload != 0 ? 1 : 0;
+        }
+        return 0;
+    }
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_bool_get(handle, index, out_value);
@@ -1191,6 +1324,15 @@ int scriptgo_object_property_bigint_get(void *handle, const char *property, int6
     if (out_value == NULL) return object_fail("scriptgo object property bigint output is invalid");
     *out_value = 0;
     handle = resolve_object_handle(handle, 0);
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value val;
+        scriptgo_value_init_undefined(&val);
+        if (scriptgo_object_property_unknown_get(handle, property, &val) != 0) return -1;
+        if (val.tag == SCRIPTGO_TAG_BIGINT) {
+            *out_value = (int64_t)val.payload;
+        }
+        return 0;
+    }
     if (is_invalid_object_handle(handle) || property == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     index = object_field_index((const scriptgo_object *)handle, property);
     return index < 0 ? 0 : scriptgo_object_bigint_get(handle, index, out_value);
@@ -1207,18 +1349,41 @@ int scriptgo_object_property_ptr_get(void *handle, const char *property, void **
 }
 
 int scriptgo_object_property_number_set(void *handle, const char *property, double value) {
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value nval;
+        scriptgo_value_init_undefined(&nval);
+        nval.tag = SCRIPTGO_TAG_NUMBER;
+        union { double d; uint64_t u; } bits;
+        bits.d = value;
+        nval.payload = bits.u;
+        return scriptgo_object_property_unknown_set(handle, property, &nval);
+    }
     handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property number set failed") : scriptgo_object_number_set(handle, index, value);
 }
 
 int scriptgo_object_property_bool_set(void *handle, const char *property, int32_t value) {
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value bval;
+        scriptgo_value_init_undefined(&bval);
+        bval.tag = SCRIPTGO_TAG_BOOLEAN;
+        bval.payload = value != 0 ? 1 : 0;
+        return scriptgo_object_property_unknown_set(handle, property, &bval);
+    }
     handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property bool set failed") : scriptgo_object_bool_set(handle, index, value);
 }
 
 int scriptgo_object_property_bigint_set(void *handle, const char *property, int64_t value) {
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        scriptgo_value bval;
+        scriptgo_value_init_undefined(&bval);
+        bval.tag = SCRIPTGO_TAG_BIGINT;
+        bval.payload = (uint64_t)value;
+        return scriptgo_object_property_unknown_set(handle, property, &bval);
+    }
     handle = resolve_object_handle(handle, 1);
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property bigint set failed") : scriptgo_object_bigint_set(handle, index, value);
@@ -1232,7 +1397,19 @@ int scriptgo_object_property_ptr_set(void *handle, const char *property, void *v
 
 int scriptgo_object_property_unknown_set(void *handle, const char *property,
                                          const scriptgo_value *value) {
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_dynamic_hook_prop_set != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)handle;
+            return scriptgo_dynamic_hook_prop_set(ref->handle, property, value);
+        }
+        return 0;
+    }
     handle = resolve_object_handle(handle, 1);
+    void *ref_ptr = scriptgo_object_get_engine_ref(handle);
+    if (ref_ptr != NULL && scriptgo_dynamic_hook_prop_set != NULL) {
+        scriptgo_engine_ref *ref = (scriptgo_engine_ref *)ref_ptr;
+        scriptgo_dynamic_hook_prop_set(ref->handle, property, value);
+    }
     int index = object_property_index_for_set(handle, property);
     return index < 0 ? object_fail("scriptgo object property set failed") : scriptgo_object_unknown_set(handle, index, value);
 }
@@ -1276,11 +1453,42 @@ int scriptgo_object_type_get(void *handle, const char **out_type) {
     return 0;
 }
 
+int scriptgo_object_delete_property(void *handle, const char *property, int32_t *out_result) {
+    if (out_result == NULL) return object_fail("scriptgo delete property null output");
+    *out_result = 1;
+    if (is_invalid_object_handle(handle) || property == NULL) return 0;
+    if (*(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_dynamic_hook_delete != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)handle;
+            return scriptgo_dynamic_hook_delete(ref->handle, property, out_result);
+        }
+        return 0;
+    }
+    handle = resolve_object_handle(handle, 0);
+    if (handle == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    scriptgo_object *obj = (scriptgo_object *)handle;
+    int index = object_field_index(obj, property);
+    if (index >= 0 && index < obj->field_count) {
+        scriptgo_value undefined_val;
+        scriptgo_value_init_undefined(&undefined_val);
+        scriptgo_object_unknown_set(obj, index, &undefined_val);
+    }
+    return 0;
+}
+
 int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result) {
     if (out_result == NULL) {
         return object_fail("scriptgo instanceof null output");
     }
     if (is_invalid_object_handle(handle) || class_name == NULL) {
+        *out_result = 0;
+        return 0;
+    }
+    if (*(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_dynamic_hook_has != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)handle;
+            return scriptgo_dynamic_hook_has(ref->handle, class_name, out_result);
+        }
         *out_result = 0;
         return 0;
     }
@@ -1477,6 +1685,13 @@ int scriptgo_object_keys(void *handle, void **out_array) {
         return object_fail("scriptgo object keys arguments are invalid");
     }
     handle = resolve_object_handle(handle, 0);
+    if (handle != NULL && *(const uint64_t *)handle == SCRIPTGO_ENGINE_REF_MAGIC) {
+        if (scriptgo_dynamic_hook_keys != NULL) {
+            scriptgo_engine_ref *ref = (scriptgo_engine_ref *)handle;
+            return scriptgo_dynamic_hook_keys(ref->handle, out_array);
+        }
+        return -1;
+    }
     if (handle == NULL) {
         if (scriptgo_array_new(0, (int64_t)sizeof(char *), out_array) != 0) return -1;
         return scriptgo_array_set_tag(*out_array, SCRIPTGO_OBJECT_TAG_STRING);

@@ -57,13 +57,27 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 	} else if len(instruction.Args) > 1 {
 		cls := instruction.Args[1]
 		clsVal := cls
+		clsType := e.types[cls]
 		if slot, ok := e.varSlots[cls]; ok {
 			loaded := fmt.Sprintf("%s.instanceof_cls.%d", cls, e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+			if clsType == ir.TypeUnknown {
+				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, slot))
+			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", loaded, slot))
+			}
 			clsVal = loaded
 		}
-		classArg = "%" + clsVal
+		if clsType == ir.TypeUnknown {
+			propPayload := fmt.Sprintf("instanceof.prop.payload.%d", e.loadCounter)
+			propPtr := fmt.Sprintf("instanceof.prop.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", propPayload, clsVal)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", propPtr, propPayload)
+			classArg = "%" + propPtr
+		} else {
+			classArg = "%" + clsVal
+		}
 	} else {
 		return fmt.Errorf("instanceof requires target class or property")
 	}

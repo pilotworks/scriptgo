@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	lowerMu        sync.Mutex
-	topLevelVars   = map[string]typescriptgo.SyntaxStatement{}
-	inProgressVars = map[string]bool{}
-	dynamicImports = map[string]dynamicImportBinding{}
+	lowerMu            sync.Mutex
+	topLevelVars       = map[string]typescriptgo.SyntaxStatement{}
+	inProgressVars     = map[string]bool{}
+	dynamicImports     = map[string]dynamicImportBinding{}
+	currentDynamicMode = false
 )
 
 // Options specifies optional flags for the lowering phase.
@@ -40,6 +41,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	WarnRuntimeCasts = options.WarnRuntimeCasts || prevWarn
 	defer func() {
 		WarnRuntimeCasts = prevWarn
+	}()
+	prevDynamic := currentDynamicMode
+	currentDynamicMode = options.Dynamic
+	defer func() {
+		currentDynamicMode = prevDynamic
 	}()
 	checkedProgram := program
 	if options.Dynamic {

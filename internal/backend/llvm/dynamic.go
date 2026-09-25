@@ -20,7 +20,7 @@ func moduleHasDynamic(module ir.Module) bool {
 
 func hasDynamicInstruction(list []ir.Instruction) bool {
 	for _, instruction := range list {
-		if instruction.Op == ir.OpDynamicCall || instruction.Op == ir.OpDynamicFunctionCall || hasDynamicInstruction(instruction.Then) || hasDynamicInstruction(instruction.Else) || hasDynamicInstruction(instruction.Body) || hasDynamicInstruction(instruction.Catch) || hasDynamicInstruction(instruction.Finally) {
+		if instruction.Op == ir.OpDynamicCall || instruction.Op == ir.OpDynamicFunctionCall || (instruction.Op == ir.OpCall && strings.HasPrefix(instruction.Callee, "__dynamic.")) || hasDynamicInstruction(instruction.Then) || hasDynamicInstruction(instruction.Else) || hasDynamicInstruction(instruction.Body) || hasDynamicInstruction(instruction.Catch) || hasDynamicInstruction(instruction.Finally) {
 			return true
 		}
 	}
@@ -101,8 +101,8 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 }
 
 func (e *functionEmitter) emitDynamicFunctionCall(out *strings.Builder, instruction ir.Instruction) error {
-	if len(instruction.Args) == 0 || len(instruction.Args) > 5 {
-		return fmt.Errorf("dynamic function call supports one callable and up to four arguments")
+	if len(instruction.Args) == 0 {
+		return fmt.Errorf("dynamic function call requires at least a callable")
 	}
 	callable := e.resolveArg(out, instruction.Args[0])
 	if e.types[instruction.Args[0]] == ir.TypeUnknown {
@@ -113,14 +113,25 @@ func (e *functionEmitter) emitDynamicFunctionCall(out *strings.Builder, instruct
 		e.loadCounter++
 		out.WriteString(fmt.Sprintf("  %%%s = inttoptr i64 %%%s to ptr\n", callable, payload))
 	}
-	pointers := []string{"ptr null", "ptr null", "ptr null", "ptr null"}
+	argCount := len(instruction.Args) - 1
+	arrayCount := argCount
+	if arrayCount == 0 {
+		arrayCount = 1
+	}
+	argsSlot := fmt.Sprintf("dynamic.function.args.%d", e.loadCounter)
+	e.loadCounter++
+	fmt.Fprintf(out, "  %%%s = alloca [%d x %s]\n", argsSlot, arrayCount, boxedLLVMType)
 	for i, arg := range instruction.Args[1:] {
 		argType := e.types[arg]
-		pointer, err := e.emitCanonicalValuePointer(out, arg, argType, fmt.Sprintf("dynamic.function.arg.%d", i))
-		if err != nil {
+		boxed := fmt.Sprintf("dynamic.function.arg.boxed.%d", e.loadCounter)
+		e.loadCounter++
+		if err := e.emitBoxValue(out, arg, argType, boxed); err != nil {
 			return err
 		}
-		pointers[i] = "ptr " + pointer
+		index := fmt.Sprintf("dynamic.function.arg.index.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = getelementptr inbounds [%d x %s], ptr %%%s, i64 0, i64 %d\n", index, arrayCount, boxedLLVMType, argsSlot, i)
+		fmt.Fprintf(out, "  store %s %%%s, ptr %%%s\n", boxedLLVMType, boxed, index)
 	}
 	thisPointer := e.dynamicUndefinedValuePointer(out)
 	if instruction.This != "" {
@@ -135,12 +146,42 @@ func (e *functionEmitter) emitDynamicFunctionCall(out *strings.Builder, instruct
 	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", outSlot, boxedLLVMType))
 	status := fmt.Sprintf("dynamic.function.status.%d", e.runtimeStatus)
 	e.runtimeStatus++
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_dynamic_invoke_function(ptr %%%s, ptr %s, i32 %d, %s, i32 %d, ptr %%%s)\n", status, callable, thisPointer, len(instruction.Args)-1, strings.Join(pointers, ", "), dynamicResultTag(instruction.Type), outSlot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_dynamic_invoke_function(ptr %%%s, ptr %s, i32 %d, ptr %%%s, i32 %d, ptr %%%s)\n", status, callable, thisPointer, argCount, argsSlot, dynamicResultTag(instruction.Type), outSlot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", status))
 	boxed := fmt.Sprintf("dynamic.function.result.%d", e.loadCounter)
 	e.loadCounter++
 	out.WriteString(fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", boxed, boxedLLVMType, outSlot))
 	return e.emitDynamicResult(out, instruction.Type, boxed, instruction.Result)
+}
+
+func (e *functionEmitter) emitDynamicIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	switch instruction.Callee {
+	case "__dynamic.new_proxy":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__dynamic.new_proxy expects 2 arguments, got %d", len(instruction.Args))
+		}
+		targetSlot, err := e.emitCanonicalValuePointer(out, instruction.Args[0], e.types[instruction.Args[0]], "proxy.target")
+		if err != nil {
+			return err
+		}
+		handlerSlot, err := e.emitCanonicalValuePointer(out, instruction.Args[1], e.types[instruction.Args[1]], "proxy.handler")
+		if err != nil {
+			return err
+		}
+		outSlot := fmt.Sprintf("dynamic.proxy.out.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = alloca %s\n", outSlot, boxedLLVMType)
+		status := fmt.Sprintf("dynamic.proxy.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_dynamic_new_proxy(ptr %s, ptr %s, ptr %%%s)\n", status, targetSlot, handlerSlot, outSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_dynamic_abort_if_failed(i32 %%%s)\n", status)
+		boxedResult := fmt.Sprintf("dynamic.proxy.result.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", boxedResult, boxedLLVMType, outSlot)
+		return e.emitDynamicResult(out, instruction.Type, boxedResult, instruction.Result)
+	default:
+		return fmt.Errorf("unknown dynamic intrinsic %s", instruction.Callee)
+	}
 }
 
 func (e *functionEmitter) dynamicUndefinedValuePointer(out *strings.Builder) string {
@@ -187,6 +228,8 @@ func (e *functionEmitter) emitDynamicModuleRegistry(out *strings.Builder) error 
 
 func dynamicResultTag(typ ir.Type) int {
 	switch typ {
+	case ir.TypeVoid:
+		return 0
 	case ir.TypeBool:
 		return 2
 	case ir.TypeNumber:
@@ -225,6 +268,8 @@ func (e *functionEmitter) emitDynamicResult(out *strings.Builder, typ ir.Type, b
 	e.loadCounter++
 	fmt.Fprintf(out, "  %%%s = extractvalue %s %%%s, 0\n", tag, boxedLLVMType, boxed)
 	switch typ {
+	case ir.TypeVoid:
+		return nil
 	case ir.TypeUnknown:
 		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", result, boxedLLVMType, e.dynamicResultSlot(out, boxed))
 	case ir.TypeNumber:

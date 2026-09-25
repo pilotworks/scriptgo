@@ -6,17 +6,6 @@
 
 int scriptgo_runtime_set_error(const char *message);
 
-typedef struct scriptgo_engine_ref {
-    uint64_t magic;
-    uint32_t refs;
-    uint32_t tag;
-    scriptgo_dynamic_context *context;
-    uint64_t handle;
-    scriptgo_engine_retain_fn retain;
-    scriptgo_engine_release_fn release;
-    struct scriptgo_engine_ref *next;
-} scriptgo_engine_ref;
-
 struct scriptgo_dynamic_context {
     uint64_t magic;
     uint32_t live_refs;
@@ -28,12 +17,17 @@ struct scriptgo_dynamic_context {
     scriptgo_dynamic_call_fn call;
 };
 
-#define SCRIPTGO_ENGINE_REF_MAGIC 0x5347524546455231ULL
 #define SCRIPTGO_CONTEXT_MAGIC 0x534743545856315FULL
+
+scriptgo_dynamic_engine_prop_get_fn scriptgo_dynamic_hook_prop_get = NULL;
+scriptgo_dynamic_engine_prop_set_fn scriptgo_dynamic_hook_prop_set = NULL;
+scriptgo_dynamic_engine_has_fn scriptgo_dynamic_hook_has = NULL;
+scriptgo_dynamic_engine_delete_fn scriptgo_dynamic_hook_delete = NULL;
+scriptgo_dynamic_engine_keys_fn scriptgo_dynamic_hook_keys = NULL;
 
 static scriptgo_engine_ref *scriptgo_engine_refs = NULL;
 
-static scriptgo_engine_ref *find_engine_ref(uint64_t payload) {
+scriptgo_engine_ref *find_engine_ref(uint64_t payload) {
     scriptgo_engine_ref *ref = scriptgo_engine_refs;
     while (ref != NULL) {
         if ((uint64_t)(uintptr_t)ref == payload) return ref;
