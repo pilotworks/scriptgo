@@ -272,12 +272,23 @@ class ClientRequest extends EventEmitter {
             }
         }
         if (options.path) this.path = options.path;
-        if (options.host) this.host = options.host;
-        else if (options.hostname) this.host = options.hostname;
+        const effectiveHost = options.hostname || options.host || "localhost";
+        const colonIdx = effectiveHost.indexOf(":");
+        if (colonIdx !== -1 && !effectiveHost.startsWith("[")) {
+            this.host = effectiveHost.slice(0, colonIdx);
+            if (!options.port) {
+                const parsedPort = parseInt(effectiveHost.slice(colonIdx + 1), 10);
+                if (!isNaN(parsedPort)) {
+                    this.port = parsedPort;
+                }
+            }
+        } else {
+            this.host = effectiveHost;
+        }
 
         if (typeof options.port === "number") {
             this.port = options.port;
-        } else {
+        } else if (!this.port) {
             this.port = 443;
         }
 
@@ -469,6 +480,12 @@ class ClientRequest extends EventEmitter {
 }
 
 export class Server extends TLSServer {
+    headersTimeout: number = 60000;
+    requestTimeout: number = 300000;
+    maxHeadersCount: number | null = null;
+    maxRequestsPerSocket: number = 0;
+    _activeSockets: TLSSocket[] = [];
+
     constructor(
         options?: TLSServerOptions | ((req: IncomingMessage, res: ServerResponse) => void),
         requestListener?: (req: IncomingMessage, res: ServerResponse) => void
@@ -487,6 +504,14 @@ export class Server extends TLSServer {
         super(opts);
 
         this.on("secureConnection", (socket: TLSSocket) => {
+            this._activeSockets.push(socket);
+            socket.on("close", () => {
+                const idx = this._activeSockets.indexOf(socket);
+                if (idx !== -1) {
+                    this._activeSockets.splice(idx, 1);
+                }
+            });
+
             let buffer = "";
             let req: IncomingMessage | null = null;
             let res: ServerResponse | null = null;
@@ -548,6 +573,38 @@ export class Server extends TLSServer {
             });
         });
     }
+
+    closeAllConnections(): this {
+        for (let i = 0; i < this._activeSockets.length; i++) {
+            this._activeSockets[i].destroy();
+        }
+        this._activeSockets = [];
+        return this;
+    }
+
+    closeIdleConnections(): this {
+        for (let i = 0; i < this._activeSockets.length; i++) {
+            this._activeSockets[i].destroy();
+        }
+        this._activeSockets = [];
+        return this;
+    }
+
+    setTimeout(msecs: number = 120000, callback?: () => void): this {
+        this.timeout = msecs;
+        if (callback) {
+            this.on("timeout", callback);
+        }
+        return this;
+    }
+
+    [Symbol.asyncDispose](): Promise<void> {
+        return new Promise<void>((resolve) => {
+            this.close(() => {
+                resolve();
+            });
+        });
+    }
 }
 
 function parseUrlOptions(input: string | URL | RequestOptions): RequestOptions {
@@ -590,11 +647,17 @@ export function request(
         if (typeof optionsOrCallback === "function") {
             cb = optionsOrCallback;
         } else if (optionsOrCallback) {
-            opts = { ...opts, ...optionsOrCallback };
+            const extra = optionsOrCallback as RequestOptions;
+            if (extra.method) opts.method = extra.method;
+            if (extra.host) opts.host = extra.host;
+            if (extra.hostname) opts.hostname = extra.hostname;
+            if (extra.port) opts.port = extra.port;
+            if (extra.path) opts.path = extra.path;
+            if (extra.headers) opts.headers = extra.headers;
             cb = callback;
         }
     } else {
-        opts = { ...urlOrOptions };
+        opts = urlOrOptions as RequestOptions;
         if (typeof optionsOrCallback === "function") {
             cb = optionsOrCallback;
         }

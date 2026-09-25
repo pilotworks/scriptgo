@@ -7,6 +7,7 @@ import {
     checkServerIdentity,
     createSecureContext,
     getCACertificates,
+    setDefaultCACertificates,
     getCiphers,
     Server,
     createServer,
@@ -46,6 +47,11 @@ console.log("tls_bundled_roots: " + (bundledCertificates.length > 0 && bundledCe
 // @expect: tls_system_roots: true
 const systemCertificates = getCACertificates("system");
 console.log("tls_system_roots: " + (Array.isArray(systemCertificates) && systemCertificates.length > 0));
+
+// @api: tls.setDefaultCACertificates
+// @expect: tls_default_ca_set: true
+setDefaultCACertificates(bundledCertificates);
+console.log("tls_default_ca_set: " + (getCACertificates("default").length === bundledCertificates.length));
 
 // @api: tls.checkServerIdentity
 // @expect: tls_checkIdentity: true

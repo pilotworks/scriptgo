@@ -10,8 +10,7 @@ setImmediate(() => {
 });
 
 let count = 0;
-let timer = 0;
-timer = setInterval(() => {
+const timer = setInterval(() => {
     count++;
     console.log("INTERVAL TICK:", count);
     if (count >= 3) {
