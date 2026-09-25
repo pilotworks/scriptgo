@@ -4,12 +4,15 @@ int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count,
                                   const scriptgo_value *a3, const scriptgo_value *a4,
                                   scriptgo_value *out_value);
 int scriptgo_dynamic_adopt_function(JSValue value, scriptgo_value *out);
+int scriptgo_dynamic_adopt_object(JSValue value, scriptgo_value *out);
 int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv, JSValue *out);
 int scriptgo_promise_create(void **out_promise);
 int scriptgo_promise_resolve_value(void *promise_handle, const scriptgo_value *value);
 int scriptgo_promise_reject_value(void *promise_handle, const scriptgo_value *value);
 int scriptgo_timers_has_active(void);
+void scriptgo_object_attach_engine_ref(void *object, void *ref);
+void *scriptgo_object_get_engine_ref(void *object);
 
 static JSValue scriptgo_dynamic_promise_bridge_fulfill(JSContext *ctx, JSValueConst this_val,
                                                       int argc, JSValueConst *argv,
@@ -143,7 +146,7 @@ static int scriptgo_dynamic_engine_function_to_js(JSContext *ctx, const scriptgo
     if (value == NULL || out == NULL || value->payload == 0) return -1;
     handle = (int64_t)(intptr_t)value->payload;
     data[0] = JS_NewInt64(ctx, handle);
-    *out = JS_NewCFunctionData(ctx, scriptgo_dynamic_engine_closure, 4, 0, 1, data);
+    *out = JS_NewCFunctionData(ctx, scriptgo_dynamic_engine_closure, 0, 0, 1, data);
     JS_FreeValue(ctx, data[0]);
     return JS_IsException(*out) ? -1 : 0;
 }
@@ -161,7 +164,13 @@ static JSValue scriptgo_dynamic_native_closure(JSContext *ctx, JSValueConst this
     if (argc > 4 || JS_ToInt64(ctx, &handle, func_data[0]) < 0)
         return JS_ThrowTypeError(ctx, "SG5002: callback arity exceeds native limit");
     for (i = 0; i < argc; i++) {
-        if (scriptgo_dynamic_from_js(ctx, argv[i], &arguments[i]) != 0) {
+        int from_status;
+        if (JS_IsObject(argv[i]) && !JS_IsArray(argv[i]) && !JS_IsFunction(ctx, argv[i])) {
+            from_status = scriptgo_dynamic_adopt_object(argv[i], &arguments[i]);
+        } else {
+            from_status = scriptgo_dynamic_from_js(ctx, argv[i], &arguments[i]);
+        }
+        if (from_status != 0) {
             while (i > 0) scriptgo_value_release(&arguments[--i]);
             return JS_ThrowTypeError(ctx, "SG5002: callback argument is outside the native boundary");
         }
@@ -188,8 +197,8 @@ static JSValue scriptgo_dynamic_engine_closure(JSContext *ctx, JSValueConst this
                                                int magic, JSValueConst *func_data) {
     int64_t handle;
     JSValue result = JS_UNDEFINED;
-    if (argc > 4 || JS_ToInt64(ctx, &handle, func_data[0]) < 0)
-        return JS_ThrowTypeError(ctx, "SG5002: callback arity exceeds native limit");
+    if (JS_ToInt64(ctx, &handle, func_data[0]) < 0)
+        return JS_ThrowTypeError(ctx, "SG5002: callback argument is outside the native boundary");
     if (scriptgo_dynamic_engine_call_js((uint64_t)handle, ctx, this_val, argc, argv, &result) != 0)
         return JS_ThrowInternalError(ctx, "Dynamic function call failed");
     return result;
@@ -277,12 +286,42 @@ static int scriptgo_dynamic_to_js(JSContext *ctx, const scriptgo_value *value, J
                                value->aux == 0 ? strlen((const char *)(uintptr_t)value->payload) : (size_t)value->aux);
         return JS_IsException(*out) ? -1 : 0;
     case SCRIPTGO_TAG_OBJECT:
+        if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
+            scriptgo_engine_ref *ref = find_engine_ref(value->payload);
+            if (ref != NULL) {
+                scriptgo_dynamic_engine_val *val = (scriptgo_dynamic_engine_val *)(uintptr_t)ref->handle;
+                if (val != NULL) {
+                    *out = JS_DupValue(ctx, val->val);
+                    return 0;
+                }
+            }
+        }
+        {
+            void *ref_ptr = scriptgo_object_get_engine_ref((void *)(uintptr_t)value->payload);
+            if (ref_ptr != NULL) {
+                scriptgo_engine_ref *ref = (scriptgo_engine_ref *)ref_ptr;
+                scriptgo_dynamic_engine_val *val = (scriptgo_dynamic_engine_val *)(uintptr_t)ref->handle;
+                if (val != NULL) {
+                    *out = JS_DupValue(ctx, val->val);
+                    return 0;
+                }
+            }
+        }
         return scriptgo_dynamic_object_to_js(ctx, value, out);
     case SCRIPTGO_TAG_ARRAY:
         return scriptgo_dynamic_array_to_js(ctx, value, out);
     case SCRIPTGO_TAG_FUNCTION:
-        if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0)
+        if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
+            scriptgo_engine_ref *ref = find_engine_ref(value->payload);
+            if (ref != NULL) {
+                scriptgo_dynamic_engine_val *val = (scriptgo_dynamic_engine_val *)(uintptr_t)ref->handle;
+                if (val != NULL) {
+                    *out = JS_DupValue(ctx, val->val);
+                    return 0;
+                }
+            }
             return scriptgo_dynamic_engine_function_to_js(ctx, value, out);
+        }
         return scriptgo_dynamic_native_function_to_js(ctx, value, out);
     default: return -1;
     }
@@ -314,6 +353,9 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
         memcpy(copy, text, length); copy[length] = '\0'; JS_FreeCString(ctx, text);
         out->tag = SCRIPTGO_TAG_STRING; out->flags = SCRIPTGO_VALUE_OWNED;
         out->payload = (uint64_t)(uintptr_t)copy; out->aux = (uint64_t)length; return 0;
+    }
+    if (JS_IsProxy(value)) {
+        return scriptgo_dynamic_adopt_object(value, out);
     }
     if (JS_IsPromise(value)) {
         return scriptgo_dynamic_materialize_promise(ctx, value, out);
@@ -369,6 +411,13 @@ static int scriptgo_dynamic_from_js(JSContext *ctx, JSValue value, scriptgo_valu
             JS_FreeCString(ctx, key);
         }
         JS_FreePropertyEnum(ctx, properties, count);
+        scriptgo_value engine_ref_val;
+        if (scriptgo_dynamic_adopt_object(value, &engine_ref_val) == 0) {
+            scriptgo_engine_ref *ref = find_engine_ref(engine_ref_val.payload);
+            if (ref != NULL) {
+                scriptgo_object_attach_engine_ref(object, ref);
+            }
+        }
         out->tag = SCRIPTGO_TAG_OBJECT; out->flags = 0;
         out->payload = (uint64_t)(uintptr_t)object; return 0;
     }

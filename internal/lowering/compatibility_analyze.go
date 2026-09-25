@@ -374,12 +374,15 @@ func (c *compatibilityCollector) expression(path string, expression *typescriptg
 			if callName(expression.Left) == "Function" {
 				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "dynamic constructor target", "enable --dynamic for new Function", true)
 				classified = true
+			} else if callName(expression.Left) == "Proxy" {
+				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "Proxy constructor", "enable --dynamic for new Proxy", true)
+				classified = true
 			} else if callName(expression.Left) == "" {
 				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "dynamic constructor target", "", false)
 				classified = true
 			}
 		case "unary":
-			if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" && expression.Operator != "++" && expression.Operator != "--" && expression.Operator != "void" {
+			if expression.Operator != "!" && expression.Operator != "-" && expression.Operator != "+" && expression.Operator != "~" && expression.Operator != "++" && expression.Operator != "--" && expression.Operator != "void" && expression.Operator != "delete" {
 				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "unary operator "+expression.Operator, "", false)
 				classified = true
 			}

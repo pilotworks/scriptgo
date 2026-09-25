@@ -245,7 +245,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		return fmt.Errorf("write temporary LLVM file: %w", err)
 	}
 	var args []string
-	dynamicRuntime := strings.Contains(output, "@scriptgo_dynamic_call")
+	dynamicRuntime := options.Dynamic || strings.Contains(output, "@scriptgo_dynamic_")
 	runtimeSource := runtime.SourceForDynamic(dynamicRuntime)
 	runtimeObj, err := getOrBuildCachedRuntime(ccParts, options, codecConfig, runtimeSource, false)
 	if err != nil {

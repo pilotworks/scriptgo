@@ -92,6 +92,16 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Left:         inner,
 			InferredType: "undefined",
 		}
+	case ast.KindDeleteExpression:
+		delExpr := node.AsDeleteExpression()
+		inner := syntaxExpression(delExpr.Expression, chk)
+		return &SyntaxExpression{
+			Span:         sourceSpan(node),
+			Kind:         "unary",
+			Operator:     "delete",
+			Left:         inner,
+			InferredType: "boolean",
+		}
 	case ast.KindAsExpression:
 		asExpr := node.AsAsExpression()
 		targetType := syntaxType(asExpr.Type)

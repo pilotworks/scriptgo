@@ -60,10 +60,12 @@ static JSContext *scriptgo_dynamic_js_context = NULL;
 static scriptgo_dynamic_context *scriptgo_dynamic_value_context = NULL;
 static int scriptgo_dynamic_cleanup_registered = 0;
 
-typedef struct scriptgo_dynamic_function_ref {
-    JSValue function;
+typedef struct scriptgo_dynamic_engine_val {
+    JSValue val;
     uint32_t refs;
-} scriptgo_dynamic_function_ref;
+} scriptgo_dynamic_engine_val;
+typedef scriptgo_dynamic_engine_val scriptgo_dynamic_function_ref;
+typedef scriptgo_dynamic_engine_val scriptgo_dynamic_object_ref;
 
 static scriptgo_dynamic_module *scriptgo_dynamic_find_module(const char *path);
 static JSValue scriptgo_dynamic_require_module(JSContext *ctx, scriptgo_dynamic_module *module);
@@ -74,33 +76,51 @@ static int scriptgo_dynamic_function_call(scriptgo_dynamic_context *context, uin
                                           scriptgo_value *out_result, scriptgo_value *out_exception, void *user_data);
 
 static void scriptgo_dynamic_function_retain(scriptgo_dynamic_context *context, uint64_t handle) {
-    scriptgo_dynamic_function_ref *ref = (scriptgo_dynamic_function_ref *)(uintptr_t)handle;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
     (void)context;
     if (ref != NULL) ref->refs++;
 }
 
 static void scriptgo_dynamic_function_release(scriptgo_dynamic_context *context, uint64_t handle) {
-    scriptgo_dynamic_function_ref *ref = (scriptgo_dynamic_function_ref *)(uintptr_t)handle;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
     (void)context;
     if (ref == NULL || ref->refs == 0) return;
     ref->refs--;
     if (ref->refs == 0) {
-        JS_FreeValue(scriptgo_dynamic_js_context, ref->function);
+        JS_FreeValue(scriptgo_dynamic_js_context, ref->val);
         free(ref);
     }
 }
 
 int scriptgo_dynamic_adopt_function(JSValue value, scriptgo_value *out) {
-    scriptgo_dynamic_function_ref *ref;
+    scriptgo_dynamic_engine_val *ref;
     if (out == NULL || scriptgo_dynamic_js_context == NULL || scriptgo_dynamic_value_context == NULL)
         return -1;
-    ref = (scriptgo_dynamic_function_ref *)calloc(1, sizeof(*ref));
+    ref = (scriptgo_dynamic_engine_val *)calloc(1, sizeof(*ref));
     if (ref == NULL) return -1;
-    ref->function = JS_DupValue(scriptgo_dynamic_js_context, value);
+    ref->val = JS_DupValue(scriptgo_dynamic_js_context, value);
     ref->refs = 1;
     if (scriptgo_value_adopt_engine_ref(scriptgo_dynamic_value_context, SCRIPTGO_TAG_FUNCTION,
                                         (uint64_t)(uintptr_t)ref, out) != 0) {
-        JS_FreeValue(scriptgo_dynamic_js_context, ref->function);
+        JS_FreeValue(scriptgo_dynamic_js_context, ref->val);
+        free(ref);
+        return -1;
+    }
+    return 0;
+}
+
+int scriptgo_dynamic_adopt_object(JSValue value, scriptgo_value *out) {
+    scriptgo_dynamic_engine_val *ref;
+    if (out == NULL || scriptgo_dynamic_js_context == NULL || scriptgo_dynamic_value_context == NULL)
+        return -1;
+    ref = (scriptgo_dynamic_engine_val *)calloc(1, sizeof(*ref));
+    if (ref == NULL) return -1;
+    ref->val = JS_DupValue(scriptgo_dynamic_js_context, value);
+    ref->refs = 1;
+    uint32_t tag = JS_IsFunction(scriptgo_dynamic_js_context, value) ? SCRIPTGO_TAG_FUNCTION : SCRIPTGO_TAG_OBJECT;
+    if (scriptgo_value_adopt_engine_ref(scriptgo_dynamic_value_context, tag,
+                                        (uint64_t)(uintptr_t)ref, out) != 0) {
+        JS_FreeValue(scriptgo_dynamic_js_context, ref->val);
         free(ref);
         return -1;
     }
@@ -575,6 +595,13 @@ static JSValue js_scriptgo_setImmediate(JSContext *ctx, JSValueConst this_val,
     return res;
 }
 
+int scriptgo_dynamic_engine_property_get(uint64_t handle, const char *property, scriptgo_value *out_value);
+int scriptgo_dynamic_engine_property_set(uint64_t handle, const char *property, const scriptgo_value *value);
+int scriptgo_dynamic_engine_has(uint64_t handle, const char *property, int32_t *out_result);
+int scriptgo_dynamic_engine_delete(uint64_t handle, const char *property, int32_t *out_result);
+int scriptgo_dynamic_engine_keys(uint64_t handle, void **out_array);
+int scriptgo_dynamic_new_proxy(const scriptgo_value *target, const scriptgo_value *handler, scriptgo_value *out);
+
 static int scriptgo_dynamic_ensure_context(void) {
     JSValue global, require_function;
     if (scriptgo_dynamic_js_context != NULL) return 0;
@@ -589,7 +616,7 @@ static int scriptgo_dynamic_ensure_context(void) {
                            scriptgo_dynamic_load_module, NULL);
     global = JS_GetGlobalObject(scriptgo_dynamic_js_context);
     require_function = JS_NewCFunction(scriptgo_dynamic_js_context, scriptgo_dynamic_require_by_path,
-                                       "__scriptgo_require_module", 1);
+                                        "__scriptgo_require_module", 1);
     JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "__scriptgo_require_module", require_function);
     JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "setTimeout",
                       JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_setTimeout, "setTimeout", 2));
@@ -604,6 +631,11 @@ static int scriptgo_dynamic_ensure_context(void) {
     JS_SetPropertyStr(scriptgo_dynamic_js_context, global, "clearImmediate",
                       JS_NewCFunction(scriptgo_dynamic_js_context, js_scriptgo_clearTimeout, "clearImmediate", 1));
     JS_FreeValue(scriptgo_dynamic_js_context, global);
+    scriptgo_dynamic_hook_prop_get = scriptgo_dynamic_engine_property_get;
+    scriptgo_dynamic_hook_prop_set = scriptgo_dynamic_engine_property_set;
+    scriptgo_dynamic_hook_has = scriptgo_dynamic_engine_has;
+    scriptgo_dynamic_hook_delete = scriptgo_dynamic_engine_delete;
+    scriptgo_dynamic_hook_keys = scriptgo_dynamic_engine_keys;
     if (!scriptgo_dynamic_cleanup_registered) {
         atexit(scriptgo_dynamic_cleanup);
         scriptgo_dynamic_cleanup_registered = 1;
@@ -615,13 +647,13 @@ static int scriptgo_dynamic_function_call(scriptgo_dynamic_context *context, uin
                                           const scriptgo_value *this_value, const scriptgo_value *arguments,
                                           uint32_t argument_count, const scriptgo_boundary_descriptor *descriptor,
                                           scriptgo_value *out_result, scriptgo_value *out_exception, void *user_data) {
-    scriptgo_dynamic_function_ref *ref = (scriptgo_dynamic_function_ref *)(uintptr_t)handle;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
     JSValue *argv = NULL;
     JSValue js_this = JS_UNDEFINED;
     JSValue result;
     uint32_t i;
     (void)context; (void)descriptor; (void)user_data;
-    if (ref == NULL || out_result == NULL || out_exception == NULL || argument_count > 4)
+    if (ref == NULL || out_result == NULL || out_exception == NULL)
         return SCRIPTGO_CALL_FATAL;
     scriptgo_value_init_undefined(out_result);
     scriptgo_value_init_undefined(out_exception);
@@ -639,7 +671,7 @@ static int scriptgo_dynamic_function_call(scriptgo_dynamic_context *context, uin
         free(argv);
         return SCRIPTGO_CALL_FATAL;
     }
-    result = JS_Call(scriptgo_dynamic_js_context, ref->function, js_this, argument_count, argv);
+    result = JS_Call(scriptgo_dynamic_js_context, ref->val, js_this, argument_count, argv);
     for (i = 0; i < argument_count; i++) JS_FreeValue(scriptgo_dynamic_js_context, argv[i]);
     free(argv);
     JS_FreeValue(scriptgo_dynamic_js_context, js_this);
@@ -663,7 +695,7 @@ static int scriptgo_dynamic_function_call(scriptgo_dynamic_context *context, uin
 int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueConst this_val,
                                     int argc, JSValueConst *argv, JSValue *out) {
     scriptgo_value this_native = {0};
-    scriptgo_value arguments[4] = {{0}};
+    scriptgo_value *arguments = NULL;
     scriptgo_value result = {0};
     scriptgo_value exception = {0};
     scriptgo_value_constraint any = {UINT64_C(0x3ff)};
@@ -673,11 +705,19 @@ int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueCons
         SCRIPTGO_VALUE_OWNED | SCRIPTGO_VALUE_ENGINE_REF, handle, 0};
     int status;
     int i;
-    if (out == NULL || argc < 0 || argc > 4) return -1;
-    if (scriptgo_dynamic_from_js(ctx, this_val, &this_native) != 0) return -1;
+    if (out == NULL || argc < 0) return -1;
+    if (argc > 0) {
+        arguments = (scriptgo_value *)calloc((size_t)argc, sizeof(*arguments));
+        if (arguments == NULL) return -1;
+    }
+    if (scriptgo_dynamic_from_js(ctx, this_val, &this_native) != 0) {
+        if (arguments != NULL) free(arguments);
+        return -1;
+    }
     for (i = 0; i < argc; i++) {
         if (scriptgo_dynamic_from_js(ctx, argv[i], &arguments[i]) != 0) {
             while (i > 0) scriptgo_value_release(&arguments[--i]);
+            free(arguments);
             scriptgo_value_release(&this_native);
             return -1;
         }
@@ -686,6 +726,7 @@ int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueCons
     descriptor.parameters = argc == 0 ? NULL : calloc((size_t)argc, sizeof(*descriptor.parameters));
     if (argc != 0 && descriptor.parameters == NULL) {
         for (i = 0; i < argc; i++) scriptgo_value_release(&arguments[i]);
+        free(arguments);
         scriptgo_value_release(&this_native);
         return -1;
     }
@@ -696,6 +737,7 @@ int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueCons
         &this_native, arguments, (uint32_t)argc, &descriptor, &result, &exception);
     free((void *)descriptor.parameters);
     for (i = 0; i < argc; i++) scriptgo_value_release(&arguments[i]);
+    if (arguments != NULL) free(arguments);
     scriptgo_value_release(&this_native);
     if (status != SCRIPTGO_CALL_OK) {
         scriptgo_value_release(&result);
@@ -710,26 +752,176 @@ int scriptgo_dynamic_engine_call_js(uint64_t handle, JSContext *ctx, JSValueCons
     return 0;
 }
 
+int scriptgo_dynamic_engine_property_get(uint64_t handle, const char *property, scriptgo_value *out_value) {
+    if (scriptgo_dynamic_js_context == NULL || property == NULL || out_value == NULL) return -1;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
+    JSAtom atom = JS_NewAtom(scriptgo_dynamic_js_context, property);
+    JSValue val = JS_GetProperty(scriptgo_dynamic_js_context, ref->val, atom);
+    JS_FreeAtom(scriptgo_dynamic_js_context, atom);
+    if (JS_IsException(val)) {
+        JSValue ex = JS_GetException(scriptgo_dynamic_js_context);
+        const char *msg = JS_ToCString(scriptgo_dynamic_js_context, ex);
+        if (msg) { scriptgo_runtime_set_error(msg); JS_FreeCString(scriptgo_dynamic_js_context, msg); }
+        JS_FreeValue(scriptgo_dynamic_js_context, ex);
+        return -1;
+    }
+    int status = scriptgo_dynamic_from_js(scriptgo_dynamic_js_context, val, out_value);
+    JS_FreeValue(scriptgo_dynamic_js_context, val);
+    return status;
+}
+
+int scriptgo_dynamic_engine_property_set(uint64_t handle, const char *property, const scriptgo_value *value) {
+    if (scriptgo_dynamic_js_context == NULL || property == NULL || value == NULL) return -1;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
+    JSAtom atom = JS_NewAtom(scriptgo_dynamic_js_context, property);
+    JSValue js_val = JS_UNDEFINED;
+    if (scriptgo_dynamic_to_js(scriptgo_dynamic_js_context, value, &js_val) != 0) {
+        JS_FreeAtom(scriptgo_dynamic_js_context, atom);
+        return -1;
+    }
+    int ret = JS_SetProperty(scriptgo_dynamic_js_context, ref->val, atom, js_val);
+    JS_FreeAtom(scriptgo_dynamic_js_context, atom);
+    if (ret < 0) {
+        JSValue ex = JS_GetException(scriptgo_dynamic_js_context);
+        const char *msg = JS_ToCString(scriptgo_dynamic_js_context, ex);
+        if (msg) { scriptgo_runtime_set_error(msg); JS_FreeCString(scriptgo_dynamic_js_context, msg); }
+        JS_FreeValue(scriptgo_dynamic_js_context, ex);
+        return -1;
+    }
+    return 0;
+}
+
+int scriptgo_dynamic_engine_has(uint64_t handle, const char *property, int32_t *out_result) {
+    if (scriptgo_dynamic_js_context == NULL || property == NULL || out_result == NULL) return -1;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
+    JSAtom atom = JS_NewAtom(scriptgo_dynamic_js_context, property);
+    int ret = JS_HasProperty(scriptgo_dynamic_js_context, ref->val, atom);
+    JS_FreeAtom(scriptgo_dynamic_js_context, atom);
+    if (ret < 0) {
+        JSValue ex = JS_GetException(scriptgo_dynamic_js_context);
+        const char *msg = JS_ToCString(scriptgo_dynamic_js_context, ex);
+        if (msg) { scriptgo_runtime_set_error(msg); JS_FreeCString(scriptgo_dynamic_js_context, msg); }
+        JS_FreeValue(scriptgo_dynamic_js_context, ex);
+        return -1;
+    }
+    *out_result = (ret > 0) ? 1 : 0;
+    return 0;
+}
+
+int scriptgo_dynamic_engine_delete(uint64_t handle, const char *property, int32_t *out_result) {
+    if (scriptgo_dynamic_js_context == NULL || property == NULL || out_result == NULL) return -1;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
+    JSAtom atom = JS_NewAtom(scriptgo_dynamic_js_context, property);
+    int ret = JS_DeleteProperty(scriptgo_dynamic_js_context, ref->val, atom, 0);
+    JS_FreeAtom(scriptgo_dynamic_js_context, atom);
+    if (ret < 0) {
+        JSValue ex = JS_GetException(scriptgo_dynamic_js_context);
+        const char *msg = JS_ToCString(scriptgo_dynamic_js_context, ex);
+        if (msg) { scriptgo_runtime_set_error(msg); JS_FreeCString(scriptgo_dynamic_js_context, msg); }
+        JS_FreeValue(scriptgo_dynamic_js_context, ex);
+        return -1;
+    }
+    *out_result = (ret > 0) ? 1 : 0;
+    return 0;
+}
+
+int scriptgo_dynamic_engine_keys(uint64_t handle, void **out_array) {
+    if (scriptgo_dynamic_js_context == NULL || out_array == NULL) return -1;
+    scriptgo_dynamic_engine_val *ref = (scriptgo_dynamic_engine_val *)(uintptr_t)handle;
+    JSPropertyEnum *tab = NULL;
+    uint32_t len = 0;
+    if (JS_GetOwnPropertyNames(scriptgo_dynamic_js_context, &tab, &len, ref->val,
+                               JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY) < 0) {
+        return -1;
+    }
+    if (scriptgo_array_new((int64_t)len, (int64_t)sizeof(char *), out_array) != 0) {
+        JS_FreePropertyEnum(scriptgo_dynamic_js_context, tab, len);
+        return -1;
+    }
+    scriptgo_array_set_tag(*out_array, SCRIPTGO_OBJECT_TAG_STRING);
+    for (uint32_t i = 0; i < len; i++) {
+        const char *prop = JS_AtomToCString(scriptgo_dynamic_js_context, tab[i].atom);
+        char *copy = prop ? strdup(prop) : strdup("");
+        if (prop) JS_FreeCString(scriptgo_dynamic_js_context, prop);
+        scriptgo_array_set(*out_array, (double)i, &copy);
+    }
+    JS_FreePropertyEnum(scriptgo_dynamic_js_context, tab, len);
+    return 0;
+}
+
+int scriptgo_dynamic_new_proxy(const scriptgo_value *target, const scriptgo_value *handler, scriptgo_value *out) {
+    if (out == NULL) return scriptgo_runtime_set_error("scriptgo new proxy output is null");
+    scriptgo_value_init_undefined(out);
+    int status = scriptgo_dynamic_ensure_context();
+    if (status != 0) return status;
+    JSContext *ctx = scriptgo_dynamic_js_context;
+    JSValue js_target = JS_UNDEFINED;
+    JSValue js_handler = JS_UNDEFINED;
+    if (scriptgo_dynamic_to_js(ctx, target, &js_target) != 0) {
+        return scriptgo_runtime_set_error("Failed to convert Proxy target to JavaScript");
+    }
+    if (scriptgo_dynamic_to_js(ctx, handler, &js_handler) != 0) {
+        JS_FreeValue(ctx, js_target);
+        return scriptgo_runtime_set_error("Failed to convert Proxy handler to JavaScript");
+    }
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue proxy_ctor = JS_GetPropertyStr(ctx, global, "Proxy");
+    JS_FreeValue(ctx, global);
+    if (!JS_IsFunction(ctx, proxy_ctor)) {
+        JS_FreeValue(ctx, proxy_ctor);
+        JS_FreeValue(ctx, js_target);
+        JS_FreeValue(ctx, js_handler);
+        return scriptgo_runtime_set_error("Proxy constructor is not available");
+    }
+    JSValue args[2] = { js_target, js_handler };
+    JSValue proxy_val = JS_CallConstructor(ctx, proxy_ctor, 2, args);
+    JS_FreeValue(ctx, proxy_ctor);
+    JS_FreeValue(ctx, js_target);
+    JS_FreeValue(ctx, js_handler);
+    if (JS_IsException(proxy_val)) {
+        JSValue exception = JS_GetException(ctx);
+        const char *err_msg = JS_ToCString(ctx, exception);
+        if (err_msg != NULL) {
+            scriptgo_runtime_set_error(err_msg);
+            JS_FreeCString(ctx, err_msg);
+        } else {
+            scriptgo_runtime_set_error("Proxy construction failed");
+        }
+        JS_FreeValue(ctx, exception);
+        return -1;
+    }
+    status = scriptgo_dynamic_adopt_object(proxy_val, out);
+    JS_FreeValue(ctx, proxy_val);
+    return status;
+}
+
 int scriptgo_dynamic_invoke_function(void *callable, const scriptgo_value *this_value,
-                                     int32_t argument_count,
-                                     const scriptgo_value *a1, const scriptgo_value *a2,
-                                     const scriptgo_value *a3, const scriptgo_value *a4,
+                                     int32_t argument_count, const scriptgo_value *arguments,
                                      int32_t expected_tag, scriptgo_value *out_result) {
+    if (out_result == NULL) return scriptgo_runtime_set_error("SG5002: Dynamic call invalid result pointer");
+    scriptgo_value_init_undefined(out_result);
+    if (callable == NULL) return scriptgo_runtime_set_error("SG5002: Dynamic call callable is null");
+
+    // Check if callable is an engine reference or a native closure
+    scriptgo_engine_ref *ref = find_engine_ref((uint64_t)(uintptr_t)callable);
+    if (ref == NULL) {
+        return scriptgo_closure_invoke_value(callable, argument_count,
+                                             argument_count > 0 ? &arguments[0] : NULL,
+                                             argument_count > 1 ? &arguments[1] : NULL,
+                                             argument_count > 2 ? &arguments[2] : NULL,
+                                             argument_count > 3 ? &arguments[3] : NULL,
+                                             out_result);
+    }
+
     scriptgo_value callable_value = {SCRIPTGO_TAG_FUNCTION,
         SCRIPTGO_VALUE_OWNED | SCRIPTGO_VALUE_ENGINE_REF,
         (uint64_t)(uintptr_t)callable, 0};
-    scriptgo_value arguments[4] = {{0}};
     scriptgo_value exception = {0};
     scriptgo_value_constraint any = {UINT64_C(0x3ff)};
     scriptgo_boundary_descriptor descriptor = {SCRIPTGO_BOUNDARY_FORMAT_V1, 0, NULL, any, any,
         "dynamic-function", "<dynamic>", 0, 1};
     uint32_t count = argument_count < 0 ? 0 : (uint32_t)argument_count;
     int32_t status;
-    if (count > 4 || out_result == NULL) return scriptgo_runtime_set_error("SG5002: Dynamic call arity mismatch");
-    if (count > 0 && a1 != NULL) arguments[0] = *a1;
-    if (count > 1 && a2 != NULL) arguments[1] = *a2;
-    if (count > 2 && a3 != NULL) arguments[2] = *a3;
-    if (count > 3 && a4 != NULL) arguments[3] = *a4;
     descriptor.parameter_count = count;
     descriptor.parameters = count == 0 ? NULL : calloc(count, sizeof(*descriptor.parameters));
     if (count != 0 && descriptor.parameters == NULL) return scriptgo_runtime_set_error("Dynamic call descriptor allocation failed");

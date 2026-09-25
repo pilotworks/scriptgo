@@ -189,6 +189,11 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 				bigIntF64 := instruction.Result + ".f64"
 				fmt.Fprintf(out, "  %%%s = sitofp i64 %%%s to double\n", bigIntF64, instruction.Args[0])
 				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, bigIntF64)
+			} else if argType == ir.TypeUnknown {
+				payload := fmt.Sprintf("number.unknown.payload.%d", e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payload, instruction.Args[0])
+				fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", instruction.Result, payload)
 			} else {
 				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, instruction.Args[0])
 			}

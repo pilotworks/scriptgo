@@ -130,7 +130,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				if len(instruction.Args) == 0 {
 					return fmt.Errorf("dynamic.function.call requires a callable argument")
 				}
-				if callableType, ok := known[instruction.Args[0]]; !ok || callableType != TypeDynamicFunction {
+				if callableType, ok := known[instruction.Args[0]]; !ok || (callableType != TypeDynamicFunction && callableType != TypeUnknown) {
 					return fmt.Errorf("dynamic.function.call requires a dynamic function handle")
 				}
 				if instruction.This != "" {
@@ -168,7 +168,7 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				return fmt.Errorf("%s instruction must define result and type", instruction.Op)
 			}
 			if instruction.Op == OpInstanceOf {
-				if len(instruction.Args) != 1 || instruction.Type != TypeBool || instruction.Value == "" {
+				if instruction.Type != TypeBool || (len(instruction.Args) == 1 && instruction.Value == "") || (len(instruction.Args) != 1 && len(instruction.Args) != 2) {
 					return fmt.Errorf("instanceof requires one object operand, target class value, and bool result")
 				}
 			}

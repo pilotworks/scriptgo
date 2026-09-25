@@ -177,7 +177,8 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 		out.WriteString("declare i32 @scriptgo_dynamic_register_module(ptr, ptr, ptr, ptr)\n")
 		out.WriteString("declare i32 @scriptgo_dynamic_register_dependency(ptr, ptr, ptr)\n")
 		out.WriteString("declare i32 @scriptgo_dynamic_call_module(ptr, ptr, ptr, i32, i32, i32, ptr)\n")
-		out.WriteString("declare i32 @scriptgo_dynamic_invoke_function(ptr, ptr, i32, ptr, ptr, ptr, ptr, i32, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_invoke_function(ptr, ptr, i32, ptr, i32, ptr)\n")
+		out.WriteString("declare i32 @scriptgo_dynamic_new_proxy(ptr, ptr, ptr)\n")
 		out.WriteString("declare void @scriptgo_dynamic_abort_if_failed(i32)\n")
 	}
 	out.WriteString("declare void @scriptgo_debugger_break(ptr, i32)\n\n")
@@ -313,6 +314,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	out.WriteString("declare i32 @scriptgo_object_property_bigint_set(ptr, ptr, i64)\n")
 	out.WriteString("declare i32 @scriptgo_object_property_ptr_set(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_property_unknown_set(ptr, ptr, ptr)\n")
+	out.WriteString("declare i32 @scriptgo_object_delete_property(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_unknown_number_property(ptr, ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set(ptr, ptr)\n")
 	out.WriteString("declare i32 @scriptgo_object_type_set_static(ptr, ptr)\n")

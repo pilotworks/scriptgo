@@ -109,6 +109,15 @@ func (e *functionEmitter) emitPrint(out *strings.Builder, instruction ir.Instruc
 }
 
 func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruction) error {
+	if strings.HasPrefix(instruction.Callee, "__dynamic.") {
+		if err := e.emitDynamicIntrinsic(out, instruction); err != nil {
+			return err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__console.") {
 		if err := e.emitConsoleIntrinsic(out, instruction); err != nil {
 			return err

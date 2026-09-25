@@ -54,6 +54,33 @@ typedef void (*scriptgo_engine_retain_fn)(scriptgo_dynamic_context *context,
 typedef void (*scriptgo_engine_release_fn)(scriptgo_dynamic_context *context,
                                            uint64_t handle);
 
+#define SCRIPTGO_ENGINE_REF_MAGIC 0x5347524546455231ULL
+
+typedef struct scriptgo_engine_ref {
+    uint64_t magic;
+    uint32_t refs;
+    uint32_t tag;
+    scriptgo_dynamic_context *context;
+    uint64_t handle;
+    scriptgo_engine_retain_fn retain;
+    scriptgo_engine_release_fn release;
+    struct scriptgo_engine_ref *next;
+} scriptgo_engine_ref;
+
+scriptgo_engine_ref *find_engine_ref(uint64_t payload);
+
+typedef int (*scriptgo_dynamic_engine_prop_get_fn)(uint64_t handle, const char *prop, scriptgo_value *out);
+typedef int (*scriptgo_dynamic_engine_prop_set_fn)(uint64_t handle, const char *prop, const scriptgo_value *val);
+typedef int (*scriptgo_dynamic_engine_has_fn)(uint64_t handle, const char *prop, int32_t *out);
+typedef int (*scriptgo_dynamic_engine_delete_fn)(uint64_t handle, const char *prop, int32_t *out);
+typedef int (*scriptgo_dynamic_engine_keys_fn)(uint64_t handle, void **out_array);
+
+extern scriptgo_dynamic_engine_prop_get_fn scriptgo_dynamic_hook_prop_get;
+extern scriptgo_dynamic_engine_prop_set_fn scriptgo_dynamic_hook_prop_set;
+extern scriptgo_dynamic_engine_has_fn scriptgo_dynamic_hook_has;
+extern scriptgo_dynamic_engine_delete_fn scriptgo_dynamic_hook_delete;
+extern scriptgo_dynamic_engine_keys_fn scriptgo_dynamic_hook_keys;
+
 typedef struct {
     uint64_t allowed_tags;
 } scriptgo_value_constraint;

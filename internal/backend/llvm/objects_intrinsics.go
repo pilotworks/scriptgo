@@ -173,12 +173,21 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 				ptrObj = "%" + ptrName
 			}
 			propertyArg := e.resolveArg(out, instruction.Args[1])
+			ptrProperty := "%" + propertyArg
+			if e.types[instruction.Args[1]] == ir.TypeUnknown {
+				propPayload := fmt.Sprintf("dynamic.propname.payload.%d", e.loadCounter)
+				propPtr := fmt.Sprintf("dynamic.propname.ptr.%d", e.loadCounter)
+				e.loadCounter++
+				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", propPayload, propertyArg)
+				fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", propPtr, propPayload)
+				ptrProperty = "%" + propPtr
+			}
 			status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 			e.runtimeStatus++
 			e.types[instruction.Result] = ir.TypeUnknown
 			valueSlot := fmt.Sprintf("%s.dynamic.value.slot", instruction.Result)
 			fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", valueSlot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, valueSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_get(ptr %s, ptr %s, ptr %%%s)\n", status, ptrObj, ptrProperty, valueSlot)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, valueSlot)
 			return nil
@@ -195,6 +204,15 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			ptrObj = ptrName
 		}
 		propertyArg := e.resolveArg(out, instruction.Args[1])
+		ptrProperty := "%" + propertyArg
+		if e.types[instruction.Args[1]] == ir.TypeUnknown {
+			propPayload := fmt.Sprintf("dynamic.propname.payload.%d", e.loadCounter)
+			propPtr := fmt.Sprintf("dynamic.propname.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", propPayload, propertyArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", propPtr, propPayload)
+			ptrProperty = "%" + propPtr
+		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		e.types[instruction.Result] = instruction.Type
@@ -207,9 +225,9 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_unknown_number_property(ptr %s, ptr %%%s, ptr %%%s)\n", status, valuePtr, propertyArg, slot)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_unknown_number_property(ptr %s, ptr %s, ptr %%%s)\n", status, valuePtr, ptrProperty, slot)
 			} else {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_get(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, slot)
+				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_get(ptr %%%s, ptr %s, ptr %%%s)\n", status, ptrObj, ptrProperty, slot)
 			}
 			out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 			out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
@@ -241,6 +259,44 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		}
 		return nil
+	case "__object.delete_prop":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__object.delete_prop requires object and property")
+		}
+		objArg := e.resolveArg(out, instruction.Args[0])
+		propertyArg := e.resolveArg(out, instruction.Args[1])
+		objType := e.types[instruction.Args[0]]
+		ptrObj := objArg
+		if objType == ir.TypeUnknown {
+			payloadName := fmt.Sprintf("dynamic.delete.payload.%d", e.loadCounter)
+			ptrName := fmt.Sprintf("dynamic.delete.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, objArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
+			ptrObj = ptrName
+		}
+		ptrProperty := propertyArg
+		if e.types[instruction.Args[1]] == ir.TypeUnknown {
+			propPayload := fmt.Sprintf("dynamic.delete.prop.payload.%d", e.loadCounter)
+			propPtr := fmt.Sprintf("dynamic.delete.prop.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", propPayload, propertyArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", propPtr, propPayload)
+			ptrProperty = propPtr
+		}
+		outSlot := fmt.Sprintf("delete.prop.out.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", outSlot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_delete_property(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, ptrProperty, outSlot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		i32Val := fmt.Sprintf("delete.prop.val.%d", e.loadCounter)
+		e.loadCounter++
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", i32Val, outSlot)
+		fmt.Fprintf(out, "  %%%s = trunc i32 %%%s to i1\n", instruction.Result, i32Val)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
 	case "__object.set_prop":
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("__object.set_prop requires object, property, and value")
@@ -258,21 +314,30 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
 			ptrObj = ptrName
 		}
+		ptrProperty := propertyArg
+		if e.types[instruction.Args[1]] == ir.TypeUnknown {
+			propPayload := fmt.Sprintf("dynamic.set.prop.payload.%d", e.loadCounter)
+			propPtr := fmt.Sprintf("dynamic.set.prop.ptr.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", propPayload, propertyArg)
+			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", propPtr, propPayload)
+			ptrProperty = propPtr
+		}
 		valueType := e.types[instruction.Args[2]]
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		switch valueType {
 		case ir.TypeString:
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_string_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, valueArg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_string_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, ptrProperty, valueArg)
 		case ir.TypeNumber:
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_set(ptr %%%s, ptr %%%s, double %%%s)\n", status, ptrObj, propertyArg, valueArg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_set(ptr %%%s, ptr %%%s, double %%%s)\n", status, ptrObj, ptrProperty, valueArg)
 		case ir.TypeBool:
 			boolValue := fmt.Sprintf("dynamic.set.bool.%d", e.loadCounter)
 			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", boolValue, valueArg)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bool_set(ptr %%%s, ptr %%%s, i32 %%%s)\n", status, ptrObj, propertyArg, boolValue)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bool_set(ptr %%%s, ptr %%%s, i32 %%%s)\n", status, ptrObj, ptrProperty, boolValue)
 		case ir.TypeBigInt:
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_set(ptr %%%s, ptr %%%s, i64 %%%s)\n", status, ptrObj, propertyArg, valueArg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_bigint_set(ptr %%%s, ptr %%%s, i64 %%%s)\n", status, ptrObj, ptrProperty, valueArg)
 		default:
 			boxed := valueArg
 			if valueType != ir.TypeUnknown {
@@ -286,7 +351,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", boxedSlot)
 			fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, boxedSlot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, propertyArg, boxedSlot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_unknown_set(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, ptrObj, ptrProperty, boxedSlot)
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil

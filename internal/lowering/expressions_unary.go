@@ -13,6 +13,46 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 		return lowerUpdateLValue(path, expression.Left, expression.Operator, false, result, function, env, counter, shapes, signatures, expression.Span)
 	}
 
+	if expression.Operator == "delete" {
+		if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "index") {
+			objVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			var propVal string
+			if expression.Left.Kind == "property" {
+				propVal = nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{
+					Op: ir.OpConst, Type: ir.TypeString, Result: propVal, Value: expression.Left.Text,
+					Span: toIRSpan(path, expression.Left.Span),
+				})
+			} else {
+				pv, _, err := lowerExpression(path, expression.Left.Right, "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", err
+				}
+				propVal = pv
+			}
+			if result == "" {
+				result = nextTemp(counter)
+			}
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpCall, Type: ir.TypeBool, Result: result,
+				Callee: "__object.delete_prop", Args: []string{objVal, propVal},
+				Span: toIRSpan(path, expression.Span),
+			})
+			return result, ir.TypeBool, nil
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeBool, Result: result, Value: "true",
+			Span: toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeBool, nil
+	}
+
 	value, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
@@ -615,5 +655,17 @@ func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, r
 		return result, ir.TypeBool, nil
 	}
 
-	return "", "", fmt.Errorf("operator \"in\" requires object or array, got %s", rightType)
+	leftVal, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
+	}
+	function.Body = append(function.Body, ir.Instruction{
+		Op:     ir.OpInstanceOf,
+		Type:   ir.TypeBool,
+		Result: result,
+		Value:  "",
+		Args:   []string{rightVal, leftVal},
+		Span:   toIRSpan(path, expression.Span),
+	})
+	return result, ir.TypeBool, nil
 }

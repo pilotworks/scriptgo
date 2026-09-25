@@ -542,7 +542,7 @@ func lowerCallExpression(
 								retType = toIRType(expression.InferredType)
 							}
 							op := ir.OpClosureCall
-							if propType == ir.TypeDynamicFunction {
+							if propType == ir.TypeDynamicFunction || (currentDynamicMode && (receiverType == ir.TypeUnknown || propType == ir.TypeUnknown)) {
 								op = ir.OpDynamicFunctionCall
 							}
 							instruction := ir.Instruction{
@@ -883,7 +883,7 @@ func lowerCallExpression(
 		}
 		if !isModuleFunc {
 			closureVal, closureType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
-			if err == nil && (closureType == ir.TypeDynamicFunction || closureType == ir.TypeClosure || closureType == "Function" || closureType == "function" || strings.Contains(string(closureType), "=>")) {
+			if err == nil && (closureType == ir.TypeDynamicFunction || (currentDynamicMode && closureType == ir.TypeUnknown) || closureType == ir.TypeClosure || closureType == "Function" || closureType == "function" || strings.Contains(string(closureType), "=>")) {
 				args := make([]string, 0, len(expression.Arguments))
 				for _, argument := range expression.Arguments {
 					value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
@@ -909,15 +909,13 @@ func lowerCallExpression(
 					}
 				}
 				op := ir.OpClosureCall
-				if closureType == ir.TypeDynamicFunction {
-					receiver, receiverType, receiverErr := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
-					if receiverErr != nil {
-						return "", "", receiverErr
-					}
-					if receiverType == ir.TypeUnknown {
-						// Keep the boxed receiver available for the ABI call.
-					} else if receiver == "" {
-						return "", "", fmt.Errorf("dynamic method receiver is empty")
+				if closureType == ir.TypeDynamicFunction || (currentDynamicMode && closureType == ir.TypeUnknown) {
+					var receiver string
+					if expression.Left != nil && expression.Left.Left != nil {
+						rec, _, receiverErr := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+						if receiverErr == nil {
+							receiver = rec
+						}
 					}
 					function.Body = append(function.Body, ir.Instruction{
 						Op: ir.OpDynamicFunctionCall, Type: retType, Result: result,
@@ -982,7 +980,7 @@ func lowerCallExpression(
 
 	calleeIsClosure := false
 	calleeType, hasCalleeType := env[callee]
-	if hasCalleeType && calleeType == ir.TypeDynamicFunction {
+	if hasCalleeType && (calleeType == ir.TypeDynamicFunction || (currentDynamicMode && calleeType == ir.TypeUnknown)) {
 		args := make([]string, 0, len(expression.Arguments)+1)
 		args = append(args, callee)
 		for _, argument := range expression.Arguments {

@@ -478,9 +478,32 @@ func lowerReflectSet(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 					break
 				}
 			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{
+				Op:     ir.OpConst,
+				Type:   ir.TypeBool,
+				Result: result,
+				Value:  "true",
+				Span:   toIRSpan(call.Path, call.Expression.Span),
+			})
+			return result, ir.TypeBool, nil
 		}
 	}
 
+	propVal, _, err := call.LowerExpression(call.Path, propArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{
+		Op:     ir.OpCall,
+		Type:   ir.TypeVoid,
+		Callee: "__object.set_prop",
+		Args:   []string{targetVal, propVal, valVal},
+		Span:   toIRSpan(call.Path, call.Expression.Span),
+	})
 	result := call.Result
 	if result == "" {
 		result = nextTemp(call.Counter)
@@ -542,15 +565,27 @@ func lowerReflectHas(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 }
 
 func lowerReflectDeleteProperty(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	if len(call.Expression.Arguments) < 2 {
+		return "", "", fmt.Errorf("Reflect.deleteProperty requires target and propertyKey arguments")
+	}
+	targetVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
+	propVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
 	result := call.Result
 	if result == "" {
 		result = nextTemp(call.Counter)
 	}
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpConst,
+		Op:     ir.OpCall,
 		Type:   ir.TypeBool,
 		Result: result,
-		Value:  "true",
+		Callee: "__object.delete_prop",
+		Args:   []string{targetVal, propVal},
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
 	return result, ir.TypeBool, nil
