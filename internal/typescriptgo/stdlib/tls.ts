@@ -233,32 +233,36 @@ function byteView(value: ArrayBufferView, name: string, allowEmpty: boolean = tr
     return new Uint8Array(view.buffer, view.byteOffset, view.byteLength).slice();
 }
 
-function pemString(value: TLSBinary | null | undefined, name: string): string {
+function pemString(value: unknown, name: string): string {
     if (value === undefined || value === null) return "";
     if (typeof value === "string") return value;
-    if (ArrayBuffer.isView(value)) return Buffer.from(byteView(value, name)).toString("utf8");
-    throw new TypeError("TLS " + name + " must be a string, Buffer, TypedArray, or DataView");
+    if (ArrayBuffer.isView(value)) return Buffer.from(byteView(value as ArrayBufferView, name)).toString("utf8");
+    throw new TypeError("TLS " + name + " must be a string, Buffer, TypedArray, or DataView (got " + (typeof value) + ")");
 }
 
 function isTLSBinary(value: TLSCertificateList | null | undefined): value is TLSBinary {
     return typeof value === "string" || ArrayBuffer.isView(value);
 }
 
-function certificateList(value: TLSCertificateList | null | undefined, name: string): string[] {
-    if (value === null || value === undefined || isTLSBinary(value)) return [pemString(value, name)];
-    const result: string[] = [];
-    for (let i = 0; i < value.length; i++) {
-        const certificate = pemString(value[i], name);
-        let duplicate = false;
-        for (let j = 0; j < result.length; j++) {
-            if (result[j] === certificate) {
-                duplicate = true;
-                break;
+function certificateList(value: unknown, name: string): string[] {
+    if (value === null || value === undefined) return [];
+    if (Array.isArray(value)) {
+        const result: string[] = [];
+        const arr = value as ReadonlyArray<TLSBinary>;
+        for (let i = 0; i < arr.length; i++) {
+            const certificate = pemString(arr[i], name);
+            let duplicate = false;
+            for (let j = 0; j < result.length; j++) {
+                if (result[j] === certificate) {
+                    duplicate = true;
+                    break;
+                }
             }
+            if (!duplicate) result.push(certificate);
         }
-        if (!duplicate) result.push(certificate);
+        return result;
     }
-    return result;
+    return [pemString(value as TLSBinary, name)];
 }
 
 function optionCA(options: TLSOptionRecord): string {
@@ -663,8 +667,22 @@ export function createSecureContext(options?: SecureContextOptions): SecureConte
     return new SecureContext(options);
 }
 
-export function setDefaultCACertificates(certs: ReadonlyArray<TLSBinary>): void {
-    _caCertificates = certificateList(certs, "default CA certificates");
+export function setDefaultCACertificates(certs: string[]): void;
+export function setDefaultCACertificates(certs: ArrayBufferView[]): void;
+export function setDefaultCACertificates(certs: string[]): void {
+    const list: string[] = [];
+    for (let i = 0; i < certs.length; i++) {
+        const certificate = String(certs[i]);
+        let duplicate = false;
+        for (let j = 0; j < list.length; j++) {
+            if (list[j] === certificate) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) list.push(certificate);
+    }
+    _caCertificates = list;
     _caCertificatesSet = true;
 }
 
@@ -1043,13 +1061,23 @@ export class TLSSocket {
         if (options.session !== undefined) {
             this._session = byteView(options.session, "session", false);
         }
-        this._handle = __scriptgo.tlsSocketConnect(context._handle, host, port, this._servername, options.rejectUnauthorized !== false, this._session === undefined ? new Uint8Array(0) : this._session);
-        this._isPair = false;
-        this._connected = true;
-        this._closed = false;
-        this._applyOptions();
-        this._refreshState();
-        this.emit("secureConnect");
+        try {
+            this._handle = __scriptgo.tlsSocketConnect(context._handle, host, port, this._servername, options.rejectUnauthorized !== false, this._session === undefined ? new Uint8Array(0) : this._session);
+            this._isPair = false;
+            this._connected = true;
+            this._closed = false;
+            this._applyOptions();
+            this._refreshState();
+            this.emit("secureConnect");
+        } catch (err: unknown) {
+            this._connected = false;
+            this._closed = true;
+            queueMicrotask(() => {
+                const errObj = err instanceof Error ? err : new Error(String(err));
+                this.emit("error", errObj);
+                this.emit("close", true);
+            });
+        }
         return this;
     }
 
