@@ -370,13 +370,13 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),
 						Kind:         "property_assignment",
-						Text:         prop.Name().Text(),
+						Text:         syntaxMemberName(prop.Name()),
 						Left:         syntaxExpression(prop.Initializer, chk),
 						InferredType: resolveInferredType(chk, propNode),
 					})
 				case ast.KindShorthandPropertyAssignment:
 					prop := propNode.AsShorthandPropertyAssignment()
-					name := prop.Name().Text()
+					name := syntaxMemberName(prop.Name())
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),
 						Kind:         "property_assignment",

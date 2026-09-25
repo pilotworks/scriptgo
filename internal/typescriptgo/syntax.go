@@ -282,7 +282,7 @@ func syntaxType(node *ast.Node) string {
 				for _, p := range fnNode.Parameters.Nodes {
 					pName := ""
 					if p.Name() != nil {
-						pName = p.Name().Text()
+						pName = syntaxMemberName(p.Name())
 					}
 					pType := syntaxType(p.Type())
 					if pName != "" {
@@ -319,12 +319,12 @@ func syntaxTypeParameters(typeParams []*ast.Node) []string {
 		if p.Kind == ast.KindTypeParameter {
 			tp := p.AsTypeParameterDeclaration()
 			if tp != nil && tp.Name() != nil {
-				result = append(result, tp.Name().Text())
+				result = append(result, syntaxMemberName(tp.Name()))
 				continue
 			}
 		}
 		if p.Name() != nil {
-			result = append(result, p.Name().Text())
+			result = append(result, syntaxMemberName(p.Name()))
 		}
 	}
 	return result

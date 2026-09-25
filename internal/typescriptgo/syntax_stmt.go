@@ -698,10 +698,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			if alias.Type.Kind == ast.KindTypeLiteral {
 				for _, member := range alias.Type.Members() {
 					if member.Kind == ast.KindPropertySignature {
-						pName := ""
-						if member.Name() != nil {
-							pName = member.Name().Text()
-						}
+						pName := syntaxMemberName(member.Name())
 						property := member.AsPropertySignatureDeclaration()
 						fields = append(fields, SyntaxField{
 							Span:         sourceSpan(member),
@@ -719,10 +716,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 						if t.Kind == ast.KindTypeLiteral {
 							for _, member := range t.Members() {
 								if member.Kind == ast.KindPropertySignature {
-									pName := ""
-									if member.Name() != nil {
-										pName = member.Name().Text()
-									}
+									pName := syntaxMemberName(member.Name())
 									property := member.AsPropertySignatureDeclaration()
 									fields = append(fields, SyntaxField{
 										Span:         sourceSpan(member),

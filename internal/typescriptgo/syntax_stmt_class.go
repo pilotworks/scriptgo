@@ -584,16 +584,23 @@ func replaceThisWithClassExpr(expr *SyntaxExpression, className string) *SyntaxE
 	return expr
 }
 
-func syntaxMemberName(nameNode *ast.Node) string {
+func syntaxMemberName(nameNode *ast.Node) (result string) {
 	if nameNode == nil {
 		return ""
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			result = ""
+		}
+	}()
 	switch nameNode.Kind {
 	case ast.KindComputedPropertyName:
 		if expr := nameNode.Expression(); expr != nil {
 			if expr.Kind == ast.KindPropertyAccessExpression {
 				return syntaxMemberName(expr.Expression()) + "." + syntaxMemberName(expr.Name())
 			} else if expr.Kind == ast.KindIdentifier {
+				return expr.Text()
+			} else if expr.Kind == ast.KindStringLiteral || expr.Kind == ast.KindNumericLiteral {
 				return expr.Text()
 			}
 		}
@@ -612,9 +619,6 @@ func syntaxMemberName(nameNode *ast.Node) string {
 		if nameNode.Kind == ast.KindReturnKeyword {
 			return "return"
 		}
-		if nameNode.Text() != "" {
-			return nameNode.Text()
-		}
-		return ""
+		return nameNode.Text()
 	}
 }
