@@ -18,12 +18,12 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **433** | **433 / 433 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
-| - *Native LLVM/Clang Parity* | 433 | 416 PASS plus 17 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **437** | **437 / 437 match expected output; 435 / 437 match Node.js v22 (see note)** | **100.0% / 99.5%** |
+| - *Native LLVM/Clang Parity* | 437 | 420 PASS plus 17 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 17 | 17 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
-| **Total Test Suite Runtime** | ~3m25s (macOS) | API surface verified across macOS / Ubuntu Docker | - |
+| **Total Test Suite Runtime** | ~2m05s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
 
@@ -196,37 +196,37 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 433
-Native Backend Parity  : 416/433 (96.1%)
-Diagnostic Parity      : 17/433
-Overall Full Parity    : 433/433 (100.0%)
-Total Time Elapsed     : ~3m25s
+Total Test Cases       : 437
+Native Backend Parity  : 420/437 (96.1%)
+Diagnostic Parity      : 17/437
+Overall Full Parity    : 435/437 (99.5%)
+Total Time Elapsed     : ~2m05s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 99 | **100% (99/99)** | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 99 | **99% (98/99)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
 | **`arrays`** | 2 | **100% (2/2)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 26 | **100% (26/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 23 | **100% (23/23)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 20 | **100% (20/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
-| **`dynamic`** | 23 | **100% (23/23)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
+| **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
 | **`functions`** | 22 | **100% (22/22)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 22 | **100% (22/22)** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language`** | 22 | **95.5% (21/22)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 4 | **100% (4/4)** | Tier selection, dynamic fallbacks, mode validations. |
 | **`language/diagnostics`** | 5 | **100% (5/5)** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 6 | **100% (6/6)** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
-| **`operators`** | 25 | **100% (25/25)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics. |
+| **`operators`** | 26 | **100% (26/26)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics, signed zero through constant folding and `Object.is`. |
 | **`scenarios`** | 16 | **100% (16/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
 | **`tuples`** | 18 | **100% (18/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
-| **`types`** | 16 | **100% (16/16)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
+| **`types`** | 17 | **100% (17/17)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
@@ -236,6 +236,63 @@ two-way synchronous ESM/CommonJS interoperability, Dynamic async Promise
 materialization with microtask chaining, host-job timer integration, and pending host job rejection. In addition,
 one compiler integration test verifies registry installation, nested ESM/CommonJS execution,
 and offline/frozen reinstall from the local content store.
+
+
+¹ `api/reflect.ts` and `language/decorators.ts`: ScriptGo matches the recorded
+expected output, but Node.js v22 running TypeScript by type stripping emits no
+decorator metadata, so its output differs. These are oracle limitations, not
+ScriptGo regressions.
+
+### 4.1. test262 Conformance Subset
+
+The corpus measures the curated core subset. To measure ECMAScript conformance
+outside it, `cmd/test262` runs tests from a local
+[tc39/test262](https://github.com/tc39/test262) checkout (not vendored) in the
+Static tier with a native-subset harness (`internal/test262/harness.ts`:
+`Test262Error`, `$DONOTEVALUATE`, `assert`, `assert.sameValue`,
+`assert.notSameValue`).
+
+```sh
+make test-262 TEST262_ROOT=../test262
+```
+
+Outcomes: **pass**; **fail** (wrong behavior, timeout, compiler panic, or
+LLVM IR rejected by Clang); **unsupported** (rejected by the native subset
+gate); **skipped** (`module`, `async`, `noStrict`, `CanBlockIsTrue`,
+resolution-negative tests, or harness includes other than `assert.js`/`sta.js`).
+Runtime-negative tests pass when the program throws, because uncaught native
+exceptions do not report their constructor.
+
+Results at test262 `2e0a5676` (25,248 tests, Linux x86-64):
+
+| Group | Pass | Fail | Unsupported | Skipped | Pass rate (attempted) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| built-ins/Array | 130 | 183 | 2230 | 540 | 5.1% |
+| built-ins/JSON | 20 | 12 | 106 | 28 | 14.5% |
+| built-ins/Math | 118 | 5 | 45 | 159 | 70.2% |
+| built-ins/String | 114 | 171 | 774 | 164 | 10.8% |
+| language/expressions | 1095 | 515 | 6097 | 3395 | 14.2% |
+| language/statements | 656 | 939 | 4150 | 3602 | 11.4% |
+| **total** | **2133** | **1825** | **13402** | **7888** | **12.3%** |
+
+Most attempted tests are rejected by design: `any` (SG1001, 5,118),
+unannotated `{}` (SG2005, 1,029), dynamic call targets (SG1004, 443), class
+expressions and array holes (SG2005, 419), and missing global constructors as
+values (`TypeError`, `ReferenceError`, `Array`, `String`). The main
+correctness signals are:
+
+| Signal | Tests | Meaning |
+| --- | ---: | --- |
+| Assertion or exception failure at runtime | 559 | Behavior differs from the specification. |
+| Early/parse `SyntaxError` not reported | 472 | Programs that must not compile are accepted. |
+| LLVM IR rejected by Clang | 423 | The backend emits invalid code for accepted programs. |
+| Compiler panic | 234 | Includes `Node.Text` on `BindingPattern` (92) and nil dereferences (142). |
+| Native crash, runtime ABI failure, or checked-cast error | 116 | Segmentation faults (23), array/string runtime precondition failures, `SG4002` casts. |
+
+Two defects found this way are fixed and covered by
+`corpus/operators/negative_zero_same_value.ts`: constant folding turned `-0`
+into `+0`, and `Object.is` with one boxed and one unboxed operand emitted
+invalid LLVM IR. `true + true` (boolean `+`) is still rejected.
 
 ---
 
