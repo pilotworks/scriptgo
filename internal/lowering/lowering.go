@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,8 +306,10 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		}
 	}
 
-	for clsName, meta := range hierarchy {
-		for fName, field := range meta.Statics {
+	for _, clsName := range slices.Sorted(maps.Keys(hierarchy)) {
+		meta := hierarchy[clsName]
+		for _, fName := range slices.Sorted(maps.Keys(meta.Statics)) {
+			field := meta.Statics[fName]
 			globalName := clsName + "_" + fName
 			globalType := toIRTypeForPath(meta.FileName, field.Type)
 			if globalType == "" {
@@ -634,7 +638,6 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					}
 					function, err := lowerFunction(fileName, methodStmt, shapes, signatures)
 					if err != nil {
-						fmt.Printf("DEBUG method error: %s: %v\n", mangled, err)
 						return fmt.Errorf("lower class method %q: %w", mangled, sourceError(fileName, method.Span, err))
 					}
 					module.Functions = append(module.Functions, function)

@@ -1135,7 +1135,8 @@ func findMatchingDiscriminatedType(propName string, targetVal string, unionType 
 			}
 		}
 	}
-	for shapeName, s := range shapes {
+	for _, shapeName := range slices.Sorted(maps.Keys(shapes)) {
+		s := shapes[shapeName]
 		if isUnion && !unionParts[shapeName] {
 			continue
 		}

@@ -68,24 +68,37 @@ module that owns the behavior.
 | `cmd/scriptgo` | Flag parsing, input/output paths, process exit codes, user-facing errors | TypeScript semantics, AST traversal, lowering, IR construction, LLVM text, runtime behavior |
 | `internal/compiler` | Stage orchestration, artifact selection, temporary toolchain files, invoking Clang | Parsing, type checking, feature semantics, instruction emission |
 | `internal/typescriptgo` | The pinned TypeScript-Go adapter and conversion of upstream results into stable adapter data | Native subset policy, IR, LLVM, runtime ABI, a replacement parser/type system |
-| `internal/frontend` | Checked program creation, reachable module graph, normalized source data, frontend diagnostics | Backend selection, native layout, runtime calls, LLVM emission, execution |
+| `internal/frontend` | Checked program creation, reachable module graph, normalized source data, frontend diagnostics, the frontend-to-lowering contract (`contract.go`) | Backend selection, native layout, runtime calls, LLVM emission, execution |
 | `internal/lowering` | Native subset validation and conversion of checked source data into backend-independent IR | Direct LLVM/C emission, native process startup, TypeScript-Go compiler policy |
 | `internal/ir` | Types, instructions, modules, source metadata, verification invariants | TypeScript AST/API usage, backend-specific syntax, runtime implementation, CLI policy |
 | `internal/opt` | Target-independent Typed IR optimization passes, dead code elimination, constant folding, CSE, LICM | TypeScript AST/API usage, backend-specific LLVM emission, runtime ABI or C source implementation |
 | `internal/runtime` | The native ABI contract and linked runtime services for values, ownership, startup, and errors | TypeScript parsing/type checking, lowering policy, backend orchestration |
 | `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions |
+| `internal/pkgmgr` | npm-compatible manifests, resolution, lockfiles, content store, installs, `package.json` tasks | Compilation stages, TypeScript semantics, runtime ABI |
+| `internal/audit`, `internal/spec`, `cmd/parity` | Developer tooling: Node.js API catalog, corpus coverage audit, parity runner | Anything linked into the `scriptgo` CLI or compiled programs |
 
 Dependency direction must remain acyclic:
 
 ```text
-cmd/scriptgo -> compiler
+cmd/scriptgo -> compiler, pkgmgr
 compiler -> frontend -> typescriptgo -> TypeScript-Go
-compiler -> lowering -> ir
+compiler -> lowering -> frontend (contract types only), ir
 compiler -> opt -> ir
 compiler -> backend/llvm -> ir
+compiler -> runtime
+cmd/parity -> audit -> frontend, spec
 ```
 
-`internal/runtime` provides the native ABI contract and linked C runtime source.
+Only `internal/frontend` imports the TypeScript-Go adapter; later stages use
+the aliases in `internal/frontend/contract.go`. `internal/runtime` provides the
+native ABI contract and linked C runtime source. `TestDependencyDirection` in
+`internal/compiler` enforces this graph; a new package must be added there and
+here before it can be imported.
+
+Compiler output must be deterministic: never let Go map iteration order decide
+emitted order or a "first match" lookup. Iterate sorted keys
+(`slices.Sorted(maps.Keys(m))`) or keep an explicit order slice.
+`TestCompileIsDeterministicAcrossRuns` guards this.
 
 ## File Boundaries And Splitting Rules
 

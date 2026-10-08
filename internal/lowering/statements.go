@@ -6,6 +6,7 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -1077,7 +1078,8 @@ func lowerStatement(path string, statement frontend.SyntaxStatement, function *i
 				}
 			}
 			if className == "this" || className == "" {
-				for sName, s := range shapes {
+				for _, sName := range slices.Sorted(maps.Keys(shapes)) {
+					s := shapes[sName]
 					if fieldIndex(s, statement.Name) >= 0 {
 						className = sName
 						break

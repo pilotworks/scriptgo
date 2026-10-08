@@ -8,9 +8,10 @@ observable semantics. TypeScript-Go remains responsible for parsing, binding,
 module resolution, and type checking. `scriptgo` owns the compatibility-aware
 subset gate, typed IR, runtime ABI, lowering, and native backends.
 
-The first release targets synchronous local programs on macOS ARM64 with LLVM
-and Clang. Full JavaScript and npm compatibility are deferred from the MVP and
-remain the product direction.
+The MVP targeted synchronous local programs on macOS ARM64 with LLVM and
+Clang. CI now verifies Linux x86-64 and macOS ARM64 hosts, and `wasm32-wasi`
+through `zig cc`. Full JavaScript and npm compatibility remain the product
+direction.
 
 The compatibility policy is three-tiered: Static native compilation by
 default, opt-in Dynamic classification with `--dynamic`, and Unsupported
@@ -338,7 +339,7 @@ Each item should leave the repository passing `go test ./...` and building with
 
 ## Current Target Assumptions
 
-- Development and MVP smoke tests target macOS ARM64 (`darwin/arm64`).
+- CI verifies Linux x86-64 (`ubuntu-latest`) and macOS ARM64 (`macos-latest`); `wasm32-wasi` builds use `zig cc`.
 - Native builds use the `clang` executable available in `PATH` (or a `zig cc` wrapper script); the current
   verification host uses Apple Clang 21, and `zig cc` is supported for cross-platform builds.
 - LLVM output uses opaque pointers and the host C ABI; target selection and

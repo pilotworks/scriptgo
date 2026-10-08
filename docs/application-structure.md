@@ -60,10 +60,9 @@ This is the structure currently present in the repository:
 cmd/scriptgo/main.go
     -> internal/compiler.Compile / internal/compiler.Build
         -> internal/frontend.NewProgram
-        -> internal/typescriptgo.Check
-            -> github.com/microsoft/typescript-go
-        -> internal/ir.Module
-        -> internal/lowering.Lower
+            -> internal/typescriptgo.CheckWithOptions
+                -> github.com/microsoft/typescript-go
+        -> internal/lowering.Lower (frontend contract -> internal/ir.Module)
         -> internal/opt.Optimize (when OptLevel != "0")
         -> internal/backend/llvm.Emit -> Clang / zig cc
     -> stdout, native binary output (Mach-O, ELF, PE), or WebAssembly (.wasm)
@@ -137,12 +136,14 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `cmd/scriptgo` | CLI flags, input selection, output writing, exit codes | Parsing, type checking, lowering, LLVM details |
 | `internal/compiler` | Pipeline orchestration, options, artifact selection | Becoming a miscellaneous utility package |
 | `internal/typescriptgo` | Versioned dependency isolation and adapter helpers | A second parser or type system |
-| `internal/frontend` | Program creation, module graph, checked input, source spans | Native ABI, runtime calls, LLVM selection |
+| `internal/frontend` | Program creation, module graph, checked input, source spans, frontend-to-lowering contract | Native ABI, runtime calls, LLVM selection |
 | `internal/lowering` | Native subset checks and explicit conversion/runtime operations | Backend-specific emission or CLI behavior |
 | `internal/ir` | Backend-independent types, values, instructions, blocks, spans, verifier | TypeScript-Go internals or LLVM APIs |
 | `internal/opt` | Target-independent Typed IR optimization passes, constant folding, CSE, LICM, DCE | TypeScript AST/type checking, LLVM IR emission, runtime ABI implementation |
 | `internal/runtime` | ABI contract and native value-family services | TypeScript syntax, frontend analysis |
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
+| `internal/pkgmgr` | npm-compatible manifests, resolution, lockfiles, installs, tasks | Compilation stages or TypeScript semantics |
+| `internal/audit`, `internal/spec`, `cmd/parity` | Developer tooling: API catalog, coverage audit, parity runner | Code linked into the CLI or compiled programs |
 
 ## Dependency Direction
 
@@ -150,10 +151,16 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 cmd/scriptgo
     -> internal/compiler
         -> internal/frontend -> internal/typescriptgo -> TypeScript-Go
-        -> internal/lowering -> internal/ir
+        -> internal/lowering -> internal/frontend (contract), internal/ir
         -> internal/opt -> internal/ir
         -> internal/backend/llvm -> internal/ir
+        -> internal/runtime
+    -> internal/pkgmgr
+cmd/parity -> internal/audit -> internal/frontend, internal/spec
 ```
+
+`TestDependencyDirection` (`internal/compiler/dependency_direction_test.go`)
+enforces this graph for every non-test Go file.
 
 The IR is the contract between language-facing analysis and native backends.
 Backends consume verified IR; they do not inspect TypeScript ASTs. Runtime and
@@ -169,10 +176,12 @@ tested.
 
 Rules for imports:
 
-1. `cmd` imports the compiler package only.
+1. `cmd/scriptgo` imports only `internal/compiler` and, for package commands,
+   `internal/pkgmgr`.
 2. The compiler coordinates stages; stages do not call back into the CLI.
-3. Frontend code may use TypeScript-Go through the adapter, but IR and backend
-   code must not depend on TypeScript-Go APIs.
+3. Only `internal/frontend` imports the TypeScript-Go adapter. Lowering
+   consumes the aliases in `internal/frontend/contract.go`; IR, optimizer,
+   and backend code never depend on TypeScript-Go.
 4. Lowering produces IR; it does not emit LLVM IR directly.
 5. LLVM consumes verified IR; it does not inspect TypeScript ASTs or diagnostics.
 6. Runtime and ABI definitions are consumed by lowering and backend integration,

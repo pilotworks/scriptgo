@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -672,7 +674,8 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 			}
 		}
 		if className == "this" || className == "" {
-			for sName, s := range shapes {
+			for _, sName := range slices.Sorted(maps.Keys(shapes)) {
+				s := shapes[sName]
 				if fieldIndex(s, expression.Text) >= 0 {
 					className = sName
 					break
@@ -757,7 +760,8 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 			}
 		}
 		if !ok {
-			for name, s := range shapes {
+			for _, name := range slices.Sorted(maps.Keys(shapes)) {
+				s := shapes[name]
 				if (strings.HasPrefix(name, className+"__") || strings.HasPrefix(name, className+"_")) && fieldIndex(s, expression.Text) >= 0 {
 					shape = s
 					ok = true
