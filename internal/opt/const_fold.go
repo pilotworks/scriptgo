@@ -313,6 +313,11 @@ func evalCompareNumber(op string, l, r float64) (bool, bool) {
 }
 
 func formatNumber(val float64) string {
+	if val == 0 && math.Signbit(val) {
+		// int64 conversion would drop the sign; -0 is observable through
+		// Object.is, 1 / x, and Math.sign.
+		return "-0"
+	}
 	if val == math.Trunc(val) && !math.IsNaN(val) && !math.IsInf(val, 0) {
 		return strconv.FormatInt(int64(val), 10)
 	}

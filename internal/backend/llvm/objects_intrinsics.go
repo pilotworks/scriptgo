@@ -59,36 +59,41 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		out.WriteString(fmt.Sprintf("  %%%s = alloca i32\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		t1 := e.types[instruction.Args[0]]
-		switch t1 {
-		case ir.TypeNumber:
+		t0, t1 := e.types[instruction.Args[0]], e.types[instruction.Args[1]]
+		if t1 == "" {
+			t1 = t0
+		}
+		switch {
+		case t0 == ir.TypeNumber && t1 == ir.TypeNumber:
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_is_number(double %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
-		case ir.TypeString:
+		case t0 == ir.TypeString && t1 == ir.TypeString:
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_is_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
-		case ir.TypeUnknown:
-			arg0 := instruction.Args[0]
-			if slot0, ok := e.varSlots[arg0]; ok {
-				loaded0 := fmt.Sprintf("%s.is.loaded.%d", arg0, e.loadCounter)
-				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded0, slot0))
-				arg0 = loaded0
+		case t0 == ir.TypeUnknown || t1 == ir.TypeUnknown || t0 != t1:
+			// Mixed or boxed operands compare as canonical runtime values so
+			// that SameValue semantics (NaN, signed zero, tags) hold.
+			types := [2]ir.Type{t0, t1}
+			operands := [2]string{instruction.Args[0], instruction.Args[1]}
+			for index, arg := range operands {
+				if types[index] != ir.TypeUnknown {
+					operands[index] = e.resolveArg(out, arg)
+					continue
+				}
+				if argSlot, ok := e.varSlots[arg]; ok {
+					loaded := fmt.Sprintf("%s.is.loaded.%d", arg, e.loadCounter)
+					e.loadCounter++
+					out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded, argSlot))
+					operands[index] = loaded
+				}
 			}
-			arg1 := instruction.Args[1]
-			if slot1, ok := e.varSlots[arg1]; ok {
-				loaded1 := fmt.Sprintf("%s.is.loaded.%d", arg1, e.loadCounter)
-				e.loadCounter++
-				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", loaded1, slot1))
-				arg1 = loaded1
+			var values [2]string
+			for index, arg := range operands {
+				value, err := e.emitCanonicalValuePointer(out, arg, types[index], fmt.Sprintf("object.is.%d.%d", index, e.loadCounter))
+				if err != nil {
+					return err
+				}
+				values[index] = value
 			}
-			value0, err := e.emitCanonicalValuePointer(out, arg0, ir.TypeUnknown, fmt.Sprintf("object.is.0.%d", e.loadCounter))
-			if err != nil {
-				return err
-			}
-			value1, err := e.emitCanonicalValuePointer(out, arg1, ir.TypeUnknown, fmt.Sprintf("object.is.1.%d", e.loadCounter))
-			if err != nil {
-				return err
-			}
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_is_unknown(ptr %s, ptr %s, ptr %%%s)\n", status, value0, value1, slot))
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_is_unknown(ptr %s, ptr %s, ptr %%%s)\n", status, values[0], values[1], slot))
 		default:
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_is_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
 		}
