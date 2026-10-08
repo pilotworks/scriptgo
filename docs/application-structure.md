@@ -35,7 +35,8 @@ This is the structure currently present in the repository:
 ├── go.work.sum
 ├── cmd/
 │   ├── scriptgo/                # CLI entry point (run, build, check, emit, version)
-│   └── parity/                  # Node.js parity oracle & official API coverage audit
+│   ├── parity/                  # Node.js parity oracle & official API coverage audit
+│   └── test262/                 # TC39 test262 subset runner (needs a test262 checkout)
 ├── internal/
 │   ├── compiler/                # Pipeline orchestration, toolchain resolution (Clang/Zig), WASM & native builds
 │   ├── frontend/                # Program validation, TypeScript adapter integration, AST normalization
@@ -49,6 +50,7 @@ This is the structure currently present in the repository:
 │   │   └── native/              # C runtime modules (arrays, async, closures, fs, http, net, os, web, websocket, wasi...)
 │   ├── spec/                    # Node.js API specification definitions and signatures
 │   ├── pkgmgr/                  # Local package manifests, entry resolution, and lockfiles
+│   ├── test262/                 # test262 metadata, native-subset harness, runner, report
 │   └── typescriptgo/            # Pinned TypeScript-Go frontend adapter
 ├── examples/                    # Showcase TypeScript sample programs
 └── docs/                        # Complete architectural and parity documentation
@@ -144,6 +146,7 @@ behavior, focused tests, and a roadmap slice that explains the boundary.
 | `internal/backend/llvm` | Verified IR to LLVM IR, target data, debug metadata | Reimplementing TypeScript semantics |
 | `internal/pkgmgr` | npm-compatible manifests, resolution, lockfiles, installs, tasks | Compilation stages or TypeScript semantics |
 | `internal/audit`, `internal/spec`, `cmd/parity` | Developer tooling: API catalog, coverage audit, parity runner | Code linked into the CLI or compiled programs |
+| `internal/test262`, `cmd/test262` | Developer tooling: test262 conformance runner and report | Compiler stages or a vendored copy of the suite |
 
 ## Dependency Direction
 
@@ -157,6 +160,7 @@ cmd/scriptgo
         -> internal/runtime
     -> internal/pkgmgr
 cmd/parity -> internal/audit -> internal/frontend, internal/spec
+cmd/test262 -> internal/compiler, internal/test262
 ```
 
 `TestDependencyDirection` (`internal/compiler/dependency_direction_test.go`)

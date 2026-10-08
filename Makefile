@@ -1,4 +1,4 @@
-.PHONY: all build test test-frontend test-parity test-sanitizers audit lint clean release help
+.PHONY: all build test test-frontend test-parity test-262 test-sanitizers audit lint clean release help
 
 BINARY_NAME=scriptgo
 ALIAS_NAME=scg
@@ -26,6 +26,12 @@ test-frontend:
 test-parity:
 	@echo "==> Running Node.js parity checker..."
 	go run ./cmd/parity
+
+## test-262: Run the test262 conformance subset (TEST262_ROOT=<checkout>, TEST262_PATHS=<dirs>)
+TEST262_PATHS ?= language/expressions,language/statements,built-ins/Math,built-ins/Array,built-ins/String,built-ins/JSON
+test-262:
+	@test -n "$(TEST262_ROOT)" || (echo "set TEST262_ROOT to a tc39/test262 checkout" && exit 2)
+	go run ./cmd/test262 -root $(TEST262_ROOT) -paths $(TEST262_PATHS)
 
 ## audit: Run official Node.js API coverage audit against corpus tests (Source of Truth)
 audit:

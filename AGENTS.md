@@ -76,6 +76,7 @@ module that owns the behavior.
 | `internal/backend/llvm` | Translation of verified IR into LLVM IR and LLVM target details | TypeScript AST inspection, type checking, subset decisions |
 | `internal/pkgmgr` | npm-compatible manifests, resolution, lockfiles, content store, installs, `package.json` tasks | Compilation stages, TypeScript semantics, runtime ABI |
 | `internal/audit`, `internal/spec`, `cmd/parity` | Developer tooling: Node.js API catalog, corpus coverage audit, parity runner | Anything linked into the `scriptgo` CLI or compiled programs |
+| `internal/test262`, `cmd/test262` | Developer tooling: test262 metadata, the native-subset harness, conformance runner and report | Compiler stages (it builds through an injected `Builder`), vendoring the suite |
 
 Dependency direction must remain acyclic:
 
@@ -87,6 +88,7 @@ compiler -> opt -> ir
 compiler -> backend/llvm -> ir
 compiler -> runtime
 cmd/parity -> audit -> frontend, spec
+cmd/test262 -> compiler, test262
 ```
 
 Only `internal/frontend` imports the TypeScript-Go adapter; later stages use
