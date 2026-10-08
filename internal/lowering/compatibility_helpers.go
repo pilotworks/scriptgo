@@ -1,11 +1,10 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 // isAllowedPropertyReceiver reports whether a given syntax kind is a valid
@@ -35,7 +34,7 @@ func isAllowedUnionBinaryOp(op string) bool {
 }
 
 // isObjectBuiltinCall reports whether an expression is a recognized Object/Reflect builtin call.
-func isObjectBuiltinCall(expr *typescriptgo.SyntaxExpression) bool {
+func isObjectBuiltinCall(expr *frontend.SyntaxExpression) bool {
 	if expr == nil || expr.Kind != "call" {
 		return false
 	}
@@ -54,11 +53,11 @@ func isObjectBuiltinCall(expr *typescriptgo.SyntaxExpression) bool {
 }
 
 // hasStringConcatUnion reports whether an expression is a string concatenation involving an allowed union.
-func hasStringConcatUnion(expression *typescriptgo.SyntaxExpression) bool {
+func hasStringConcatUnion(expression *frontend.SyntaxExpression) bool {
 	if expression == nil || expression.Operator != "+" {
 		return false
 	}
-	for _, operand := range []*typescriptgo.SyntaxExpression{expression.Left, expression.Right} {
+	for _, operand := range []*frontend.SyntaxExpression{expression.Left, expression.Right} {
 		if operand == nil || !isHeterogeneousUnion(operand.InferredType) {
 			continue
 		}

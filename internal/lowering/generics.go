@@ -1,18 +1,16 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"maps"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 var (
-	currGenericFuncs       map[string]typescriptgo.SyntaxStatement
-	currGenericClasses     map[string]typescriptgo.SyntaxClass
-	currGenericMethods     map[string]typescriptgo.SyntaxMethod
-	currGenericTypeAliases map[string]typescriptgo.SyntaxStatement
+	currGenericFuncs       map[string]frontend.SyntaxStatement
+	currGenericClasses     map[string]frontend.SyntaxClass
+	currGenericMethods     map[string]frontend.SyntaxMethod
+	currGenericTypeAliases map[string]frontend.SyntaxStatement
 	currFuncTypes          map[string]string
 	currUsedMethods        map[string]bool
 )
@@ -23,11 +21,11 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	initializeTypeAliases(program)
 	initializeClassIdentities(program)
 	buildClassHierarchy(program)
-	genericFuncs := map[string]typescriptgo.SyntaxStatement{}
-	genericClasses := map[string]typescriptgo.SyntaxClass{}
+	genericFuncs := map[string]frontend.SyntaxStatement{}
+	genericClasses := map[string]frontend.SyntaxClass{}
 	genericClassKinds := map[string]string{}
-	genericMethods := map[string]typescriptgo.SyntaxMethod{}
-	genericTypeAliases := map[string]typescriptgo.SyntaxStatement{}
+	genericMethods := map[string]frontend.SyntaxMethod{}
+	genericTypeAliases := map[string]frontend.SyntaxStatement{}
 	funcTypes := map[string]string{}
 	usedMethods := map[string]bool{}
 
@@ -128,9 +126,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	specializedClasses := map[string]bool{}
 	specializedMethods := map[string]bool{}
 
-	funcInstances := map[string][]typescriptgo.SyntaxStatement{}
-	classInstances := map[string][]typescriptgo.SyntaxStatement{}
-	methodInstances := map[string][]typescriptgo.SyntaxMethod{}
+	funcInstances := map[string][]frontend.SyntaxStatement{}
+	classInstances := map[string][]frontend.SyntaxStatement{}
+	methodInstances := map[string][]frontend.SyntaxMethod{}
 
 	// Helper to request function specialization
 	var requestFuncSpec func(name string, typeArgs []string, originFile string) string
@@ -401,7 +399,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				specCls.Constructor.Body[i] = cloneAndSubstituteStmt(specCls.Constructor.Body[i], subst)
 			}
 		}
-		var concreteMethods []typescriptgo.SyntaxMethod
+		var concreteMethods []frontend.SyntaxMethod
 		for i := range specCls.Methods {
 			if len(specCls.Methods[i].TypeParameters) > 0 {
 				specCls.Methods[i].Type = substituteType(specCls.Methods[i].Type, subst)
@@ -449,7 +447,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		if kind == "" {
 			kind = "class"
 		}
-		classInstances[originFile] = append(classInstances[originFile], typescriptgo.SyntaxStatement{
+		classInstances[originFile] = append(classInstances[originFile], frontend.SyntaxStatement{
 			Span:  clsTemplate.Span,
 			Kind:  kind,
 			Name:  mangled,
@@ -513,9 +511,9 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 	}
 
 	// Rebuild program files with specialized instances replacing generic templates
-	newFiles := make([]typescriptgo.SourceFile, 0, len(program.Files))
+	newFiles := make([]frontend.SourceFile, 0, len(program.Files))
 	for _, file := range program.Files {
-		var newStmts []typescriptgo.SyntaxStatement
+		var newStmts []frontend.SyntaxStatement
 		var fileEnv = map[string]string{}
 		for _, stmt := range file.Syntax.Statements {
 			if stmt.Kind == "function" && len(stmt.TypeParameters) > 0 {
@@ -541,16 +539,16 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				classEnv := make(map[string]string, len(fileEnv)+1)
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = rewritten.Class.Name
-				var candidateMethodLists [][]typescriptgo.SyntaxMethod
+				var candidateMethodLists [][]frontend.SyntaxMethod
 				if qualName != "" && qualName != rewritten.Class.Name {
 					candidateMethodLists = append(candidateMethodLists, methodInstances[qualName])
 					if idx := strings.Index(qualName, "__"); idx > 0 {
 						candidateMethodLists = append(candidateMethodLists, methodInstances[qualName[:idx]])
 					}
 				} else if baseName != "" && baseName != rewritten.Class.Name {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]}
+					candidateMethodLists = [][]frontend.SyntaxMethod{methodInstances[rewritten.Class.Name], methodInstances[baseName]}
 				} else {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[rewritten.Class.Name]}
+					candidateMethodLists = [][]frontend.SyntaxMethod{methodInstances[rewritten.Class.Name]}
 				}
 				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
@@ -580,16 +578,16 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				classEnv := make(map[string]string, len(fileEnv)+1)
 				maps.Copy(classEnv, fileEnv)
 				classEnv["this"] = clsStmt.Class.Name
-				var candidateMethodLists [][]typescriptgo.SyntaxMethod
+				var candidateMethodLists [][]frontend.SyntaxMethod
 				if qualName != "" && qualName != clsStmt.Class.Name {
 					candidateMethodLists = append(candidateMethodLists, methodInstances[qualName])
 					if idx := strings.Index(qualName, "__"); idx > 0 {
 						candidateMethodLists = append(candidateMethodLists, methodInstances[qualName[:idx]])
 					}
 				} else if baseName != "" && baseName != clsStmt.Class.Name {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]}
+					candidateMethodLists = [][]frontend.SyntaxMethod{methodInstances[clsStmt.Class.Name], methodInstances[baseName]}
 				} else {
-					candidateMethodLists = [][]typescriptgo.SyntaxMethod{methodInstances[clsStmt.Class.Name]}
+					candidateMethodLists = [][]frontend.SyntaxMethod{methodInstances[clsStmt.Class.Name]}
 				}
 				for _, ms := range candidateMethodLists {
 					for _, m := range ms {
@@ -627,16 +625,16 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				for _, m := range cls.Methods {
 					seen[m.Name] = true
 				}
-				var candidateLists [][]typescriptgo.SyntaxMethod
+				var candidateLists [][]frontend.SyntaxMethod
 				if qualName != "" && qualName != cls.Name {
 					candidateLists = append(candidateLists, methodInstances[qualName])
 					if idx := strings.Index(qualName, "__"); idx > 0 {
 						candidateLists = append(candidateLists, methodInstances[qualName[:idx]])
 					}
 				} else if baseName != "" && baseName != cls.Name {
-					candidateLists = [][]typescriptgo.SyntaxMethod{methodInstances[cls.Name], methodInstances[baseName]}
+					candidateLists = [][]frontend.SyntaxMethod{methodInstances[cls.Name], methodInstances[baseName]}
 				} else {
-					candidateLists = [][]typescriptgo.SyntaxMethod{methodInstances[cls.Name]}
+					candidateLists = [][]frontend.SyntaxMethod{methodInstances[cls.Name]}
 				}
 				for _, ms := range candidateLists {
 					for _, m := range ms {

@@ -2,23 +2,22 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func lowerFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+func lowerFunction(path string, statement frontend.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
 	if statement.IsAsync || statement.Kind == "async_function" {
 		return lowerAsyncFunction(path, statement, shapes, signatures)
 	}
 	return lowerSyncFunction(path, statement, shapes, signatures)
 }
 
-func lowerSyncFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+func lowerSyncFunction(path string, statement frontend.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
 	savedUsingScopes := usingScopeStack
 	usingScopeStack = nil
 	defer func() {
@@ -124,7 +123,7 @@ func lowerSyncFunction(path string, statement typescriptgo.SyntaxStatement, shap
 	return function, nil
 }
 
-func lowerStatement(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerStatement(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	switch statement.Kind {
 	case "empty":
 		return nil
@@ -1334,7 +1333,7 @@ func lowerActiveBreakFinally(path string, function *ir.Function, env map[string]
 	return nil
 }
 
-func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnType ir.Type, parentEnv map[string]ir.Type, parent *ir.Function, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]ir.Instruction, error) {
+func lowerBranch(path string, statements []frontend.SyntaxStatement, returnType ir.Type, parentEnv map[string]ir.Type, parent *ir.Function, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]ir.Instruction, error) {
 	branch := ir.Function{Name: "branch", ReturnType: returnType}
 	env := make(map[string]ir.Type, len(parentEnv))
 	maps.Copy(env, parentEnv)
@@ -1358,7 +1357,7 @@ func lowerBranch(path string, statements []typescriptgo.SyntaxStatement, returnT
 	return branch.Body, nil
 }
 
-func isOptionalChainExpr(expr *typescriptgo.SyntaxExpression) bool {
+func isOptionalChainExpr(expr *frontend.SyntaxExpression) bool {
 	if expr == nil {
 		return false
 	}

@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -16,8 +15,8 @@ func typeOnlyShapes(allProgram, runtime frontend.Program) []ir.ObjectShape {
 
 	seen := map[string]bool{}
 	var result []ir.ObjectShape
-	var visit func(string, typescriptgo.SyntaxStatement)
-	visit = func(fileName string, statement typescriptgo.SyntaxStatement) {
+	var visit func(string, frontend.SyntaxStatement)
+	visit = func(fileName string, statement frontend.SyntaxStatement) {
 		if statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias" {
 			if statement.Class == nil || seen[statement.Class.Name] {
 				return

@@ -1,6 +1,6 @@
 package lowering
 
-import typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+import "github.com/pilotworks/scriptgo/internal/frontend"
 
 const CompatibilityReportFormat = 1
 
@@ -24,17 +24,17 @@ type CompatibilityPolicy struct {
 }
 
 type CompatibilityDecision struct {
-	Tier              CompatibilityTier       `json:"tier"`
-	FileName          string                  `json:"path"`
-	Span              typescriptgo.SourceSpan `json:"-"`
-	Start             int                     `json:"start"`
-	Length            int                     `json:"length"`
-	Kind              string                  `json:"kind"`
-	Code              SubsetCode              `json:"code,omitempty"`
-	Message           string                  `json:"message,omitempty"`
-	Hint              string                  `json:"hint,omitempty"`
-	DynamicCapability string                  `json:"-"`
-	Source            string                  `json:"-"`
+	Tier              CompatibilityTier   `json:"tier"`
+	FileName          string              `json:"path"`
+	Span              frontend.SourceSpan `json:"-"`
+	Start             int                 `json:"start"`
+	Length            int                 `json:"length"`
+	Kind              string              `json:"kind"`
+	Code              SubsetCode          `json:"code,omitempty"`
+	Message           string              `json:"message,omitempty"`
+	Hint              string              `json:"hint,omitempty"`
+	DynamicCapability string              `json:"-"`
+	Source            string              `json:"-"`
 }
 
 type CompatibilitySummary struct {

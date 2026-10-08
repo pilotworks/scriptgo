@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 // lowerStructuredAsyncLoopLinearMulti lowers a loop whose body contains a
 // linear sequence of direct awaits. Each fulfilled continuation runs the next
 // segment synchronously and registers only the next await.
-func lowerStructuredAsyncLoopLinearMulti(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, loopIndex int, loop ir.Instruction, segments [][]ir.Instruction, awaits []ir.Instruction) (ir.Function, bool, error) {
+func lowerStructuredAsyncLoopLinearMulti(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, loopIndex int, loop ir.Instruction, segments [][]ir.Instruction, awaits []ir.Instruction) (ir.Function, bool, error) {
 	if len(awaits) < 2 || len(segments) != len(awaits)+1 {
 		return ir.Function{}, false, nil
 	}

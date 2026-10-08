@@ -3,19 +3,17 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var (
 	lowerMu            sync.Mutex
-	topLevelVars       = map[string]typescriptgo.SyntaxStatement{}
+	topLevelVars       = map[string]frontend.SyntaxStatement{}
 	inProgressVars     = map[string]bool{}
 	dynamicImports     = map[string]dynamicImportBinding{}
 	currentDynamicMode = false
@@ -54,15 +52,15 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	program = runtimeProgram(checkedProgram)
 	extraFunctions = nil
 	closureCounter = 0
-	topLevelVars = map[string]typescriptgo.SyntaxStatement{}
+	topLevelVars = map[string]frontend.SyntaxStatement{}
 	inProgressVars = map[string]bool{}
 	var dynamicModules []ir.DynamicModule
 	dynamicImports, dynamicModules = collectDynamicImports(program)
 	program.Files = nativeSourceFiles(program.Files)
 	anonymousShapes = make(map[string]ir.ObjectShape)
 	registeredShapes = nil
-	generatorASTIndex = map[string]typescriptgo.SyntaxStatement{}
-	defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+	generatorASTIndex = map[string]frontend.SyntaxStatement{}
+	defaultParamsIndex = map[string]map[int]*frontend.SyntaxExpression{}
 	restParamsIndex = map[string]bool{}
 	activeReturnFinallyStack = nil
 	activeThrowFinallyStack = nil
@@ -85,8 +83,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	typeAliasesIndex = map[string]string{}
 	for _, file := range program.Files {
 		module.SourceFiles[file.FileName] = file.Source
-		var collectTopLevel func(s typescriptgo.SyntaxStatement)
-		collectTopLevel = func(s typescriptgo.SyntaxStatement) {
+		var collectTopLevel func(s frontend.SyntaxStatement)
+		collectTopLevel = func(s frontend.SyntaxStatement) {
 			if (s.Kind == "variable" || s.Kind == "using" || s.Kind == "await_using") && s.Name != "" {
 				if s.Expression != nil || topLevelVars[s.Name].Expression == nil {
 					topLevelVars[s.Name] = s
@@ -144,8 +142,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		module.Shapes = append(module.Shapes, s)
 	}
 	for _, file := range program.Files {
-		var collectShapes func(fileName string, statement typescriptgo.SyntaxStatement)
-		collectShapes = func(fileName string, statement typescriptgo.SyntaxStatement) {
+		var collectShapes func(fileName string, statement frontend.SyntaxStatement)
+		collectShapes = func(fileName string, statement frontend.SyntaxStatement) {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				if statement.Kind == "type_alias" && len(statement.Class.Fields) == 0 {
 					return
@@ -327,8 +325,8 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 
 	seenGlobals := map[string]bool{}
 	for _, file := range program.Files {
-		var collectGlobals func(statement typescriptgo.SyntaxStatement)
-		collectGlobals = func(statement typescriptgo.SyntaxStatement) {
+		var collectGlobals func(statement frontend.SyntaxStatement)
+		collectGlobals = func(statement frontend.SyntaxStatement) {
 			if statement.Kind == "variable" && statement.Name != "" {
 				if seenGlobals[statement.Name] {
 					return
@@ -490,19 +488,19 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				signatures[function.Name] = function
 				continue
 			}
-			lowerClassStatement := func(fileName string, statement typescriptgo.SyntaxStatement) error {
+			lowerClassStatement := func(fileName string, statement frontend.SyntaxStatement) error {
 				if statement.Class == nil || len(statement.Class.TypeParameters) > 0 {
 					return nil
 				}
 				className := classIdentityForPath(fileName, statement.Class.Name)
-				var fieldInits []typescriptgo.SyntaxStatement
+				var fieldInits []frontend.SyntaxStatement
 				for _, f := range statement.Class.Fields {
 					if !f.IsStatic && f.Initializer != nil {
-						fieldInits = append(fieldInits, typescriptgo.SyntaxStatement{
+						fieldInits = append(fieldInits, frontend.SyntaxStatement{
 							Span: f.Span,
 							Kind: "field_set",
 							Name: f.Name,
-							Left: &typescriptgo.SyntaxExpression{
+							Left: &frontend.SyntaxExpression{
 								Span: f.Span,
 								Kind: "identifier",
 								Text: "this",
@@ -515,7 +513,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				// Lower constructor if present
 				if statement.Class.Constructor != nil {
 					ctorMangled := className + "_constructor"
-					var ctorBody []typescriptgo.SyntaxStatement
+					var ctorBody []frontend.SyntaxStatement
 					if len(statement.Class.Constructor.Body) > 0 && statement.Class.Constructor.Body[0].Expression != nil && statement.Class.Constructor.Body[0].Expression.Kind == "call" && statement.Class.Constructor.Body[0].Expression.Left != nil && statement.Class.Constructor.Body[0].Expression.Left.Text == "super" {
 						ctorBody = append(ctorBody, statement.Class.Constructor.Body[0])
 						ctorBody = append(ctorBody, fieldInits...)
@@ -524,12 +522,12 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						ctorBody = append(ctorBody, fieldInits...)
 						ctorBody = append(ctorBody, statement.Class.Constructor.Body...)
 					}
-					ctorStmt := typescriptgo.SyntaxStatement{
+					ctorStmt := frontend.SyntaxStatement{
 						Span: statement.Class.Constructor.Span,
 						Kind: "function",
 						Name: ctorMangled,
 						Type: "void",
-						Parameters: append([]typescriptgo.SyntaxParameter{
+						Parameters: append([]frontend.SyntaxParameter{
 							{Name: "this", Type: "object:" + className},
 						}, statement.Class.Constructor.Parameters...),
 						Body: ctorBody,
@@ -542,42 +540,42 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					signatures[ctorMangled] = function
 				} else if len(fieldInits) > 0 || statement.Class.Extends != "" {
 					ctorMangled := className + "_constructor"
-					var ctorBody []typescriptgo.SyntaxStatement
-					var ctorParams []typescriptgo.SyntaxParameter
+					var ctorBody []frontend.SyntaxStatement
+					var ctorParams []frontend.SyntaxParameter
 					if statement.Class.Extends != "" {
-						var superArgs []*typescriptgo.SyntaxExpression
+						var superArgs []*frontend.SyntaxExpression
 						baseClass := qualifyClassType(fileName, statement.Class.Extends)
 						if baseCtor, _, found := findConstructorInHierarchy(baseClass, signatures, hierarchy); found && len(baseCtor.Parameters) > 1 {
 							for _, p := range baseCtor.Parameters[1:] {
-								ctorParams = append(ctorParams, typescriptgo.SyntaxParameter{
+								ctorParams = append(ctorParams, frontend.SyntaxParameter{
 									Name: p.Name,
 									Type: string(p.Type),
 								})
-								superArgs = append(superArgs, &typescriptgo.SyntaxExpression{
+								superArgs = append(superArgs, &frontend.SyntaxExpression{
 									Span: statement.Span,
 									Kind: "identifier",
 									Text: p.Name,
 								})
 							}
 						}
-						ctorBody = append(ctorBody, typescriptgo.SyntaxStatement{
+						ctorBody = append(ctorBody, frontend.SyntaxStatement{
 							Span: statement.Span,
 							Kind: "expression",
-							Expression: &typescriptgo.SyntaxExpression{
+							Expression: &frontend.SyntaxExpression{
 								Span:      statement.Span,
 								Kind:      "call",
-								Left:      &typescriptgo.SyntaxExpression{Span: statement.Span, Kind: "identifier", Text: "super"},
+								Left:      &frontend.SyntaxExpression{Span: statement.Span, Kind: "identifier", Text: "super"},
 								Arguments: superArgs,
 							},
 						})
 					}
 					ctorBody = append(ctorBody, fieldInits...)
-					ctorStmt := typescriptgo.SyntaxStatement{
+					ctorStmt := frontend.SyntaxStatement{
 						Span: statement.Span,
 						Kind: "function",
 						Name: ctorMangled,
 						Type: "void",
-						Parameters: append([]typescriptgo.SyntaxParameter{
+						Parameters: append([]frontend.SyntaxParameter{
 							{Name: "this", Type: "object:" + className},
 						}, ctorParams...),
 						Body: ctorBody,
@@ -597,7 +595,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						continue
 					}
 					var mangled string
-					var params []typescriptgo.SyntaxParameter
+					var params []frontend.SyntaxParameter
 					retType := method.Type
 					// TypeScript's polymorphic `this` return type is the concrete
 					// class type at each method boundary. Keeping it as the literal
@@ -605,7 +603,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					if retType == "this" || retType == "object:this" {
 						retType = "object:" + className
 					}
-					var cleanParams []typescriptgo.SyntaxParameter
+					var cleanParams []frontend.SyntaxParameter
 					for _, p := range method.Parameters {
 						if p.Name != "this" {
 							cleanParams = append(cleanParams, p)
@@ -616,16 +614,16 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 						params = cleanParams
 					} else if method.Kind == "get" {
 						mangled = className + "_get_" + method.Name
-						params = []typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}
+						params = []frontend.SyntaxParameter{{Name: "this", Type: "object:" + className}}
 					} else if method.Kind == "set" {
 						mangled = className + "_set_" + method.Name
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
+						params = append([]frontend.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 						retType = "void"
 					} else {
 						mangled = methodImplementationName(className, method.Name)
-						params = append([]typescriptgo.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
+						params = append([]frontend.SyntaxParameter{{Name: "this", Type: "object:" + className}}, cleanParams...)
 					}
-					methodStmt := typescriptgo.SyntaxStatement{
+					methodStmt := frontend.SyntaxStatement{
 						Span:       method.Span,
 						Kind:       "function",
 						IsAsync:    method.IsAsync,
@@ -650,7 +648,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				if len(statement.Class.StaticElements) > 0 {
 					for _, elem := range statement.Class.StaticElements {
 						switch elem.Kind {
-						case typescriptgo.StaticElementField:
+						case frontend.StaticElementField:
 							f := elem.Field
 							if f != nil && f.IsStatic && f.Initializer != nil {
 								staticVar := className + "_" + f.Name
@@ -659,7 +657,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 									env[staticVar] = valType
 								}
 							}
-						case typescriptgo.StaticElementBlock:
+						case frontend.StaticElementBlock:
 							for _, stmt := range elem.Statements {
 								if err := lowerStatement(fileName, stmt, &main, env, &counter, shapes, signatures); err != nil {
 									return fmt.Errorf("lower class %s static block: %w", statement.Class.Name, sourceError(fileName, stmt.Span, err))
@@ -765,7 +763,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	if len(collectNestedAwaits(main.Body)) > 0 {
 		functions, ok, err := lowerTopLevelAsyncSequence(program.EntryPath, main, shapes, signatures)
 		if err != nil {
-			return ir.Module{}, fmt.Errorf("lower top-level await: %w", sourceError(program.EntryPath, typescriptgo.SourceSpan{}, err))
+			return ir.Module{}, fmt.Errorf("lower top-level await: %w", sourceError(program.EntryPath, frontend.SourceSpan{}, err))
 		}
 		if ok {
 			mainFunction := functions[len(functions)-1]

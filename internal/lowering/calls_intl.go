@@ -1,15 +1,14 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 func lowerIntlNew(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	className string,
 	result string,
 	function *ir.Function,
@@ -70,7 +69,7 @@ func lowerIntlNew(
 
 func lowerIntlReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,

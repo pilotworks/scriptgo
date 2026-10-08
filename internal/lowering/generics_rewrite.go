@@ -1,13 +1,11 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
+	"strings"
 )
 
-func rewriteMethod(m typescriptgo.SyntaxMethod, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) typescriptgo.SyntaxMethod {
+func rewriteMethod(m frontend.SyntaxMethod, env map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) frontend.SyntaxMethod {
 	res := cloneMethod(m)
 	res.Type = rewriteTypeString(res.Type)
 	localEnv := map[string]string{}
@@ -29,7 +27,7 @@ func rewriteMethod(m typescriptgo.SyntaxMethod, env map[string]string, genericFu
 	return res
 }
 
-func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) typescriptgo.SyntaxStatement {
+func rewriteStatementTypes(stmt frontend.SyntaxStatement, env map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) frontend.SyntaxStatement {
 	res := cloneStatement(stmt)
 	res.Type = rewriteTypeString(res.Type)
 	if env == nil {
@@ -118,7 +116,7 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]str
 			}
 			classEnv["this"] = clsName
 		}
-		var nonGenericMethods []typescriptgo.SyntaxMethod
+		var nonGenericMethods []frontend.SyntaxMethod
 		for _, m := range res.Class.Methods {
 			if len(m.TypeParameters) > 0 {
 				continue // Skip generic method template
@@ -130,7 +128,7 @@ func rewriteStatementTypes(stmt typescriptgo.SyntaxStatement, env map[string]str
 	return res
 }
 
-func rewriteExpr(expr *typescriptgo.SyntaxExpression, env map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) *typescriptgo.SyntaxExpression {
+func rewriteExpr(expr *frontend.SyntaxExpression, env map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) *frontend.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}
@@ -367,7 +365,7 @@ func normalizeGenericArrayTypes(program frontend.Program) frontend.Program {
 	return program
 }
 
-func normalizeStmtArrayTypes(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatement {
+func normalizeStmtArrayTypes(stmt frontend.SyntaxStatement) frontend.SyntaxStatement {
 	stmt.Type = rewriteTypeString(stmt.Type)
 	for i := range stmt.Parameters {
 		stmt.Parameters[i].Type = rewriteTypeString(stmt.Parameters[i].Type)
@@ -415,7 +413,7 @@ func normalizeStmtArrayTypes(stmt typescriptgo.SyntaxStatement) typescriptgo.Syn
 			}
 		}
 		for i := range stmt.Class.StaticElements {
-			if stmt.Class.StaticElements[i].Kind == typescriptgo.StaticElementBlock {
+			if stmt.Class.StaticElements[i].Kind == frontend.StaticElementBlock {
 				for j := range stmt.Class.StaticElements[i].Statements {
 					stmt.Class.StaticElements[i].Statements[j] = normalizeStmtArrayTypes(stmt.Class.StaticElements[i].Statements[j])
 				}

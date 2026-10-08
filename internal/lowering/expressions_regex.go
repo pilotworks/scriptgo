@@ -1,7 +1,7 @@
 package lowering
 
 import (
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
@@ -34,7 +34,7 @@ func ensureRegExpShape(shapes map[string]ir.ObjectShape) {
 	}
 }
 
-func lowerRegexLiteral(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerRegexLiteral(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	ensureRegExpShape(shapes)
 
 	pattern := expression.Text

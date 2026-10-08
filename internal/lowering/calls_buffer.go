@@ -2,12 +2,11 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func lowerBufferMethod(path string, expression *typescriptgo.SyntaxExpression, receiver, methodName string, receiverType ir.Type, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
+func lowerBufferMethod(path string, expression *frontend.SyntaxExpression, receiver, methodName string, receiverType ir.Type, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
 	if receiverType != ir.TypeBuffer {
 		return "", "", false, nil
 	}

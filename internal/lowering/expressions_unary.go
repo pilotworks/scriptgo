@@ -2,13 +2,12 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
-func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if expression.Operator == "++" || expression.Operator == "--" {
 		return lowerUpdateLValue(path, expression.Left, expression.Operator, false, result, function, env, counter, shapes, signatures, expression.Span)
 	}
@@ -140,14 +139,14 @@ func lowerUnaryExpression(path string, expression *typescriptgo.SyntaxExpression
 	return "", "", fmt.Errorf("unsupported unary operator %q", expression.Operator)
 }
 
-func lowerPostfixUnaryExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerPostfixUnaryExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if expression.Operator == "++" || expression.Operator == "--" {
 		return lowerUpdateLValue(path, expression.Left, expression.Operator, true, result, function, env, counter, shapes, signatures, expression.Span)
 	}
 	return "", "", fmt.Errorf("unsupported postfix operator %q", expression.Operator)
 }
 
-func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op string, isPostfix bool, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, span typescriptgo.SourceSpan) (string, ir.Type, error) {
+func lowerUpdateLValue(path string, lvalue *frontend.SyntaxExpression, op string, isPostfix bool, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, span frontend.SourceSpan) (string, ir.Type, error) {
 	if lvalue == nil {
 		return "", "", fmt.Errorf("invalid operand for %s", op)
 	}
@@ -559,7 +558,7 @@ func lowerUpdateLValue(path string, lvalue *typescriptgo.SyntaxExpression, op st
 	}
 }
 
-func lowerInExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerInExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	rightVal, rightType, err := lowerExpression(path, expression.Right, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err

@@ -1,12 +1,11 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
-func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, env map[string]string, funcTypes map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string) {
+func scanAndSpecializeStmt(stmt frontend.SyntaxStatement, fileName string, env map[string]string, funcTypes map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string) {
 	if stmt.Type != "" {
 		scanTypeForGenerics(stmt.Type, fileName, genericClasses, reqCls)
 	}
@@ -99,7 +98,7 @@ func scanAndSpecializeStmt(stmt typescriptgo.SyntaxStatement, fileName string, e
 	}
 }
 
-func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string, env map[string]string, funcTypes map[string]string, genericFuncs map[string]typescriptgo.SyntaxStatement, genericClasses map[string]typescriptgo.SyntaxClass, genericMethods map[string]typescriptgo.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string) {
+func scanAndSpecializeExpr(expr *frontend.SyntaxExpression, fileName string, env map[string]string, funcTypes map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string) {
 	if expr == nil {
 		return
 	}
@@ -265,7 +264,7 @@ func scanAndSpecializeExpr(expr *typescriptgo.SyntaxExpression, fileName string,
 	}
 }
 
-func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescriptgo.SyntaxClass, reqCls func(string, []string, string) string) {
+func scanTypeForGenerics(typ, fileName string, genericClasses map[string]frontend.SyntaxClass, reqCls func(string, []string, string) string) {
 	clean := strings.TrimPrefix(typ, "object:")
 	if strings.HasSuffix(clean, "[]") {
 		inner := clean[:len(clean)-2]
@@ -346,11 +345,11 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]typescr
 	}
 }
 
-func inferTypeArgsForFunc(fnTemplate typescriptgo.SyntaxStatement, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
+func inferTypeArgsForFunc(fnTemplate frontend.SyntaxStatement, args []*frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
 	return inferTypeArgsForFuncDepth(fnTemplate, args, env, funcTypes, 0)
 }
 
-func inferTypeArgsForFuncDepth(fnTemplate typescriptgo.SyntaxStatement, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) []string {
+func inferTypeArgsForFuncDepth(fnTemplate frontend.SyntaxStatement, args []*frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) []string {
 	inferred := map[string]string{}
 	for i, param := range fnTemplate.Parameters {
 		if i < len(args) {
@@ -369,7 +368,7 @@ func inferTypeArgsForFuncDepth(fnTemplate typescriptgo.SyntaxStatement, args []*
 	return res
 }
 
-func inferTypeArgsForMethod(method typescriptgo.SyntaxMethod, classTypeParams []string, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
+func inferTypeArgsForMethod(method frontend.SyntaxMethod, classTypeParams []string, args []*frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
 	inferred := map[string]string{}
 	for i, param := range method.Parameters {
 		if i < len(args) {
@@ -388,7 +387,7 @@ func inferTypeArgsForMethod(method typescriptgo.SyntaxMethod, classTypeParams []
 	return res
 }
 
-func inferTypeArgsForClass(clsTemplate typescriptgo.SyntaxClass, args []*typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
+func inferTypeArgsForClass(clsTemplate frontend.SyntaxClass, args []*frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string) []string {
 	inferred := map[string]string{}
 	if clsTemplate.Constructor != nil {
 		for i, param := range clsTemplate.Constructor.Parameters {
@@ -613,11 +612,11 @@ func matchTypeParam(paramType, argType string, inferred map[string]string) {
 	}
 }
 
-func inferExprType(expr *typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string) string {
+func inferExprType(expr *frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string) string {
 	return inferExprTypeDepth(expr, env, funcTypes, 0)
 }
 
-func inferExprTypeDepth(expr *typescriptgo.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) string {
+func inferExprTypeDepth(expr *frontend.SyntaxExpression, env map[string]string, funcTypes map[string]string, depth int) string {
 	if expr == nil || depth > 8 {
 		return ""
 	}

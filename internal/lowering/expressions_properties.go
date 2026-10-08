@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func lowerPropertyExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	className := ""
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		className = classIdentityForPath(path, expression.Left.Text)

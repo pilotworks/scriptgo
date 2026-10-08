@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 // lowerStructuredAsyncTry handles a try statement with one direct await. The
 // fulfilled and rejected callbacks are the two asynchronous exits from the
 // try body; both execute finally before continuing the outer sequence.
-func lowerStructuredAsyncTry(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
+func lowerStructuredAsyncTry(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
 	tryIndex, tryInstruction, ok := findAsyncTry(lowered.Body)
 	if !ok {
 		return ir.Function{}, false, nil

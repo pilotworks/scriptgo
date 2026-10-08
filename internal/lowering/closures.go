@@ -2,17 +2,16 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"sort"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var extraFunctions []ir.Function
 var closureCounter int
 
-func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.Type, selfName string) []string {
+func findFreeVariables(fn *frontend.SyntaxStatement, outerEnv map[string]ir.Type, selfName string) []string {
 	params := map[string]bool{}
 	for _, p := range fn.Parameters {
 		params[p.Name] = true
@@ -20,10 +19,10 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 	locals := map[string]bool{}
 	var used []string
 
-	var collectExpr func(e *typescriptgo.SyntaxExpression)
-	var collectStmt func(s typescriptgo.SyntaxStatement)
+	var collectExpr func(e *frontend.SyntaxExpression)
+	var collectStmt func(s frontend.SyntaxStatement)
 
-	collectExpr = func(e *typescriptgo.SyntaxExpression) {
+	collectExpr = func(e *frontend.SyntaxExpression) {
 		if e == nil {
 			return
 		}
@@ -58,7 +57,7 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 		}
 	}
 
-	collectStmt = func(s typescriptgo.SyntaxStatement) {
+	collectStmt = func(s frontend.SyntaxStatement) {
 		if s.Kind == "variable" {
 			locals[s.Name] = true
 			if s.Expression != nil {
@@ -161,7 +160,7 @@ func findFreeVariables(fn *typescriptgo.SyntaxStatement, outerEnv map[string]ir.
 
 func lowerClosureExpression(
 	path string,
-	fnStmt *typescriptgo.SyntaxStatement,
+	fnStmt *frontend.SyntaxStatement,
 	result string,
 	callerFn *ir.Function,
 	env map[string]ir.Type,

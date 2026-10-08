@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 // lowerStructuredAsyncBranch splits a top-level if whose selected branch has
 // one await. The condition and the non-suspending prefix still execute in the
 // caller's turn; only the selected continuation is queued.
-func lowerStructuredAsyncBranch(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
+func lowerStructuredAsyncBranch(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
 	index := -1
 	var branch ir.Instruction
 	for i, instruction := range lowered.Body {

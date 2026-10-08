@@ -1,10 +1,8 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
+	"strings"
 )
 
 // normalizeDynamicAnyProgram maps TypeScript's unchecked any type onto the
@@ -50,7 +48,7 @@ func isTypeWordByte(b byte) bool {
 	return b == '_' || b == '$' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
-func normalizeDynamicAnyStatements(statements []typescriptgo.SyntaxStatement) []typescriptgo.SyntaxStatement {
+func normalizeDynamicAnyStatements(statements []frontend.SyntaxStatement) []frontend.SyntaxStatement {
 	for i := range statements {
 		statement := &statements[i]
 		statement.Type = normalizeDynamicAnyType(statement.Type)
@@ -80,7 +78,7 @@ func normalizeDynamicAnyStatements(statements []typescriptgo.SyntaxStatement) []
 	return statements
 }
 
-func normalizeDynamicAnyParameters(parameters []typescriptgo.SyntaxParameter) []typescriptgo.SyntaxParameter {
+func normalizeDynamicAnyParameters(parameters []frontend.SyntaxParameter) []frontend.SyntaxParameter {
 	for i := range parameters {
 		parameter := &parameters[i]
 		parameter.Type = normalizeDynamicAnyType(parameter.Type)
@@ -91,7 +89,7 @@ func normalizeDynamicAnyParameters(parameters []typescriptgo.SyntaxParameter) []
 	return parameters
 }
 
-func normalizeDynamicAnyClass(class *typescriptgo.SyntaxClass) *typescriptgo.SyntaxClass {
+func normalizeDynamicAnyClass(class *frontend.SyntaxClass) *frontend.SyntaxClass {
 	if class == nil {
 		return nil
 	}
@@ -133,14 +131,14 @@ func normalizeDynamicAnyClass(class *typescriptgo.SyntaxClass) *typescriptgo.Syn
 	return class
 }
 
-func normalizeDynamicAnyDecorators(decorators []typescriptgo.SyntaxDecorator) []typescriptgo.SyntaxDecorator {
+func normalizeDynamicAnyDecorators(decorators []frontend.SyntaxDecorator) []frontend.SyntaxDecorator {
 	for i := range decorators {
 		decorators[i] = normalizeDynamicAnyDecorator(decorators[i])
 	}
 	return decorators
 }
 
-func normalizeDynamicAnyDecorator(decorator typescriptgo.SyntaxDecorator) typescriptgo.SyntaxDecorator {
+func normalizeDynamicAnyDecorator(decorator frontend.SyntaxDecorator) frontend.SyntaxDecorator {
 	decorator.DesignType = normalizeDynamicAnyType(decorator.DesignType)
 	decorator.ReturnType = normalizeDynamicAnyType(decorator.ReturnType)
 	for i := range decorator.ParamTypes {
@@ -153,7 +151,7 @@ func normalizeDynamicAnyDecorator(decorator typescriptgo.SyntaxDecorator) typesc
 	return decorator
 }
 
-func normalizeDynamicAnyExpression(expression *typescriptgo.SyntaxExpression) *typescriptgo.SyntaxExpression {
+func normalizeDynamicAnyExpression(expression *frontend.SyntaxExpression) *frontend.SyntaxExpression {
 	if expression == nil {
 		return nil
 	}
@@ -172,7 +170,7 @@ func normalizeDynamicAnyExpression(expression *typescriptgo.SyntaxExpression) *t
 		expression.Arguments[i] = normalizeDynamicAnyExpression(expression.Arguments[i])
 	}
 	if expression.Function != nil {
-		function := normalizeDynamicAnyStatements([]typescriptgo.SyntaxStatement{*expression.Function})
+		function := normalizeDynamicAnyStatements([]frontend.SyntaxStatement{*expression.Function})
 		expression.Function = &function[0]
 	}
 	return expression

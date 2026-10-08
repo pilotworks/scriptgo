@@ -1,13 +1,11 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type dynamicImportBinding struct {
@@ -20,7 +18,7 @@ type dynamicImportBinding struct {
 // bindings used by native TypeScript callers. TypeScript-Go remains the sole
 // owner of resolving every graph edge.
 func collectDynamicImports(program frontend.Program) (map[string]dynamicImportBinding, []ir.DynamicModule) {
-	files := make(map[string]typescriptgo.SourceFile, len(program.Files))
+	files := make(map[string]frontend.SourceFile, len(program.Files))
 	for _, file := range program.Files {
 		files[filepath.Clean(file.FileName)] = file
 		if canonical, err := filepath.EvalSymlinks(file.FileName); err == nil {
@@ -98,7 +96,7 @@ func collectDynamicImports(program frontend.Program) (map[string]dynamicImportBi
 	return bindings, modules
 }
 
-func dynamicResolvedExportArity(files map[string]typescriptgo.SourceFile, file typescriptgo.SourceFile, exportName string, seen map[string]bool) (int, bool) {
+func dynamicResolvedExportArity(files map[string]frontend.SourceFile, file frontend.SourceFile, exportName string, seen map[string]bool) (int, bool) {
 	path := filepath.Clean(file.FileName)
 	key := path + "#" + exportName
 	if seen[key] {
@@ -128,7 +126,7 @@ func dynamicResolvedExportArity(files map[string]typescriptgo.SourceFile, file t
 	return 0, false
 }
 
-func collectDynamicImportAliases(statements []typescriptgo.SyntaxStatement, modules map[string]dynamicImportBinding) {
+func collectDynamicImportAliases(statements []frontend.SyntaxStatement, modules map[string]dynamicImportBinding) {
 	for _, statement := range statements {
 		if statement.Kind == "variable" && statement.Name != "" && statement.Expression != nil && statement.Expression.Kind == "identifier" {
 			if module, ok := modules[statement.Expression.Text]; ok {
@@ -143,7 +141,7 @@ func collectDynamicImportAliases(statements []typescriptgo.SyntaxStatement, modu
 	}
 }
 
-func dynamicModuleKind(file typescriptgo.SourceFile) string {
+func dynamicModuleKind(file frontend.SourceFile) string {
 	switch strings.ToLower(filepath.Ext(file.FileName)) {
 	case ".cjs":
 		return "commonjs"
@@ -158,7 +156,7 @@ func dynamicModuleKind(file typescriptgo.SourceFile) string {
 	return "esm"
 }
 
-func isCommonJSExport(statement typescriptgo.SyntaxStatement) bool {
+func isCommonJSExport(statement frontend.SyntaxStatement) bool {
 	if statement.Kind != "field_set" || statement.Left == nil {
 		return false
 	}
@@ -168,7 +166,7 @@ func isCommonJSExport(statement typescriptgo.SyntaxStatement) bool {
 	return statement.Left.Kind == "property" && statement.Left.Text == "exports" && statement.Left.Left != nil && statement.Left.Left.Kind == "identifier" && statement.Left.Left.Text == "module"
 }
 
-func dynamicExportArity(statements []typescriptgo.SyntaxStatement, exportName string) (int, bool) {
+func dynamicExportArity(statements []frontend.SyntaxStatement, exportName string) (int, bool) {
 	for _, statement := range statements {
 		if arity, ok := dynamicCommonJSExportArity(statement, exportName); ok {
 			return arity, true
@@ -194,7 +192,7 @@ func dynamicExportArity(statements []typescriptgo.SyntaxStatement, exportName st
 // dynamicCommonJSExportArity recognizes the small CommonJS function-export
 // surface supported by the Dynamic runtime. TypeScript-Go has already
 // normalized assignment targets into field_set statements for us.
-func dynamicCommonJSExportArity(statement typescriptgo.SyntaxStatement, exportName string) (int, bool) {
+func dynamicCommonJSExportArity(statement frontend.SyntaxStatement, exportName string) (int, bool) {
 	if statement.Kind != "field_set" || statement.Expression == nil || statement.Expression.Function == nil {
 		return 0, false
 	}
@@ -213,7 +211,7 @@ func dynamicCommonJSExportArity(statement typescriptgo.SyntaxStatement, exportNa
 	return 0, false
 }
 
-func dynamicCommonJSDefaultExport(statements []typescriptgo.SyntaxStatement) bool {
+func dynamicCommonJSDefaultExport(statements []frontend.SyntaxStatement) bool {
 	for _, statement := range statements {
 		if statement.Kind == "field_set" && statement.Left != nil && statement.Left.Kind == "identifier" && statement.Left.Text == "module" && statement.Name == "exports" && statement.Expression != nil && statement.Expression.Function != nil {
 			return true
@@ -231,8 +229,8 @@ func isJavaScriptFile(path string) bool {
 	return strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".cjs")
 }
 
-func nativeSourceFiles(files []typescriptgo.SourceFile) []typescriptgo.SourceFile {
-	result := make([]typescriptgo.SourceFile, 0, len(files))
+func nativeSourceFiles(files []frontend.SourceFile) []frontend.SourceFile {
+	result := make([]frontend.SourceFile, 0, len(files))
 	for _, file := range files {
 		if !isJavaScriptFile(file.FileName) {
 			result = append(result, file)

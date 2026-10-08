@@ -2,8 +2,7 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
@@ -14,7 +13,7 @@ type asyncTryState struct {
 	await ir.Instruction
 }
 
-func lowerStructuredAsyncTryChain(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
+func lowerStructuredAsyncTryChain(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
 	var states []asyncTryState
 	for index, instruction := range lowered.Body {
 		if !hasAwait(instruction) {

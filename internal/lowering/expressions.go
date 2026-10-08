@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	switch expression.Kind {
 	case "number":
 		typ := ir.TypeNumber
@@ -482,10 +481,10 @@ func lowerExpression(path string, expression *typescriptgo.SyntaxExpression, res
 					}
 				}
 			}
-			standardIndex := &typescriptgo.SyntaxExpression{
+			standardIndex := &frontend.SyntaxExpression{
 				Span:         expression.Span,
 				Kind:         "index",
-				Left:         &typescriptgo.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: array, InferredType: string(arrayType)},
+				Left:         &frontend.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: array, InferredType: string(arrayType)},
 				Right:        expression.Right,
 				InferredType: elemType,
 			}

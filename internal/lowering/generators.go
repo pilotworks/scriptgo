@@ -2,51 +2,50 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
-var generatorASTIndex = map[string]typescriptgo.SyntaxStatement{}
+var generatorASTIndex = map[string]frontend.SyntaxStatement{}
 
 // RegisterGeneratorStatement indexes a generator function statement by name for delegation analysis.
-func RegisterGeneratorStatement(name string, stmt typescriptgo.SyntaxStatement) {
+func RegisterGeneratorStatement(name string, stmt frontend.SyntaxStatement) {
 	if generatorASTIndex == nil {
-		generatorASTIndex = map[string]typescriptgo.SyntaxStatement{}
+		generatorASTIndex = map[string]frontend.SyntaxStatement{}
 	}
 	generatorASTIndex[name] = stmt
 }
 
 type yieldPoint struct {
 	stateIdx int
-	expr     *typescriptgo.SyntaxExpression
+	expr     *frontend.SyntaxExpression
 	isStar   bool
 }
 
-func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string) []typescriptgo.SyntaxStatement {
-	var rewritten []typescriptgo.SyntaxStatement
+func rewriteYieldsToPush(stmts []frontend.SyntaxStatement, itemsName string) []frontend.SyntaxStatement {
+	var rewritten []frontend.SyntaxStatement
 	for _, s := range stmts {
 		cloned := s
 		if s.Kind == "expression" && s.Expression != nil {
 			if s.Expression.Kind == "yield" {
-				cloned = typescriptgo.SyntaxStatement{
+				cloned = frontend.SyntaxStatement{
 					Span: s.Span,
 					Kind: "expression",
-					Expression: &typescriptgo.SyntaxExpression{
+					Expression: &frontend.SyntaxExpression{
 						Span: s.Span,
 						Kind: "call",
-						Left: &typescriptgo.SyntaxExpression{
+						Left: &frontend.SyntaxExpression{
 							Span: s.Span,
 							Kind: "property",
-							Left: &typescriptgo.SyntaxExpression{
+							Left: &frontend.SyntaxExpression{
 								Span: s.Span,
 								Kind: "identifier",
 								Text: itemsName,
 							},
 							Text: "push",
 						},
-						Arguments: []*typescriptgo.SyntaxExpression{
+						Arguments: []*frontend.SyntaxExpression{
 							s.Expression.Left,
 						},
 					},
@@ -62,23 +61,23 @@ func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string)
 				}
 				if s.Expression.Left != nil && s.Expression.Left.Kind == "array" {
 					for _, elem := range s.Expression.Left.Arguments {
-						rewritten = append(rewritten, typescriptgo.SyntaxStatement{
+						rewritten = append(rewritten, frontend.SyntaxStatement{
 							Span: s.Span,
 							Kind: "expression",
-							Expression: &typescriptgo.SyntaxExpression{
+							Expression: &frontend.SyntaxExpression{
 								Span: s.Span,
 								Kind: "call",
-								Left: &typescriptgo.SyntaxExpression{
+								Left: &frontend.SyntaxExpression{
 									Span: s.Span,
 									Kind: "property",
-									Left: &typescriptgo.SyntaxExpression{
+									Left: &frontend.SyntaxExpression{
 										Span: s.Span,
 										Kind: "identifier",
 										Text: itemsName,
 									},
 									Text: "push",
 								},
-								Arguments: []*typescriptgo.SyntaxExpression{
+								Arguments: []*frontend.SyntaxExpression{
 									elem,
 								},
 							},
@@ -86,29 +85,29 @@ func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string)
 					}
 					continue
 				}
-				cloned = typescriptgo.SyntaxStatement{
+				cloned = frontend.SyntaxStatement{
 					Span:       s.Span,
 					Kind:       "forof",
 					Name:       "___yield_star_item",
 					Expression: s.Expression.Left,
-					Body: []typescriptgo.SyntaxStatement{
+					Body: []frontend.SyntaxStatement{
 						{
 							Span: s.Span,
 							Kind: "expression",
-							Expression: &typescriptgo.SyntaxExpression{
+							Expression: &frontend.SyntaxExpression{
 								Span: s.Span,
 								Kind: "call",
-								Left: &typescriptgo.SyntaxExpression{
+								Left: &frontend.SyntaxExpression{
 									Span: s.Span,
 									Kind: "property",
-									Left: &typescriptgo.SyntaxExpression{
+									Left: &frontend.SyntaxExpression{
 										Span: s.Span,
 										Kind: "identifier",
 										Text: itemsName,
 									},
 									Text: "push",
 								},
-								Arguments: []*typescriptgo.SyntaxExpression{
+								Arguments: []*frontend.SyntaxExpression{
 									{
 										Span: s.Span,
 										Kind: "identifier",
@@ -141,7 +140,7 @@ func rewriteYieldsToPush(stmts []typescriptgo.SyntaxStatement, itemsName string)
 	return rewritten
 }
 
-func collectYieldPoints(body []typescriptgo.SyntaxStatement) []yieldPoint {
+func collectYieldPoints(body []frontend.SyntaxStatement) []yieldPoint {
 	var yields []yieldPoint
 	for _, s := range body {
 		if s.Kind == "expression" && s.Expression != nil {
@@ -180,7 +179,7 @@ func collectYieldPoints(body []typescriptgo.SyntaxStatement) []yieldPoint {
 // 4. A factory function <name>(params...) that instantiates and returns the generator
 func lowerGeneratorFunction(
 	path string,
-	statement typescriptgo.SyntaxStatement,
+	statement frontend.SyntaxStatement,
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (ir.Function, []ir.Function, []ir.ObjectShape, error) {
@@ -285,14 +284,14 @@ func lowerGeneratorFunction(
 	classHierarchy[genClassName] = ClassMeta{
 		Name:    genClassName,
 		Extends: "Generator",
-		Statics: map[string]typescriptgo.SyntaxField{},
+		Statics: map[string]frontend.SyntaxField{},
 	}
 	if classSyntax == nil {
-		classSyntax = map[string]typescriptgo.SyntaxClass{}
+		classSyntax = map[string]frontend.SyntaxClass{}
 	}
-	classSyntax[genClassName] = typescriptgo.SyntaxClass{
+	classSyntax[genClassName] = frontend.SyntaxClass{
 		Name: genClassName,
-		Methods: []typescriptgo.SyntaxMethod{
+		Methods: []frontend.SyntaxMethod{
 			{
 				Name: "next",
 				Type: resultShapeName,

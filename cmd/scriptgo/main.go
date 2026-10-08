@@ -3,14 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/compiler"
+	"github.com/pilotworks/scriptgo/internal/pkgmgr"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/compiler"
-	"github.com/pilotworks/scriptgo/internal/pkgmgr"
 )
 
 var version = ""
@@ -511,7 +509,7 @@ func handleCheck(args []string) {
 		if len(diags) > 0 {
 			printCompilerWarnings()
 			for _, diag := range diags {
-				fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+				fmt.Fprintln(os.Stderr, compiler.FormatDiagnostic(diag))
 			}
 			os.Exit(1)
 		}
@@ -536,7 +534,7 @@ func handleCheck(args []string) {
 			if len(diags) > 0 {
 				printCompilerWarnings()
 				for _, diag := range diags {
-					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+					fmt.Fprintln(os.Stderr, compiler.FormatDiagnostic(diag))
 				}
 				os.Exit(1)
 			}
@@ -560,7 +558,7 @@ func handleCheck(args []string) {
 			if len(diags) > 0 {
 				printCompilerWarnings()
 				for _, diag := range diags {
-					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+					fmt.Fprintln(os.Stderr, compiler.FormatDiagnostic(diag))
 				}
 				os.Exit(1)
 			}
@@ -591,7 +589,7 @@ func handleCheck(args []string) {
 			if len(diags) > 0 {
 				printCompilerWarnings()
 				for _, diag := range diags {
-					fmt.Fprintln(os.Stderr, typescriptgo.FormatDiagnostic(diag, ""))
+					fmt.Fprintln(os.Stderr, compiler.FormatDiagnostic(diag))
 				}
 				os.Exit(1)
 			}

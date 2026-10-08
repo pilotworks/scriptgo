@@ -2,10 +2,9 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 var asyncLowerCounter int
@@ -14,7 +13,7 @@ var asyncLowerCounter int
 // turns each linear await into a pair of closure continuations. This is the
 // first stage of async CPS lowering; nested control-flow is handled by the
 // structured lowering pass before this representation is marked as a CFG.
-func lowerAsyncFunction(path string, statement typescriptgo.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+func lowerAsyncFunction(path string, statement frontend.SyntaxStatement, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
 	payloadType, ok := asyncResolvedReturnType(statement.Type)
 	if !ok {
 		payloadType, ok = asyncResolvedReturnType(statement.InferredType)
@@ -35,7 +34,7 @@ func lowerAsyncFunction(path string, statement typescriptgo.SyntaxStatement, sha
 	return lowerAsyncFunctionFromLowered(path, statement, lowered, shapes, signatures)
 }
 
-func lowerAsyncFunctionFromLowered(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
+func lowerAsyncFunctionFromLowered(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, error) {
 	finish := func(function ir.Function) (ir.Function, error) {
 		function.Captured = lowered.Captured
 		return function, nil
@@ -274,7 +273,7 @@ func rewriteAsyncReturns(instructions []ir.Instruction, promiseName, frameName s
 	return result
 }
 
-func lowerAsyncImmediateFunction(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function) (ir.Function, error) {
+func lowerAsyncImmediateFunction(path string, statement frontend.SyntaxStatement, lowered ir.Function) (ir.Function, error) {
 	asyncLowerCounter++
 	base := fmt.Sprintf("__async_immediate_%d", asyncLowerCounter)
 	promiseName := base + ".promise"

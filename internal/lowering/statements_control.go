@@ -2,16 +2,15 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func coerceToBool(path string, value string, valType ir.Type, function *ir.Function, counter *int, span typescriptgo.SourceSpan) (string, error) {
+func coerceToBool(path string, value string, valType ir.Type, function *ir.Function, counter *int, span frontend.SourceSpan) (string, error) {
 	if valType == ir.TypeBool {
 		return value, nil
 	}
@@ -88,7 +87,7 @@ func coerceToBool(path string, value string, valType ir.Type, function *ir.Funct
 	return "", fmt.Errorf("cannot coerce %s to boolean condition", valType)
 }
 
-func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerIf(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	condition, typ, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return err
@@ -119,7 +118,7 @@ func lowerIf(path string, statement typescriptgo.SyntaxStatement, function *ir.F
 	return nil
 }
 
-func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerWhile(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
 	defer func() {
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
@@ -157,7 +156,7 @@ func lowerWhile(path string, statement typescriptgo.SyntaxStatement, function *i
 	return nil
 }
 
-func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerDoWhile(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
 	defer func() {
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
@@ -195,7 +194,7 @@ func lowerDoWhile(path string, statement typescriptgo.SyntaxStatement, function 
 	return nil
 }
 
-func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
 	defer func() {
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
@@ -638,7 +637,7 @@ func lowerForOf(path string, statement typescriptgo.SyntaxStatement, function *i
 	return nil
 }
 
-func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerForIn(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
 	defer func() {
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
@@ -767,13 +766,13 @@ func lowerForIn(path string, statement typescriptgo.SyntaxStatement, function *i
 	return fmt.Errorf("for...in requires object or array, got %s", objType)
 }
 
-func substituteStringIndex(expr *typescriptgo.SyntaxExpression, varName string, stringVal string) *typescriptgo.SyntaxExpression {
+func substituteStringIndex(expr *frontend.SyntaxExpression, varName string, stringVal string) *frontend.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}
 	copy := *expr
 	if (copy.Kind == "index" || copy.Kind == "optional_index") && copy.Right != nil && copy.Right.Kind == "identifier" && copy.Right.Text == varName {
-		copy.Right = &typescriptgo.SyntaxExpression{
+		copy.Right = &frontend.SyntaxExpression{
 			Span: copy.Right.Span,
 			Kind: "string",
 			Text: stringVal,
@@ -786,7 +785,7 @@ func substituteStringIndex(expr *typescriptgo.SyntaxExpression, varName string, 
 		copy.Right = substituteStringIndex(copy.Right, varName, stringVal)
 	}
 	if len(copy.Arguments) > 0 {
-		newArgs := make([]*typescriptgo.SyntaxExpression, len(copy.Arguments))
+		newArgs := make([]*frontend.SyntaxExpression, len(copy.Arguments))
 		for i, a := range copy.Arguments {
 			newArgs[i] = substituteStringIndex(a, varName, stringVal)
 		}
@@ -795,13 +794,13 @@ func substituteStringIndex(expr *typescriptgo.SyntaxExpression, varName string, 
 	return &copy
 }
 
-func substituteStringIndexInStmt(stmt typescriptgo.SyntaxStatement, varName string, stringVal string) typescriptgo.SyntaxStatement {
+func substituteStringIndexInStmt(stmt frontend.SyntaxStatement, varName string, stringVal string) frontend.SyntaxStatement {
 	copy := stmt
 	if copy.Expression != nil {
 		copy.Expression = substituteStringIndex(copy.Expression, varName, stringVal)
 	}
 	if len(copy.Body) > 0 {
-		newBody := make([]typescriptgo.SyntaxStatement, len(copy.Body))
+		newBody := make([]frontend.SyntaxStatement, len(copy.Body))
 		for i, s := range copy.Body {
 			newBody[i] = substituteStringIndexInStmt(s, varName, stringVal)
 		}
@@ -810,7 +809,7 @@ func substituteStringIndexInStmt(stmt typescriptgo.SyntaxStatement, varName stri
 	return copy
 }
 
-func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerLabel(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	bodyInstructions, err := lowerBranch(path, statement.Body, function.ReturnType, env, function, counter, shapes, signatures)
 	if err != nil {
 		return err
@@ -825,7 +824,7 @@ func lowerLabel(path string, statement typescriptgo.SyntaxStatement, function *i
 	return nil
 }
 
-func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerSwitch(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	loopFinallyScopeStack = append(loopFinallyScopeStack, len(activeReturnFinallyStack))
 	defer func() {
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
@@ -1033,11 +1032,11 @@ func lowerSwitch(path string, statement typescriptgo.SyntaxStatement, function *
 	return nil
 }
 
-var activeReturnFinallyStack [][]typescriptgo.SyntaxStatement
-var activeThrowFinallyStack [][]typescriptgo.SyntaxStatement
+var activeReturnFinallyStack [][]frontend.SyntaxStatement
+var activeThrowFinallyStack [][]frontend.SyntaxStatement
 var loopFinallyScopeStack []int
 
-func lowerTry(path string, statement typescriptgo.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	if len(statement.Finally) > 0 {
 		activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
 	}
@@ -1155,7 +1154,7 @@ func findMatchingDiscriminatedType(propName string, targetVal string, unionType 
 	return ""
 }
 
-func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseEnv map[string]ir.Type, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape) {
+func applyConditionNarrowing(expr *frontend.SyntaxExpression, thenEnv, elseEnv map[string]ir.Type, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape) {
 	if expr == nil {
 		return
 	}
@@ -1274,8 +1273,8 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 	if expr.Kind == "binary" && (expr.Operator == "!==" || expr.Operator == "!=") {
 		left := expr.Left
 		right := expr.Right
-		var targetIdent *typescriptgo.SyntaxExpression
-		var targetProperty *typescriptgo.SyntaxExpression
+		var targetIdent *frontend.SyntaxExpression
+		var targetProperty *frontend.SyntaxExpression
 		var nullishKind string
 		if left != nil && left.Kind == "identifier" {
 			targetIdent = left
@@ -1375,8 +1374,8 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 	if expr.Kind == "binary" && (expr.Operator == "===" || expr.Operator == "==") {
 		left := expr.Left
 		right := expr.Right
-		var targetIdent *typescriptgo.SyntaxExpression
-		var targetProperty *typescriptgo.SyntaxExpression
+		var targetIdent *frontend.SyntaxExpression
+		var targetProperty *frontend.SyntaxExpression
 		var nullishKind string
 		if left != nil && left.Kind == "identifier" {
 			targetIdent = left
@@ -1474,8 +1473,8 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 		}
 		// typeof narrowing is applied above so that both the true and false
 		// branches retain the useful remainder of a source-level union.
-		var propAccess *typescriptgo.SyntaxExpression
-		var literalVal *typescriptgo.SyntaxExpression
+		var propAccess *frontend.SyntaxExpression
+		var literalVal *frontend.SyntaxExpression
 		if left != nil && (left.Kind == "property" || left.Kind == "member") && right != nil && (right.Kind == "string" || right.Kind == "literal") {
 			propAccess = left
 			literalVal = right
@@ -1540,7 +1539,7 @@ func applyConditionNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseE
 	}
 }
 
-func narrowPropertyPathType(propertyPath []string, expression *typescriptgo.SyntaxExpression, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape, nullishKind string) ir.Type {
+func narrowPropertyPathType(propertyPath []string, expression *frontend.SyntaxExpression, baseEnv map[string]ir.Type, shapes map[string]ir.ObjectShape, nullishKind string) ir.Type {
 	if len(propertyPath) < 2 {
 		return ""
 	}
@@ -1571,11 +1570,11 @@ func narrowPropertyPathType(propertyPath []string, expression *typescriptgo.Synt
 	return nonNullishIRType(expression.InferredType)
 }
 
-func applyTypeofNarrowing(expr *typescriptgo.SyntaxExpression, thenEnv, elseEnv, baseEnv map[string]ir.Type) bool {
+func applyTypeofNarrowing(expr *frontend.SyntaxExpression, thenEnv, elseEnv, baseEnv map[string]ir.Type) bool {
 	if expr == nil || expr.Kind != "binary" {
 		return false
 	}
-	var operand, literal *typescriptgo.SyntaxExpression
+	var operand, literal *frontend.SyntaxExpression
 	if expr.Left != nil && expr.Left.Kind == "typeof" && expr.Left.Left != nil && expr.Left.Left.Kind == "identifier" && expr.Right != nil {
 		operand, literal = expr.Left.Left, expr.Right
 	} else if expr.Right != nil && expr.Right.Kind == "typeof" && expr.Right.Left != nil && expr.Right.Left.Kind == "identifier" && expr.Left != nil {

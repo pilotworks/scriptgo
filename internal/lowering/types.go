@@ -2,12 +2,11 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"slices"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var typeAliasesIndex = map[string]string{}
@@ -1059,7 +1058,7 @@ func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field,
 	return fields, true
 }
 
-func toIRSpan(path string, span typescriptgo.SourceSpan) ir.SourceSpan {
+func toIRSpan(path string, span frontend.SourceSpan) ir.SourceSpan {
 	return ir.SourceSpan{Path: path, Offset: span.Start, Length: span.Length}
 }
 
@@ -1081,7 +1080,7 @@ func dynamicFieldAccess(className string) bool {
 	return ok && (meta.IsInterface || meta.IsTypeAlias)
 }
 
-func sourceError(path string, span typescriptgo.SourceSpan, err error) error {
+func sourceError(path string, span frontend.SourceSpan, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -1139,7 +1138,7 @@ func isSetType(t ir.Type) bool {
 	return t == ir.TypeSet || t == "object:Set" || strings.HasPrefix(string(t), "object:Set<") || strings.HasPrefix(string(t), "object:Set__")
 }
 
-func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
+func statementAlwaysReturns(stmt frontend.SyntaxStatement) bool {
 	switch stmt.Kind {
 	case "return", "throw":
 		return true
@@ -1180,7 +1179,7 @@ func statementAlwaysReturns(stmt typescriptgo.SyntaxStatement) bool {
 	}
 }
 
-func isReturningClosure(stmt typescriptgo.SyntaxStatement) bool {
+func isReturningClosure(stmt frontend.SyntaxStatement) bool {
 	if stmt.Expression != nil && (stmt.Expression.Kind == "arrow_function" || stmt.Expression.Kind == "function") {
 		return true
 	}

@@ -1,10 +1,8 @@
 package lowering
 
 import (
-	"path/filepath"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
+	"path/filepath"
 )
 
 // runtimeProgram keeps type-only dependencies out of lowering. Their checked
@@ -15,7 +13,7 @@ func runtimeProgram(program frontend.Program) frontend.Program {
 		return program
 	}
 
-	files := make(map[string]typescriptgo.SourceFile, len(program.Files))
+	files := make(map[string]frontend.SourceFile, len(program.Files))
 	for _, file := range program.Files {
 		files[filepath.Clean(file.FileName)] = file
 	}
@@ -44,7 +42,7 @@ func runtimeProgram(program frontend.Program) frontend.Program {
 	}
 	visit(entry)
 
-	filtered := make([]typescriptgo.SourceFile, 0, len(reachable))
+	filtered := make([]frontend.SourceFile, 0, len(reachable))
 	for _, file := range program.Files {
 		if reachable[filepath.Clean(file.FileName)] {
 			filtered = append(filtered, file)

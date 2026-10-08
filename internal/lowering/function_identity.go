@@ -1,14 +1,12 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type functionIdentity struct {
@@ -130,7 +128,7 @@ func initializeFunctionIdentities(program frontend.Program) {
 	}
 }
 
-func isTopLevelFunctionDeclaration(statement typescriptgo.SyntaxStatement) bool {
+func isTopLevelFunctionDeclaration(statement frontend.SyntaxStatement) bool {
 	switch statement.Kind {
 	case "declare_function", "function", "generator_function", "async_function", "async_generator_function":
 		return true

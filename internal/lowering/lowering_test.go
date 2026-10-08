@@ -2,15 +2,13 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func TestLowerMatchesMVPGoldenIR(t *testing.T) {
@@ -151,12 +149,12 @@ func TestLowerResolvesNamedImportAlias(t *testing.T) {
 func TestLowerRejectsUnsupportedStatementBeforeIR(t *testing.T) {
 	entry := filepath.Join(t.TempDir(), "main.ts")
 	program := frontend.Program{
-		Files: []typescriptgo.SourceFile{
+		Files: []frontend.SourceFile{
 			{
 				FileName: entry,
-				Syntax: typescriptgo.SyntaxFile{
+				Syntax: frontend.SyntaxFile{
 					FileName: entry,
-					Statements: []typescriptgo.SyntaxStatement{
+					Statements: []frontend.SyntaxStatement{
 						{
 							Kind: "unsupported",
 							Type: "CustomUnsupportedStatement",

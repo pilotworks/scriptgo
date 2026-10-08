@@ -1,13 +1,12 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
-func callName(expression *typescriptgo.SyntaxExpression) string {
+func callName(expression *frontend.SyntaxExpression) string {
 	if expression == nil {
 		return ""
 	}
@@ -44,7 +43,7 @@ func isArrayMethod(name string) bool {
 	}
 }
 
-func stringMethod(expression *typescriptgo.SyntaxExpression) string {
+func stringMethod(expression *frontend.SyntaxExpression) string {
 	if expression == nil || (expression.Kind != "property" && expression.Kind != "optional_property") || expression.Left == nil {
 		return ""
 	}
@@ -54,7 +53,7 @@ func stringMethod(expression *typescriptgo.SyntaxExpression) string {
 	return ""
 }
 
-func arrayMethod(expression *typescriptgo.SyntaxExpression) string {
+func arrayMethod(expression *frontend.SyntaxExpression) string {
 	if expression == nil || (expression.Kind != "property" && expression.Kind != "optional_property") || expression.Left == nil {
 		return ""
 	}
@@ -64,7 +63,7 @@ func arrayMethod(expression *typescriptgo.SyntaxExpression) string {
 	return ""
 }
 
-func resolveMapTypes(expr *typescriptgo.SyntaxExpression, env map[string]ir.Type) (string, string) {
+func resolveMapTypes(expr *frontend.SyntaxExpression, env map[string]ir.Type) (string, string) {
 	if expr == nil {
 		return "", ""
 	}

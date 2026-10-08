@@ -2,12 +2,10 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 type compatibilitySiteKey struct {
@@ -100,7 +98,7 @@ func analyzeCompatibilityLocked(program frontend.Program, policy CompatibilityPo
 	return report, nil
 }
 
-func (c *compatibilityCollector) dynamicAliases(statement typescriptgo.SyntaxStatement) {
+func (c *compatibilityCollector) dynamicAliases(statement frontend.SyntaxStatement) {
 	if statement.Kind == "variable" && statement.Name != "" && statement.Expression != nil && statement.Expression.Kind == "identifier" && c.dynamicBindings[statement.Expression.Text] {
 		c.dynamicBindings[statement.Name] = true
 	}
@@ -126,7 +124,7 @@ func (c *compatibilityCollector) normalizePath(path string) string {
 	return filepath.ToSlash(filepath.Clean(rel))
 }
 
-func (c *compatibilityCollector) add(path string, span typescriptgo.SourceSpan, kind string, code SubsetCode, feature, hint string, dynamicEligible bool) {
+func (c *compatibilityCollector) add(path string, span frontend.SourceSpan, kind string, code SubsetCode, feature, hint string, dynamicEligible bool) {
 	decision := CompatibilityDecision{Tier: TierStatic, FileName: path, Span: span, Start: span.Start, Length: span.Length, Kind: kind, DynamicCapability: feature, Source: c.sources[path]}
 	if code != "" {
 		decision.Tier = TierUnsupported
@@ -154,7 +152,7 @@ func compatibilityRank(tier CompatibilityTier) int {
 	}
 }
 
-func (c *compatibilityCollector) typed(path string, span typescriptgo.SourceSpan, kind, typ string) bool {
+func (c *compatibilityCollector) typed(path string, span frontend.SourceSpan, kind, typ string) bool {
 	if !isOrContainsAny(typ) {
 		return false
 	}
@@ -162,7 +160,7 @@ func (c *compatibilityCollector) typed(path string, span typescriptgo.SourceSpan
 	return true
 }
 
-func (c *compatibilityCollector) statement(path string, statement *typescriptgo.SyntaxStatement) {
+func (c *compatibilityCollector) statement(path string, statement *frontend.SyntaxStatement) {
 	if statement == nil {
 		return
 	}
@@ -248,7 +246,7 @@ func (c *compatibilityCollector) statement(path string, statement *typescriptgo.
 	}
 }
 
-func (c *compatibilityCollector) parameter(path string, parameter *typescriptgo.SyntaxParameter) {
+func (c *compatibilityCollector) parameter(path string, parameter *frontend.SyntaxParameter) {
 	if parameter == nil {
 		return
 	}
@@ -258,7 +256,7 @@ func (c *compatibilityCollector) parameter(path string, parameter *typescriptgo.
 	c.expression(path, parameter.Initializer)
 }
 
-func (c *compatibilityCollector) class(path string, class *typescriptgo.SyntaxClass) {
+func (c *compatibilityCollector) class(path string, class *frontend.SyntaxClass) {
 	if class.Constructor != nil {
 		for i := range class.Constructor.Parameters {
 			c.parameter(path, &class.Constructor.Parameters[i])
@@ -293,7 +291,7 @@ func (c *compatibilityCollector) class(path string, class *typescriptgo.SyntaxCl
 	}
 }
 
-func (c *compatibilityCollector) expression(path string, expression *typescriptgo.SyntaxExpression) {
+func (c *compatibilityCollector) expression(path string, expression *frontend.SyntaxExpression) {
 	if expression == nil {
 		return
 	}

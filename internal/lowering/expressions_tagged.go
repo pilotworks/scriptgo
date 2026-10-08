@@ -2,8 +2,7 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
@@ -11,7 +10,7 @@ import (
 // Desugars into: tag(stringsArray, expr1, expr2, ...)
 func lowerTaggedTemplate(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	result string,
 	function *ir.Function,
 	env map[string]ir.Type,
@@ -24,7 +23,7 @@ func lowerTaggedTemplate(
 	}
 
 	// Synthesize a call expression with the arguments
-	callExpr := &typescriptgo.SyntaxExpression{
+	callExpr := &frontend.SyntaxExpression{
 		Span:          expression.Span,
 		Kind:          "call",
 		Left:          expression.Left,

@@ -2,14 +2,13 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if expression.Operator == "&&" {
 		leftVal, leftTyp, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 		if err != nil {
@@ -327,7 +326,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 			rhsExpr := expression.Right
 			if expression.Operator != "=" {
 				baseOp := strings.TrimSuffix(expression.Operator, "=")
-				rhsExpr = &typescriptgo.SyntaxExpression{
+				rhsExpr = &frontend.SyntaxExpression{
 					Span:         expression.Span,
 					Kind:         "binary",
 					Operator:     baseOp,
@@ -815,7 +814,7 @@ func lowerBinaryExpression(path string, expression *typescriptgo.SyntaxExpressio
 	return result, leftType, nil
 }
 
-func logicalResultIsBool(expression *typescriptgo.SyntaxExpression) bool {
+func logicalResultIsBool(expression *frontend.SyntaxExpression) bool {
 	if expression == nil {
 		return false
 	}
