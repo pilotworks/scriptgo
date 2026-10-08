@@ -129,7 +129,8 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 	result.Path = rel
 	defer func() {
 		if r := recover(); r != nil {
-			result.Outcome, result.Detail = Unsupported, fmt.Sprintf("compiler panic: %v", r)
+			// A crash is a compiler bug, never a subset limitation.
+			result.Outcome, result.Detail = Fail, fmt.Sprintf("compiler panic: %v", r)
 		}
 	}()
 	source, err := os.ReadFile(filepath.Join(cfg.Root, "test", filepath.FromSlash(rel)))
@@ -159,6 +160,9 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 	if negative != nil && (negative.Phase == "parse" || negative.Phase == "early") {
 		if buildErr != nil && isSyntaxDiagnostic(buildErr) {
 			return Result{Path: rel, Outcome: Pass}
+		}
+		if buildErr != nil && isToolchainFailure(buildErr) {
+			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + firstLine(buildErr.Error())}
 		}
 		if buildErr != nil {
 			return Result{Path: rel, Outcome: Unsupported, Detail: firstLine(buildErr.Error())}

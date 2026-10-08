@@ -101,6 +101,7 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 		"a/fail.js":            front + "// exit 1",
 		"a/unsupported.js":     front + "// reject",
 		"a/clang.js":           front + "// clang",
+		"a/panic.js":           front + "// panic",
 		"a/module.js":          "/*---\nflags: [module]\n---*/\n",
 		"a/syntax.js":          negParse + "// syntax",
 		"a/parse-ok.js":        negParse + "// exit 0",
@@ -118,6 +119,8 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 		switch {
 		case strings.Contains(source, "// reject"):
 			return errors.New("main.ts:1:1 - error SG1001: The any type is not supported in native subset.")
+		case strings.Contains(source, "// panic"):
+			panic("nil pointer")
 		case strings.Contains(source, "// clang"):
 			return errors.New("clang: exit status 1: invalid IR")
 		case strings.Contains(source, "// syntax"):
@@ -145,6 +148,7 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 		"a/fail.js":        Fail,
 		"a/unsupported.js": Unsupported,
 		"a/clang.js":       Fail,
+		"a/panic.js":       Fail,
 		"a/module.js":      Skipped,
 		"a/syntax.js":      Pass,
 		"a/parse-ok.js":    Fail,
@@ -161,7 +165,7 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 	}
 	summaries := Summarize(results, 1)
 	total := summaries[len(summaries)-1]
-	if total.Group != "total" || total.Pass != 3 || total.Fail != 4 || total.Unsupported != 1 || total.Skipped != 1 {
+	if total.Group != "total" || total.Pass != 3 || total.Fail != 5 || total.Unsupported != 1 || total.Skipped != 1 {
 		t.Errorf("unexpected total summary %+v", total)
 	}
 	if reasons := TopReasons(results, Fail, 10); len(reasons) == 0 || !strings.Contains(strings.Join(reasons, "\n"), "0x…") {
