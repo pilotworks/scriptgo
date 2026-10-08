@@ -38,7 +38,6 @@ func tryLowerPropertyClosureCall(path string, expression *frontend.SyntaxExpress
 	}
 	function.Body = append(function.Body, instruction)
 	return result, retType, nil
-
 }
 
 func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -74,7 +73,6 @@ func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression,
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, callee string) (string, ir.Type, error) {
@@ -119,7 +117,6 @@ func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, r
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func tryLowerClosurePropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, closureVal string, closureType ir.Type) (string, ir.Type, error) {
@@ -154,5 +151,4 @@ func tryLowerClosurePropertyCall(path string, expression *frontend.SyntaxExpress
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }

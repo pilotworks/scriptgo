@@ -58,5 +58,4 @@ func lowerNewError(path string, expression *frontend.SyntaxExpression, result st
 		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{result, causeVal}, Span: toIRSpan(path, expression.Span),
 	})
 	return result, objType, nil
-
 }

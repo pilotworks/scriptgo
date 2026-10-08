@@ -41,7 +41,6 @@ func lowerInstanceofExpression(path string, expression *frontend.SyntaxExpressio
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeBool, nil
-
 }
 
 func tryLowerReferenceBinary(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, env map[string]ir.Type, counter *int, left *string, leftType *ir.Type, right *string, rightType ir.Type) (string, ir.Type, bool, error) {

@@ -34,14 +34,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	// 2. Check AST-level module and top-level constants (e.g. fs.constants.F_OK, os.EOL, buffer.constants.MAX_LENGTH)
 	propertyPath := extractPropertyPath(expression)
 	if len(propertyPath) >= 2 {
-		if r0, r1, handled, err := tryLowerConstantPropertyPath(path, expression, &result, function, env, counter, shapes, signatures, propertyPath); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerConstantPropertyPath(path, expression, &result, function, env, counter, shapes, signatures, propertyPath); handled {
+			return value, valueType, err
 		}
 	}
 
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
-		if r0, r1, handled, err := tryLowerIdentifierReceiverProperty(path, expression, &result, function, counter, shapes, signatures, className); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerIdentifierReceiverProperty(path, expression, &result, function, counter, shapes, signatures, className); handled {
+			return value, valueType, err
 		}
 	}
 
@@ -121,14 +121,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	// ArrayBufferView is a runtime union of typed arrays and DataView. Its shared
 	// fields need a tag-aware ABI; concrete typed arrays can use their faster ABI.
 	if isArrayBufferViewType(objectType) && objectType != ir.TypeDataView {
-		if r0, r1, handled, err := tryLowerArrayBufferViewProperty(path, expression, &result, function, counter, object, objectType); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerArrayBufferViewProperty(path, expression, &result, function, counter, object, objectType); handled {
+			return value, valueType, err
 		}
 	}
 
 	if objectType == ir.TypeDataView {
-		if r0, r1, handled, err := tryLowerDataViewProperty(path, expression, &result, function, counter, object); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerDataViewProperty(path, expression, &result, function, counter, object); handled {
+			return value, valueType, err
 		}
 	}
 
@@ -150,8 +150,8 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	}
 
 	if objectType == ir.TypeTextDecoder {
-		if r0, r1, handled, err := tryLowerTextDecoderProperty(path, expression, &result, function, counter, object); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerTextDecoderProperty(path, expression, &result, function, counter, object); handled {
+			return value, valueType, err
 		}
 	}
 
@@ -183,14 +183,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	}
 
 	if objectType == ir.Type("object:RegExp") {
-		if r0, r1, handled, err := tryLowerRegExpProperty(path, expression, &result, function, counter, object); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerRegExpProperty(path, expression, &result, function, counter, object); handled {
+			return value, valueType, err
 		}
 	}
 
 	if expression.Text == "length" {
-		if r0, r1, handled, err := tryLowerLengthProperty(path, expression, &result, function, counter, object, objectType); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerLengthProperty(path, expression, &result, function, counter, object, objectType); handled {
+			return value, valueType, err
 		}
 	}
 

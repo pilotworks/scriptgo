@@ -73,7 +73,6 @@ func lowerSuperConstructorCall(path string, expression *frontend.SyntaxExpressio
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return "", ir.TypeVoid, nil
-
 }
 
 func lowerSuperMethodCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -110,5 +109,4 @@ func lowerSuperMethodCall(path string, expression *frontend.SyntaxExpression, re
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, target.ReturnType, nil
-
 }

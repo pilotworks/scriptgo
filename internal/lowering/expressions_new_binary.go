@@ -38,7 +38,6 @@ func lowerNewArrayBuffer(path string, expression *frontend.SyntaxExpression, res
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeArrayBuffer, nil
-
 }
 
 func lowerNewTypedArray(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, className string) (string, ir.Type, error) {
@@ -137,7 +136,6 @@ func lowerNewTypedArray(path string, expression *frontend.SyntaxExpression, resu
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, targetType, nil
-
 }
 
 func lowerNewDataView(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -182,7 +180,6 @@ func lowerNewDataView(path string, expression *frontend.SyntaxExpression, result
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeDataView, nil
-
 }
 
 func lowerNewTextDecoder(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -213,5 +210,4 @@ func lowerNewTextDecoder(path string, expression *frontend.SyntaxExpression, res
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeTextDecoder, nil
-
 }

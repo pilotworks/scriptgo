@@ -31,7 +31,6 @@ func lowerPromiseThenCatchCall(path string, expression *frontend.SyntaxExpressio
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.Type("object:Promise"), nil
-
 }
 
 func lowerArrayBufferSliceCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string) (string, ir.Type, error) {
@@ -74,7 +73,6 @@ func lowerArrayBufferSliceCall(path string, expression *frontend.SyntaxExpressio
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeArrayBuffer, nil
-
 }
 
 func lowerNumberFormatCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, methodName string, receiver string) (string, ir.Type, error) {
@@ -93,7 +91,6 @@ func lowerNumberFormatCall(path string, expression *frontend.SyntaxExpression, r
 	callee := "__number." + methodName
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: callee, Args: args, Span: toIRSpan(path, expression.Span)})
 	return result, ir.TypeString, nil
-
 }
 
 func lowerHasOwnPropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string) (string, ir.Type, error) {
@@ -113,5 +110,4 @@ func lowerHasOwnPropertyCall(path string, expression *frontend.SyntaxExpression,
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeBool, nil
-
 }
