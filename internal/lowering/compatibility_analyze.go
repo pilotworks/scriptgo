@@ -2,10 +2,11 @@ package lowering
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 type compatibilitySiteKey struct {

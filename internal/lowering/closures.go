@@ -2,10 +2,11 @@ package lowering
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 	"sort"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var extraFunctions []ir.Function

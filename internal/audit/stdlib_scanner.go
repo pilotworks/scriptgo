@@ -2,10 +2,11 @@ package audit
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 // StdlibParam represents an actual parameter defined in ScriptGo's TypeScript stdlib.

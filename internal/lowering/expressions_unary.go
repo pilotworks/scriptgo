@@ -2,9 +2,10 @@ package lowering
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"strings"
 )
 
 func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {

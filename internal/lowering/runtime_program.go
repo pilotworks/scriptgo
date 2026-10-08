@@ -1,8 +1,9 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"path/filepath"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 // runtimeProgram keeps type-only dependencies out of lowering. Their checked

@@ -2,13 +2,14 @@ package lowering
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 	"maps"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type ClassMeta struct {

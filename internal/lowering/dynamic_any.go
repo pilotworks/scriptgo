@@ -1,8 +1,9 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 // normalizeDynamicAnyProgram maps TypeScript's unchecked any type onto the

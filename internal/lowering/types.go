@@ -2,11 +2,12 @@ package lowering
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 var typeAliasesIndex = map[string]string{}

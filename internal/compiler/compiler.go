@@ -5,18 +5,19 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/backend/llvm"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
-	"github.com/pilotworks/scriptgo/internal/lowering"
-	"github.com/pilotworks/scriptgo/internal/opt"
-	"github.com/pilotworks/scriptgo/internal/runtime"
 	"os"
 	"os/exec"
 	"path/filepath"
 	goRuntime "runtime"
 	"sort"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/backend/llvm"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
+	"github.com/pilotworks/scriptgo/internal/lowering"
+	"github.com/pilotworks/scriptgo/internal/opt"
+	"github.com/pilotworks/scriptgo/internal/runtime"
 )
 
 // Compile reads one TypeScript entry point and returns LLVM IR.

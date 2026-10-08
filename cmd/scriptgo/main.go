@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/compiler"
-	"github.com/pilotworks/scriptgo/internal/pkgmgr"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/compiler"
+	"github.com/pilotworks/scriptgo/internal/pkgmgr"
 )
 
 var version = ""
