@@ -317,3 +317,29 @@ func TestTemporaryObjectRegionPassRejectsEscapingJSONParse(t *testing.T) {
 		t.Fatalf("escaping JSON parsed object must not form a region: changed %v, err %v", changed, err)
 	}
 }
+
+func TestConstFoldPreservesNegativeZero(t *testing.T) {
+	m := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "minusOne", Value: "-1"},
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "product", Operator: "*", Args: []string{"minusOne", "zero"}},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"product"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+	if _, err := NewConstFoldPass().Run(&m); err != nil {
+		t.Fatal(err)
+	}
+	for _, inst := range m.Functions[0].Body {
+		if inst.Result == "product" {
+			if inst.Op != ir.OpConst || inst.Value != "-0" {
+				t.Fatalf("expected product folded to const -0, got %s %q", inst.Op, inst.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("product instruction missing after folding")
+}
