@@ -2,8 +2,7 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
@@ -22,7 +21,7 @@ func lowerTopLevelAsyncSequence(path string, main ir.Function, shapes map[string
 		// Feed the complete module body through the structured async lowering;
 		// unsupported shapes are reported to the caller instead of being hidden.
 		stageName := "__top_level_async_main"
-		stageStatement := typescriptgo.SyntaxStatement{Name: stageName, Kind: "async_function", IsAsync: true, Type: "Promise<void>", InferredType: "Promise<void>"}
+		stageStatement := frontend.SyntaxStatement{Name: stageName, Kind: "async_function", IsAsync: true, Type: "Promise<void>", InferredType: "Promise<void>"}
 		stage := main
 		stage.Name = stageName
 		stage.Body = append([]ir.Instruction{}, main.Body...)
@@ -48,7 +47,7 @@ func lowerTopLevelAsyncSequence(path string, main ir.Function, shapes map[string
 			end = len(main.Body)
 		}
 		stageName := fmt.Sprintf("__top_level_async_stage_%d", index)
-		stageStatement := typescriptgo.SyntaxStatement{Name: stageName, Kind: "async_function", IsAsync: true, Type: "Promise<void>", InferredType: "Promise<void>"}
+		stageStatement := frontend.SyntaxStatement{Name: stageName, Kind: "async_function", IsAsync: true, Type: "Promise<void>", InferredType: "Promise<void>"}
 		stage := main
 		stage.Name = stageName
 		// Module bindings are emitted as module globals; keeping the wrapper's

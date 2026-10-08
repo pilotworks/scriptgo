@@ -2,11 +2,10 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"slices"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 // BuiltinCategory specifies the standard architectural group of a built-in symbol.
@@ -44,7 +43,7 @@ type BuiltinIntrinsic struct {
 
 type IntrinsicCall struct {
 	Path            string
-	Expression      *typescriptgo.SyntaxExpression
+	Expression      *frontend.SyntaxExpression
 	Result          string
 	Function        *ir.Function
 	Env             map[string]ir.Type
@@ -54,7 +53,7 @@ type IntrinsicCall struct {
 	LowerExpression lowerExpressionFunc
 }
 
-type lowerExpressionFunc func(string, *typescriptgo.SyntaxExpression, string, *ir.Function, map[string]ir.Type, *int, map[string]ir.ObjectShape, map[string]ir.Function) (string, ir.Type, error)
+type lowerExpressionFunc func(string, *frontend.SyntaxExpression, string, *ir.Function, map[string]ir.Type, *int, map[string]ir.ObjectShape, map[string]ir.Function) (string, ir.Type, error)
 
 var builtinGlobals = map[string]BuiltinGlobal{
 	// Category 1: ECMAScript built-ins

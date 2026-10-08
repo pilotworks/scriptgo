@@ -1,16 +1,15 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func lowerTypedArrayReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
@@ -148,7 +147,7 @@ func lowerTypedArrayReceiverMethod(
 
 func lowerArrayReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,

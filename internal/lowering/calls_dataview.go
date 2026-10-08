@@ -2,14 +2,13 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func lowerRegExpReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
@@ -92,7 +91,7 @@ func lowerRegExpReceiverMethod(
 
 func lowerDateReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
@@ -176,7 +175,7 @@ func lowerDateReceiverMethod(
 
 func lowerDataViewReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
@@ -366,7 +365,7 @@ func lowerDataViewReceiverMethod(
 
 func lowerTextEncodingReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,

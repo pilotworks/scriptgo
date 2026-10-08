@@ -2,16 +2,15 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 // lowerOptionalCallExpression lowers optional call expressions: fn?.(args) or obj?.method?.(args)
 func lowerOptionalCallExpression(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	result string,
 	function *ir.Function,
 	env map[string]ir.Type,
@@ -26,7 +25,7 @@ func lowerOptionalCallExpression(
 	var calleeVal string
 	var calleeType ir.Type
 	var cond string
-	var standardCall *typescriptgo.SyntaxExpression
+	var standardCall *frontend.SyntaxExpression
 
 	fnRetType := ""
 	if expression.InferredType != "" {
@@ -54,13 +53,13 @@ func lowerOptionalCallExpression(
 						return "", "", err
 					}
 					calleeVal = receiverVal
-					standardCall = &typescriptgo.SyntaxExpression{
+					standardCall = &frontend.SyntaxExpression{
 						Span: expression.Span,
 						Kind: "call",
-						Left: &typescriptgo.SyntaxExpression{
+						Left: &frontend.SyntaxExpression{
 							Span: expression.Left.Span,
 							Kind: "property",
-							Left: &typescriptgo.SyntaxExpression{
+							Left: &frontend.SyntaxExpression{
 								Span:         receiverExpr.Span,
 								Kind:         "identifier",
 								Text:         receiverVal,
@@ -94,10 +93,10 @@ func lowerOptionalCallExpression(
 		if err != nil {
 			return "", "", err
 		}
-		standardCall = &typescriptgo.SyntaxExpression{
+		standardCall = &frontend.SyntaxExpression{
 			Span:          expression.Span,
 			Kind:          "call",
-			Left:          &typescriptgo.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: calleeVal, InferredType: string(calleeType)},
+			Left:          &frontend.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: calleeVal, InferredType: string(calleeType)},
 			Arguments:     expression.Arguments,
 			TypeArguments: expression.TypeArguments,
 			InferredType:  fnRetType,

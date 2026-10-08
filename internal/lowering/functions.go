@@ -1,14 +1,12 @@
 package lowering
 
 import (
-	"path/filepath"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"path/filepath"
 )
 
-var defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+var defaultParamsIndex = map[string]map[int]*frontend.SyntaxExpression{}
 var restParamsIndex = map[string]bool{}
 
 // buildFunctionIndex collects function signatures and namespace import aliases
@@ -38,7 +36,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 		}
 	}
 	hierarchy := buildClassHierarchy(program)
-	defaultParamsIndex = map[string]map[int]*typescriptgo.SyntaxExpression{}
+	defaultParamsIndex = map[string]map[int]*frontend.SyntaxExpression{}
 	restParamsIndex = map[string]bool{}
 	index := map[string]ir.Function{}
 	functionsByFile := map[string][]indexedFunction{}
@@ -96,14 +94,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 					}
 					if parameter.Initializer != nil {
 						if defaultParamsIndex[function.Name] == nil {
-							defaultParamsIndex[function.Name] = map[int]*typescriptgo.SyntaxExpression{}
+							defaultParamsIndex[function.Name] = map[int]*frontend.SyntaxExpression{}
 						}
 						defaultParamsIndex[function.Name][pIdx] = parameter.Initializer
 					} else if parameter.Optional {
 						if defaultParamsIndex[function.Name] == nil {
-							defaultParamsIndex[function.Name] = map[int]*typescriptgo.SyntaxExpression{}
+							defaultParamsIndex[function.Name] = map[int]*frontend.SyntaxExpression{}
 						}
-						defaultParamsIndex[function.Name][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+						defaultParamsIndex[function.Name][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
 					}
 					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 				}
@@ -127,7 +125,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				}
 				functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: statement.Name})
 			} else if statement.Kind == "namespace" {
-				indexClass := func(classStmt typescriptgo.SyntaxStatement) {
+				indexClass := func(classStmt frontend.SyntaxStatement) {
 					if classStmt.Class == nil {
 						return
 					}
@@ -142,14 +140,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 								typ := toIRTypeForPath(fileName, parameter.Type)
 								if parameter.Initializer != nil {
 									if defaultParamsIndex[ctorMangled] == nil {
-										defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
 									}
 									defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
 								} else if parameter.Optional {
 									if defaultParamsIndex[ctorMangled] == nil {
-										defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
 									}
-									defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+									defaultParamsIndex[ctorMangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
 								}
 								ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 							}
@@ -173,14 +171,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 								typ := toIRTypeForPath(fileName, parameter.Type)
 								if parameter.Initializer != nil {
 									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 									}
 									defaultParamsIndex[mangled][pIdx] = parameter.Initializer
 								} else if parameter.Optional {
 									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 									}
-									defaultParamsIndex[mangled][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+									defaultParamsIndex[mangled][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
 								}
 								function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 							}
@@ -212,14 +210,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 								typ := toIRTypeForPath(fileName, parameter.Type)
 								if parameter.Initializer != nil {
 									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 									}
 									defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
 								} else if parameter.Optional {
 									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 									}
-									defaultParamsIndex[mangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+									defaultParamsIndex[mangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
 								}
 								if parameter.Rest {
 									restParamsIndex[mangled] = true
@@ -270,14 +268,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							typ := toIRTypeForPath(fileName, parameter.Type)
 							if parameter.Initializer != nil {
 								if defaultParamsIndex[ctorMangled] == nil {
-									defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
 								}
 								defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
 							} else if parameter.Optional {
 								if defaultParamsIndex[ctorMangled] == nil {
-									defaultParamsIndex[ctorMangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
 								}
-								defaultParamsIndex[ctorMangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								defaultParamsIndex[ctorMangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
 							}
 							ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
@@ -301,14 +299,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							typ := toIRTypeForPath(fileName, parameter.Type)
 							if parameter.Initializer != nil {
 								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 								}
 								defaultParamsIndex[mangled][pIdx] = parameter.Initializer
 							} else if parameter.Optional {
 								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 								}
-								defaultParamsIndex[mangled][pIdx] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								defaultParamsIndex[mangled][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
 							}
 							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 						}
@@ -340,14 +338,14 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							typ := toIRTypeForPath(fileName, parameter.Type)
 							if parameter.Initializer != nil {
 								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 								}
 								defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
 							} else if parameter.Optional {
 								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*typescriptgo.SyntaxExpression{}
+									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
 								}
-								defaultParamsIndex[mangled][pIdx+1] = &typescriptgo.SyntaxExpression{Kind: "undefined"}
+								defaultParamsIndex[mangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
 							}
 							if parameter.Rest {
 								restParamsIndex[mangled] = true
@@ -394,8 +392,8 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 		}
 	}
 	for _, file := range program.Files {
-		var resolveAliases func(s typescriptgo.SyntaxStatement)
-		resolveAliases = func(s typescriptgo.SyntaxStatement) {
+		var resolveAliases func(s frontend.SyntaxStatement)
+		resolveAliases = func(s frontend.SyntaxStatement) {
 			if s.Kind == "block" || s.Kind == "namespace" {
 				for _, sub := range s.Body {
 					resolveAliases(sub)

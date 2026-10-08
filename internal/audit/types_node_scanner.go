@@ -2,11 +2,10 @@ package audit
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 // ScanTypesNode scans official @types/node declaration files and indexes all TypeScript declarations.
@@ -46,7 +45,7 @@ func ScanTypesNode(customDir string) (*StdlibCatalog, error) {
 			moduleName = moduleName[:idx]
 		}
 
-		syntaxFile, err := typescriptgo.ParseFileToSyntax(path, content)
+		syntaxFile, err := frontend.ParseSyntax(path, content)
 		if err != nil {
 			return nil
 		}
@@ -91,7 +90,7 @@ func findTypesNodeDir(customDir string) string {
 	return ""
 }
 
-func processTypesNodeStatements(catalog *StdlibCatalog, statements []typescriptgo.SyntaxStatement, moduleName, filePath, content string) {
+func processTypesNodeStatements(catalog *StdlibCatalog, statements []frontend.SyntaxStatement, moduleName, filePath, content string) {
 	for _, stmt := range statements {
 		switch stmt.Kind {
 		case "namespace":

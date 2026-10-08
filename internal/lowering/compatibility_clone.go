@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
@@ -9,22 +8,22 @@ import (
 // analysis works on a private copy and remains safe to run before lowering.
 func cloneCompatibilityProgram(program frontend.Program) frontend.Program {
 	cloned := program
-	cloned.Diagnostics = append([]typescriptgo.Diagnostic(nil), program.Diagnostics...)
-	cloned.Files = append([]typescriptgo.SourceFile(nil), program.Files...)
+	cloned.Diagnostics = append([]frontend.Diagnostic(nil), program.Diagnostics...)
+	cloned.Files = append([]frontend.SourceFile(nil), program.Files...)
 	for i := range cloned.Files {
 		file := &cloned.Files[i]
-		file.Imports = append([]typescriptgo.ModuleReference(nil), file.Imports...)
+		file.Imports = append([]frontend.ModuleReference(nil), file.Imports...)
 		for j := range file.Imports {
-			file.Imports[j].Bindings = append([]typescriptgo.ModuleBinding(nil), file.Imports[j].Bindings...)
+			file.Imports[j].Bindings = append([]frontend.ModuleBinding(nil), file.Imports[j].Bindings...)
 		}
-		file.Symbols = append([]typescriptgo.Symbol(nil), file.Symbols...)
+		file.Symbols = append([]frontend.Symbol(nil), file.Symbols...)
 		file.Syntax.Statements = cloneCompatibilityStatements(file.Syntax.Statements)
 	}
 	return cloned
 }
 
-func cloneCompatibilityStatements(statements []typescriptgo.SyntaxStatement) []typescriptgo.SyntaxStatement {
-	cloned := append([]typescriptgo.SyntaxStatement(nil), statements...)
+func cloneCompatibilityStatements(statements []frontend.SyntaxStatement) []frontend.SyntaxStatement {
+	cloned := append([]frontend.SyntaxStatement(nil), statements...)
 	for i := range cloned {
 		statement := &cloned[i]
 		statement.TypeParameters = append([]string(nil), statement.TypeParameters...)
@@ -38,7 +37,7 @@ func cloneCompatibilityStatements(statements []typescriptgo.SyntaxStatement) []t
 		statement.Else = cloneCompatibilityStatements(statement.Else)
 		statement.Catch = cloneCompatibilityStatements(statement.Catch)
 		statement.Finally = cloneCompatibilityStatements(statement.Finally)
-		statement.Cases = append([]typescriptgo.SyntaxSwitchCase(nil), statement.Cases...)
+		statement.Cases = append([]frontend.SyntaxSwitchCase(nil), statement.Cases...)
 		for j := range statement.Cases {
 			statement.Cases[j].Expression = cloneCompatibilityExpression(statement.Cases[j].Expression)
 			statement.Cases[j].Statements = cloneCompatibilityStatements(statement.Cases[j].Statements)
@@ -46,7 +45,7 @@ func cloneCompatibilityStatements(statements []typescriptgo.SyntaxStatement) []t
 		statement.Class = cloneCompatibilityClass(statement.Class)
 		if statement.Enum != nil {
 			enum := *statement.Enum
-			enum.Members = append([]typescriptgo.SyntaxEnumMember(nil), enum.Members...)
+			enum.Members = append([]frontend.SyntaxEnumMember(nil), enum.Members...)
 			for j := range enum.Members {
 				enum.Members[j].Initializer = cloneCompatibilityExpression(enum.Members[j].Initializer)
 			}
@@ -56,8 +55,8 @@ func cloneCompatibilityStatements(statements []typescriptgo.SyntaxStatement) []t
 	return cloned
 }
 
-func cloneCompatibilityParameters(parameters []typescriptgo.SyntaxParameter) []typescriptgo.SyntaxParameter {
-	cloned := append([]typescriptgo.SyntaxParameter(nil), parameters...)
+func cloneCompatibilityParameters(parameters []frontend.SyntaxParameter) []frontend.SyntaxParameter {
+	cloned := append([]frontend.SyntaxParameter(nil), parameters...)
 	for i := range cloned {
 		cloned[i].Initializer = cloneCompatibilityExpression(cloned[i].Initializer)
 		cloned[i].Decorators = cloneCompatibilityDecorators(cloned[i].Decorators)
@@ -65,7 +64,7 @@ func cloneCompatibilityParameters(parameters []typescriptgo.SyntaxParameter) []t
 	return cloned
 }
 
-func cloneCompatibilityClass(class *typescriptgo.SyntaxClass) *typescriptgo.SyntaxClass {
+func cloneCompatibilityClass(class *frontend.SyntaxClass) *frontend.SyntaxClass {
 	if class == nil {
 		return nil
 	}
@@ -73,7 +72,7 @@ func cloneCompatibilityClass(class *typescriptgo.SyntaxClass) *typescriptgo.Synt
 	cloned.TypeParameters = append([]string(nil), class.TypeParameters...)
 	cloned.Implements = append([]string(nil), class.Implements...)
 	cloned.Decorators = cloneCompatibilityDecorators(class.Decorators)
-	cloned.Fields = append([]typescriptgo.SyntaxField(nil), class.Fields...)
+	cloned.Fields = append([]frontend.SyntaxField(nil), class.Fields...)
 	for i := range cloned.Fields {
 		cloned.Fields[i].Initializer = cloneCompatibilityExpression(cloned.Fields[i].Initializer)
 		cloned.Fields[i].Decorators = cloneCompatibilityDecorators(cloned.Fields[i].Decorators)
@@ -84,7 +83,7 @@ func cloneCompatibilityClass(class *typescriptgo.SyntaxClass) *typescriptgo.Synt
 		constructor.Body = cloneCompatibilityStatements(constructor.Body)
 		cloned.Constructor = &constructor
 	}
-	cloned.Methods = append([]typescriptgo.SyntaxMethod(nil), class.Methods...)
+	cloned.Methods = append([]frontend.SyntaxMethod(nil), class.Methods...)
 	for i := range cloned.Methods {
 		method := &cloned.Methods[i]
 		method.TypeParameters = append([]string(nil), method.TypeParameters...)
@@ -92,11 +91,11 @@ func cloneCompatibilityClass(class *typescriptgo.SyntaxClass) *typescriptgo.Synt
 		method.Decorators = cloneCompatibilityDecorators(method.Decorators)
 		method.Body = cloneCompatibilityStatements(method.Body)
 	}
-	cloned.StaticBlocks = make([][]typescriptgo.SyntaxStatement, len(class.StaticBlocks))
+	cloned.StaticBlocks = make([][]frontend.SyntaxStatement, len(class.StaticBlocks))
 	for i := range class.StaticBlocks {
 		cloned.StaticBlocks[i] = cloneCompatibilityStatements(class.StaticBlocks[i])
 	}
-	cloned.StaticElements = append([]typescriptgo.SyntaxStaticElement(nil), class.StaticElements...)
+	cloned.StaticElements = append([]frontend.SyntaxStaticElement(nil), class.StaticElements...)
 	for i := range cloned.StaticElements {
 		element := &cloned.StaticElements[i]
 		if element.Field != nil {
@@ -110,8 +109,8 @@ func cloneCompatibilityClass(class *typescriptgo.SyntaxClass) *typescriptgo.Synt
 	return &cloned
 }
 
-func cloneCompatibilityDecorators(decorators []typescriptgo.SyntaxDecorator) []typescriptgo.SyntaxDecorator {
-	cloned := append([]typescriptgo.SyntaxDecorator(nil), decorators...)
+func cloneCompatibilityDecorators(decorators []frontend.SyntaxDecorator) []frontend.SyntaxDecorator {
+	cloned := append([]frontend.SyntaxDecorator(nil), decorators...)
 	for i := range cloned {
 		cloned[i].Expression = cloneCompatibilityExpression(cloned[i].Expression)
 		cloned[i].Arguments = cloneCompatibilityExpressions(cloned[i].Arguments)
@@ -120,15 +119,15 @@ func cloneCompatibilityDecorators(decorators []typescriptgo.SyntaxDecorator) []t
 	return cloned
 }
 
-func cloneCompatibilityExpressions(expressions []*typescriptgo.SyntaxExpression) []*typescriptgo.SyntaxExpression {
-	cloned := make([]*typescriptgo.SyntaxExpression, len(expressions))
+func cloneCompatibilityExpressions(expressions []*frontend.SyntaxExpression) []*frontend.SyntaxExpression {
+	cloned := make([]*frontend.SyntaxExpression, len(expressions))
 	for i := range expressions {
 		cloned[i] = cloneCompatibilityExpression(expressions[i])
 	}
 	return cloned
 }
 
-func cloneCompatibilityExpression(expression *typescriptgo.SyntaxExpression) *typescriptgo.SyntaxExpression {
+func cloneCompatibilityExpression(expression *frontend.SyntaxExpression) *frontend.SyntaxExpression {
 	if expression == nil {
 		return nil
 	}
@@ -140,7 +139,7 @@ func cloneCompatibilityExpression(expression *typescriptgo.SyntaxExpression) *ty
 	cloned.WhenTrue = cloneCompatibilityExpression(expression.WhenTrue)
 	cloned.WhenFalse = cloneCompatibilityExpression(expression.WhenFalse)
 	if expression.Function != nil {
-		function := cloneCompatibilityStatements([]typescriptgo.SyntaxStatement{*expression.Function})
+		function := cloneCompatibilityStatements([]frontend.SyntaxStatement{*expression.Function})
 		cloned.Function = &function[0]
 	}
 	return &cloned

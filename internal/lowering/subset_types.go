@@ -1,10 +1,9 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 func isHeterogeneousUnion(typ string) bool {
@@ -101,13 +100,13 @@ func isOrContainsAny(typ string) bool {
 
 type Warning struct {
 	FileName string
-	Span     typescriptgo.SourceSpan
+	Span     frontend.SourceSpan
 	Code     SubsetCode
 	Message  string
 }
 
 func (w Warning) Format() string {
-	return typescriptgo.Format(w.FileName, w.Span.Start, w.Span.Length, "warning", string(w.Code), w.Message, "")
+	return frontend.FormatSpan(w.FileName, w.Span.Start, w.Span.Length, "warning", string(w.Code), w.Message, "")
 }
 
 var (
@@ -123,6 +122,6 @@ func GetWarnings() []Warning {
 	return append([]Warning(nil), warnings...)
 }
 
-func recordWarning(fileName string, span typescriptgo.SourceSpan, code SubsetCode, message string) {
+func recordWarning(fileName string, span frontend.SourceSpan, code SubsetCode, message string) {
 	warnings = append(warnings, Warning{FileName: fileName, Span: span, Code: code, Message: message})
 }

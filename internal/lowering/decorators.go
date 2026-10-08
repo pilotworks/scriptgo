@@ -1,10 +1,9 @@
 package lowering
 
 import (
-	"sync"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"sync"
 )
 
 var (
@@ -48,7 +47,7 @@ func hasStaticMetadata(className, memberName, key string) bool {
 	return found
 }
 
-func collectClassMetadata(class *typescriptgo.SyntaxClass) {
+func collectClassMetadata(class *frontend.SyntaxClass) {
 	if class == nil {
 		return
 	}
@@ -130,7 +129,7 @@ func decoratorTypeDisplay(typeName string) string {
 	}
 }
 
-func registerDecoratorMetadata(className, memberName string, dec typescriptgo.SyntaxDecorator) {
+func registerDecoratorMetadata(className, memberName string, dec frontend.SyntaxDecorator) {
 	if dec.DesignType != "" {
 		registerStaticMetadata(className, memberName, "design:type", decoratorTypeDisplay(dec.DesignType))
 	}
@@ -164,7 +163,7 @@ func registerDecoratorMetadata(className, memberName string, dec typescriptgo.Sy
 	}
 }
 
-func lowerClassDecorators(path string, class *typescriptgo.SyntaxClass, main *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerClassDecorators(path string, class *frontend.SyntaxClass, main *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	if class == nil {
 		return nil
 	}
@@ -199,7 +198,7 @@ func lowerClassDecorators(path string, class *typescriptgo.SyntaxClass, main *ir
 	return nil
 }
 
-func lowerDecoratorInvocation(path, className, memberName, kind string, dec typescriptgo.SyntaxDecorator, fn *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+func lowerDecoratorInvocation(path, className, memberName, kind string, dec frontend.SyntaxDecorator, fn *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	if dec.Expression == nil {
 		return nil
 	}
@@ -217,28 +216,28 @@ func lowerDecoratorInvocation(path, className, memberName, kind string, dec type
 
 	// If the decorator function exists in user code, invoke it during class initialization
 	if sig, exists := signatures[decFnName]; exists {
-		var args []*typescriptgo.SyntaxExpression
+		var args []*frontend.SyntaxExpression
 		for pIdx, param := range sig.Parameters {
 			if pIdx == 0 {
 				if param.Type == ir.TypeString {
-					args = append(args, &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "string", Text: memberName})
+					args = append(args, &frontend.SyntaxExpression{Span: dec.Span, Kind: "string", Text: memberName})
 				} else if param.Type == ir.TypeNumber {
-					args = append(args, &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "number", Text: "0"})
+					args = append(args, &frontend.SyntaxExpression{Span: dec.Span, Kind: "number", Text: "0"})
 				} else {
-					args = append(args, &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "undefined"})
+					args = append(args, &frontend.SyntaxExpression{Span: dec.Span, Kind: "undefined"})
 				}
 			} else if pIdx == 1 {
 				if param.Type == ir.TypeString {
-					args = append(args, &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "string", Text: kind})
+					args = append(args, &frontend.SyntaxExpression{Span: dec.Span, Kind: "string", Text: kind})
 				} else {
-					args = append(args, &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "undefined"})
+					args = append(args, &frontend.SyntaxExpression{Span: dec.Span, Kind: "undefined"})
 				}
 			}
 		}
-		callExpr := &typescriptgo.SyntaxExpression{
+		callExpr := &frontend.SyntaxExpression{
 			Span:      dec.Span,
 			Kind:      "call",
-			Left:      &typescriptgo.SyntaxExpression{Span: dec.Span, Kind: "identifier", Text: decFnName},
+			Left:      &frontend.SyntaxExpression{Span: dec.Span, Kind: "identifier", Text: decFnName},
 			Arguments: args,
 		}
 		_, _, err := lowerExpression(path, callExpr, "", fn, env, counter, shapes, signatures)

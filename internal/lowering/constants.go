@@ -1,14 +1,13 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 // extractPropertyPath returns the dotted chain of identifiers (e.g. ["os", "constants", "signals", "SIGINT"]).
-func extractPropertyPath(expr *typescriptgo.SyntaxExpression) []string {
+func extractPropertyPath(expr *frontend.SyntaxExpression) []string {
 	if expr == nil {
 		return nil
 	}
@@ -28,7 +27,7 @@ func extractPropertyPath(expr *typescriptgo.SyntaxExpression) []string {
 }
 
 // resolveASTConstantFromExprVisited evaluates literal expressions or traverses object literals along the remaining path.
-func resolveASTConstantFromExprVisited(expr *typescriptgo.SyntaxExpression, remaining []string, visited map[string]bool) (string, ir.Type, bool) {
+func resolveASTConstantFromExprVisited(expr *frontend.SyntaxExpression, remaining []string, visited map[string]bool) (string, ir.Type, bool) {
 	if expr == nil {
 		return "", "", false
 	}

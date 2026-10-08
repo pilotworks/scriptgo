@@ -2,17 +2,16 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 // lowerStructuredAsyncLoop lowers a loop whose body contains one await. The
 // loop itself becomes a resumable runner: each iteration executes synchronously
 // until the await, then the continuation re-enters the runner on the next turn.
 // This keeps loop state in closure cells and never blocks the event loop.
-func lowerStructuredAsyncLoop(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
+func lowerStructuredAsyncLoop(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
 	loopIndex, loop, ok := findAsyncLoop(lowered.Body)
 	if !ok {
 		return ir.Function{}, false, nil
@@ -136,7 +135,7 @@ func lowerStructuredAsyncLoop(path string, statement typescriptgo.SyntaxStatemen
 // lowerStructuredAsyncLoopTry handles the common retry pattern where the loop
 // body is a try/catch containing one await. The catch path resumes the loop;
 // the fulfilled path may either continue or settle the async function.
-func lowerStructuredAsyncLoopTry(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, loopIndex int, loop ir.Instruction, try ir.Instruction) (ir.Function, bool, error) {
+func lowerStructuredAsyncLoopTry(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, loopIndex int, loop ir.Instruction, try ir.Instruction) (ir.Function, bool, error) {
 	segments, awaits := splitLinearAsyncBody(try.Body)
 	if len(awaits) != 1 || len(try.Finally) > 0 || hasNestedAwait(try.Catch) {
 		return ir.Function{}, false, nil

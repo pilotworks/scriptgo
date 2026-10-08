@@ -2,8 +2,7 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 func EnforceCompatibility(report CompatibilityReport, capabilities CompatibilityCapabilities) error {
@@ -16,9 +15,9 @@ func EnforceCompatibility(report CompatibilityReport, capabilities Compatibility
 				continue
 			}
 			message := "This source site requires Dynamic execution, but the Dynamic runtime is not available in this build."
-			return fmt.Errorf("%s", typescriptgo.Format(decision.FileName, decision.Start, decision.Length, "error", string(CodeDynamicRuntimeUnavailable), message, decision.Source))
+			return fmt.Errorf("%s", frontend.FormatSpan(decision.FileName, decision.Start, decision.Length, "error", string(CodeDynamicRuntimeUnavailable), message, decision.Source))
 		case TierUnsupported:
-			return fmt.Errorf("%s", typescriptgo.Format(decision.FileName, decision.Start, decision.Length, "error", string(decision.Code), decision.Message, decision.Source))
+			return fmt.Errorf("%s", frontend.FormatSpan(decision.FileName, decision.Start, decision.Length, "error", string(decision.Code), decision.Message, decision.Source))
 		}
 	}
 	return nil

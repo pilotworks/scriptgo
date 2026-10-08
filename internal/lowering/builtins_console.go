@@ -1,13 +1,12 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
-func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span typescriptgo.SourceSpan) string {
+func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span frontend.SourceSpan) string {
 	if valType == ir.TypeString {
 		return val
 	}
@@ -58,7 +57,7 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span ty
 	return strTemp
 }
 
-func lowerConsoleArg(call IntrinsicCall, arg *typescriptgo.SyntaxExpression) (string, error) {
+func lowerConsoleArg(call IntrinsicCall, arg *frontend.SyntaxExpression) (string, error) {
 	if arg.Kind == "spread" && arg.Left != nil {
 		arrVal, _, err := call.LowerExpression(call.Path, arg.Left, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 		if err != nil {
@@ -313,7 +312,7 @@ func containsFormatSpecifier(s string) bool {
 	return false
 }
 
-func lowerFormatString(call IntrinsicCall, fmtStr string, extraArgs []*typescriptgo.SyntaxExpression) (string, error) {
+func lowerFormatString(call IntrinsicCall, fmtStr string, extraArgs []*frontend.SyntaxExpression) (string, error) {
 	var parts []string
 	argIdx := 0
 	last := 0

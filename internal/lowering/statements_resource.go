@@ -1,17 +1,16 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 type usingResourceInfo struct {
 	Name    string
 	Type    ir.Type
 	IsAwait bool
-	Span    typescriptgo.SourceSpan
+	Span    frontend.SourceSpan
 }
 
 var usingScopeStack [][]usingResourceInfo
@@ -20,7 +19,7 @@ func pushUsingScope() {
 	usingScopeStack = append(usingScopeStack, []usingResourceInfo{})
 }
 
-func recordUsingResource(name string, resType ir.Type, isAwait bool, span typescriptgo.SourceSpan) {
+func recordUsingResource(name string, resType ir.Type, isAwait bool, span frontend.SourceSpan) {
 	if len(usingScopeStack) == 0 {
 		pushUsingScope()
 	}

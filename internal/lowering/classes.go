@@ -2,14 +2,12 @@ package lowering
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type ClassMeta struct {
@@ -20,21 +18,21 @@ type ClassMeta struct {
 	IsAbstract  bool
 	IsInterface bool
 	IsTypeAlias bool
-	Fields      []typescriptgo.SyntaxField
-	Statics     map[string]typescriptgo.SyntaxField
+	Fields      []frontend.SyntaxField
+	Statics     map[string]frontend.SyntaxField
 	HasCtor     bool
 }
 
 var classHierarchy = map[string]ClassMeta{}
-var classSyntax = map[string]typescriptgo.SyntaxClass{}
+var classSyntax = map[string]frontend.SyntaxClass{}
 
 func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 	hierarchy := map[string]ClassMeta{}
-	syntax := map[string]typescriptgo.SyntaxClass{}
+	syntax := map[string]frontend.SyntaxClass{}
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
-		var visitStmt func(stmt typescriptgo.SyntaxStatement)
-		visitStmt = func(stmt typescriptgo.SyntaxStatement) {
+		var visitStmt func(stmt frontend.SyntaxStatement)
+		visitStmt = func(stmt frontend.SyntaxStatement) {
 			if (stmt.Kind == "class" || stmt.Kind == "interface" || stmt.Kind == "type_alias") && stmt.Class != nil {
 				if stmt.Class.Name == "" {
 					return
@@ -48,7 +46,7 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 					if stmt.Kind == "interface" || stmt.Kind == "type_alias" {
 						return
 					}
-					mergedMethods := make([]typescriptgo.SyntaxMethod, 0, len(existingSyntax.Methods)+len(stmt.Class.Methods))
+					mergedMethods := make([]frontend.SyntaxMethod, 0, len(existingSyntax.Methods)+len(stmt.Class.Methods))
 					methodSeen := map[string]int{}
 					for _, m := range existingSyntax.Methods {
 						key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
@@ -77,7 +75,7 @@ func buildClassHierarchy(program frontend.Program) map[string]ClassMeta {
 					IsAbstract:  classDef.IsAbstract,
 					IsInterface: stmt.Kind == "interface",
 					IsTypeAlias: stmt.Kind == "type_alias",
-					Statics:     map[string]typescriptgo.SyntaxField{},
+					Statics:     map[string]frontend.SyntaxField{},
 					HasCtor:     classDef.Constructor != nil,
 				}
 				for _, implemented := range classDef.Implements {
@@ -144,7 +142,7 @@ func isSubtype(subType, superType string) bool {
 	return false
 }
 
-func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxMethod {
+func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []frontend.SyntaxMethod {
 	meta, ok := hierarchy[className]
 	if !ok {
 		return nil
@@ -153,7 +151,7 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 	if !hasStmt {
 		return nil
 	}
-	var inherited []typescriptgo.SyntaxMethod
+	var inherited []frontend.SyntaxMethod
 	if meta.Extends != "" {
 		for _, rawBase := range strings.Split(meta.Extends, ",") {
 			base := strings.TrimSpace(rawBase)
@@ -163,7 +161,7 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 			inherited = append(inherited, getInheritedMethods(base, hierarchy)...)
 		}
 	}
-	methodMap := map[string]typescriptgo.SyntaxMethod{}
+	methodMap := map[string]frontend.SyntaxMethod{}
 	for _, m := range inherited {
 		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
 		methodMap[key] = m
@@ -175,7 +173,7 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []typ
 		}
 		methodMap[key] = m
 	}
-	var result []typescriptgo.SyntaxMethod
+	var result []frontend.SyntaxMethod
 	for _, m := range methodMap {
 		result = append(result, m)
 	}
@@ -201,7 +199,7 @@ func cleanGenericBase(className string) string {
 	return parts[0]
 }
 
-func getInheritedFields(className string, hierarchy map[string]ClassMeta) []typescriptgo.SyntaxField {
+func getInheritedFields(className string, hierarchy map[string]ClassMeta) []frontend.SyntaxField {
 	meta, ok := hierarchy[className]
 	if !ok {
 		if candidates, hasCand := classCandidates[className]; hasCand && len(candidates) > 0 {
@@ -211,7 +209,7 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []type
 	if !ok {
 		return nil
 	}
-	var fields []typescriptgo.SyntaxField
+	var fields []frontend.SyntaxField
 	if meta.Extends != "" {
 		for _, rawBase := range strings.Split(meta.Extends, ",") {
 			base := strings.TrimSpace(rawBase)

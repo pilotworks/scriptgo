@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 func lowerWeakReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
@@ -242,7 +241,7 @@ func lowerWeakReceiverMethod(
 
 func lowerMapSetReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,

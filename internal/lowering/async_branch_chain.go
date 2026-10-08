@@ -2,8 +2,7 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
@@ -16,7 +15,7 @@ type asyncBranchLeaf struct {
 // lowerStructuredAsyncBranchChain lowers an else-if tree with one direct
 // await per leaf. It keeps the original branch tree in the entry function and
 // gives every suspension point its own fulfilled/rejected continuation.
-func lowerStructuredAsyncBranchChain(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, index int, root ir.Instruction) (ir.Function, bool, error) {
+func lowerStructuredAsyncBranchChain(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, index int, root ir.Instruction) (ir.Function, bool, error) {
 	leaves, ok := collectAsyncBranchLeaves(root)
 	if !ok || len(leaves) < 2 {
 		return ir.Function{}, false, nil

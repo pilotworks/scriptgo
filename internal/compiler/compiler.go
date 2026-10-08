@@ -5,20 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	goRuntime "runtime"
-	"sort"
-	"strings"
-
-	"github.com/microsoft/TypeScript/tsc/scriptgo"
 	"github.com/pilotworks/scriptgo/internal/backend/llvm"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 	"github.com/pilotworks/scriptgo/internal/lowering"
 	"github.com/pilotworks/scriptgo/internal/opt"
 	"github.com/pilotworks/scriptgo/internal/runtime"
+	"os"
+	"os/exec"
+	"path/filepath"
+	goRuntime "runtime"
+	"sort"
+	"strings"
 )
 
 // Compile reads one TypeScript entry point and returns LLVM IR.
@@ -156,8 +154,16 @@ func compileModuleWithReport(entryPath string, options BuildOptions) (ir.Module,
 	return module, report, nil
 }
 
+// Diagnostic is a source-anchored frontend diagnostic returned by CheckProject.
+type Diagnostic = frontend.Diagnostic
+
+// FormatDiagnostic renders a diagnostic returned by CheckProject for display.
+func FormatDiagnostic(diagnostic Diagnostic) string {
+	return frontend.FormatDiagnostic(diagnostic, "")
+}
+
 // CheckProject typechecks an entire tsconfig.json project and validates native subset rules for project files.
-func CheckProject(configPath string, options BuildOptions) ([]typescriptgo.Diagnostic, error) {
+func CheckProject(configPath string, options BuildOptions) ([]Diagnostic, error) {
 	result, err := frontend.CheckProject(configPath)
 	if err != nil {
 		return nil, err

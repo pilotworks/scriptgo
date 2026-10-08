@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 func lowerCallExpression(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	result string,
 	function *ir.Function,
 	env map[string]ir.Type,
@@ -518,7 +517,7 @@ func lowerCallExpression(
 						if methodName == "valueOf" {
 							return receiver, receiverType, nil
 						}
-						propVal, propType, err := lowerPropertyExpression(path, &typescriptgo.SyntaxExpression{
+						propVal, propType, err := lowerPropertyExpression(path, &frontend.SyntaxExpression{
 							Span:         expression.Left.Span,
 							Kind:         "property",
 							Left:         expression.Left.Left,
@@ -1485,7 +1484,7 @@ func lowerCallExpression(
 	return result, target.ReturnType, nil
 }
 
-func substituteParamIdentifiers(expr *typescriptgo.SyntaxExpression, paramMap map[string]string) *typescriptgo.SyntaxExpression {
+func substituteParamIdentifiers(expr *frontend.SyntaxExpression, paramMap map[string]string) *frontend.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}
@@ -1502,7 +1501,7 @@ func substituteParamIdentifiers(expr *typescriptgo.SyntaxExpression, paramMap ma
 		copy.Right = substituteParamIdentifiers(copy.Right, paramMap)
 	}
 	if len(copy.Arguments) > 0 {
-		newArgs := make([]*typescriptgo.SyntaxExpression, len(copy.Arguments))
+		newArgs := make([]*frontend.SyntaxExpression, len(copy.Arguments))
 		for k, arg := range copy.Arguments {
 			newArgs[k] = substituteParamIdentifiers(arg, paramMap)
 		}

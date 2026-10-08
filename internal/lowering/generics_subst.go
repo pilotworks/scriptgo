@@ -1,10 +1,9 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 func isBuiltinGeneric(name string) bool {
@@ -335,20 +334,20 @@ func substituteType(typ string, subst map[string]string) string {
 	return typ
 }
 
-func cloneStatement(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatement {
+func cloneStatement(stmt frontend.SyntaxStatement) frontend.SyntaxStatement {
 	res := stmt
-	res.Parameters = append([]typescriptgo.SyntaxParameter(nil), stmt.Parameters...)
-	res.Body = append([]typescriptgo.SyntaxStatement(nil), stmt.Body...)
-	res.Then = append([]typescriptgo.SyntaxStatement(nil), stmt.Then...)
-	res.Else = append([]typescriptgo.SyntaxStatement(nil), stmt.Else...)
-	res.Cases = make([]typescriptgo.SyntaxSwitchCase, len(stmt.Cases))
+	res.Parameters = append([]frontend.SyntaxParameter(nil), stmt.Parameters...)
+	res.Body = append([]frontend.SyntaxStatement(nil), stmt.Body...)
+	res.Then = append([]frontend.SyntaxStatement(nil), stmt.Then...)
+	res.Else = append([]frontend.SyntaxStatement(nil), stmt.Else...)
+	res.Cases = make([]frontend.SyntaxSwitchCase, len(stmt.Cases))
 	for i, c := range stmt.Cases {
 		res.Cases[i] = c
 		res.Cases[i].Expression = cloneExpr(c.Expression)
-		res.Cases[i].Statements = append([]typescriptgo.SyntaxStatement(nil), c.Statements...)
+		res.Cases[i].Statements = append([]frontend.SyntaxStatement(nil), c.Statements...)
 	}
-	res.Catch = append([]typescriptgo.SyntaxStatement(nil), stmt.Catch...)
-	res.Finally = append([]typescriptgo.SyntaxStatement(nil), stmt.Finally...)
+	res.Catch = append([]frontend.SyntaxStatement(nil), stmt.Catch...)
+	res.Finally = append([]frontend.SyntaxStatement(nil), stmt.Finally...)
 	if stmt.Class != nil {
 		c := cloneClass(*stmt.Class)
 		res.Class = &c
@@ -356,42 +355,42 @@ func cloneStatement(stmt typescriptgo.SyntaxStatement) typescriptgo.SyntaxStatem
 	return res
 }
 
-func cloneMethod(m typescriptgo.SyntaxMethod) typescriptgo.SyntaxMethod {
+func cloneMethod(m frontend.SyntaxMethod) frontend.SyntaxMethod {
 	res := m
-	res.Parameters = append([]typescriptgo.SyntaxParameter(nil), m.Parameters...)
-	res.Body = append([]typescriptgo.SyntaxStatement(nil), m.Body...)
+	res.Parameters = append([]frontend.SyntaxParameter(nil), m.Parameters...)
+	res.Body = append([]frontend.SyntaxStatement(nil), m.Body...)
 	res.TypeParameters = append([]string(nil), m.TypeParameters...)
 	return res
 }
 
-func cloneClass(cls typescriptgo.SyntaxClass) typescriptgo.SyntaxClass {
+func cloneClass(cls frontend.SyntaxClass) frontend.SyntaxClass {
 	res := cls
-	res.Fields = append([]typescriptgo.SyntaxField(nil), cls.Fields...)
+	res.Fields = append([]frontend.SyntaxField(nil), cls.Fields...)
 	res.Implements = append([]string(nil), cls.Implements...)
 	if cls.Constructor != nil {
 		ctor := *cls.Constructor
-		ctor.Parameters = append([]typescriptgo.SyntaxParameter(nil), cls.Constructor.Parameters...)
-		ctor.Body = append([]typescriptgo.SyntaxStatement(nil), cls.Constructor.Body...)
+		ctor.Parameters = append([]frontend.SyntaxParameter(nil), cls.Constructor.Parameters...)
+		ctor.Body = append([]frontend.SyntaxStatement(nil), cls.Constructor.Body...)
 		res.Constructor = &ctor
 	}
-	res.Methods = make([]typescriptgo.SyntaxMethod, len(cls.Methods))
+	res.Methods = make([]frontend.SyntaxMethod, len(cls.Methods))
 	for i, m := range cls.Methods {
 		res.Methods[i] = m
-		res.Methods[i].Parameters = append([]typescriptgo.SyntaxParameter(nil), m.Parameters...)
-		res.Methods[i].Body = append([]typescriptgo.SyntaxStatement(nil), m.Body...)
+		res.Methods[i].Parameters = append([]frontend.SyntaxParameter(nil), m.Parameters...)
+		res.Methods[i].Body = append([]frontend.SyntaxStatement(nil), m.Body...)
 	}
-	res.StaticBlocks = make([][]typescriptgo.SyntaxStatement, len(cls.StaticBlocks))
+	res.StaticBlocks = make([][]frontend.SyntaxStatement, len(cls.StaticBlocks))
 	for i, b := range cls.StaticBlocks {
-		res.StaticBlocks[i] = make([]typescriptgo.SyntaxStatement, len(b))
+		res.StaticBlocks[i] = make([]frontend.SyntaxStatement, len(b))
 		for j, s := range b {
 			res.StaticBlocks[i][j] = cloneStatement(s)
 		}
 	}
-	res.StaticElements = make([]typescriptgo.SyntaxStaticElement, len(cls.StaticElements))
+	res.StaticElements = make([]frontend.SyntaxStaticElement, len(cls.StaticElements))
 	for i, elem := range cls.StaticElements {
 		res.StaticElements[i] = elem
-		if elem.Kind == typescriptgo.StaticElementBlock {
-			res.StaticElements[i].Statements = make([]typescriptgo.SyntaxStatement, len(elem.Statements))
+		if elem.Kind == frontend.StaticElementBlock {
+			res.StaticElements[i].Statements = make([]frontend.SyntaxStatement, len(elem.Statements))
 			for j, s := range elem.Statements {
 				res.StaticElements[i].Statements[j] = cloneStatement(s)
 			}
@@ -400,17 +399,17 @@ func cloneClass(cls typescriptgo.SyntaxClass) typescriptgo.SyntaxClass {
 	return res
 }
 
-func cloneExpr(expr *typescriptgo.SyntaxExpression) *typescriptgo.SyntaxExpression {
+func cloneExpr(expr *frontend.SyntaxExpression) *frontend.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}
 	res := *expr
-	res.Arguments = append([]*typescriptgo.SyntaxExpression(nil), expr.Arguments...)
+	res.Arguments = append([]*frontend.SyntaxExpression(nil), expr.Arguments...)
 	res.TypeArguments = append([]string(nil), expr.TypeArguments...)
 	return &res
 }
 
-func cloneAndSubstituteStmt(stmt typescriptgo.SyntaxStatement, subst map[string]string) typescriptgo.SyntaxStatement {
+func cloneAndSubstituteStmt(stmt frontend.SyntaxStatement, subst map[string]string) frontend.SyntaxStatement {
 	res := cloneStatement(stmt)
 	res.Type = substituteType(res.Type, subst)
 	res.InferredType = substituteType(res.InferredType, subst)
@@ -454,7 +453,7 @@ func cloneAndSubstituteStmt(stmt typescriptgo.SyntaxStatement, subst map[string]
 	return res
 }
 
-func cloneAndSubstituteExpr(expr *typescriptgo.SyntaxExpression, subst map[string]string) *typescriptgo.SyntaxExpression {
+func cloneAndSubstituteExpr(expr *frontend.SyntaxExpression, subst map[string]string) *frontend.SyntaxExpression {
 	if expr == nil {
 		return nil
 	}

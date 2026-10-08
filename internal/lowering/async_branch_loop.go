@@ -2,15 +2,14 @@ package lowering
 
 import (
 	"fmt"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 // lowerStructuredAsyncBranchLoop composes an async loop state machine with a
 // surrounding branch. The branch condition and its side effects run before
 // selecting the loop runner; the other branch settles the same outer promise.
-func lowerStructuredAsyncBranchLoop(path string, statement typescriptgo.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
+func lowerStructuredAsyncBranchLoop(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (ir.Function, bool, error) {
 	branchIndex := -1
 	var branch ir.Instruction
 	for i, instruction := range lowered.Body {

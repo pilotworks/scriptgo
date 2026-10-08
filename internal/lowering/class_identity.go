@@ -1,14 +1,12 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type classIdentity struct {
@@ -58,8 +56,8 @@ func initializeClassIdentities(program frontend.Program) {
 	publicFiles := map[string]map[string]bool{}
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
-		var visit func(typescriptgo.SyntaxStatement)
-		visit = func(statement typescriptgo.SyntaxStatement) {
+		var visit func(frontend.SyntaxStatement)
+		visit = func(statement frontend.SyntaxStatement) {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				if publicFiles[statement.Class.Name] == nil {
 					publicFiles[statement.Class.Name] = map[string]bool{}
@@ -79,8 +77,8 @@ func initializeClassIdentities(program frontend.Program) {
 	}
 	for _, file := range program.Files {
 		fileName := filepath.Clean(file.FileName)
-		var visit func(typescriptgo.SyntaxStatement)
-		visit = func(statement typescriptgo.SyntaxStatement) {
+		var visit func(frontend.SyntaxStatement)
+		visit = func(statement frontend.SyntaxStatement) {
 			if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				publicName := statement.Class.Name
 				identity := classIdentity{PublicName: publicName, Internal: publicName, FileName: fileName}

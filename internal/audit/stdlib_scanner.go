@@ -2,11 +2,10 @@ package audit
 
 import (
 	"fmt"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"io/fs"
 	"path/filepath"
 	"strings"
-
-	"github.com/microsoft/TypeScript/tsc/scriptgo"
 )
 
 // StdlibParam represents an actual parameter defined in ScriptGo's TypeScript stdlib.
@@ -40,7 +39,7 @@ type StdlibCatalog struct {
 
 // ScanStdlibAPIs scans the embedded ScriptGo TypeScript stdlib files and indexes all declarations.
 func ScanStdlibAPIs() (*StdlibCatalog, error) {
-	_ = typescriptgo.EnsureStdlib("")
+	_ = frontend.EnsureStdlib("")
 
 	catalog := &StdlibCatalog{
 		ItemsByKey:    make(map[string]*StdlibAPIItem),
@@ -48,7 +47,7 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 		AllItems:      make([]*StdlibAPIItem, 0),
 	}
 
-	embeddedFS := typescriptgo.EmbeddedFS()
+	embeddedFS := frontend.StdlibFS()
 	err := fs.WalkDir(embeddedFS, "stdlib", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -82,7 +81,7 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 			moduleName = "globals"
 		}
 
-		syntaxFile, err := typescriptgo.ParseFileToSyntax(filePath, content)
+		syntaxFile, err := frontend.ParseSyntax(filePath, content)
 		if err != nil {
 			return nil
 		}
@@ -100,7 +99,7 @@ func ScanStdlibAPIs() (*StdlibCatalog, error) {
 	return catalog, nil
 }
 
-func processSyntaxStatements(catalog *StdlibCatalog, statements []typescriptgo.SyntaxStatement, moduleName, filePath, content string) {
+func processSyntaxStatements(catalog *StdlibCatalog, statements []frontend.SyntaxStatement, moduleName, filePath, content string) {
 	for _, stmt := range statements {
 		switch stmt.Kind {
 		case "function", "async_function", "generator_function", "async_generator_function", "declare_function":
@@ -256,7 +255,7 @@ func processSyntaxStatements(catalog *StdlibCatalog, statements []typescriptgo.S
 	}
 }
 
-func convertSyntaxParams(parameters []typescriptgo.SyntaxParameter) []StdlibParam {
+func convertSyntaxParams(parameters []frontend.SyntaxParameter) []StdlibParam {
 	res := make([]StdlibParam, 0, len(parameters))
 	for _, p := range parameters {
 		pType := p.Type

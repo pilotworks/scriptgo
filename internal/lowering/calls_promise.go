@@ -1,17 +1,16 @@
 package lowering
 
 import (
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 	"strconv"
 	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
-	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func lowerPromiseStaticCall(
 	path string,
 	callee string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	result string,
 	function *ir.Function,
 	env map[string]ir.Type,

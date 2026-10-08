@@ -1,10 +1,9 @@
 package lowering
 
 import (
-	"strings"
-
-	typescriptgo "github.com/microsoft/TypeScript/tsc/scriptgo"
+	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"strings"
 )
 
 func registerIteratorBuiltins(m map[string]BuiltinIntrinsic) {
@@ -52,7 +51,7 @@ func registerIteratorBuiltins(m map[string]BuiltinIntrinsic) {
 
 func lowerIteratorReceiverMethod(
 	path string,
-	expression *typescriptgo.SyntaxExpression,
+	expression *frontend.SyntaxExpression,
 	receiver string,
 	methodName string,
 	receiverType ir.Type,
