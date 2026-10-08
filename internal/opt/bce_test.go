@@ -331,3 +331,67 @@ func TestBCEPassSecondaryMonotonicCounter(t *testing.T) {
 		t.Errorf("expected NoBoundsCheck = true on dataArr[cursor] (OpIndexSet)")
 	}
 }
+
+// TestBCEPassOrdersPreheaderGuardsDeterministically checks that guards for
+// several arrays indexed by the same loop bound are emitted in a stable
+// (sorted) order rather than Go map iteration order.
+func TestBCEPassOrdersPreheaderGuardsDeterministically(t *testing.T) {
+	build := func() ir.Module {
+		return ir.Module{Functions: []ir.Function{{
+			Name:       "sumPairs",
+			ReturnType: ir.TypeNumber,
+			Parameters: []ir.Parameter{
+				{Name: "zeta", Type: ir.TypeNumberArray},
+				{Name: "alpha", Type: ir.TypeNumberArray},
+				{Name: "mid", Type: ir.TypeNumberArray},
+				{Name: "n", Type: ir.TypeNumber},
+			},
+			Body: []ir.Instruction{
+				{Op: ir.OpConst, Type: ir.TypeNumber, Result: "sum", Value: "0"},
+				{Op: ir.OpConst, Type: ir.TypeNumber, Result: "i", Value: "0"},
+				{
+					Op:   ir.OpWhile,
+					Type: ir.TypeVoid,
+					Args: []string{"cmp"},
+					Cond: []ir.Instruction{
+						{Op: ir.OpCompare, Type: ir.TypeBool, Result: "cmp", Operator: "<", Args: []string{"i", "n"}},
+					},
+					Body: []ir.Instruction{
+						{Op: ir.OpIndex, Type: ir.TypeNumber, Result: "z", Args: []string{"zeta", "i"}},
+						{Op: ir.OpIndex, Type: ir.TypeNumber, Result: "a", Args: []string{"alpha", "i"}},
+						{Op: ir.OpIndex, Type: ir.TypeNumber, Result: "m", Args: []string{"mid", "i"}},
+						{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "za", Operator: "+", Args: []string{"z", "a"}},
+						{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "zam", Operator: "+", Args: []string{"za", "m"}},
+						{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "next", Operator: "+", Args: []string{"sum", "zam"}},
+						{Op: ir.OpAssign, Type: ir.TypeNumber, Result: "sum", Args: []string{"next"}},
+					},
+					Step: []ir.Instruction{
+						{Op: ir.OpConst, Type: ir.TypeNumber, Result: "one", Value: "1"},
+						{Op: ir.OpBinary, Type: ir.TypeNumber, Result: "next_i", Operator: "+", Args: []string{"i", "one"}},
+						{Op: ir.OpAssign, Type: ir.TypeNumber, Result: "i", Args: []string{"next_i"}},
+					},
+				},
+				{Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"sum"}},
+			},
+		}}}
+	}
+	guards := func(m ir.Module) []string {
+		var order []string
+		for _, inst := range m.Functions[0].Body {
+			if inst.Op == ir.OpCall && inst.Callee == "__array.bounds_guard" {
+				order = append(order, inst.Args[0])
+			}
+		}
+		return order
+	}
+	for run := 0; run < 10; run++ {
+		m := build()
+		if _, err := NewBCEPass().Run(&m); err != nil {
+			t.Fatalf("bce pass error: %v", err)
+		}
+		got := guards(m)
+		if len(got) != 3 || got[0] != "alpha" || got[1] != "mid" || got[2] != "zeta" {
+			t.Fatalf("run %d: guards emitted as %v, want [alpha mid zeta]", run, got)
+		}
+	}
+}
