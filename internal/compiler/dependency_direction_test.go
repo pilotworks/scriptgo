@@ -25,6 +25,7 @@ var allowedImports = map[string][]string{
 	"cmd/scriptgo":          {"internal/compiler", "internal/pkgmgr"},
 	"cmd/scg":               {},
 	"cmd/parity":            {"internal/audit", "internal/compiler"},
+	"cmd/test262":           {"internal/compiler", "internal/test262"},
 	"internal/compiler":     {"internal/backend/llvm", "internal/frontend", "internal/ir", "internal/lowering", "internal/opt", "internal/runtime"},
 	"internal/frontend":     {"typescriptgo"},
 	"internal/lowering":     {"internal/frontend", "internal/ir"},
@@ -35,6 +36,7 @@ var allowedImports = map[string][]string{
 	"internal/pkgmgr":       {},
 	"internal/audit":        {"internal/frontend", "internal/spec"},
 	"internal/spec":         {},
+	"internal/test262":      {},
 }
 
 func TestDependencyDirection(t *testing.T) {
