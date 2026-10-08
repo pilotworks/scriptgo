@@ -1,9 +1,10 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strconv"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 func isHeterogeneousUnion(typ string) bool {

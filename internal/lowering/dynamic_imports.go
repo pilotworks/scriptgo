@@ -1,11 +1,12 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 type dynamicImportBinding struct {

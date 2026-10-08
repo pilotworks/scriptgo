@@ -2,6 +2,7 @@ package lowering
 
 import (
 	"fmt"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )

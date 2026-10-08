@@ -1,10 +1,11 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 // isAllowedPropertyReceiver reports whether a given syntax kind is a valid

@@ -1,9 +1,10 @@
 package lowering
 
 import (
+	"path/filepath"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"path/filepath"
 )
 
 var defaultParamsIndex = map[string]map[int]*frontend.SyntaxExpression{}

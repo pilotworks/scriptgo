@@ -2,10 +2,11 @@ package audit
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 // ScanTypesNode scans official @types/node declaration files and indexes all TypeScript declarations.

@@ -2,13 +2,14 @@ package lowering
 
 import (
 	"fmt"
-	"github.com/pilotworks/scriptgo/internal/frontend"
-	"github.com/pilotworks/scriptgo/internal/ir"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
+	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
 func TestLowerMatchesMVPGoldenIR(t *testing.T) {

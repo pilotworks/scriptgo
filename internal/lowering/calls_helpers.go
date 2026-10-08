@@ -1,9 +1,10 @@
 package lowering
 
 import (
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"strings"
 )
 
 func callName(expression *frontend.SyntaxExpression) string {

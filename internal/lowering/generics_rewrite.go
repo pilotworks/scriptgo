@@ -1,8 +1,9 @@
 package lowering
 
 import (
-	"github.com/pilotworks/scriptgo/internal/frontend"
 	"strings"
+
+	"github.com/pilotworks/scriptgo/internal/frontend"
 )
 
 func rewriteMethod(m frontend.SyntaxMethod, env map[string]string, genericFuncs map[string]frontend.SyntaxStatement, genericClasses map[string]frontend.SyntaxClass, genericMethods map[string]frontend.SyntaxMethod, reqFn func(string, []string, string) string, reqCls func(string, []string, string) string, reqMethod func(string, string, []string) string, fileName string) frontend.SyntaxMethod {

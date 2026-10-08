@@ -1,9 +1,10 @@
 package lowering
 
 import (
+	"sync"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"sync"
 )
 
 var (

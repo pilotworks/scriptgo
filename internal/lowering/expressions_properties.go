@@ -2,13 +2,10 @@ package lowering
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"maps"
-	"path/filepath"
-	"slices"
-	"strconv"
-	"strings"
 )
 
 func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -37,216 +34,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	// 2. Check AST-level module and top-level constants (e.g. fs.constants.F_OK, os.EOL, buffer.constants.MAX_LENGTH)
 	propertyPath := extractPropertyPath(expression)
 	if len(propertyPath) >= 2 {
-		firstIdent := propertyPath[0]
-		if _, inEnv := env[firstIdent]; !inEnv {
-			if val, valType, ok := resolveASTConstantPath(propertyPath); ok {
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   valType,
-					Result: result,
-					Value:  val,
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, valType, nil
-			}
-			if len(propertyPath) == 2 {
-				if sig, ok := resolveFunctionSignature(path, callName(expression), signatures); ok {
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpClosure,
-						Type:   ir.TypeClosure,
-						Result: result,
-						Callee: sig.Name,
-						Span:   toIRSpan(path, expression.Span),
-					})
-					return result, ir.TypeClosure, nil
-				}
-				cleanPath := filepath.Clean(path)
-				_, isNS := functionNamespacesByFile[cleanPath][firstIdent]
-				if !isNS {
-					_, isNS = classNamespacesByFile[cleanPath][firstIdent]
-				}
-				if isNS {
-					prop := propertyPath[1]
-					if topVar, hasVar := topLevelVars[prop]; hasVar {
-						varTyp := toIRType(topVar.Type)
-						if varTyp == "" {
-							varTyp = toIRType(topVar.InferredType)
-						}
-						if varTyp == "" {
-							varTyp = ir.TypeNumber
-						}
-						isPrimitiveConst := topVar.VarDeclKind == "const" && topVar.Expression != nil && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")
-						if !isPrimitiveConst || function.Name != "main" {
-							return prop, varTyp, nil
-						}
-						return lowerExpression(path, topVar.Expression, result, function, env, counter, shapes, signatures)
-					}
-				}
-			}
+		if r0, r1, handled, err := tryLowerConstantPropertyPath(path, expression, &result, function, env, counter, shapes, signatures, propertyPath); handled {
+			return r0, r1, err
 		}
 	}
 
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
-		propKey := expression.Left.Text + "." + expression.Text
-
-		if propKey == "process.argv" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeStringArray,
-				Result: result,
-				Callee: "__process.argv",
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeStringArray, nil
-		}
-		if propKey == "process.env" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op: ir.OpCall, Type: ir.TypeObject, Result: result, Callee: "__process.env_obj", Span: toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeObject, nil
-		}
-
-		// 2. Check static getters
-		if getter, getterName, ok := findGetterInHierarchy(className, expression.Text, signatures, classHierarchy); ok && getter.Parameters == nil {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   getter.ReturnType,
-				Result: result,
-				Callee: getterName,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, getter.ReturnType, nil
-		}
-
-		// 2.5. Check function reflection (.length and .name)
-		if fn, isFunc := resolveFunctionSignature(path, expression.Left.Text, signatures); isFunc {
-			if expression.Text == "length" {
-				arity := len(fn.Parameters)
-				if defaults, hasDefaults := defaultParamsIndex[fn.Name]; hasDefaults {
-					for i := 0; i < len(fn.Parameters); i++ {
-						if _, isDefault := defaults[i]; isDefault {
-							arity = i
-							break
-						}
-					}
-				}
-				if restParamsIndex[fn.Name] && arity == len(fn.Parameters) && arity > 0 {
-					arity = len(fn.Parameters) - 1
-				}
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   ir.TypeNumber,
-					Result: result,
-					Value:  strconv.Itoa(arity),
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, ir.TypeNumber, nil
-			}
-			if expression.Text == "name" {
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   ir.TypeString,
-					Result: result,
-					Value:  functionPublicName(fn.Name),
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, ir.TypeString, nil
-			}
-		}
-
-		// 3. Check static fields in class hierarchy
-		if meta, ok := classHierarchy[className]; ok {
-			if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
-				staticVar := className + "_" + expression.Text
-				typ := toIRTypeForPath(path, staticField.Type)
-				if typ == "" {
-					typ = ir.TypeNumber
-				}
-				return staticVar, typ, nil
-			}
-		}
-
-		// 4. Check shape const fields (e.g. Enums)
-		if shape, ok := shapes[className]; ok {
-			for _, field := range shape.Fields {
-				if field.Name == expression.Text && field.Value != "" {
-					if result == "" {
-						result = nextTemp(counter)
-					}
-					function.Body = append(function.Body, ir.Instruction{
-						Op:     ir.OpConst,
-						Type:   field.Type,
-						Result: result,
-						Value:  field.Value,
-						Span:   toIRSpan(path, expression.Span),
-					})
-					return result, field.Type, nil
-				}
-			}
-		}
-
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "argv" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__process.argv", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeStringArray, nil
-		}
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "version" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__process.version", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeString, nil
-		}
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "pid" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__process.pid", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeNumber, nil
-		}
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "ppid" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__process.ppid", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeNumber, nil
-		}
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "platform" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__os.platform", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeString, nil
-		}
-		if (expression.Left.Text == "process" || expression.Left.Text == "__scriptgo") && expression.Text == "arch" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__os.arch", Args: nil, Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeString, nil
+		if r0, r1, handled, err := tryLowerIdentifierReceiverProperty(path, expression, &result, function, counter, shapes, signatures, className); handled {
+			return r0, r1, err
 		}
 	}
 
@@ -326,132 +121,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	// ArrayBufferView is a runtime union of typed arrays and DataView. Its shared
 	// fields need a tag-aware ABI; concrete typed arrays can use their faster ABI.
 	if isArrayBufferViewType(objectType) && objectType != ir.TypeDataView {
-		viewIntrinsic := "__typedarray."
-		if objectType == "ArrayBufferView" || objectType == "object:ArrayBufferView" {
-			viewIntrinsic = "__arraybuffer_view."
-		}
-		if expression.Text == "length" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: "__typedarray.length",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if expression.Text == "byteLength" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: viewIntrinsic + "byteLength",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if expression.Text == "byteOffset" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: viewIntrinsic + "byteOffset",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if expression.Text == "buffer" || expression.Text == "parent" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeArrayBuffer,
-				Result: result,
-				Callee: viewIntrinsic + "buffer",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeArrayBuffer, nil
-		}
-		if expression.Text == "BYTES_PER_ELEMENT" {
-			elemSize := "1"
-			switch objectType {
-			case ir.TypeInt16Array, ir.TypeUint16Array:
-				elemSize = "2"
-			case ir.TypeInt32Array, ir.TypeUint32Array, ir.TypeFloat32Array:
-				elemSize = "4"
-			case ir.TypeFloat64Array, ir.TypeBigInt64Array, ir.TypeBigUint64Array:
-				elemSize = "8"
-			}
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Value:  elemSize,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
+		if r0, r1, handled, err := tryLowerArrayBufferViewProperty(path, expression, &result, function, counter, object, objectType); handled {
+			return r0, r1, err
 		}
 	}
 
 	if objectType == ir.TypeDataView {
-		if expression.Text == "byteLength" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: "__dataview.byteLength",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if expression.Text == "byteOffset" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: "__dataview.byteOffset",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if expression.Text == "buffer" {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeArrayBuffer,
-				Result: result,
-				Callee: "__dataview.buffer",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeArrayBuffer, nil
+		if r0, r1, handled, err := tryLowerDataViewProperty(path, expression, &result, function, counter, object); handled {
+			return r0, r1, err
 		}
 	}
 
@@ -473,46 +150,8 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	}
 
 	if objectType == ir.TypeTextDecoder {
-		switch expression.Text {
-		case "encoding":
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: result,
-				Callee: "__text_decoder.encoding",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeString, nil
-		case "fatal":
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeBool,
-				Result: result,
-				Callee: "__text_decoder.fatal",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeBool, nil
-		case "ignoreBOM":
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeBool,
-				Result: result,
-				Callee: "__text_decoder.ignore_bom",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeBool, nil
+		if r0, r1, handled, err := tryLowerTextDecoderProperty(path, expression, &result, function, counter, object); handled {
+			return r0, r1, err
 		}
 	}
 
@@ -544,82 +183,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	}
 
 	if objectType == ir.Type("object:RegExp") {
-		switch expression.Text {
-		case "global", "ignoreCase", "multiline", "dotAll", "unicode", "sticky", "hasIndices", "unicodeSets":
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeBool,
-				Result: result,
-				Callee: "__regexp." + expression.Text,
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeBool, nil
-		case "lastIndex":
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpFieldGet,
-				Type:       ir.TypeNumber,
-				Result:     result,
-				Callee:     "RegExp",
-				Field:      "lastIndex",
-				FieldIndex: 2,
-				Args:       []string{object},
-				Span:       toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
+		if r0, r1, handled, err := tryLowerRegExpProperty(path, expression, &result, function, counter, object); handled {
+			return r0, r1, err
 		}
 	}
 
 	if expression.Text == "length" {
-		if objectType == ir.TypeString {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: "__string.length",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if strings.HasSuffix(string(objectType), "[]") || objectType == ir.TypeStringArray || objectType == ir.TypeNumberArray || objectType == ir.TypeBoolArray || objectType == ir.Type("symbol[]") {
-			if result == "" {
-				result = nextTemp(counter)
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumber,
-				Result: result,
-				Callee: "__array.length",
-				Args:   []string{object},
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return result, ir.TypeNumber, nil
-		}
-		if strings.HasPrefix(string(objectType), "object:") {
-			shapeName := strings.TrimPrefix(string(objectType), "object:")
-			if s, ok := anonymousShapes[shapeName]; ok && len(s.Fields) > 0 && s.Fields[0].Name == "0" {
-				if result == "" {
-					result = nextTemp(counter)
-				}
-				function.Body = append(function.Body, ir.Instruction{
-					Op:     ir.OpConst,
-					Type:   ir.TypeNumber,
-					Result: result,
-					Value:  strconv.Itoa(len(s.Fields)),
-					Span:   toIRSpan(path, expression.Span),
-				})
-				return result, ir.TypeNumber, nil
-			}
+		if r0, r1, handled, err := tryLowerLengthProperty(path, expression, &result, function, counter, object, objectType); handled {
+			return r0, r1, err
 		}
 	}
 
@@ -659,116 +230,18 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	}
 
 	if className == "this" || className == "" || className == "object" {
-		if expression.Left != nil && expression.Left.Text != "" {
-			if varStmt, inTop := topLevelVars[expression.Left.Text]; inTop && varStmt.Type != "" {
-				className = varStmt.Type
-			} else if t, inEnv := env[expression.Left.Text]; inEnv && string(t) != "" && string(t) != "this" && string(t) != "object" {
-				className = strings.TrimPrefix(string(t), "object:")
-			}
-		}
-		if className == "this" || className == "" {
-			if t, inEnv := env["this"]; inEnv && string(t) != "this" && string(t) != "object:this" {
-				className = strings.TrimPrefix(string(t), "object:")
-			} else if function != nil && strings.Contains(function.Name, "_") && !strings.HasPrefix(function.Name, "__closure_") {
-				className = strings.Split(function.Name, "_")[0]
-			}
-		}
-		if className == "this" || className == "" {
-			for _, sName := range slices.Sorted(maps.Keys(shapes)) {
-				s := shapes[sName]
-				if fieldIndex(s, expression.Text) >= 0 {
-					className = sName
-					break
-				}
-			}
-		}
+		className = resolveThisPropertyClass(expression, function, env, shapes, className)
 	}
 	isUnionAlias := false
 	if typeAliasesIndex != nil && typeAliasesIndex[className] != "" && strings.Contains(typeAliasesIndex[className], "|") {
 		isUnionAlias = true
 	}
 	if !isUnionAlias && (className == "" || className == "Record" || className == "closure" || strings.HasPrefix(className, "__closure_") || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || strings.HasPrefix(className, "Partial_") || strings.Contains(className, "[") || objectType == ir.TypeObject || objectType == ir.TypeUnknown) {
-		propNameConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpConst,
-			Type:   ir.TypeString,
-			Result: propNameConst,
-			Value:  expression.Text,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		retType := ir.TypeUnknown
-		if expression.InferredType != "" {
-			if inferred := toIRType(expression.InferredType); inferred != "" {
-				retType = inferred
-			}
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__object.get_prop",
-			Args:   []string{object, propNameConst},
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, nil
+		return lowerDynamicRecordProperty(path, expression, result, function, counter, object)
 	}
 	shape, ok := shapes[className]
 	if !ok {
-		if s, exists := registeredShapes[className]; exists {
-			shape = s
-			shapes[className] = s
-			ok = true
-		} else if s, exists := anonymousShapes[className]; exists {
-			shape = s
-			shapes[className] = s
-			ok = true
-		} else if aliased, hasAlias := typeAliasesIndex[className]; hasAlias {
-			if fields, ok2 := anonymousObjectFields(aliased, nil); ok2 {
-				shape = ir.ObjectShape{Name: className, Fields: fields}
-				shapes[className] = shape
-				ok = true
-			}
-		} else if fields, ok2 := anonymousObjectFields(className, nil); ok2 {
-			shape = ir.ObjectShape{Name: className, Fields: fields}
-			shapes[className] = shape
-			ok = true
-		} else if strings.Contains(className, "__") || strings.Contains(className, "_") || strings.Contains(className, "<") {
-			baseName := strings.Split(className, "<")[0]
-			if strings.Contains(baseName, "__") {
-				baseName = strings.Split(baseName, "__")[0]
-			} else if strings.Contains(baseName, "_") {
-				baseName = strings.Split(baseName, "_")[0]
-			}
-			if s, exists := shapes[baseName]; exists {
-				shape = s
-				ok = true
-			} else if s, exists := registeredShapes[baseName]; exists {
-				shape = s
-				ok = true
-			} else if baseName == "Partial" || baseName == "Required" || baseName == "Readonly" {
-				inner := strings.TrimPrefix(className, baseName+"__")
-				if s, exists := shapes[inner]; exists {
-					shape = s
-					ok = true
-				} else if s, exists := registeredShapes[inner]; exists {
-					shape = s
-					ok = true
-				}
-			}
-		}
-		if !ok {
-			for _, name := range slices.Sorted(maps.Keys(shapes)) {
-				s := shapes[name]
-				if (strings.HasPrefix(name, className+"__") || strings.HasPrefix(name, className+"_")) && fieldIndex(s, expression.Text) >= 0 {
-					shape = s
-					ok = true
-					break
-				}
-			}
-		}
+		shape, ok = resolveRegisteredPropertyShape(expression, shapes, className, shape, ok)
 	}
 	if !ok {
 		interStr := className
@@ -785,70 +258,13 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 		}
 	}
 	if !ok {
-		unionStr := className
-		if typeAliasesIndex != nil && typeAliasesIndex[className] != "" {
-			unionStr = typeAliasesIndex[className]
-		}
-		if strings.Contains(unionStr, "|") {
-			for _, m := range splitTopLevelUnion(unionStr) {
-				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
-				var s ir.ObjectShape
-				var okS bool
-				if s, okS = shapes[cleanM]; !okS {
-					s, okS = registeredShapes[cleanM]
-				}
-				if !okS {
-					if fields, okF := anonymousObjectFields(cleanM, nil); okF {
-						name := anonymousShapeName(fields)
-						s = ir.ObjectShape{Name: name, Fields: fields}
-						shapes[name] = s
-						okS = true
-					}
-				}
-				if okS && fieldIndex(s, expression.Text) >= 0 {
-					shape = s
-					className = s.Name
-					ok = true
-					break
-				}
-			}
-		}
+		className, shape, ok = resolveUnionAliasPropertyShape(expression, shapes, className, shape, ok)
 	}
 	if !ok {
 		return "", "", fmt.Errorf("unknown object shape %q for property %q", className, expression.Text)
 	}
 	if fieldIndex(shape, expression.Text) < 0 {
-		var matchedShape *ir.ObjectShape
-		unionStr := className
-		if typeAliasesIndex != nil && typeAliasesIndex[className] != "" {
-			unionStr = typeAliasesIndex[className]
-		}
-		if strings.Contains(unionStr, "|") {
-			for _, m := range splitTopLevelUnion(unionStr) {
-				cleanM := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(m), "object:"))
-				var s ir.ObjectShape
-				var okS bool
-				if s, okS = shapes[cleanM]; !okS {
-					s, okS = registeredShapes[cleanM]
-				}
-				if !okS {
-					if fields, okF := anonymousObjectFields(cleanM, nil); okF {
-						name := anonymousShapeName(fields)
-						s = ir.ObjectShape{Name: name, Fields: fields}
-						shapes[name] = s
-						okS = true
-					}
-				}
-				if okS && fieldIndex(s, expression.Text) >= 0 {
-					matchedShape = &s
-					break
-				}
-			}
-		}
-		if matchedShape != nil {
-			shape = *matchedShape
-			className = shape.Name
-		}
+		className, shape = resolveFieldOwnerShape(expression, shapes, className, shape)
 	}
 	for _, field := range shape.Fields {
 		if field.Name != expression.Text {
@@ -950,89 +366,10 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 		return result, fType, nil
 	}
 	if strings.HasPrefix(className, "__shape_") {
-		propNameConst := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpConst,
-			Type:   ir.TypeString,
-			Result: propNameConst,
-			Value:  expression.Text,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		retType := ir.TypeUnknown
-		if expression.InferredType != "" {
-			if inferred := toIRType(expression.InferredType); inferred != "" {
-				retType = inferred
-			}
-		}
-		if expression.Kind == "optional_property" {
-			initVal := "undefined"
-			switch retType {
-			case ir.TypeBool:
-				initVal = "false"
-			case ir.TypeNumber:
-				initVal = "NaN"
-			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   retType,
-				Result: result,
-				Value:  initVal,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			cond, err := coerceToBool(path, object, objectType, function, counter, expression.Span)
-			if err == nil {
-				thenFn := &ir.Function{}
-				thenFn.Body = append(thenFn.Body, ir.Instruction{
-					Op:     ir.OpCall,
-					Type:   retType,
-					Result: result,
-					Callee: "__object.get_prop",
-					Args:   []string{object, propNameConst},
-					Span:   toIRSpan(path, expression.Span),
-				})
-				function.Body = append(function.Body, ir.Instruction{
-					Op:   ir.OpIf,
-					Type: ir.TypeVoid,
-					Args: []string{cond},
-					Then: thenFn.Body,
-					Span: toIRSpan(path, expression.Span),
-				})
-				return result, retType, nil
-			}
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__object.get_prop",
-			Args:   []string{object, propNameConst},
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, nil
+		return lowerAnonymousShapeProperty(path, expression, result, function, counter, object, objectType)
 	}
 	if expression.Kind == "optional_property" {
-		if result == "" {
-			result = nextTemp(counter)
-		}
-		retType := ir.TypeUnknown
-		valStr := "undefined"
-		if expression.InferredType != "" {
-			inferred := toIRType(expression.InferredType)
-			if inferred != "" && inferred != ir.TypeNumber && inferred != ir.TypeBool {
-				retType = inferred
-			}
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpConst,
-			Type:   retType,
-			Result: result,
-			Value:  valStr,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, nil
+		return lowerOptionalPropertyFallback(path, expression, result, function, counter)
 	}
 	fieldNames := make([]string, 0, len(shape.Fields))
 	for _, f := range shape.Fields {

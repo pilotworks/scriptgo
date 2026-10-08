@@ -1,9 +1,10 @@
 package lowering
 
 import (
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"strings"
 )
 
 // extractPropertyPath returns the dotted chain of identifiers (e.g. ["os", "constants", "signals", "SIGINT"]).

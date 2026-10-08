@@ -2,9 +2,10 @@ package lowering
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
-	"strings"
 )
 
 // lowerOptionalCallExpression lowers optional call expressions: fn?.(args) or obj?.method?.(args)
