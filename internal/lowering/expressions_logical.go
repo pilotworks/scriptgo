@@ -267,5 +267,4 @@ func lowerNullishCoalescingExpression(path string, expression *frontend.SyntaxEx
 		Span: toIRSpan(path, expression.Span),
 	})
 	return res, outTyp, nil
-
 }

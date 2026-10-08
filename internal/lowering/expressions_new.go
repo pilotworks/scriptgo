@@ -377,8 +377,8 @@ func lowerNewExpression(path string, expression *frontend.SyntaxExpression, resu
 			args = append(args, argVal)
 		}
 		if len(args) < len(ctor.Parameters) {
-			if r0, r1, handled, err := tryFillConstructorDefaults(path, expression, function, env, counter, shapes, signatures, ctor, ctorName, &args); handled {
-				return r0, r1, err
+			if value, valueType, handled, err := tryFillConstructorDefaults(path, expression, function, env, counter, shapes, signatures, ctor, ctorName, &args); handled {
+				return value, valueType, err
 			}
 		}
 		function.Body = append(function.Body, ir.Instruction{

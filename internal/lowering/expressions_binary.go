@@ -10,13 +10,13 @@ import (
 
 func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if expression.Operator == "&&" {
-		if r0, r1, handled, err := lowerLogicalAndExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := lowerLogicalAndExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
+			return value, valueType, err
 		}
 	}
 	if expression.Operator == "||" {
-		if r0, r1, handled, err := lowerLogicalOrExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := lowerLogicalOrExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
+			return value, valueType, err
 		}
 	}
 	if expression.Operator == "??" {
@@ -36,8 +36,8 @@ func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, r
 		return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
 	}
 	if expression.Operator == "=" || (strings.HasSuffix(expression.Operator, "=") && expression.Operator != "==" && expression.Operator != "===" && expression.Operator != "!=" && expression.Operator != "!==" && expression.Operator != "<=" && expression.Operator != ">=") {
-		if r0, r1, handled, err := lowerAssignmentExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := lowerAssignmentExpression(path, expression, result, function, env, counter, shapes, signatures); handled {
+			return value, valueType, err
 		}
 	}
 	left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
@@ -73,8 +73,8 @@ func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, r
 		left, leftType, right, rightType = boxUnknownConcatenationOperands(path, expression, function, counter, left, leftType, right, rightType)
 	}
 	if leftType != rightType {
-		if r0, r1, handled, err := tryLowerMixedTypeBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, &rightType); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerMixedTypeBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, &rightType); handled {
+			return value, valueType, err
 		}
 	}
 	if leftType == ir.TypeBool {
@@ -95,8 +95,8 @@ func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, r
 		return "", "", fmt.Errorf("operator %q does not support bool operands", expression.Operator)
 	}
 	if isPointerLikeType(leftType) || leftType == ir.TypeSymbol || leftType == ir.TypeClosure || leftType == ir.TypeUnknown {
-		if r0, r1, handled, err := tryLowerReferenceBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, rightType); handled {
-			return r0, r1, err
+		if value, valueType, handled, err := tryLowerReferenceBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, rightType); handled {
+			return value, valueType, err
 		}
 	}
 	if leftType != ir.TypeNumber && leftType != ir.TypeString && leftType != ir.TypeBigInt {

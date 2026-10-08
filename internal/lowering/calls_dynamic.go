@@ -35,7 +35,6 @@ func lowerDynamicImportCall(path string, expression *frontend.SyntaxExpression, 
 		env[result+".dynamic"] = ir.Type("true")
 	}
 	return result, returnType, nil
-
 }
 
 func tryLowerDynamicPropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, closureVal string, closureType ir.Type) (string, ir.Type, error) {
@@ -84,7 +83,6 @@ func tryLowerDynamicPropertyCall(path string, expression *frontend.SyntaxExpress
 		Span: toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func lowerDynamicFunctionCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, callee string) (string, ir.Type, error) {
@@ -109,5 +107,4 @@ func lowerDynamicFunctionCall(path string, expression *frontend.SyntaxExpression
 		Callee: callee, Args: args, Span: toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }

@@ -35,7 +35,6 @@ func lowerNewPromise(path string, expression *frontend.SyntaxExpression, result 
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, promType, nil
-
 }
 
 func lowerNewWeakRef(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -64,7 +63,6 @@ func lowerNewWeakRef(path string, expression *frontend.SyntaxExpression, result 
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, resType, nil
-
 }
 
 func lowerNewWeakMap(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, counter *int) (string, ir.Type, error) {
@@ -86,7 +84,6 @@ func lowerNewWeakMap(path string, expression *frontend.SyntaxExpression, result 
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, resType, nil
-
 }
 
 func lowerNewArray(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -148,7 +145,6 @@ func lowerNewArray(path string, expression *frontend.SyntaxExpression, result st
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func lowerNewWeakRefFallback(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -172,7 +168,6 @@ func lowerNewWeakRefFallback(path string, expression *frontend.SyntaxExpression,
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeObject, nil
-
 }
 
 func lowerNewFinalizationRegistry(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -196,7 +191,6 @@ func lowerNewFinalizationRegistry(path string, expression *frontend.SyntaxExpres
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.Type("object:FinalizationRegistry"), nil
-
 }
 
 func lowerNewMap(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -226,7 +220,6 @@ func lowerNewMap(path string, expression *frontend.SyntaxExpression, result stri
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeMap, nil
-
 }
 
 func lowerNewSet(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
@@ -256,7 +249,6 @@ func lowerNewSet(path string, expression *frontend.SyntaxExpression, result stri
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeSet, nil
-
 }
 
 func lowerNewDate(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, objType ir.Type) (string, ir.Type, error) {
@@ -284,5 +276,4 @@ func lowerNewDate(path string, expression *frontend.SyntaxExpression, result str
 		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "Date", Field: "time", FieldIndex: 0, Args: []string{result, timeVal}, Span: toIRSpan(path, expression.Span),
 	})
 	return result, objType, nil
-
 }

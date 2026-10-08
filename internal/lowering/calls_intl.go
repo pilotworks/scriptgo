@@ -245,5 +245,4 @@ func lowerIntlGetCanonicalLocalesCall(path string, expression *frontend.SyntaxEx
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, ir.TypeStringArray, nil
-
 }

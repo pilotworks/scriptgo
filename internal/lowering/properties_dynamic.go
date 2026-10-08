@@ -32,7 +32,6 @@ func lowerDynamicRecordProperty(path string, expression *frontend.SyntaxExpressi
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func lowerAnonymousShapeProperty(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, counter *int, object string, objectType ir.Type) (string, ir.Type, error) {
@@ -98,7 +97,6 @@ func lowerAnonymousShapeProperty(path string, expression *frontend.SyntaxExpress
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
 
 func lowerOptionalPropertyFallback(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, counter *int) (string, ir.Type, error) {
@@ -121,5 +119,4 @@ func lowerOptionalPropertyFallback(path string, expression *frontend.SyntaxExpre
 		Span:   toIRSpan(path, expression.Span),
 	})
 	return result, retType, nil
-
 }
