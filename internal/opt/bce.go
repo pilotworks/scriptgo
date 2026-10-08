@@ -1,6 +1,8 @@
 package opt
 
 import (
+	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -359,7 +361,7 @@ func (p *bcePass) generatePreheaderGuards(loop *ir.Instruction, ctx *loopContext
 
 	p.collectLoopIndexedArrays(loop.Body, ctx, accessedArrays)
 
-	for arr := range accessedArrays {
+	for _, arr := range slices.Sorted(maps.Keys(accessedArrays)) {
 		if p.isBoundValidForArray(arr, ctx.boundVar, state, ctx) {
 			continue
 		}

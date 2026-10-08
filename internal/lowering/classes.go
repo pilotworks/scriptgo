@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"maps"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -161,21 +162,29 @@ func getInheritedMethods(className string, hierarchy map[string]ClassMeta) []fro
 			inherited = append(inherited, getInheritedMethods(base, hierarchy)...)
 		}
 	}
+	// Keep declaration order (base members first, overrides in place) so the
+	// lowered module is deterministic.
 	methodMap := map[string]frontend.SyntaxMethod{}
-	for _, m := range inherited {
-		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
+	var order []string
+	remember := func(key string, m frontend.SyntaxMethod) {
+		if _, seen := methodMap[key]; !seen {
+			order = append(order, key)
+		}
 		methodMap[key] = m
+	}
+	for _, m := range inherited {
+		remember(fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name), m)
 	}
 	for _, m := range stmtClass.Methods {
 		key := fmt.Sprintf("%v:%s:%s", m.IsStatic, m.Kind, m.Name)
 		if existing, ok := methodMap[key]; ok && existing.Body != nil && m.Body == nil {
 			continue
 		}
-		methodMap[key] = m
+		remember(key, m)
 	}
-	var result []frontend.SyntaxMethod
-	for _, m := range methodMap {
-		result = append(result, m)
+	result := make([]frontend.SyntaxMethod, 0, len(order))
+	for _, key := range order {
+		result = append(result, methodMap[key])
 	}
 	return result
 }
@@ -347,7 +356,7 @@ func findImplementationInHierarchy(className, methodName string, signatures map[
 
 func findMethodInHierarchy(className, methodName string, signatures map[string]ir.Function, hierarchy map[string]ClassMeta) (ir.Function, string, bool) {
 	if className == "this" || className == "" {
-		for cls := range hierarchy {
+		for _, cls := range slices.Sorted(maps.Keys(hierarchy)) {
 			if fn, ok := signatures[methodImplementationName(cls, methodName)]; ok {
 				return fn, methodImplementationName(cls, methodName), true
 			}
@@ -399,7 +408,8 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 	var exactSubs []string
 	var allSubs []string
 	seenSub := map[string]bool{}
-	for subName, meta := range hierarchy {
+	for _, subName := range slices.Sorted(maps.Keys(hierarchy)) {
+		meta := hierarchy[subName]
 		isExact := false
 		isLoose := false
 		for _, imp := range meta.Implements {
@@ -559,7 +569,8 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 		return dispatchFn, dispatchName, true
 	}
 	if className != "" && className != "this" {
-		for sigName, fn := range signatures {
+		for _, sigName := range slices.Sorted(maps.Keys(signatures)) {
+			fn := signatures[sigName]
 			if (strings.HasPrefix(sigName, cleanCls+"_") || strings.HasPrefix(sigName, "Generator_") || strings.Contains(sigName, "_"+cleanCls+"_")) && strings.HasSuffix(sigName, "_"+methodName+"_impl") {
 				return fn, sigName, true
 			}
@@ -574,7 +585,8 @@ func findMethodInHierarchy(className, methodName string, signatures map[string]i
 			}
 		}
 	} else {
-		for sigName, fn := range signatures {
+		for _, sigName := range slices.Sorted(maps.Keys(signatures)) {
+			fn := signatures[sigName]
 			if strings.HasSuffix(sigName, "_"+methodName+"_impl") {
 				return fn, sigName, true
 			}
@@ -767,7 +779,7 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 	}
 	seen := map[methodKey]bool{}
 
-	for baseClass := range hierarchy {
+	for _, baseClass := range slices.Sorted(maps.Keys(hierarchy)) {
 		if baseClass == "" {
 			continue
 		}
@@ -786,7 +798,7 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 			seen[key] = true
 
 			var implementors []string
-			for candClass := range hierarchy {
+			for _, candClass := range slices.Sorted(maps.Keys(hierarchy)) {
 				if classSatisfies(candClass, baseClass, hierarchy) {
 					candMangled := methodImplementationName(candClass, m.Name)
 					if _, exists := signatures[candMangled]; exists {

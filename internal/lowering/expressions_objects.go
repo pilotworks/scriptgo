@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -276,7 +278,8 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 		}
 	}
 	if shapeName == anonymousShapeName(fields) {
-		for name, s := range registeredShapes {
+		for _, name := range slices.Sorted(maps.Keys(registeredShapes)) {
+			s := registeredShapes[name]
 			if !strings.HasPrefix(name, "__shape_") && len(s.Fields) == len(fields) {
 				match := true
 				for _, f := range fields {
@@ -293,7 +296,8 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			}
 		}
 		if shapeName == anonymousShapeName(fields) {
-			for name, s := range shapes {
+			for _, name := range slices.Sorted(maps.Keys(shapes)) {
+				s := shapes[name]
 				if !strings.HasPrefix(name, "__shape_") && len(s.Fields) == len(fields) {
 					match := true
 					for _, f := range fields {

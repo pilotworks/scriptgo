@@ -638,7 +638,8 @@ while shared semantic tests verify that both backends agree.
 - Object values use specialized static layouts.
 - Exceptions use native unwinding.
 - `async`/`await` is lowered to a state machine.
-- The first supported target is macOS ARM64 with LLVM/Clang 18.
+- The first supported target was macOS ARM64 with LLVM/Clang 18; CI now also
+  verifies Linux x86-64 and `wasm32-wasi`.
 
 ## Summary
 

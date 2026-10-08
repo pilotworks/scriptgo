@@ -3,6 +3,8 @@ package llvm
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1387,7 +1389,8 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	}
 
 	slotted := findSlottedVariables(function.Body)
-	for varName, typ := range slotted {
+	for _, varName := range slices.Sorted(maps.Keys(slotted)) {
+		typ := slotted[varName]
 		if function.Name == "main" {
 			if globalsMap[varName] {
 				continue
