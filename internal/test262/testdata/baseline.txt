@@ -419,10 +419,13 @@ built-ins/String/prototype/padEnd/max-length-not-greater-than-string.js
 built-ins/String/prototype/padStart/fill-string-omitted.js
 built-ins/String/prototype/padStart/max-length-not-greater-than-string.js
 built-ins/String/prototype/repeat/count-coerced-to-zero-returns-empty-string.js
+built-ins/String/prototype/repeat/count-is-infinity-throws.js
 built-ins/String/prototype/repeat/count-is-zero-returns-empty-string.js
+built-ins/String/prototype/repeat/count-less-than-zero-throws.js
 built-ins/String/prototype/repeat/empty-string-returns-empty.js
 built-ins/String/prototype/repeat/repeat-string-n-times.js
 built-ins/String/prototype/repeat/return-abrupt-from-count-as-symbol.js
+built-ins/String/prototype/repeat/return-abrupt-from-count.js
 built-ins/String/prototype/replace/S15.5.4.11_A2_T1.js
 built-ins/String/prototype/replace/S15.5.4.11_A2_T6.js
 built-ins/String/prototype/replaceAll/replaceValue-call-skip-no-match.js

@@ -562,20 +562,45 @@ int scriptgo_string_trim_end(const char *value, char **out_value) {
     return string_copy_range(value, 0, end, out_value);
 }
 
+/* String.prototype.repeat: ToIntegerOrInfinity(count); a negative or
+ * infinite count, or a result longer than the maximum string length, throws
+ * RangeError. Repeating "" (or zero times) is "" without iterating, and the
+ * result is filled by doubling copies. */
+#define SCRIPTGO_MAX_STRING_LENGTH ((size_t)0x1FFFFFE8)
+void scriptgo_throw_error_message(const char *text);
+
 int scriptgo_string_repeat(const char *value, double count, char **out_value) {
-    if (count != count) count = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    if (isnan(count) || count <= 0.0) {
+    count = count != count ? 0.0 : trunc(count);
+    if (count < 0.0 || isinf(count)) {
+        char message[96];
+        if (isinf(count)) {
+            snprintf(message, sizeof(message), "RangeError: Invalid count value: %sInfinity", count < 0 ? "-" : "");
+        } else {
+            snprintf(message, sizeof(message), "RangeError: Invalid count value: %.0f", count);
+        }
+        scriptgo_throw_error_message(message);
+        return string_fail("invalid repeat count");
+    }
+    size_t len = strlen(value);
+    if (len == 0 || count == 0.0) {
         return string_copy_range(value, 0, 0, out_value);
     }
-    size_t c = (size_t)count;
-    size_t len = strlen(value);
-    char *res = malloc(len * c + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
-    for (size_t i = 0; i < c; i++) {
-        memcpy(res + i * len, value, len);
+    if (count > (double)(SCRIPTGO_MAX_STRING_LENGTH / len)) {
+        scriptgo_throw_error_message("RangeError: Invalid string length");
+        return string_fail("repeat result too long");
     }
-    res[len * c] = '\0';
+    size_t total = len * (size_t)count;
+    char *res = malloc(total + 1);
+    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    memcpy(res, value, len);
+    size_t filled = len;
+    while (filled < total) {
+        size_t chunk = filled <= total - filled ? filled : total - filled;
+        memcpy(res + filled, res, chunk);
+        filled += chunk;
+    }
+    res[total] = '\0';
     *out_value = res;
     return 0;
 }
