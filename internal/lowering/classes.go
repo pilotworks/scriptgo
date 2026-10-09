@@ -224,6 +224,8 @@ func getInheritedFields(className string, hierarchy map[string]ClassMeta) []fron
 			}
 			if baseFields := getInheritedFields(base, hierarchy); len(baseFields) > 0 {
 				fields = append(fields, baseFields...)
+			} else if isBuiltinErrorClass(base) {
+				fields = append(fields, builtinErrorFields()...)
 			} else {
 				baseName := base
 				var typeArgs []string
@@ -296,4 +298,21 @@ func normalizeGenericName(s string) string {
 
 func methodImplementationName(className, methodName string) string {
 	return className + "_" + methodName + "_impl"
+}
+
+// isBuiltinErrorClass reports Error and the native error constructors, whose
+// instances carry the built-in Error shape.
+func isBuiltinErrorClass(name string) bool {
+	return name == "Error" || builtinErrorBase[name] != ""
+}
+
+// builtinErrorFields is the built-in Error layout (see the Error builtin
+// shape), inherited first by user classes that extend an error class.
+func builtinErrorFields() []frontend.SyntaxField {
+	return []frontend.SyntaxField{
+		{Name: "message", Type: "string"},
+		{Name: "name", Type: "string"},
+		{Name: "stack", Type: "string"},
+		{Name: "cause", Type: "string"},
+	}
 }

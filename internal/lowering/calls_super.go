@@ -18,7 +18,29 @@ func lowerSuperConstructorCall(path string, expression *frontend.SyntaxExpressio
 	if meta.Extends == "" {
 		return "", "", fmt.Errorf("super() called in class %q with no base class", currentClass)
 	}
-	if meta.Extends == "Error" || meta.Extends == "TypeError" || meta.Extends == "RangeError" || meta.Extends == "SyntaxError" || meta.Extends == "ReferenceError" || meta.Extends == "URIError" || meta.Extends == "EvalError" || meta.Extends == "DOMException" {
+	if isBuiltinErrorClass(meta.Extends) {
+		// super(message, options) on a native error base initializes the
+		// inherited Error fields; the instance name is the base's name.
+		msgVal := nextTemp(counter)
+		if len(expression.Arguments) > 0 {
+			value, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", err
+			}
+			msgVal = value
+		} else {
+			function.Body = append(function.Body, ir.Instruction{
+				Op: ir.OpConst, Type: ir.TypeString, Result: msgVal, Value: "", Span: toIRSpan(path, expression.Span),
+			})
+		}
+		causeVal, err := lowerErrorCause(path, expression, function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		initializeErrorFields(path, expression.Span, function, counter, currentClass, "this", msgVal, causeVal, meta.Extends)
+		return "", ir.TypeVoid, nil
+	}
+	if meta.Extends == "DOMException" {
 		if len(expression.Arguments) > 0 {
 			msgVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 			if err != nil {

@@ -198,6 +198,11 @@ typedef struct {
 
 int scriptgo_gc_is_registered(void *ptr);
 
+int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result);
+int scriptgo_error_to_string(void *obj, char **out_str);
+int scriptgo_gc_get_tag(void *ptr);
+int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str);
+
 int scriptgo_string_from_object(void *obj, char **out_str) {
     if (out_str == NULL) {
         return -1;
@@ -231,14 +236,16 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
             return 0;
         }
     }
+    if (scriptgo_gc_is_registered(obj) && scriptgo_gc_get_tag(obj) == 2 /* array */) {
+        return scriptgo_array_join_unknown(obj, NULL, out_str);
+    }
     if (scriptgo_gc_is_registered(obj)) {
         scriptgo_object_t *o = (scriptgo_object_t *)obj;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
-            if (o->type_name != NULL && (strcmp(o->type_name, "Error") == 0 || strstr(o->type_name, "Error") != NULL)) {
-                if (o->field_count > 0 && o->fields[0] != 0 && (uint64_t)o->fields[0] != 0x7FF8000000000000ULL) {
-                    *out_str = strdup((const char *)o->fields[0]);
-                    return 0;
-                }
+            int32_t is_error = 0;
+            if (scriptgo_object_instanceof(obj, "Error", &is_error) == 0 && is_error) {
+                /* Error.prototype.toString: "name: message" */
+                return scriptgo_error_to_string(obj, out_str);
             }
             *out_str = strdup("[object Object]");
             return 0;

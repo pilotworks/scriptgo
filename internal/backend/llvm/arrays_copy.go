@@ -127,21 +127,30 @@ func (e *functionEmitter) emitArrayCopyIntrinsic(out *strings.Builder, instructi
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	case "__array.toString", "__array.toLocaleString":
-		resSlot := instruction.Result + ".slot"
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", resSlot))
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		if arrayType == ir.TypeStringArray {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_string(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], resSlot)
-		} else if arrayType == ir.TypeUnknownArray {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_unknown(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], resSlot)
-		} else {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_join_number(ptr %%%s, ptr null, ptr %%%s)\n", status, instruction.Args[0], resSlot)
-		}
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, resSlot)
+		e.emitArrayToString(out, "%"+instruction.Args[0], arrayType, instruction.Result)
 		return nil
 	default:
 		return fmt.Errorf("unknown array intrinsic %q", instruction.Callee)
 	}
+}
+
+// emitArrayToString emits Array.prototype.toString (join with ",") for an
+// array of any element type into result.
+func (e *functionEmitter) emitArrayToString(out *strings.Builder, arrayArg string, arrayType ir.Type, result string) {
+	resSlot := result + ".slot"
+	fmt.Fprintf(out, "  %%%s = alloca ptr\n", resSlot)
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	fn := "scriptgo_array_join_unknown"
+	switch arrayType {
+	case ir.TypeNumberArray:
+		fn = "scriptgo_array_join_number"
+	case ir.TypeStringArray:
+		fn = "scriptgo_array_join_string"
+	case ir.TypeBigIntArray:
+		fn = "scriptgo_array_join_bigint"
+	}
+	fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %s, ptr null, ptr %%%s)\n", status, fn, arrayArg, resSlot)
+	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+	fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", result, resSlot)
 }

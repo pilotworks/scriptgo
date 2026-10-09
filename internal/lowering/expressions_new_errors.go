@@ -18,44 +18,46 @@ func lowerNewError(path string, expression *frontend.SyntaxExpression, result st
 			Op: ir.OpConst, Type: ir.TypeString, Result: msgVal, Value: "", Span: toIRSpan(path, expression.Span),
 		})
 	}
-	nameVal := nextTemp(counter)
-	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: publicName, Span: toIRSpan(path, expression.Span),
-	})
-	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{result, msgVal}, Span: toIRSpan(path, expression.Span),
-	})
-	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{result, nameVal}, Span: toIRSpan(path, expression.Span),
-	})
-	stackVal := nextTemp(counter)
-	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpCall, Type: ir.TypeString, Callee: "__error.captureStack", Result: stackVal, Args: []string{nameVal, msgVal}, Span: toIRSpan(path, expression.Span),
-	})
-	causeVal := nextTemp(counter)
-	causeFound := false
+	causeVal, err := lowerErrorCause(path, expression, function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
+	}
+	initializeErrorFields(path, expression.Span, function, counter, className, result, msgVal, causeVal, publicName)
+	return result, objType, nil
+}
+
+// lowerErrorCause returns the options.cause argument of an Error construction
+// (new Error(message, { cause })), or an empty string.
+func lowerErrorCause(path string, expression *frontend.SyntaxExpression, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, error) {
 	if len(expression.Arguments) > 1 && expression.Arguments[1].Kind == "object_literal" {
 		for _, prop := range expression.Arguments[1].Arguments {
 			if prop.Text == "cause" && prop.Left != nil {
-				cv, _, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
-				if err == nil {
-					causeVal = cv
-					causeFound = true
-					break
+				if cv, _, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures); err == nil {
+					return cv, nil
 				}
 			}
 		}
 	}
-	if !causeFound {
-		function.Body = append(function.Body, ir.Instruction{
-			Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span),
-		})
-	}
+	causeVal := nextTemp(counter)
 	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{result, stackVal}, Span: toIRSpan(path, expression.Span),
+		Op: ir.OpConst, Type: ir.TypeString, Result: causeVal, Value: "", Span: toIRSpan(path, expression.Span),
 	})
+	return causeVal, nil
+}
+
+// initializeErrorFields stores message, name, stack, and cause on a new
+// error instance (built-in or a user subclass), in the built-in Error layout.
+func initializeErrorFields(path string, span frontend.SourceSpan, function *ir.Function, counter *int, className, target, msgVal, causeVal, publicName string) {
+	nameVal := nextTemp(counter)
 	function.Body = append(function.Body, ir.Instruction{
-		Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{result, causeVal}, Span: toIRSpan(path, expression.Span),
+		Op: ir.OpConst, Type: ir.TypeString, Result: nameVal, Value: publicName, Span: toIRSpan(path, span),
 	})
-	return result, objType, nil
+	stackVal := nextTemp(counter)
+	function.Body = append(function.Body,
+		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "message", FieldIndex: 0, Args: []string{target, msgVal}, Span: toIRSpan(path, span)},
+		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "name", FieldIndex: 1, Args: []string{target, nameVal}, Span: toIRSpan(path, span)},
+		ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Callee: "__error.captureStack", Result: stackVal, Args: []string{nameVal, msgVal}, Span: toIRSpan(path, span)},
+		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{target, stackVal}, Span: toIRSpan(path, span)},
+		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{target, causeVal}, Span: toIRSpan(path, span)},
+	)
 }

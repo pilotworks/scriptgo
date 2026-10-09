@@ -890,6 +890,9 @@ int scriptgo_array_join_bigint(void *handle, const char *separator, char **out_s
 int scriptgo_string_from_unknown(const scriptgo_value *value, char **out_str);
 int scriptgo_string_from_number(double value, char **out_value);
 
+int scriptgo_string_from_object(void *obj, char **out_str);
+int scriptgo_string_from_bigint(long long value, char **out_str);
+
 int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_str == NULL) {
         return fail("scriptgo array access failed");
@@ -951,9 +954,30 @@ int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_
             } else {
                 val_str = "";
             }
-        } else if (array->element_tag == 4 || array->element_size == sizeof(char *)) {
+        } else if (array->element_size == 1 || array->element_tag == 2) {
+            val_str = *(uint8_t *)(array->data + (size_t)i) ? "true" : "false";
+        } else if (array->element_tag == 8) {
+            if (scriptgo_string_from_bigint(*(long long *)(array->data + (size_t)i * sizeof(long long)), &val_str) == 0 && val_str != NULL) {
+                need_free = 1;
+            } else {
+                val_str = "";
+            }
+        } else if (array->element_tag == 4) {
             val_str = *(char **)(array->data + (size_t)i * sizeof(char *));
-            if (val_str == NULL) val_str = "";
+            if (val_str == NULL || val_str == &scriptgo_undefined_sentinel) val_str = "";
+        } else if (array->element_size == sizeof(void *)) {
+            /* Objects and other references: String(element); null and
+             * undefined join as the empty string. */
+            void *element = *(void **)(array->data + (size_t)i * sizeof(void *));
+            if (element == NULL || element == (void *)&scriptgo_undefined_sentinel) {
+                val_str = "";
+            } else if (scriptgo_string_from_object(element, &val_str) == 0 && val_str != NULL) {
+                /* Untagged string arrays hold plain C strings, which
+                 * scriptgo_string_from_object returns unchanged. */
+                need_free = val_str != (char *)element;
+            } else {
+                val_str = "";
+            }
         } else {
             val_str = "";
         }
