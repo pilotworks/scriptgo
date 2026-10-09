@@ -28,7 +28,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 %s(ptr %%%s, ptr %%%s)\n", status, callee, obj, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
-		e.types[instruction.Result] = ir.TypeObject
+		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__object.isFrozen", "__object.isSealed", "__object.isExtensible":
 		if len(instruction.Args) != 1 {

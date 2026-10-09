@@ -133,15 +133,23 @@ static int next_class_descriptor_token(const char **cursor, char *kind,
     return 1;
 }
 
-static int object_field_index(const scriptgo_object *object, const char *property) {
+/* object_field_lookup walks an object's field layout (class descriptor,
+ * dictionary keys, or a shape's key list). With a property it returns that
+ * field's index; with property NULL it returns want_index and its name once
+ * the walk reaches that position. -1 when absent. */
+static int object_field_lookup(const scriptgo_object *object, const char *property, int64_t want_index,
+                               const char **out_name, size_t *out_len) {
     const char *cursor;
     int index = 0;
-    size_t property_len;
+    size_t property_len = 0;
 
-    if (object == NULL || object->type_name == NULL || property == NULL) {
+    if (object == NULL || object->type_name == NULL || (property == NULL && want_index < 0)) {
         return -1;
     }
-    property_len = strlen(property);
+    if (property != NULL) property_len = strlen(property);
+#define SCRIPTGO_FIELD_MATCHES(name, length, at) \
+    (property != NULL ? ((length) == property_len && memcmp((name), property, (length)) == 0) \
+                      : ((at) == want_index && (*out_name = (name), *out_len = (length), 1)))
 
     if (is_class_descriptor(object->type_name)) {
         cursor = object->type_name + 10;
@@ -152,7 +160,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
             int token = next_class_descriptor_token(&cursor, &kind, &value, &value_length);
             if (token <= 0) return -1;
             if (kind == 'f') {
-                if (value_length == property_len && memcmp(value, property, value_length) == 0) {
+                if (SCRIPTGO_FIELD_MATCHES(value, value_length, index)) {
                     return index;
                 }
                 index++;
@@ -172,7 +180,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
                 encoded++;
             }
             if (*encoded++ != ':') return -1;
-            if (key_length == property_len && strncmp(encoded, property, key_length) == 0) return index;
+            if (SCRIPTGO_FIELD_MATCHES(encoded, key_length, index)) return index;
             encoded += key_length;
             index++;
         }
@@ -204,8 +212,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
                 cursor++;
             }
             if (*cursor++ != ':') return -1;
-            if (encoded_len == property_len &&
-                memcmp(cursor, property, encoded_len) == 0) {
+            if (SCRIPTGO_FIELD_MATCHES(cursor, encoded_len, index)) {
                 return index;
             }
             cursor += encoded_len;
@@ -222,7 +229,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
             field_end = field_start + strlen(field_start);
         }
         field_len = (size_t)(field_end - field_start);
-        if (field_len == property_len && strncmp(field_start, property, field_len) == 0) {
+        if (SCRIPTGO_FIELD_MATCHES(field_start, field_len, index)) {
             return index;
         }
         if (*field_end == '\0') {
@@ -232,6 +239,12 @@ static int object_field_index(const scriptgo_object *object, const char *propert
         index++;
     }
     return -1;
+#undef SCRIPTGO_FIELD_MATCHES
+}
+
+static int object_field_index(const scriptgo_object *object, const char *property) {
+    if (property == NULL) return -1;
+    return object_field_lookup(object, property, -1, NULL, NULL);
 }
 
 int scriptgo_unknown_number_property(const scriptgo_value *value, const char *property, double *out_value) {
@@ -723,8 +736,20 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     return scriptgo_object_new_typed(field_count, NULL, out_object);
 }
 
+int scriptgo_array_set_integrity(void *handle, int64_t level);
+int64_t scriptgo_array_integrity(void *handle);
+
+static int object_is_array(void *handle) {
+    return handle != NULL && handle != (void *)&scriptgo_undefined_sentinel &&
+           scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2;
+}
+
 int scriptgo_object_freeze(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object freeze failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 3);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object freeze invalid object");
     }
@@ -738,6 +763,10 @@ int scriptgo_object_freeze(void *handle, void **out_object) {
 
 int scriptgo_object_seal(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object seal failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 2);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object seal invalid object");
     }
@@ -750,6 +779,10 @@ int scriptgo_object_seal(void *handle, void **out_object) {
 
 int scriptgo_object_prevent_extensions(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object preventExtensions failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 1);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object preventExtensions invalid object");
     }
@@ -760,20 +793,73 @@ int scriptgo_object_prevent_extensions(void *handle, void **out_object) {
 
 int scriptgo_object_is_frozen(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isFrozen failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) >= 3;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->frozen;
     return 0;
 }
 
 int scriptgo_object_is_sealed(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isSealed failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) >= 2;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->sealed;
     return 0;
 }
 
 int scriptgo_object_is_extensible(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isExtensible failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) == 0;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->extensible;
     return 0;
+}
+
+void scriptgo_throw_error_message(const char *text);
+
+/* Writes the name of field index into buf, or "" when the layout does not
+ * name it. */
+static void object_field_name(const scriptgo_object *object, int64_t index, char *buf, size_t cap) {
+    const char *name = NULL;
+    size_t length = 0;
+    if (cap == 0) return;
+    buf[0] = '\0';
+    if (object_field_lookup(object, NULL, index, &name, &length) >= 0 && name != NULL) {
+        snprintf(buf, cap, "%.*s", (int)length, name);
+    }
+}
+
+/* The constructor name V8 prints for an object: its class, else Object. */
+static void object_constructor_name(const scriptgo_object *object, char *buf, size_t cap) {
+    snprintf(buf, cap, "Object");
+    if (is_class_descriptor(object->type_name)) {
+        const char *cursor = object->type_name + 10;
+        char kind;
+        const char *value;
+        size_t length;
+        if (next_class_descriptor_token(&cursor, &kind, &value, &length) > 0 && kind == 'c') {
+            snprintf(buf, cap, "%.*s", (int)length, value);
+        }
+    }
+}
+
+/* Strict-mode assignment to a frozen object throws a TypeError. */
+static int object_check_writable(scriptgo_object *object, int64_t index) {
+    if (object->magic != SCRIPTGO_OBJECT_MAGIC || !object->frozen) return 0;
+    char field[128];
+    char owner[128];
+    char message[384];
+    object_field_name(object, index, field, sizeof(field));
+    object_constructor_name(object, owner, sizeof(owner));
+    snprintf(message, sizeof(message), "TypeError: Cannot assign to read only property '%s' of object '#<%s>'", field, owner);
+    scriptgo_throw_error_message(message);
+    return object_fail("assignment to a frozen object");
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
@@ -781,6 +867,7 @@ int scriptgo_object_number_set(void *handle, int64_t index, double value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -813,6 +900,7 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -856,6 +944,7 @@ int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -895,6 +984,7 @@ int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -927,6 +1017,7 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -976,6 +1067,7 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->capacity) {
         return 0;
     }
+    if (object_check_writable(o, index) != 0) return -1;
 	if (o->boxed_fields != NULL && (o->boxed_fields[index].flags != 0 || o->boxed_fields[index].payload != 0))
 		scriptgo_value_release(&o->boxed_fields[index]);
 	if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
@@ -1146,6 +1238,12 @@ static int object_property_index_for_set(void *handle, const char *property) {
     }
     index = object_field_index(object, property);
     if (index >= 0) return index;
+    if (!object->extensible || object->sealed || object->frozen) {
+        char message[384];
+        snprintf(message, sizeof(message), "TypeError: Cannot add property %s, object is not extensible", property);
+        scriptgo_throw_error_message(message);
+        return -1;
+    }
     if (is_class_descriptor(object->type_name)) return -1;
     /* Empty object literals become dictionary-backed once a dynamic key is assigned. */
     if (strcmp(object->type_name, "__shape_empty") == 0) {
@@ -1430,6 +1528,14 @@ int scriptgo_object_delete_property(void *handle, const char *property, int32_t 
     if (handle == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     scriptgo_object *obj = (scriptgo_object *)handle;
     int index = object_field_index(obj, property);
+    if (index >= 0 && index < obj->field_count && (obj->sealed || obj->frozen)) {
+        char owner[128];
+        char message[384];
+        object_constructor_name(obj, owner, sizeof(owner));
+        snprintf(message, sizeof(message), "TypeError: Cannot delete property '%s' of #<%s>", property, owner);
+        scriptgo_throw_error_message(message);
+        return object_fail("delete on a sealed object");
+    }
     if (index >= 0 && index < obj->field_count) {
         scriptgo_value undefined_val;
         scriptgo_value_init_undefined(&undefined_val);

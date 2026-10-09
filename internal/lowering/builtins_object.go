@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -177,9 +178,9 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 	registerCustomIntrinsic(m, []string{"Object.defineProperties"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerObjectDefineProperties)
 	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptor"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerGetOwnPropertyDescriptor)
 	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptors", "Object.setPrototypeOf"}, CategoryECMAScript, "", ir.TypeObject, 1, 2, lowerUnmodelledObjectReflection)
-	registerSimpleObj([]string{"Object.freeze"}, "__object.freeze", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.seal"}, "__object.seal", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.preventExtensions"}, "__object.preventExtensions", ir.TypeObject, 1, 1)
+	registerIntegrityLevel(m, "Object.freeze", "__object.freeze")
+	registerIntegrityLevel(m, "Object.seal", "__object.seal")
+	registerIntegrityLevel(m, "Object.preventExtensions", "__object.preventExtensions")
 	registerSimpleObj([]string{"Object.isFrozen"}, "__object.isFrozen", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isSealed"}, "__object.isSealed", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isExtensible"}, "__object.isExtensible", ir.TypeBool, 1, 1)
@@ -209,4 +210,36 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 		},
 	}
 	registerSimpleObj([]string{"Object.getPrototypeOf"}, "__object.getPrototypeOf", ir.TypeObject, 1, 1)
+}
+
+// registerIntegrityLevel lowers Object.freeze/seal/preventExtensions, which
+// return their argument: an object or array keeps its type and has its
+// integrity level raised at run time.
+func registerIntegrityLevel(m map[string]BuiltinIntrinsic, name string, callee string) {
+	m[name] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     name,
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			value, typ, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if isTypedArrayType(typ) {
+				return "", "", fmt.Errorf("%s of a typed array is not supported in the native subset (JavaScript throws for one with elements)", name)
+			}
+			if typ != ir.TypeObject && !strings.HasPrefix(string(typ), "object:") && !strings.HasSuffix(string(typ), "[]") {
+				// Primitives, and built-ins whose state is not modelled as
+				// own properties (Map, Set, functions), are returned as is.
+				return value, typ, nil
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: typ, Result: result, Callee: callee, Args: []string{value}, Span: toIRSpan(call.Path, call.Expression.Span)})
+			return result, typ, nil
+		},
+	}
 }

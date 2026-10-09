@@ -981,6 +981,7 @@ int scriptgo_array_sort_closure_ptr(void *handle, void *closure_handle, void **o
     if (array == NULL || array->element_size != sizeof(void *)) {
         return scriptgo_runtime_set_error("scriptgo array sort failed");
     }
+    if (handle != NULL && ((const scriptgo_array *)handle)->length > 0 && array_check_write((const scriptgo_array *)handle, 0) != 0) return -1;
     if (c == NULL) {
         if (out_array != NULL) *out_array = array;
         return 0;
@@ -1016,6 +1017,7 @@ int scriptgo_array_sort_closure_number(void *handle, void *closure_handle, void 
     if (array == NULL || array->element_size != sizeof(double)) {
         return scriptgo_runtime_set_error("scriptgo array sort failed");
     }
+    if (handle != NULL && ((const scriptgo_array *)handle)->length > 0 && array_check_write((const scriptgo_array *)handle, 0) != 0) return -1;
     if (c == NULL) {
         return scriptgo_array_sort_number(handle, out_array);
     }
@@ -1054,6 +1056,7 @@ int scriptgo_array_sort_closure_string(void *handle, void *closure_handle, void 
     if (array == NULL || array->element_size != sizeof(char *)) {
         return scriptgo_runtime_set_error("scriptgo array sort failed");
     }
+    if (handle != NULL && ((const scriptgo_array *)handle)->length > 0 && array_check_write((const scriptgo_array *)handle, 0) != 0) return -1;
     if (c == NULL) {
         return scriptgo_array_sort_string(handle, out_array);
     }
