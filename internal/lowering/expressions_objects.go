@@ -57,10 +57,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			}
 			defVal := "undefined"
 			defType := field.Type
-			switch field.Type {
-			case ir.TypeNumber:
-				defVal = "NaN"
-			case ir.TypeBool:
+			if field.Type == ir.TypeBool {
 				defVal = "false"
 			}
 			defConst := nextTemp(counter)
@@ -417,9 +414,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			}
 			defVal := "undefined"
 			defType := field.Type
-			if field.Type == ir.TypeNumber {
-				defVal = "NaN"
-			} else if field.Type == ir.TypeBool {
+			if field.Type == ir.TypeBool {
 				defVal = "false"
 			}
 			defConst := nextTemp(counter)

@@ -135,3 +135,15 @@ func escapeString(value string) string {
 func isFunctionType(typ ir.Type) bool {
 	return typ == ir.TypeClosure || typ == ir.TypeDynamicFunction || typ == "Function" || typ == "function" || strings.Contains(string(typ), "=>")
 }
+
+// numberMarkerBits are the IEEE-754 bit patterns of number constants that
+// must stay bit-exact. undefined and null held in number storage (optional
+// fields, parameters, `number | undefined` variables) are NaNs with reserved
+// payloads, matching SCRIPTGO_OBJECT_NAN_BITS and SCRIPTGO_OBJECT_NULL_BITS in
+// the runtime. Neither is the canonical NaN that arithmetic, constant folding
+// and the C library produce, so a NaN value is never read as undefined.
+var numberMarkerBits = map[string]string{
+	"undefined": "9221120237041090562", // 0x7FF8000000000002
+	"null":      "9221120237041090561", // 0x7FF8000000000001
+	"NaN":       "9221120237041090560", // 0x7FF8000000000000
+}

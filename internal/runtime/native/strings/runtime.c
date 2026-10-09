@@ -174,7 +174,8 @@ int scriptgo_string_from_number(double value, char **out_value) {
     char *result;
     if (out_value == NULL) return string_fail("scriptgo string argument is invalid");
     if (isnan(value)) {
-        strcpy(buf, "NaN");
+        const char *marker = scriptgo_number_marker_name(value);
+        strcpy(buf, marker != NULL ? marker : "NaN");
     } else if (isinf(value)) {
         if (value > 0) strcpy(buf, "Infinity");
         else strcpy(buf, "-Infinity");

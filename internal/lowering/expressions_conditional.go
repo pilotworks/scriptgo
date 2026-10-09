@@ -45,13 +45,13 @@ func lowerConditionalExpression(path string, expression *frontend.SyntaxExpressi
 			if expression.WhenFalse.Kind == "undefined" {
 				switch trueType {
 				case ir.TypeNumber:
-					zeroVal = "NaN"
+					zeroVal = "undefined"
 				case ir.TypeBool:
 					zeroVal = "false"
 				default:
 					zeroVal = "undefined"
 				}
-			} else if trueType == ir.TypeString || strings.HasPrefix(string(trueType), "object:") || trueType == ir.TypePointer {
+			} else if trueType == ir.TypeString || trueType == ir.TypeNumber || strings.HasPrefix(string(trueType), "object:") || trueType == ir.TypePointer {
 				zeroVal = "null"
 			}
 			elseFn.Body = append(elseFn.Body, ir.Instruction{Op: ir.OpConst, Type: trueType, Result: whenFalse, Value: zeroVal, Span: toIRSpan(path, expression.WhenFalse.Span)})
@@ -62,13 +62,13 @@ func lowerConditionalExpression(path string, expression *frontend.SyntaxExpressi
 			if expression.WhenTrue.Kind == "undefined" {
 				switch falseType {
 				case ir.TypeNumber:
-					zeroVal = "NaN"
+					zeroVal = "undefined"
 				case ir.TypeBool:
 					zeroVal = "false"
 				default:
 					zeroVal = "undefined"
 				}
-			} else if falseType == ir.TypeString || strings.HasPrefix(string(falseType), "object:") || falseType == ir.TypePointer {
+			} else if falseType == ir.TypeString || falseType == ir.TypeNumber || strings.HasPrefix(string(falseType), "object:") || falseType == ir.TypePointer {
 				zeroVal = "null"
 			}
 			thenFn.Body = append(thenFn.Body, ir.Instruction{Op: ir.OpConst, Type: falseType, Result: whenTrue, Value: zeroVal, Span: toIRSpan(path, expression.WhenTrue.Span)})

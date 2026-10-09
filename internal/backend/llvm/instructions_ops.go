@@ -40,8 +40,9 @@ func (e *functionEmitter) emitConst(out *strings.Builder, instruction ir.Instruc
 	e.types[instruction.Result] = instruction.Type
 	switch instruction.Type {
 	case ir.TypeNumber:
-		if instruction.Value == "null" || instruction.Value == "undefined" || instruction.Value == "NaN" {
-			out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 0x7FF8000000000000\n", instruction.Result))
+		if bits, ok := numberMarkerBits[instruction.Value]; ok {
+			// Bit-exact: undefined, null and NaN are distinct NaN payloads.
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %s to double\n", instruction.Result, bits))
 			return nil
 		}
 		number, err := strconv.ParseFloat(instruction.Value, 64)

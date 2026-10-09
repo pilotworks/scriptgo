@@ -208,7 +208,7 @@ func lowerVariableStatement(path string, statement frontend.SyntaxStatement, fun
 	if (statement.Expression.Kind == "null" || statement.Expression.Kind == "undefined") && declaredType != "" && declaredType != ir.TypeVoid && declaredType != ir.TypeUnknown {
 		defaultVal := "0"
 		if declaredType == ir.TypeNumber {
-			defaultVal = "NaN"
+			defaultVal = statement.Expression.Kind // the undefined or null marker
 		} else if declaredType == ir.TypeBool {
 			defaultVal = "false"
 		} else if declaredType == ir.TypeString {

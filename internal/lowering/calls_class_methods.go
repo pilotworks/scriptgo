@@ -90,7 +90,7 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 						Op:     ir.OpConst,
 						Type:   ir.TypeNumber,
 						Result: numConst,
-						Value:  "0",
+						Value:  initExpr.Kind, // number storage holds undefined and null as markers
 						Span:   toIRSpan(path, initExpr.Span),
 					})
 					val = numConst
@@ -154,6 +154,8 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 				defStr := "0"
 				if paramType == ir.TypeBool {
 					defStr = "false"
+				} else if paramType == ir.TypeNumber {
+					defStr = "undefined" // an omitted argument
 				} else if paramType == ir.TypeString {
 					// Missing optional strings must retain undefined rather than
 					// collapsing into the valid empty-string value.
@@ -296,7 +298,7 @@ func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, r
 							Op:     ir.OpConst,
 							Type:   ir.TypeNumber,
 							Result: numConst,
-							Value:  "0",
+							Value:  initExpr.Kind, // number storage holds undefined and null as markers
 							Span:   toIRSpan(path, initExpr.Span),
 						})
 						args = append(args, numConst)

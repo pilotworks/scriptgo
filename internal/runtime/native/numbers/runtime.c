@@ -79,7 +79,8 @@ int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
     }
     char buf[128];
     if (isnan(val)) {
-        snprintf(buf, sizeof(buf), "NaN");
+        const char *marker = scriptgo_number_marker_name(val);
+        snprintf(buf, sizeof(buf), "%s", marker != NULL ? marker : "NaN");
     } else if (isinf(val)) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
@@ -96,8 +97,13 @@ int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
     return 0;
 }
 
+/* A number-storage marker formats as the value it stands for. */
 void scriptgo_number_format(double value, char *buf, size_t size) {
-    if (isnan(value)) { snprintf(buf, size, "NaN"); return; }
+    if (isnan(value)) {
+        const char *marker = scriptgo_number_marker_name(value);
+        snprintf(buf, size, "%s", marker != NULL ? marker : "NaN");
+        return;
+    }
     if (value == 0.0) { snprintf(buf, size, "0"); return; }
     if (isinf(value)) { snprintf(buf, size, value > 0 ? "Infinity" : "-Infinity"); return; }
     char sign[2] = {0, 0};
@@ -191,7 +197,8 @@ int scriptgo_number_to_string(double val, double radix, char **out_value) {
     }
     char buf[128];
     if (isnan(val)) {
-        snprintf(buf, sizeof(buf), "NaN");
+        const char *marker = scriptgo_number_marker_name(val);
+        snprintf(buf, sizeof(buf), "%s", marker != NULL ? marker : "NaN");
     } else if (isinf(val)) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
@@ -230,7 +237,8 @@ int scriptgo_number_to_exponential(double val, double fractionDigits, char **out
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toExponential");
     char buf[128];
     if (isnan(val)) {
-        snprintf(buf, sizeof(buf), "NaN");
+        const char *marker = scriptgo_number_marker_name(val);
+        snprintf(buf, sizeof(buf), "%s", marker != NULL ? marker : "NaN");
     } else if (isinf(val)) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
@@ -263,7 +271,8 @@ int scriptgo_number_to_precision(double val, double precision, char **out_value)
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toPrecision");
     char buf[128];
     if (isnan(val)) {
-        snprintf(buf, sizeof(buf), "NaN");
+        const char *marker = scriptgo_number_marker_name(val);
+        snprintf(buf, sizeof(buf), "%s", marker != NULL ? marker : "NaN");
     } else if (isinf(val)) {
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");

@@ -506,7 +506,7 @@ func lowerCallExpression(
 							Op:     ir.OpConst,
 							Type:   ir.TypeNumber,
 							Result: numConst,
-							Value:  "0",
+							Value:  initExpr.Kind, // number storage holds undefined and null as markers
 							Span:   toIRSpan(path, initExpr.Span),
 						})
 						args = append(args, numConst)
@@ -606,7 +606,7 @@ func lowerCallExpression(
 					Op:     ir.OpConst,
 					Type:   ir.TypeNumber,
 					Result: numConst,
-					Value:  "0",
+					Value:  "undefined", // an omitted argument
 					Span:   toIRSpan(path, expression.Span),
 				})
 				args = append(args, numConst)

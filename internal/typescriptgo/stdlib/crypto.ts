@@ -602,7 +602,7 @@ export function randomFill(buffer: Buffer, offset?: number | RandomFillCallback,
 }
 
 export function randomFillSync(buffer: Buffer, offset?: number, size?: number): Buffer {
-    return __scriptgo.randomFill(buffer, offset, size);
+    return __scriptgo.randomFill(buffer, offset ?? 0, size ?? 0);
 }
 
 export function randomInt(min: number, max?: number, callback?: (err: Error | null, n: number) => void): number {

@@ -32,6 +32,22 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_float(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
+	case "__number.isUndefined", "__number.isNull", "__number.isNullish":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBool {
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
+		}
+		bits := instruction.Result + ".bits"
+		fmt.Fprintf(out, "  %%%s = bitcast double %%%s to i64\n", bits, e.resolveArg(out, instruction.Args[0]))
+		switch instruction.Callee {
+		case "__number.isUndefined":
+			fmt.Fprintf(out, "  %%%s = icmp eq i64 %%%s, %s\n", instruction.Result, bits, numberMarkerBits["undefined"])
+		case "__number.isNull":
+			fmt.Fprintf(out, "  %%%s = icmp eq i64 %%%s, %s\n", instruction.Result, bits, numberMarkerBits["null"])
+		default:
+			fmt.Fprintf(out, "  %%%s.undef = icmp eq i64 %%%s, %s\n", instruction.Result, bits, numberMarkerBits["undefined"])
+			fmt.Fprintf(out, "  %%%s.null = icmp eq i64 %%%s, %s\n", instruction.Result, bits, numberMarkerBits["null"])
+			fmt.Fprintf(out, "  %%%s = or i1 %%%s.undef, %%%s.null\n", instruction.Result, instruction.Result, instruction.Result)
+		}
 	case "__number.isNaN":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeBool {
 			return fmt.Errorf("isNaN has invalid signature")

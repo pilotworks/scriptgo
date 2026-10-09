@@ -36,7 +36,7 @@ func lowerAssignStatement(path string, statement frontend.SyntaxStatement, funct
 			if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
 				defaultVal = "undefined"
 			} else if varType == ir.TypeNumber {
-				defaultVal = "NaN"
+				defaultVal = "undefined"
 			} else if varType == ir.TypeBool {
 				defaultVal = "false"
 			}
@@ -44,7 +44,7 @@ func lowerAssignStatement(path string, statement frontend.SyntaxStatement, funct
 			if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
 				defaultVal = "null"
 			} else if varType == ir.TypeNumber {
-				defaultVal = "NaN"
+				defaultVal = "null"
 			} else if varType == ir.TypeBool {
 				defaultVal = "false"
 			}

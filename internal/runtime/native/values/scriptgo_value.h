@@ -43,6 +43,24 @@ _Static_assert(sizeof(scriptgo_value) == 24, "scriptgo_value ABI v1 size");
 _Static_assert(_Alignof(scriptgo_value) == 8, "scriptgo_value ABI v1 alignment");
 #endif
 
+/* undefined and null held in number storage (an absent or optional object
+ * field, a `number | undefined` value) are NaNs with reserved payloads.
+ * Neither is the canonical NaN (0x7FF8000000000000) that arithmetic,
+ * constant folding and the C library produce, so a NaN value is never read
+ * back as undefined or null. The LLVM backend's numberMarkerBits match. */
+#define SCRIPTGO_NUMBER_UNDEFINED_BITS 0x7FF8000000000002ULL
+#define SCRIPTGO_NUMBER_NULL_BITS 0x7FF8000000000001ULL
+
+/* scriptgo_number_marker_name is "undefined" or "null" for a number-storage
+ * marker and NULL for any number, NaN included. */
+static inline const char *scriptgo_number_marker_name(double value) {
+    union { double d; uint64_t u; } bits;
+    bits.d = value;
+    if (bits.u == SCRIPTGO_NUMBER_UNDEFINED_BITS) return "undefined";
+    if (bits.u == SCRIPTGO_NUMBER_NULL_BITS) return "null";
+    return NULL;
+}
+
 /* Kept as a source-compatible name while existing runtime families migrate. */
 typedef scriptgo_value scriptgo_boxed_value;
 

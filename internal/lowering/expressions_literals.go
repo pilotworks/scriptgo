@@ -183,9 +183,7 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 				val = arguments[i]
 			} else {
 				defVal := "undefined"
-				if field.Type == ir.TypeNumber {
-					defVal = "NaN"
-				} else if field.Type == ir.TypeBool {
+				if field.Type == ir.TypeBool {
 					defVal = "false"
 				}
 				defConst := nextTemp(counter)

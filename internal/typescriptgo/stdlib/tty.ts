@@ -43,7 +43,7 @@ export class ReadStream extends EventEmitter {
     }
 
     read(size?: number): string | null {
-        const data = __scriptgo.ttyRead(this.fd, size);
+        const data = __scriptgo.ttyRead(this.fd, size ?? 0);
         return data.length > 0 ? data : null;
     }
 

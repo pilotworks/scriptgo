@@ -34,7 +34,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | TypeScript / JS Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
-| `number` (IEEE-754 64-bit float) | ✅ Full | Fully compliant with JS standard (supports `NaN`, `Infinity`, `-0`). |
+| `number` (IEEE-754 64-bit float) | ✅ Full | Fully compliant with JS standard (supports `NaN`, `Infinity`, `-0`). `undefined`/`null` in number storage (optional fields and parameters, `number \| undefined`) are reserved NaN payloads, so a `NaN` value is never read as `undefined`; an omitted optional number argument is `undefined`, not `0`. |
 | `bigint` (64-bit Signed Integer) | ✅ Full | Supports `100n` literal, arithmetic/bitwise operations, `BigInt(...)`, `bigint[]` arrays, `.toString()`. |
 | `string` (UTF-8 Character String) | ✅ Full | Immutable, automatic memory management, supports slice/concat/template literals. |
 | `boolean` (`true`, `false`) | ✅ Full | Maps to 1-bit boolean in IR/LLVM (`i1`). |

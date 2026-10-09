@@ -42,61 +42,13 @@ func boxUnknownConcatenationOperands(path string, expression *frontend.SyntaxExp
 }
 
 func tryLowerMixedTypeBinary(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, env map[string]ir.Type, counter *int, left *string, leftType *ir.Type, right *string, rightType *ir.Type) (string, ir.Type, bool, error) {
-	if (expression.Operator == "!==" || expression.Operator == "!=") && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "==",
-			Args:     []string{*left, *left},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
+	if isEquality(expression.Operator) && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
+		value, typ := lowerNumberNullishCompare(path, expression, *left, expression.Right, result, function, counter)
+		return value, typ, true, nil
 	}
-	if (expression.Operator == "===" || expression.Operator == "==") && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "!=",
-			Args:     []string{*left, *left},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
-	}
-	if (expression.Operator == "!==" || expression.Operator == "!=") && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "==",
-			Args:     []string{*right, *right},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
-	}
-	if (expression.Operator == "===" || expression.Operator == "==") && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "!=",
-			Args:     []string{*right, *right},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
+	if isEquality(expression.Operator) && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
+		value, typ := lowerNumberNullishCompare(path, expression, *right, expression.Left, result, function, counter)
+		return value, typ, true, nil
 	}
 	if isComparison(expression.Operator) && (*leftType == ir.TypeBool || *rightType == ir.TypeBool) && (*leftType == ir.TypeVoid || *rightType == ir.TypeVoid || (expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null")) || (expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null"))) {
 		if *result == "" {

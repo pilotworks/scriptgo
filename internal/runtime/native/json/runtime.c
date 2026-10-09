@@ -25,6 +25,9 @@ typedef struct {
     char *buf;
     size_t len;
     size_t cap;
+    /* inspect renders non-finite numbers as console.log does (NaN,
+     * Infinity) instead of JSON's null. */
+    int inspect;
 } json_builder;
 
 static inline int jb_reserve(json_builder *b, size_t extra) {
@@ -88,6 +91,10 @@ static inline int jb_string(json_builder *b, const char *value, size_t len) {
 
 static inline int jb_number(json_builder *b, double value) {
     if (isnan(value) || isinf(value)) {
+        if (b->inspect) {
+            if (isnan(value)) return jb_append(b, "NaN", 3);
+            return value > 0 ? jb_append(b, "Infinity", 8) : jb_append(b, "-Infinity", 9);
+        }
         return jb_append(b, "null", 4);
     }
     if (jb_reserve(b, 32) != 0) return -1;
@@ -103,6 +110,12 @@ static inline int jb_number(json_builder *b, double value) {
 
 int scriptgo_json_stringify_number(double value, char **out_str) {
     if (out_str == NULL) return json_fail("scriptgo json invalid argument");
+    const char *marker = scriptgo_number_marker_name(value);
+    if (marker != NULL && strcmp(marker, "undefined") == 0) {
+        /* undefined has no JSON text; callers omit the property. */
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
     json_builder b = {0};
     if (jb_number(&b, value) != 0) { free(b.buf); return json_fail("scriptgo json allocation failed"); }
     *out_str = b.buf ? b.buf : strdup("null");
@@ -198,10 +211,10 @@ static int json_builder_value(json_builder *b, const scriptgo_value *value);
 static int json_builder_object(json_builder *b, void *handle);
 
 #ifndef SCRIPTGO_OBJECT_NAN_BITS
-#define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
+#define SCRIPTGO_OBJECT_NAN_BITS SCRIPTGO_NUMBER_UNDEFINED_BITS
 #endif
 #ifndef SCRIPTGO_OBJECT_NULL_BITS
-#define SCRIPTGO_OBJECT_NULL_BITS 0x7FF8000000000001ULL
+#define SCRIPTGO_OBJECT_NULL_BITS SCRIPTGO_NUMBER_NULL_BITS
 #endif
 
 // Parsed JSON objects store plain runtime values, so avoid the generic accessor's
@@ -476,15 +489,20 @@ static int json_builder_value(json_builder *b, const scriptgo_value *value) {
     }
 }
 
-static int json_stringify_object(void *handle, char **out_str) {
+static int json_render_object(void *handle, int inspect, char **out_str) {
     if (out_str == NULL) return json_fail("scriptgo json invalid argument");
     json_builder b = {0};
+    b.inspect = inspect;
     if (json_builder_object(&b, handle) != 0) {
         free(b.buf);
         return -1;
     }
     *out_str = b.buf ? b.buf : strdup("{}");
     return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+}
+
+static int json_stringify_object(void *handle, char **out_str) {
+    return json_render_object(handle, 0, out_str);
 }
 
 int scriptgo_json_stringify_unknown(const scriptgo_value *value, char **out_str) {
@@ -808,7 +826,7 @@ int scriptgo_json_inspect_object(void *handle, char **out_str) {
     size_t length = 0, capacity = 0;
     int in_string = 0;
     int empty = 0;
-    if (out_str == NULL || json_stringify_object(handle, &json) != 0) return -1;
+    if (out_str == NULL || json_render_object(handle, 1, &json) != 0) return -1;
     empty = strcmp(json, "{}") == 0;
     for (size_t i = 0; json[i] != '\0'; i++) {
         char c = json[i];

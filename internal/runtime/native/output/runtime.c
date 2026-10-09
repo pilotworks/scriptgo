@@ -17,7 +17,8 @@ static void scriptgo_console_print_indent(FILE *stream) {
 
 static void scriptgo_format_double_shortest(char *buf, size_t size, double value) {
     if (isnan(value)) {
-        snprintf(buf, size, "NaN");
+        const char *marker = scriptgo_number_marker_name(value);
+        snprintf(buf, size, "%s", marker != NULL ? marker : "NaN");
         return;
     }
     if (isinf(value)) {

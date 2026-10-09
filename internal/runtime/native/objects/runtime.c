@@ -495,8 +495,16 @@ int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 
-#define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
-#define SCRIPTGO_OBJECT_NULL_BITS 0x7FF8000000000001ULL
+/* Number-storage markers for undefined (an absent field) and null. */
+#define SCRIPTGO_OBJECT_NAN_BITS SCRIPTGO_NUMBER_UNDEFINED_BITS
+#define SCRIPTGO_OBJECT_NULL_BITS SCRIPTGO_NUMBER_NULL_BITS
+
+static double object_undefined_number(void) {
+    uint64_t bits = SCRIPTGO_OBJECT_NAN_BITS;
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
 
 typedef struct scriptgo_slab_node {
     struct scriptgo_slab_node *next;
@@ -919,12 +927,12 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
         return 0;
     }
     if (is_invalid_object_handle(handle) || index < 0) {
-        *out_value = NAN;
+        *out_value = object_undefined_number();
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
-        *out_value = NAN;
+        *out_value = object_undefined_number();
         return 0;
     }
     memcpy(out_value, &o->fields[index], sizeof(*out_value));
@@ -1314,7 +1322,7 @@ static int object_property_index_for_set(void *handle, const char *property) {
 int scriptgo_object_property_number_get(void *handle, const char *property, double *out_value) {
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property number output is invalid");
-    *out_value = NAN;
+    *out_value = object_undefined_number();
     if (is_invalid_object_handle(handle) || property == NULL) return 0;
     scriptgo_engine_ref *ref = find_engine_ref((uintptr_t)handle);
     if (ref != NULL) {

@@ -108,7 +108,7 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 				isNan := fmt.Sprintf("fget.is_nan.%d", id)
 				out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", rawPtr, fieldPtr))
 				out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", rawI64, rawPtr))
-				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, 9221120237041090560\n", isNan, rawI64))
+				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isNan, rawI64, numberMarkerBits["undefined"]))
 				out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr @scriptgo_undefined_sentinel, ptr %%%s\n", instruction.Result, isNan, rawPtr))
 			}
 			if slot, hasSlot := e.varSlots[instruction.Result]; hasSlot {
@@ -163,7 +163,7 @@ func (e *functionEmitter) emitFieldGet(out *strings.Builder, instruction ir.Inst
 			isNan := fmt.Sprintf("fget.is_nan.%d", id)
 			out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", rawPtr, fieldPtr))
 			out.WriteString(fmt.Sprintf("  %%%s = ptrtoint ptr %%%s to i64\n", rawI64, rawPtr))
-			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, 9221120237041090560\n", isNan, rawI64))
+			out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isNan, rawI64, numberMarkerBits["undefined"]))
 			out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr @scriptgo_undefined_sentinel, ptr %%%s\n", fastVal, isNan, rawPtr))
 		}
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
