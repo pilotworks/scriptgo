@@ -72,7 +72,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `switch` / `case` / `default` | ✅ Full | Supports fallthrough, break, strict value equality (`===`). |
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
-| `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling with safe unwinding; `catch (e)` binds the exact thrown value (`unknown`), built-in error subclasses (`Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError`) and user subclasses of them. |
+| `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling with safe unwinding; an empty `catch {}` still catches and an empty `finally {}` without `catch` still rethrows; `catch (e)` binds the exact thrown value (`unknown`), built-in error subclasses (`Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError`) and user subclasses of them. |
 | Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks; destructuring `null`/`undefined` throws a `TypeError` (RequireObjectCoercible). |
 | Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread (of arrays, tuples, and any `for..of` iterable such as `Set`, generators and iterators), object spread, and rest parameters in functions. |
@@ -121,7 +121,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Feature | ScriptGo Status | Notes & Technical Details |
 | :--- | :---: | :--- |
 | `Promise` (Resolve, Reject, Chaining) | ✅ Full | Promise creation, `.then()`, `.catch()`, `Promise.all`, `Promise.resolve`, `Promise.reject`. |
-| `async` / `await` & Top-Level `await` | ✅ Full | Async functions, state-machine lowering, per-function `Promise<T>` return contextual typing, and top-level `await` directly in ES module entry points. |
+| `async` / `await` & Top-Level `await` | ✅ Full | Async functions, state-machine lowering, per-function `Promise<T>` return contextual typing, and top-level `await` directly in ES module entry points. Each suspending unit (a run of awaits, or one `try`, branch or loop that awaits) is lowered on its own; a body with several units in sequence continues in a remainder function that settles the same promise. A `try` without `catch` propagates a rejection after `finally`. |
 | Microtask Queue Execution | ✅ Full | Executes microtask jobs adhering to standard JS Event Loop priority. |
 | Async Generators (`async function*`, `yield*`) | ✅ Full | Async data-producing generator functions, `yield*` delegation for arrays / sub-generators, consumed via `for await (const x of gen())`. |
 

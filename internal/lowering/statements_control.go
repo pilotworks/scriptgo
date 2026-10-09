@@ -344,7 +344,7 @@ func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Func
 	}
 	var catchInstructions []ir.Instruction
 	var catchVarType ir.Type
-	if len(statement.Catch) > 0 {
+	if statement.HasCatch || len(statement.Catch) > 0 {
 		if len(statement.Finally) > 0 {
 			activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
 			activeThrowFinallyStack = append(activeThrowFinallyStack, statement.Finally)
@@ -411,6 +411,8 @@ func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Func
 		CatchVarType: catchVarType,
 		Catch:        catchInstructions,
 		Finally:      finallyInstructions,
+		HasCatch:     statement.HasCatch || len(statement.Catch) > 0,
+		HasFinally:   statement.HasFinally || len(statement.Finally) > 0,
 		Span:         toIRSpan(path, statement.Span),
 	})
 	return nil

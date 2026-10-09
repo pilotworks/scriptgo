@@ -43,6 +43,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			Body: syntaxBlockStatements(tryNode.TryBlock, chk),
 		}
 		if tryNode.CatchClause != nil {
+			res.HasCatch = true
 			catchClause := tryNode.CatchClause.AsCatchClause()
 			var bindingStmts []SyntaxStatement
 			if catchClause.VariableDeclaration != nil {
@@ -70,6 +71,7 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 			res.Catch = append(bindingStmts, syntaxBlockStatements(catchClause.Block, chk)...)
 		}
 		if tryNode.FinallyBlock != nil {
+			res.HasFinally = true
 			res.Finally = syntaxBlockStatements(tryNode.FinallyBlock, chk)
 		}
 		return res, true

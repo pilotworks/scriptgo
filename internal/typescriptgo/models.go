@@ -93,10 +93,14 @@ type SyntaxStatement struct {
 	CatchVarSpan         SourceSpan
 	Catch                []SyntaxStatement
 	Finally              []SyntaxStatement
-	Class                *SyntaxClass
-	Enum                 *SyntaxEnum
-	IsGenerator          bool
-	IsAsync              bool
+	// HasCatch and HasFinally record a try statement's clauses, which an
+	// empty Catch or Finally block cannot tell apart from an absent one.
+	HasCatch    bool
+	HasFinally  bool
+	Class       *SyntaxClass
+	Enum        *SyntaxEnum
+	IsGenerator bool
+	IsAsync     bool
 }
 
 type SyntaxSwitchCase struct {

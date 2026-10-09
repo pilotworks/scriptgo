@@ -146,7 +146,8 @@ func lowerAwaitExpression(path string, expression *frontend.SyntaxExpression, re
 	isPromise := false
 	if strings.HasPrefix(string(typ), "object:Promise_") {
 		isPromise = true
-		inner := strings.TrimPrefix(string(typ), "object:Promise_")
+		// Specialized Promise types are spelled Promise_T or Promise__T.
+		inner := strings.TrimPrefix(strings.TrimPrefix(string(typ), "object:Promise_"), "_")
 		retType = toIRType(inner)
 	} else if strings.HasPrefix(string(typ), "object:Promise<") && strings.HasSuffix(string(typ), ">") {
 		isPromise = true

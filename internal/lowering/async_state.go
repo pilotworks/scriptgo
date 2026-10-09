@@ -66,6 +66,11 @@ func lowerAsyncFunctionFromLowered(path string, statement frontend.SyntaxStateme
 		} else if ok {
 			return finish(structured)
 		}
+		if sequenced, ok, err := lowerAsyncSequence(path, statement, lowered, shapes, signatures); err != nil {
+			return ir.Function{}, err
+		} else if ok {
+			return finish(sequenced)
+		}
 		return ir.Function{}, fmt.Errorf("async function %q contains an unsupported suspension shape", statement.Name)
 	}
 
@@ -240,6 +245,10 @@ func rewriteAsyncReturns(instructions []ir.Instruction, promiseName, frameName s
 		instruction.Step = rewriteAsyncReturns(instruction.Step, promiseName, frameName, span)
 		instruction.Catch = rewriteAsyncReturns(instruction.Catch, promiseName, frameName, span)
 		instruction.Finally = rewriteAsyncReturns(instruction.Finally, promiseName, frameName, span)
+		if isAsyncTailReturn(instruction) {
+			result = append(result, asyncTailCall(instruction, ir.Type("object:Promise"), promiseName, frameName)...)
+			continue
+		}
 		if instruction.Op == ir.OpThrow {
 			value := "__async.undefined"
 			if len(instruction.Args) > 0 {
@@ -325,18 +334,26 @@ func makeAsyncContinuation(owner *ir.Function, promiseName, frameName string, aw
 	valueTypes := asyncValueTypes(source)
 	valueTypes[frameName] = ir.TypePointer
 	segment := segments[index+1]
-	captures := asyncCaptures(segment, valueTypes, source.Parameters)
-	// The awaited result is materialized by the callback's cast, not a value
-	// available in the function that creates the callback.
-	if current := awaits[index].Result; current != "" {
-		filtered := captures[:0]
-		for _, capture := range captures {
-			if capture != current {
-				filtered = append(filtered, capture)
-			}
-		}
-		captures = filtered
+	// The continuation must carry every value a later segment reads, not only
+	// the next one: a later continuation is created from this one's scope.
+	var remaining []ir.Instruction
+	for _, later := range segments[index+1:] {
+		remaining = append(remaining, later...)
 	}
+	captures := asyncCaptures(remaining, valueTypes, source.Parameters)
+	// This and later awaited results are materialized by their callbacks'
+	// casts, not values available in the function that creates the callback.
+	pending := map[string]bool{}
+	for _, await := range awaits[index:] {
+		pending[await.Result] = true
+	}
+	filtered := captures[:0]
+	for _, capture := range captures {
+		if !pending[capture] {
+			filtered = append(filtered, capture)
+		}
+	}
+	captures = filtered
 	addCapture := func(name string) {
 		for _, existing := range captures {
 			if existing == name {
@@ -400,9 +417,12 @@ func makeAsyncContinuation(owner *ir.Function, promiseName, frameName string, aw
 }
 
 func asyncValueTypes(function ir.Function) map[string]ir.Type {
-	result := make(map[string]ir.Type, len(function.Parameters)+len(function.Locals))
+	result := make(map[string]ir.Type, len(function.Parameters)+len(function.Captured)+len(function.Locals))
 	for _, parameter := range function.Parameters {
 		result[parameter.Name] = parameter.Type
+	}
+	for _, captured := range function.Captured {
+		result[captured.Name] = captured.Type
 	}
 	for _, local := range function.Locals {
 		result[local.Name] = local.Type

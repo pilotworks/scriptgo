@@ -193,6 +193,10 @@ type Instruction struct {
 	CatchVarType Type
 	Catch        []Instruction
 	Finally      []Instruction
+	// HasCatch and HasFinally record a try's clauses; an empty Catch or
+	// Finally list cannot tell an empty clause from an absent one.
+	HasCatch   bool
+	HasFinally bool
 }
 
 const (
