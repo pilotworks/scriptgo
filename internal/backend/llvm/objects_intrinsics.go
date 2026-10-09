@@ -360,39 +360,54 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
-	default:
-		if strings.HasPrefix(instruction.Callee, "__object.") {
-			if instruction.Type == ir.TypeBool {
-				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 1, 1\n", instruction.Result))
-				return nil
-			}
-			if instruction.Type == ir.TypeNumber {
-				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 1.0\n", instruction.Result))
-				return nil
-			}
-			if instruction.Type == ir.TypeUnknown {
-				var argVal string
-				argType := ir.TypeObject
-				if len(instruction.Args) > 0 {
-					argVal = instruction.Args[0]
-					if t, ok := e.types[argVal]; ok && t != "" {
-						argType = t
-					}
-				}
-				if argVal != "" {
-					return e.emitBoxValue(out, argVal, argType, instruction.Result)
-				}
-				out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 0, 0\n", instruction.Result))
-				return nil
-			}
-			if len(instruction.Args) > 0 {
-				ptrArg := e.ensurePointerArg(out, instruction.Args[0])
-				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, ptrArg))
-			} else {
-				out.WriteString(fmt.Sprintf("  %%%s = alloca i8\n", instruction.Result))
-			}
+	case "__object.getPrototypeOf":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("__object.getPrototypeOf requires one argument")
+		}
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if e.isParamUnknown(arg) {
+			argType = ir.TypeUnknown
+		}
+		if llvmType(argType) == "ptr" {
+			fmt.Fprintf(out, "  %%%s = call ptr @scriptgo_object_get_prototype(ptr %%%s)\n", instruction.Result, e.resolveArg(out, arg))
 			return nil
 		}
+		boxed := arg
+		if argType == ir.TypeUnknown {
+			boxed = e.resolveArg(out, arg)
+		} else {
+			boxed = fmt.Sprintf("%s.proto.boxed.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, arg, argType, boxed); err != nil {
+				return err
+			}
+		}
+		slot := instruction.Result + ".proto.slot"
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot)
+		fmt.Fprintf(out, "  %%%s = call ptr @scriptgo_object_get_prototype_value(ptr %%%s)\n", instruction.Result, slot)
+		return nil
+	case "__object.new":
+		// Object(value) for a value that is already an object (lowering
+		// handles every other case): the result is the value itself.
+		if instruction.Type == ir.TypeUnknown {
+			if len(instruction.Args) == 0 {
+				return fmt.Errorf("__object.new requires an argument")
+			}
+			argType := e.types[instruction.Args[0]]
+			if argType == "" {
+				argType = ir.TypeObject
+			}
+			return e.emitBoxValue(out, instruction.Args[0], argType, instruction.Result)
+		}
+		if len(instruction.Args) == 0 {
+			return fmt.Errorf("__object.new requires an argument")
+		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, ptrArg))
+		return nil
+	default:
 		return fmt.Errorf("unknown object intrinsic %q", instruction.Callee)
 	}
 	return nil

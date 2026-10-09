@@ -108,7 +108,6 @@ built-ins/Array/prototype/indexOf/15.4.4.14-8-1.js
 built-ins/Array/prototype/indexOf/15.4.4.14-8-2.js
 built-ins/Array/prototype/indexOf/15.4.4.14-8-3.js
 built-ins/Array/prototype/indexOf/15.4.4.14-8-4.js
-built-ins/Array/prototype/indexOf/15.4.4.14-9-11.js
 built-ins/Array/prototype/indexOf/15.4.4.14-9-b-i-2.js
 built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-10.js
 built-ins/Array/prototype/indexOf/15.4.4.14-9-b-ii-3.js
@@ -139,7 +138,6 @@ built-ins/Array/prototype/lastIndexOf/15.4.4.15-7-1.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-7-2.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-7-3.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-7-4.js
-built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-11.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-b-i-2.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-b-ii-10.js
 built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-b-ii-4.js
@@ -1235,7 +1233,6 @@ language/expressions/class/dstr/meth-dflt-ary-ptrn-rest-not-final-obj.js
 language/expressions/class/dstr/meth-dflt-ary-ptrn-rest-obj-id.js
 language/expressions/class/dstr/meth-dflt-obj-init-null.js
 language/expressions/class/dstr/meth-dflt-obj-init-undefined.js
-language/expressions/class/dstr/meth-dflt-obj-ptrn-empty.js
 language/expressions/class/dstr/meth-dflt-obj-ptrn-id-init-throws.js
 language/expressions/class/dstr/meth-dflt-obj-ptrn-id-trailing-comma.js
 language/expressions/class/dstr/meth-dflt-obj-ptrn-list-err.js
@@ -1244,7 +1241,6 @@ language/expressions/class/dstr/meth-dflt-obj-ptrn-prop-id-init-throws.js
 language/expressions/class/dstr/meth-dflt-obj-ptrn-prop-obj-value-null.js
 language/expressions/class/dstr/meth-obj-init-null.js
 language/expressions/class/dstr/meth-obj-init-undefined.js
-language/expressions/class/dstr/meth-obj-ptrn-empty.js
 language/expressions/class/dstr/meth-obj-ptrn-id-init-throws.js
 language/expressions/class/dstr/meth-obj-ptrn-prop-ary-value-null.js
 language/expressions/class/dstr/meth-obj-ptrn-prop-id-init-throws.js
@@ -1285,7 +1281,6 @@ language/expressions/class/dstr/meth-static-dflt-ary-ptrn-rest-not-final-obj.js
 language/expressions/class/dstr/meth-static-dflt-ary-ptrn-rest-obj-id.js
 language/expressions/class/dstr/meth-static-dflt-obj-init-null.js
 language/expressions/class/dstr/meth-static-dflt-obj-init-undefined.js
-language/expressions/class/dstr/meth-static-dflt-obj-ptrn-empty.js
 language/expressions/class/dstr/meth-static-dflt-obj-ptrn-id-init-throws.js
 language/expressions/class/dstr/meth-static-dflt-obj-ptrn-id-trailing-comma.js
 language/expressions/class/dstr/meth-static-dflt-obj-ptrn-list-err.js
@@ -1294,7 +1289,6 @@ language/expressions/class/dstr/meth-static-dflt-obj-ptrn-prop-id-init-throws.js
 language/expressions/class/dstr/meth-static-dflt-obj-ptrn-prop-obj-value-null.js
 language/expressions/class/dstr/meth-static-obj-init-null.js
 language/expressions/class/dstr/meth-static-obj-init-undefined.js
-language/expressions/class/dstr/meth-static-obj-ptrn-empty.js
 language/expressions/class/dstr/meth-static-obj-ptrn-id-init-throws.js
 language/expressions/class/dstr/meth-static-obj-ptrn-prop-ary-value-null.js
 language/expressions/class/dstr/meth-static-obj-ptrn-prop-id-init-throws.js
@@ -2194,7 +2188,6 @@ language/expressions/object/dstr/meth-dflt-ary-ptrn-rest-not-final-obj.js
 language/expressions/object/dstr/meth-dflt-ary-ptrn-rest-obj-id.js
 language/expressions/object/dstr/meth-dflt-obj-init-null.js
 language/expressions/object/dstr/meth-dflt-obj-init-undefined.js
-language/expressions/object/dstr/meth-dflt-obj-ptrn-empty.js
 language/expressions/object/dstr/meth-dflt-obj-ptrn-id-init-throws.js
 language/expressions/object/dstr/meth-dflt-obj-ptrn-id-trailing-comma.js
 language/expressions/object/dstr/meth-dflt-obj-ptrn-list-err.js
@@ -2203,7 +2196,6 @@ language/expressions/object/dstr/meth-dflt-obj-ptrn-prop-id-init-throws.js
 language/expressions/object/dstr/meth-dflt-obj-ptrn-prop-obj-value-null.js
 language/expressions/object/dstr/meth-obj-init-null.js
 language/expressions/object/dstr/meth-obj-init-undefined.js
-language/expressions/object/dstr/meth-obj-ptrn-empty.js
 language/expressions/object/dstr/meth-obj-ptrn-id-init-throws.js
 language/expressions/object/dstr/meth-obj-ptrn-prop-ary-value-null.js
 language/expressions/object/dstr/meth-obj-ptrn-prop-id-init-throws.js
@@ -2836,7 +2828,6 @@ language/statements/class/dstr/meth-dflt-ary-ptrn-rest-not-final-obj.js
 language/statements/class/dstr/meth-dflt-ary-ptrn-rest-obj-id.js
 language/statements/class/dstr/meth-dflt-obj-init-null.js
 language/statements/class/dstr/meth-dflt-obj-init-undefined.js
-language/statements/class/dstr/meth-dflt-obj-ptrn-empty.js
 language/statements/class/dstr/meth-dflt-obj-ptrn-id-init-throws.js
 language/statements/class/dstr/meth-dflt-obj-ptrn-id-trailing-comma.js
 language/statements/class/dstr/meth-dflt-obj-ptrn-list-err.js
@@ -2845,7 +2836,6 @@ language/statements/class/dstr/meth-dflt-obj-ptrn-prop-id-init-throws.js
 language/statements/class/dstr/meth-dflt-obj-ptrn-prop-obj-value-null.js
 language/statements/class/dstr/meth-obj-init-null.js
 language/statements/class/dstr/meth-obj-init-undefined.js
-language/statements/class/dstr/meth-obj-ptrn-empty.js
 language/statements/class/dstr/meth-obj-ptrn-id-init-throws.js
 language/statements/class/dstr/meth-obj-ptrn-prop-ary-value-null.js
 language/statements/class/dstr/meth-obj-ptrn-prop-id-init-throws.js
@@ -2886,7 +2876,6 @@ language/statements/class/dstr/meth-static-dflt-ary-ptrn-rest-not-final-obj.js
 language/statements/class/dstr/meth-static-dflt-ary-ptrn-rest-obj-id.js
 language/statements/class/dstr/meth-static-dflt-obj-init-null.js
 language/statements/class/dstr/meth-static-dflt-obj-init-undefined.js
-language/statements/class/dstr/meth-static-dflt-obj-ptrn-empty.js
 language/statements/class/dstr/meth-static-dflt-obj-ptrn-id-init-throws.js
 language/statements/class/dstr/meth-static-dflt-obj-ptrn-id-trailing-comma.js
 language/statements/class/dstr/meth-static-dflt-obj-ptrn-list-err.js
@@ -2895,7 +2884,6 @@ language/statements/class/dstr/meth-static-dflt-obj-ptrn-prop-id-init-throws.js
 language/statements/class/dstr/meth-static-dflt-obj-ptrn-prop-obj-value-null.js
 language/statements/class/dstr/meth-static-obj-init-null.js
 language/statements/class/dstr/meth-static-obj-init-undefined.js
-language/statements/class/dstr/meth-static-obj-ptrn-empty.js
 language/statements/class/dstr/meth-static-obj-ptrn-id-init-throws.js
 language/statements/class/dstr/meth-static-obj-ptrn-prop-ary-value-null.js
 language/statements/class/dstr/meth-static-obj-ptrn-prop-id-init-throws.js
@@ -3239,7 +3227,6 @@ language/statements/class/subclass/builtin-objects/NativeError/TypeError-name.js
 language/statements/class/subclass/builtin-objects/NativeError/URIError-name.js
 language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js
 language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js
-language/statements/class/subclass/superclass-static-method-override.js
 language/statements/class/syntax/class-body-has-direct-super-class-heritage.js
 language/statements/class/syntax/class-expression-heritage-identifier-reference.js
 language/statements/class/syntax/class-expression.js
@@ -3270,7 +3257,6 @@ language/statements/const/dstr/ary-ptrn-rest-not-final-obj.js
 language/statements/const/dstr/ary-ptrn-rest-obj-id.js
 language/statements/const/dstr/obj-init-null.js
 language/statements/const/dstr/obj-init-undefined.js
-language/statements/const/dstr/obj-ptrn-empty.js
 language/statements/const/dstr/obj-ptrn-id-init-throws.js
 language/statements/const/dstr/obj-ptrn-id-trailing-comma.js
 language/statements/const/dstr/obj-ptrn-list-err.js
@@ -3476,7 +3462,6 @@ language/statements/for-of/dstr/const-ary-ptrn-rest-not-final-obj.js
 language/statements/for-of/dstr/const-ary-ptrn-rest-obj-id.js
 language/statements/for-of/dstr/const-obj-init-null.js
 language/statements/for-of/dstr/const-obj-init-undefined.js
-language/statements/for-of/dstr/const-obj-ptrn-empty.js
 language/statements/for-of/dstr/const-obj-ptrn-id-init-throws.js
 language/statements/for-of/dstr/const-obj-ptrn-id-trailing-comma.js
 language/statements/for-of/dstr/const-obj-ptrn-init-err.js
@@ -3508,7 +3493,6 @@ language/statements/for-of/dstr/let-ary-ptrn-rest-not-final-obj.js
 language/statements/for-of/dstr/let-ary-ptrn-rest-obj-id.js
 language/statements/for-of/dstr/let-obj-init-null.js
 language/statements/for-of/dstr/let-obj-init-undefined.js
-language/statements/for-of/dstr/let-obj-ptrn-empty.js
 language/statements/for-of/dstr/let-obj-ptrn-id-init-throws.js
 language/statements/for-of/dstr/let-obj-ptrn-id-trailing-comma.js
 language/statements/for-of/dstr/let-obj-ptrn-init-err.js
@@ -3550,7 +3534,6 @@ language/statements/for-of/dstr/var-ary-ptrn-rest-not-final-obj.js
 language/statements/for-of/dstr/var-ary-ptrn-rest-obj-id.js
 language/statements/for-of/dstr/var-obj-init-null.js
 language/statements/for-of/dstr/var-obj-init-undefined.js
-language/statements/for-of/dstr/var-obj-ptrn-empty.js
 language/statements/for-of/dstr/var-obj-ptrn-id-init-throws.js
 language/statements/for-of/dstr/var-obj-ptrn-id-trailing-comma.js
 language/statements/for-of/dstr/var-obj-ptrn-init-err.js
@@ -3635,7 +3618,6 @@ language/statements/for/dstr/const-ary-ptrn-rest-not-final-obj.js
 language/statements/for/dstr/const-ary-ptrn-rest-obj-id.js
 language/statements/for/dstr/const-obj-init-null.js
 language/statements/for/dstr/const-obj-init-undefined.js
-language/statements/for/dstr/const-obj-ptrn-empty.js
 language/statements/for/dstr/const-obj-ptrn-id-init-throws.js
 language/statements/for/dstr/const-obj-ptrn-id-trailing-comma.js
 language/statements/for/dstr/const-obj-ptrn-list-err.js
@@ -3669,7 +3651,6 @@ language/statements/for/dstr/let-ary-ptrn-rest-not-final-obj.js
 language/statements/for/dstr/let-ary-ptrn-rest-obj-id.js
 language/statements/for/dstr/let-obj-init-null.js
 language/statements/for/dstr/let-obj-init-undefined.js
-language/statements/for/dstr/let-obj-ptrn-empty.js
 language/statements/for/dstr/let-obj-ptrn-id-init-throws.js
 language/statements/for/dstr/let-obj-ptrn-id-trailing-comma.js
 language/statements/for/dstr/let-obj-ptrn-list-err.js
@@ -3700,7 +3681,6 @@ language/statements/for/dstr/var-ary-ptrn-rest-not-final-ary.js
 language/statements/for/dstr/var-ary-ptrn-rest-not-final-id.js
 language/statements/for/dstr/var-ary-ptrn-rest-not-final-obj.js
 language/statements/for/dstr/var-ary-ptrn-rest-obj-id.js
-language/statements/for/dstr/var-obj-ptrn-empty.js
 language/statements/for/dstr/var-obj-ptrn-id-trailing-comma.js
 language/statements/for/dstr/var-obj-ptrn-prop-ary-trailing-comma.js
 language/statements/for/head-const-fresh-binding-per-iteration.js
@@ -3717,8 +3697,6 @@ language/statements/function/13.1-4gs.js
 language/statements/function/S10.1.1_A1_T1.js
 language/statements/function/S13.2.1_A1_T1.js
 language/statements/function/S13.2_A3.js
-language/statements/function/S13.2_A6_T1.js
-language/statements/function/S13.2_A6_T2.js
 language/statements/function/S13.2_A7_T1.js
 language/statements/function/S13.2_A7_T2.js
 language/statements/function/S13.2_A8_T1.js
@@ -3774,7 +3752,6 @@ language/statements/function/dstr/dflt-ary-ptrn-rest-not-final-obj.js
 language/statements/function/dstr/dflt-ary-ptrn-rest-obj-id.js
 language/statements/function/dstr/dflt-obj-init-null.js
 language/statements/function/dstr/dflt-obj-init-undefined.js
-language/statements/function/dstr/dflt-obj-ptrn-empty.js
 language/statements/function/dstr/dflt-obj-ptrn-id-init-throws.js
 language/statements/function/dstr/dflt-obj-ptrn-id-trailing-comma.js
 language/statements/function/dstr/dflt-obj-ptrn-list-err.js
@@ -3783,7 +3760,6 @@ language/statements/function/dstr/dflt-obj-ptrn-prop-id-init-throws.js
 language/statements/function/dstr/dflt-obj-ptrn-prop-obj-value-null.js
 language/statements/function/dstr/obj-init-null.js
 language/statements/function/dstr/obj-init-undefined.js
-language/statements/function/dstr/obj-ptrn-empty.js
 language/statements/function/dstr/obj-ptrn-id-init-throws.js
 language/statements/function/dstr/obj-ptrn-id-trailing-comma.js
 language/statements/function/dstr/obj-ptrn-list-err.js
@@ -3919,7 +3895,6 @@ language/statements/let/dstr/ary-ptrn-rest-not-final-obj.js
 language/statements/let/dstr/ary-ptrn-rest-obj-id.js
 language/statements/let/dstr/obj-init-null.js
 language/statements/let/dstr/obj-init-undefined.js
-language/statements/let/dstr/obj-ptrn-empty.js
 language/statements/let/dstr/obj-ptrn-id-init-throws.js
 language/statements/let/dstr/obj-ptrn-id-trailing-comma.js
 language/statements/let/dstr/obj-ptrn-list-err.js
@@ -4112,7 +4087,6 @@ language/statements/variable/dstr/obj-init-null.js
 language/statements/variable/dstr/obj-init-undefined.js
 language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-invalid.js
 language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-valid.js
-language/statements/variable/dstr/obj-ptrn-empty.js
 language/statements/variable/dstr/obj-ptrn-id-init-throws.js
 language/statements/variable/dstr/obj-ptrn-id-trailing-comma.js
 language/statements/variable/dstr/obj-ptrn-list-err.js

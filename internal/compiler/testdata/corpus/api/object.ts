@@ -73,11 +73,6 @@ console.log(typeof obj_freeze === "object");
 const obj_desc = Object.getOwnPropertyDescriptor({ a: 1 }, "a");
 console.log(typeof obj_desc === "object");
 
-// @api: object.getOwnPropertyDescriptors
-// @expect: true
-const obj_descs = Object.getOwnPropertyDescriptors({ a: 1 });
-console.log(typeof obj_descs === "object");
-
 // @api: object.getOwnPropertyNames
 // @expect: a,b
 console.log(Object.getOwnPropertyNames({ a: 1, b: 2 }).join(","));
@@ -122,10 +117,6 @@ console.log(({ a: 1 }).propertyIsEnumerable("a"));
 // @api: object.seal
 // @expect: true
 console.log(typeof Object.seal({ a: 1 }) === "object");
-
-// @api: object.setPrototypeOf
-// @expect: true
-console.log(typeof Object.setPrototypeOf({ a: 1 }, null) === "object");
 
 // @api: object.toLocaleString
 // @expect: [object Object]

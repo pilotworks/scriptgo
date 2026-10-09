@@ -337,38 +337,11 @@ int scriptgo_object_is_string(const char *a, const char *b, int32_t *out_result)
     return 0;
 }
 
+/* Object.is on references is identity: two objects with equal fields are
+ * still different objects. */
 int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
     if (out_result == NULL) {
         return object_fail("scriptgo Object.is null output");
-    }
-    if (a == b) {
-        *out_result = 1;
-        return 0;
-    }
-    if (is_invalid_object_handle(a) || is_invalid_object_handle(b)) {
-        *out_result = 0;
-        return 0;
-    }
-    scriptgo_object *oa = (scriptgo_object *)a;
-    scriptgo_object *ob = (scriptgo_object *)b;
-    if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-        if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
-            *out_result = 0;
-            return 0;
-        }
-        if (oa->field_count != ob->field_count) {
-            *out_result = 0;
-            return 0;
-        }
-        int64_t count = oa->field_count;
-        for (int64_t i = 0; i < count; i++) {
-            if (oa->fields[i] != ob->fields[i]) {
-                *out_result = 0;
-                return 0;
-            }
-        }
-        *out_result = 1;
-        return 0;
     }
     *out_result = (a == b) ? 1 : 0;
     return 0;
@@ -419,38 +392,8 @@ int scriptgo_object_is_unknown(const scriptgo_value *value0, const scriptgo_valu
         *out_result = (strcmp(s0, s1) == 0) ? 1 : 0;
         return 0;
     }
-    if (payload0 == payload1) {
-        *out_result = 1;
-        return 0;
-    }
-    if (payload0 == 0 || payload1 == 0) {
-        *out_result = 0;
-        return 0;
-    }
-    if (scriptgo_gc_is_registered((void *)(uintptr_t)payload0) &&
-        scriptgo_gc_is_registered((void *)(uintptr_t)payload1)) {
-        scriptgo_object *oa = (scriptgo_object *)(uintptr_t)payload0;
-        scriptgo_object *ob = (scriptgo_object *)(uintptr_t)payload1;
-        if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-            if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
-                *out_result = 0;
-                return 0;
-            }
-            if (oa->field_count != ob->field_count) {
-                *out_result = 0;
-                return 0;
-            }
-            int64_t count = oa->field_count;
-            for (int64_t i = 0; i < count; i++) {
-                if (oa->fields[i] != ob->fields[i]) {
-                    *out_result = 0;
-                    return 0;
-                }
-            }
-            *out_result = 1;
-            return 0;
-        }
-    }
+    /* bigint by value; references (objects, arrays, functions, symbols) by
+     * identity. */
     *out_result = (payload0 == payload1) ? 1 : 0;
     return 0;
 }
@@ -1493,6 +1436,78 @@ int scriptgo_object_delete_property(void *handle, const char *property, int32_t 
         scriptgo_object_unknown_set(obj, index, &undefined_val);
     }
     return 0;
+}
+
+int scriptgo_gc_add_root_slot(void *slot, int64_t word_count);
+
+/* Prototype objects are not modelled as property holders; getPrototypeOf
+ * returns one canonical token object per constructor name, so prototype
+ * identity comparisons (Object.getPrototypeOf(a) === Object.getPrototypeOf(b))
+ * behave as in JavaScript. Tokens are allocated once and kept as GC roots. */
+#define SCRIPTGO_PROTOTYPE_TOKENS 128
+static struct {
+    char name[64];
+    void *token;
+} scriptgo_prototype_tokens[SCRIPTGO_PROTOTYPE_TOKENS];
+static int scriptgo_prototype_token_count = 0;
+
+static void *scriptgo_prototype_token(const char *name, size_t length) {
+    if (length >= sizeof(scriptgo_prototype_tokens[0].name)) length = sizeof(scriptgo_prototype_tokens[0].name) - 1;
+    for (int i = 0; i < scriptgo_prototype_token_count; i++) {
+        if (strlen(scriptgo_prototype_tokens[i].name) == length &&
+            strncmp(scriptgo_prototype_tokens[i].name, name, length) == 0) {
+            return scriptgo_prototype_tokens[i].token;
+        }
+    }
+    if (scriptgo_prototype_token_count == SCRIPTGO_PROTOTYPE_TOKENS) return NULL;
+    int slot = scriptgo_prototype_token_count++;
+    memcpy(scriptgo_prototype_tokens[slot].name, name, length);
+    scriptgo_prototype_tokens[slot].name[length] = '\0';
+    if (scriptgo_object_new_typed(0, "__prototype__", &scriptgo_prototype_tokens[slot].token) != 0) return NULL;
+    scriptgo_gc_add_root_slot(&scriptgo_prototype_tokens[slot].token, 1);
+    return scriptgo_prototype_tokens[slot].token;
+}
+
+/* Object.getPrototypeOf for a reference: the token of the object's class
+ * (the most-derived class in its descriptor), Array for arrays, and Object
+ * for plain objects. */
+void *scriptgo_object_get_prototype(void *handle) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) return NULL;
+    if (scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2) {
+        return scriptgo_prototype_token("Array", 5);
+    }
+    if (!is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
+        const char *type_name = ((scriptgo_object *)handle)->type_name;
+        if (is_class_descriptor(type_name)) {
+            const char *cursor = type_name + 10;
+            char kind;
+            const char *value;
+            size_t value_length;
+            if (next_class_descriptor_token(&cursor, &kind, &value, &value_length) > 0 && kind == 'c') {
+                return scriptgo_prototype_token(value, value_length);
+            }
+        }
+    }
+    return scriptgo_prototype_token("Object", 6);
+}
+
+/* Object.getPrototypeOf for a boxed value: primitives report their wrapper
+ * constructor's prototype. */
+void *scriptgo_object_get_prototype_value(const scriptgo_value *value) {
+    if (value == NULL) return NULL;
+    switch (value->tag) {
+    case SCRIPTGO_TAG_NUMBER: return scriptgo_prototype_token("Number", 6);
+    case SCRIPTGO_TAG_STRING: return scriptgo_prototype_token("String", 6);
+    case SCRIPTGO_TAG_BOOLEAN: return scriptgo_prototype_token("Boolean", 7);
+    case SCRIPTGO_TAG_BIGINT: return scriptgo_prototype_token("BigInt", 6);
+    case SCRIPTGO_TAG_SYMBOL: return scriptgo_prototype_token("Symbol", 6);
+    case SCRIPTGO_TAG_FUNCTION: return scriptgo_prototype_token("Function", 8);
+    case SCRIPTGO_TAG_UNDEFINED:
+    case SCRIPTGO_TAG_NULL:
+        return NULL;
+    default:
+        return scriptgo_object_get_prototype((void *)(uintptr_t)value->payload);
+    }
 }
 
 int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result) {

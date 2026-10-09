@@ -84,11 +84,12 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 			if err != nil {
 				return "", "", err
 			}
+			// The runtime property test Reflect.has uses; native objects have
+			// no inherited data properties, so it is the own-property test.
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
+				Op:     ir.OpInstanceOf,
 				Type:   ir.TypeBool,
 				Result: result,
-				Callee: "__object.hasOwn",
 				Args:   []string{objVal, propVal},
 				Span:   toIRSpan(call.Path, call.Expression.Span),
 			})
@@ -171,7 +172,11 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 		}
 	}
 
-	registerSimpleObj([]string{"Object.create"}, "__object.create", ir.TypeObject, 1, 2)
+	registerCustomIntrinsic(m, []string{"Object.create"}, CategoryECMAScript, "", ir.TypeObject, 1, 2, lowerObjectCreate)
+	registerCustomIntrinsic(m, []string{"Object.defineProperty"}, CategoryECMAScript, "", ir.TypeObject, 3, 3, lowerObjectDefineProperty)
+	registerCustomIntrinsic(m, []string{"Object.defineProperties"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerObjectDefineProperties)
+	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptor"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerGetOwnPropertyDescriptor)
+	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptors", "Object.setPrototypeOf"}, CategoryECMAScript, "", ir.TypeObject, 1, 2, lowerUnmodelledObjectReflection)
 	registerSimpleObj([]string{"Object.freeze"}, "__object.freeze", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.seal"}, "__object.seal", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.preventExtensions"}, "__object.preventExtensions", ir.TypeObject, 1, 1)
@@ -203,10 +208,5 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 			return result, ir.Type("symbol[]"), nil
 		},
 	}
-	registerSimpleObj([]string{"Object.getOwnPropertyDescriptor"}, "__object.getOwnPropertyDescriptor", ir.TypeObject, 2, 2)
-	registerSimpleObj([]string{"Object.getOwnPropertyDescriptors"}, "__object.getOwnPropertyDescriptors", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.getPrototypeOf"}, "__object.getPrototypeOf", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.setPrototypeOf"}, "__object.setPrototypeOf", "", 2, 2)
-	registerSimpleObj([]string{"Object.defineProperty"}, "__object.defineProperty", "", 3, 3)
-	registerSimpleObj([]string{"Object.defineProperties"}, "__object.defineProperties", "", 2, 2)
 }

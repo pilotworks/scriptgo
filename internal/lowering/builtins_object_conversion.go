@@ -38,3 +38,15 @@ func lowerObjectConversion(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 	}
 	return "", "", fmt.Errorf("Object(%s) creates a primitive wrapper object, which the native subset does not model", typ)
 }
+
+// lowerObjectCreate lowers Object.create(null) to a new empty object.
+// Prototype inheritance (Object.create(proto)) and property descriptors are
+// not modelled, so any other call is rejected.
+func lowerObjectCreate(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+	proto := call.Expression.Arguments[0]
+	if len(call.Expression.Arguments) != 1 || proto == nil || proto.Kind != "null" {
+		return "", "", fmt.Errorf("Object.create with a prototype or property descriptors is not supported; only Object.create(null)")
+	}
+	literal := &frontend.SyntaxExpression{Span: call.Expression.Span, Kind: "object_literal"}
+	return call.LowerExpression(call.Path, literal, call.Result, call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+}

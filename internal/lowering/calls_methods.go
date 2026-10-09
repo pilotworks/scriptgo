@@ -109,11 +109,11 @@ func lowerHasOwnPropertyCall(path string, expression *frontend.SyntaxExpression,
 	if result == "" {
 		result = nextTemp(counter)
 	}
+	// The runtime own-property test (see Object.hasOwn).
 	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpCall,
+		Op:     ir.OpInstanceOf,
 		Type:   ir.TypeBool,
 		Result: result,
-		Callee: "__object.hasOwn",
 		Args:   []string{receiver, propVal},
 		Span:   toIRSpan(path, expression.Span),
 	})

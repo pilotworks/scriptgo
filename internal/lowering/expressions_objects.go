@@ -198,7 +198,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			if allFound {
 				targetS = &s
 			}
-		} else if s, ok := anonymousShapes[cleanInf]; ok {
+		} else if s, ok := lookupObjectShape(cleanInf, shapes); ok {
 			allFound := true
 			for _, f := range fields {
 				if fieldIndex(s, f.Name) < 0 {
@@ -224,7 +224,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 				if allFound {
 					targetS = &s
 				}
-			} else if s, ok := anonymousShapes[cleanT]; ok {
+			} else if s, ok := lookupObjectShape(cleanT, shapes); ok {
 				allFound := true
 				for _, f := range fields {
 					if fieldIndex(s, f.Name) < 0 {
