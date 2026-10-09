@@ -191,23 +191,6 @@ func lowerNewExpression(path string, expression *frontend.SyntaxExpression, resu
 			setTemp := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: field.Type, Result: setTemp, Callee: "__set.new", Span: field.Span})
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, setTemp}, Span: field.Span})
-		} else if className == "Trie" && field.Name == "root" {
-			objTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{
-				Op:         ir.OpObjectNew,
-				Type:       field.Type,
-				Result:     objTemp,
-				Callee:     "TrieNode",
-				FieldCount: 2,
-				Span:       field.Span,
-			})
-			mTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeMap, Result: mTemp, Callee: "__map.new", Span: field.Span})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "TrieNode", Field: "children", FieldIndex: 0, Args: []string{objTemp, mTemp}, Span: field.Span})
-			bTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: bTemp, Value: "false", Span: field.Span})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "TrieNode", Field: "isEndOfWord", FieldIndex: 1, Args: []string{objTemp, bTemp}, Span: field.Span})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: field.Name, FieldIndex: fieldIndex(shape, field.Name), Args: []string{result, objTemp}, Span: field.Span})
 		} else if !found {
 			defVal := field.Value
 			if defVal == "" {
