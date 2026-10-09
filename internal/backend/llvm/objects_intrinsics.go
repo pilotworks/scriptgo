@@ -442,7 +442,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 			fmt.Fprintf(out, "  %%%s = call ptr @scriptgo_object_get_prototype(ptr %%%s)\n", instruction.Result, e.resolveArg(out, arg))
 			return nil
 		}
-		boxed := arg
+		var boxed string
 		if argType == ir.TypeUnknown {
 			boxed = e.resolveArg(out, arg)
 		} else {
