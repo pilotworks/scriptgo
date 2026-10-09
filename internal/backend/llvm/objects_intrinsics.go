@@ -150,14 +150,32 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		i32Val := instruction.Result + ".i32"
 		out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", i32Val, slot))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val))
-	case "__object.entries":
+	case "__object.values", "__object.entries":
+		// The runtime walks the object's own fields; values are written in
+		// the element layout of the result's IR array type.
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("%s requires one object", instruction.Callee)
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_new(i64 2, i64 8, ptr %%%s)\n", status, slot))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
-		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		if instruction.Callee == "__object.entries" {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_entries(ptr %%%s, ptr %%%s)\n", status, obj, slot)
+		} else {
+			size, err := arrayElementSizeForTarget(instruction.Type, e.pointerSize())
+			if err != nil {
+				return err
+			}
+			tag := 0
+			if arrayElementType(instruction.Type) != ir.TypeUnknown {
+				tag = arrayElementTag(instruction.Type)
+			}
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_values(ptr %%%s, i64 %d, i64 %d, ptr %%%s)\n", status, obj, size, tag, slot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__object.keys":

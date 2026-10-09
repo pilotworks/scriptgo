@@ -2038,6 +2038,99 @@ int scriptgo_object_keys(void *handle, void **out_array) {
     return 0;
 }
 
+int scriptgo_array_set_typed(void *handle, double index, const void *value, int64_t value_size, int64_t tag);
+
+/* Stores value into slot index of an array laid out as element_size bytes
+ * (a full tagged value, a bool byte, or an 8-byte payload). */
+static int object_store_array_value(void *array, int64_t index, int64_t element_size, int64_t element_tag, const scriptgo_value *value) {
+    if (element_size == (int64_t)sizeof(scriptgo_value)) {
+        return scriptgo_array_set_typed(array, (double)index, value, (int64_t)sizeof(scriptgo_value), 0);
+    }
+    if (element_size == 1) {
+        uint8_t flag = value->tag == SCRIPTGO_TAG_BOOLEAN && value->payload != 0;
+        return scriptgo_array_set_typed(array, (double)index, &flag, 1, element_tag);
+    }
+    uint64_t payload = value->payload;
+    if (value->tag == SCRIPTGO_TAG_UNDEFINED || value->tag == SCRIPTGO_TAG_NULL) {
+        if (element_tag == SCRIPTGO_TAG_NUMBER) {
+            double nan = NAN;
+            memcpy(&payload, &nan, sizeof(payload));
+        } else {
+            payload = value->tag == SCRIPTGO_TAG_UNDEFINED ? (uint64_t)(uintptr_t)&scriptgo_undefined_sentinel : 0;
+        }
+    }
+    return scriptgo_array_set_typed(array, (double)index, &payload, element_size, element_tag);
+}
+
+typedef struct {
+    void *object;
+    void *array;
+    int64_t element_size;
+    int64_t element_tag;
+    int entries;
+    int failed;
+} object_enumeration_writer;
+
+static int object_enumerate_field(const char *name, size_t length, int index, void *context) {
+    object_enumeration_writer *writer = context;
+    scriptgo_value value;
+    scriptgo_value_init_undefined(&value);
+    if (scriptgo_object_unknown_get(writer->object, index, &value) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    if (!writer->entries) {
+        if (object_store_array_value(writer->array, index, writer->element_size, writer->element_tag, &value) != 0) writer->failed = 1;
+        return writer->failed;
+    }
+    /* A [key, value] pair is a two-field tuple object, as lowering lays out
+     * a [string, T] tuple. */
+    void *pair = NULL;
+    char *key = malloc(length + 1);
+    if (key == NULL || scriptgo_object_new_typed(2, ":0:1:", &pair) != 0) {
+        free(key);
+        writer->failed = 1;
+        return 1;
+    }
+    memcpy(key, name, length);
+    key[length] = '\0';
+    ((scriptgo_object *)pair)->fields[0] = (uintptr_t)key;
+    ((scriptgo_object *)pair)->field_count = 2;
+    if (scriptgo_object_unknown_set(pair, 1, &value) != 0 ||
+        scriptgo_array_set_typed(writer->array, (double)index, &pair, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+
+static int object_enumerate(void *handle, int entries, int64_t element_size, int64_t element_tag, void **out_array) {
+    if (out_array == NULL) return object_fail("scriptgo object enumeration output is invalid");
+    handle = resolve_object_handle(handle, 0);
+    int count = 0;
+    if (handle != NULL && !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
+        count = object_key_count((scriptgo_object *)handle);
+    }
+    if (scriptgo_array_new(count, element_size, out_array) != 0) return -1;
+    if (scriptgo_array_set_tag(*out_array, element_tag) != 0) return -1;
+    if (count == 0) return 0;
+    object_enumeration_writer writer = {handle, *out_array, element_size, element_tag, entries, 0};
+    object_field_visit((scriptgo_object *)handle, object_enumerate_field, &writer);
+    return writer.failed ? object_fail("scriptgo object enumeration failed") : 0;
+}
+
+/* Object.values: the object's own field values in layout order, written in
+ * the element layout of the static result type. */
+int scriptgo_object_values(void *handle, int64_t element_size, int64_t element_tag, void **out_array) {
+    if (element_size <= 0) return object_fail("scriptgo object values element size is invalid");
+    return object_enumerate(handle, 0, element_size, element_tag, out_array);
+}
+
+/* Object.entries: [key, value] tuple objects for the object's own fields. */
+int scriptgo_object_entries(void *handle, void **out_array) {
+    return object_enumerate(handle, 1, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT, out_array);
+}
+
 int scriptgo_object_release(void *handle) {
     if (is_invalid_object_handle(handle)) {
         return 0;
