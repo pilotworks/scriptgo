@@ -168,7 +168,8 @@ int main(void) {
     if (scriptgo_object_release(object) != 0) return 20;
     if (scriptgo_string_concat("ab", "cd", &joined) != 0 || strcmp(joined, "abcd") != 0) return 21;
     if (scriptgo_string_length(joined, &string_length) != 0 || string_length != 4) return 22;
-    if (scriptgo_string_last_index(joined, "b", -1, &index) != 0 || index != 1) return 23;
+    if (scriptgo_string_last_index(joined, "b", 1.0 / 0.0, &index) != 0 || index != 1 ||
+        scriptgo_string_last_index(joined, "b", -1, &index) != 0 || index != -1) return 23;
     if (scriptgo_string_slice(joined, 1, 3, &slice) != 0 || strcmp(slice, "bc") != 0) return 24;
     scriptgo_string_release(slice);
     if (scriptgo_string_last_index(joined, "", 1, &index) != 0 || index != 1) return 22;

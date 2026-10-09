@@ -247,6 +247,13 @@ func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Fu
 		}
 	}
 
+	if arrType == ir.TypeString {
+		// A string iterates by code point, not by UTF-16 code unit.
+		codePoints := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: codePoints, Callee: "__string.codePoints", Args: []string{arrVal}, Span: toIRSpan(path, statement.Span)})
+		arrVal, arrType = codePoints, ir.TypeStringArray
+		env[codePoints] = ir.TypeStringArray
+	}
 	isString := (arrType == ir.TypeString)
 	var elemType ir.Type
 	if isString {

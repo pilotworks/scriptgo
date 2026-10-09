@@ -340,7 +340,7 @@ int scriptgo_string_search(const char *str, const char *pattern, const char *fla
     int status = regexec(&re, str, 1, pmatch, 0);
     regfree(&re);
     if (status == 0) {
-        *out_index = (double)pmatch[0].rm_so;
+        *out_index = (double)utf16_unit_offset(str, (size_t)pmatch[0].rm_so);
     } else {
         *out_index = -1.0;
     }

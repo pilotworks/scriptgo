@@ -94,51 +94,33 @@ int scriptgo_string_index_of(const char *value, const char *needle, double posit
     const char *found;
     size_t start, length;
     if (value == NULL || needle == NULL || out_index == NULL) return string_fail("scriptgo string argument is invalid");
-    length = strlen(value);
+    length = utf16_length(value);
     start = normalize_position(position, length);
-    if (start > length) {
-        *out_index = -1.0;
-        return 0;
-    }
     if (*needle == '\0') {
         *out_index = (double)start;
         return 0;
     }
-    found = strstr(value + start, needle);
-    *out_index = found == NULL ? -1.0 : (double)(found - value);
+    found = strstr(value + utf16_byte_offset(value, start), needle);
+    *out_index = found == NULL ? -1.0 : (double)utf16_unit_offset(value, (size_t)(found - value));
     return 0;
 }
 
 int scriptgo_string_last_index(const char *value, const char *needle, double position, double *out_index) {
     if (position != position) position = INFINITY; /* lastIndexOf: NaN position searches from the end */
-    const char *last = NULL;
-    const char *cursor;
-    size_t limit, normalized;
     if (value == NULL || needle == NULL || out_index == NULL) return string_fail("scriptgo string argument is invalid");
-    limit = strlen(value);
-    if (position >= 0.0) {
-        normalized = normalize_position(position, limit);
-        limit = normalized + (normalized < limit ? 1 : 0);
-    }
+    size_t length = utf16_length(value);
+    size_t from = normalize_position(position, length);
     if (*needle == '\0') {
-        *out_index = position >= 0.0 ? (double)normalized : (double)limit;
+        *out_index = (double)from;
         return 0;
     }
-    if (needle[1] == '\0') {
-        const char *found = strrchr(value, needle[0]);
-        if (found != NULL && (size_t)(found - value) < limit) {
-            *out_index = (double)(found - value);
-            return 0;
-        }
-        *out_index = -1.0;
-        return 0;
-    }
-    cursor = value;
-    while ((cursor = strstr(cursor, needle)) != NULL && (size_t)(cursor - value) < limit) {
+    /* A match may start at any code unit up to `from`. */
+    size_t max_start = utf16_byte_offset(value, from);
+    const char *last = NULL;
+    for (const char *cursor = value; (cursor = strstr(cursor, needle)) != NULL && (size_t)(cursor - value) <= max_start; cursor++) {
         last = cursor;
-        cursor++;
     }
-    *out_index = last == NULL ? -1.0 : (double)(last - value);
+    *out_index = last == NULL ? -1.0 : (double)utf16_unit_offset(value, (size_t)(last - value));
     return 0;
 }
 
@@ -206,7 +188,7 @@ int scriptgo_string_slice(const char *value, double start_value, double end_valu
     if (start_value != start_value) start_value = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     size_t length, start, end;
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    length = strlen(value);
+    length = utf16_length(value);
     int64_t s = (int64_t)start_value;
     if (s < 0) s = (int64_t)length + s;
     if (s < 0) s = 0;
@@ -223,7 +205,24 @@ int scriptgo_string_slice(const char *value, double start_value, double end_valu
         end = (size_t)e;
     }
     if (end < start) end = start;
-    return string_copy_range(value, start, end - start, out_value);
+    if (utf16_slice(value, start, end, out_value) != 0) return string_fail("scriptgo string allocation failed");
+    return 0;
+}
+
+/* String.prototype.substring: indices clamp to [0, length] and the smaller
+ * one starts the result. */
+int scriptgo_string_substring(const char *value, double start_value, double end_value, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t length = utf16_length(value);
+    size_t start = normalize_position(start_value, length);
+    size_t end = end_value != end_value ? 0 : normalize_position(end_value, length);
+    if (start > end) {
+        size_t swap = start;
+        start = end;
+        end = swap;
+    }
+    if (utf16_slice(value, start, end, out_value) != 0) return string_fail("scriptgo string allocation failed");
+    return 0;
 }
 
 int scriptgo_string_trim(const char *value, char **out_value) {
@@ -369,7 +368,7 @@ int scriptgo_string_split(const char *value, const char *separator, double limit
     char *buffer;
 
     if (sep_len == 0) {
-        count = val_len;
+        count = utf16_length(value);
     } else {
         const char *p = value;
         while ((p = sep_len == 1 ? strchr(p, actual_sep[0]) : strstr(p, actual_sep)) != NULL) {
@@ -395,10 +394,17 @@ int scriptgo_string_split(const char *value, const char *separator, double limit
     }
 
     if (sep_len == 0) {
-        for (size_t i = 0; i < count && i < val_len; i++) {
-            buffer[i * 2] = value[i];
-            buffer[i * 2 + 1] = '\0';
-            char *sub = buffer + i * 2;
+        /* split("") yields each UTF-16 code unit; buffer holds val_len * 4 + 32
+         * bytes, room for every unit (at most 3 bytes) and its terminator. */
+        size_t offset = 0;
+        for (size_t i = 0; i < count; i++) {
+            char *unit = NULL;
+            if (utf16_slice(value, i, i + 1, &unit) != 0) return string_fail("scriptgo string allocation failed");
+            size_t unit_len = strlen(unit);
+            memcpy(buffer + offset, unit, unit_len + 1);
+            free(unit);
+            char *sub = buffer + offset;
+            offset += unit_len + 1;
             if (scriptgo_array_set(*out_array, (double)i, &sub) != 0) return -1;
         }
         return 0;
@@ -438,11 +444,12 @@ int scriptgo_string_split(const char *value, const char *separator, double limit
 int scriptgo_string_char_at(const char *value, double pos, char **out_value) {
     if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
+    size_t len = utf16_length(value);
     if (isnan(pos) || pos < 0.0 || pos >= (double)len) {
         return string_copy_range(value, 0, 0, out_value);
     }
-    return string_copy_range(value, (size_t)pos, 1, out_value);
+    if (utf16_slice(value, (size_t)pos, (size_t)pos + 1, out_value) != 0) return string_fail("scriptgo string allocation failed");
+    return 0;
 }
 
 int scriptgo_string_char_code_at(const char *value, double pos, double *out_code) {
@@ -504,12 +511,7 @@ int scriptgo_string_char_code_at(const char *value, double pos, double *out_code
 int scriptgo_string_includes(const char *value, const char *search, double pos, double *out_bool) {
     if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || search == NULL || out_bool == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
-    size_t start = normalize_position(pos, len);
-    if (start > len) {
-        *out_bool = 0.0;
-        return 0;
-    }
+    size_t start = utf16_byte_offset(value, normalize_position(pos, utf16_length(value)));
     if (*search == '\0') {
         *out_bool = 1.0;
         return 0;
@@ -520,27 +522,13 @@ int scriptgo_string_includes(const char *value, const char *search, double pos, 
 
 int scriptgo_string_to_lower(const char *value, char **out_value) {
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
-    char *res = malloc(len + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
-    for (size_t i = 0; i < len; i++) {
-        res[i] = (char)tolower((unsigned char)value[i]);
-    }
-    res[len] = '\0';
-    *out_value = res;
+    if (utf8_map_case(value, unicode_to_lower, out_value) != 0) return string_fail("scriptgo string allocation failed");
     return 0;
 }
 
 int scriptgo_string_to_upper(const char *value, char **out_value) {
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
-    char *res = malloc(len + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
-    for (size_t i = 0; i < len; i++) {
-        res[i] = (char)toupper((unsigned char)value[i]);
-    }
-    res[len] = '\0';
-    *out_value = res;
+    if (utf8_map_case(value, unicode_to_upper, out_value) != 0) return string_fail("scriptgo string allocation failed");
     return 0;
 }
 
@@ -642,47 +630,40 @@ int scriptgo_string_replace_all(const char *value, const char *search, const cha
     return 0;
 }
 
-int scriptgo_string_pad_start(const char *value, double target_len, const char *pad_str, char **out_value) {
+/* string_pad pads value to target_len UTF-16 code units with repetitions of
+ * pad_str, in front (at_start) or behind. */
+static int string_pad(const char *value, double target_len, const char *pad_str, int at_start, char **out_value) {
     if (target_len != target_len) target_len = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    if (pad_str == NULL || *pad_str == '\0') pad_str = " ";
-    size_t val_len = strlen(value);
-    if (isnan(target_len) || target_len <= (double)val_len) {
-        return string_copy_range(value, 0, val_len, out_value);
+    if (pad_str == NULL || pad_str == &scriptgo_undefined_sentinel) pad_str = " ";
+    size_t value_units = utf16_length(value);
+    size_t pad_units = utf16_length(pad_str);
+    if (target_len <= (double)value_units || pad_units == 0) {
+        return string_copy_range(value, 0, strlen(value), out_value);
     }
-    size_t target = (size_t)target_len;
-    size_t diff = target - val_len;
-    size_t pad_len = strlen(pad_str);
-    char *res = malloc(target + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
-    for (size_t i = 0; i < diff; i++) {
-        res[i] = pad_str[i % pad_len];
-    }
-    memcpy(res + diff, value, val_len + 1);
-    *out_value = res;
-    return 0;
+    if (target_len > 1e9) return string_fail("RangeError: Invalid string length");
+    size_t missing = (size_t)target_len - value_units;
+    size_t repeats = missing / pad_units + 1;
+    size_t pad_bytes = strlen(pad_str);
+    char *repeated = malloc(repeats * pad_bytes + 1);
+    if (repeated == NULL) return string_fail("scriptgo string allocation failed");
+    for (size_t i = 0; i < repeats; i++) memcpy(repeated + i * pad_bytes, pad_str, pad_bytes);
+    repeated[repeats * pad_bytes] = '\0';
+    char *filler = NULL;
+    int status = utf16_slice(repeated, 0, missing, &filler);
+    free(repeated);
+    if (status != 0) return string_fail("scriptgo string allocation failed");
+    status = at_start ? scriptgo_string_concat(filler, value, out_value) : scriptgo_string_concat(value, filler, out_value);
+    free(filler);
+    return status;
+}
+
+int scriptgo_string_pad_start(const char *value, double target_len, const char *pad_str, char **out_value) {
+    return string_pad(value, target_len, pad_str, 1, out_value);
 }
 
 int scriptgo_string_pad_end(const char *value, double target_len, const char *pad_str, char **out_value) {
-    if (target_len != target_len) target_len = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
-    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    if (pad_str == NULL || *pad_str == '\0') pad_str = " ";
-    size_t val_len = strlen(value);
-    if (isnan(target_len) || target_len <= (double)val_len) {
-        return string_copy_range(value, 0, val_len, out_value);
-    }
-    size_t target = (size_t)target_len;
-    size_t diff = target - val_len;
-    size_t pad_len = strlen(pad_str);
-    char *res = malloc(target + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
-    memcpy(res, value, val_len);
-    for (size_t i = 0; i < diff; i++) {
-        res[val_len + i] = pad_str[i % pad_len];
-    }
-    res[target] = '\0';
-    *out_value = res;
-    return 0;
+    return string_pad(value, target_len, pad_str, 0, out_value);
 }
 
 int scriptgo_string_code_point_at(const char *value, double pos, double *out_code_point) {
@@ -838,7 +819,7 @@ int scriptgo_string_release(char *value) {
 int scriptgo_string_substr(const char *value, double start_val, double length_val, char **out_value) {
     if (start_val != start_val) start_val = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t length = strlen(value);
+    size_t length = utf16_length(value);
     int64_t start = (int64_t)start_val;
     if (start < 0) start = (int64_t)length + start;
     if (start < 0) start = 0;
@@ -849,7 +830,8 @@ int scriptgo_string_substr(const char *value, double start_val, double length_va
     if (len <= 0) return string_copy_range(value, 0, 0, out_value);
     if (start + len > (int64_t)length) len = (int64_t)length - start;
 
-    return string_copy_range(value, (size_t)start, (size_t)len, out_value);
+    if (utf16_slice(value, (size_t)start, (size_t)(start + len), out_value) != 0) return string_fail("scriptgo string allocation failed");
+    return 0;
 }
 
 int scriptgo_string_from_char_codes(const double *codes, int64_t count, char **out_value) {
@@ -857,26 +839,29 @@ int scriptgo_string_from_char_codes(const double *codes, int64_t count, char **o
     if (count <= 0 || codes == NULL) {
         return string_copy_range("", 0, 0, out_value);
     }
-    char *res = malloc((size_t)count + 1);
-    if (res == NULL) return string_fail("scriptgo string allocation failed");
+    uint32_t *units = malloc((size_t)count * sizeof(uint32_t));
+    if (units == NULL) return string_fail("scriptgo string allocation failed");
     for (int64_t i = 0; i < count; i++) {
-        res[i] = (char)(int)codes[i];
+        /* ToUint16 */
+        double code = codes[i];
+        units[i] = isfinite(code) ? (uint32_t)((int64_t)code & 0xFFFF) : 0;
     }
-    res[count] = '\0';
-    *out_value = res;
-    return 0;
+    int status = utf16_encode(units, (size_t)count, out_value);
+    free(units);
+    return status != 0 ? string_fail("scriptgo string allocation failed") : 0;
 }
 
 int scriptgo_string_at(const char *value, double pos, char **out_value) {
     if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
-    size_t len = strlen(value);
+    size_t len = utf16_length(value);
     int64_t idx = (int64_t)pos;
     if (idx < 0) idx = (int64_t)len + idx;
     if (idx < 0 || (size_t)idx >= len) {
         return string_copy_range(value, 0, 0, out_value);
     }
-    return string_copy_range(value, (size_t)idx, 1, out_value);
+    if (utf16_slice(value, (size_t)idx, (size_t)idx + 1, out_value) != 0) return string_fail("scriptgo string allocation failed");
+    return 0;
 }
 
 int scriptgo_string_anchor(const char *value, const char *name, char **out_value) {
@@ -1163,5 +1148,48 @@ int scriptgo_string_normalize(const char *value, const char *form, char **out_va
     }
     *out_value = strdup(value);
     if (*out_value == NULL) return string_fail("scriptgo string allocation failed");
+    return 0;
+}
+
+/* scriptgo_string_code_points splits value into its code points, the
+ * sequence `for..of` and spreading a string produce. */
+int scriptgo_string_code_points(const char *value, void **out_array) {
+    if (value == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
+    size_t count = 0;
+    for (const unsigned char *p = (const unsigned char *)value; *p != 0; count++) {
+        size_t units;
+        p += utf8_step(p, &units);
+    }
+    if (scriptgo_array_new((int64_t)count, sizeof(char *), out_array) != 0) return -1;
+    size_t bytes = strlen(value);
+    char *buffer = malloc(bytes + count + 1);
+    if (buffer == NULL || scriptgo_array_set_owned_data(*out_array, buffer) != 0) {
+        free(buffer);
+        scriptgo_array_release(*out_array);
+        return string_fail("scriptgo string allocation failed");
+    }
+    const unsigned char *p = (const unsigned char *)value;
+    size_t offset = 0;
+    for (size_t i = 0; i < count; i++) {
+        size_t units;
+        size_t step = utf8_step(p, &units);
+        char *item = buffer + offset;
+        memcpy(item, p, step);
+        item[step] = '\0';
+        offset += step + 1;
+        p += step;
+        if (scriptgo_array_set(*out_array, (double)i, &item) != 0) return -1;
+    }
+    return 0;
+}
+
+/* String.prototype.localeCompare with the root-locale ordering of
+ * collation_compare. */
+int scriptgo_string_locale_compare(const char *value, const char *other, double *out_result) {
+    if (out_result == NULL) return string_fail("scriptgo string argument is invalid");
+    if (value == NULL) value = "null";
+    if (other == NULL) other = "null";
+    if (other == &scriptgo_undefined_sentinel) other = "undefined";
+    *out_result = (double)collation_compare(value, other);
     return 0;
 }

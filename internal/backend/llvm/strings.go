@@ -28,15 +28,29 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 
 	case "__string.slice", "__string.substring":
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeString {
-			return fmt.Errorf("string.slice has invalid signature")
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
 		}
 		endArg := "1000000000.0"
 		if len(instruction.Args) == 3 {
 			endArg = "%" + instruction.Args[2]
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_slice(ptr %%%s, double %%%s, double %s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], endArg)
+		fn := "scriptgo_string_slice"
+		if instruction.Callee == "__string.substring" {
+			fn = "scriptgo_string_substring"
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, double %%%s, double %s, ptr %%__slot_ptr)\n", status, fn, instruction.Args[0], instruction.Args[1], endArg)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.codePoints":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeStringArray {
+			return fmt.Errorf("string.codePoints has invalid signature")
+		}
+		slot := instruction.Result + ".slot"
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_code_points(ptr %%%s, ptr %%%s)\n", status, e.resolveArg(out, instruction.Args[0]), slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.types[instruction.Result] = ir.TypeStringArray
 	case "__string.trim":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.trim has invalid signature")

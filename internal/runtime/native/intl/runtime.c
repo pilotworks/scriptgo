@@ -117,15 +117,14 @@ int scriptgo_intl_collator_new(const char *locale, void **out_col) {
     return 0;
 }
 
+int scriptgo_string_locale_compare(const char *value, const char *other, double *out_result);
+
 int scriptgo_intl_collator_compare(void *handle, const char *s1, const char *s2, double *out_res) {
     if (out_res == NULL) return scriptgo_runtime_set_error("intl collator compare failed");
     if (s1 == NULL) s1 = "";
     if (s2 == NULL) s2 = "";
-    int cmp = strcmp(s1, s2);
-    if (cmp < 0) *out_res = -1.0;
-    else if (cmp > 0) *out_res = 1.0;
-    else *out_res = 0.0;
-    return 0;
+    (void)handle;
+    return scriptgo_string_locale_compare(s1, s2, out_res);
 }
 
 int scriptgo_intl_segmenter_new(const char *locale, void **out_seg) {
