@@ -91,10 +91,6 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return err
 	}
 
-	if strings.HasPrefix(instruction.Callee, "__iterator.") {
-		return e.emitIteratorIntrinsicCall(out, instruction)
-	}
-
 	if handled, err := e.tryEmitServiceIntrinsicCall(out, instruction); handled {
 		return err
 	}

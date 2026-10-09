@@ -1,11 +1,19 @@
 package lowering
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
+
+// Iterator helpers (ES2025) are modelled over a materialized copy of the
+// sequence: Iterator.from(array) copies the array, an IteratorObject<T> is
+// stored as T[], and each helper is the matching array operation. Results
+// match JavaScript for finite sequences; the difference is evaluation order
+// (helpers run eagerly, not interleaved with consumption), which the parity
+// report documents.
 
 func registerIteratorBuiltins(m map[string]BuiltinIntrinsic) {
 	m["Iterator.from"] = BuiltinIntrinsic{
@@ -14,42 +22,29 @@ func registerIteratorBuiltins(m map[string]BuiltinIntrinsic) {
 		MinArgs:  1,
 		MaxArgs:  1,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			argVal, aType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-			if err != nil {
-				return "", "", err
+			source := call.Expression.Arguments[0]
+			sourceType := toIRType(source.InferredType)
+			if !strings.HasSuffix(string(sourceType), "[]") {
+				return "", "", fmt.Errorf("Iterator.from supports arrays in the native subset, got %s", source.InferredType)
 			}
-			result := call.Result
-			if result == "" {
-				result = nextTemp(call.Counter)
-			}
-			elemType := "unknown"
-			if aType == ir.TypeNumberArray || aType == "number[]" {
-				elemType = "number"
-			} else if aType == ir.TypeStringArray || aType == "string[]" {
-				elemType = "string"
-			} else if aType == ir.TypeBoolArray || aType == "boolean[]" || aType == "bool[]" {
-				elemType = "bool"
-			} else if aType == ir.TypeBigIntArray || aType == "bigint[]" {
-				elemType = "bigint"
-			} else if strings.HasSuffix(string(aType), "[]") {
-				elemType = strings.TrimSuffix(string(aType), "[]")
-			} else if strings.HasPrefix(string(aType), "object:Generator_") {
-				elemType = "number"
-			}
-			retType := ir.Type("object:IteratorObject<" + elemType + ">")
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   retType,
-				Result: result,
-				Callee: "__iterator.from",
-				Args:   []string{argVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, retType, nil
+			copy := &frontend.SyntaxExpression{Span: call.Expression.Span, Kind: "call", InferredType: source.InferredType, Left: &frontend.SyntaxExpression{Span: call.Expression.Span, Kind: "property", Text: "slice", Left: source}}
+			return call.LowerExpression(call.Path, copy, call.Result, call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 		},
 	}
 }
 
+// iteratorReceiver reports a receiver TypeScript types as an iterator object.
+func iteratorReceiver(expression *frontend.SyntaxExpression) bool {
+	if expression == nil || expression.Left == nil || expression.Left.Left == nil {
+		return false
+	}
+	typ := strings.TrimSpace(expression.Left.Left.InferredType)
+	return strings.HasPrefix(typ, "IteratorObject<") || strings.HasPrefix(typ, "Iterator<")
+}
+
+// lowerIteratorReceiverMethod lowers the iterator-only helpers (take, drop,
+// toArray, next) on an iterator stored as an array; the helpers that share
+// an array method name (map, filter, ...) are lowered as array methods.
 func lowerIteratorReceiverMethod(
 	path string,
 	expression *frontend.SyntaxExpression,
@@ -63,203 +58,44 @@ func lowerIteratorReceiverMethod(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, bool, error) {
-	isIteratorObject := strings.HasPrefix(string(receiverType), "object:IteratorObject") ||
-		receiverType == ir.Type("object:IteratorObject")
-
-	if !isIteratorObject {
+	if !iteratorReceiver(expression) || !strings.HasSuffix(string(receiverType), "[]") {
 		return "", "", false, nil
 	}
-
-	elemType := ir.TypeNumber
-	if strings.HasPrefix(string(receiverType), "object:IteratorObject<") && strings.HasSuffix(string(receiverType), ">") {
-		inner := strings.TrimSuffix(strings.TrimPrefix(string(receiverType), "object:IteratorObject<"), ">")
-		if inner != "" && inner != "unknown" {
-			elemType = toIRType(inner)
-		}
+	span := expression.Span
+	if _, known := env[receiver]; !known {
+		env[receiver] = receiverType
 	}
-
-	args := []string{receiver}
-	for _, arg := range expression.Arguments {
-		val, _, err := lowerExpression(path, arg, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", true, err
-		}
-		args = append(args, val)
+	self := &frontend.SyntaxExpression{Span: span, Kind: "identifier", Text: receiver, InferredType: string(receiverType)}
+	method := func(name string, args ...*frontend.SyntaxExpression) *frontend.SyntaxExpression {
+		return &frontend.SyntaxExpression{Span: span, Kind: "call", InferredType: string(receiverType), Left: &frontend.SyntaxExpression{Span: span, Kind: "property", Text: name, Left: self}, Arguments: args}
 	}
-
-	if result == "" {
-		result = nextTemp(counter)
+	lower := func(expr *frontend.SyntaxExpression) (string, ir.Type, bool, error) {
+		value, typ, err := lowerExpression(path, expr, result, function, env, counter, shapes, signatures)
+		return value, typ, true, err
 	}
-
+	zero := &frontend.SyntaxExpression{Span: span, Kind: "number", Text: "0", InferredType: "number"}
 	switch methodName {
-	case "map":
-		retType := ir.Type("object:IteratorObject")
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__iterator.map",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, true, nil
-
-	case "filter":
-		retType := receiverType
-		if !strings.HasPrefix(string(retType), "object:IteratorObject") {
-			retType = ir.Type("object:IteratorObject<" + string(elemType) + ">")
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__iterator.filter",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, true, nil
-
-	case "take":
-		retType := receiverType
-		if !strings.HasPrefix(string(retType), "object:IteratorObject") {
-			retType = ir.Type("object:IteratorObject<" + string(elemType) + ">")
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__iterator.take",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, true, nil
-
-	case "drop":
-		retType := receiverType
-		if !strings.HasPrefix(string(retType), "object:IteratorObject") {
-			retType = ir.Type("object:IteratorObject<" + string(elemType) + ">")
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__iterator.drop",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, true, nil
-
-	case "flatMap":
-		retType := ir.Type("object:IteratorObject")
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: result,
-			Callee: "__iterator.flat_map",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, retType, true, nil
-
 	case "toArray":
-		arrType := ir.Type(string(elemType) + "[]")
-		if elemType == ir.TypeNumber {
-			arrType = ir.TypeNumberArray
-		} else if elemType == ir.TypeString {
-			arrType = ir.TypeStringArray
-		} else if elemType == ir.TypeBool {
-			arrType = ir.TypeBoolArray
-		} else if elemType == ir.TypeBigInt {
-			arrType = ir.TypeBigIntArray
+		return lower(method("slice"))
+	case "take":
+		if len(expression.Arguments) != 1 {
+			return "", "", true, fmt.Errorf("Iterator take requires a limit")
 		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   arrType,
-			Result: result,
-			Callee: "__iterator.to_array",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, arrType, true, nil
-
-	case "forEach":
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeVoid,
-			Result: result,
-			Callee: "__iterator.for_each",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, ir.TypeVoid, true, nil
-
-	case "reduce":
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   elemType,
-			Result: result,
-			Callee: "__iterator.reduce",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, elemType, true, nil
-
-	case "some":
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeBool,
-			Result: result,
-			Callee: "__iterator.some",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, ir.TypeBool, true, nil
-
-	case "every":
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeBool,
-			Result: result,
-			Callee: "__iterator.every",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, ir.TypeBool, true, nil
-
-	case "find":
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   elemType,
-			Result: result,
-			Callee: "__iterator.find",
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, elemType, true, nil
-
-	case "next", "return", "throw":
-		resShapeName := "IteratorResult"
-		if _, ok := shapes[resShapeName]; !ok {
-			shapes[resShapeName] = ir.ObjectShape{
-				Name: resShapeName,
-				Span: toIRSpan(path, expression.Span),
-				Fields: []ir.Field{
-					{Name: "done", Type: ir.TypeBool, Span: toIRSpan(path, expression.Span)},
-					{Name: "value", Type: elemType, Span: toIRSpan(path, expression.Span)},
-				},
-			}
+		return lower(method("slice", zero, expression.Arguments[0]))
+	case "drop":
+		if len(expression.Arguments) != 1 {
+			return "", "", true, fmt.Errorf("Iterator drop requires a limit")
 		}
-		resType := ir.Type("object:" + resShapeName)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   resType,
-			Result: result,
-			Callee: "__iterator." + methodName,
-			Args:   args,
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, resType, true, nil
+		return lower(method("slice", expression.Arguments[0]))
+	case "next":
+		// { done, value }: done is read before the element is consumed.
+		length := &frontend.SyntaxExpression{Span: span, Kind: "property", Text: "length", Left: self, InferredType: "number"}
+		done := &frontend.SyntaxExpression{Span: span, Kind: "binary", Operator: "===", Left: length, Right: zero}
+		next := &frontend.SyntaxExpression{Span: span, Kind: "object_literal", InferredType: expression.InferredType, Arguments: []*frontend.SyntaxExpression{
+			{Span: span, Kind: "property_assignment", Text: "done", Left: done},
+			{Span: span, Kind: "property_assignment", Text: "value", Left: method("shift")},
+		}}
+		return lower(next)
 	}
-
-	return "", "", false, nil
+	return "", "", true, fmt.Errorf("iterator method %q is not supported in the native subset", methodName)
 }

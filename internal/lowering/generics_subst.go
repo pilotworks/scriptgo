@@ -9,7 +9,7 @@ import (
 
 func isBuiltinGeneric(name string) bool {
 	switch name {
-	case "Map", "Set", "Promise", "AsyncGenerator", "Generator", "Iterator", "Iterable", "AsyncIterable", "AsyncIterator", "Record", "Partial", "Readonly", "Pick", "Omit", "Exclude", "Extract", "NonNullable", "ReturnType", "InstanceType", "Parameters", "ConstructorParameters":
+	case "Map", "Set", "Promise", "AsyncGenerator", "Generator", "Iterator", "IteratorObject", "Iterable", "AsyncIterable", "AsyncIterator", "Record", "Partial", "Readonly", "Pick", "Omit", "Exclude", "Extract", "NonNullable", "ReturnType", "InstanceType", "Parameters", "ConstructorParameters":
 		return true
 	default:
 		return false

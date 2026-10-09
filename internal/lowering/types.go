@@ -411,6 +411,15 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				return toIRType(strings.Join(kept, " | "))
 			}
 		}
+		if base == "IteratorObject" {
+			// Iterator helpers run over a materialized copy of the sequence,
+			// so an IteratorObject<T> is stored as a T[] (see calls_iterator.go).
+			elemType := "unknown"
+			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" {
+				elemType = typeArgs[0]
+			}
+			return toIRType(elemType + "[]")
+		}
 		if base == "IteratorResult" {
 			elemType := "number"
 			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" && typeArgs[0] != "unknown" {
