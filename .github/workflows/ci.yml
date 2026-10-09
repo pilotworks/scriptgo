@@ -130,7 +130,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
-      TEST262_ROOT: ${{ runner.temp }}/test262
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -156,6 +155,10 @@ jobs:
 
       - name: Checkout tc39/test262 (pinned)
         run: |
+          # The runner context is not available in job-level env, so the
+          # checkout path is exported for the following steps here.
+          TEST262_ROOT="$RUNNER_TEMP/test262"
+          echo "TEST262_ROOT=$TEST262_ROOT" >> "$GITHUB_ENV"
           rev=$(sed -n 's/^TEST262_REV ?= //p' Makefile)
           git init -q "$TEST262_ROOT"
           git -C "$TEST262_ROOT" fetch -q --depth 1 https://github.com/tc39/test262.git "$rev"
