@@ -172,31 +172,40 @@ func (e *functionEmitter) emitNumberIntrinsic(out *strings.Builder, instruction 
 	case "__number.new":
 		if len(instruction.Args) == 0 {
 			fmt.Fprintf(out, "  %%%s = fadd double 0.0, 0.0\n", instruction.Result)
-		} else {
-			argType := e.types[instruction.Args[0]]
-			if argType == ir.TypeString {
-				fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_number_parse_float(ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], slot)
-				fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-				fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-			} else if argType == ir.TypeBool {
-				boolF64 := instruction.Result + ".f64"
-				fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", boolF64, instruction.Args[0])
-				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, boolF64)
-			} else if argType == ir.TypeBigInt {
-				// BigInt values use a signed i64 ABI; Number(bigint) must
-				// explicitly convert that integer before any floating operation.
-				bigIntF64 := instruction.Result + ".f64"
-				fmt.Fprintf(out, "  %%%s = sitofp i64 %%%s to double\n", bigIntF64, instruction.Args[0])
-				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, bigIntF64)
-			} else if argType == ir.TypeUnknown {
-				payload := fmt.Sprintf("number.unknown.payload.%d", e.loadCounter)
-				e.loadCounter++
-				fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payload, instruction.Args[0])
-				fmt.Fprintf(out, "  %%%s = bitcast i64 %%%s to double\n", instruction.Result, payload)
-			} else {
-				fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, instruction.Args[0])
-			}
+			return nil
+		}
+		argType := e.types[instruction.Args[0]]
+		if e.isParamUnknown(instruction.Args[0]) {
+			argType = ir.TypeUnknown
+		}
+		switch {
+		case argType == ir.TypeVoid:
+			// ToNumber(undefined) is NaN.
+			fmt.Fprintf(out, "  %%%s = fadd double 0x7FF8000000000000, 0.0\n", instruction.Result)
+		case argType == ir.TypeString:
+			// StringToNumber, not parseFloat: "" is 0 and "12px" is NaN.
+			fmt.Fprintf(out, "  %%%s = call double @scriptgo_string_to_number(ptr %%%s)\n", instruction.Result, e.resolveArg(out, instruction.Args[0]))
+		case argType == ir.TypeBool:
+			boolF64 := instruction.Result + ".f64"
+			fmt.Fprintf(out, "  %%%s = uitofp i1 %%%s to double\n", boolF64, e.resolveArg(out, instruction.Args[0]))
+			fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, boolF64)
+		case argType == ir.TypeBigInt:
+			// BigInt values use a signed i64 ABI; Number(bigint) must
+			// explicitly convert that integer before any floating operation.
+			bigIntF64 := instruction.Result + ".f64"
+			fmt.Fprintf(out, "  %%%s = sitofp i64 %%%s to double\n", bigIntF64, e.resolveArg(out, instruction.Args[0]))
+			fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, bigIntF64)
+		case argType == ir.TypeUnknown:
+			// ToNumber of a boxed value dispatches on its tag at runtime.
+			boxed := fmt.Sprintf("number.unknown.slot.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", boxed)
+			fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", e.resolveArg(out, instruction.Args[0]), boxed)
+			fmt.Fprintf(out, "  %%%s = call double @scriptgo_value_to_number(ptr %%%s)\n", instruction.Result, boxed)
+		case llvmType(argType) == "ptr":
+			fmt.Fprintf(out, "  %%%s = call double @scriptgo_object_to_number(ptr %%%s)\n", instruction.Result, e.resolveArg(out, instruction.Args[0]))
+		default:
+			fmt.Fprintf(out, "  %%%s = fadd double %%%s, 0.0\n", instruction.Result, e.resolveArg(out, instruction.Args[0]))
 		}
 	default:
 		return fmt.Errorf("unknown number intrinsic %q", instruction.Callee)

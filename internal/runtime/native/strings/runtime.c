@@ -90,6 +90,7 @@ int scriptgo_string_length(const char *value, double *out_length) {
 }
 
 int scriptgo_string_index_of(const char *value, const char *needle, double position, double *out_index) {
+    if (position != position) position = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     const char *found;
     size_t start, length;
     if (value == NULL || needle == NULL || out_index == NULL) return string_fail("scriptgo string argument is invalid");
@@ -109,6 +110,7 @@ int scriptgo_string_index_of(const char *value, const char *needle, double posit
 }
 
 int scriptgo_string_last_index(const char *value, const char *needle, double position, double *out_index) {
+    if (position != position) position = INFINITY; /* lastIndexOf: NaN position searches from the end */
     const char *last = NULL;
     const char *cursor;
     size_t limit, normalized;
@@ -200,6 +202,7 @@ int scriptgo_string_from_bool(int value, char **out_value) {
 }
 
 int scriptgo_string_slice(const char *value, double start_value, double end_value, char **out_value) {
+    if (start_value != start_value) start_value = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     size_t length, start, end;
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     length = strlen(value);
@@ -428,6 +431,7 @@ int scriptgo_string_split(const char *value, const char *separator, double limit
 }
 
 int scriptgo_string_char_at(const char *value, double pos, char **out_value) {
+    if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     size_t len = strlen(value);
     if (isnan(pos) || pos < 0.0 || pos >= (double)len) {
@@ -437,6 +441,7 @@ int scriptgo_string_char_at(const char *value, double pos, char **out_value) {
 }
 
 int scriptgo_string_char_code_at(const char *value, double pos, double *out_code) {
+    if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_code == NULL) return string_fail("scriptgo string argument is invalid");
     if (isnan(pos) || pos < 0.0) {
         *out_code = NAN;
@@ -492,6 +497,7 @@ int scriptgo_string_char_code_at(const char *value, double pos, double *out_code
 }
 
 int scriptgo_string_includes(const char *value, const char *search, double pos, double *out_bool) {
+    if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || search == NULL || out_bool == NULL) return string_fail("scriptgo string argument is invalid");
     size_t len = strlen(value);
     size_t start = normalize_position(pos, len);
@@ -553,6 +559,7 @@ int scriptgo_string_trim_end(const char *value, char **out_value) {
 }
 
 int scriptgo_string_repeat(const char *value, double count, char **out_value) {
+    if (count != count) count = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     if (isnan(count) || count <= 0.0) {
         return string_copy_range(value, 0, 0, out_value);
@@ -606,6 +613,7 @@ int scriptgo_string_replace_all(const char *value, const char *search, const cha
 }
 
 int scriptgo_string_pad_start(const char *value, double target_len, const char *pad_str, char **out_value) {
+    if (target_len != target_len) target_len = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     if (pad_str == NULL || *pad_str == '\0') pad_str = " ";
     size_t val_len = strlen(value);
@@ -626,6 +634,7 @@ int scriptgo_string_pad_start(const char *value, double target_len, const char *
 }
 
 int scriptgo_string_pad_end(const char *value, double target_len, const char *pad_str, char **out_value) {
+    if (target_len != target_len) target_len = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     if (pad_str == NULL || *pad_str == '\0') pad_str = " ";
     size_t val_len = strlen(value);
@@ -647,6 +656,7 @@ int scriptgo_string_pad_end(const char *value, double target_len, const char *pa
 }
 
 int scriptgo_string_code_point_at(const char *value, double pos, double *out_code_point) {
+    if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_code_point == NULL) return string_fail("scriptgo string argument is invalid");
     if (isnan(pos) || pos < 0.0) {
         *out_code_point = NAN;
@@ -796,6 +806,7 @@ int scriptgo_string_release(char *value) {
 }
 
 int scriptgo_string_substr(const char *value, double start_val, double length_val, char **out_value) {
+    if (start_val != start_val) start_val = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     size_t length = strlen(value);
     int64_t start = (int64_t)start_val;
@@ -827,6 +838,7 @@ int scriptgo_string_from_char_codes(const double *codes, int64_t count, char **o
 }
 
 int scriptgo_string_at(const char *value, double pos, char **out_value) {
+    if (pos != pos) pos = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
     size_t len = strlen(value);
     int64_t idx = (int64_t)pos;

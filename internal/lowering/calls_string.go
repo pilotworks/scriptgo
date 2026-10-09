@@ -98,12 +98,15 @@ func lowerStringReceiverMethod(
 		return result, ir.TypeStringArray, true, nil
 	}
 	args := []string{receiver}
-	for _, argument := range expression.Arguments {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+	for index, argument := range expression.Arguments {
+		value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
 		}
-		args = append(args, value)
+		value, _, present := coerceMethodArgument(path, argument, "string", methodName, index, len(expression.Arguments), value, typ, function, counter)
+		if present {
+			args = append(args, value)
+		}
 	}
 	if result == "" {
 		result = nextTemp(counter)

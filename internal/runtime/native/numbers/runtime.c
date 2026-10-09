@@ -135,6 +135,54 @@ void scriptgo_number_format(double value, char *buf, size_t size) {
     snprintf(buf, size, "%s", out);
 }
 
+/* StringToNumber (ECMA-262 7.1.4.1.1): surrounding whitespace is ignored,
+ * an empty string is 0, 0x/0o/0b prefixes are integer literals, "Infinity"
+ * may be signed, and anything not fully a numeric literal is NaN. */
+double scriptgo_string_to_number(const char *str) {
+    if (str == NULL) return NAN;
+    const char *begin = str;
+    while (*begin && isspace((unsigned char)*begin)) begin++;
+    const char *end = begin + strlen(begin);
+    while (end > begin && isspace((unsigned char)end[-1])) end--;
+    size_t len = (size_t)(end - begin);
+    if (len == 0) return 0.0;
+    char buf[512];
+    if (len >= sizeof(buf)) return NAN;
+    memcpy(buf, begin, len);
+    buf[len] = '\0';
+    if (len > 2 && buf[0] == '0' && (buf[1] == 'x' || buf[1] == 'X' || buf[1] == 'o' || buf[1] == 'O' || buf[1] == 'b' || buf[1] == 'B')) {
+        int radix = (buf[1] == 'x' || buf[1] == 'X') ? 16 : (buf[1] == 'o' || buf[1] == 'O') ? 8 : 2;
+        double value = 0.0;
+        for (size_t i = 2; i < len; i++) {
+            int digit;
+            char c = buf[i];
+            if (c >= '0' && c <= '9') digit = c - '0';
+            else if (c >= 'a' && c <= 'z') digit = c - 'a' + 10;
+            else if (c >= 'A' && c <= 'Z') digit = c - 'A' + 10;
+            else return NAN;
+            if (digit >= radix) return NAN;
+            value = value * radix + digit;
+        }
+        return value;
+    }
+    const char *body = buf;
+    int negative = 0;
+    if (*body == '+' || *body == '-') {
+        negative = *body == '-';
+        body++;
+    }
+    if (strcmp(body, "Infinity") == 0) return negative ? -INFINITY : INFINITY;
+    /* strtod also accepts inf/nan/hex floats; only decimal literals remain. */
+    for (const char *c = body; *c; c++) {
+        if (!(isdigit((unsigned char)*c) || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-')) return NAN;
+    }
+    if (*body == '\0') return NAN;
+    char *parsed_end = NULL;
+    double value = strtod(buf, &parsed_end);
+    if (parsed_end == NULL || *parsed_end != '\0') return NAN;
+    return value;
+}
+
 int scriptgo_number_to_string(double val, double radix, char **out_value) {
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toString");
     int r = 10;

@@ -446,7 +446,7 @@ int scriptgo_array_index_of_number(void *handle, double target, double from_inde
     if (array == NULL || out_index == NULL || array->element_size != sizeof(double)) {
         return fail("scriptgo array access failed");
     }
-    start = from_index < 0.0 ? 0 : (int64_t)from_index;
+    start = scriptgo_array_relative_index(from_index, array->length);
     for (i = start; i < array->length; i++) {
         double val = *(double *)(array->data + (size_t)i * sizeof(double));
         if (val == target) {
@@ -458,13 +458,37 @@ int scriptgo_array_index_of_number(void *handle, double target, double from_inde
     return 0;
 }
 
+/* scriptgo_array_search_bool is indexOf (from_end 0) and lastIndexOf
+ * (from_end 1) over a bool[] array, whose elements are single bytes. */
+int scriptgo_array_search_bool(void *handle, int32_t target, double from_index, int32_t from_end, double *out_index) {
+    scriptgo_array *array = handle;
+    if (array == NULL || out_index == NULL || array->element_size != 1) {
+        return fail("scriptgo array access failed");
+    }
+    unsigned char wanted = target ? 1 : 0;
+    *out_index = -1.0;
+    if (!from_end) {
+        for (int64_t i = scriptgo_array_relative_index(from_index, array->length); i < array->length; i++) {
+            if ((array->data[i] ? 1 : 0) == wanted) { *out_index = (double)i; return 0; }
+        }
+        return 0;
+    }
+    if (from_index != from_index) from_index = 0.0;
+    int64_t start = from_index >= 0.0 ? (from_index >= (double)array->length ? array->length - 1 : (int64_t)from_index)
+                                      : array->length + (int64_t)from_index;
+    for (int64_t i = start; i >= 0; i--) {
+        if ((array->data[i] ? 1 : 0) == wanted) { *out_index = (double)i; return 0; }
+    }
+    return 0;
+}
+
 int scriptgo_array_index_of_string(void *handle, const char *target, double from_index, double *out_index) {
     scriptgo_array *array = handle;
     int64_t start, i;
     if (array == NULL || target == NULL || out_index == NULL || array->element_size != sizeof(char *)) {
         return fail("scriptgo array access failed");
     }
-    start = from_index < 0.0 ? 0 : (int64_t)from_index;
+    start = scriptgo_array_relative_index(from_index, array->length);
     for (i = start; i < array->length; i++) {
         const char *val = *(const char **)(array->data + (size_t)i * sizeof(char *));
         if (val != NULL && strcmp(val, target) == 0) {
@@ -482,7 +506,7 @@ int scriptgo_array_index_of_ptr(void *handle, const void *target, double from_in
     if (array == NULL || out_index == NULL || array->element_size != sizeof(void *)) {
         return fail("scriptgo array access failed");
     }
-    start = from_index < 0.0 ? 0 : (int64_t)from_index;
+    start = scriptgo_array_relative_index(from_index, array->length);
     for (i = start; i < array->length; i++) {
         const void *val = *(const void **)(array->data + (size_t)i * sizeof(void *));
         if (val == target) {
@@ -1147,6 +1171,7 @@ int scriptgo_array_last_index_of_number(void *handle, double target, double from
         return fail("scriptgo array access failed");
     }
     start = array->length - 1;
+    if (from_index != from_index) from_index = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (from_index >= 0.0) {
         start = (int64_t)from_index;
         if (start >= array->length) start = array->length - 1;
@@ -1171,6 +1196,7 @@ int scriptgo_array_last_index_of_string(void *handle, const char *target, double
         return fail("scriptgo array access failed");
     }
     start = array->length - 1;
+    if (from_index != from_index) from_index = 0.0; /* ToIntegerOrInfinity(NaN) is 0 */
     if (from_index >= 0.0) {
         start = (int64_t)from_index;
         if (start >= array->length) start = array->length - 1;

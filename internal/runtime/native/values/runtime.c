@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
 
 int scriptgo_runtime_set_error(const char *message);
 
@@ -436,4 +437,54 @@ int32_t scriptgo_dynamic_call(scriptgo_dynamic_context *context,
         return boundary_type_error(out_exception, "TypeError: SG5003: invalid Dynamic result");
     }
     return SCRIPTGO_CALL_OK;
+}
+
+double scriptgo_string_to_number(const char *str);
+int scriptgo_string_from_object(void *obj, char **out_str);
+void scriptgo_throw_error_message(const char *text);
+
+/* ToNumber for an object reference: arrays and errors convert through their
+ * string form (ToPrimitive with hint number falls back to toString for them);
+ * user valueOf is not modelled. */
+double scriptgo_object_to_number(void *object) {
+    char *text = NULL;
+    if (object == NULL) return 0.0;
+    if (scriptgo_string_from_object(object, &text) != 0 || text == NULL) return NAN;
+    double value = scriptgo_string_to_number(text);
+    free(text);
+    return value;
+}
+
+/* ToNumber (ECMA-262 7.1.4) of a boxed value. */
+double scriptgo_value_to_number(const scriptgo_value *value) {
+    double number;
+    if (value == NULL) return NAN;
+    switch (value->tag) {
+    case SCRIPTGO_TAG_UNDEFINED: return NAN;
+    case SCRIPTGO_TAG_NULL: return 0.0;
+    case SCRIPTGO_TAG_BOOLEAN: return value->payload ? 1.0 : 0.0;
+    case SCRIPTGO_TAG_NUMBER:
+        memcpy(&number, &value->payload, sizeof(number));
+        return number;
+    case SCRIPTGO_TAG_STRING: {
+        const char *text = (const char *)(uintptr_t)value->payload;
+        if (text == NULL) return 0.0;
+        /* aux is the byte length when known; 0 means a NUL-terminated string. */
+        if (value->aux == 0) return scriptgo_string_to_number(text);
+        char *copy = malloc((size_t)value->aux + 1);
+        if (copy == NULL) return NAN;
+        memcpy(copy, text, (size_t)value->aux);
+        copy[value->aux] = '\0';
+        number = scriptgo_string_to_number(copy);
+        free(copy);
+        return number;
+    }
+    case SCRIPTGO_TAG_BIGINT:
+        return (double)(int64_t)value->payload;
+    case SCRIPTGO_TAG_SYMBOL:
+        scriptgo_throw_error_message("TypeError: Cannot convert a Symbol value to a number");
+        return NAN;
+    default:
+        return scriptgo_object_to_number((void *)(uintptr_t)value->payload);
+    }
 }

@@ -456,6 +456,10 @@ func (call IntrinsicCall) arguments(intrinsic BuiltinIntrinsic) ([]string, []ir.
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(intrinsic.ArgumentTypes) == 1 && intrinsic.ArgumentTypes[0] == ir.TypeNumber {
+			// A number-only builtin applies ToNumber to its arguments.
+			value, typ = coerceToNumber(call.Path, argument.Span, value, typ, call.Function, call.Counter)
+		}
 		if len(intrinsic.ArgumentTypes) > 0 && !slices.Contains(intrinsic.ArgumentTypes, typ) {
 			return nil, nil, fmt.Errorf("builtin %s does not support %s", intrinsic.Name, typ)
 		}

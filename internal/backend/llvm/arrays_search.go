@@ -24,7 +24,9 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		elemLLVMType := arrayElementLLVMType(arrayType)
-		if elemLLVMType == "ptr" {
+		if elemLLVMType == "i1" {
+			e.emitBoolArraySearch(out, arrArg, targetArg, fromArg, 0, status, resSlot)
+		} else if elemLLVMType == "ptr" {
 			if arrayType == ir.TypeStringArray {
 				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_index_of_string(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, arrArg, targetArg, fromArg, resSlot)
 			} else {
@@ -47,7 +49,14 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		incElemLLVMType := arrayElementLLVMType(arrayType)
-		if incElemLLVMType == "ptr" {
+		if incElemLLVMType == "i1" {
+			// includes is indexOf(...) !== -1; the slot then holds the index.
+			e.emitBoolArraySearch(out, arrArg, targetArg, "0.0", 0, status, resSlot)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+			fmt.Fprintf(out, "  %%%s.f64 = load double, ptr %%%s\n", instruction.Result, resSlot)
+			fmt.Fprintf(out, "  %%%s = fcmp oge double %%%s.f64, 0.0\n", instruction.Result, instruction.Result)
+			return nil
+		} else if incElemLLVMType == "ptr" {
 			if arrayType == ir.TypeStringArray {
 				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_includes_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, arrArg, targetArg, resSlot)
 			} else {
@@ -159,7 +168,9 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		if arrayType == ir.TypeStringArray {
+		if arrayElementLLVMType(arrayType) == "i1" {
+			e.emitBoolArraySearch(out, arrArg, targetArg, fromArg, 1, status, resSlot)
+		} else if arrayType == ir.TypeStringArray {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_last_index_of_string(ptr %%%s, ptr %%%s, double %s, ptr %%%s)\n", status, arrArg, targetArg, fromArg, resSlot)
 		} else {
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_last_index_of_number(ptr %%%s, double %%%s, double %s, ptr %%%s)\n", status, arrArg, targetArg, fromArg, resSlot)
@@ -183,4 +194,13 @@ func (e *functionEmitter) emitArrayFindValue(out *strings.Builder, instruction i
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot))
 	return nil
+}
+
+// emitBoolArraySearch calls scriptgo_array_search_bool for a bool[] array:
+// fromEnd 0 is indexOf, 1 is lastIndexOf. fromArg is an LLVM double operand.
+func (e *functionEmitter) emitBoolArraySearch(out *strings.Builder, arrArg, targetArg, fromArg string, fromEnd int, status, resSlot string) {
+	target := fmt.Sprintf("%s.i32.%d", status, e.loadCounter)
+	e.loadCounter++
+	fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", target, targetArg)
+	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_search_bool(ptr %%%s, i32 %%%s, double %s, i32 %d, ptr %%%s)\n", status, arrArg, target, fromArg, fromEnd, resSlot)
 }

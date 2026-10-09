@@ -190,6 +190,11 @@ func lowerArrayReceiverMethod(
 	if !isArr || !isArrayMethod(methodName) {
 		return "", "", false, nil
 	}
+	if !isTuple {
+		if value, typ, handled, err := lowerMismatchedArraySearch(path, expression, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+			return value, typ, true, err
+		}
+	}
 	if methodName == "toSpliced" && len(expression.Arguments) > 2 && !isTuple {
 		value, typ, err := lowerToSplicedWithItems(path, expression, receiver, receiverType, result, function, env, counter, shapes, signatures)
 		return value, typ, true, err
@@ -383,12 +388,15 @@ func lowerArrayReceiverMethod(
 		}
 		return lastResult, ir.TypeNumber, true, nil
 	}
-	for _, argument := range expression.Arguments {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+	for index, argument := range expression.Arguments {
+		value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
 		}
-		args = append(args, value)
+		value, _, present := coerceMethodArgument(path, argument, "array", methodName, index, len(expression.Arguments), value, typ, function, counter)
+		if present {
+			args = append(args, value)
+		}
 	}
 	if result == "" {
 		result = nextTemp(counter)

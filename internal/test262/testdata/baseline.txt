@@ -349,7 +349,6 @@ built-ins/String/prototype/includes/searchstring-not-found-with-position.js
 built-ins/String/prototype/includes/searchstring-not-found-without-position.js
 built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js
 built-ins/String/prototype/indexOf/S15.5.4.7_A1_T7.js
-built-ins/String/prototype/indexOf/S15.5.4.7_A1_T8.js
 built-ins/String/prototype/indexOf/S15.5.4.7_A2_T1.js
 built-ins/String/prototype/indexOf/S15.5.4.7_A2_T2.js
 built-ins/String/prototype/indexOf/S15.5.4.7_A2_T3.js
