@@ -1114,3 +1114,28 @@ int scriptgo_string_decode_uri(const char *value, char **out_value) {
 }
 
 
+
+void scriptgo_throw_error_message(const char *text);
+
+/* scriptgo_string_normalize implements String.prototype.normalize for the
+ * input the runtime can decide without Unicode decomposition tables: the
+ * form is validated (RangeError, as in JavaScript) and ASCII text, which
+ * every normalization form leaves unchanged, is returned as is. Non-ASCII
+ * text throws instead of returning an unnormalized string. */
+int scriptgo_string_normalize(const char *value, const char *form, char **out_value) {
+    if (value == NULL || out_value == NULL) return string_fail("scriptgo string argument is invalid");
+    if (form != NULL && strcmp(form, "NFC") != 0 && strcmp(form, "NFD") != 0 &&
+        strcmp(form, "NFKC") != 0 && strcmp(form, "NFKD") != 0) {
+        scriptgo_throw_error_message("RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.");
+        return string_fail("normalize form is invalid");
+    }
+    for (const unsigned char *s = (const unsigned char *)value; *s; s++) {
+        if (*s >= 0x80) {
+            scriptgo_throw_error_message("String.prototype.normalize of non-ASCII text is not supported in the native subset");
+            return string_fail("normalize of non-ASCII text is not supported");
+        }
+    }
+    *out_value = strdup(value);
+    if (*out_value == NULL) return string_fail("scriptgo string allocation failed");
+    return 0;
+}

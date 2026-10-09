@@ -76,10 +76,17 @@ func lowerRegExpReceiverMethod(
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{receiver, patternVal}, Span: toIRSpan(path, expression.Span),
 			})
 		}
-		if len(expression.Arguments) > 1 {
-			flagsVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
-			if err != nil {
-				return "", "", true, err
+		if len(expression.Arguments) > 0 {
+			// compile(pattern) without flags resets them to "".
+			flagsVal := nextTemp(counter)
+			if len(expression.Arguments) > 1 {
+				var err error
+				flagsVal, _, err = lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+				if err != nil {
+					return "", "", true, err
+				}
+			} else {
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: flagsVal, Value: "", Span: toIRSpan(path, expression.Span)})
 			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{receiver, flagsVal}, Span: toIRSpan(path, expression.Span),

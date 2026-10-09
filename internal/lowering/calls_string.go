@@ -20,6 +20,9 @@ func lowerStringReceiverMethod(
 	if !isStringMethod(methodName) {
 		return "", "", false, nil
 	}
+	if (methodName == "toString" || methodName == "valueOf") && len(expression.Arguments) == 0 {
+		return receiver, ir.TypeString, true, nil
+	}
 	if methodName == "match" || methodName == "search" || methodName == "matchAll" {
 		if len(expression.Arguments) > 0 {
 			argVal, argTyp, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)

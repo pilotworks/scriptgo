@@ -50,8 +50,9 @@ func coerceMethodArgument(path string, argument *frontend.SyntaxExpression, rece
 		}
 	}
 	if slices.Contains(stringMethodArguments[receiverKind][method], position) {
-		if typ == ir.TypeVoid && (method == "padStart" || method == "padEnd") {
-			// An undefined fill string means the default " ".
+		if typ == ir.TypeVoid && (method == "padStart" || method == "padEnd" || method == "normalize") {
+			// An undefined fill string means the default " "; an undefined
+			// normalization form means "NFC".
 			return "", "", false
 		}
 		value, typ = coercePrimitiveToString(path, argument.Span, value, typ, function, counter)
@@ -114,7 +115,7 @@ var callbackMethods = map[string]bool{
 var stringMethodArguments = map[string]map[string][]int{
 	"string": {
 		"indexOf": {0}, "lastIndexOf": {0}, "includes": {0}, "startsWith": {0}, "endsWith": {0},
-		"padStart": {1}, "padEnd": {1}, "localeCompare": {0},
+		"padStart": {1}, "padEnd": {1}, "localeCompare": {0}, "normalize": {0},
 	},
 }
 
