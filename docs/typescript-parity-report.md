@@ -18,12 +18,12 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **437** | **437 / 437 match expected output; 435 / 437 match Node.js v22 (see note)** | **100.0% / 99.5%** |
-| - *Native LLVM/Clang Parity* | 437 | 420 PASS plus 17 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 17 | 17 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **458** | **458 / 458 match expected output; 456 / 458 match Node.js v22 (see note)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 458 | 437 PASS plus 21 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 21 | 21 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
-| **Total Test Suite Runtime** | ~2m05s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
+| **Total Test Suite Runtime** | ~1m22s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
 
@@ -72,7 +72,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `switch` / `case` / `default` | ✅ Full | Supports fallthrough, break, strict value equality (`===`). |
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
-| `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling infrastructure with safe unwinding (`Error`, `TypeError`, `RangeError`, `SyntaxError`). |
+| `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling with safe unwinding; `catch (e)` binds the exact thrown value (`unknown`), built-in error subclasses (`Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError`) and user subclasses of them. |
 | Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks. |
 | Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |
@@ -147,7 +147,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `lastIndexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `reduceRight`, `find`, `findIndex`, `findLast`, `findLastIndex`, `fill`, `sort`, `copyWithin`, `toReversed`, `toSorted`, `toSpliced`, `with`, `toString`, `toLocaleString`, `flat`, `flatMap`, `entries`, `keys`, `values`, `Array.isArray`, `Array.of`, `Array.from`, `Array.fromAsync` (`number[]`, `string[]`, `bool[]`, `bigint[]`, `T[]`) | ✅ 100% matches typed, generic & ES2023/2024 array behavior |
 | **`Object`** | `Object.keys`, `Object.values`, `Object.hasOwn`, `Object.is`, `Object.assign`, `Object.fromEntries`, `Object.groupBy` | ✅ 100% matches ECMAScript static method specifications |
 | **`Promise`** | `new Promise()`, `resolve`, `reject`, `.then()`, `.catch()`, `.finally()`, `Promise.allSettled()`, `Promise.any()`, `Promise.withResolvers()`, Microtask Queue | ✅ 100% matches Promise A+ & ES2024 specifications |
-| **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError` (`.name`, `.message`, throw/catch) | ✅ Matches ES specification |
+| **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError`, user subclasses (`.name`, `.message`, `.stack`, `.cause`, `instanceof`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
 | **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes), roundtrip & array of objects serialization | ✅ Matches ECMAScript specification (AOT static shape lowering & native runtime C tokenizer/parser) |
 | **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `match()`, `search()`, `replace()` | ✅ Matches POSIX regex engine standard |
@@ -196,37 +196,37 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 437
-Native Backend Parity  : 420/437 (96.1%)
-Diagnostic Parity      : 17/437
-Overall Full Parity    : 435/437 (99.5%)
-Total Time Elapsed     : ~2m05s
+Total Test Cases       : 458
+Native Backend Parity  : 437/458 (95.4%)
+Diagnostic Parity      : 21/458
+Overall Full Parity    : 456/458 (99.6%)
+Total Time Elapsed     : ~1m22s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 99 | **99% (98/99)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 100 | **99% (99/100)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
-| **`arrays`** | 2 | **100% (2/2)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
+| **`arrays`** | 5 | **100% (5/5)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
-| **`classes`** | 26 | **100% (26/26)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
-| **`control_flow`** | 23 | **100% (23/23)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
+| **`classes`** | 30 | **100% (30/30)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
+| **`control_flow`** | 26 | **100% (26/26)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 20 | **100% (20/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 22 | **100% (22/22)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 23 | **100% (23/23)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 22 | **95.5% (21/22)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language`** | 23 | **95.7% (22/23)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 4 | **100% (4/4)** | Tier selection, dynamic fallbacks, mode validations. |
-| **`language/diagnostics`** | 5 | **100% (5/5)** | Static subset error detection with standardized `SGxxxx` error codes. |
-| **`language/errors`** | 6 | **100% (6/6)** | Array indexing bounds/types, type mismatches, unknown names. |
+| **`language/diagnostics`** | 7 | **100% (7/7)** | Static subset error detection with standardized `SGxxxx` error codes. |
+| **`language/errors`** | 8 | **100% (8/8)** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
-| **`operators`** | 26 | **100% (26/26)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics, signed zero through constant folding and `Object.is`. |
+| **`operators`** | 28 | **100% (28/28)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics, signed zero through constant folding and `Object.is`. |
 | **`scenarios`** | 16 | **100% (16/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
 | **`tuples`** | 18 | **100% (18/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
-| **`types`** | 17 | **100% (17/17)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
+| **`types`** | 19 | **100% (19/19)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
@@ -250,49 +250,62 @@ outside it, `cmd/test262` runs tests from a local
 [tc39/test262](https://github.com/tc39/test262) checkout (not vendored) in the
 Static tier with a native-subset harness (`internal/test262/harness.ts`:
 `Test262Error`, `$DONOTEVALUATE`, `assert`, `assert.sameValue`,
-`assert.notSameValue`).
+`assert.notSameValue`, `assert.throws`, `assert.compareArray`, and
+`compareArray.js`). Constructors are not values in the Static tier, so the
+runner rewrites `assert.throws(TypeError, fn)` for built-in error constructors
+to `assert.throwsNamed("TypeError", fn)`, which compares the most-derived
+built-in error class of the caught value.
 
 ```sh
 make test-262 TEST262_ROOT=../test262
+make test-262-baseline TEST262_ROOT=../test262   # CI gate
 ```
+
+CI checks out test262 at `TEST262_REV` (Makefile) and runs
+`internal/test262/testdata/baseline.txt` with `-require-pass`: every test that
+passed when the baseline was recorded must still pass. Regenerate the baseline
+from a full run's `-json` output when conformance improves.
 
 Outcomes: **pass**; **fail** (wrong behavior, timeout, compiler panic, or
 LLVM IR rejected by Clang); **unsupported** (rejected by the native subset
 gate); **skipped** (`module`, `async`, `noStrict`, `CanBlockIsTrue`,
-resolution-negative tests, or harness includes other than `assert.js`/`sta.js`).
-Runtime-negative tests pass when the program throws, because uncaught native
-exceptions do not report their constructor.
+resolution-negative tests, or harness includes other than `assert.js`,
+`sta.js`, and `compareArray.js`). An uncaught `Error` instance is reported as
+`Uncaught exception: <name>: <message>`, so a runtime-negative test passes
+only when the program dies from the expected error type.
 
 Results at test262 `2e0a5676` (25,248 tests, Linux x86-64):
 
 | Group | Pass | Fail | Unsupported | Skipped | Pass rate (attempted) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| built-ins/Array | 130 | 183 | 2230 | 540 | 5.1% |
-| built-ins/JSON | 20 | 12 | 106 | 28 | 14.5% |
+| built-ins/Array | 161 | 242 | 2268 | 412 | 6.0% |
+| built-ins/JSON | 20 | 37 | 86 | 23 | 14.0% |
 | built-ins/Math | 118 | 5 | 45 | 159 | 70.2% |
-| built-ins/String | 114 | 171 | 774 | 164 | 10.8% |
-| language/expressions | 1095 | 515 | 6097 | 3395 | 14.2% |
-| language/statements | 656 | 939 | 4150 | 3602 | 11.4% |
-| **total** | **2133** | **1825** | **13402** | **7888** | **12.3%** |
+| built-ins/String | 125 | 212 | 744 | 142 | 11.6% |
+| language/expressions | 1924 | 406 | 5421 | 3351 | 24.8% |
+| language/statements | 1454 | 661 | 3681 | 3551 | 25.1% |
+| **total** | **3802** | **1563** | **12245** | **7638** | **21.6%** |
 
-Most attempted tests are rejected by design: `any` (SG1001, 5,118),
-unannotated `{}` (SG2005, 1,029), dynamic call targets (SG1004, 443), class
-expressions and array holes (SG2005, 419), and missing global constructors as
-values (`TypeError`, `ReferenceError`, `Array`, `String`). The main
-correctness signals are:
+Most attempted tests are rejected by design: `any` (SG1001, 4,263),
+unannotated `{}` (SG2005, 1,025), dynamic call targets (SG1004, 302), array
+holes and class expressions (SG2005, 379), and global constructors used as
+values (`String`, `Array`, `Object`, `Boolean`). The main correctness signals
+are:
 
 | Signal | Tests | Meaning |
 | --- | ---: | --- |
-| Assertion or exception failure at runtime | 559 | Behavior differs from the specification. |
-| Early/parse `SyntaxError` not reported | 472 | Programs that must not compile are accepted. |
-| LLVM IR rejected by Clang | 423 | The backend emits invalid code for accepted programs. |
-| Compiler panic | 234 | Includes `Node.Text` on `BindingPattern` (92) and nil dereferences (142). |
-| Native crash, runtime ABI failure, or checked-cast error | 116 | Segmentation faults (23), array/string runtime precondition failures, `SG4002` casts. |
+| Assertion failure at runtime | 979 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
+| LLVM IR rejected by Clang | 320 | The backend emits invalid code for accepted programs (`void` storage, value/pointer mismatches, missing parameters). |
+| Native crash or runtime ABI failure | 193 | Segmentation faults (52), array/JSON runtime precondition failures, `SG4002` casts. |
+| Compiler panic | 45 | Nil dereferences in lowering. |
+| Early/parse `SyntaxError` not reported | 26 | TypeScript-Go accepts these programs; tracked upstream. |
 
-Two defects found this way are fixed and covered by
-`corpus/operators/negative_zero_same_value.ts`: constant folding turned `-0`
-into `+0`, and `Object.is` with one boxed and one unboxed operand emitted
-invalid LLVM IR. `true + true` (boolean `+`) is still rejected.
+Fixed defects found this way are covered by corpus cases (signed zero,
+number formatting, error subclasses, `catch` bindings, boolean ToNumber,
+BigInt literals, typed array `join`, invalid-IR regressions). Known
+limitations: `String(obj)` does not call a user `toString`, a method call on a
+`new` expression receiver is unsupported, and `[].find` on an unannotated
+empty array literal is rejected.
 
 ---
 
@@ -357,7 +370,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Spread Elements** | `[...a, ...b]`, `{ ...obj1, ...obj2 }` | ✅ Full | Array cloning, object merging. |
 | **Unary Operators** | `!x`, `-x`, `+x`, `~x` | ✅ Full | Logical NOT, negation, unary plus, bitwise NOT. |
 | **Postfix / Prefix `++` / `--` in Expr** | `let y = x++; foo(x--);` | ✅ Full | Prefix and postfix operators on variables, properties, array indices in all expressions and statements. |
-| **Binary Arithmetic & String Concat** | `+`, `-`, `*`, `/`, `%`, `**` | ✅ Full | IEEE-754 arithmetic and automatic string concatenation coercions (`string + number`, `number + string`, `string + boolean`). |
+| **Binary Arithmetic & String Concat** | `+`, `-`, `*`, `/`, `%`, `**` | ✅ Full | IEEE-754 arithmetic and automatic string concatenation coercions (`string + number`, `number + string`, `string + boolean`); booleans in arithmetic, bitwise, and relational operators use ToNumber (`true + true === 2`, accepted only where TypeScript checking is off, as TypeScript reports TS2365). |
 | **Binary Bitwise** | `&`, `\|`, `^`, `<<`, `>>`, `>>>` | ✅ Full | 32-bit integer bitwise operations conforming to ECMAScript standard. |
 | **Binary Comparison** | `===`, `!==`, `==`, `!=`, `<`, `>`, `<=`, `>=` | ✅ Full | Strict and abstract equality comparisons, including full Node.js/TS parity on primitives and nullable unions (`number \| null`, `boolean \| null`, `string \| null`). |
 | **Binary Logical** | `&&`, `\|\|`, `??` | ✅ Full | Short-circuit evaluation and nullish coalescing. |
@@ -497,7 +510,9 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | :--- | :--- | :--- | :--- |
 | **Optional Chaining (`obj?.prop`, `obj?.fn()`, `obj?.items?.[i]`)** | Evaluates to `undefined` when short-circuited. `console.log(undefined)` prints `"undefined"`. | Fully synchronized with TS/JS via Sentinel Pointer & `TypeUnknown` representation (`@scriptgo_undefined_sentinel`). `console.log(res)` prints `"undefined"`. | **100% Parity**: Short-circuited optional chaining accurately preserves the `undefined` state across pointer, string, object, and union contexts without executing side-effects. |
 | **Unboxed Number Default / Nullish Values** | `x = null` retains dynamic `null`. | Unboxed IEEE-754 `double` represents missing/nullish states in unboxed numeric contexts as `NaN`. Nullish coalescing (`??`) and nullish checks recognize `NaN` as a missing/nullish state. | Standard unboxed native float optimization. |
-| **Unboxed Number Stringification of `NaN`** | `String(NaN)` prints `"NaN"` (capitalized). | C runtime `printf("%g", val)` produces platform-dependent `"nan"`. | Standard C math library formatting. |
+| **Number Stringification** | `String(x)` uses the shortest round-trip digits (`0.1`, `1e+21`, `NaN`, `-0` prints `0`). | Matches: one runtime formatter (`scriptgo_number_format`) serves `String`, template literals, `join`, JSON, and `console.log` (which prints `-0`). | **100% Parity**. |
+| **`catch (e)` Binding** | `e` is the thrown value, whatever its type. | Matches when TypeScript types `e` as `unknown` (strict mode): the binding keeps the thrown tag. Runtime-detected failures (`SG4002` checked casts, `reduce` of an empty array) throw built-in `TypeError` instances. With `useUnknownInCatchVariables` off, `e` is typed `Error`. | Narrow with `instanceof` or `typeof` as TypeScript requires. |
+| **`x as T` on `unknown`** | Unchecked type assertion. | Checked cast: a tag mismatch throws `TypeError: SG4002`. | Keeps native layouts sound; narrow before asserting. |
 | **Bitwise Operations on `Infinity` / `-Infinity`** | `ToInt32(Infinity)` is `0`, so `~Infinity === -1`, `Infinity \| 0 === 0`. | Fully synchronized with ECMAScript `ToInt32` spec via LLVM inline fast-path (`__scriptgo_to_int32`). Evaluates `~Infinity === -1` and `Infinity \| 0 === 0`. | **100% Parity**: Zero-overhead inlined fast-path with hardware guard. |
 
 ---
@@ -567,7 +582,7 @@ ScriptGo produces true self-contained standalone native binaries with zero exter
 ### 7.2. Middle-End Typed IR Optimizer (`internal/opt`)
 
 The optimizer executes 5 target-independent passes on the Typed IR prior to backend emission:
-1. **Constant Folding & Algebraic Simplification (`internal/opt/const_fold.go`)**: Evaluates constant expressions at compile time, eliminating dead identity operations (e.g. `x + 0`, `x * 1`, `x * 0`), constant comparisons, and boolean logic.
+1. **Constant Folding & Algebraic Simplification (`internal/opt/const_fold.go`)**: Evaluates constant expressions at compile time, eliminating dead identity operations (e.g. `x - 0`, `x + (-0)`, `x * 1`; `x + 0` is kept because `-0 + 0` is `+0`), constant comparisons, and boolean logic.
 2. **Common Subexpression Elimination (`internal/opt/cse.go`)**: Identifies duplicate pure expressions and redundant loads within basic blocks, reusing precomputed results across instructions.
 3. **Loop-Invariant Code Motion (`internal/opt/licm.go`)**: Identifies instructions invariant to loop iterations and hoists them into loop preheaders.
 4. **Bounds Check Elimination & Loop Vectorization (`internal/opt/bce.go`)**: Performs rigorous mathematical scalar evolution interval analysis on primary induction variables, identifies secondary monotonic counters, proves array length relations and dominating prior accesses, and hoists loop bounds pre-header guards (`__array.bounds_guard`). Marks safe index operations with `NoBoundsCheck = true` and eligible countable loops with `Vectorize = true` to unlock NEON SIMD auto-vectorization without heuristics or hardcoded variable names.

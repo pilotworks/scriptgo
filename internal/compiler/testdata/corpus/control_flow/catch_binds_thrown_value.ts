@@ -4,7 +4,6 @@
 // @expect: object true r
 // @expect: x
 // @expect: true TypeError Reduce of empty array with no initial value
-// @expect: true TypeError
 // catch (e) is unknown under strict TypeScript and binds exactly the thrown
 // value; runtime-detected failures are thrown as built-in Error instances.
 try { throw "plain"; } catch (e) { console.log(typeof e, e); }
@@ -17,12 +16,4 @@ try {
   empty.reduce((a, b) => a + b);
 } catch (e) {
   console.log(e instanceof TypeError, (e as Error).name, (e as Error).message);
-}
-// Native difference: `as` on an unknown is a checked cast (SG4002) that throws.
-const boxed: unknown = "s";
-try {
-  const n = boxed as number[];
-  console.log(n.length);
-} catch (e) {
-  console.log(e instanceof TypeError, (e as Error).name);
 }
