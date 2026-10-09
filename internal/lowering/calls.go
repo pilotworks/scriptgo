@@ -497,7 +497,6 @@ func lowerCallExpression(
 		for i := len(args); i < len(target.Parameters); i++ {
 			if i == restIndex {
 				args = append(args, emptyRestArray(path, expression.Span, target.Parameters[i].Type, function, counter))
-				restPacked = true
 				continue
 			}
 			if defaults != nil {
