@@ -369,6 +369,11 @@ func (c *compatibilityCollector) expression(path string, expression *frontend.Sy
 		case "unsupported":
 			c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, expression.Text, "", false)
 			classified = true
+		case "bigint":
+			if _, ok := bigIntLiteralValue(expression.Text); !ok {
+				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "bigint literal outside the native 64-bit range", "", false)
+				classified = true
+			}
 		case "new":
 			if callName(expression.Left) == "Function" {
 				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "dynamic constructor target", "enable --dynamic for new Function", true)

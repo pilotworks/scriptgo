@@ -20,7 +20,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	if name == "main" {
 		out.WriteString("define i32 @main(i32 %argc, ptr %argv) nounwind \"frame-pointer\"=\"all\"")
 	} else {
-		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
+		out.WriteString(fmt.Sprintf("define internal %s %s(", returnType, functionSymbol(mangleFunctionName(name))))
 		parameterIndex := 0
 		for _, parameter := range function.Parameters {
 			if parameterIndex > 0 {

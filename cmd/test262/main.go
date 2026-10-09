@@ -24,6 +24,7 @@ func main() {
 	parallel := flag.Int("j", runtime.NumCPU(), "number of concurrent tests")
 	timeout := flag.Duration("timeout", 10*time.Second, "per-test execution timeout")
 	depth := flag.Int("depth", 3, "path segments used to group the summary")
+	list := flag.String("list", "", "file of test paths (relative to test/, one per line) to run instead of -paths")
 	jsonOut := flag.String("json", "", "write per-test results as JSON to this path")
 	reasons := flag.Int("reasons", 15, "number of top unsupported/fail reasons to print")
 	flag.Parse()
@@ -33,9 +34,18 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	selected := strings.Split(*paths, ",")
+	if *list != "" {
+		data, err := os.ReadFile(*list)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "test262:", err)
+			os.Exit(2)
+		}
+		selected = strings.Fields(string(data))
+	}
 	cfg := test262.Config{
 		Root:     *root,
-		Paths:    strings.Split(*paths, ","),
+		Paths:    selected,
 		Parallel: *parallel,
 		Timeout:  *timeout,
 		Build: func(entry, output string) error {

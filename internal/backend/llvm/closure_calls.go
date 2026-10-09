@@ -109,7 +109,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 		returnTag = closureReturnTag(callee.ReturnType)
 	}
 	calleeName := mangleFunctionName(instruction.Callee)
-	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr @%s, ptr %s, ptr @%s$invoke, i32 %d, ptr %%%s)\n", status, calleeName, envPtr, calleeName, returnTag, slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_create(ptr %s, ptr %s, ptr %s, i32 %d, ptr %%%s)\n", status, functionSymbol(calleeName), envPtr, functionSymbol(calleeName+"$invoke"), returnTag, slot))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	for _, g := range e.module.Globals {
@@ -178,7 +178,7 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	var callArgs []string
 	if recursive {
 		// Direct recursive call to current closure
-		fnPtr = "@" + e.function.Name
+		fnPtr = functionSymbol(mangleFunctionName(e.function.Name))
 		callArgs = append(callArgs, "ptr %__env_ctx")
 	} else {
 		out.WriteString(fmt.Sprintf("  %%%s = icmp eq ptr %%%s, null\n", closureIsNull, closureVar))

@@ -214,7 +214,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 			}
 			paramTypes = append(paramTypes, pType)
 		}
-		out.WriteString(fmt.Sprintf("declare %s @%s(%s)\n", retType, mangleFunctionName(ext.Name), strings.Join(paramTypes, ", ")))
+		out.WriteString(fmt.Sprintf("declare %s %s(%s)\n", retType, functionSymbol(mangleFunctionName(ext.Name)), strings.Join(paramTypes, ", ")))
 	}
 	out.WriteString("\n")
 

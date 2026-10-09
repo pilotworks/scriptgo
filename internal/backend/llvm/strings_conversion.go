@@ -302,7 +302,7 @@ func (e *functionEmitter) emitStringConversionIntrinsic(out *strings.Builder, in
 			return nil
 		}
 		if argType == ir.TypeBigInt {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_bigint_to_string(i64 %%%s, double 10.0, ptr %%__slot_ptr)\n", status, arg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%__slot_ptr)\n", status, arg)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil

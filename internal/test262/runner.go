@@ -162,7 +162,7 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 			return Result{Path: rel, Outcome: Pass}
 		}
 		if buildErr != nil && isToolchainFailure(buildErr) {
-			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + firstLine(buildErr.Error())}
+			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + toolchainError(buildErr)}
 		}
 		if buildErr != nil {
 			return Result{Path: rel, Outcome: Unsupported, Detail: firstLine(buildErr.Error())}
@@ -173,7 +173,7 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 		if isToolchainFailure(buildErr) {
 			// The compiler accepted the program but emitted code the native
 			// toolchain rejects: a compiler bug, not a subset limitation.
-			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + firstLine(buildErr.Error())}
+			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + toolchainError(buildErr)}
 		}
 		return Result{Path: rel, Outcome: Unsupported, Detail: firstLine(buildErr.Error())}
 	}
@@ -214,6 +214,19 @@ var syntaxDiagnostic = regexp.MustCompile(`error TS1\d{3}:`)
 // compile-time equivalent of an early or parse-phase SyntaxError.
 func isSyntaxDiagnostic(err error) bool {
 	return syntaxDiagnostic.MatchString(err.Error())
+}
+
+var toolchainLocation = regexp.MustCompile(`^\S*module\.ll:\d+:\d+: `)
+
+// toolchainError returns the first diagnostic Clang reported, without the
+// temporary file location, so identical backend defects group together.
+func toolchainError(err error) string {
+	for _, line := range strings.Split(err.Error(), "\n") {
+		if strings.Contains(line, "error:") {
+			return firstLine(toolchainLocation.ReplaceAllString(strings.TrimSpace(line), ""))
+		}
+	}
+	return firstLine(err.Error())
 }
 
 // isToolchainFailure reports a build error raised by Clang after scriptgo
