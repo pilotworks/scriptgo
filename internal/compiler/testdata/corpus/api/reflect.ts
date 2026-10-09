@@ -80,14 +80,16 @@ console.log(keys[1]);
 
 // --- 4. Test deleteProperty, defineProperty, getOwnPropertyDescriptor ---
 // @expect: true
-console.log(Reflect.deleteProperty(acc, "owner"));
+const scratch: Record<string, number> = { temp: 1 };
+console.log(Reflect.deleteProperty(scratch, "temp"));
 
 // @expect: true
 console.log(Reflect.defineProperty(acc, "owner", { value: "Charlie" }));
 // @expect: Charlie
 console.log(Reflect.get(acc, "owner"));
 
-// Redefining an existing data property's value keeps its attributes.
+// Redefining an existing data property's value keeps its attributes
+// (writable, enumerable, configurable stay true).
 let desc = Reflect.getOwnPropertyDescriptor(acc, "owner");
 // @expect: true
 console.log(desc!.writable);

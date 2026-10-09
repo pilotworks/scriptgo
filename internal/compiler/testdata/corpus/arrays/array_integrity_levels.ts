@@ -1,4 +1,7 @@
 // Arrays honor Object.freeze, seal and preventExtensions.
+// Strict mode (as in ES modules), where integrity violations throw.
+"use strict";
+
 // @expect: Cannot assign to read only property '0' of object '[object Array]'
 // @expect: loop Cannot assign to read only property '0' of object '[object Array]'
 // @expect: Cannot add property 3, object is not extensible

@@ -1,5 +1,8 @@
 // Frozen, sealed and non-extensible objects reject writes, additions and
 // deletions with V8's TypeErrors.
+// Strict mode (as in ES modules), where integrity violations throw.
+"use strict";
+
 // @expect: TypeError Cannot assign to read only property 'x' of object '#<Object>' 1
 // @expect: 2 true true false
 // @expect: Cannot assign to read only property 'v' of object '#<P>' 3
