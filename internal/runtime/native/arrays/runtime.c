@@ -469,6 +469,66 @@ int scriptgo_array_index_of_number(void *handle, double target, double from_inde
     return 0;
 }
 
+/* scriptgo_array_search_value searches an array of any element storage for
+ * a boxed value: mode 0 is indexOf and 1 lastIndexOf (IsStrictlyEqual: NaN
+ * never matches, +0 equals -0), mode 2 is includes (SameValueZero: NaN
+ * matches). References compare by identity, strings by content. */
+int scriptgo_array_search_value(void *handle, const scriptgo_value *target, double from_index, int32_t mode, double *out_index) {
+    scriptgo_array *array = handle;
+    if (array == NULL || target == NULL || out_index == NULL || array->element_size <= 0) {
+        return fail("scriptgo array access failed");
+    }
+    *out_index = -1.0;
+    int64_t length = array->length;
+    int64_t start, end, step;
+    if (mode == 1) {
+        if (from_index != from_index) from_index = 0.0;
+        start = from_index >= 0.0 ? (from_index >= (double)length ? length - 1 : (int64_t)from_index)
+                                  : length + (int64_t)from_index;
+        end = -1;
+        step = -1;
+    } else {
+        start = scriptgo_array_relative_index(from_index, length);
+        end = length;
+        step = 1;
+    }
+    for (int64_t i = start; i != end && i >= 0 && i < length; i += step) {
+        scriptgo_value element;
+        if (scriptgo_array_get_unknown(array, (double)i, &element) != 0) return -1;
+        int match = 0;
+        if (element.tag == target->tag) {
+            switch (element.tag) {
+            case SCRIPTGO_TAG_UNDEFINED:
+            case SCRIPTGO_TAG_NULL:
+                match = 1;
+                break;
+            case SCRIPTGO_TAG_NUMBER: {
+                double a, b;
+                memcpy(&a, &element.payload, sizeof(a));
+                memcpy(&b, &target->payload, sizeof(b));
+                match = a == b || (mode == 2 && a != a && b != b);
+                break;
+            }
+            case SCRIPTGO_TAG_STRING: {
+                const char *a = (const char *)(uintptr_t)element.payload;
+                const char *b = (const char *)(uintptr_t)target->payload;
+                match = a == b || (a != NULL && b != NULL && strcmp(a, b) == 0);
+                break;
+            }
+            default:
+                match = element.payload == target->payload;
+                break;
+            }
+        }
+        scriptgo_value_release(&element);
+        if (match) {
+            *out_index = (double)i;
+            return 0;
+        }
+    }
+    return 0;
+}
+
 /* scriptgo_array_search_bool is indexOf (from_end 0) and lastIndexOf
  * (from_end 1) over a bool[] array, whose elements are single bytes. */
 int scriptgo_array_search_bool(void *handle, int32_t target, double from_index, int32_t from_end, double *out_index) {

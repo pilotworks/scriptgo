@@ -191,6 +191,9 @@ func lowerArrayReceiverMethod(
 		return "", "", false, nil
 	}
 	if !isTuple {
+		if value, typ, handled, err := lowerArrayReduce(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+			return value, typ, true, err
+		}
 		if value, typ, handled, err := lowerMismatchedArraySearch(path, expression, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 			return value, typ, true, err
 		}
