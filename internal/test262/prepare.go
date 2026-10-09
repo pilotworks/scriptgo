@@ -39,13 +39,23 @@ func Prepare(source string, meta Metadata) (entry string, skip string) {
 		}
 	}
 	var b strings.Builder
-	// Type errors are expected in conformance code (implicit any, coercions);
-	// the native subset gate still validates every construct.
-	b.WriteString("// @ts-nocheck\n")
+	// Type errors are expected in conformance code (implicit any, coercions),
+	// so type checking is off; the native subset gate still validates every
+	// construct. Tests that expect an early SyntaxError keep checking on,
+	// because TypeScript reports many grammar errors (TS1xxx) from the checker.
+	if !expectsEarlyError(meta) {
+		b.WriteString("// @ts-nocheck\n")
+	}
 	if !meta.HasFlag("raw") {
 		b.WriteString(harnessSource)
 		b.WriteString("\n")
 	}
 	b.WriteString(source)
 	return b.String(), ""
+}
+
+// expectsEarlyError reports a negative test whose error must be raised
+// before evaluation.
+func expectsEarlyError(meta Metadata) bool {
+	return meta.Negative != nil && (meta.Negative.Phase == "parse" || meta.Negative.Phase == "early")
 }

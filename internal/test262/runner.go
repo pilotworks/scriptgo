@@ -208,10 +208,15 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 	return Result{Path: rel, Outcome: Pass}
 }
 
-var syntaxDiagnostic = regexp.MustCompile(`error TS1\d{3}:`)
+// syntaxDiagnostic matches TypeScript-Go diagnostics that implement
+// ECMAScript early errors: the syntax/grammar range TS1xxx, plus checker codes
+// that are spec early errors rather than type errors — invalid assignment
+// target (2364), rest element not last (2462), misplaced super() (2337), and
+// a private name outside a class body (18016).
+var syntaxDiagnostic = regexp.MustCompile(`error TS(1\d{3}|2364|2462|2337|18016):`)
 
-// isSyntaxDiagnostic reports a TypeScript-Go syntax error (TS1xxx), the
-// compile-time equivalent of an early or parse-phase SyntaxError.
+// isSyntaxDiagnostic reports a TypeScript-Go diagnostic for an early error,
+// the compile-time equivalent of an early or parse-phase SyntaxError.
 func isSyntaxDiagnostic(err error) bool {
 	return syntaxDiagnostic.MatchString(err.Error())
 }

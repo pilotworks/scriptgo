@@ -70,6 +70,10 @@ func TestPrepareSkipsUnmodelledModesAndPrependsHarness(t *testing.T) {
 	if !strings.HasPrefix(entry, "// @ts-nocheck\n") || !strings.Contains(entry, "class Test262Error") || !strings.HasSuffix(entry, "assert(true);") {
 		t.Fatalf("unexpected prepared entry:\n%s", entry)
 	}
+	early, _ := Prepare("x;", Metadata{Negative: &Negative{Phase: "parse", Type: "SyntaxError"}})
+	if strings.Contains(early, "@ts-nocheck") {
+		t.Fatal("early-error tests must keep TypeScript grammar checking on")
+	}
 	raw, _ := Prepare("1;", Metadata{Flags: []string{"raw"}})
 	if strings.Contains(raw, "Test262Error") {
 		t.Fatal("raw tests must not receive the harness")
@@ -170,5 +174,18 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 	}
 	if reasons := TopReasons(results, Fail, 10); len(reasons) == 0 || !strings.Contains(strings.Join(reasons, "\n"), "0x…") {
 		t.Errorf("fail reasons should normalize addresses: %v", reasons)
+	}
+}
+
+func TestIsSyntaxDiagnosticAcceptsOnlyEarlyErrorCodes(t *testing.T) {
+	for _, code := range []string{"TS1005", "TS1156", "TS2364", "TS2462", "TS2337", "TS18016"} {
+		if !isSyntaxDiagnostic(errors.New("main.ts:1:1 - error " + code + ": message")) {
+			t.Errorf("%s should count as an early error", code)
+		}
+	}
+	for _, code := range []string{"TS2322", "TS2695", "TS7031", "TS2678", "SG1001"} {
+		if isSyntaxDiagnostic(errors.New("main.ts:1:1 - error " + code + ": message")) {
+			t.Errorf("%s must not count as an early error", code)
+		}
 	}
 }
