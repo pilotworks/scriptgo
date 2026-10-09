@@ -446,11 +446,63 @@ fail:
     return json_fail("scriptgo json allocation failed");
 }
 
+/* A tuple's key list is "0", "1", ... marked by a leading empty segment
+ * (`::0:1:`, see the backend's objectLayoutName); it serializes and
+ * inspects as an array. */
+static int json_tuple_key(const char *key, size_t key_len, int index, void *context) {
+    char expected[24];
+    int written = snprintf(expected, sizeof(expected), "%d", index);
+    int *count = context;
+    if (written < 0 || (size_t)written != key_len || memcmp(expected, key, key_len) != 0) {
+        *count = -1;
+        return 1;
+    }
+    *count = index + 1;
+    return 0;
+}
+
+static int json_object_is_tuple(const scriptgo_json_object *obj) {
+    int count = 0;
+    if (obj->type_name == NULL || strncmp(obj->type_name, "::", 2) != 0 || obj->field_count == 0) return 0;
+    object_field_visit((const scriptgo_object *)obj, json_tuple_key, &count);
+    return count > 0 && count == obj->field_count;
+}
+
+static int json_write_tuple_element(const char *key, size_t key_len, int index, void *context) {
+    json_object_writer *writer = context;
+    (void)key;
+    (void)key_len;
+    scriptgo_value value;
+    scriptgo_value_init_undefined(&value);
+    scriptgo_object_unknown_get(writer->handle, index, &value);
+    if ((index > 0 && jb_char(writer->builder, ',') != 0)) {
+        writer->failed = 1;
+        return 1;
+    }
+    /* An array element without a JSON value (undefined, a function) is null. */
+    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) {
+        if (jb_append(writer->builder, "null", 4) != 0) writer->failed = 1;
+        return writer->failed;
+    }
+    if (json_builder_value(writer->builder, &value) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);
     }
     scriptgo_json_object *obj = (scriptgo_json_object *)handle;
+    if (obj->magic == SCRIPTGO_OBJECT_MAGIC && json_object_is_tuple(obj)) {
+        json_object_writer writer = {b, handle, obj, 0, 0, 0};
+        if (jb_char(b, '[') != 0) return -1;
+        object_field_visit((const scriptgo_object *)handle, json_write_tuple_element, &writer);
+        if (writer.failed) return -1;
+        return jb_char(b, ']');
+    }
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC) {
         if (jb_char(b, '{') != 0) return -1;
         /* The field names come from the shared layout walk, so key lists
@@ -892,7 +944,8 @@ int scriptgo_json_inspect_object(void *handle, char **out_str) {
             int is_key = json[end + 1] == ':';
             if (is_key) {
                 size_t start = i + 1;
-                int identifier = start < end;
+                /* Node quotes keys that are not identifiers, numeric keys included. */
+                int identifier = start < end && !(json[start] >= '0' && json[start] <= '9');
                 for (size_t j = start; j < end; j++) {
                     char k = json[j];
                     if (!((k >= 'a' && k <= 'z') || (k >= 'A' && k <= 'Z') ||

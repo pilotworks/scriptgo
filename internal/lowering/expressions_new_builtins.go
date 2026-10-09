@@ -213,9 +213,12 @@ func lowerNewMap(path string, expression *frontend.SyntaxExpression, result stri
 		})
 		return result, ir.TypeMap, nil
 	}
-	arg0Val, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+	arg0Val, arg0Type, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
+	}
+	if strings.HasSuffix(string(arg0Type), "[]") {
+		return lowerNewMapFromEntries(path, expression, arg0Val, arg0Type, result, function, env, counter, shapes, signatures)
 	}
 	function.Body = append(function.Body, ir.Instruction{
 		Op:     ir.OpCall,

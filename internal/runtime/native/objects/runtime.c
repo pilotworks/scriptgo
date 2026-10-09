@@ -2095,7 +2095,7 @@ static int object_enumerate_field(const char *name, size_t length, int index, vo
      * a [string, T] tuple. */
     void *pair = NULL;
     char *key = malloc(length + 1);
-    if (key == NULL || scriptgo_object_new_typed(2, ":0:1:", &pair) != 0) {
+    if (key == NULL || scriptgo_object_new_typed(2, "::0:1:", &pair) != 0) {
         free(key);
         writer->failed = 1;
         return 1;

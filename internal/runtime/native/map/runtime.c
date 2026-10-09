@@ -440,6 +440,62 @@ int scriptgo_map_size(void *handle, double *out_size) {
     return 0;
 }
 
+int scriptgo_console_inspect_array(void *value, char **out_str);
+int scriptgo_json_inspect_object(void *handle, char **out_str);
+int scriptgo_gc_get_tag(void *ptr);
+extern const char scriptgo_undefined_sentinel;
+
+/* map_inspect_value renders an entry's value as console.log does. */
+static char *map_inspect_value(const scriptgo_map_native_entry *entry) {
+    char buf[64];
+    char *inspected = NULL;
+    switch (entry->val_type) {
+    case SCRIPTGO_MAP_VAL_NUMBER:
+        return num_to_str(entry->num_val);
+    case SCRIPTGO_MAP_VAL_BIGINT:
+        snprintf(buf, sizeof(buf), "%lldn", (long long)entry->bigint_val);
+        return strdup(buf);
+    case SCRIPTGO_MAP_VAL_STRING: {
+        const char *text = entry->str_val ? entry->str_val : "";
+        size_t length = strlen(text);
+        char *quoted = malloc(length + 3);
+        if (quoted == NULL) return NULL;
+        quoted[0] = '\'';
+        memcpy(quoted + 1, text, length);
+        quoted[length + 1] = '\'';
+        quoted[length + 2] = '\0';
+        return quoted;
+    }
+    default:
+        break;
+    }
+    void *value = entry->ptr_val;
+    if (value == NULL) return strdup("null");
+    if (value == (void *)&scriptgo_undefined_sentinel) return strdup("undefined");
+    int gc_tag = scriptgo_gc_get_tag(value);
+    if (gc_tag == 2 && scriptgo_console_inspect_array(value, &inspected) == 0 && inspected != NULL) return inspected;
+    if (gc_tag == 3) return strdup("[Function (anonymous)]");
+    if (*(uint64_t *)value == 0x53474F424A454354ULL && scriptgo_json_inspect_object(value, &inspected) == 0 && inspected != NULL) {
+        return inspected;
+    }
+    return strdup("[object]");
+}
+
+static int map_append(char **buf, size_t *length, size_t *capacity, const char *text) {
+    size_t extra = strlen(text);
+    if (*length + extra + 1 > *capacity) {
+        size_t next = (*capacity == 0 ? 64 : *capacity * 2);
+        while (next < *length + extra + 1) next *= 2;
+        char *grown = realloc(*buf, next);
+        if (grown == NULL) return -1;
+        *buf = grown;
+        *capacity = next;
+    }
+    memcpy(*buf + *length, text, extra + 1);
+    *length += extra;
+    return 0;
+}
+
 int scriptgo_map_to_string(void *handle, char **out_str) {
     scriptgo_map_native *m = handle;
     if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP) {
@@ -447,46 +503,28 @@ int scriptgo_map_to_string(void *handle, char **out_str) {
         return 0;
     }
     if (out_str == NULL) return map_fail("scriptgo map toString: null out_str");
-    size_t cap = 256;
-    char *buf = malloc(cap);
-    if (buf == NULL) return map_fail("scriptgo map toString: out of memory");
-    snprintf(buf, cap, "Map(%lld) {", (long long)m->size);
+    char *buf = NULL;
+    size_t length = 0, capacity = 0;
+    char header[48];
+    snprintf(header, sizeof(header), "Map(%lld) {", (long long)m->size);
+    if (map_append(&buf, &length, &capacity, header) != 0) goto fail;
     for (int64_t i = 0; i < m->size; i++) {
-        char entry_buf[128];
-        char val_buf[64];
-        if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
-            double n = m->entries[i].num_val;
-            if (n == (double)(int64_t)n) {
-                snprintf(val_buf, sizeof(val_buf), "%lld", (long long)n);
-            } else {
-                snprintf(val_buf, sizeof(val_buf), "%.14g", n);
-            }
-        } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_STRING) {
-            snprintf(val_buf, sizeof(val_buf), "'%s'", m->entries[i].str_val ? m->entries[i].str_val : "");
-        } else if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_BIGINT) {
-            snprintf(val_buf, sizeof(val_buf), "%lldn", (long long)m->entries[i].bigint_val);
-        } else {
-            snprintf(val_buf, sizeof(val_buf), "[object]");
-        }
-        snprintf(entry_buf, sizeof(entry_buf), "%s'%s' => %s", (i == 0 ? " " : ", "), m->entries[i].key_str ? m->entries[i].key_str : "", val_buf);
-        size_t needed = strlen(buf) + strlen(entry_buf) + 4;
-        if (needed >= cap) {
-            cap = needed * 2;
-            char *new_buf = realloc(buf, cap);
-            if (new_buf == NULL) {
-                free(buf);
-                return map_fail("scriptgo map toString: out of memory");
-            }
-            buf = new_buf;
-        }
-        strcat(buf, entry_buf);
+        char *value = map_inspect_value(&m->entries[i]);
+        if (value == NULL) goto fail;
+        const char *key = m->entries[i].key_str ? m->entries[i].key_str : "";
+        int failed = map_append(&buf, &length, &capacity, i == 0 ? " '" : ", '") != 0 ||
+                     map_append(&buf, &length, &capacity, key) != 0 ||
+                     map_append(&buf, &length, &capacity, "' => ") != 0 ||
+                     map_append(&buf, &length, &capacity, value) != 0;
+        free(value);
+        if (failed) goto fail;
     }
-    if (m->size > 0) {
-        strcat(buf, " ");
-    }
-    strcat(buf, "}");
+    if (map_append(&buf, &length, &capacity, m->size > 0 ? " }" : "}") != 0) goto fail;
     *out_str = buf;
     return 0;
+fail:
+    free(buf);
+    return map_fail("scriptgo map toString: out of memory");
 }
 
 int scriptgo_closure_invoke(void *closure_handle, int32_t arg_count, const scriptgo_boxed_value *a1, const scriptgo_boxed_value *a2, const scriptgo_boxed_value *a3, const scriptgo_boxed_value *a4);
