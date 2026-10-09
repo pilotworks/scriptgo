@@ -10,13 +10,7 @@ import (
 func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
 	case "__map.new":
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_new(ptr %%%s)\n", status, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.emitMapCall(out, instruction.Result, "ptr", "scriptgo_map_new", "")
 		return nil
 
 	case "__map.new_entries":
@@ -24,13 +18,7 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.new_entries requires 1 argument")
 		}
 		arrArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_new_entries(ptr %%%s, ptr %%%s)\n", status, arrArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.emitMapCall(out, instruction.Result, "ptr", "scriptgo_map_new_entries", "ptr %"+arrArg)
 		return nil
 
 	case "__map.set":
@@ -38,55 +26,35 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.set requires 3 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		origKey := instruction.Args[1]
+		keyTag, keyPayload, err := e.mapKeyArgs(out, instruction.Args[1])
+		if err != nil {
+			return err
+		}
 		origVal := instruction.Args[2]
-		keyType := e.types[origKey]
-		valType := e.types[origVal]
-		keyArg := e.resolveArg(out, origKey)
-		keyStrArg, _, _ := e.mapKeyArgs(out, keyArg, keyType)
-		valArg := e.resolveArg(out, origVal)
-		if valType != ir.TypeNumber && valType != ir.TypeString {
-			if valType == ir.TypeBigInt {
-				valArg = e.resolveArg(out, origVal)
-			} else {
-				valArg = e.ensurePointerArg(out, origVal)
-			}
+		var callee, valArg string
+		switch e.types[origVal] {
+		case ir.TypeNumber:
+			callee, valArg = "scriptgo_map_set_number", "double %"+e.resolveArg(out, origVal)
+		case ir.TypeString:
+			callee, valArg = "scriptgo_map_set_string", "ptr %"+e.resolveArg(out, origVal)
+		case ir.TypeBigInt:
+			callee, valArg = "scriptgo_map_set_bigint", "i64 %"+e.resolveArg(out, origVal)
+		case ir.TypeBool:
+			flag := fmt.Sprintf("map.value.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s = zext i1 %%%s to i32\n", flag, e.resolveArg(out, origVal))
+			callee, valArg = "scriptgo_map_set_bool", "i32 %"+flag
+		case ir.TypeUnknown:
+			boxed := e.resolveArg(out, origVal)
+			value := fmt.Sprintf("map.value.%d", e.loadCounter)
+			e.loadCounter++
+			fmt.Fprintf(out, "  %%%s.tag = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", value, boxed)
+			fmt.Fprintf(out, "  %%%s.payload = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", value, boxed)
+			callee, valArg = "scriptgo_map_set_unknown", fmt.Sprintf("i32 %%%s.tag, i64 %%%s.payload", value, value)
+		default:
+			callee, valArg = "scriptgo_map_set_ptr", "ptr %"+e.ensurePointerArg(out, origVal)
 		}
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-
-		if keyType == ir.TypeNumber {
-			if valType == ir.TypeNumber {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_number_number(ptr %%%s, double %%%s, double %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			} else if valType == ir.TypeString {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_number_string(ptr %%%s, double %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			} else {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_number_ptr(ptr %%%s, double %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			}
-		} else if keyType == ir.TypeBigInt {
-			if valType == ir.TypeNumber {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_number(ptr %%%s, ptr %s, double %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
-			} else if valType == ir.TypeString {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_string(ptr %%%s, ptr %s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
-			} else if valType == ir.TypeBigInt {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_bigint(ptr %%%s, ptr %s, i64 %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
-			} else {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_ptr(ptr %%%s, ptr %s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyStrArg, valArg, slot)
-			}
-		} else {
-			if valType == ir.TypeNumber {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			} else if valType == ir.TypeString {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_string(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			} else {
-				fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_set_string_ptr(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, mapArg, keyArg, valArg, slot)
-			}
-		}
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.emitMapCall(out, instruction.Result, "ptr", callee, fmt.Sprintf("ptr %%%s, i32 %s, i64 %s, %s", mapArg, keyTag, keyPayload, valArg))
 		return nil
 
 	case "__map.get":
@@ -94,208 +62,83 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 			return fmt.Errorf("map.get requires 2 arguments")
 		}
 		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		origKey := instruction.Args[1]
-		keyType := e.types[origKey]
-		keyArg := e.resolveArg(out, origKey)
-		retType := instruction.Type
-
-		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
-		if keyType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("map.get.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("map.get.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			keyStrArg = fmt.Sprintf("%%%s", ptrName)
+		keyTag, keyPayload, err := e.mapKeyArgs(out, instruction.Args[1])
+		if err != nil {
+			return err
 		}
+		args := fmt.Sprintf("ptr %%%s, i32 %s, i64 %s", mapArg, keyTag, keyPayload)
+		switch instruction.Type {
+		case ir.TypeNumber:
+			e.emitMapCall(out, instruction.Result, "double", "scriptgo_map_get_number", args)
+		case ir.TypeString:
+			e.emitMapCall(out, instruction.Result, "ptr", "scriptgo_map_get_string", args)
+		case ir.TypeBigInt:
+			e.emitMapCall(out, instruction.Result, "i64", "scriptgo_map_get_bigint", args)
+		case ir.TypeBool:
+			e.emitMapCall(out, instruction.Result+".i32", "i32", "scriptgo_map_get_bool", args)
+			fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		case ir.TypeUnknown:
+			e.emitMapCall(out, instruction.Result, "{ i32, i32, i64, i64 }", "scriptgo_map_get_unknown", args)
+		default:
+			e.emitMapCall(out, instruction.Result, "ptr", "scriptgo_map_get_ptr", args)
+		}
+		return nil
 
-		slot := instruction.Result + ".slot"
+	case "__map.has", "__map.delete":
+		if len(instruction.Args) < 2 {
+			return fmt.Errorf("%s requires 2 arguments", instruction.Callee)
+		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
+		keyTag, keyPayload, err := e.mapKeyArgs(out, instruction.Args[1])
+		if err != nil {
+			return err
+		}
+		callee := "scriptgo_map_has"
+		if instruction.Callee == "__map.delete" {
+			callee = "scriptgo_map_delete"
+		}
+		e.emitMapCall(out, instruction.Result+".i32", "i32", callee, fmt.Sprintf("ptr %%%s, i32 %s, i64 %s", mapArg, keyTag, keyPayload))
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
+		return nil
+
+	case "__map.clear", "__map.forEach":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("%s requires a receiver", instruction.Callee)
+		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
+		callee, args := "scriptgo_map_clear", "ptr %"+mapArg
+		if instruction.Callee == "__map.forEach" {
+			if len(instruction.Args) < 2 {
+				return fmt.Errorf("map.forEach requires 2 arguments")
+			}
+			callee, args = "scriptgo_map_for_each", fmt.Sprintf("ptr %%%s, ptr %%%s", mapArg, instruction.Args[1])
+		}
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(%s)\n", status, callee, args)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		return nil
 
-		if retType == ir.TypeNumber {
-			fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_number(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-			fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-		} else if retType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_string(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		} else if retType == ir.TypeBigInt {
-			fmt.Fprintf(out, "  %%%s = alloca i64\n", slot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_bigint(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-			fmt.Fprintf(out, "  %%%s = load i64, ptr %%%s\n", instruction.Result, slot)
-		} else if retType == ir.TypeUnknown {
-			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_ptr(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-			loadedPtr := fmt.Sprintf("%s.loaded_ptr", instruction.Result)
-			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", loadedPtr, slot)
-			if err := e.emitBoxValue(out, loadedPtr, ir.TypePointer, instruction.Result); err != nil {
+	case "__map.size", "__map.toString", "__map.values", "__map.entries", "__map.keys":
+		if len(instruction.Args) < 1 {
+			return fmt.Errorf("%s requires a receiver", instruction.Callee)
+		}
+		mapArg := e.ensurePointerArg(out, instruction.Args[0])
+		resultType, callee, args := "ptr", "scriptgo_map_"+strings.TrimPrefix(instruction.Callee, "__map."), "ptr %"+mapArg
+		switch instruction.Callee {
+		case "__map.size":
+			resultType = "double"
+		case "__map.toString":
+			callee = "scriptgo_map_to_string"
+		case "__map.keys":
+			// The runtime lays keys out for the element type the program reads.
+			elementSize, err := arrayElementSizeForTarget(instruction.Type, e.pointerSize())
+			if err != nil {
 				return err
 			}
-		} else {
-			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_get_ptr(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+			args += fmt.Sprintf(", i64 %d", elementSize)
 		}
-		return nil
-
-	case "__map.has":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("map.has requires 2 arguments")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		origKey := instruction.Args[1]
-		keyType := e.types[origKey]
-		keyArg := e.resolveArg(out, origKey)
-
-		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
-		if keyType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("map.has.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("map.has.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			keyStrArg = fmt.Sprintf("%%%s", ptrName)
-		}
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_has(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__map.delete":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("map.delete requires 2 arguments")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		origKey := instruction.Args[1]
-		keyType := e.types[origKey]
-		keyArg := e.resolveArg(out, origKey)
-
-		keyStrArg, keyNumArg, keyIsStr := e.mapKeyArgs(out, keyArg, keyType)
-		if keyType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("map.del.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, keyArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("map.del.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			keyStrArg = fmt.Sprintf("%%%s", ptrName)
-		}
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_delete(ptr %%%s, ptr %s, double %s, i32 %s, ptr %%%s)\n", status, mapArg, keyStrArg, keyNumArg, keyIsStr, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__map.clear":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.clear requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_clear(ptr %%%s)\n", status, mapArg)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		return nil
-
-	case "__map.size":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.size requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_size(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__map.toString":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.toString requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_to_string(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__map.forEach":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("map.forEach requires 2 arguments")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_for_each(ptr %%%s, ptr %%%s)\n", status, mapArg, instruction.Args[1])
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		return nil
-
-	case "__map.keys":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.keys requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_keys(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__map.values":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.values requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_values(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__map.entries":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("map.entries requires 1 argument")
-		}
-		mapArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_map_entries(ptr %%%s, ptr %%%s)\n", status, mapArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		e.emitMapCall(out, instruction.Result, resultType, callee, args)
 		return nil
 
 	default:
@@ -303,371 +146,34 @@ func (e *functionEmitter) emitMapIntrinsic(out *strings.Builder, instruction ir.
 	}
 }
 
-// mapKeyArgs normalizes map keys to the ABI accepted by the native map
-// runtime. BigInt keys use their decimal string representation so the full
-// signed 64-bit value remains exact instead of being narrowed to a double.
-func (e *functionEmitter) mapKeyArgs(out *strings.Builder, keyArg string, keyType ir.Type) (keyStrArg, keyNumArg, keyIsStr string) {
-	keyStrArg = fmt.Sprintf("%%%s", keyArg)
-	keyNumArg = "0.0"
-	keyIsStr = "1"
-	if keyType == ir.TypeNumber {
-		keyIsStr = "0"
-		keyStrArg = "null"
-		keyNumArg = fmt.Sprintf("%%%s", keyArg)
-		return
+// emitMapCall calls a Map runtime function whose last parameter is the out
+// slot for result, aborting on a failed status.
+func (e *functionEmitter) emitMapCall(out *strings.Builder, result, resultType, callee, args string) {
+	slot := result + ".slot"
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	if args != "" {
+		args += ", "
 	}
-	if keyType != ir.TypeBigInt {
-		return
-	}
-	slot := fmt.Sprintf("map.key.%d.slot", e.loadCounter)
-	e.loadCounter++
-	status := fmt.Sprintf("map.key.%d.status", e.loadCounter)
-	e.loadCounter++
-	value := fmt.Sprintf("map.key.%d", e.loadCounter)
-	e.loadCounter++
-	fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%%s)\n", status, keyArg, slot)
+	fmt.Fprintf(out, "  %%%s = alloca %s\n", slot, resultType)
+	fmt.Fprintf(out, "  %%%s = call i32 @%s(%sptr %%%s)\n", status, callee, args, slot)
 	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-	fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", value, slot)
-	keyStrArg = fmt.Sprintf("%%%s", value)
-	return
+	fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", result, resultType, slot)
 }
 
-func (e *functionEmitter) emitSetIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
-	switch instruction.Callee {
-	case "__set.new":
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_new(ptr %%%s)\n", status, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.new_values":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.new_values requires 1 argument")
-		}
-		arrArg := instruction.Args[0]
-		arrType := e.types[arrArg]
-		fnName := "scriptgo_set_new_values_ptr"
-		if arrType == ir.TypeNumberArray {
-			fnName = "scriptgo_set_new_values_number"
-		} else if arrType == ir.TypeStringArray {
-			fnName = "scriptgo_set_new_values_string"
-		}
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, ptr %%%s)\n", status, fnName, arrArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.add":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.add requires 2 arguments")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		origVal := instruction.Args[1]
-		valType := e.types[origVal]
-		valArg := e.resolveArg(out, origVal)
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-
-		if valType == ir.TypeNumber {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("set.add.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("set.add.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, ptrName, slot)
-		} else {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_add_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		}
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.has":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.has requires 2 arguments")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		origVal := instruction.Args[1]
-		valType := e.types[origVal]
-		valArg := e.resolveArg(out, origVal)
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-
-		if valType == ir.TypeNumber {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("set.has.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("set.has.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, ptrName, slot)
-		} else {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_has_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		}
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__set.delete":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.delete requires 2 arguments")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		origVal := instruction.Args[1]
-		valType := e.types[origVal]
-		valArg := e.resolveArg(out, origVal)
-
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-
-		if valType == ir.TypeNumber {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_number(ptr %%%s, double %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeString {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_string(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		} else if valType == ir.TypeUnknown {
-			e.tempCounter++
-			payloadName := fmt.Sprintf("set.del.unbox.payload.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", payloadName, valArg)
-			e.tempCounter++
-			ptrName := fmt.Sprintf("set.del.unbox.ptr.%d", e.tempCounter)
-			fmt.Fprintf(out, "  %%%s = inttoptr i64 %%%s to ptr\n", ptrName, payloadName)
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, ptrName, slot)
-		} else {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_delete_ptr(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setArg, valArg, slot)
-		}
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__set.clear":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.clear requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_clear(ptr %%%s)\n", status, setArg)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		return nil
-
-	case "__set.size":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.size requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_size(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.toString":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.toString requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_to_string(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.forEach":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.forEach requires 2 arguments")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_for_each(ptr %%%s, ptr %%%s)\n", status, setArg, instruction.Args[1])
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		return nil
-
-	case "__set.keys":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.keys requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_keys(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.values":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.values requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_values(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.entries":
-		if len(instruction.Args) < 1 {
-			return fmt.Errorf("set.entries requires 1 argument")
-		}
-		setArg := e.ensurePointerArg(out, instruction.Args[0])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_entries(ptr %%%s, ptr %%%s)\n", status, setArg, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.union":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.union requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_union(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.intersection":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.intersection requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_intersection(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.difference":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.difference requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_difference(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.symmetricDifference":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.symmetricDifference requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_symmetric_difference(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
-		return nil
-
-	case "__set.isSubsetOf":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.isSubsetOf requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_subset_of(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__set.isSupersetOf":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.isSupersetOf requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_superset_of(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	case "__set.isDisjointFrom":
-		if len(instruction.Args) < 2 {
-			return fmt.Errorf("set.isDisjointFrom requires 2 arguments")
-		}
-		setA := e.ensurePointerArg(out, instruction.Args[0])
-		setB := e.ensurePointerArg(out, instruction.Args[1])
-		slot := instruction.Result + ".slot"
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_set_is_disjoint_from(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, setA, setB, slot)
-		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
-		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", instruction.Result+".i32", slot)
-		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, instruction.Result+".i32")
-		return nil
-
-	default:
-		return fmt.Errorf("unsupported Set intrinsic %q", instruction.Callee)
+// mapKeyArgs passes a Map key as the value tag and payload of its boxed
+// form, so the runtime compares keys with SameValueZero by their own type:
+// the number 1 and the string "1" are distinct keys.
+func (e *functionEmitter) mapKeyArgs(out *strings.Builder, key string) (tag, payload string, err error) {
+	name := fmt.Sprintf("map.key.%d", e.loadCounter)
+	e.loadCounter++
+	boxed := name
+	if keyType := e.types[key]; keyType == ir.TypeUnknown {
+		boxed = e.resolveArg(out, key)
+	} else if err := e.emitBoxValue(out, key, keyType, boxed); err != nil {
+		return "", "", err
 	}
+	fmt.Fprintf(out, "  %%%s.tag = extractvalue { i32, i32, i64, i64 } %%%s, 0\n", name, boxed)
+	fmt.Fprintf(out, "  %%%s.payload = extractvalue { i32, i32, i64, i64 } %%%s, 2\n", name, boxed)
+	return "%" + name + ".tag", "%" + name + ".payload", nil
 }

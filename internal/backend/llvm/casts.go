@@ -27,9 +27,23 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 
 	switch argType {
 	case ir.TypeNumber:
-		tag = 3 // SCRIPTGO_TAG_NUMBER
+		// Number storage holds undefined and null as markers
+		// (numberMarkerBits); they box as their own tags.
+		bits := fmt.Sprintf("box.bits.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", bits, argVal))
+		isUndefined := fmt.Sprintf("box.is_undef.%d", id)
+		isNull := fmt.Sprintf("box.is_null.%d", id)
+		nullOrNumber := fmt.Sprintf("box.null_or_number.%d", id)
+		tagValue := fmt.Sprintf("tag.%d", id)
+		isMarker := fmt.Sprintf("box.is_marker.%d", id)
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", payloadVal, argVal))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isUndefined, bits, numberMarkerBits["undefined"]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isNull, bits, numberMarkerBits["null"]))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i32 1, i32 3\n", nullOrNumber, isNull))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i32 0, i32 %%%s\n", tagValue, isUndefined, nullOrNumber))
+		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", isMarker, isUndefined, isNull))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i64 0, i64 %%%s\n", payloadVal, isMarker, bits))
+		tagOperand = "%" + tagValue
 	case ir.TypeBool:
 		tag = 2 // SCRIPTGO_TAG_BOOLEAN
 		payloadVal = fmt.Sprintf("payload.%d", id)

@@ -213,6 +213,14 @@ func lowerNewMap(path string, expression *frontend.SyntaxExpression, result stri
 		})
 		return result, ir.TypeMap, nil
 	}
+	if entries := expression.Arguments[0]; entries.Kind == "array" {
+		// An entries literal is contextually typed by Map<K, V>: each element
+		// is a [K, V] pair even when the literal alone infers a union of
+		// differently typed tuples.
+		if keyType, valueType := mapTypeArguments(expression.InferredType); keyType != "" {
+			entries.InferredType = "[" + keyType + ", " + valueType + "][]"
+		}
+	}
 	arg0Val, arg0Type, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
