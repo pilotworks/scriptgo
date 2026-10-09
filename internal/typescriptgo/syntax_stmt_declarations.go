@@ -2,7 +2,6 @@ package typescriptgo
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/checker"
@@ -15,15 +14,9 @@ func syntaxFunctionDeclaration(node *ast.Node, chk *checker.Checker, span Source
 		fnType = inferredRetType
 	}
 	fnDecl := node.AsFunctionDeclaration()
-	isGen := (node.BodyData() != nil && node.BodyData().AsteriskToken != nil) || (fnDecl != nil && fnDecl.AsteriskToken != nil) || strings.HasPrefix(inferredRetType, "Generator") || strings.HasPrefix(inferredRetType, "AsyncGenerator") || strings.HasPrefix(fnType, "Generator") || strings.HasPrefix(fnType, "AsyncGenerator")
-	if !isGen && node.Body() != nil {
-		for _, s := range node.Body().Statements() {
-			if s.Kind == ast.KindExpressionStatement && s.Expression() != nil && s.Expression().Kind == ast.KindYieldExpression {
-				isGen = true
-				break
-			}
-		}
-	}
+	// A generator is a function* declaration; a plain function may return a
+	// Generator (one made by a generator it calls).
+	isGen := (node.BodyData() != nil && node.BodyData().AsteriskToken != nil) || (fnDecl != nil && fnDecl.AsteriskToken != nil)
 	isAsync := ast.HasSyntacticModifier(node, ast.ModifierFlagsAsync)
 	isAmbient := node.Body() == nil || ast.HasSyntacticModifier(node, ast.ModifierFlagsAmbient)
 	kind := "function"

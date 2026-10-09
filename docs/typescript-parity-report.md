@@ -96,7 +96,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
 | Function Overloads | ⚠️ Static only | Overload signatures checked at compile time; lowered to a single standard implementation. |
-| Generators (`function*`, `yield`) | ✅ Full | State-machine infrastructure producing `IteratorResult<T>` shapes, `.next()`, and `for..of` loop integration. |
+| Generators (`function*`, `yield`) | ⚠️ Partial | State-machine infrastructure producing `IteratorResult<T>` shapes, `.next()`, and `for..of` loop integration for generator functions, generator closures, instance generator methods (`*items()`, `*[Symbol.iterator]()`) and values typed only `Generator<T>` (each generator object carries its `next` as a closure). A generator whose yields sit in loops collects its values when created, so an infinite generator does not terminate; static generator methods are not supported. |
 
 ---
 

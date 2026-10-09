@@ -625,6 +625,8 @@ int scriptgo_object_number_set(void *handle, int64_t index, double value);
 int scriptgo_object_string_set(void *handle, int64_t index, const char *value);
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
 
+int scriptgo_object_new_typed(int64_t field_count, const char *type_name, void **out_object);
+
 int scriptgo_map_entries(void *handle, void **out_array) {
     scriptgo_map_native *m = handle;
     if (m == NULL || m->magic != SCRIPTGO_MAGIC_MAP || out_array == NULL) return map_fail("invalid map handle");
@@ -632,7 +634,8 @@ int scriptgo_map_entries(void *handle, void **out_array) {
     scriptgo_array_header *arr = *out_array;
     for (int64_t i = 0; i < m->size; i++) {
         void *tup = NULL;
-        if (scriptgo_object_new(2, &tup) != 0) return -1;
+        /* A [key, value] entry is a tuple (see the backend's objectLayoutName). */
+        if (scriptgo_object_new_typed(2, "::0:1:", &tup) != 0) return -1;
         scriptgo_object_string_set(tup, 0, m->entries[i].key_str ? m->entries[i].key_str : "");
         if (m->entries[i].val_type == SCRIPTGO_MAP_VAL_NUMBER) {
             scriptgo_object_number_set(tup, 1, m->entries[i].num_val);

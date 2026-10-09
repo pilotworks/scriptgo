@@ -81,7 +81,6 @@ func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Fu
 				}
 			}
 		} else {
-			nextFn = "__generator.next"
 			resShapeName = fmt.Sprintf("IteratorResult_%s", valType)
 		}
 
@@ -137,14 +136,18 @@ func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Fu
 		if hasNext {
 			retType = targetNext.ReturnType
 		}
-		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   retType,
-			Result: resVal,
-			Callee: nextFn,
-			Args:   []string{arrVal},
-			Span:   toIRSpan(path, statement.Span),
-		})
+		if hasNext {
+			bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
+				Op:     ir.OpCall,
+				Type:   retType,
+				Result: resVal,
+				Callee: nextFn,
+				Args:   []string{arrVal},
+				Span:   toIRSpan(path, statement.Span),
+			})
+		} else {
+			bodyBranch.Body = append(bodyBranch.Body, generatorNextCall(toIRSpan(path, statement.Span), arrVal, shapeName, resVal, retType, counter)...)
+		}
 
 		doneVal := nextTemp(counter)
 		bodyBranch.Body = append(bodyBranch.Body, ir.Instruction{
@@ -324,7 +327,11 @@ func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Fu
 		env[valuesRes] = valuesArrType
 		arrVal = valuesRes
 	} else if strings.Contains(string(arrType), "MapIterator") || strings.Contains(string(arrType), "SetIterator") {
-		if after, ok := strings.CutPrefix(string(arrType), "object:MapIterator__"); ok {
+		// The checked element type (MapIterator<[K, V]>) is exact; the IR
+		// iterator name flattens tuple element types.
+		if element, ok := iteratorElementType(statement.Expression); ok {
+			elemType = element
+		} else if after, ok := strings.CutPrefix(string(arrType), "object:MapIterator__"); ok {
 			clean := after
 			if strings.HasPrefix(clean, "[") && strings.HasSuffix(clean, "]") {
 				inner := clean[1 : len(clean)-1]
@@ -458,4 +465,23 @@ func lowerForOf(path string, statement frontend.SyntaxStatement, function *ir.Fu
 		Span:  toIRSpan(path, statement.Span),
 	})
 	return nil
+}
+
+// iteratorElementType is the IR type of T for an expression whose checked
+// type is a one-argument iterator type such as MapIterator<T>.
+func iteratorElementType(expression *frontend.SyntaxExpression) (ir.Type, bool) {
+	if expression == nil {
+		return "", false
+	}
+	typ := strings.TrimSpace(expression.InferredType)
+	open := strings.Index(typ, "<")
+	if open < 0 || !strings.HasSuffix(typ, ">") {
+		return "", false
+	}
+	args := splitTypeArguments(typ[open+1 : len(typ)-1])
+	if len(args) == 0 {
+		return "", false
+	}
+	element := toIRType(strings.TrimSpace(args[0]))
+	return element, element != ""
 }

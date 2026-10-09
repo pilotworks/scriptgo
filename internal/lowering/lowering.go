@@ -76,6 +76,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	if err != nil {
 		return ir.Module{}, err
 	}
+	program = desugarGeneratorMethods(program)
 	if err := validateSubsetLocked(program, options); err != nil {
 		return ir.Module{}, err
 	}

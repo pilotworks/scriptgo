@@ -346,10 +346,12 @@ func lowerClosureExpression(
 					{Name: "__state", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(path, fnStmt.Span)},
 					{Name: "__done", Type: ir.TypeBool, Value: "false", Span: toIRSpan(path, fnStmt.Span)},
 					{Name: "__value", Type: yieldType, Span: toIRSpan(path, fnStmt.Span)},
+					{Name: "__next", Type: ir.TypeClosure, Span: toIRSpan(path, fnStmt.Span)},
 					{Name: "__items", Type: ir.Type(string(yieldType) + "[]"), Span: toIRSpan(path, fnStmt.Span)},
 				},
 			}
 		}
+		nextFn := ensureClosureGeneratorNext(toIRSpan(path, fnStmt.Span), genClassName, yieldType, shapes, signatures)
 
 		itemsTemp := nextTemp(&closureBodyCounter)
 		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpArray, Type: ir.Type(string(yieldType) + "[]"), Result: itemsTemp, Span: targetFn.Span})
@@ -368,24 +370,27 @@ func lowerClosureExpression(
 		defVal := nextTemp(&closureBodyCounter)
 		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: defVal, Value: "0", Span: targetFn.Span})
 
+		nextClosure := nextTemp(&closureBodyCounter)
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: nextClosure, Callee: ensureFunctionClosureTrampoline(path, nextFn, shapes, signatures), Span: targetFn.Span})
+		fieldValues := []string{stateZero, doneFalse, defVal, nextClosure, itemsTemp}
 		genObj := nextTemp(&closureBodyCounter)
 		targetFn.Body = append(targetFn.Body, ir.Instruction{
 			Op:         ir.OpObjectNew,
 			Type:       ir.Type("object:" + genClassName),
 			Result:     genObj,
 			Callee:     genClassName,
-			FieldCount: 4,
-			Args:       []string{stateZero, doneFalse, defVal, itemsTemp},
+			FieldCount: len(fieldValues),
+			Args:       fieldValues,
 			Span:       targetFn.Span,
 		})
-		for fIdx, fName := range []string{"__state", "__done", "__value", "__items"} {
+		for fIdx, fName := range []string{"__state", "__done", "__value", "__next", "__items"} {
 			targetFn.Body = append(targetFn.Body, ir.Instruction{
 				Op:         ir.OpFieldSet,
 				Type:       ir.TypeVoid,
 				Callee:     genClassName,
 				Field:      fName,
 				FieldIndex: fIdx,
-				Args:       []string{genObj, []string{stateZero, doneFalse, defVal, itemsTemp}[fIdx]},
+				Args:       []string{genObj, fieldValues[fIdx]},
 				Span:       targetFn.Span,
 			})
 		}

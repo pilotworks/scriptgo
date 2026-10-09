@@ -165,6 +165,9 @@ func lowerCallExpression(
 						if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 							return lowerInstanceMethodCall(path, expression, result, function, env, counter, shapes, signatures, receiver, target, mangled)
 						}
+						if methodName == "next" && len(expression.Arguments) == 0 && strings.HasPrefix(className, "Generator_") {
+							return lowerGeneratorNextMethod(path, expression, receiver, className, result, function, shapes, counter)
+						}
 						if methodName == "hasOwnProperty" || methodName == "propertyIsEnumerable" {
 							if len(expression.Arguments) > 0 {
 								return lowerHasOwnPropertyCall(path, expression, result, function, env, counter, shapes, signatures, receiver)
