@@ -60,7 +60,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 					continue
 				}
 			}
-			if statement.Kind == "function" && len(statement.TypeParameters) > 0 {
+			if isFunctionDeclarationKind(statement.Kind) && len(statement.TypeParameters) > 0 {
 				genericFuncs[statement.Name] = statement
 			} else if (statement.Kind == "class" || statement.Kind == "interface" || statement.Kind == "type_alias") && statement.Class != nil {
 				qualifiedCls := classIdentityForPath(file.FileName, statement.Class.Name)
@@ -94,7 +94,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 				fn.Name = statement.Name
 				genericFuncs[statement.Name] = fn
 			}
-			if (statement.Kind == "function" || statement.Kind == "generator_function" || statement.Kind == "async_function" || statement.Kind == "async_generator_function" || statement.IsGenerator || statement.IsAsync) && statement.Name != "" {
+			if (isFunctionDeclarationKind(statement.Kind) || statement.IsGenerator || statement.IsAsync) && statement.Name != "" {
 				t := statement.Type
 				if t == "" {
 					t = statement.InferredType
@@ -501,7 +501,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 			if stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {
 				continue
 			}
-			if (stmt.Kind == "function" || stmt.Kind == "generator_function" || stmt.Kind == "async_function") && len(stmt.TypeParameters) > 0 {
+			if isFunctionDeclarationKind(stmt.Kind) && len(stmt.TypeParameters) > 0 {
 				continue
 			}
 			if stmt.Kind == "variable" && stmt.Expression != nil && stmt.Expression.Kind == "arrow_function" && stmt.Expression.Function != nil && len(stmt.Expression.Function.TypeParameters) > 0 {
@@ -517,7 +517,7 @@ func SpecializeGenerics(program frontend.Program) (frontend.Program, error) {
 		var newStmts []frontend.SyntaxStatement
 		var fileEnv = map[string]string{}
 		for _, stmt := range file.Syntax.Statements {
-			if stmt.Kind == "function" && len(stmt.TypeParameters) > 0 {
+			if isFunctionDeclarationKind(stmt.Kind) && len(stmt.TypeParameters) > 0 {
 				continue // Skip generic function template
 			}
 			if (stmt.Kind == "class" || stmt.Kind == "type_alias") && stmt.Class != nil && len(stmt.Class.TypeParameters) > 0 {

@@ -9,7 +9,9 @@ import (
 
 // lowerArraySpreadElement appends the elements of a spread element
 // (`[...xs]`) to the array result of type arrType: a tuple element by
-// element, an array with an index loop.
+// element, an array with an index loop, and any other iterable (a string,
+// Map, Set, typed array, generator, iterator, or class with Symbol.iterator)
+// through for..of.
 func lowerArraySpreadElement(path string, elem *frontend.SyntaxExpression, result string, arrType ir.Type, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	spreadVal, spreadType, err := lowerExpression(path, elem.Left, "", function, env, counter, shapes, signatures)
 	if err != nil {
@@ -27,6 +29,9 @@ func lowerArraySpreadElement(path string, elem *frontend.SyntaxExpression, resul
 			)
 		}
 		return nil
+	}
+	if !strings.HasSuffix(string(spreadType), "[]") {
+		return lowerIterableSpreadElement(path, elem, spreadVal, spreadType, result, arrType, function, env, counter, shapes, signatures)
 	}
 	idxVar := nextTemp(counter)
 	lenVar := nextTemp(counter)
@@ -59,4 +64,31 @@ func lowerArraySpreadElement(path string, elem *frontend.SyntaxExpression, resul
 		Span: toIRSpan(path, elem.Span),
 	})
 	return nil
+}
+
+// lowerIterableSpreadElement pushes every value of the iterable spreadVal onto result with the for..of lowering, which owns the iteration
+// protocol: `for (const item of spreadVal) result.push(item)`.
+func lowerIterableSpreadElement(path string, elem *frontend.SyntaxExpression, spreadVal string, spreadType ir.Type, result string, arrType ir.Type, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
+	env[spreadVal] = spreadType
+	env[result] = arrType
+	item := "__spread_item_" + nextTemp(counter)
+	receiver := &frontend.SyntaxExpression{Span: elem.Span, Kind: "identifier", Text: result, InferredType: string(arrType)}
+	push := frontend.SyntaxStatement{
+		Span: elem.Span,
+		Kind: "expression",
+		Expression: &frontend.SyntaxExpression{
+			Span:         elem.Span,
+			Kind:         "call",
+			Left:         &frontend.SyntaxExpression{Span: elem.Span, Kind: "property", Text: "push", Left: receiver},
+			Arguments:    []*frontend.SyntaxExpression{{Span: elem.Span, Kind: "identifier", Text: item}},
+			InferredType: "number",
+		},
+	}
+	return lowerForOf(path, frontend.SyntaxStatement{
+		Span:       elem.Span,
+		Kind:       "forof",
+		Name:       item,
+		Expression: &frontend.SyntaxExpression{Span: elem.Left.Span, Kind: "identifier", Text: spreadVal, InferredType: elem.Left.InferredType},
+		Body:       []frontend.SyntaxStatement{push},
+	}, function, env, counter, shapes, signatures)
 }
