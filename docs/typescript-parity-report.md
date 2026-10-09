@@ -94,7 +94,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`, and `this` in an object literal method with `SG2005`; class members and arrow functions use their lexical receiver. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
-| Rest Parameters (`...args`) | ✅ Full | Collects trailing arguments into a `T[]` array. |
+| Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
 | Function Overloads | ⚠️ Static only | Overload signatures checked at compile time; lowered to a single standard implementation. |
 | Generators (`function*`, `yield`) | ✅ Full | State-machine infrastructure producing `IteratorResult<T>` shapes, `.next()`, and `for..of` loop integration. |
 

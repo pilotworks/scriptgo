@@ -364,7 +364,12 @@ func lowerCallExpression(
 		args = append(args, receiver)
 		paramOffset = 1
 	}
-	for aIdx, argument := range expression.Arguments {
+	restIndex := restParameterIndex(target, callee)
+	arguments, restPacked, err := spreadRestArguments(expression.Arguments, expression.Span, target, restIndex, paramOffset, false)
+	if err != nil {
+		return "", "", err
+	}
+	for aIdx, argument := range arguments {
 		pIdx := aIdx + paramOffset
 		if argument.Kind == "array" && pIdx < len(target.Parameters) {
 			paramType := target.Parameters[pIdx].Type
@@ -412,7 +417,7 @@ func lowerCallExpression(
 		hasRest := (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0
 		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
 		fixed := len(target.Parameters) - 1
-		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed)
+		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed && !restPacked)
 		if needsUnknownBox && valType != ir.TypeUnknown {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
@@ -459,7 +464,7 @@ func lowerCallExpression(
 		args = append(args, value)
 	}
 
-	if (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+	if !restPacked && (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
 		restType := target.Parameters[len(target.Parameters)-1].Type
 		fixed := len(target.Parameters) - 1
 		if len(args) >= fixed {
@@ -487,6 +492,11 @@ func lowerCallExpression(
 			}
 		}
 		for i := len(args); i < len(target.Parameters); i++ {
+			if i == restIndex {
+				args = append(args, emptyRestArray(path, expression.Span, target.Parameters[i].Type, function, counter))
+				restPacked = true
+				continue
+			}
 			if defaults != nil {
 				if initExpr, ok := defaults[i]; ok {
 					initExpr = substituteParamIdentifiers(initExpr, paramMap)

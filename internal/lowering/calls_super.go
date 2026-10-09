@@ -60,7 +60,11 @@ func lowerSuperConstructorCall(path string, expression *frontend.SyntaxExpressio
 		return "", "", fmt.Errorf("super constructor not found for base class %q", meta.Extends)
 	}
 	args := []string{"this"}
-	for _, argument := range expression.Arguments {
+	arguments, _, err := spreadRestArguments(expression.Arguments, expression.Span, ctor, restParameterIndex(ctor, ctorName), 1, true)
+	if err != nil {
+		return "", "", err
+	}
+	for _, argument := range arguments {
 		val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -112,7 +116,11 @@ func lowerSuperMethodCall(path string, expression *frontend.SyntaxExpression, re
 		return "", "", fmt.Errorf("super method %q not found in base class %q", expression.Left.Text, meta.Extends)
 	}
 	args := []string{"this"}
-	for _, argument := range expression.Arguments {
+	arguments, _, err := spreadRestArguments(expression.Arguments, expression.Span, target, restParameterIndex(target, mangled), 1, true)
+	if err != nil {
+		return "", "", err
+	}
+	for _, argument := range arguments {
 		val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err

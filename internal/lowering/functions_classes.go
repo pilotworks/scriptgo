@@ -16,6 +16,9 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 		ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid, Parameters: []ir.Parameter{thisParameter}}
 		for pIdx, parameter := range class.Constructor.Parameters {
 			recordParameterDefault(ctorMangled, pIdx+1, parameter)
+			if parameter.Rest {
+				restParamsIndex[ctorMangled] = true
+			}
 			ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, parameter.Type))})
 		}
 		index[ctorMangled] = ctorFn
@@ -34,6 +37,9 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 			}
 			for pIdx, parameter := range method.Parameters {
 				recordParameterDefault(mangled, pIdx, parameter)
+				if parameter.Rest {
+					restParamsIndex[mangled] = true
+				}
 				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, parameter.Type))})
 			}
 			index[mangled] = function

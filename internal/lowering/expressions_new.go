@@ -218,7 +218,11 @@ func lowerNewExpression(path string, expression *frontend.SyntaxExpression, resu
 
 	if found {
 		args := []string{result}
-		for i, arg := range expression.Arguments {
+		arguments, _, err := spreadRestArguments(expression.Arguments, expression.Span, ctor, restParameterIndex(ctor, ctorName), 1, true)
+		if err != nil {
+			return "", "", err
+		}
+		for i, arg := range arguments {
 			paramIdx := i + 1
 			if paramIdx < len(ctor.Parameters) {
 				paramType := ctor.Parameters[paramIdx].Type
