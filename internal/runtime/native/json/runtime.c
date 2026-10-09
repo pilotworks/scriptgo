@@ -393,6 +393,59 @@ static int json_write_object_field(const char *key, size_t key_len, int index, v
     return 0;
 }
 
+typedef struct {
+    json_builder *builder;
+    const scriptgo_array_internal *names;
+    const scriptgo_array_internal *texts;
+    int has_fields;
+    int failed;
+} json_assembled_object_writer;
+
+static int json_write_assembled_field(const char *key, size_t key_len, int index, void *context) {
+    json_assembled_object_writer *writer = context;
+    (void)index;
+    for (int64_t i = 0; i < writer->names->length && i < writer->texts->length; i++) {
+        const char *name = *(const char **)(writer->names->data + (size_t)i * sizeof(char *));
+        if (name == NULL || strlen(name) != key_len || memcmp(name, key, key_len) != 0) continue;
+        const char *text = *(const char **)(writer->texts->data + (size_t)i * sizeof(char *));
+        /* An undefined value (or a function) has no JSON text. */
+        if (text == NULL || text == &scriptgo_undefined_sentinel || strcmp(text, "undefined") == 0) return 0;
+        if ((writer->has_fields && jb_char(writer->builder, ',') != 0) ||
+            jb_string(writer->builder, key, key_len) != 0 ||
+            jb_char(writer->builder, ':') != 0 ||
+            jb_append(writer->builder, text, strlen(text)) != 0) {
+            writer->failed = 1;
+            return 1;
+        }
+        writer->has_fields = 1;
+        return 0;
+    }
+    return 0;
+}
+
+/* scriptgo_json_assemble_object writes the object handle's properties in
+ * their key order (insertion order), each as the JSON text the compiler
+ * produced from its static type: texts[i] is the text for names[i], and
+ * "undefined" omits the property. */
+int scriptgo_json_assemble_object(void *handle, void *names_handle, void *texts_handle, char **out_str) {
+    if (out_str == NULL || names_handle == NULL || texts_handle == NULL) return json_fail("scriptgo json invalid argument");
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
+        *out_str = strdup("null");
+        return *out_str == NULL ? json_fail("scriptgo json allocation failed") : 0;
+    }
+    if (((scriptgo_json_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return json_fail("scriptgo json invalid object");
+    json_builder b = {0};
+    json_assembled_object_writer writer = {&b, names_handle, texts_handle, 0, 0};
+    if (jb_char(&b, '{') != 0) goto fail;
+    object_field_visit((const scriptgo_object *)handle, json_write_assembled_field, &writer);
+    if (writer.failed || jb_char(&b, '}') != 0) goto fail;
+    *out_str = b.buf;
+    return 0;
+fail:
+    free(b.buf);
+    return json_fail("scriptgo json allocation failed");
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);

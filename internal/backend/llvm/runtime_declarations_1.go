@@ -180,6 +180,7 @@ declare i32 @scriptgo_json_stringify_string(ptr, ptr)
 declare i32 @scriptgo_json_stringify_number_array(ptr, ptr)
 declare i32 @scriptgo_json_stringify_string_array(ptr, ptr)
 declare i32 @scriptgo_json_stringify_object_array(ptr, ptr)
+declare i32 @scriptgo_json_assemble_object(ptr, ptr, ptr, ptr)
 declare i32 @scriptgo_json_stringify_unknown(ptr, ptr)
 declare i32 @scriptgo_json_parse_unknown(ptr, ptr)
 
