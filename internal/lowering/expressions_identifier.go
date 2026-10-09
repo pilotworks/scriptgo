@@ -162,6 +162,11 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 		})
 		return result, ir.TypeClosure, nil
 	}
+	if binding, ok := resolveTopLevelBinding(path, expression.Text); ok && function.Name != "main" {
+		// A function reads its module's variable (or the one it imports),
+		// not whichever module declared the name first.
+		return binding.Storage, bindingType(binding), nil
+	}
 	if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
 		isPrimitiveConst := topVar.VarDeclKind == "const" && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")
 		if !isPrimitiveConst || function.Name != "main" {

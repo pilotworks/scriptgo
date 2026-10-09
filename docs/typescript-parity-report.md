@@ -131,6 +131,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | :--- | :---: | :--- |
 | Local Module Imports / Exports | ✅ Full | Supports `import { a } from "./mod"`, `export default`, `export const`. |
 | Multi-level & Deep Imports | ✅ Full | Resolves multi-level closed module dependency graphs. |
+| Module-Scoped Variables | ✅ Full | Each module's top-level variables have their own storage, so modules may reuse names (`constants`, `promises`). Functions read a variable through the module that declares or imports it, and `ns.binding` reads the exporting module's variable at run time, so later mutation and reassignment are visible. A default import of a module whose default export is an object of its exports (`export default { ...exports }`) reads those exports. |
 | Initialization Order | ✅ Full | Guarantees deterministic module initialization order matching ES Modules specification. |
 | `tsconfig.json` Project Checking | ✅ Full | Automatic discovery and explicit `-p` / `--project` loading of `tsconfig.json`, `compilerOptions` parsing (`target`, `module`, `strict`, `paths`, etc.), multi-file project diagnostics matching `tsc` formatting. Enforces fail-fast native compilation invariants: `strict: true` (SG6001), `target >= ES2020` (SG6002), modern `moduleResolution` (SG6003), and valid module kinds (SG6004). |
 | npm / External package resolution | ✅ Full | Resolved via TypeScript-Go with `scriptgo install` deterministic lockfile/CAS graph and explicit Dynamic tier execution (QuickJS-ng). |

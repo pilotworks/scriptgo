@@ -81,6 +81,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	}
 	initializeClassIdentities(program)
 	initializeFunctionIdentities(program)
+	initializeTopLevelBindings(program)
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
 	module.DynamicModules = dynamicModules
 	typeAliasesIndex = map[string]string{}

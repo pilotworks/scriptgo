@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	"path/filepath"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -10,18 +9,12 @@ import (
 func tryLowerConstantPropertyPath(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, propertyPath []string) (string, ir.Type, bool, error) {
 	firstIdent := propertyPath[0]
 	if _, inEnv := env[firstIdent]; !inEnv {
-		if val, valType, ok := resolveASTConstantPath(propertyPath); ok {
-			if *result == "" {
-				*result = nextTemp(counter)
+		// A deeper path through a namespace (fs.constants.F_OK) reads the
+		// exported binding and then its properties at run time.
+		if len(propertyPath) > 2 {
+			if binding, ok := moduleExportBinding(path, firstIdent, propertyPath[1]); ok {
+				return lowerNamespaceMemberPath(path, expression, *result, function, env, counter, shapes, signatures, len(propertyPath)-2, binding)
 			}
-			function.Body = append(function.Body, ir.Instruction{
-				Op:     ir.OpConst,
-				Type:   valType,
-				Result: *result,
-				Value:  val,
-				Span:   toIRSpan(path, expression.Span),
-			})
-			return *result, valType, true, nil
 		}
 		if len(propertyPath) == 2 {
 			if sig, ok := resolveFunctionSignature(path, callName(expression), signatures); ok {
@@ -40,33 +33,37 @@ func tryLowerConstantPropertyPath(path string, expression *frontend.SyntaxExpres
 				})
 				return *result, ir.TypeClosure, true, nil
 			}
-			cleanPath := filepath.Clean(path)
-			_, isNS := functionNamespacesByFile[cleanPath][firstIdent]
-			if !isNS {
-				_, isNS = classNamespacesByFile[cleanPath][firstIdent]
-			}
-			if isNS {
-				prop := propertyPath[1]
-				if topVar, hasVar := topLevelVars[prop]; hasVar {
-					varTyp := toIRType(topVar.Type)
-					if varTyp == "" {
-						varTyp = toIRType(topVar.InferredType)
-					}
-					if varTyp == "" {
-						varTyp = ir.TypeNumber
-					}
-					isPrimitiveConst := topVar.VarDeclKind == "const" && topVar.Expression != nil && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")
-					if !isPrimitiveConst || function.Name != "main" {
-						return prop, varTyp, true, nil
-					}
-					{
-						v0, v1, v2 := lowerExpression(path, topVar.Expression, *result, function, env, counter, shapes, signatures)
-						return v0, v1, true, v2
-					}
+			if binding, ok := moduleExportBinding(path, firstIdent, propertyPath[1]); ok {
+				decl := binding.Decl
+				isPrimitiveConst := decl.VarDeclKind == "const" && decl.Expression != nil && (decl.Expression.Kind == "number" || decl.Expression.Kind == "string" || decl.Expression.Kind == "bool" || decl.Expression.Kind == "literal" || decl.Expression.Kind == "null" || decl.Expression.Kind == "undefined")
+				if !isPrimitiveConst || function.Name != "main" {
+					return binding.Storage, bindingType(binding), true, nil
 				}
+				value, typ, err := lowerExpression(path, decl.Expression, *result, function, env, counter, shapes, signatures)
+				return value, typ, true, err
 			}
 		}
 	}
 
 	return "", "", false, nil
+}
+
+// lowerNamespaceMemberPath lowers a property chain whose innermost access is
+// ns.binding, depth property accesses below expression, by replacing that
+// access with the exported binding itself.
+func lowerNamespaceMemberPath(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, depth int, binding topLevelBinding) (string, ir.Type, bool, error) {
+	rewritten := *expression
+	node := &rewritten
+	// Descend like extractPropertyPath: `as` wrappers add no path segment.
+	for depth > 0 || node.Kind == "as" {
+		if node.Kind != "as" {
+			depth--
+		}
+		inner := *node.Left
+		node.Left = &inner
+		node = node.Left
+	}
+	*node = frontend.SyntaxExpression{Span: node.Span, Kind: "identifier", Text: binding.Storage, InferredType: node.InferredType}
+	value, typ, err := lowerExpression(path, &rewritten, result, function, env, counter, shapes, signatures)
+	return value, typ, true, err
 }

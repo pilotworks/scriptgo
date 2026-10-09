@@ -11,7 +11,10 @@ import (
 
 func lowerVariableStatement(path string, statement frontend.SyntaxStatement, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) error {
 	varResultName := statement.Name
-	if _, isShadowed := env[statement.Name]; isShadowed {
+	if binding, isModuleLevel := topLevelDeclarationBinding(path, statement); isModuleLevel && function.Name == "main" {
+		varResultName = binding.Storage
+		env["__ident."+statement.Name] = ir.Type(varResultName)
+	} else if _, isShadowed := env[statement.Name]; isShadowed {
 		varResultName = fmt.Sprintf("%s$%d", statement.Name, *counter)
 		*counter++
 		env["__ident."+statement.Name] = ir.Type(varResultName)
