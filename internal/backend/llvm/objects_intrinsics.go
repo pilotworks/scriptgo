@@ -9,6 +9,37 @@ import (
 
 func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__object.reflect_set", "__object.reflect_delete":
+		// Reflect.set(target, key, value) / Reflect.deleteProperty(target, key):
+		// the runtime reports false where the integrity level forbids the change.
+		want := 3
+		if instruction.Callee == "__object.reflect_delete" {
+			want = 2
+		}
+		if len(instruction.Args) != want {
+			return fmt.Errorf("%s requires %d arguments", instruction.Callee, want)
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		property := e.resolveArg(out, instruction.Args[1])
+		slot := instruction.Result + ".reflect.slot"
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if want == 3 {
+			valuePtr, err := e.emitCanonicalValuePointer(out, e.resolveArg(out, instruction.Args[2]), ir.TypeUnknown, instruction.Result+".reflect.value")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_reflect_set(ptr %%%s, ptr %%%s, ptr %s, ptr %%%s)\n", status, obj, property, valuePtr, slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_reflect_delete(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, obj, property, slot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		loaded := instruction.Result + ".reflect.i32"
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", loaded, slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
 	case "__object.freeze", "__object.seal", "__object.preventExtensions":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("%s requires one argument", instruction.Callee)

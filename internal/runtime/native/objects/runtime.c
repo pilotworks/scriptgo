@@ -737,6 +737,7 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
 }
 
 int scriptgo_array_set_integrity(void *handle, int64_t level);
+int scriptgo_object_delete_property(void *handle, const char *property, int32_t *out_result);
 int64_t scriptgo_array_integrity(void *handle);
 
 static int object_is_array(void *handle) {
@@ -1511,6 +1512,42 @@ int scriptgo_object_type_get(void *handle, const char **out_type) {
     }
     *out_type = ((scriptgo_object *)handle)->type_name;
     return 0;
+}
+
+/* Reflect.set: like assignment, but reports false instead of throwing when
+ * the object's integrity level forbids the write. */
+int scriptgo_object_reflect_set(void *handle, const char *property, const scriptgo_value *value, int32_t *out_result) {
+    if (out_result == NULL || property == NULL || value == NULL) return object_fail("Reflect.set invalid arguments");
+    *out_result = 0;
+    if (object_is_array(handle)) return object_fail("Reflect.set on an array is not supported in the native subset");
+    if (is_invalid_object_handle(handle)) return object_fail("Reflect.set requires an object target");
+    if (find_engine_ref((uintptr_t)handle) == NULL) {
+        scriptgo_object *object = (scriptgo_object *)resolve_object_handle(handle, 0);
+        if (object != NULL && object->magic == SCRIPTGO_OBJECT_MAGIC) {
+            if (object->frozen) return 0;
+            if (object_field_index(object, property) < 0 && (!object->extensible || object->sealed)) return 0;
+        }
+    }
+    if (scriptgo_object_property_unknown_set(handle, property, value) != 0) return -1;
+    *out_result = 1;
+    return 0;
+}
+
+/* Reflect.deleteProperty: like delete, but reports false for a property of a
+ * sealed or frozen object instead of throwing. */
+int scriptgo_object_reflect_delete(void *handle, const char *property, int32_t *out_result) {
+    if (out_result == NULL || property == NULL) return object_fail("Reflect.deleteProperty invalid arguments");
+    *out_result = 0;
+    if (object_is_array(handle)) return object_fail("Reflect.deleteProperty on an array is not supported in the native subset");
+    if (is_invalid_object_handle(handle)) return object_fail("Reflect.deleteProperty requires an object target");
+    if (find_engine_ref((uintptr_t)handle) == NULL) {
+        scriptgo_object *object = (scriptgo_object *)resolve_object_handle(handle, 0);
+        if (object != NULL && object->magic == SCRIPTGO_OBJECT_MAGIC && (object->sealed || object->frozen) &&
+            object_field_index(object, property) >= 0) {
+            return 0;
+        }
+    }
+    return scriptgo_object_delete_property(handle, property, out_result);
 }
 
 int scriptgo_object_delete_property(void *handle, const char *property, int32_t *out_result) {

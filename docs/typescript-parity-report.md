@@ -90,6 +90,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | :--- | :---: | :--- |
 | Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
 | Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
+| `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes up to four arguments (the closure ABI limit). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; partial application is rejected. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) | ✅ Full | Collects trailing arguments into a `T[]` array. |
@@ -411,7 +412,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Dynamic Key Access (`obj[key]`)** | ✅ Supported | `Record<string, V>` and empty object literals use a bounded runtime property table for dynamic string-key reads and writes; static object fields retain their fixed-layout path. |
 | **Dynamic `import('./mod')`** | ❌ Unsupported | Currently supports closed static module graphs only (AOT static linking). |
 | **`eval()` & `new Function()`** | ❌ Unavailable in Native | Native machine binaries cannot interpret arbitrary JS strings at runtime (requires `--dynamic`). |
-| **`Reflect` Namespace** | ✅ Full | All 19 standard ECMAScript & metadata APIs (`get`, `set`, `has`, `deleteProperty`, `ownKeys`, `defineProperty`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`, `apply`, `construct`, `getMetadata`, `getOwnMetadata`, `hasMetadata`, `hasOwnMetadata`, `defineMetadata`, `metadata`) supported in Static Tier. |
+| **`Reflect` Namespace** | ⚠️ Partial | `get`, `has`, `ownKeys`; `set` and `deleteProperty` (string keys on objects) return `false` where the integrity level forbids the change; `getPrototypeOf`, `isExtensible`, `getOwnPropertyDescriptor`, `preventExtensions` and `defineProperty` share the `Object` implementations; `apply` is `Function.prototype.apply`; `construct` takes an array literal and no `newTarget`. `setPrototypeOf` is rejected like `Object.setPrototypeOf`. The `reflect-metadata` APIs are resolved from decorators at compile time. |
 | **`Proxy` Objects** | ✅ Supported (--dynamic) | Basic Proxy interception traps (`get`, `set`, `has`, `apply`, `deleteProperty`, `ownKeys`) supported in the Dynamic tier (QuickJS-ng). Dynamic `any` method calls, prototype traversal, and unconstrained dynamic invocations with arbitrary argument arity are supported. |
 | **Prototype Chain Manipulation** | ❌ Rejected | `Object.setPrototypeOf`, `__proto__`, `Object.defineProperty` (runtime dynamic getters/setters) are disabled to preserve static struct layouts. |
 

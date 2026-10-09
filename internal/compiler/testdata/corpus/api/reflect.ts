@@ -18,7 +18,6 @@ import "reflect-metadata";
 // @api: Reflect.defineProperty
 // @api: Reflect.getOwnPropertyDescriptor
 // @api: Reflect.getPrototypeOf
-// @api: Reflect.setPrototypeOf
 // @api: Reflect.isExtensible
 // @api: Reflect.preventExtensions
 // @api: Reflect.apply
@@ -88,23 +87,26 @@ console.log(Reflect.defineProperty(acc, "owner", { value: "Charlie" }));
 // @expect: Charlie
 console.log(Reflect.get(acc, "owner"));
 
+// Redefining an existing data property's value keeps its attributes.
 let desc = Reflect.getOwnPropertyDescriptor(acc, "owner");
-// @expect: false
+// @expect: true
 console.log(desc!.writable);
-// @expect: false
+// @expect: true
 console.log(desc!.enumerable);
-// @expect: false
+// @expect: true
 console.log(desc!.configurable);
 
 // --- 5. Test prototype & extension checks ---
 // @expect: true
 console.log(Reflect.getPrototypeOf(acc) !== null);
 // @expect: true
-console.log(Reflect.setPrototypeOf(acc, null));
-// @expect: true
 console.log(Reflect.isExtensible(acc));
 // @expect: true
 console.log(Reflect.preventExtensions(acc));
+// @expect: false
+console.log(Reflect.isExtensible(acc));
+// @expect: false
+console.log(Reflect.set(acc, "missing", 1));
 
 // --- 6. Test apply and construct ---
 function add(a: number, b: number): number {

@@ -153,6 +153,9 @@ func lowerCallExpression(
 					if res, typ, handled, err := lowerIteratorReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 						return res, typ, err
 					}
+					if res, typ, handled, err := lowerFunctionValueMethod(path, expression, receiver, receiverType, methodName, result, function, env, counter, shapes, signatures); handled {
+						return res, typ, err
+					}
 					className := strings.TrimPrefix(string(receiverType), "object:")
 					className = classIdentityForPath(path, className)
 					if className != "" && className != "number" && className != "string" && className != "bool" && className != "void" {
