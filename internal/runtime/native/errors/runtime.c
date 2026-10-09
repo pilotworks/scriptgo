@@ -206,6 +206,35 @@ int scriptgo_error_to_string(void *obj, char **out_str);
 int scriptgo_gc_get_tag(void *ptr);
 int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str);
 
+int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
+int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1, const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4, scriptgo_value *out_value);
+int scriptgo_string_from_number(double value, char **out_str);
+
+/* ToString of an object whose own toString property is a function (an
+ * object literal method) calls it: 1 with *out_str set, 0 when the object
+ * has no such method, -1 on failure. Class methods are dispatched
+ * statically by lowering and never reach here. */
+static int scriptgo_object_own_to_string(void *obj, char **out_str) {
+    scriptgo_value method;
+    scriptgo_value_init_undefined(&method);
+    if (scriptgo_object_property_unknown_get(obj, "toString", &method) != 0 || method.tag != SCRIPTGO_TAG_FUNCTION) {
+        return 0;
+    }
+    scriptgo_value result;
+    scriptgo_value_init_undefined(&result);
+    if (scriptgo_closure_invoke_value((void *)(uintptr_t)method.payload, 0, NULL, NULL, NULL, NULL, &result) != 0) return -1;
+    if (result.tag == SCRIPTGO_TAG_STRING) {
+        *out_str = strdup((const char *)(uintptr_t)result.payload);
+    } else if (result.tag == SCRIPTGO_TAG_NUMBER) {
+        double number;
+        memcpy(&number, &result.payload, sizeof(number));
+        return scriptgo_string_from_number(number, out_str) == 0 ? 1 : -1;
+    } else {
+        return 0;
+    }
+    return *out_str != NULL ? 1 : -1;
+}
+
 int scriptgo_string_from_object(void *obj, char **out_str) {
     if (out_str == NULL) {
         return -1;
@@ -250,6 +279,8 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
                 /* Error.prototype.toString: "name: message" */
                 return scriptgo_error_to_string(obj, out_str);
             }
+            int own = scriptgo_object_own_to_string(obj, out_str);
+            if (own != 0) return own < 0 ? -1 : 0;
             *out_str = strdup("[object Object]");
             return 0;
         }

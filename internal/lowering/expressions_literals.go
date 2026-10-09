@@ -342,10 +342,8 @@ func lowerTemplateLiteral(path string, expression *frontend.SyntaxExpression, re
 				strVal = strTemp
 			} else if strings.HasPrefix(string(valType), "object:") {
 				className := strings.TrimPrefix(string(valType), "object:")
-				if method, mangled, found := findMethodInHierarchy(className, "toString", signatures, classHierarchy); found && (method.ReturnType == ir.TypeString || method.ReturnType == "") {
-					strTemp := nextTemp(counter)
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: mangled, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-					strVal = strTemp
+				if converted, ok := lowerClassToString(path, val, valType, arg.Span, function, counter, signatures); ok {
+					strVal = converted
 				} else if len(className) <= 2 || className == "T" || className == "K" || className == "V" || className == "U" || className == "A" || className == "B" {
 					if arg != nil && (arg.InferredType == "number" || arg.InferredType == "bigint") {
 						strTemp := nextTemp(counter)

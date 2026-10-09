@@ -178,21 +178,8 @@ func lowerCallExpression(
 							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__object.isPrototypeOf", Args: []string{receiver, value}, Span: toIRSpan(path, expression.Span)})
 							return result, ir.TypeBool, nil
 						}
-						if methodName == "toString" || methodName == "toLocaleString" {
-							if result == "" {
-								result = nextTemp(counter)
-							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeString,
-								Result: result,
-								Value:  "[object Object]",
-								Span:   toIRSpan(path, expression.Span),
-							})
-							return result, ir.TypeString, nil
-						}
-						if methodName == "valueOf" {
-							return receiver, receiverType, nil
+						if value, typ, handled := lowerInheritedObjectMethod(path, expression, receiver, receiverType, className, methodName, result, function, counter, shapes); handled {
+							return value, typ, nil
 						}
 						propVal, propType, err := lowerPropertyExpression(path, &frontend.SyntaxExpression{
 							Span:         expression.Left.Span,

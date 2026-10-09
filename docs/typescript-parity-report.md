@@ -76,7 +76,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks; destructuring `null`/`undefined` throws a `TypeError` (RequireObjectCoercible). |
 | Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |
-| Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
+| Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. Objects convert like `String(value)`: through a class's `toString`, an object literal's own `toString`, else `[object Tag]`. |
 | Tagged Template Expressions (`` tag`Hello ${name}` ``) | ✅ Full | Calls function/closure with `TemplateStringsArray` and interpolated argument list. |
 | Optional Chaining & Optional Call (`?.`, `fn?.()`, `obj?.method?.()`, `arr?.[idx]`) | ✅ Full | Short-circuits property access, element indexing, and function calls when receiver is nullish without evaluating argument/index side-effects. Native unboxed number returns IEEE-754 NaN when short-circuited. |
 | Computed Property Names (`[expr]`, `[Symbol.xxx]`) | ✅ Full | Supported in object literals, type aliases, union types, and interface definitions; AST extraction gracefully handles computed property expressions without unhandled node panics. |
