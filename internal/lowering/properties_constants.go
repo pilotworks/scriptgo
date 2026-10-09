@@ -28,11 +28,14 @@ func tryLowerConstantPropertyPath(path string, expression *frontend.SyntaxExpres
 				if *result == "" {
 					*result = nextTemp(counter)
 				}
+				// A static method or namespace function used as a value is
+				// called through the closure ABI, so it needs the trampoline
+				// that unboxes closure arguments into its typed parameters.
 				function.Body = append(function.Body, ir.Instruction{
 					Op:     ir.OpClosure,
 					Type:   ir.TypeClosure,
 					Result: *result,
-					Callee: sig.Name,
+					Callee: ensureFunctionClosureTrampoline(path, sig, shapes, signatures),
 					Span:   toIRSpan(path, expression.Span),
 				})
 				return *result, ir.TypeClosure, true, nil

@@ -416,6 +416,17 @@ func lowerClosureExpression(
 				Span:   targetFn.Span,
 			})
 		}
+		// Closures are called through the closure ABI, so call sites cannot
+		// substitute defaults: an initializer runs in the body when its
+		// argument is undefined, before pattern bindings read the parameter.
+		for _, p := range fnStmt.Parameters {
+			if p.Initializer == nil {
+				continue
+			}
+			if err := lowerStatement(path, parameterDefaultStatement(p), &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
+				return "", "", sourceError(path, p.Span, err)
+			}
+		}
 		returned := false
 		for _, bodyStatement := range fnStmt.Body {
 			if err := lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
@@ -472,7 +483,7 @@ func lowerClosureExpression(
 	return result, ir.TypeClosure, nil
 }
 
-func ensureFunctionClosureTrampoline(path string, sig ir.Function, signatures map[string]ir.Function) string {
+func ensureFunctionClosureTrampoline(path string, sig ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) string {
 	if strings.HasPrefix(sig.Name, "__closure_") {
 		return sig.Name
 	}
@@ -495,13 +506,21 @@ func ensureFunctionClosureTrampoline(path string, sig ir.Function, signatures ma
 
 	var callArgs []string
 	counter := 0
+	// Call sites substitute defaults for direct calls; a closure call cannot,
+	// so the trampoline applies them. Parameters keep their source names
+	// then, because an initializer may refer to earlier parameters.
+	defaults := defaultParamsIndex[sig.Name]
+	trampolineEnv := map[string]ir.Type{}
 	for i, param := range sig.Parameters {
-		rawName := fmt.Sprintf("arg_%d$raw", i)
+		unboxedName := fmt.Sprintf("arg_%d", i)
+		if len(defaults) > 0 && param.Name != "" {
+			unboxedName = param.Name
+		}
+		rawName := unboxedName + "$raw"
 		trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
 			Name: rawName,
 			Type: ir.TypeUnknown,
 		})
-		unboxedName := fmt.Sprintf("arg_%d", i)
 		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
 			Op:     ir.OpCheckedCast,
 			Type:   param.Type,
@@ -509,6 +528,18 @@ func ensureFunctionClosureTrampoline(path string, sig ir.Function, signatures ma
 			Args:   []string{rawName},
 			Span:   sig.Span,
 		})
+		trampolineEnv[rawName] = ir.TypeUnknown
+		trampolineEnv[unboxedName] = param.Type
+		if initializer := defaults[i]; initializer != nil && initializer.Kind != "undefined" {
+			statement := parameterDefaultStatement(frontend.SyntaxParameter{Span: initializer.Span, Name: unboxedName, Initializer: initializer})
+			bodyLen := len(trampolineFn.Body)
+			if err := lowerStatement(path, statement, &trampolineFn, trampolineEnv, &counter, shapes, signatures); err != nil {
+				// An initializer that only lowers in its declaring scope
+				// (it reads a local of an enclosing function) stays a
+				// call-site default; closure calls then pass undefined.
+				trampolineFn.Body = trampolineFn.Body[:bodyLen]
+			}
+		}
 		callArgs = append(callArgs, unboxedName)
 		counter++
 	}

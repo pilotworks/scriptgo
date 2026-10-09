@@ -90,7 +90,9 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 		isRest := strings.HasPrefix(trimmed, "...")
 		trimmed = strings.TrimPrefix(trimmed, "...")
 		trimmed = strings.TrimSuffix(trimmed, "?")
-		elemType := toIRType(trimmed)
+		// An element typed undefined still holds a value, so it is stored
+		// boxed like a void-typed variable.
+		elemType := variableStorageType(toIRType(trimmed))
 		if isRest {
 			if strings.HasSuffix(string(elemType), "[]") {
 				elemType = arrayElementType(elemType)

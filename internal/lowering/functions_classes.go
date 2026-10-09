@@ -16,7 +16,7 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 		ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid, Parameters: []ir.Parameter{thisParameter}}
 		for pIdx, parameter := range class.Constructor.Parameters {
 			recordParameterDefault(ctorMangled, pIdx+1, parameter)
-			ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRTypeForPath(fileName, parameter.Type)})
+			ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, parameter.Type))})
 		}
 		index[ctorMangled] = ctorFn
 		functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: ctorFn, PublicName: ctorFn.Name})
@@ -34,7 +34,7 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 			}
 			for pIdx, parameter := range method.Parameters {
 				recordParameterDefault(mangled, pIdx, parameter)
-				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRTypeForPath(fileName, parameter.Type)})
+				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, parameter.Type))})
 			}
 			index[mangled] = function
 			index[className+"."+method.Name] = function
@@ -45,7 +45,7 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 			mangled = className + "_set_" + method.Name
 			function = ir.Function{Name: mangled, ReturnType: ir.TypeVoid, Parameters: []ir.Parameter{thisParameter}}
 			if len(method.Parameters) > 0 {
-				function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRTypeForPath(fileName, method.Parameters[0].Type)})
+				function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: variableStorageType(toIRTypeForPath(fileName, method.Parameters[0].Type))})
 			}
 		default:
 			mangled = methodImplementationName(className, method.Name)
@@ -62,7 +62,7 @@ func indexClassDeclaration(fileName string, class frontend.SyntaxClass, hierarch
 				if parameter.Rest {
 					restParamsIndex[mangled] = true
 				}
-				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRTypeForPath(fileName, parameter.Type)})
+				function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, parameter.Type))})
 			}
 		}
 		if !method.IsAbstract {

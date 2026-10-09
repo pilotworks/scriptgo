@@ -151,7 +151,7 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+		calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpClosure,
 			Type:   ir.TypeClosure,

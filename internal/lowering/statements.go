@@ -53,6 +53,7 @@ func lowerSyncFunction(path string, statement frontend.SyntaxStatement, shapes m
 		if typ == "" {
 			return ir.Function{}, fmt.Errorf("parameter %q has unsupported type %q", parameter.Name, parameter.Type)
 		}
+		typ = variableStorageType(typ)
 		function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
 		if typ == ir.TypeObject && pType != "" && pType != "object" {
 			env[parameter.Name] = ir.Type("object:" + pType)

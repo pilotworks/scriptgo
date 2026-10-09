@@ -378,9 +378,10 @@ func lowerImportAliasStatement(path string, statement frontend.SyntaxStatement, 
 	return nil
 }
 
-// variableStorageType maps a declared variable type to the IR type used for
-// its storage. A variable typed void/undefined/never still holds a value
-// (undefined), so it is stored boxed rather than as an unsized void slot.
+// variableStorageType maps a declared variable or parameter type to the IR
+// type used for its storage. A binding typed void/undefined/never still holds
+// a value (undefined), so it is stored boxed rather than as an unsized void
+// slot.
 func variableStorageType(declared ir.Type) ir.Type {
 	if declared == ir.TypeVoid {
 		return ir.TypeUnknown

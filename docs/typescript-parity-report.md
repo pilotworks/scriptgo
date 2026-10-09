@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **458** | **458 / 458 match expected output; 456 / 458 match Node.js v22 (see note)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 458 | 437 PASS plus 21 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **462** | **462 / 462 match expected output; 460 / 462 match Node.js v22 (see note)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 462 | 441 PASS plus 21 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 21 | 21 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -73,7 +73,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `break`, `continue` | ✅ Full | Operates accurately across all nested loop constructs. |
 | Labeled Statements (`outer: for`) | ✅ Full | Loop labeling; `break label` and `continue label` jump accurately across nested scopes. |
 | `try` / `catch` / `finally` & `throw` | ✅ Full | Exception handling with safe unwinding; `catch (e)` binds the exact thrown value (`unknown`), built-in error subclasses (`Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError`) and user subclasses of them. |
-| Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks. |
+| Nested Destructuring (Array & Object) | ✅ Full | Deep multi-level destructuring (`{ a: { b, c = 10 } } = obj`, `[x, [y, z]] = arr`), function parameter patterns, and default fallbacks; destructuring `null`/`undefined` throws a `TypeError` (RequireObjectCoercible). |
 | Comma Operator (`,`) | ✅ Full | Sequence expressions `(e1, e2, ..., eN)` evaluating all side-effects and returning the right-most expression value. |
 | Spread / Rest (`...`) | ✅ Full | Array spread, object spread, and rest parameters in functions. |
 | Template Literals (`` `Hello ${name}` ``) | ✅ Full | String concatenation and dynamic interpolation. |
@@ -196,10 +196,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 458
-Native Backend Parity  : 437/458 (95.4%)
-Diagnostic Parity      : 21/458
-Overall Full Parity    : 456/458 (99.6%)
+Total Test Cases       : 462
+Native Backend Parity  : 441/462 (95.5%)
+Diagnostic Parity      : 21/462
+Overall Full Parity    : 460/462 (99.6%)
 Total Time Elapsed     : ~1m22s
 ================================================================================
 ```
@@ -213,10 +213,10 @@ Total Time Elapsed     : ~1m22s
 | **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 30 | **100% (30/30)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 26 | **100% (26/26)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
-| **`destructuring`** | 20 | **100% (20/20)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms. |
+| **`destructuring`** | 21 | **100% (21/21)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 23 | **100% (23/23)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 25 | **100% (25/25)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
 | **`language`** | 23 | **95.7% (22/23)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 4 | **100% (4/4)** | Tier selection, dynamic fallbacks, mode validations. |
@@ -225,7 +225,7 @@ Total Time Elapsed     : ~1m22s
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
 | **`operators`** | 28 | **100% (28/28)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics, signed zero through constant folding and `Object.is`. |
 | **`scenarios`** | 16 | **100% (16/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
-| **`tuples`** | 18 | **100% (18/18)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
+| **`tuples`** | 19 | **100% (19/19)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
 | **`types`** | 19 | **100% (19/19)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
@@ -282,9 +282,9 @@ Results at test262 `2e0a5676` (25,248 tests, Linux x86-64):
 | built-ins/JSON | 20 | 37 | 86 | 23 | 14.0% |
 | built-ins/Math | 118 | 5 | 45 | 159 | 70.2% |
 | built-ins/String | 125 | 212 | 744 | 142 | 11.6% |
-| language/expressions | 1924 | 406 | 5421 | 3351 | 24.8% |
-| language/statements | 1454 | 661 | 3681 | 3551 | 25.1% |
-| **total** | **3802** | **1563** | **12245** | **7638** | **21.6%** |
+| language/expressions | 2031 | 234 | 5486 | 3351 | 26.2% |
+| language/statements | 1605 | 480 | 3711 | 3551 | 27.7% |
+| **total** | **4060** | **1210** | **12340** | **7638** | **23.1%** |
 
 Most attempted tests are rejected by design: `any` (SG1001, 4,263),
 unannotated `{}` (SG2005, 1,025), dynamic call targets (SG1004, 302), array
@@ -294,14 +294,16 @@ are:
 
 | Signal | Tests | Meaning |
 | --- | ---: | --- |
-| Assertion failure at runtime | 979 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
-| LLVM IR rejected by Clang | 320 | The backend emits invalid code for accepted programs (`void` storage, value/pointer mismatches, missing parameters). |
-| Native crash or runtime ABI failure | 193 | Segmentation faults (52), array/JSON runtime precondition failures, `SG4002` casts. |
-| Compiler panic | 45 | Nil dereferences in lowering. |
+| Assertion failure at runtime | 799 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
+| LLVM IR rejected by Clang | 197 | The backend emits invalid code for accepted programs (value/pointer mismatches, missing parameters). |
+| Native crash or runtime ABI failure | 145 | Segmentation faults (53), array/JSON runtime precondition failures, `SG4002` casts. |
+| Compiler panic | 43 | Nil dereferences in lowering. |
 | Early/parse `SyntaxError` not reported | 26 | TypeScript-Go accepts these programs; tracked upstream. |
 
 Fixed defects found this way are covered by corpus cases (signed zero,
 number formatting, error subclasses, `catch` bindings, boolean ToNumber,
+destructuring `TypeError`s, parameter defaults through closures and
+trampolines, static methods as values, single-element tuples,
 BigInt literals, typed array `join`, invalid-IR regressions). Known
 limitations: `String(obj)` does not call a user `toString`, a method call on a
 `new` expression receiver is unsupported, and `[].find` on an unannotated

@@ -437,7 +437,7 @@ func lowerCallExpression(
 			if !strings.HasPrefix(value, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
 				if sig, isSig := signatures[value]; isSig {
 					closureSlot := nextTemp(counter)
-					calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+					calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpClosure,
 						Type:   ir.TypeClosure,
@@ -557,7 +557,7 @@ func lowerCallExpression(
 						if !strings.HasPrefix(val, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
 							if sig, isSig := signatures[val]; isSig {
 								closureSlot := nextTemp(counter)
-								calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+								calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 								function.Body = append(function.Body, ir.Instruction{
 									Op:     ir.OpClosure,
 									Type:   ir.TypeClosure,

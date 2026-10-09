@@ -17,7 +17,7 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 	*counter++
 	arrVar := fmt.Sprintf("__destruct_arr_%d_%d", nameNode.Pos(), *counter)
 	arrInferred := ""
-	if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+	if initExpr != nil && !isNullishTypeText(initExpr.InferredType) {
 		arrInferred = initExpr.InferredType
 	} else {
 		arrInferred = resolveInferredType(chk, nameNode)
@@ -58,7 +58,7 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 		if initExpr != nil && (countTupleElements(initExpr.InferredType) < len(pattern.Elements.Nodes)) {
 			initExpr.InferredType = "unknown[]"
 		}
-	} else if arrInferred == "" || arrInferred == "void" || arrInferred == "undefined" {
+	} else if isNullishTypeText(arrInferred) {
 		if len(elemTypes) > 0 {
 			arrInferred = elemTypes[0] + "[]"
 		} else {
@@ -77,6 +77,7 @@ func flattenArrayBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *ch
 			Expression:   initExpr,
 		})
 	}
+	stmts = append(stmts, requireObjectCoercible(sourceSpan(nameNode), arrVar))
 
 	for idx, elem := range pattern.Elements.Nodes {
 		if elem == nil || elem.Kind == ast.KindOmittedExpression {

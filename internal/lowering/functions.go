@@ -94,7 +94,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 						}
 					}
 					recordParameterDefault(function.Name, pIdx, parameter)
-					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(typ)})
 				}
 				index[statement.Name] = function
 				index[function.Name] = function
@@ -133,7 +133,7 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							if pType == "" && parameter.InferredType != "" {
 								pType = parameter.InferredType
 							}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRTypeForPath(fileName, pType)})
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, pType))})
 						}
 						index[fullName] = function
 						functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: function.Name})

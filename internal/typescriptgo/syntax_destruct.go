@@ -47,12 +47,12 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 		objVar = initExpr.Text
 	} else {
 		inferred := ""
-		if initExpr != nil && initExpr.InferredType != "" && initExpr.InferredType != "void" && initExpr.InferredType != "undefined" {
+		if initExpr != nil && !isNullishTypeText(initExpr.InferredType) {
 			inferred = initExpr.InferredType
 		} else {
 			inferred = resolveInferredType(chk, nameNode)
 		}
-		if inferred == "" || inferred == "void" || inferred == "undefined" {
+		if isNullishTypeText(inferred) {
 			var fields []string
 			for _, elem := range pattern.Elements.Nodes {
 				if elem != nil && elem.Kind != ast.KindOmittedExpression {
@@ -90,6 +90,8 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 			Expression:   initExpr,
 		})
 	}
+
+	stmts = append(stmts, requireObjectCoercible(sourceSpan(nameNode), objVar))
 
 	for _, elem := range pattern.Elements.Nodes {
 		if elem == nil || elem.Kind == ast.KindOmittedExpression {
@@ -314,4 +316,35 @@ func flattenObjectBinding(nameNode *ast.Node, initExpr *SyntaxExpression, chk *c
 		}
 	}
 	return stmts
+}
+
+// requireObjectCoercible is the RequireObjectCoercible step every
+// destructuring pattern performs on its source before reading from it
+// (destructuring null or undefined throws a TypeError). It is emitted as a
+// call to a scriptgo intrinsic so lowering can drop it for storage that
+// cannot hold null or undefined.
+func requireObjectCoercible(span SourceSpan, source string) SyntaxStatement {
+	return SyntaxStatement{
+		Span: span,
+		Kind: "expression",
+		Expression: &SyntaxExpression{
+			Span:         span,
+			Kind:         "call",
+			InferredType: "void",
+			Left: &SyntaxExpression{
+				Span: span,
+				Kind: "property",
+				Text: "requireObjectCoercible",
+				Left: &SyntaxExpression{Span: span, Kind: "identifier", Text: "__scriptgo"},
+			},
+			Arguments: []*SyntaxExpression{{Span: span, Kind: "identifier", Text: source}},
+		},
+	}
+}
+
+// isNullishTypeText reports a type that names no object shape (absent, void,
+// undefined, or null), so a destructuring source of that type takes its
+// shape from the pattern; RequireObjectCoercible then throws at runtime.
+func isNullishTypeText(typ string) bool {
+	return typ == "" || typ == "void" || typ == "undefined" || typ == "null"
 }

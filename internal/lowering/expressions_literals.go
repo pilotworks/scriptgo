@@ -94,7 +94,7 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 				return result, arrType, nil
-			} else if tFields, ok := tupleFields(trimmed); ok && len(tFields) > 1 {
+			} else if tFields, ok := tupleFields(trimmed); ok && len(tFields) >= 1 {
 				inferredTuple = true
 			} else if shape, ok := shapes[strings.TrimPrefix(trimmed, "object:")]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
 				inferredTuple = true

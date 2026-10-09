@@ -149,6 +149,7 @@ declare ptr @scriptgo_exception_frame_new()
 declare void @scriptgo_exception_frame_free(ptr)
 declare i32 @setjmp(ptr) returns_twice
 declare void @scriptgo_throw_string(ptr)
+declare void @scriptgo_throw_error_message(ptr)
 declare void @scriptgo_throw_number(double)
 declare void @scriptgo_throw_bool(i32)
 declare void @scriptgo_exception_throw_copy(ptr)

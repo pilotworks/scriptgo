@@ -507,6 +507,7 @@ func lowerGeneratorFunction(
 		if pType == "" {
 			pType = ir.TypeNumber
 		}
+		pType = variableStorageType(pType)
 		factoryFn.Parameters = append(factoryFn.Parameters, ir.Parameter{Name: p.Name, Type: pType})
 		factoryArgs = append(factoryArgs, p.Name)
 	}

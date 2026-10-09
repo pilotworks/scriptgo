@@ -388,6 +388,7 @@ func initIntrinsics() map[string]BuiltinIntrinsic {
 	registerBufferIntrinsics(m)
 	registerArrayBuiltins(m)
 	registerReflectIntrinsics(m)
+	registerRequireObjectCoercibleIntrinsic(m)
 	registerIteratorBuiltins(m)
 
 	m["Error.captureStackTrace"] = BuiltinIntrinsic{
