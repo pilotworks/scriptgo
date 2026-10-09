@@ -18,12 +18,12 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **466** | **466 / 466 match expected output; 464 / 466 match Node.js v22 (see note)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 466 | 445 PASS plus 21 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 21 | 21 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **504** | **504 / 504 match expected output; 502 / 504 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 504 | 479 PASS plus 25 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
-| **Total Test Suite Runtime** | ~1m22s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
+| **Total Test Suite Runtime** | ~1m54s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
 
@@ -199,37 +199,37 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 466
-Native Backend Parity  : 445/466 (95.5%)
-Diagnostic Parity      : 21/466
-Overall Full Parity    : 464/466 (99.6%)
-Total Time Elapsed     : ~1m22s
+Total Test Cases       : 504
+Native Backend Parity  : 479/504 (95.0%)
+Diagnostic Parity      : 25/504
+Overall Full Parity    : 504/504 (100.0%)
+Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 101 | **99% (100/101)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 115 | **100% (115/115)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
-| **`arrays`** | 6 | **100% (6/6)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
-| **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
-| **`classes`** | 31 | **100% (31/31)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
-| **`control_flow`** | 26 | **100% (26/26)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
+| **`arrays`** | 11 | **100% (11/11)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
+| **`async`** | 22 | **100% (22/22)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
+| **`classes`** | 32 | **100% (32/32)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
+| **`control_flow`** | 27 | **100% (27/27)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 22 | **100% (22/22)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 25 | **100% (25/25)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 28 | **100% (28/28)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 23 | **95.7% (22/23)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
-| **`language/compatibility_tiers`** | 4 | **100% (4/4)** | Tier selection, dynamic fallbacks, mode validations. |
-| **`language/diagnostics`** | 7 | **100% (7/7)** | Static subset error detection with standardized `SGxxxx` error codes. |
+| **`language`** | 26 | **100% (26/26)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language/compatibility_tiers`** | 6 | **100% (6/6)** | Tier selection, dynamic fallbacks, mode validations. |
+| **`language/diagnostics`** | 9 | **100% (9/9)** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 8 | **100% (8/8)** | Array indexing bounds/types, type mismatches, unknown names. |
 | **`language/modules`** | 3 | **100% (3/3)** | Named/default exports/imports, initialization order, multi-level re-exports. |
 | **`operators`** | 28 | **100% (28/28)** | Comma operator, optional chaining, nullish coalescing, typeof, instanceof, IEEE-754 bitwise semantics, signed zero through constant folding and `Object.is`. |
 | **`scenarios`** | 16 | **100% (16/16)** | Real-world workflows: Express HTTP framework, data & encoding, collections & math, file operations, events & monitoring, process & system, networking, FFI static libc, FFI static math, FFI custom C manifest. |
-| **`tuples`** | 19 | **100% (19/19)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
-| **`types`** | 19 | **100% (19/19)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
+| **`tuples`** | 20 | **100% (20/20)** | Extended optional (`[T, U?]`), rest (`[T, ...U[]]`), heterogeneous tagged storage, destructuring, readonly tuples, tuple variadic transformations. |
+| **`types`** | 22 | **100% (22/22)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
 The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
