@@ -113,7 +113,7 @@ func (e *functionEmitter) emitStringSearchIntrinsic(out *strings.Builder, instru
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("string.matchAll has invalid signature")
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_match(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_match_all(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.localeCompare":

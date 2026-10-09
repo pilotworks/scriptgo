@@ -250,9 +250,10 @@ int scriptgo_console_inspect_buffer(void *value, char **out_str) {
 int scriptgo_json_inspect_array(void *handle, char **out_str);
 
 int scriptgo_console_inspect_array(void *value, char **out_str) {
-    if (out_str == NULL || value == NULL) return scriptgo_runtime_set_error("invalid array inspection");
-    if (value == (void *)&scriptgo_undefined_sentinel) {
-        *out_str = strdup("undefined");
+    if (out_str == NULL) return scriptgo_runtime_set_error("invalid array inspection");
+    /* A nullable array type (string.match's RegExpMatchArray | null). */
+    if (value == NULL || value == (void *)&scriptgo_undefined_sentinel) {
+        *out_str = strdup(value == NULL ? "null" : "undefined");
         return *out_str == NULL ? scriptgo_runtime_set_error("array inspection allocation failed") : 0;
     }
     if (scriptgo_json_inspect_array(value, out_str) != 0) return scriptgo_runtime_set_error("array inspection failed");

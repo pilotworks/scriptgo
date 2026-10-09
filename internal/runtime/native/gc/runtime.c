@@ -103,6 +103,8 @@ typedef struct {
     unsigned char *data;
     void *owned_data;
     int64_t element_tag;
+    int64_t integrity;
+    void *properties;
 } gc_array_layout;
 
 #define GC_HASH_INITIAL_CAPACITY 65536
@@ -469,6 +471,10 @@ int scriptgo_gc_collect(int64_t *out_collected_count) {
             }
         } else if (node->header.type_tag == SCRIPTGO_TYPE_ARRAY) {
             gc_array_layout *arr = (gc_array_layout *)node->ptr;
+            if (arr != NULL && is_possible_heap_ptr(arr->properties)) {
+                gc_node *child = find_node(arr->properties);
+                GC_PUSH(child);
+            }
             if (arr != NULL && arr->data != NULL) {
                 if (arr->element_size == (int64_t)sizeof(scriptgo_value)) {
                     for (int64_t i = 0; i < arr->length; i++) {

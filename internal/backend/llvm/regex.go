@@ -23,6 +23,15 @@ func (e *functionEmitter) emitRegexIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", dblVal, slot)
 		fmt.Fprintf(out, "  %%%s = fcmp one double %%%s, 0.0\n", instruction.Result, dblVal)
 
+	case "__regex.matchProperties":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("regex.matchProperties has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_match_properties(ptr %%%s, ptr %%%s)\n", status, e.ensurePointerArg(out, instruction.Args[0]), slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+
 	case "__regex.exec":
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("regex.exec has invalid signature")

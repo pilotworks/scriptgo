@@ -46,8 +46,10 @@ func lowerStringReceiverMethod(
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.match", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeStringArray, true, nil
 			case "matchAll":
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.matchAll", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
-				return result, ir.TypeStringArray, true, nil
+				// Each element is a match array (RegExpExecArray).
+				matches := ir.Type(string(ir.TypeStringArray) + "[]")
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: matches, Result: result, Callee: "__string.matchAll", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
+				return result, matches, true, nil
 			default:
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__string.search", Args: []string{receiver, srcVal, flagsVal}, Span: toIRSpan(path, expression.Span)})
 				return result, ir.TypeNumber, true, nil

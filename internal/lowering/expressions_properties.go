@@ -195,6 +195,11 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 			return value, valueType, err
 		}
 	}
+	if objectType == ir.TypeStringArray {
+		if value, valueType, handled, err := tryLowerRegExpMatchProperty(path, expression, &result, function, counter, object); handled {
+			return value, valueType, err
+		}
+	}
 
 	if expression.Text == "length" {
 		if value, valueType, handled, err := tryLowerLengthProperty(path, expression, &result, function, counter, object, objectType); handled {

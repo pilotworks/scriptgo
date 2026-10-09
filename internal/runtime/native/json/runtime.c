@@ -151,6 +151,8 @@ typedef struct {
     unsigned char *data;
     void *owned_data;
     int64_t element_tag;
+    int64_t integrity;
+    void *properties;
 } scriptgo_array_internal;
 
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
@@ -369,6 +371,9 @@ typedef struct {
     int dictionary;
     int has_fields;
     int failed;
+    /* keep_undefined writes undefined fields (console output of a match
+     * array's groups) instead of omitting them. */
+    int keep_undefined;
 } json_object_writer;
 
 void *scriptgo_symbol_for_property_key(const char *key, size_t length);
@@ -405,7 +410,9 @@ static int json_write_object_field(const char *key, size_t key_len, int index, v
     } else {
         scriptgo_object_unknown_get(writer->handle, index, &value);
     }
-    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) {
+    int omit = value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL ||
+               (value.tag == SCRIPTGO_TAG_UNDEFINED && !(writer->keep_undefined && writer->builder->inspect));
+    if (omit) {
         free(symbol_label);
         return 0;
     }
@@ -598,7 +605,40 @@ static int json_builder_object(json_builder *b, void *handle) {
 /* json_builder_array writes an array in its element layout: boxed values,
  * strings, bools, bigints, numbers, or pointers whose element tag names
  * them (objects, arrays, functions, symbols). */
+static int json_builder_array_elements(json_builder *b, const scriptgo_array_internal *arr);
+
+/* json_builder_array_properties appends an array's named properties (a
+ * RegExp match's index, input and groups) after its elements, as console.log
+ * shows them: `[ 'a', index: 0, input: 'a', groups: undefined ]`. */
+static int json_builder_array_properties(json_builder *b, const scriptgo_array_internal *arr) {
+    json_builder fields = {0};
+    fields.inspect = 1;
+    json_object_writer writer = {&fields, arr->properties, (scriptgo_json_object *)arr->properties, 0, 0, 0, 1};
+    if (jb_char(&fields, '{') != 0) return -1;
+    object_field_visit((const scriptgo_object *)arr->properties, json_write_object_field, &writer);
+    if (writer.failed || jb_char(&fields, '}') != 0) {
+        free(fields.buf);
+        return -1;
+    }
+    /* fields.buf is "{...}"; splice its members before the closing ']'. */
+    int failed = 0;
+    if (fields.len > 2 && fields.buf[0] == '{' && fields.buf[fields.len - 1] == '}') {
+        b->len--;
+        failed = (arr->length > 0 && jb_char(b, ',') != 0) ||
+                 jb_append(b, fields.buf + 1, fields.len - 2) != 0 ||
+                 jb_char(b, ']') != 0;
+    }
+    free(fields.buf);
+    return failed ? -1 : 0;
+}
+
 static int json_builder_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if (json_builder_array_elements(b, arr) != 0) return -1;
+    if (b->inspect && arr->properties != NULL) return json_builder_array_properties(b, arr);
+    return 0;
+}
+
+static int json_builder_array_elements(json_builder *b, const scriptgo_array_internal *arr) {
     if (arr->element_tag == SCRIPTGO_TAG_STRING && arr->element_size == sizeof(char *)) {
         return json_builder_string_array(b, arr);
     }
