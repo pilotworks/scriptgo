@@ -18,6 +18,9 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
+	if typed := typedFilledArray(expression); typed != nil {
+		expression = typed
+	}
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		if dynamic, ok := dynamicImports[expression.Left.Text]; ok {
 			return lowerDynamicImportCall(path, expression, result, function, env, counter, shapes, signatures, dynamic)
