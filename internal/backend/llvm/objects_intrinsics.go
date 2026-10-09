@@ -198,6 +198,17 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		e.types[instruction.Result] = instruction.Type
 		return nil
+	case "__object.ownSymbols":
+		objArg := e.ensurePointerArg(out, instruction.Args[0])
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_own_symbols(ptr %%%s, ptr %%%s)\n", status, objArg, slot))
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
+		e.types[instruction.Result] = instruction.Type
+		return nil
 	case "__object.groupBy":
 		itemsArg := e.ensurePointerArg(out, instruction.Args[0])
 		cbArg := e.ensurePointerArg(out, instruction.Args[1])

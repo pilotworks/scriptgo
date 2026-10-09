@@ -261,6 +261,8 @@ const declarationsSymbol = `declare i32 @scriptgo_symbol_create(ptr, ptr)
 declare i32 @scriptgo_symbol_for(ptr, ptr)
 declare i32 @scriptgo_symbol_key_for(ptr, ptr)
 declare i32 @scriptgo_symbol_description(ptr, ptr)
+declare i32 @scriptgo_symbol_property_key(ptr, ptr)
+declare i32 @scriptgo_object_own_symbols(ptr, ptr)
 declare i32 @scriptgo_symbol_to_string(ptr, ptr)
 
 `

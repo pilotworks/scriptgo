@@ -29,7 +29,7 @@ func lowerNumericKeyRead(path string, expression *frontend.SyntaxExpression, obj
 	if err != nil {
 		return "", "", err
 	}
-	keyValue, _ = coercePrimitiveToString(path, expression.Right.Span, keyValue, keyType, function, counter)
+	keyValue, _ = propertyKeyValue(path, expression.Right.Span, keyValue, keyType, function, counter)
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: result, Callee: "__object.get_prop", Args: []string{object, keyValue}, Span: span})
 	return result, ir.TypeUnknown, nil
 }

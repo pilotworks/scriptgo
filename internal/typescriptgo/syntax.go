@@ -211,6 +211,10 @@ func syntaxType(node *ast.Node) string {
 			for _, m := range typeLit.Members.Nodes {
 				if m.Kind == ast.KindPropertySignature && m.Name() != nil {
 					name := syntaxMemberName(m.Name())
+					if isComputedReferenceName(m.Name()) {
+						// [k] keys a symbol-valued property, not a field "k".
+						name = "[" + name + "]"
+					}
 					t := syntaxType(m.Type())
 					members = append(members, name+": "+t)
 				}

@@ -371,9 +371,33 @@ typedef struct {
     int failed;
 } json_object_writer;
 
+void *scriptgo_symbol_for_property_key(const char *key, size_t length);
+int scriptgo_symbol_to_string(void *symbol, char **out_string);
+
 static int json_write_object_field(const char *key, size_t key_len, int index, void *context) {
     json_object_writer *writer = context;
     if (index >= writer->object->field_count) return 1;
+    char *symbol_label = NULL;
+    if (key_len > 0 && key[0] == '\x01') {
+        /* JSON omits symbol-keyed properties; console output shows them as
+         * [Symbol(description)] (a \x01-prefixed key the inspect pass
+         * brackets). */
+        void *symbol = scriptgo_symbol_for_property_key(key, key_len);
+        char *text = NULL;
+        if (!writer->builder->inspect || symbol == NULL || scriptgo_symbol_to_string(symbol, &text) != 0 || text == NULL) return 0;
+        size_t text_len = strlen(text);
+        symbol_label = malloc(text_len + 2);
+        if (symbol_label == NULL) {
+            free(text);
+            writer->failed = 1;
+            return 1;
+        }
+        symbol_label[0] = '\x01';
+        memcpy(symbol_label + 1, text, text_len + 1);
+        free(text);
+        key = symbol_label;
+        key_len = text_len + 1;
+    }
     scriptgo_value value;
     scriptgo_value_init_undefined(&value);
     if (writer->dictionary && writer->object->boxed_fields == NULL) {
@@ -381,14 +405,19 @@ static int json_write_object_field(const char *key, size_t key_len, int index, v
     } else {
         scriptgo_object_unknown_get(writer->handle, index, &value);
     }
-    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) return 0;
+    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) {
+        free(symbol_label);
+        return 0;
+    }
     if ((writer->has_fields && jb_char(writer->builder, ',') != 0) ||
         jb_string(writer->builder, key, key_len) != 0 ||
         jb_char(writer->builder, ':') != 0 ||
         json_builder_value(writer->builder, &value) != 0) {
+        free(symbol_label);
         writer->failed = 1;
         return 1;
     }
+    free(symbol_label);
     writer->has_fields = 1;
     return 0;
 }
@@ -944,6 +973,17 @@ int scriptgo_json_inspect_object(void *handle, char **out_str) {
             int is_key = json[end + 1] == ':';
             if (is_key) {
                 size_t start = i + 1;
+                if (end - start >= 6 && strncmp(json + start, "\\u0001", 6) == 0) {
+                    /* A symbol key: [Symbol(description)]. */
+                    if (inspect_append(&out, &length, &capacity, '[') != 0) goto fail;
+                    for (size_t j = start + 6; j < end; j++) {
+                        if (json[j] == '\\' && json[j + 1] == '"') j++;
+                        if (inspect_append(&out, &length, &capacity, json[j]) != 0) goto fail;
+                    }
+                    if (inspect_append(&out, &length, &capacity, ']') != 0) goto fail;
+                    i = end;
+                    continue;
+                }
                 /* Node quotes keys that are not identifiers, numeric keys included. */
                 int identifier = start < end && !(json[start] >= '0' && json[start] <= '9');
                 for (size_t j = start; j < end; j++) {

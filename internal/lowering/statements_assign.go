@@ -204,7 +204,10 @@ func lowerIndexSetStatement(path string, statement frontend.SyntaxStatement, fun
 		if err != nil {
 			return err
 		}
-		if idxType == ir.TypeString || idxType == ir.TypeUnknown {
+		if idxType == ir.TypeString || idxType == ir.TypeUnknown || idxType == ir.TypeSymbol {
+			if idxType == ir.TypeSymbol {
+				idxVal, _ = propertyKeyValue(path, statement.Right.Span, idxVal, idxType, function, counter)
+			}
 			val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return err

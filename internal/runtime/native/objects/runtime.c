@@ -1946,10 +1946,16 @@ typedef struct {
     size_t storage;
 } object_key_totals;
 
+/* A symbol-keyed property's stored key starts with \x01 (see
+ * scriptgo_symbol_property_key); string-key enumerations skip it. */
+static int object_is_symbol_key(const char *name, size_t length) {
+    return length > 0 && name[0] == '\x01';
+}
+
 static int object_key_total(const char *name, size_t length, int index, void *context) {
     object_key_totals *totals = context;
-    (void)name;
     (void)index;
+    if (object_is_symbol_key(name, length)) return 0;
     totals->count++;
     totals->storage += length + 1;
     return 0;
@@ -1974,15 +1980,18 @@ typedef struct {
     void *array;
     char *storage;
     size_t offset;
+    int position;
     int failed;
 } object_key_writer;
 
 static int object_key_write(const char *name, size_t length, int index, void *context) {
     object_key_writer *writer = context;
+    (void)index;
+    if (object_is_symbol_key(name, length)) return 0;
     char *key = writer->storage + writer->offset;
     memcpy(key, name, length);
     key[length] = '\0';
-    if (scriptgo_array_set(writer->array, (double)index, &key) != 0) {
+    if (scriptgo_array_set(writer->array, (double)writer->position++, &key) != 0) {
         writer->failed = 1;
         return 1;
     }
@@ -2035,7 +2044,7 @@ int scriptgo_object_keys(void *handle, void **out_array) {
         }
     }
     if (count > 0) {
-        object_key_writer writer = {*out_array, storage, storage_offset, 0};
+        object_key_writer writer = {*out_array, storage, storage_offset, 0, 0};
         object_field_visit(object, object_key_write, &writer);
         if (writer.failed) {
             scriptgo_array_release(*out_array);
@@ -2076,11 +2085,14 @@ typedef struct {
     int64_t element_size;
     int64_t element_tag;
     int entries;
+    int position;
     int failed;
 } object_enumeration_writer;
 
 static int object_enumerate_field(const char *name, size_t length, int index, void *context) {
     object_enumeration_writer *writer = context;
+    if (object_is_symbol_key(name, length)) return 0;
+    int position = writer->position++;
     scriptgo_value value;
     scriptgo_value_init_undefined(&value);
     if (scriptgo_object_unknown_get(writer->object, index, &value) != 0) {
@@ -2088,7 +2100,7 @@ static int object_enumerate_field(const char *name, size_t length, int index, vo
         return 1;
     }
     if (!writer->entries) {
-        if (object_store_array_value(writer->array, index, writer->element_size, writer->element_tag, &value) != 0) writer->failed = 1;
+        if (object_store_array_value(writer->array, position, writer->element_size, writer->element_tag, &value) != 0) writer->failed = 1;
         return writer->failed;
     }
     /* A [key, value] pair is a two-field tuple object, as lowering lays out
@@ -2105,7 +2117,7 @@ static int object_enumerate_field(const char *name, size_t length, int index, vo
     ((scriptgo_object *)pair)->fields[0] = (uintptr_t)key;
     ((scriptgo_object *)pair)->field_count = 2;
     if (scriptgo_object_unknown_set(pair, 1, &value) != 0 ||
-        scriptgo_array_set_typed(writer->array, (double)index, &pair, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT) != 0) {
+        scriptgo_array_set_typed(writer->array, (double)position, &pair, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT) != 0) {
         writer->failed = 1;
         return 1;
     }
@@ -2122,7 +2134,7 @@ static int object_enumerate(void *handle, int entries, int64_t element_size, int
     if (scriptgo_array_new(count, element_size, out_array) != 0) return -1;
     if (scriptgo_array_set_tag(*out_array, element_tag) != 0) return -1;
     if (count == 0) return 0;
-    object_enumeration_writer writer = {handle, *out_array, element_size, element_tag, entries, 0};
+    object_enumeration_writer writer = {handle, *out_array, element_size, element_tag, entries, 0, 0};
     object_field_visit((scriptgo_object *)handle, object_enumerate_field, &writer);
     return writer.failed ? object_fail("scriptgo object enumeration failed") : 0;
 }
@@ -2201,4 +2213,47 @@ int scriptgo_object_group_by(void *handle, void *closure_handle, void **out_obje
         scriptgo_array_push(sub_arr, val_ptr, &dummy);
     }
     return 0;
+}
+
+void *scriptgo_symbol_for_property_key(const char *key, size_t length);
+
+typedef struct {
+    void *array;
+    int position;
+    int failed;
+} object_symbol_writer;
+
+static int object_symbol_total(const char *name, size_t length, int index, void *context) {
+    (void)index;
+    if (object_is_symbol_key(name, length) && scriptgo_symbol_for_property_key(name, length) != NULL) (*(int *)context)++;
+    return 0;
+}
+
+static int object_symbol_write(const char *name, size_t length, int index, void *context) {
+    object_symbol_writer *writer = context;
+    (void)index;
+    if (!object_is_symbol_key(name, length)) return 0;
+    void *symbol = scriptgo_symbol_for_property_key(name, length);
+    if (symbol == NULL) return 0;
+    if (scriptgo_array_set(writer->array, (double)writer->position++, &symbol) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+
+/* Object.getOwnPropertySymbols: the symbols keying the object's own
+ * properties, in insertion order. */
+int scriptgo_object_own_symbols(void *handle, void **out_array) {
+    if (out_array == NULL) return object_fail("scriptgo object symbols output is invalid");
+    handle = resolve_object_handle(handle, 0);
+    int count = 0;
+    int valid = handle != NULL && !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC;
+    if (valid) object_field_visit((scriptgo_object *)handle, object_symbol_total, &count);
+    if (scriptgo_array_new(count, (int64_t)sizeof(void *), out_array) != 0) return -1;
+    if (scriptgo_array_set_tag(*out_array, SCRIPTGO_TAG_SYMBOL) != 0) return -1;
+    if (count == 0) return 0;
+    object_symbol_writer writer = {*out_array, 0, 0};
+    object_field_visit((scriptgo_object *)handle, object_symbol_write, &writer);
+    return writer.failed ? object_fail("scriptgo object symbols failed") : 0;
 }

@@ -291,14 +291,17 @@ int scriptgo_array_flat_map_number_scalar(void *handle, void *closure_handle, vo
 
 /* closure_pointer_element is element i of a pointer or boxed-value array as
  * the (tag, flags, payload) of a closure argument: a boxed unknown[] element
- * keeps its own tag, a pointer element is passed as a pointer (tag 5). */
+ * keeps its own tag, a pointer element is passed with the array's element
+ * tag. */
 static scriptgo_value closure_pointer_element(const scriptgo_array_inner *array, int64_t i) {
     scriptgo_value value = {0};
     if (array->element_size == sizeof(scriptgo_value)) {
         memcpy(&value, array->data + (size_t)i * sizeof(scriptgo_value), sizeof(scriptgo_value));
         return value;
     }
-    value.tag = 5;
+    /* A pointer element carries the array's element tag (a symbol[] holds
+     * symbols); untagged arrays hold objects. */
+    value.tag = array->element_tag == SCRIPTGO_TAG_SYMBOL || array->element_tag == SCRIPTGO_TAG_ARRAY ? (uint32_t)array->element_tag : 5;
     value.payload = (int64_t)(uintptr_t)*(void **)(array->data + (size_t)i * sizeof(void *));
     return value;
 }

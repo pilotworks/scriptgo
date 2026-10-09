@@ -9,7 +9,19 @@ int scriptgo_runtime_set_error(const char *message);
 typedef struct scriptgo_symbol {
     uint64_t id;
     char *description;
+    /* The string an object stores this symbol's property under, made on
+     * first use (scriptgo_symbol_property_key). */
+    char *property_key;
 } scriptgo_symbol_t;
+
+/* Symbols that key a property, for mapping a stored key back to its symbol
+ * (Object.getOwnPropertySymbols, console output). They stay GC roots. */
+typedef struct scriptgo_keyed_symbol {
+    scriptgo_symbol_t *symbol;
+    struct scriptgo_keyed_symbol *next;
+} scriptgo_keyed_symbol_t;
+
+static scriptgo_keyed_symbol_t *g_keyed_symbols = NULL;
 
 typedef struct scriptgo_symbol_entry {
     char *key;
@@ -31,6 +43,7 @@ static scriptgo_symbol_t *create_symbol_internal(const char *description) {
     if (sym == NULL) return NULL;
     sym->id = ++g_symbol_id_counter;
     sym->description = (description != NULL && description != &scriptgo_undefined_sentinel) ? strdup(description) : NULL;
+    sym->property_key = NULL;
     scriptgo_gc_register(sym, 11, 0);
     return sym;
 }
@@ -116,4 +129,46 @@ int scriptgo_symbol_to_string(void *symbol, char **out_string) {
     }
     *out_string = strdup(buffer);
     return 0;
+}
+
+int scriptgo_gc_add_root(void *ptr);
+
+/* A symbol-keyed property is stored under "\x01" followed by the symbol's
+ * id. No string property key starts with \x01 in practice, and every
+ * key enumeration (Object.keys, JSON, for..in) skips such keys. The key is
+ * borrowed: it lives as long as the symbol, which stays rooted. */
+int scriptgo_symbol_property_key(void *symbol, char **out_key) {
+    if (symbol == NULL || out_key == NULL) {
+        return scriptgo_runtime_set_error("invalid argument to symbol property key");
+    }
+    scriptgo_symbol_t *sym = (scriptgo_symbol_t *)symbol;
+    if (sym->property_key == NULL) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "\x01%llu", (unsigned long long)sym->id);
+        scriptgo_keyed_symbol_t *entry = malloc(sizeof(*entry));
+        char *key = strdup(buffer);
+        if (entry == NULL || key == NULL) {
+            free(entry);
+            free(key);
+            return scriptgo_runtime_set_error("failed to allocate symbol property key");
+        }
+        sym->property_key = key;
+        entry->symbol = sym;
+        entry->next = g_keyed_symbols;
+        g_keyed_symbols = entry;
+        scriptgo_gc_add_root(sym);
+    }
+    *out_key = sym->property_key;
+    return 0;
+}
+
+/* scriptgo_symbol_for_property_key is the symbol a stored property key
+ * names, or NULL when the key is not a symbol key. */
+void *scriptgo_symbol_for_property_key(const char *key, size_t length) {
+    if (key == NULL || length < 2 || key[0] != '\x01') return NULL;
+    for (scriptgo_keyed_symbol_t *entry = g_keyed_symbols; entry != NULL; entry = entry->next) {
+        const char *candidate = entry->symbol->property_key;
+        if (strlen(candidate) == length && memcmp(candidate, key, length) == 0) return entry->symbol;
+    }
+    return NULL;
 }
