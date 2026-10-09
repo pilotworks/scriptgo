@@ -248,6 +248,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
+          # Standard-library findings are fixed in Go patch releases; scan
+          # with the newest one, not the runner's pre-cached toolchain.
+          check-latest: true
           cache: true
 
       - name: Run govulncheck
