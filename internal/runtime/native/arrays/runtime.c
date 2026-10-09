@@ -340,6 +340,15 @@ int scriptgo_array_pop(void *handle, void *out_value) {
     return 0;
 }
 
+static int64_t scriptgo_array_relative_index(double value, int64_t length) {
+    if (value != value) return 0;
+    if (value < 0.0) {
+        double from_end = (double)length + value;
+        return from_end < 0.0 ? 0 : (int64_t)from_end;
+    }
+    return value >= (double)length ? length : (int64_t)value;
+}
+
 int scriptgo_array_slice_with_size(void *handle, double start_val, double end_val, int64_t target_element_size, void **out_array) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel || out_array == NULL) {
         return fail("scriptgo array access failed");
@@ -366,19 +375,10 @@ int scriptgo_array_slice_with_size(void *handle, double start_val, double end_va
                            ? target_element_size : array->element_size;
         src_data = array->data;
     }
-    if (start_val < 0.0) {
-        start = length + (int64_t)start_val;
-        if (start < 0) start = 0;
-    } else {
-        start = (int64_t)start_val;
-        if (start > length) start = length;
-    }
-    if (end_val < 0.0) {
-        end = length;
-    } else {
-        end = (int64_t)end_val;
-        if (end > length) end = length;
-    }
+    /* Array.prototype.slice: relative indices; NaN is 0, negative counts
+     * from the end, and callers pass +Infinity for an omitted end. */
+    start = scriptgo_array_relative_index(start_val, length);
+    end = scriptgo_array_relative_index(end_val, length);
     if (end < start) end = start;
     new_len = end - start;
     if (scriptgo_array_new(new_len, element_size, out_array) != 0) {
@@ -1025,6 +1025,11 @@ static int cmp_strings(const void *a, const void *b) {
 
 int scriptgo_array_fill_number(void *handle, double value, double start_val, double end_val, int32_t has_start, int32_t has_end, void **out_array) {
     scriptgo_array *array = handle;
+    if (array != NULL && array->length == 0) {
+        /* Filling an empty array changes nothing, whatever its element storage. */
+        if (out_array != NULL) *out_array = array;
+        return 0;
+    }
     if (array == NULL || array->element_size != sizeof(double)) {
         return fail("scriptgo array fill failed");
     }

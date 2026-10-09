@@ -86,7 +86,7 @@ func (e *functionEmitter) tryEmitCoreIntrinsicCall(out *strings.Builder, instruc
 			fmt.Fprintf(out, "  %%%s = getelementptr inbounds [1 x i8], ptr %s, i64 0, i64 0\n", emptyPtr, emptyGlobal)
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split(ptr %%%s, ptr %%%s, double -1.000000e+00, ptr %%%s)\n", status, instruction.Args[0], emptyPtr, slot)
 		} else {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double 0x7FF0000000000000, ptr %%%s)\n", status, instruction.Args[0], slot)
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)

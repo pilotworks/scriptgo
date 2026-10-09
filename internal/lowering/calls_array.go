@@ -190,6 +190,31 @@ func lowerArrayReceiverMethod(
 	if !isArr || !isArrayMethod(methodName) {
 		return "", "", false, nil
 	}
+	if methodName == "toSpliced" && len(expression.Arguments) > 2 && !isTuple {
+		value, typ, err := lowerToSplicedWithItems(path, expression, receiver, receiverType, result, function, env, counter, shapes, signatures)
+		return value, typ, true, err
+	}
+	if methodName == "toSpliced" && len(expression.Arguments) == 0 {
+		// toSpliced() with no start skips nothing: it is a copy, the same as
+		// toSpliced(0, 0). (A start without deleteCount removes the rest.)
+		zero := func() *frontend.SyntaxExpression {
+			return &frontend.SyntaxExpression{Span: expression.Span, Kind: "number", Text: "0", InferredType: "number"}
+		}
+		copied := *expression
+		copied.Arguments = []*frontend.SyntaxExpression{zero(), zero()}
+		expression = &copied
+	}
+	if methodName == "fill" && len(expression.Arguments) == 0 {
+		// fill() fills with undefined: the omitted value argument is undefined,
+		// which unboxed number storage represents as NaN.
+		value := &frontend.SyntaxExpression{Span: expression.Span, Kind: "undefined", Text: "undefined", InferredType: "undefined"}
+		if receiverType == ir.TypeNumberArray {
+			value = &frontend.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: "NaN", InferredType: "number"}
+		}
+		withValue := *expression
+		withValue.Arguments = []*frontend.SyntaxExpression{value}
+		expression = &withValue
+	}
 	if isTuple && methodName == "slice" {
 		var srcShape ir.ObjectShape
 		if s, ok := shapes[shapeName]; ok {
@@ -200,23 +225,26 @@ func lowerArrayReceiverMethod(
 			srcShape = s
 		}
 		if len(srcShape.Fields) > 0 {
-			startIdx := 0
+			// A tuple slice has a static result shape, so its bounds must be
+			// integer literals; they are relative like Array.prototype.slice.
+			length := len(srcShape.Fields)
+			startIdx, endIdx := 0, length
 			if len(expression.Arguments) > 0 {
-				if n, err := strconv.Atoi(expression.Arguments[0].Text); err == nil {
-					startIdx = n
+				n, ok := staticIntegerArgument(expression.Arguments[0])
+				if !ok {
+					return "", "", true, fmt.Errorf("tuple slice start must be an integer literal")
 				}
+				startIdx = relativeTupleIndex(n, length)
 			}
-			endIdx := len(srcShape.Fields)
 			if len(expression.Arguments) > 1 {
-				if n, err := strconv.Atoi(expression.Arguments[1].Text); err == nil {
-					endIdx = n
+				n, ok := staticIntegerArgument(expression.Arguments[1])
+				if !ok {
+					return "", "", true, fmt.Errorf("tuple slice end must be an integer literal")
 				}
+				endIdx = relativeTupleIndex(n, length)
 			}
-			if startIdx < 0 {
-				startIdx = 0
-			}
-			if endIdx > len(srcShape.Fields) {
-				endIdx = len(srcShape.Fields)
+			if endIdx < startIdx {
+				endIdx = startIdx
 			}
 			var resFields []ir.Field
 			for i := startIdx; i < endIdx; i++ {

@@ -62,6 +62,10 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 			}
 			if strings.HasSuffix(trimmed, "[]") {
 				arrType := toIRType(trimmed)
+				if arrType == ir.Type(string(ir.TypeVoid)+"[]") {
+					// undefined[] has no unboxed element storage.
+					arrType = ir.TypeUnknownArray
+				}
 				if arrType == ir.TypeUnknownArray {
 					for idx, argName := range arguments {
 						if types[idx] != ir.TypeUnknown {
@@ -99,6 +103,17 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 			} else if shape, ok := shapes[strings.TrimPrefix(trimmed, "object:")]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
 				inferredTuple = true
 			}
+		}
+		if isHomogeneous && !inferredTuple && len(types) > 0 && types[0] == ir.TypeVoid {
+			// Elements that are all undefined have no unboxed storage; keep
+			// them as boxed values in an unknown[] array.
+			for idx, argName := range arguments {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{argName}, Span: toIRSpan(path, expression.Arguments[idx].Span)})
+				arguments[idx] = boxed
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeUnknownArray, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeUnknownArray, nil
 		}
 		if isHomogeneous && !inferredTuple {
 			arrType := ir.TypeNumberArray

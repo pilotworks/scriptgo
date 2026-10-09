@@ -18,7 +18,7 @@ func (e *functionEmitter) emitArrayCopyIntrinsic(out *strings.Builder, instructi
 		if len(instruction.Args) >= 2 {
 			startArg = "%" + e.resolveArg(out, instruction.Args[1])
 		}
-		endArg := "-1.0"
+		endArg := "0x7FF0000000000000" // +Infinity: end omitted
 		if len(instruction.Args) == 3 {
 			endArg = "%" + e.resolveArg(out, instruction.Args[2])
 		}

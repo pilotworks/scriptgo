@@ -117,7 +117,7 @@ func (e *functionEmitter) emitArrayIterationIntrinsic(out *strings.Builder, inst
 		out.WriteString(fmt.Sprintf("  %%%s = alloca ptr\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double -1.0, ptr %%%s)\n", status, instruction.Args[0], slot))
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_slice(ptr %%%s, double 0.0, double 0x7FF0000000000000, ptr %%%s)\n", status, instruction.Args[0], slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 		return nil

@@ -15,7 +15,12 @@ func lowerWhile(path string, statement frontend.SyntaxStatement, function *ir.Fu
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
 	}()
 	condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-	condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
+	condition := statement.Expression
+	if condition == nil {
+		// `for (;;)` has no test: it loops until a break, return, or throw.
+		condition = &frontend.SyntaxExpression{Span: statement.Span, Kind: "bool", Text: "true", InferredType: "boolean"}
+	}
+	condVal, condType, err := lowerExpression(path, condition, "", &condFunc, env, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
@@ -53,7 +58,12 @@ func lowerDoWhile(path string, statement frontend.SyntaxStatement, function *ir.
 		loopFinallyScopeStack = loopFinallyScopeStack[:len(loopFinallyScopeStack)-1]
 	}()
 	condFunc := ir.Function{Name: "cond", ReturnType: ir.TypeBool}
-	condVal, condType, err := lowerExpression(path, statement.Expression, "", &condFunc, env, counter, shapes, signatures)
+	condition := statement.Expression
+	if condition == nil {
+		// `for (;;)` has no test: it loops until a break, return, or throw.
+		condition = &frontend.SyntaxExpression{Span: statement.Span, Kind: "bool", Text: "true", InferredType: "boolean"}
+	}
+	condVal, condType, err := lowerExpression(path, condition, "", &condFunc, env, counter, shapes, signatures)
 	if err != nil {
 		return err
 	}
