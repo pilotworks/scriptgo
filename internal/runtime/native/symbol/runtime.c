@@ -22,11 +22,15 @@ static scriptgo_symbol_entry_t *g_symbol_registry = NULL;
 
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 
+extern const char scriptgo_undefined_sentinel;
+
+/* A symbol's description is absent (NULL) for Symbol() and Symbol(undefined),
+ * and kept as given otherwise, including "". */
 static scriptgo_symbol_t *create_symbol_internal(const char *description) {
     scriptgo_symbol_t *sym = (scriptgo_symbol_t *)malloc(sizeof(scriptgo_symbol_t));
     if (sym == NULL) return NULL;
     sym->id = ++g_symbol_id_counter;
-    sym->description = (description && description[0] != '\0') ? strdup(description) : NULL;
+    sym->description = (description != NULL && description != &scriptgo_undefined_sentinel) ? strdup(description) : NULL;
     scriptgo_gc_register(sym, 11, 0);
     return sym;
 }
@@ -94,11 +98,8 @@ int scriptgo_symbol_description(void *symbol, char **out_description) {
         return scriptgo_runtime_set_error("invalid argument to symbol description");
     }
     scriptgo_symbol_t *sym = (scriptgo_symbol_t *)symbol;
-    if (sym->description != NULL) {
-        *out_description = strdup(sym->description);
-    } else {
-        *out_description = strdup("undefined");
-    }
+    /* An absent description reads as undefined. */
+    *out_description = sym->description != NULL ? strdup(sym->description) : (char *)&scriptgo_undefined_sentinel;
     return 0;
 }
 

@@ -13,6 +13,14 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		className = classIdentityForPath(path, expression.Left.Text)
 	}
+	if expression.Left != nil && expression.Left.Kind == "identifier" && expression.Left.Text == "Error" && expression.Text == "stackTraceLimit" {
+		// A mutable runtime setting, not a constant.
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeNumber, Result: result, Callee: "__error.stackTraceLimit", Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeNumber, nil
+	}
 	// 1. Check built-in global constants (e.g. Math.PI, Number.MAX_VALUE, Symbol.iterator)
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		propKey := expression.Left.Text + "." + expression.Text

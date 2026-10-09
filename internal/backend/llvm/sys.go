@@ -392,6 +392,15 @@ func (e *functionEmitter) emitErrorIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
+	case "__error.stackTraceLimit":
+		fmt.Fprintf(out, "  %%%s = call double @scriptgo_error_stack_trace_limit()\n", instruction.Result)
+		return nil
+	case "__error.setStackTraceLimit":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("__error.setStackTraceLimit requires 1 argument")
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_error_set_stack_trace_limit(double %%%s)\n", resolvedArgs[0])
+		return nil
 	case "__error.throw":
 		// Throws "<Name>: <message>" as an instance of the named built-in
 		// error through the runtime unwinder, like any runtime failure.

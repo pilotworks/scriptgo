@@ -62,7 +62,8 @@ func lowerClassToString(path string, value string, valueType ir.Type, span front
 }
 
 // lowerStringConversion lowers String(value): a class instance converts
-// through its toString method; everything else through the runtime.
+// through its toString method, a symbol to "Symbol(desc)", everything else
+// through the runtime.
 func lowerStringConversion(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 	var args []string
 	if len(call.Expression.Arguments) == 1 {
@@ -72,6 +73,15 @@ func lowerStringConversion(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 		}
 		if converted, ok := lowerClassToString(call.Path, value, valueType, call.Expression.Span, call.Function, call.Counter, call.Signatures); ok {
 			return converted, ir.TypeString, nil
+		}
+		if valueType == ir.TypeSymbol {
+			// String(symbol) is its descriptive string, "Symbol(desc)".
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__symbol.toString", Args: []string{value}, Span: toIRSpan(call.Path, call.Expression.Span)})
+			return result, ir.TypeString, nil
 		}
 		args = []string{value}
 	}

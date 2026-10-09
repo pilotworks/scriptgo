@@ -575,6 +575,14 @@ void scriptgo_debugger_break(const char *file, int line) {
     (void)line;
 }
 
+/* Error.stackTraceLimit: the most stack frames a new error records (V8
+ * default 10); zero, negative or NaN records none. */
+static double scriptgo_stack_trace_limit = 10.0;
+
+double scriptgo_error_stack_trace_limit(void) { return scriptgo_stack_trace_limit; }
+
+void scriptgo_error_set_stack_trace_limit(double limit) { scriptgo_stack_trace_limit = limit; }
+
 int scriptgo_error_capture_stack(const char *name, const char *msg, char **out_stack) {
     if (out_stack == NULL) return -1;
     const char *err_name = (name != NULL && strlen(name) > 0) ? name : "Error";
@@ -593,6 +601,13 @@ int scriptgo_error_capture_stack(const char *name, const char *msg, char **out_s
 #if !defined(__wasi__) && !defined(_WIN32)
     void *buffer[32];
     int n = backtrace(buffer, 32);
+    /* Frame 0 is this function; record at most the limit's worth after it. */
+    double limit = scriptgo_stack_trace_limit;
+    if (!(limit > 0.0)) {
+        n = 1;
+    } else if (limit < (double)(n - 1)) {
+        n = 1 + (int)limit;
+    }
     for (int i = 1; i < n; i++) {
         Dl_info info;
         char frame[256];

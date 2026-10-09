@@ -101,7 +101,12 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 				if err != nil {
 					return "", "", err
 				}
-				if dType == ir.TypeString {
+				if dType == ir.TypeVoid {
+					// Symbol(undefined) has no description.
+					call.Function.Body = append(call.Function.Body, ir.Instruction{
+						Op: ir.OpConst, Type: ir.TypeString, Result: descVal, Value: "undefined", Span: toIRSpan(call.Path, call.Expression.Span),
+					})
+				} else if dType == ir.TypeString {
 					descVal = dv
 				} else if dType == ir.TypeNumber {
 					call.Function.Body = append(call.Function.Body, ir.Instruction{
@@ -111,8 +116,9 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 					descVal = dv
 				}
 			} else {
+				// Symbol() has no description (the undefined sentinel).
 				call.Function.Body = append(call.Function.Body, ir.Instruction{
-					Op: ir.OpConst, Type: ir.TypeString, Result: descVal, Value: "", Span: toIRSpan(call.Path, call.Expression.Span),
+					Op: ir.OpConst, Type: ir.TypeString, Result: descVal, Value: "undefined", Span: toIRSpan(call.Path, call.Expression.Span),
 				})
 			}
 			result := call.Result

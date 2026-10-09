@@ -27,6 +27,15 @@ func lowerFieldSetStatement(path string, statement frontend.SyntaxStatement, fun
 		})
 		return nil
 	}
+	if statement.Left != nil && statement.Left.Kind == "identifier" && statement.Left.Text == "Error" && statement.Name == "stackTraceLimit" {
+		value, valueType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return err
+		}
+		value, _ = coerceToNumber(path, statement.Span, value, valueType, function, counter)
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__error.setStackTraceLimit", Args: []string{value}, Span: toIRSpan(path, statement.Span)})
+		return nil
+	}
 	if statement.Left != nil && statement.Left.Kind == "identifier" {
 		className := statement.Left.Text
 		if meta, isClass := classHierarchy[className]; isClass {

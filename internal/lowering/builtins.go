@@ -96,7 +96,6 @@ var builtinGlobals = map[string]BuiltinGlobal{
 	"Symbol.toPrimitive":    {Category: CategoryECMAScript, Name: "Symbol.toPrimitive", Type: ir.TypeSymbol, Value: "Symbol.toPrimitive"},
 	"Symbol.toStringTag":    {Category: CategoryECMAScript, Name: "Symbol.toStringTag", Type: ir.TypeSymbol, Value: "Symbol.toStringTag"},
 	"Symbol.unscopables":    {Category: CategoryECMAScript, Name: "Symbol.unscopables", Type: ir.TypeSymbol, Value: "Symbol.unscopables"},
-	"Error.stackTraceLimit": {Category: CategoryNodeGlobal, Name: "Error.stackTraceLimit", Type: ir.TypeNumber, Value: "10"},
 }
 
 func lowerMathMinMax(callee string) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
