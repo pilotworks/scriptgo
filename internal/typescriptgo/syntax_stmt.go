@@ -1,6 +1,7 @@
 package typescriptgo
 
 import (
+	"fmt"
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/checker"
 )
@@ -43,14 +44,28 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 		}
 		if tryNode.CatchClause != nil {
 			catchClause := tryNode.CatchClause.AsCatchClause()
+			var bindingStmts []SyntaxStatement
 			if catchClause.VariableDeclaration != nil {
-				res.CatchVar = catchClause.VariableDeclaration.Name().Text()
+				nameNode := catchClause.VariableDeclaration.Name()
+				if nameNode.Kind == ast.KindObjectBindingPattern || nameNode.Kind == ast.KindArrayBindingPattern {
+					// The thrown value is always unknown/any in TypeScript, so a
+					// binding pattern has no static layout to destructure. Keep the
+					// clause well-formed and let the subset gate reject it.
+					res.CatchVar = fmt.Sprintf("__catch_destruct_%d", nameNode.Pos())
+					bindingStmts = []SyntaxStatement{{
+						Span: sourceSpan(nameNode),
+						Kind: "unsupported",
+						Type: "catch clause binding pattern (the caught value has no static type)",
+					}}
+				} else {
+					res.CatchVar = nameNode.Text()
+				}
 				if catchClause.VariableDeclaration.Type() != nil {
 					res.CatchVarType = syntaxType(catchClause.VariableDeclaration.Type())
 				}
-				res.CatchVarSpan = sourceSpan(catchClause.VariableDeclaration.Name())
+				res.CatchVarSpan = sourceSpan(nameNode)
 			}
-			res.Catch = syntaxBlockStatements(catchClause.Block, chk)
+			res.Catch = append(bindingStmts, syntaxBlockStatements(catchClause.Block, chk)...)
 		}
 		if tryNode.FinallyBlock != nil {
 			res.Finally = syntaxBlockStatements(tryNode.FinallyBlock, chk)

@@ -857,6 +857,45 @@ int scriptgo_array_reduce_right_number(void *handle, void *closure_handle, doubl
     return 0;
 }
 
+void scriptgo_throw_string(const char *str);
+
+/* reduce/reduceRight without an initial value: the first visited element
+ * seeds the accumulator, and an empty array throws a TypeError
+ * (ECMA-262 Array.prototype.reduce step 7). */
+static int scriptgo_array_reduce_number_seeded(void *handle, void *closure_handle, int right, double *out_res) {
+    scriptgo_array_inner *array = handle;
+    if (array == NULL || closure_handle == NULL || out_res == NULL || array->element_size != sizeof(double)) {
+        return scriptgo_runtime_set_error(right ? "scriptgo array reduceRight failed" : "scriptgo array reduce failed");
+    }
+    if (array->length == 0) {
+        scriptgo_throw_string("TypeError: Reduce of empty array with no initial value");
+        return 0;
+    }
+    scriptgo_closure *c = closure_handle;
+    int64_t first = right ? array->length - 1 : 0;
+    double acc = *(double *)(array->data + (size_t)first * sizeof(double));
+    double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+        (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+    for (int64_t step = 1; step < array->length; step++) {
+        int64_t i = right ? array->length - 1 - step : step;
+        union { double d; int64_t i; } u_acc, u_item, u_idx;
+        u_acc.d = acc;
+        u_item.d = *(double *)(array->data + (size_t)i * sizeof(double));
+        u_idx.d = (double)i;
+        acc = fn(c->env, 3, 0, u_acc.i, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0);
+    }
+    *out_res = acc;
+    return 0;
+}
+
+int scriptgo_array_reduce_number_seeded_left(void *handle, void *closure_handle, double *out_res) {
+    return scriptgo_array_reduce_number_seeded(handle, closure_handle, 0, out_res);
+}
+
+int scriptgo_array_reduce_number_seeded_right(void *handle, void *closure_handle, double *out_res) {
+    return scriptgo_array_reduce_number_seeded(handle, closure_handle, 1, out_res);
+}
+
 int scriptgo_array_sort_number(void *handle, void **out_array);
 int scriptgo_array_sort_string(void *handle, void **out_array);
 

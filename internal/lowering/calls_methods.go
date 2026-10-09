@@ -1,9 +1,17 @@
 package lowering
 
 import (
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
+
+// isPromiseReceiverType reports receivers whose then/catch are
+// Promise.prototype methods; other objects may define methods with those names.
+func isPromiseReceiverType(receiverType ir.Type) bool {
+	return strings.HasPrefix(string(receiverType), "object:Promise")
+}
 
 func lowerPromiseThenCatchCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, methodName string, receiver string) (string, ir.Type, error) {
 	args := []string{receiver}

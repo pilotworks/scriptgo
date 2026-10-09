@@ -16,6 +16,11 @@ func rewriteYieldsToPush(stmts []frontend.SyntaxStatement, itemsName string) []f
 		cloned := s
 		if s.Kind == "expression" && s.Expression != nil {
 			if s.Expression.Kind == "yield" {
+				yielded := s.Expression.Left
+				if yielded == nil {
+					// A bare `yield;` produces undefined.
+					yielded = &frontend.SyntaxExpression{Span: s.Span, Kind: "undefined"}
+				}
 				cloned = frontend.SyntaxStatement{
 					Span: s.Span,
 					Kind: "expression",
@@ -32,9 +37,7 @@ func rewriteYieldsToPush(stmts []frontend.SyntaxStatement, itemsName string) []f
 							},
 							Text: "push",
 						},
-						Arguments: []*frontend.SyntaxExpression{
-							s.Expression.Left,
-						},
+						Arguments: []*frontend.SyntaxExpression{yielded},
 					},
 				}
 			} else if s.Expression.Kind == "yield_star" {

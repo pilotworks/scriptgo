@@ -65,7 +65,7 @@ func lowerCallExpression(
 			if !isIndexedCall {
 				receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 				if err == nil {
-					if methodName == "then" || methodName == "catch" {
+					if (methodName == "then" || methodName == "catch") && isPromiseReceiverType(receiverType) {
 						return lowerPromiseThenCatchCall(path, expression, result, function, env, counter, shapes, signatures, methodName, receiver)
 					}
 					if res, typ, handled, err := lowerWeakReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {

@@ -91,7 +91,11 @@ func (e *functionEmitter) emitArrayIterationIntrinsic(out *strings.Builder, inst
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot))
+		if len(instruction.Args) == 2 {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_number_seeded_left(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot))
+		}
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 		return nil
@@ -100,7 +104,11 @@ func (e *functionEmitter) emitArrayIterationIntrinsic(out *strings.Builder, inst
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_right_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot))
+		if len(instruction.Args) == 2 {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_number_seeded_right(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], slot))
+		} else {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_reduce_right_number(ptr %%%s, ptr %%%s, double %%%s, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], slot))
+		}
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 		return nil

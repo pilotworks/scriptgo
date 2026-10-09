@@ -18,6 +18,11 @@ func lowerNewExpression(path string, expression *frontend.SyntaxExpression, resu
 		return lowerProxyNew(path, expression, result, function, env, counter, shapes, signatures)
 	}
 	if className == "RegExp" {
+		// new RegExp(...) and RegExp(...) construct the same object for a
+		// string pattern, so both share the intrinsic lowering.
+		if intrinsic, ok := builtinIntrinsic("RegExp"); ok {
+			return intrinsic.Lower(IntrinsicCall{Path: path, Expression: expression, Result: result, Function: function, Env: env, Counter: counter, Shapes: shapes, Signatures: signatures, LowerExpression: lowerExpression}, intrinsic)
+		}
 		ensureRegExpShape(shapes)
 	}
 	if className == "Date" {
