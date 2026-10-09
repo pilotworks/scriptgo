@@ -360,6 +360,26 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
+	case "__object.isPrototypeOf":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__object.isPrototypeOf requires a receiver and a value")
+		}
+		arg := instruction.Args[1]
+		argType := e.types[arg]
+		boxed := e.resolveArg(out, arg)
+		if !e.isParamUnknown(arg) && argType != ir.TypeUnknown {
+			boxed = fmt.Sprintf("%s.isproto.boxed.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, arg, argType, boxed); err != nil {
+				return err
+			}
+		}
+		slot := instruction.Result + ".isproto.slot"
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot)
+		fmt.Fprintf(out, "  %%%s.i32 = call i32 @scriptgo_object_is_prototype_of(ptr %%%s, ptr %%%s)\n", instruction.Result, e.resolveArg(out, instruction.Args[0]), slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s.i32, 0\n", instruction.Result, instruction.Result)
+		return nil
 	case "__object.getPrototypeOf":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("__object.getPrototypeOf requires one argument")

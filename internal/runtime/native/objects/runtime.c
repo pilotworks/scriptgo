@@ -1510,6 +1510,53 @@ void *scriptgo_object_get_prototype_value(const scriptgo_value *value) {
     }
 }
 
+/* Object.prototype.isPrototypeOf: only prototype tokens are prototypes in
+ * the native model, so an ordinary receiver is never in a chain. A token is
+ * in a value's chain when it names the value's class or one of its bases
+ * (from the class descriptor), Array for arrays, Function for functions, or
+ * Object for any object. Primitives have no chain to search. */
+int32_t scriptgo_object_is_prototype_of(void *receiver, const scriptgo_value *value) {
+    const char *name = NULL;
+    for (int i = 0; i < scriptgo_prototype_token_count; i++) {
+        if (scriptgo_prototype_tokens[i].token == receiver) {
+            name = scriptgo_prototype_tokens[i].name;
+            break;
+        }
+    }
+    if (name == NULL || value == NULL) return 0;
+    size_t name_length = strlen(name);
+    switch (value->tag) {
+    case SCRIPTGO_TAG_FUNCTION:
+        return strcmp(name, "Function") == 0 || strcmp(name, "Object") == 0;
+    case SCRIPTGO_TAG_ARRAY:
+    case SCRIPTGO_TAG_OBJECT:
+        break;
+    default:
+        return 0;
+    }
+    if (strcmp(name, "Object") == 0) return 1;
+    void *handle = (void *)(uintptr_t)value->payload;
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) return 0;
+    if (value->tag == SCRIPTGO_TAG_ARRAY ||
+        (scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2)) {
+        return strcmp(name, "Array") == 0;
+    }
+    if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    const char *type_name = ((scriptgo_object *)handle)->type_name;
+    if (!is_class_descriptor(type_name)) return 0;
+    const char *cursor = type_name + 10;
+    char kind;
+    const char *class_name;
+    size_t class_length;
+    while (next_class_descriptor_token(&cursor, &kind, &class_name, &class_length) > 0) {
+        if ((kind == 'c' || kind == 'b') && class_length == name_length &&
+            memcmp(class_name, name, name_length) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result) {
     if (out_result == NULL) {
         return object_fail("scriptgo instanceof null output");

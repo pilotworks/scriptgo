@@ -164,17 +164,15 @@ func lowerCallExpression(
 								return lowerHasOwnPropertyCall(path, expression, result, function, env, counter, shapes, signatures, receiver)
 							}
 						}
-						if methodName == "isPrototypeOf" {
+						if methodName == "isPrototypeOf" && len(expression.Arguments) == 1 {
+							value, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return "", "", err
+							}
 							if result == "" {
 								result = nextTemp(counter)
 							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeBool,
-								Result: result,
-								Value:  "false",
-								Span:   toIRSpan(path, expression.Span),
-							})
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__object.isPrototypeOf", Args: []string{receiver, value}, Span: toIRSpan(path, expression.Span)})
 							return result, ir.TypeBool, nil
 						}
 						if methodName == "toString" || methodName == "toLocaleString" {
