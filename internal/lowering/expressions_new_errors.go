@@ -1,6 +1,9 @@
 package lowering
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -60,4 +63,27 @@ func initializeErrorFields(path string, span frontend.SourceSpan, function *ir.F
 		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "stack", FieldIndex: 2, Args: []string{target, stackVal}, Span: toIRSpan(path, span)},
 		ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "cause", FieldIndex: 3, Args: []string{target, causeVal}, Span: toIRSpan(path, span)},
 	)
+}
+
+// lowerNewAggregateError lowers new AggregateError(errors, message?, options?)
+// into the built-in Error layout followed by the errors array.
+func lowerNewAggregateError(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, className string, objType ir.Type) (string, ir.Type, error) {
+	if len(expression.Arguments) == 0 {
+		return "", "", fmt.Errorf("AggregateError requires an errors array")
+	}
+	errorsVal, errorsType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
+	}
+	if !strings.HasSuffix(string(errorsType), "[]") {
+		return "", "", fmt.Errorf("AggregateError supports an errors array in the native subset, got %s", expression.Arguments[0].InferredType)
+	}
+	rest := *expression
+	rest.Arguments = expression.Arguments[1:]
+	value, typ, err := lowerNewError(path, &rest, result, function, env, counter, shapes, signatures, className, objType, "AggregateError")
+	if err != nil {
+		return "", "", err
+	}
+	function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldSet, Type: ir.TypeVoid, Callee: className, Field: "errors", FieldIndex: 4, Args: []string{value, errorsVal}, Span: toIRSpan(path, expression.Span)})
+	return value, typ, nil
 }

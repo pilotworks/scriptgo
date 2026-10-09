@@ -98,6 +98,11 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	if idx := strings.Index(base, "<"); idx != -1 {
 		base = base[:idx]
 	}
+	if isSettledResultType(base) && !strings.HasSuffix(value, "[]") && !strings.HasSuffix(value, "_arr") {
+		// Settled results are { status, value } or { status, reason }
+		// runtime objects read by property name (see async/combinators.c).
+		return ir.TypeObject
+	}
 	if aliased, ok := typeAliasesIndex[base]; ok && aliased != base {
 		if strings.Contains(aliased, "=>") && !strings.HasPrefix(aliased, "{") {
 			return ir.TypeClosure
@@ -539,6 +544,10 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeClosure
 	case "unknown", "any":
 		return ir.TypeUnknown
+	case "object":
+		// The `object` keyword (and an element of object[]) is a dynamic
+		// object, not a class named "object".
+		return ir.TypeObject
 	case "unknown[]", "any[]":
 		return ir.TypeUnknownArray
 	case "Uint8Array":
@@ -646,4 +655,9 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+func isSettledResultType(name string) bool {
+	name = strings.TrimPrefix(name, "object:")
+	return name == "PromiseSettledResult" || name == "PromiseFulfilledResult" || name == "PromiseRejectedResult"
 }

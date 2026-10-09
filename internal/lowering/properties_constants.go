@@ -1,7 +1,6 @@
 package lowering
 
 import (
-
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )

@@ -174,6 +174,9 @@ func lowerNewExpression(path string, expression *frontend.SyntaxExpression, resu
 	if publicName == "Date" {
 		return lowerNewDate(path, expression, result, function, env, counter, shapes, signatures, objType)
 	}
+	if publicName == "AggregateError" {
+		return lowerNewAggregateError(path, expression, result, function, env, counter, shapes, signatures, className, objType)
+	}
 	if publicName == "Error" || publicName == "TypeError" || publicName == "RangeError" || publicName == "ReferenceError" || publicName == "SyntaxError" || publicName == "URIError" || publicName == "EvalError" {
 		return lowerNewError(path, expression, result, function, env, counter, shapes, signatures, className, objType, publicName)
 	}

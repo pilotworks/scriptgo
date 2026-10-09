@@ -61,11 +61,6 @@ typedef struct {
 	scriptgo_async_slot *slots;
 } scriptgo_async_frame;
 
-typedef struct {
-	int64_t remaining;
-	void *output;
-	scriptgo_promise *result;
-} scriptgo_all_numbers_env;
 
 typedef struct {
 	int64_t length;
@@ -100,6 +95,8 @@ static scriptgo_microtask *microtask_tail = NULL;
 static scriptgo_promise *all_promises = NULL;
 
 static void scriptgo_queue_promise_reactions(scriptgo_promise *p);
+/* Defined in combinators.c: settles one input of Promise.all/allSettled/any/race. */
+static int scriptgo_promise_aggregate_settle(void *env, int64_t index, scriptgo_promise *p);
 
 extern const char scriptgo_undefined_sentinel;
 
@@ -423,19 +420,7 @@ int scriptgo_event_loop_run(void) {
                     p->reactions_tail = NULL;
                 }
 				if (r->is_aggregate) {
-					scriptgo_all_numbers_env *aggregate = r->aggregate_env;
-					if (aggregate != NULL && p->state == PROMISE_FULFILLED && p->tag == 3) {
-						double value = p->num_value;
-						if (scriptgo_array_set(aggregate->output, (double)r->aggregate_index, &value) != 0) {
-							return -1;
-						}
-						aggregate->remaining--;
-						if (aggregate->remaining == 0) {
-							scriptgo_promise_resolve_existing_array(aggregate->result, aggregate->output);
-						}
-					} else if (aggregate != NULL) {
-						scriptgo_promise_set_boxed(aggregate->result, 1, p->tag ? p->tag : 5, scriptgo_promise_payload(p));
-					}
+					if (scriptgo_promise_aggregate_settle(r->aggregate_env, r->aggregate_index, p) != 0) return -1;
 					free(r);
 					if (p->reactions_head != NULL) scriptgo_queue_promise_reactions(p);
 					continue;
@@ -544,47 +529,6 @@ int scriptgo_promise_construct(void *executor_handle, void **out_promise) {
         return -1;
     }
     *out_promise = promise;
-	return 0;
-}
-
-int scriptgo_promise_all_numbers(void *array_handle, void **out_promise) {
-	scriptgo_array_view *input = array_handle;
-	scriptgo_all_numbers_env *aggregate;
-	void *output = NULL;
-	if (input == NULL || out_promise == NULL || input->element_size != (int64_t)sizeof(void *)) {
-		return scriptgo_runtime_set_error("Promise.all requires an array of number promises");
-	}
-	if (scriptgo_promise_create(out_promise) != 0) return -1;
-	aggregate = calloc(1, sizeof(*aggregate));
-	if (aggregate == NULL) return scriptgo_runtime_set_error("Promise.all allocation failed");
-	if (scriptgo_array_new(input->length, (int64_t)sizeof(double), &output) != 0) return -1;
-	if (scriptgo_array_set_tag(output, 6) != 0) return -1;
-	aggregate->remaining = input->length;
-	aggregate->output = output;
-	aggregate->result = (scriptgo_promise *)*out_promise;
-	if (input->length == 0) {
-		scriptgo_promise_resolve_existing_array(aggregate->result, output);
-		free(aggregate);
-		return 0;
-	}
-	for (int64_t index = 0; index < input->length; index++) {
-		void *promise_handle = NULL;
-		if (scriptgo_array_get(input, (double)index, &promise_handle) != 0 || promise_handle == NULL) return -1;
-		scriptgo_promise *promise = promise_handle;
-		scriptgo_reaction *reaction = calloc(1, sizeof(*reaction));
-		if (reaction == NULL) return scriptgo_runtime_set_error("Promise.all reaction allocation failed");
-		reaction->is_aggregate = 1;
-		reaction->aggregate_env = aggregate;
-		reaction->aggregate_index = index;
-		if (promise->reactions_tail != NULL) {
-			promise->reactions_tail->next = reaction;
-			promise->reactions_tail = reaction;
-		} else {
-			promise->reactions_head = reaction;
-			promise->reactions_tail = reaction;
-		}
-		if (promise->state != PROMISE_PENDING) scriptgo_queue_promise_reactions(promise);
-	}
 	return 0;
 }
 
