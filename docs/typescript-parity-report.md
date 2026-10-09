@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **504** | **504 / 504 match expected output; 502 / 504 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 504 | 479 PASS plus 25 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **509** | **509 / 509 match expected output; 507 / 509 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 509 | 484 PASS plus 25 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 504
-Native Backend Parity  : 479/504 (95.0%)
-Diagnostic Parity      : 25/504
-Overall Full Parity    : 504/504 (100.0%)
+Total Test Cases       : 509
+Native Backend Parity  : 484/509 (95.1%)
+Diagnostic Parity      : 25/509
+Overall Full Parity    : 509/509 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
