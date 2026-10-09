@@ -102,20 +102,17 @@ func lowerNumberFormatCall(path string, expression *frontend.SyntaxExpression, r
 }
 
 func lowerHasOwnPropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string) (string, ir.Type, error) {
-	propVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+	propVal, propType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
 	}
-	// The runtime own-property test (see Object.hasOwn).
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpInstanceOf,
-		Type:   ir.TypeBool,
-		Result: result,
-		Args:   []string{receiver, propVal},
-		Span:   toIRSpan(path, expression.Span),
-	})
+	span := toIRSpan(path, expression.Span)
+	if propVal, err = propertyKeyString(function, counter, span, propVal, propType); err != nil {
+		return "", "", err
+	}
+	emitHasOwnProperty(function, counter, span, result, receiver, propVal, false)
 	return result, ir.TypeBool, nil
 }

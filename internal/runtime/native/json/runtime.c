@@ -349,6 +349,37 @@ fail:
     return json_fail("scriptgo json allocation failed");
 }
 
+typedef struct {
+    json_builder *builder;
+    void *handle;
+    scriptgo_json_object *object;
+    int dictionary;
+    int has_fields;
+    int failed;
+} json_object_writer;
+
+static int json_write_object_field(const char *key, size_t key_len, int index, void *context) {
+    json_object_writer *writer = context;
+    if (index >= writer->object->field_count) return 1;
+    scriptgo_value value;
+    scriptgo_value_init_undefined(&value);
+    if (writer->dictionary && writer->object->boxed_fields == NULL) {
+        json_object_field_value(writer->object, index, &value);
+    } else {
+        scriptgo_object_unknown_get(writer->handle, index, &value);
+    }
+    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) return 0;
+    if ((writer->has_fields && jb_char(writer->builder, ',') != 0) ||
+        jb_string(writer->builder, key, key_len) != 0 ||
+        jb_char(writer->builder, ':') != 0 ||
+        json_builder_value(writer->builder, &value) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    writer->has_fields = 1;
+    return 0;
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);
@@ -356,89 +387,12 @@ static int json_builder_object(json_builder *b, void *handle) {
     scriptgo_json_object *obj = (scriptgo_json_object *)handle;
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC) {
         if (jb_char(b, '{') != 0) return -1;
-        int has_fields = 0;
-        const char *type_name = obj->type_name;
-        if (type_name != NULL && strncmp(type_name, "__json__", 8) == 0) {
-            const char *cursor = type_name + 8;
-            int64_t field_idx = 0;
-            while (*cursor == '|' && field_idx < obj->field_count) {
-                cursor++; // skip '|'
-                size_t key_len = 0;
-                while (*cursor >= '0' && *cursor <= '9') {
-                    key_len = key_len * 10 + (size_t)(*cursor - '0');
-                    cursor++;
-                }
-                if (*cursor != ':') break;
-                cursor++; // skip ':'
-                const char *key_str = cursor;
-                cursor += key_len;
-
-                scriptgo_value value;
-                if (obj->boxed_fields == NULL) {
-                    json_object_field_value(obj, field_idx++, &value);
-                } else {
-                    scriptgo_value_init_undefined(&value);
-                    scriptgo_object_unknown_get(handle, field_idx++, &value);
-                }
-                if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) continue;
-                if (has_fields && jb_char(b, ',') != 0) return -1;
-                if (jb_string(b, key_str, key_len) != 0 ||
-                    jb_char(b, ':') != 0 ||
-                    json_builder_value(b, &value) != 0) return -1;
-                has_fields = 1;
-            }
-        } else if (type_name != NULL && type_name[0] == ':') {
-            const char *cursor = type_name;
-            int64_t field_idx = 0;
-            while (*cursor != '\0' && field_idx < obj->field_count) {
-                if (*cursor == ':') cursor++;
-                if (*cursor == '\0') break;
-                const char *field_start = cursor;
-                const char *field_end = strchr(field_start, ':');
-                if (field_end == NULL) break;
-                size_t key_len = (size_t)(field_end - field_start);
-                cursor = field_end + 1;
-                if (key_len == 0) continue;
-
-                scriptgo_value value;
-                scriptgo_value_init_undefined(&value);
-                scriptgo_object_unknown_get(handle, field_idx++, &value);
-                if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) continue;
-                if (has_fields && jb_char(b, ',') != 0) return -1;
-                if (jb_string(b, field_start, key_len) != 0 ||
-                    jb_char(b, ':') != 0 ||
-                    json_builder_value(b, &value) != 0) return -1;
-                has_fields = 1;
-            }
-        } else if (type_name != NULL && strncmp(type_name, "__class__|", 10) == 0) {
-            const char *cursor = type_name + 10;
-            int64_t field_idx = 0;
-            while (*cursor != '\0' && field_idx < obj->field_count) {
-                char kind = *cursor++;
-                if (kind != 'c' && kind != 'b' && kind != 'f') break;
-                size_t key_len = 0;
-                while (*cursor >= '0' && *cursor <= '9') {
-                    key_len = key_len * 10 + (size_t)(*cursor - '0');
-                    cursor++;
-                }
-                if (*cursor != ':') break;
-                cursor++;
-                const char *key_str = cursor;
-                cursor += key_len;
-                if (*cursor == '|') cursor++;
-                if (kind != 'f') continue;
-
-                scriptgo_value value;
-                scriptgo_value_init_undefined(&value);
-                scriptgo_object_unknown_get(handle, field_idx++, &value);
-                if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) continue;
-                if (has_fields && jb_char(b, ',') != 0) return -1;
-                if (jb_string(b, key_str, key_len) != 0 ||
-                    jb_char(b, ':') != 0 ||
-                    json_builder_value(b, &value) != 0) return -1;
-                has_fields = 1;
-            }
-        }
+        /* The field names come from the shared layout walk, so key lists
+         * with dynamic extensions, dictionaries and class layouts agree with
+         * property access. */
+        json_object_writer writer = {b, handle, obj, obj->type_name != NULL && strncmp(obj->type_name, "__json__", 8) == 0, 0, 0};
+        object_field_visit((const scriptgo_object *)handle, json_write_object_field, &writer);
+        if (writer.failed) return -1;
         return jb_char(b, '}');
     }
 

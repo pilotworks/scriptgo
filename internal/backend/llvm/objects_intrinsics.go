@@ -9,6 +9,24 @@ import (
 
 func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__object.has_own":
+		// `key in object`, Object.hasOwn, hasOwnProperty, Reflect.has.
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__object.has_own requires an object and a key")
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		key := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".has.slot"
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_has_own(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, obj, key, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		loaded := instruction.Result + ".has.i32"
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", loaded, slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
 	case "__object.reflect_set", "__object.reflect_delete":
 		// Reflect.set(target, key, value) / Reflect.deleteProperty(target, key):
 		// the runtime reports false where the integrity level forbids the change.

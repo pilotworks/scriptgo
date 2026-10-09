@@ -53,19 +53,18 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 				result = nextTemp(call.Counter)
 			}
 
-			// Static check if object shape and property is a string literal
-			if after, ok := strings.CutPrefix(string(objType), "object:"); ok {
+			// A class layout answers statically for a required field (always
+			// present) or a key it lacks; objects addressed by name and
+			// optional fields are checked at run time.
+			if after, ok := strings.CutPrefix(string(objType), "object:"); ok && !dynamicFieldAccess(after) {
 				className := after
 				shape, exists := call.Shapes[className]
+				propName := ""
 				if exists && call.Expression.Arguments[1] != nil && call.Expression.Arguments[1].Kind == "string" {
-					propName := call.Expression.Arguments[1].Text
-					hasProp := false
-					for _, f := range shape.Fields {
-						if f.Name == propName {
-							hasProp = true
-							break
-						}
-					}
+					propName = call.Expression.Arguments[1].Text
+				}
+				if index := fieldIndex(shape, propName); propName != "" && (index < 0 || !shape.Fields[index].Optional) {
+					hasProp := index >= 0
 					valStr := "false"
 					if hasProp {
 						valStr = "true"
@@ -81,19 +80,15 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 				}
 			}
 
-			propVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			propVal, propType, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 			if err != nil {
 				return "", "", err
 			}
-			// The runtime property test Reflect.has uses; native objects have
-			// no inherited data properties, so it is the own-property test.
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpInstanceOf,
-				Type:   ir.TypeBool,
-				Result: result,
-				Args:   []string{objVal, propVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
+			span := toIRSpan(call.Path, call.Expression.Span)
+			if propVal, err = propertyKeyString(call.Function, call.Counter, span, propVal, propType); err != nil {
+				return "", "", err
+			}
+			emitHasOwnProperty(call.Function, call.Counter, span, result, objVal, propVal, false)
 			return result, ir.TypeBool, nil
 		},
 	}

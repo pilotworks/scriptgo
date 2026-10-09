@@ -601,79 +601,20 @@ func lowerInExpression(path string, expression *frontend.SyntaxExpression, resul
 		return result, ir.TypeBool, nil
 	}
 
-	// 2. Object shape / Class check: "prop" in obj
-	if expression.Left != nil && (expression.Left.Kind == "string" || expression.Left.Kind == "literal") {
-		fieldName := strings.Trim(expression.Left.Text, "\"'`")
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpInstanceOf,
-			Type:   ir.TypeBool,
-			Result: result,
-			Value:  fieldName,
-			Args:   []string{rightVal},
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return result, ir.TypeBool, nil
-	}
-	if after, ok := strings.CutPrefix(string(rightType), "object:"); ok {
-		className := after
-		shape, ok := shapes[className]
-		if !ok {
-			if s, exists := anonymousShapes[className]; exists {
-				shape = s
-				ok = true
-			} else if s, exists := registeredShapes[className]; exists {
-				shape = s
-				ok = true
-			}
-		}
-		if !ok {
-			return "", "", fmt.Errorf("unknown object shape %q for \"in\" operator", className)
-		}
-
-		// Dynamic string expression check
-		leftVal, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		if leftType != ir.TypeString {
-			return "", "", fmt.Errorf("operator \"in\" requires string key for object, got %s", leftType)
-		}
-
-		if len(shape.Fields) == 0 {
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: result, Value: "false", Span: toIRSpan(path, expression.Span)})
-			return result, ir.TypeBool, nil
-		}
-
-		var lastCond string
-		for _, f := range shape.Fields {
-			fConst := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: fConst, Value: f.Name, Span: toIRSpan(path, expression.Span)})
-			cmpTemp := nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpTemp, Operator: "==", Args: []string{leftVal, fConst}, Span: toIRSpan(path, expression.Span)})
-			if lastCond == "" {
-				lastCond = cmpTemp
-			} else {
-				orTemp := nextTemp(counter)
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: orTemp, Operator: "||", Args: []string{lastCond, cmpTemp}, Span: toIRSpan(path, expression.Span)})
-				lastCond = orTemp
-			}
-		}
-
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: result, Operator: "||", Args: []string{lastCond, lastCond}, Span: toIRSpan(path, expression.Span)})
-		return result, ir.TypeBool, nil
+	// 2. Objects: own properties are checked at run time (an object holds
+	// only the keys it has); a class instance also has its methods.
+	if strings.HasPrefix(string(rightType), "object:") {
+		return lowerObjectHasProperty(path, expression, rightVal, strings.TrimPrefix(string(rightType), "object:"), result, function, env, counter, shapes, signatures)
 	}
 
-	leftVal, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+	leftVal, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
 	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpInstanceOf,
-		Type:   ir.TypeBool,
-		Result: result,
-		Value:  "",
-		Args:   []string{rightVal, leftVal},
-		Span:   toIRSpan(path, expression.Span),
-	})
+	span := toIRSpan(path, expression.Span)
+	if leftVal, err = propertyKeyString(function, counter, span, leftVal, leftType); err != nil {
+		return "", "", err
+	}
+	emitHasOwnProperty(function, counter, span, result, rightVal, leftVal, false)
 	return result, ir.TypeBool, nil
 }

@@ -379,7 +379,8 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Binary Logical** | `&&`, `\|\|`, `??` | ✅ Full | Short-circuit evaluation and nullish coalescing. |
 | **Compound Assignment** | `+=`, `-=`, `*=`, `/=`, `&&=`, `\|\|=`, `??=` | ✅ Full | Accurately desugared into assignment and binary operations. |
 | **Ternary Operator** | `cond ? val1 : val2` | ✅ Full | Conditional expression evaluation with correct branch selection. |
-| **Delete Operator** | `delete obj.prop` | ❌ Rejected | Dynamic field deletion not supported on static structs. |
+| **`in` / `Object.hasOwn` / `hasOwnProperty`** | `key in obj` | ✅ Full | Checked at run time against the keys the object has (literal or computed keys); an instance's class methods are found through its prototype; arrays answer for indices and `length`. Inherited `Object.prototype` members are not reported. |
+| **Delete Operator** | `delete obj.prop` | ⚠️ Partial | Object literals, interface/type-alias objects and dictionaries drop the key (`in`, `Object.hasOwn`, `Object.keys`, `JSON.stringify` stop seeing it); a class instance field keeps its slot and becomes `undefined`; deleting from a sealed or frozen object throws `TypeError`; array elements are rejected. `JSON.stringify` of a typed object lists keys in the type's field order rather than insertion order. |
 | **Void Operator** | `void 0` | ⚠️ Transformed | Normalized to `undefined`. |
 | **Yield / Yield\*** | `yield value; yield* iter;` | ✅ Full | State-machine transformation of generator functions into iterable objects with `.next()`, supporting `yield*` delegation. |
 | **Tagged Template** | `` tag`Hello ${name}` `` | ✅ Full | Desugared into `tag(stringsArray, ...exprs)` function calls. |

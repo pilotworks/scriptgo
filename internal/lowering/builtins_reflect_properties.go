@@ -78,32 +78,20 @@ func lowerReflectHas(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir
 		result = nextTemp(call.Counter)
 	}
 
+	span := toIRSpan(call.Path, call.Expression.Span)
 	if propArg.Kind == "string" || propArg.Kind == "literal" {
-		fieldName := strings.Trim(propArg.Text, "\"'`")
-		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:     ir.OpInstanceOf,
-			Type:   ir.TypeBool,
-			Result: result,
-			Value:  fieldName,
-			Args:   []string{targetVal},
-			Span:   toIRSpan(call.Path, call.Expression.Span),
-		})
+		emitHasOwnProperty(call.Function, call.Counter, span, result, targetVal, strings.Trim(propArg.Text, "\"'`"), true)
 		return result, ir.TypeBool, nil
 	}
 
-	propVal, _, err := call.LowerExpression(call.Path, propArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	propVal, propType, err := call.LowerExpression(call.Path, propArg, "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 	if err != nil {
 		return "", "", err
 	}
-
-	call.Function.Body = append(call.Function.Body, ir.Instruction{
-		Op:     ir.OpInstanceOf,
-		Type:   ir.TypeBool,
-		Result: result,
-		Value:  "",
-		Args:   []string{targetVal, propVal},
-		Span:   toIRSpan(call.Path, call.Expression.Span),
-	})
+	if propVal, err = propertyKeyString(call.Function, call.Counter, span, propVal, propType); err != nil {
+		return "", "", err
+	}
+	emitHasOwnProperty(call.Function, call.Counter, span, result, targetVal, propVal, false)
 	return result, ir.TypeBool, nil
 }
 

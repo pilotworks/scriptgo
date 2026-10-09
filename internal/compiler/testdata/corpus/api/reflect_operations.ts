@@ -5,7 +5,7 @@
 // @expect: true false false true 9
 // @expect: false 1 false
 // @expect: false 1 true 3
-// @expect: true true
+// @expect: true false
 // @expect: true
 // @expect: 4 true
 class Point { constructor(public x: number, public y: number) {} sum() { return this.x + this.y; } }
