@@ -62,7 +62,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		}
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: node.Text()}
 	case ast.KindThisKeyword:
-		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this"}
+		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "this", ThisBinding: thisBinding(node)}
 	case ast.KindSuperKeyword:
 		return &SyntaxExpression{Span: sourceSpan(node), Kind: "identifier", Text: "super"}
 	case ast.KindParenthesizedExpression, ast.KindSatisfiesExpression:
@@ -432,7 +432,7 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 		}
 		var params []SyntaxParameter
 		var bindingStmts []SyntaxStatement
-		for pIdx, parameter := range node.Parameters() {
+		for pIdx, parameter := range valueParameters(node.Parameters()) {
 			pType := syntaxType(parameter.Type())
 			inferredPType := resolveInferredType(chk, parameter.Name())
 			if inferredPType == "" {

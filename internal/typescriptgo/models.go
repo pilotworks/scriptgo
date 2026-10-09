@@ -217,6 +217,11 @@ type SyntaxExpression struct {
 	WhenTrue      *SyntaxExpression
 	WhenFalse     *SyntaxExpression
 	Function      *SyntaxStatement
+	// ThisBinding classifies a `this` expression by its nearest this
+	// container: "caller" for a function declaration or expression (bound by
+	// the call site), "object" for an object literal method or accessor, and
+	// empty for class members, modules, and other expressions.
+	ThisBinding string
 }
 
 // ProgramResult contains the resolved files and all frontend diagnostics.

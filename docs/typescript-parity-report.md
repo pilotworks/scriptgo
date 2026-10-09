@@ -91,6 +91,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
 | Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
 | `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes up to four arguments (the closure ABI limit). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; partial application is rejected. |
+| `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`, and `this` in an object literal method with `SG2005`; class members and arrow functions use their lexical receiver. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) | ✅ Full | Collects trailing arguments into a `T[]` array. |

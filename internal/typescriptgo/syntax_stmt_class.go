@@ -212,7 +212,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			var params []SyntaxParameter
 			var paramPropStmts []SyntaxStatement
 			var bindingStmts []SyntaxStatement
-			for pIdx, p := range member.Parameters() {
+			for pIdx, p := range valueParameters(member.Parameters()) {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
@@ -302,7 +302,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			var params []SyntaxParameter
 			var pTypes []string
 			var bindingStmts []SyntaxStatement
-			for pIdx, p := range member.Parameters() {
+			for pIdx, p := range valueParameters(member.Parameters()) {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {
@@ -393,7 +393,7 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 			var params []SyntaxParameter
 			var pTypes []string
 			var bindingStmts []SyntaxStatement
-			for pIdx, p := range member.Parameters() {
+			for pIdx, p := range valueParameters(member.Parameters()) {
 				pType := syntaxType(p.Type())
 				inferredPType := resolveInferredType(chk, p.Name())
 				if inferredPType == "" {

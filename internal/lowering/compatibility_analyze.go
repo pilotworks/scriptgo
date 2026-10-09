@@ -369,6 +369,19 @@ func (c *compatibilityCollector) expression(path string, expression *frontend.Sy
 		case "unsupported":
 			c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, expression.Text, "", false)
 			classified = true
+		case "identifier":
+			if isJavaScriptFile(path) {
+				// JavaScript files run with JavaScript `this` semantics.
+				break
+			}
+			switch expression.ThisBinding {
+			case "caller":
+				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "call-site `this` in a function declaration or function expression", "use a class method or an arrow function", false)
+				classified = true
+			case "object":
+				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "`this` in an object literal method", "use a class, or reference the object by name", false)
+				classified = true
+			}
 		case "bigint":
 			if _, ok := bigIntLiteralValue(expression.Text); !ok {
 				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "bigint literal outside the native 64-bit range", "", false)

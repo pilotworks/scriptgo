@@ -52,7 +52,7 @@ func syntaxFunctionDeclaration(node *ast.Node, chk *checker.Checker, span Source
 		result.Name = node.Name().Text()
 	}
 	var bindingStmts []SyntaxStatement
-	for pIdx, parameter := range node.Parameters() {
+	for pIdx, parameter := range valueParameters(node.Parameters()) {
 		pType := syntaxType(parameter.Type())
 		inferredPType := resolveInferredType(chk, parameter.Name())
 		if inferredPType == "" {

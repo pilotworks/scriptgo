@@ -70,7 +70,7 @@ func syntaxInterfaceDeclaration(node *ast.Node, chk *checker.Checker, span Sourc
 		case ast.KindConstructSignature:
 			mType := syntaxType(member.Type())
 			var params []SyntaxParameter
-			for _, p := range member.Parameters() {
+			for _, p := range valueParameters(member.Parameters()) {
 				paramName := syntaxMemberName(p.Name())
 				paramType := syntaxType(p.Type())
 				pDecl := p.AsParameterDeclaration()
@@ -98,7 +98,7 @@ func syntaxInterfaceDeclaration(node *ast.Node, chk *checker.Checker, span Sourc
 			mType := syntaxType(member.Type())
 			pName := syntaxMemberName(member.Name())
 			var params []SyntaxParameter
-			for _, p := range member.Parameters() {
+			for _, p := range valueParameters(member.Parameters()) {
 				paramName := syntaxMemberName(p.Name())
 				paramType := syntaxType(p.Type())
 				pDecl := p.AsParameterDeclaration()
