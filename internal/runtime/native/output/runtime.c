@@ -247,71 +247,15 @@ int scriptgo_console_inspect_buffer(void *value, char **out_str) {
     return 0;
 }
 
+int scriptgo_json_inspect_array(void *handle, char **out_str);
+
 int scriptgo_console_inspect_array(void *value, char **out_str) {
-    scriptgo_array_raw_t *arr = (scriptgo_array_raw_t *)value;
-    size_t capacity;
-    char *out;
-    size_t pos = 0;
-    if (out_str == NULL || arr == NULL) return scriptgo_runtime_set_error("invalid array inspection");
-    if (arr == (scriptgo_array_raw_t *)&scriptgo_undefined_sentinel) { *out_str = strdup("undefined"); return *out_str == NULL; }
-    if (arr->length == 0) { *out_str = strdup("[]"); return *out_str == NULL; }
-    capacity = (size_t)arr->length * 96 + 4;
-    out = malloc(capacity);
-    if (out == NULL) return scriptgo_runtime_set_error("array inspection allocation failed");
-    pos += (size_t)snprintf(out + pos, capacity - pos, "[ ");
-    for (int64_t i = 0; i < arr->length; i++) {
-        if (i > 0) pos += (size_t)snprintf(out + pos, capacity - pos, ", ");
-        if (arr->element_tag == SCRIPTGO_TAG_STRING) {
-            const char *s = *(const char **)(arr->data + (size_t)i * sizeof(char *));
-            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", s == NULL ? "null" : (s == &scriptgo_undefined_sentinel ? "undefined" : "'"));
-            if (s != NULL && s != &scriptgo_undefined_sentinel) pos += (size_t)snprintf(out + pos, capacity - pos, "%s'", s);
-        } else if (arr->element_tag == 2 || arr->element_size == 1) {
-            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", *(uint8_t *)(arr->data + (size_t)i) ? "true" : "false");
-        } else if (arr->element_tag == 5 && arr->element_size == sizeof(char *)) {
-            char *inspected = NULL;
-            void *element = *(void **)(arr->data + (size_t)i * sizeof(char *));
-            if (scriptgo_json_inspect_object(element, &inspected) == 0 && inspected != NULL) {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", inspected);
-                free(inspected);
-            } else {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
-            }
-        } else if (arr->element_tag == SCRIPTGO_TAG_BIGINT && arr->element_size == sizeof(int64_t)) {
-            pos += (size_t)snprintf(out + pos, capacity - pos, "%lldn", (long long)*(int64_t *)(arr->data + (size_t)i * sizeof(int64_t)));
-        } else if (arr->element_tag == 3 || arr->element_size == sizeof(double)) {
-            char number[64];
-            scriptgo_format_double_shortest(number, sizeof(number), *(double *)(arr->data + (size_t)i * sizeof(double)));
-            pos += (size_t)snprintf(out + pos, capacity - pos, "%s", number);
-        } else if (arr->element_size == sizeof(scriptgo_value)) {
-            scriptgo_value *value = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
-            uint32_t tag = value->tag;
-            uint64_t payload = value->payload;
-            if (tag == SCRIPTGO_TAG_STRING) {
-                const char *s = (const char *)(uintptr_t)payload;
-                pos += (size_t)snprintf(out + pos, capacity - pos, "'%s'", s == NULL ? "" : s);
-            } else if (tag == SCRIPTGO_TAG_NUMBER) {
-                union { uint64_t raw; double number; } value;
-                value.raw = payload;
-                char number[64];
-                scriptgo_format_double_shortest(number, sizeof(number), value.number);
-                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", number);
-            } else if (tag == SCRIPTGO_TAG_BOOLEAN) {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "%s", payload ? "true" : "false");
-            } else if (tag == SCRIPTGO_TAG_NULL) {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "null");
-            } else if (tag == SCRIPTGO_TAG_UNDEFINED) {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "undefined");
-            } else if (tag == SCRIPTGO_TAG_BIGINT) {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "%lldn", (long long)payload);
-            } else {
-                pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
-            }
-        } else {
-            pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
-        }
+    if (out_str == NULL || value == NULL) return scriptgo_runtime_set_error("invalid array inspection");
+    if (value == (void *)&scriptgo_undefined_sentinel) {
+        *out_str = strdup("undefined");
+        return *out_str == NULL ? scriptgo_runtime_set_error("array inspection allocation failed") : 0;
     }
-    snprintf(out + pos, capacity - pos, " ]");
-    *out_str = out;
+    if (scriptgo_json_inspect_array(value, out_str) != 0) return scriptgo_runtime_set_error("array inspection failed");
     return 0;
 }
 

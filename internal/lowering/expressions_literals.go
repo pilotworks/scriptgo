@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -307,39 +306,12 @@ func lowerTemplateLiteral(path string, expression *frontend.SyntaxExpression, re
 					Span:   toIRSpan(path, arg.Span),
 				})
 				strVal = strTemp
-			} else if strings.HasPrefix(string(valType), "object:") {
-				className := strings.TrimPrefix(string(valType), "object:")
-				if converted, ok := lowerClassToString(path, val, valType, arg.Span, function, counter, signatures); ok {
-					strVal = converted
-				} else if len(className) <= 2 || className == "T" || className == "K" || className == "V" || className == "U" || className == "A" || className == "B" {
-					if arg != nil && (arg.InferredType == "number" || arg.InferredType == "bigint") {
-						strTemp := nextTemp(counter)
-						function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: "__string.fromNumber", Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-						strVal = strTemp
-					} else {
-						strVal = val
-					}
-				} else {
-					strTemp := nextTemp(counter)
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: "__string.fromObject", Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-					strVal = strTemp
-				}
 			} else {
-				strTemp := nextTemp(counter)
-				callee := "__string.fromNumber"
-				if valType == ir.TypeBool {
-					callee = "__string.fromBool"
-				} else if valType == ir.TypeBigInt {
-					callee = "__string.fromBigInt"
-				} else if valType == ir.TypeUnknown || valType == ir.TypeVoid {
-					callee = "__string.fromUnknown"
-				} else if valType == ir.TypeObject || strings.HasPrefix(string(valType), "object:") {
-					callee = "__string.fromObject"
-				} else if valType != ir.TypeNumber {
-					return "", "", fmt.Errorf("template expression does not support %s in interpolation", valType)
+				converted, err := lowerToString(path, arg.Span, val, valType, function, counter, signatures)
+				if err != nil {
+					return "", "", err
 				}
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-				strVal = strTemp
+				strVal = converted
 			}
 		}
 		if index == 0 {

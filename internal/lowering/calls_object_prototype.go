@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -91,4 +92,37 @@ func lowerStringConversion(call IntrinsicCall, intrinsic BuiltinIntrinsic) (stri
 	}
 	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.new", Args: args, Span: toIRSpan(call.Path, call.Expression.Span)})
 	return result, ir.TypeString, nil
+}
+
+// lowerToString converts a value to a string as template literals and
+// string concatenation do (ToString): a class instance through its own
+// toString method, arrays and other objects through String(value) at run
+// time, primitives directly. A symbol cannot convert implicitly.
+func lowerToString(path string, span frontend.SourceSpan, value string, valueType ir.Type, function *ir.Function, counter *int, signatures map[string]ir.Function) (string, error) {
+	if valueType == ir.TypeString {
+		return value, nil
+	}
+	if converted, ok := lowerClassToString(path, value, valueType, span, function, counter, signatures); ok {
+		return converted, nil
+	}
+	callee := ""
+	switch {
+	case valueType == ir.TypeNumber:
+		callee = "__string.fromNumber"
+	case valueType == ir.TypeBool:
+		callee = "__string.fromBool"
+	case valueType == ir.TypeBigInt:
+		callee = "__string.fromBigInt"
+	case valueType == ir.TypeUnknown || valueType == ir.TypeVoid:
+		callee = "__string.fromUnknown"
+	case valueType == ir.TypeSymbol:
+		return "", fmt.Errorf("TypeError: Cannot convert a Symbol value to a string")
+	case valueType == ir.TypeObject || valueType == ir.TypePointer || strings.HasPrefix(string(valueType), "object:") || strings.HasSuffix(string(valueType), "[]"):
+		callee = "__string.new"
+	default:
+		return "", fmt.Errorf("cannot convert %s to a string in the native subset", valueType)
+	}
+	text := nextTemp(counter)
+	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: text, Callee: callee, Args: []string{value}, Span: toIRSpan(path, span)})
+	return text, nil
 }

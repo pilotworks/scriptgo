@@ -520,6 +520,26 @@ static int json_write_tuple_element(const char *key, size_t key_len, int index, 
     return 0;
 }
 
+/* json_append_class_name writes "Name " before a class instance in console
+ * output (the first c token of its __class__ descriptor). */
+static int json_append_class_name(json_builder *b, const char *type_name) {
+    if (type_name == NULL || strncmp(type_name, "__class__|", 10) != 0) return 0;
+    const char *cursor = type_name + 10;
+    char kind;
+    const char *value;
+    size_t value_length;
+    while (next_class_descriptor_token(&cursor, &kind, &value, &value_length) > 0) {
+        if (kind != 'c') continue;
+        /* Generic specializations and module-qualified names print their
+         * source name (Box__number is Box). */
+        size_t length = 0;
+        while (length < value_length && !(value[length] == '_' && length + 1 < value_length && value[length + 1] == '_')) length++;
+        if (jb_append(b, value, length) != 0) return -1;
+        return jb_char(b, ' ');
+    }
+    return 0;
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);
@@ -533,6 +553,7 @@ static int json_builder_object(json_builder *b, void *handle) {
         return jb_char(b, ']');
     }
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC) {
+        if (b->inspect && json_append_class_name(b, obj->type_name) != 0) return -1;
         if (jb_char(b, '{') != 0) return -1;
         /* The field names come from the shared layout walk, so key lists
          * with dynamic extensions, dictionaries and class layouts agree with
@@ -574,12 +595,66 @@ static int json_builder_object(json_builder *b, void *handle) {
     return jb_char(b, '}');
 }
 
+/* json_builder_array writes an array in its element layout: boxed values,
+ * strings, bools, bigints, numbers, or pointers whose element tag names
+ * them (objects, arrays, functions, symbols). */
+static int json_builder_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if (arr->element_tag == SCRIPTGO_TAG_STRING && arr->element_size == sizeof(char *)) {
+        return json_builder_string_array(b, arr);
+    }
+    if (jb_char(b, '[') != 0) return -1;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (i > 0 && jb_char(b, ',') != 0) return -1;
+        scriptgo_value element;
+        memset(&element, 0, sizeof(element));
+        if (arr->element_size == sizeof(scriptgo_value)) {
+            memcpy(&element, arr->data + (size_t)i * sizeof(scriptgo_value), sizeof(element));
+        } else if (arr->element_size == 1) {
+            element.tag = SCRIPTGO_TAG_BOOLEAN;
+            element.payload = arr->data[i] != 0;
+        } else {
+            uint64_t bits;
+            memcpy(&bits, arr->data + (size_t)i * 8, sizeof(bits));
+            element.payload = bits;
+            switch (arr->element_tag) {
+            case SCRIPTGO_TAG_OBJECT:
+            case SCRIPTGO_TAG_ARRAY:
+            case SCRIPTGO_TAG_FUNCTION:
+            case SCRIPTGO_TAG_SYMBOL:
+            case SCRIPTGO_TAG_BIGINT:
+                element.tag = (uint32_t)arr->element_tag;
+                if ((element.tag == SCRIPTGO_TAG_OBJECT || element.tag == SCRIPTGO_TAG_ARRAY) && bits == 0) element.tag = SCRIPTGO_TAG_NULL;
+                if (bits == (uint64_t)(uintptr_t)&scriptgo_undefined_sentinel) element.tag = SCRIPTGO_TAG_UNDEFINED;
+                break;
+            default:
+                element.tag = SCRIPTGO_TAG_NUMBER;
+                break;
+            }
+        }
+        if (element.tag == SCRIPTGO_TAG_NUMBER) {
+            double number;
+            memcpy(&number, &element.payload, sizeof(number));
+            const char *marker = scriptgo_number_marker_name(number);
+            if (marker != NULL) {
+                /* undefined and null held in number storage */
+                const char *text = b->inspect ? marker : "null";
+                if (jb_append(b, text, strlen(text)) != 0) return -1;
+                continue;
+            }
+        }
+        if (json_builder_value(b, &element) != 0) return -1;
+    }
+    return jb_char(b, ']');
+}
+
 static int json_builder_value(json_builder *b, const scriptgo_value *value) {
     if (value == NULL) return jb_append(b, "null", 4);
     uint32_t tag = value->tag;
     uint64_t payload = value->payload;
     switch (tag) {
     case 0: // undefined
+        /* console output shows undefined; JSON writes null in arrays. */
+        return b->inspect ? jb_append(b, "undefined", 9) : jb_append(b, "null", 4);
     case 1: // null
         return jb_append(b, "null", 4);
     case 2: // boolean
@@ -597,23 +672,32 @@ static int json_builder_value(json_builder *b, const scriptgo_value *value) {
     case 6: { // array
         scriptgo_array_internal *arr = (scriptgo_array_internal *)(uintptr_t)payload;
         if (arr == NULL) return jb_append(b, "null", 4);
-        if (arr->element_tag == 4) {
-            return json_builder_string_array(b, arr);
-        } else if (arr->element_size == sizeof(scriptgo_value)) {
-            if (jb_char(b, '[') != 0) return -1;
-            for (int64_t i = 0; i < arr->length; i++) {
-                if (i > 0 && jb_char(b, ',') != 0) return -1;
-                scriptgo_value *elem = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
-                if (json_builder_value(b, elem) != 0) return -1;
-            }
-            return jb_char(b, ']');
-        } else {
-            return json_builder_number_array(b, arr);
-        }
+        return json_builder_array(b, arr);
     }
     case 5: // object
         return json_builder_object(b, (void *)(uintptr_t)payload);
+    case 7: // function
+        return b->inspect ? jb_append(b, "[Function (anonymous)]", 22) : jb_append(b, "null", 4);
+    case 8: // bigint
+        if (b->inspect) {
+            char text[32];
+            int written = snprintf(text, sizeof(text), "%lldn", (long long)payload);
+            return jb_append(b, text, (size_t)written);
+        }
+        break;
+    case 9: // symbol
+        if (b->inspect) {
+            char *text = NULL;
+            if (scriptgo_symbol_to_string((void *)(uintptr_t)payload, &text) != 0 || text == NULL) return -1;
+            int r = jb_append(b, text, strlen(text));
+            free(text);
+            return r;
+        }
+        return jb_append(b, "null", 4);
     default:
+        break;
+    }
+    {
         if (payload == 0) return jb_append(b, "null", 4);
         char *str = NULL;
         if (scriptgo_string_from_object((void *)(uintptr_t)payload, &str) != 0) return -1;
@@ -954,14 +1038,13 @@ static int inspect_append(char **out, size_t *length, size_t *capacity, char val
     return 0;
 }
 
-int scriptgo_json_inspect_object(void *handle, char **out_str) {
-    char *json = NULL;
+/* json_inspect_text converts JSON text rendered in inspect mode into
+ * console.log's format: unquoted identifier keys, single-quoted strings,
+ * spaces inside braces and brackets and after commas and colons. */
+static int json_inspect_text(char *json, char **out_str) {
     char *out = NULL;
     size_t length = 0, capacity = 0;
     int in_string = 0;
-    int empty = 0;
-    if (out_str == NULL || json_render_object(handle, 1, &json) != 0) return -1;
-    empty = strcmp(json, "{}") == 0;
     for (size_t i = 0; json[i] != '\0'; i++) {
         char c = json[i];
         if (c == '"') {
@@ -1017,9 +1100,12 @@ int scriptgo_json_inspect_object(void *handle, char **out_str) {
             in_string = 0;
             continue;
         }
-        if (!in_string && c == '{' && !empty) {
+        if (!in_string && c == '{' && json[i + 1] == '}') {
+            if (inspect_append(&out, &length, &capacity, '{') != 0 || inspect_append(&out, &length, &capacity, '}') != 0) goto fail;
+            i++;
+        } else if (!in_string && c == '{') {
             if (inspect_append(&out, &length, &capacity, '{') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
-        } else if (!in_string && c == '}' && !empty) {
+        } else if (!in_string && c == '}') {
             if (inspect_append(&out, &length, &capacity, ' ') != 0 || inspect_append(&out, &length, &capacity, '}') != 0) goto fail;
         } else if (!in_string && c == '[' && json[i + 1] != ']') {
             if (inspect_append(&out, &length, &capacity, '[') != 0 || inspect_append(&out, &length, &capacity, ' ') != 0) goto fail;
@@ -1040,4 +1126,22 @@ fail:
     free(json);
     free(out);
     return -1;
+}
+
+int scriptgo_json_inspect_object(void *handle, char **out_str) {
+    char *json = NULL;
+    if (out_str == NULL || json_render_object(handle, 1, &json) != 0) return -1;
+    return json_inspect_text(json, out_str);
+}
+
+/* scriptgo_json_inspect_array renders an array as console.log shows it. */
+int scriptgo_json_inspect_array(void *handle, char **out_str) {
+    if (out_str == NULL || handle == NULL) return json_fail("scriptgo json invalid argument");
+    json_builder b = {0};
+    b.inspect = 1;
+    if (json_builder_array(&b, (const scriptgo_array_internal *)handle) != 0) {
+        free(b.buf);
+        return -1;
+    }
+    return json_inspect_text(b.buf, out_str);
 }
