@@ -175,7 +175,7 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 			case frontend.StaticElementField:
 				f := elem.Field
 				if f != nil && f.IsStatic && f.Initializer != nil {
-					staticVar := className + "_" + f.Name
+					staticVar := staticFieldGlobal(className, f.Name)
 					_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, main, env, counter, shapes, signatures)
 					if err == nil {
 						env[staticVar] = valType
@@ -192,7 +192,7 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 	} else {
 		for _, f := range statement.Class.Fields {
 			if f.IsStatic && f.Initializer != nil {
-				staticVar := className + "_" + f.Name
+				staticVar := staticFieldGlobal(className, f.Name)
 				_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, main, env, counter, shapes, signatures)
 				if err == nil {
 					env[staticVar] = valType

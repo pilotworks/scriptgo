@@ -49,9 +49,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		for _, g := range module.Globals {
 			gType := llvmType(g.Type)
 			if gType == "ptr" {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 1)\n", g.Name))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr %s, i64 1)\n", functionSymbol(g.Name)))
 			} else if gType == "{ i32, i32, i64, i64 }" {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 3)\n", g.Name))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr %s, i64 3)\n", functionSymbol(g.Name)))
 			}
 		}
 	}

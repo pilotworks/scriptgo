@@ -2431,7 +2431,6 @@ language/expressions/this/S11.1.1_A1.js
 language/expressions/typeof/boolean.js
 language/expressions/typeof/null.js
 language/expressions/typeof/number.js
-language/expressions/typeof/symbol.js
 language/expressions/unary-minus/S11.4.7_A4.1.js
 language/expressions/unary-minus/S11.4.7_A4.2.js
 language/expressions/unary-minus/bigint.js

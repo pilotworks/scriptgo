@@ -266,7 +266,7 @@ func (e *functionEmitter) resolveArg(out *strings.Builder, arg string) string {
 					if strings.HasSuffix(string(typ), "[]") || typ == ir.TypeStringArray || typ == ir.TypeNumberArray {
 						e.arrayTypes = append(e.arrayTypes, arrayReference{name: loadName, typ: typ})
 					}
-					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), g.Name))
+					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %s\n", loadName, llvmType(typ), functionSymbol(g.Name)))
 					return loadName
 				}
 			}
@@ -377,7 +377,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 			argVal = "%" + boxedVar
 		}
 		if isGlobal {
-			out.WriteString(fmt.Sprintf("  store %s %s, ptr @%s\n", llvmType(typ), argVal, targetResult))
+			out.WriteString(fmt.Sprintf("  store %s %s, ptr %s\n", llvmType(typ), argVal, functionSymbol(targetResult)))
 			if cellSlot, isCell := e.sharedEnvCells[targetResult]; isCell {
 				out.WriteString(fmt.Sprintf("  store volatile %s %s, ptr %%%s\n", llvmType(typ), argVal, cellSlot))
 			}
@@ -606,7 +606,7 @@ func (e *functionEmitter) emitInstruction(out *strings.Builder, instruction ir.I
 				lt = "ptr"
 			}
 			if lt != "void" {
-				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr @%s\n", lt, inst.Result, targetResult))
+				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %s\n", lt, inst.Result, functionSymbol(targetResult)))
 			}
 		}
 	}

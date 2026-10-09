@@ -6,8 +6,8 @@ import (
 )
 
 // lowerMismatchedArraySearch handles indexOf/lastIndexOf/includes whose
-// search value has a different primitive type than the array's unboxed
-// elements. Strict equality and SameValueZero never match across types, so
+// search value has a different type (another primitive, or an object) than
+// the array's unboxed primitive elements. Strict equality and SameValueZero never match across types, so
 // the result is -1 or false; the arguments are still evaluated in order.
 func lowerMismatchedArraySearch(path string, expression *frontend.SyntaxExpression, methodName string, receiverType ir.Type, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
 	if methodName != "indexOf" && methodName != "lastIndexOf" && methodName != "includes" {
@@ -21,7 +21,8 @@ func lowerMismatchedArraySearch(path string, expression *frontend.SyntaxExpressi
 		return "", "", false, nil
 	}
 	searchType := toIRType(expression.Arguments[0].InferredType)
-	if searchType == elemType || !(isUnboxedPrimitive(searchType) || searchType == ir.TypeVoid || searchType == ir.TypeSymbol) {
+	isObject := isPointerLikeType(searchType) && searchType != ir.TypeString
+	if searchType == elemType || !(isUnboxedPrimitive(searchType) || searchType == ir.TypeVoid || searchType == ir.TypeSymbol || isObject) {
 		return "", "", false, nil
 	}
 	for _, argument := range expression.Arguments {

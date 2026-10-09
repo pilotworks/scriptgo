@@ -114,7 +114,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 	out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
 	for _, g := range e.module.Globals {
 		if g.Name == instruction.Result {
-			out.WriteString(fmt.Sprintf("  store volatile ptr %%%s, ptr @%s\n", instruction.Result, g.Name))
+			out.WriteString(fmt.Sprintf("  store volatile ptr %%%s, ptr %s\n", instruction.Result, functionSymbol(g.Name)))
 			break
 		}
 	}
@@ -135,7 +135,7 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 				loadName := fmt.Sprintf("%s.gload.%d", closureVar, e.loadCounter)
 				e.loadCounter++
 				e.types[loadName] = g.Type
-				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(g.Type), g.Name))
+				out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %s\n", loadName, llvmType(g.Type), functionSymbol(g.Name)))
 				closureVar = loadName
 				break
 			}

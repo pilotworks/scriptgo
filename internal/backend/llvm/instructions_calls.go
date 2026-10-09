@@ -140,7 +140,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 						typ = ir.TypePointer
 					}
 					e.types[loadName] = typ
-					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), global.Name))
+					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %s\n", loadName, llvmType(typ), functionSymbol(global.Name)))
 					argVal = loadName
 					break
 				}

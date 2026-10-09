@@ -15,9 +15,12 @@ func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, re
 
 	if expression.Operator == "delete" {
 		if expression.Left != nil && (expression.Left.Kind == "property" || expression.Left.Kind == "index") {
-			objVal, _, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
+			objVal, objType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", err
+			}
+			if strings.HasSuffix(string(objType), "[]") {
+				return "", "", fmt.Errorf("delete of an array element leaves a hole, which native arrays do not represent")
 			}
 			var propVal string
 			if expression.Left.Kind == "property" {
@@ -27,11 +30,12 @@ func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, re
 					Span: toIRSpan(path, expression.Left.Span),
 				})
 			} else {
-				pv, _, err := lowerExpression(path, expression.Left.Right, "", function, env, counter, shapes, signatures)
+				pv, pvType, err := lowerExpression(path, expression.Left.Right, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return "", "", err
 				}
-				propVal = pv
+				// Property keys are strings: ToPropertyKey of a primitive.
+				propVal, _ = coercePrimitiveToString(path, expression.Left.Right.Span, pv, pvType, function, counter)
 			}
 			if result == "" {
 				result = nextTemp(counter)
@@ -172,7 +176,7 @@ func lowerUpdateLValue(path string, lvalue *frontend.SyntaxExpression, op string
 			// Check static field
 			for clsName, meta := range classHierarchy {
 				if _, isStatic := meta.Statics[varName]; isStatic {
-					varName = clsName + "_" + varName
+					varName = staticFieldGlobal(clsName, varName)
 					varType, ok = env[varName]
 					break
 				}
@@ -292,7 +296,7 @@ func lowerUpdateLValue(path string, lvalue *frontend.SyntaxExpression, op string
 		if lvalue.Left != nil && lvalue.Left.Kind == "identifier" {
 			if meta, isClass := classHierarchy[lvalue.Left.Text]; isClass {
 				if _, isStatic := meta.Statics[lvalue.Text]; isStatic {
-					staticVar := lvalue.Left.Text + "_" + lvalue.Text
+					staticVar := staticFieldGlobal(lvalue.Left.Text, lvalue.Text)
 					varType, ok := env[staticVar]
 					if !ok {
 						varType = ir.TypeNumber

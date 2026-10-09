@@ -93,7 +93,7 @@ func tryLowerIdentifierReceiverProperty(path string, expression *frontend.Syntax
 	// 3. Check static fields in class hierarchy
 	if meta, ok := classHierarchy[className]; ok {
 		if staticField, isStatic := meta.Statics[expression.Text]; isStatic {
-			staticVar := className + "_" + expression.Text
+			staticVar := staticFieldGlobal(className, expression.Text)
 			typ := toIRTypeForPath(path, staticField.Type)
 			if typ == "" {
 				typ = ir.TypeNumber

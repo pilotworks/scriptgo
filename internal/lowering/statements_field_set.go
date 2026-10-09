@@ -47,7 +47,7 @@ func lowerFieldSetStatement(path string, statement frontend.SyntaxStatement, fun
 			}
 			// Static field assignment
 			if _, isStatic := meta.Statics[statement.Name]; isStatic {
-				staticVar := className + "_" + statement.Name
+				staticVar := staticFieldGlobal(className, statement.Name)
 				val, valType, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 				if err != nil {
 					return err

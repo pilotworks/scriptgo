@@ -311,7 +311,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		meta := hierarchy[clsName]
 		for _, fName := range slices.Sorted(maps.Keys(meta.Statics)) {
 			field := meta.Statics[fName]
-			globalName := clsName + "_" + fName
+			globalName := staticFieldGlobal(clsName, fName)
 			globalType := toIRTypeForPath(meta.FileName, field.Type)
 			if globalType == "" {
 				globalType = ir.TypeNumber

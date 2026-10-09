@@ -369,3 +369,22 @@ func findConstructorInHierarchy(className string, signatures map[string]ir.Funct
 	}
 	return ir.Function{}, "", false
 }
+
+// staticFieldGlobal names the module global that stores a static field.
+// Global names also become parts of LLVM local identifiers, which allow only
+// letters, digits, $, ., and _, so any other byte of the field name (the "#"
+// of a private name, non-ASCII letters) is spelled as $XX.
+func staticFieldGlobal(className, field string) string {
+	var b strings.Builder
+	b.WriteString(className)
+	b.WriteByte('_')
+	for i := 0; i < len(field); i++ {
+		c := field[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+			b.WriteByte(c)
+		} else {
+			fmt.Fprintf(&b, "$%02X", c)
+		}
+	}
+	return b.String()
+}

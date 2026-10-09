@@ -9,9 +9,18 @@ import (
 )
 
 func lowerInstanceofExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
-	left, _, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+	left, leftType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
+	}
+	if isUnboxedPrimitive(leftType) || leftType == ir.TypeSymbol || leftType == ir.TypeVoid {
+		// A primitive is never an instance: instanceof checks the prototype
+		// chain of an object.
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: result, Value: "false", Span: toIRSpan(path, expression.Span)})
+		return result, ir.TypeBool, nil
 	}
 	targetClass := callName(expression.Right)
 	if targetClass == "" && expression.Right != nil && (expression.Right.Kind == "identifier" || expression.Right.Kind == "type") {
