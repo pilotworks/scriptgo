@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **462** | **462 / 462 match expected output; 460 / 462 match Node.js v22 (see note)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 462 | 441 PASS plus 21 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **466** | **466 / 466 match expected output; 464 / 466 match Node.js v22 (see note)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 466 | 445 PASS plus 21 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 21 | 21 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -196,10 +196,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 462
-Native Backend Parity  : 441/462 (95.5%)
-Diagnostic Parity      : 21/462
-Overall Full Parity    : 460/462 (99.6%)
+Total Test Cases       : 466
+Native Backend Parity  : 445/466 (95.5%)
+Diagnostic Parity      : 21/466
+Overall Full Parity    : 464/466 (99.6%)
 Total Time Elapsed     : ~1m22s
 ================================================================================
 ```
@@ -207,13 +207,13 @@ Total Time Elapsed     : ~1m22s
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 100 | **99% (99/100)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 101 | **99% (100/101)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
-| **`arrays`** | 5 | **100% (5/5)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
+| **`arrays`** | 6 | **100% (6/6)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 19 | **100% (19/19)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
-| **`classes`** | 30 | **100% (30/30)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
+| **`classes`** | 31 | **100% (31/31)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
 | **`control_flow`** | 26 | **100% (26/26)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
-| **`destructuring`** | 21 | **100% (21/21)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
+| **`destructuring`** | 22 | **100% (22/22)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
 | **`functions`** | 25 | **100% (25/25)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
@@ -278,13 +278,13 @@ Results at test262 `2e0a5676` (25,248 tests, Linux x86-64):
 
 | Group | Pass | Fail | Unsupported | Skipped | Pass rate (attempted) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| built-ins/Array | 161 | 242 | 2268 | 412 | 6.0% |
-| built-ins/JSON | 20 | 37 | 86 | 23 | 14.0% |
-| built-ins/Math | 118 | 5 | 45 | 159 | 70.2% |
-| built-ins/String | 125 | 212 | 744 | 142 | 11.6% |
-| language/expressions | 2031 | 234 | 5486 | 3351 | 26.2% |
-| language/statements | 1605 | 480 | 3711 | 3551 | 27.7% |
-| **total** | **4060** | **1210** | **12340** | **7638** | **23.1%** |
+| built-ins/Array | 198 | 188 | 2285 | 412 | 7.4% |
+| built-ins/JSON | 20 | 36 | 87 | 23 | 14.0% |
+| built-ins/Math | 120 | 5 | 43 | 159 | 71.4% |
+| built-ins/String | 148 | 186 | 747 | 142 | 13.7% |
+| language/expressions | 2033 | 230 | 5488 | 3351 | 26.2% |
+| language/statements | 1635 | 433 | 3728 | 3551 | 28.2% |
+| **total** | **4154** | **1078** | **12378** | **7638** | **23.6%** |
 
 Most attempted tests are rejected by design: `any` (SG1001, 4,263),
 unannotated `{}` (SG2005, 1,025), dynamic call targets (SG1004, 302), array
@@ -294,10 +294,9 @@ are:
 
 | Signal | Tests | Meaning |
 | --- | ---: | --- |
-| Assertion failure at runtime | 799 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
-| LLVM IR rejected by Clang | 197 | The backend emits invalid code for accepted programs (value/pointer mismatches, missing parameters). |
-| Native crash or runtime ABI failure | 145 | Segmentation faults (53), array/JSON runtime precondition failures, `SG4002` casts. |
-| Compiler panic | 43 | Nil dereferences in lowering. |
+| Assertion failure at runtime | 838 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
+| LLVM IR rejected by Clang | 61 | The backend emits invalid code for accepted programs (reduce accumulators of another type, object fields of mixed storage). |
+| Native crash or runtime ABI failure | 153 | Segmentation faults (52), array/JSON runtime precondition failures, `SG4002` casts. |
 | Early/parse `SyntaxError` not reported | 26 | TypeScript-Go accepts these programs; tracked upstream. |
 
 Fixed defects found this way are covered by corpus cases (signed zero,

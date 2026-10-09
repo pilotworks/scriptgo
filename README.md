@@ -24,7 +24,7 @@
 
 - **High-Performance AOT Compilation**: Compiles TypeScript directly to native machine code (Mach-O, ELF, PE) and WebAssembly (`.wasm`) via LLVM.
 - **Node.js Core Subset Parity**: All 437 regression corpus cases match their expected output; 435/437 also match Node.js v22 (two decorator-metadata cases differ only because Node's type stripping emits no metadata).
-- **test262 Tracking**: `cmd/test262` measures a 25k-test ECMAScript subset (4,060 pass, 23.1% of attempted); the core subset is curated, so most of test262 is still rejected or unsupported (see the parity report). CI runs a recorded passing baseline as a regression gate.
+- **test262 Tracking**: `cmd/test262` measures a 25k-test ECMAScript subset (4,154 pass, 23.6% of attempted); the core subset is curated, so most of test262 is still rejected or unsupported (see the parity report). CI runs a recorded passing baseline as a regression gate.
 - **WebAssembly / WASI Target**: First-class Ahead-Of-Time compilation to standalone `.wasm` executables with `--target wasm32-wasi`, validated on Node.js WASI and Wasmtime.
 - **Zero-Dependency Native Builds**: Automatically uses system `clang` or auto-detects `zig cc` for hassle-free out-of-the-box compilation and seamless cross-compilation (macOS, Linux, Windows, WASM).
 - **Fast Execution**: Instantly compiles and runs scripts directly or produces optimized standalone binary builds.
