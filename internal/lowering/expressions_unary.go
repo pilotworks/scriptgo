@@ -83,6 +83,10 @@ func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, re
 		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: result, Operator: "==", Args: []string{boolVal, falseConst}, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeBool, nil
 	}
+	if valType == ir.TypeBool && (expression.Operator == "-" || expression.Operator == "+" || expression.Operator == "~") {
+		// ToNumber(true) is 1 and ToNumber(false) is 0.
+		value, valType = boolToNumber(path, expression.Span, function, counter, value), ir.TypeNumber
+	}
 	if expression.Operator == "-" {
 		if valType != ir.TypeNumber && valType != ir.TypeBigInt {
 			return "", "", fmt.Errorf("unary - requires a number or bigint operand")

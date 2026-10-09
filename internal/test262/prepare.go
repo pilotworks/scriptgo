@@ -2,6 +2,7 @@ package test262
 
 import (
 	_ "embed"
+	"regexp"
 	"strings"
 )
 
@@ -12,7 +13,11 @@ var harnessSource string
 func Harness() string { return harnessSource }
 
 // supportedIncludes are harness files whose behavior harness.ts provides.
-var supportedIncludes = map[string]bool{"assert.js": true, "sta.js": true}
+var supportedIncludes = map[string]bool{"assert.js": true, "sta.js": true, "compareArray.js": true}
+
+// assertThrows matches `assert.throws(<Name>,` for a constructor that
+// harness.ts errorName can identify; Prepare rewrites it to throwsNamed.
+var assertThrows = regexp.MustCompile(`\bassert\.throws\(\s*(Test262Error|TypeError|RangeError|SyntaxError|ReferenceError|URIError|EvalError|Error)\s*,`)
 
 // unsupportedFlags are execution modes the runner does not model yet.
 var unsupportedFlags = map[string]string{
@@ -49,6 +54,9 @@ func Prepare(source string, meta Metadata) (entry string, skip string) {
 	if !meta.HasFlag("raw") {
 		b.WriteString(harnessSource)
 		b.WriteString("\n")
+	}
+	if !meta.HasFlag("raw") {
+		source = assertThrows.ReplaceAllString(source, `assert.throwsNamed("$1",`)
 	}
 	b.WriteString(source)
 	return b.String(), ""

@@ -62,6 +62,8 @@ func syntaxStatement(node *ast.Node, chk *checker.Checker) (SyntaxStatement, boo
 				}
 				if catchClause.VariableDeclaration.Type() != nil {
 					res.CatchVarType = syntaxType(catchClause.VariableDeclaration.Type())
+				} else {
+					res.CatchVarInferredType = resolveInferredType(chk, nameNode)
 				}
 				res.CatchVarSpan = sourceSpan(nameNode)
 			}

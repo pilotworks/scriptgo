@@ -1,6 +1,7 @@
 // Command test262 runs a subset of the TC39 test262 suite through scriptgo.
 //
 //	go run ./cmd/test262 -root ../test262 -paths language/expressions/addition,built-ins/Math
+//	go run ./cmd/test262 -root ../test262 -list internal/test262/testdata/baseline.txt -require-pass
 package main
 
 import (
@@ -27,6 +28,7 @@ func main() {
 	list := flag.String("list", "", "file of test paths (relative to test/, one per line) to run instead of -paths")
 	jsonOut := flag.String("json", "", "write per-test results as JSON to this path")
 	reasons := flag.Int("reasons", 15, "number of top unsupported/fail reasons to print")
+	requirePass := flag.Bool("require-pass", false, "exit 1 unless every selected test passes (baseline regression gate)")
 	flag.Parse()
 	if *root == "" {
 		fmt.Fprintln(os.Stderr, "test262: -root is required")
@@ -70,6 +72,16 @@ func main() {
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "test262:", err)
+			os.Exit(1)
+		}
+	}
+	if *requirePass {
+		if regressed := test262.Regressions(results); len(regressed) > 0 {
+			fmt.Fprintf(os.Stderr, "\ntest262: %d baseline test(s) no longer pass:\n", len(regressed))
+			for _, r := range regressed {
+				fmt.Fprintf(os.Stderr, "  %s: %s %s\n", r.Path, r.Outcome, r.Detail)
+			}
+			stop()
 			os.Exit(1)
 		}
 	}

@@ -191,12 +191,20 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 		return Result{Path: rel, Outcome: Fail, Detail: "timeout"}
 	}
 	if negative != nil && negative.Phase == "runtime" {
-		// Uncaught exceptions carry no type name at the native boundary, so
-		// a runtime-negative test passes when the program throws at all.
-		if runErr != nil {
+		// The runtime reports an uncaught Error instance as
+		// "Uncaught exception: <name>: <message>", so the thrown type must
+		// match; a crash or a different error is a failure.
+		if runErr == nil {
+			return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, completed normally"}
+		}
+		if uncaughtErrorName(stderr.String()) == negative.Type {
 			return Result{Path: rel, Outcome: Pass}
 		}
-		return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, completed normally"}
+		detail := firstLine(stderr.String())
+		if detail == "" {
+			detail = runErr.Error()
+		}
+		return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, got: " + detail}
 	}
 	if runErr != nil {
 		detail := firstLine(stderr.String())
@@ -219,6 +227,18 @@ var syntaxDiagnostic = regexp.MustCompile(`error TS(1\d{3}|2364|2462|2337|18016)
 // the compile-time equivalent of an early or parse-phase SyntaxError.
 func isSyntaxDiagnostic(err error) bool {
 	return syntaxDiagnostic.MatchString(err.Error())
+}
+
+// uncaughtError matches the runtime's report of an uncaught Error instance.
+var uncaughtError = regexp.MustCompile(`(?m)^Uncaught exception: ([A-Za-z_$][\w$]*)(?::|$)`)
+
+// uncaughtErrorName returns the error name of an uncaught exception report,
+// or "" when the program did not die from an uncaught Error.
+func uncaughtErrorName(stderr string) string {
+	if match := uncaughtError.FindStringSubmatch(stderr); match != nil {
+		return match[1]
+	}
+	return ""
 }
 
 var toolchainLocation = regexp.MustCompile(`^\S*module\.ll:\d+:\d+: `)

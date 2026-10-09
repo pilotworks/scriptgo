@@ -369,6 +369,9 @@ func (f Function) verifyInternal(globals map[string]Type) error {
 				catchKnown := cloneTypes(known)
 				if instruction.CatchVar != "" {
 					catchKnown[instruction.CatchVar] = TypeString
+					if instruction.CatchVarType == TypeUnknown {
+						catchKnown[instruction.CatchVar] = TypeUnknown
+					}
 				}
 				if err := verifyBlock(f, instruction.Catch, catchKnown); err != nil {
 					return fmt.Errorf("try catch block: %w", err)
@@ -558,6 +561,9 @@ func verifyBlock(f Function, body []Instruction, known map[string]Type) error {
 				catchKnown := cloneTypes(known)
 				if instruction.CatchVar != "" {
 					catchKnown[instruction.CatchVar] = TypeString
+					if instruction.CatchVarType == TypeUnknown {
+						catchKnown[instruction.CatchVar] = TypeUnknown
+					}
 				}
 				if err := verifyBlock(f, instruction.Catch, catchKnown); err != nil {
 					return err

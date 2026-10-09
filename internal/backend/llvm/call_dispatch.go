@@ -481,18 +481,6 @@ func (e *functionEmitter) tryEmitValueIntrinsicCall(out *strings.Builder, instru
 		}
 		return true, nil
 	}
-	if strings.HasPrefix(instruction.Callee, "__fs.watch") {
-		handled, err := e.emitFSWatcherIntrinsic(out, instruction)
-		if err != nil {
-			return true, err
-		}
-		if handled {
-			if instruction.Result != "" {
-				e.types[instruction.Result] = instruction.Type
-			}
-			return true, nil
-		}
-	}
 	if strings.HasPrefix(instruction.Callee, "__dgram.") {
 		if err := e.emitDgramIntrinsic(out, instruction); err != nil {
 			return true, err

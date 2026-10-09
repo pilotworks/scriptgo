@@ -188,8 +188,11 @@ type Instruction struct {
 	Body     []Instruction
 	Step     []Instruction
 	CatchVar string
-	Catch    []Instruction
-	Finally  []Instruction
+	// CatchVarType is TypeUnknown when the catch binding holds the exact
+	// thrown value; empty keeps the legacy Error-string binding.
+	CatchVarType Type
+	Catch        []Instruction
+	Finally      []Instruction
 }
 
 const (

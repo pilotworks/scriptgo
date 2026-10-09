@@ -575,11 +575,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			stageFunctions := functions[:len(functions)-1]
 			module.Functions = append(append([]ir.Function{mainFunction}, stageFunctions...), module.Functions...)
 		} else {
-			main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+			main.Body = appendImplicitVoidReturn(main.Body)
 			module.Functions = append([]ir.Function{main}, module.Functions...)
 		}
 	} else {
-		main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+		main.Body = appendImplicitVoidReturn(main.Body)
 		module.Functions = append([]ir.Function{main}, module.Functions...)
 	}
 	module.Functions = append(module.Functions, extraFunctions...)
@@ -602,4 +602,14 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		return ir.Module{}, err
 	}
 	return module, nil
+}
+
+// appendImplicitVoidReturn ends a void body that can fall off its end. A body
+// whose last top-level instruction already leaves the function (a top-level
+// `throw`) must not gain an unreachable return.
+func appendImplicitVoidReturn(body []ir.Instruction) []ir.Instruction {
+	if n := len(body); n > 0 && (body[n-1].Op == ir.OpThrow || body[n-1].Op == ir.OpReturn) {
+		return body
+	}
+	return append(body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
 }

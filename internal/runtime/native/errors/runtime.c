@@ -65,6 +65,9 @@ static const char *scriptgo_tag_name(unsigned int tag) {
 }
 
 void scriptgo_throw_string(const char *str);
+void scriptgo_throw_error_message(const char *text);
+int scriptgo_object_new_typed(int64_t field_count, const char *type_name, void **out_object);
+int scriptgo_error_capture_stack(const char *name, const char *msg, char **out_stack);
 
 void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected_tag, const char *span) {
     char msg[256];
@@ -78,7 +81,7 @@ void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected
                  scriptgo_tag_name(actual_tag),
                  scriptgo_tag_name(expected_tag));
     }
-    scriptgo_throw_string(msg);
+    scriptgo_throw_error_message(msg);
 }
 
 int32_t scriptgo_is_truthy_unknown(const scriptgo_value *value) {
@@ -333,11 +336,22 @@ static void scriptgo_uncaught_value(const scriptgo_value *value) {
     if (value == NULL) exit(1);
     if (value->tag == SCRIPTGO_TAG_OBJECT || value->tag == SCRIPTGO_TAG_ARRAY ||
         value->tag == SCRIPTGO_TAG_FUNCTION) {
-        fprintf(stderr, "Uncaught exception object: %p\n", (void *)(uintptr_t)value->payload);
+        void *object = (void *)(uintptr_t)value->payload;
+        int32_t is_error = 0;
+        char *text = NULL;
+        if (scriptgo_object_instanceof(object, "Error", &is_error) == 0 && is_error &&
+            scriptgo_error_to_string(object, &text) == 0 && text != NULL) {
+            fprintf(stderr, "Uncaught exception: %s\n", text);
+            free(text);
+        } else {
+            fprintf(stderr, "Uncaught exception object: %p\n", object);
+        }
     } else if (value->tag == SCRIPTGO_TAG_NUMBER) {
         double number;
+        char text[64];
         memcpy(&number, &value->payload, sizeof(number));
-        fprintf(stderr, "Uncaught exception: %g\n", number);
+        scriptgo_number_format(number, text, sizeof(text));
+        fprintf(stderr, "Uncaught exception: %s\n", text);
     } else if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
         fprintf(stderr, "Uncaught exception: %s\n", value->payload ? "true" : "false");
     } else if (value->tag == SCRIPTGO_TAG_STRING) {
@@ -405,6 +419,52 @@ void scriptgo_throw_string(const char *str) {
     } else {
         scriptgo_value_string_borrow(str ? str : "", str ? strlen(str) : 0, &value);
     }
+    scriptgo_exception_throw_copy(&value);
+}
+
+/* scriptgo_throw_error_message throws a runtime-detected failure such as
+ * "TypeError: ..." as an instance of the named built-in error, so catch
+ * bindings see the same value JavaScript would (instanceof, name, message).
+ * Text without a known error-name prefix becomes a plain Error. */
+void scriptgo_throw_error_message(const char *text) {
+    static const struct { const char *name; const char *descriptor; } kinds[] = {
+        {"TypeError", "__class__|c9:TypeError|b5:Error"},
+        {"RangeError", "__class__|c10:RangeError|b5:Error"},
+        {"SyntaxError", "__class__|c11:SyntaxError|b5:Error"},
+        {"ReferenceError", "__class__|c14:ReferenceError|b5:Error"},
+        {"URIError", "__class__|c8:URIError|b5:Error"},
+        {"EvalError", "__class__|c9:EvalError|b5:Error"},
+    };
+    const char *name = "Error";
+    const char *descriptor = "__class__|c5:Error";
+    const char *message = text != NULL ? text : "";
+    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+        size_t len = strlen(kinds[i].name);
+        if (strncmp(message, kinds[i].name, len) == 0 && message[len] == ':' && message[len + 1] == ' ') {
+            name = kinds[i].name;
+            descriptor = kinds[i].descriptor;
+            message += len + 2;
+            break;
+        }
+    }
+    void *object = NULL;
+    char *stack = NULL;
+    char *owned_message = strdup(message);
+    if (owned_message == NULL || scriptgo_object_new_typed(4, descriptor, &object) != 0) {
+        scriptgo_throw_string(text);
+        return;
+    }
+    if (scriptgo_error_capture_stack(name, owned_message, &stack) != 0) stack = NULL;
+    scriptgo_object_t *error = (scriptgo_object_t *)object;
+    error->fields[0] = (uintptr_t)owned_message;
+    error->fields[1] = (uintptr_t)name;
+    error->fields[2] = (uintptr_t)(stack != NULL ? stack : "");
+    error->fields[3] = (uintptr_t)"";
+    scriptgo_value value;
+    value.tag = SCRIPTGO_TAG_OBJECT;
+    value.flags = 0;
+    value.payload = (uint64_t)(uintptr_t)object;
+    value.aux = 0;
     scriptgo_exception_throw_copy(&value);
 }
 

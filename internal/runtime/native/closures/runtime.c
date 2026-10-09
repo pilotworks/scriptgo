@@ -931,6 +931,7 @@ int scriptgo_array_reduce_right_number(void *handle, void *closure_handle, doubl
 }
 
 void scriptgo_throw_string(const char *str);
+void scriptgo_throw_error_message(const char *text);
 
 /* reduce/reduceRight without an initial value: the first visited element
  * seeds the accumulator, and an empty array throws a TypeError
@@ -941,7 +942,7 @@ static int scriptgo_array_reduce_number_seeded(void *handle, void *closure_handl
         return scriptgo_runtime_set_error(right ? "scriptgo array reduceRight failed" : "scriptgo array reduce failed");
     }
     if (array->length == 0) {
-        scriptgo_throw_string("TypeError: Reduce of empty array with no initial value");
+        scriptgo_throw_error_message("TypeError: Reduce of empty array with no initial value");
         return 0;
     }
     scriptgo_closure *c = closure_handle;

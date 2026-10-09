@@ -345,6 +345,9 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 			}
 			if inst.CatchVar != "" {
 				slotted[inst.CatchVar] = ir.TypeString
+				if inst.CatchVarType == ir.TypeUnknown {
+					slotted[inst.CatchVar] = ir.TypeUnknown
+				}
 			}
 			if inst.Result != "" {
 				counts[inst.Result]++
