@@ -44,6 +44,14 @@ func getHierarchyTag(className string, hierarchy map[string]ClassMeta) string {
 	for {
 		meta, ok := hierarchy[curr]
 		if !ok || meta.Extends == "" {
+			// Built-in error constructors are not user classes; their
+			// prototype chain still reaches Error for instanceof.
+			if base, builtin := builtinErrorBase[curr]; builtin && !seenClasses[base] {
+				writeToken('b', base)
+				seenClasses[base] = true
+				curr = base
+				continue
+			}
 			break
 		}
 		for _, rawBase := range strings.Split(meta.Extends, ",") {
@@ -286,4 +294,17 @@ func synthesizePolymorphicDispatchers(hierarchy map[string]ClassMeta, signatures
 		}
 	}
 	return dispatchers
+}
+
+// builtinErrorBase maps the ECMAScript NativeError constructors (and
+// AggregateError) to their prototype parent, so instances of the built-in
+// errors and of user classes extending them satisfy instanceof Error.
+var builtinErrorBase = map[string]string{
+	"AggregateError": "Error",
+	"EvalError":      "Error",
+	"RangeError":     "Error",
+	"ReferenceError": "Error",
+	"SyntaxError":    "Error",
+	"TypeError":      "Error",
+	"URIError":       "Error",
 }

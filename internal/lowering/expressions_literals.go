@@ -62,6 +62,10 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 			}
 			if strings.HasSuffix(trimmed, "[]") {
 				arrType := toIRType(trimmed)
+				if arrType == ir.Type(string(ir.TypeVoid)+"[]") {
+					// undefined[] has no unboxed element storage.
+					arrType = ir.TypeUnknownArray
+				}
 				if arrType == ir.TypeUnknownArray {
 					for idx, argName := range arguments {
 						if types[idx] != ir.TypeUnknown {
@@ -94,11 +98,22 @@ func lowerArrayLiteral(path string, expression *frontend.SyntaxExpression, resul
 				}
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: arrType, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
 				return result, arrType, nil
-			} else if tFields, ok := tupleFields(trimmed); ok && len(tFields) > 1 {
+			} else if tFields, ok := tupleFields(trimmed); ok && len(tFields) >= 1 {
 				inferredTuple = true
 			} else if shape, ok := shapes[strings.TrimPrefix(trimmed, "object:")]; ok && len(shape.Fields) > 0 && shape.Fields[0].Name == "0" {
 				inferredTuple = true
 			}
+		}
+		if isHomogeneous && !inferredTuple && len(types) > 0 && types[0] == ir.TypeVoid {
+			// Elements that are all undefined have no unboxed storage; keep
+			// them as boxed values in an unknown[] array.
+			for idx, argName := range arguments {
+				boxed := nextTemp(counter)
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBoxUnknown, Type: ir.TypeUnknown, Result: boxed, Args: []string{argName}, Span: toIRSpan(path, expression.Arguments[idx].Span)})
+				arguments[idx] = boxed
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpArray, Type: ir.TypeUnknownArray, Result: result, Args: arguments, Span: toIRSpan(path, expression.Span)})
+			return result, ir.TypeUnknownArray, nil
 		}
 		if isHomogeneous && !inferredTuple {
 			arrType := ir.TypeNumberArray
@@ -327,10 +342,8 @@ func lowerTemplateLiteral(path string, expression *frontend.SyntaxExpression, re
 				strVal = strTemp
 			} else if strings.HasPrefix(string(valType), "object:") {
 				className := strings.TrimPrefix(string(valType), "object:")
-				if method, mangled, found := findMethodInHierarchy(className, "toString", signatures, classHierarchy); found && (method.ReturnType == ir.TypeString || method.ReturnType == "") {
-					strTemp := nextTemp(counter)
-					function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: mangled, Args: []string{val}, Span: toIRSpan(path, arg.Span)})
-					strVal = strTemp
+				if converted, ok := lowerClassToString(path, val, valType, arg.Span, function, counter, signatures); ok {
+					strVal = converted
 				} else if len(className) <= 2 || className == "T" || className == "K" || className == "V" || className == "U" || className == "A" || className == "B" {
 					if arg != nil && (arg.InferredType == "number" || arg.InferredType == "bigint") {
 						strTemp := nextTemp(counter)

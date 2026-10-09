@@ -20,7 +20,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 	if name == "main" {
 		out.WriteString("define i32 @main(i32 %argc, ptr %argv) nounwind \"frame-pointer\"=\"all\"")
 	} else {
-		out.WriteString(fmt.Sprintf("define internal %s @%s(", returnType, mangleFunctionName(name)))
+		out.WriteString(fmt.Sprintf("define internal %s %s(", returnType, functionSymbol(mangleFunctionName(name))))
 		parameterIndex := 0
 		for _, parameter := range function.Parameters {
 			if parameterIndex > 0 {
@@ -49,9 +49,9 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		for _, g := range module.Globals {
 			gType := llvmType(g.Type)
 			if gType == "ptr" {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 1)\n", g.Name))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr %s, i64 1)\n", functionSymbol(g.Name)))
 			} else if gType == "{ i32, i32, i64, i64 }" {
-				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr @%s, i64 3)\n", g.Name))
+				out.WriteString(fmt.Sprintf("  call i32 @scriptgo_gc_add_root_slot(ptr %s, i64 3)\n", functionSymbol(g.Name)))
 			}
 		}
 	}
@@ -278,7 +278,7 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 	}
 	out.WriteString("}\n\n")
-	return hoistAllocas(out.String()), nil
+	return hoistAllocas(splitAfterTerminators(out.String())), nil
 }
 
 func isRawCallbackParameter(parameter ir.Parameter) bool {
@@ -345,6 +345,9 @@ func findSlottedVariables(instructions []ir.Instruction) map[string]ir.Type {
 			}
 			if inst.CatchVar != "" {
 				slotted[inst.CatchVar] = ir.TypeString
+				if inst.CatchVarType == ir.TypeUnknown {
+					slotted[inst.CatchVar] = ir.TypeUnknown
+				}
 			}
 			if inst.Result != "" {
 				counts[inst.Result]++
@@ -432,4 +435,67 @@ func collectSSADefs(instructions []ir.Instruction, defs map[string]bool, isMain 
 		collectSSADefs(inst.Catch, defs, isMain, globals, isLocalDecl)
 		collectSSADefs(inst.Finally, defs, isMain, globals, isLocalDecl)
 	}
+}
+
+// splitAfterTerminators starts a new (unreachable) basic block when
+// instructions follow a terminator in the same block. Statement lowering may
+// legitimately leave code after break/continue/return/throw (for example a
+// finally block that always continues); LLVM requires every block to end at
+// its terminator, so such code gets its own label.
+func splitAfterTerminators(fnCode string) string {
+	lines := strings.Split(fnCode, "\n")
+	out := make([]string, 0, len(lines))
+	// open: the current block has instructions but no terminator yet.
+	open := false
+	terminated := false
+	inSwitch := false
+	dead := 0
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if index == 0 || trimmed == "" || trimmed == "}" || strings.HasPrefix(trimmed, ";") {
+			out = append(out, line)
+			continue
+		}
+		if inSwitch {
+			out = append(out, line)
+			if strings.HasPrefix(trimmed, "]") {
+				inSwitch = false
+				terminated, open = true, false
+			}
+			continue
+		}
+		if strings.HasSuffix(trimmed, ":") {
+			if open {
+				// Implicit fall-through is not valid LLVM; make it explicit.
+				out = append(out, "  br label %"+strings.TrimSuffix(trimmed, ":"))
+			}
+			out = append(out, line)
+			terminated, open = false, false
+			continue
+		}
+		if terminated {
+			out = append(out, fmt.Sprintf("after.terminator.%d:", dead))
+			dead++
+			terminated = false
+		}
+		out = append(out, line)
+		switch {
+		case strings.HasPrefix(trimmed, "switch ") && strings.HasSuffix(trimmed, "["):
+			inSwitch, open = true, false
+		case isTerminatorInstruction(trimmed):
+			terminated, open = true, false
+		default:
+			open = true
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func isTerminatorInstruction(trimmed string) bool {
+	for _, prefix := range []string{"br ", "ret ", "unreachable", "resume ", "indirectbr "} {
+		if strings.HasPrefix(trimmed, prefix) || trimmed == strings.TrimSpace(prefix) {
+			return true
+		}
+	}
+	return strings.HasPrefix(trimmed, "switch ") && strings.HasSuffix(trimmed, "]")
 }

@@ -123,6 +123,51 @@ jobs:
         run: go run ./cmd/parity -v
 
   # ============================================================================
+  # test262: Recorded passing baseline must keep passing (Parallel Job)
+  # ============================================================================
+  test262:
+    name: test262 Baseline (Static tier)
+    runs-on: ubuntu-latest
+    env:
+      SCRIPTGO_CACHE_DIR: ${{ github.workspace }}/.cache/scriptgo
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache ScriptGo Runtime Objects
+        uses: actions/cache@v4
+        with:
+          path: .cache/scriptgo
+          key: scriptgo-runtime-${{ runner.os }}-${{ hashFiles('internal/runtime/**', 'internal/compiler/runtime_cache.go') }}
+          restore-keys: |
+            scriptgo-runtime-${{ runner.os }}-
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Setup Clang Runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
+
+      - name: Checkout tc39/test262 (pinned)
+        run: |
+          # The runner context is not available in job-level env, so the
+          # checkout path is exported for the following steps here.
+          TEST262_ROOT="$RUNNER_TEMP/test262"
+          echo "TEST262_ROOT=$TEST262_ROOT" >> "$GITHUB_ENV"
+          rev=$(sed -n 's/^TEST262_REV ?= //p' Makefile)
+          git init -q "$TEST262_ROOT"
+          git -C "$TEST262_ROOT" fetch -q --depth 1 https://github.com/tc39/test262.git "$rev"
+          git -C "$TEST262_ROOT" checkout -q FETCH_HEAD
+
+      - name: Run test262 baseline
+        run: make test-262-baseline
+
+  # ============================================================================
   # Sanitizers: AddressSanitizer & UndefinedBehaviorSanitizer (Parallel Job)
   # ============================================================================
   sanitizer:
@@ -203,6 +248,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
+          # Standard-library findings are fixed in Go patch releases; scan
+          # with the newest one, not the runner's pre-cached toolchain.
+          check-latest: true
           cache: true
 
       - name: Run govulncheck

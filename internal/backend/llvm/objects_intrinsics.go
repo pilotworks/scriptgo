@@ -9,6 +9,55 @@ import (
 
 func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__object.has_own":
+		// `key in object`, Object.hasOwn, hasOwnProperty, Reflect.has.
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__object.has_own requires an object and a key")
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		key := e.ensurePointerArg(out, instruction.Args[1])
+		slot := instruction.Result + ".has.slot"
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_has_own(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, obj, key, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		loaded := instruction.Result + ".has.i32"
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", loaded, slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
+	case "__object.reflect_set", "__object.reflect_delete":
+		// Reflect.set(target, key, value) / Reflect.deleteProperty(target, key):
+		// the runtime reports false where the integrity level forbids the change.
+		want := 3
+		if instruction.Callee == "__object.reflect_delete" {
+			want = 2
+		}
+		if len(instruction.Args) != want {
+			return fmt.Errorf("%s requires %d arguments", instruction.Callee, want)
+		}
+		obj := e.ensurePointerArg(out, instruction.Args[0])
+		property := e.resolveArg(out, instruction.Args[1])
+		slot := instruction.Result + ".reflect.slot"
+		fmt.Fprintf(out, "  %%%s = alloca i32\n", slot)
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		if want == 3 {
+			valuePtr, err := e.emitCanonicalValuePointer(out, e.resolveArg(out, instruction.Args[2]), ir.TypeUnknown, instruction.Result+".reflect.value")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_reflect_set(ptr %%%s, ptr %%%s, ptr %s, ptr %%%s)\n", status, obj, property, valuePtr, slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_reflect_delete(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, obj, property, slot)
+		}
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		loaded := instruction.Result + ".reflect.i32"
+		fmt.Fprintf(out, "  %%%s = load i32, ptr %%%s\n", loaded, slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, loaded)
+		e.types[instruction.Result] = ir.TypeBool
+		return nil
 	case "__object.freeze", "__object.seal", "__object.preventExtensions":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("%s requires one argument", instruction.Callee)
@@ -28,7 +77,7 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		out.WriteString(fmt.Sprintf("  %%%s = call i32 %s(ptr %%%s, ptr %%%s)\n", status, callee, obj, slot))
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot))
-		e.types[instruction.Result] = ir.TypeObject
+		e.types[instruction.Result] = instruction.Type
 		return nil
 	case "__object.isFrozen", "__object.isSealed", "__object.isExtensible":
 		if len(instruction.Args) != 1 {
@@ -360,39 +409,74 @@ func (e *functionEmitter) emitObjectIntrinsic(out *strings.Builder, instruction 
 		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		return nil
-	default:
-		if strings.HasPrefix(instruction.Callee, "__object.") {
-			if instruction.Type == ir.TypeBool {
-				out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 1, 1\n", instruction.Result))
-				return nil
+	case "__object.isPrototypeOf":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("__object.isPrototypeOf requires a receiver and a value")
+		}
+		arg := instruction.Args[1]
+		argType := e.types[arg]
+		boxed := e.resolveArg(out, arg)
+		if !e.isParamUnknown(arg) && argType != ir.TypeUnknown {
+			boxed = fmt.Sprintf("%s.isproto.boxed.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, arg, argType, boxed); err != nil {
+				return err
 			}
-			if instruction.Type == ir.TypeNumber {
-				out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 1.0\n", instruction.Result))
-				return nil
-			}
-			if instruction.Type == ir.TypeUnknown {
-				var argVal string
-				argType := ir.TypeObject
-				if len(instruction.Args) > 0 {
-					argVal = instruction.Args[0]
-					if t, ok := e.types[argVal]; ok && t != "" {
-						argType = t
-					}
-				}
-				if argVal != "" {
-					return e.emitBoxValue(out, argVal, argType, instruction.Result)
-				}
-				out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 0, 0\n", instruction.Result))
-				return nil
-			}
-			if len(instruction.Args) > 0 {
-				ptrArg := e.ensurePointerArg(out, instruction.Args[0])
-				out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, ptrArg))
-			} else {
-				out.WriteString(fmt.Sprintf("  %%%s = alloca i8\n", instruction.Result))
-			}
+		}
+		slot := instruction.Result + ".isproto.slot"
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot)
+		fmt.Fprintf(out, "  %%%s.i32 = call i32 @scriptgo_object_is_prototype_of(ptr %%%s, ptr %%%s)\n", instruction.Result, e.resolveArg(out, instruction.Args[0]), slot)
+		fmt.Fprintf(out, "  %%%s = icmp ne i32 %%%s.i32, 0\n", instruction.Result, instruction.Result)
+		return nil
+	case "__object.getPrototypeOf":
+		if len(instruction.Args) != 1 {
+			return fmt.Errorf("__object.getPrototypeOf requires one argument")
+		}
+		arg := instruction.Args[0]
+		argType := e.types[arg]
+		if e.isParamUnknown(arg) {
+			argType = ir.TypeUnknown
+		}
+		if llvmType(argType) == "ptr" {
+			fmt.Fprintf(out, "  %%%s = call ptr @scriptgo_object_get_prototype(ptr %%%s)\n", instruction.Result, e.resolveArg(out, arg))
 			return nil
 		}
+		var boxed string
+		if argType == ir.TypeUnknown {
+			boxed = e.resolveArg(out, arg)
+		} else {
+			boxed = fmt.Sprintf("%s.proto.boxed.%d", instruction.Result, e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, arg, argType, boxed); err != nil {
+				return err
+			}
+		}
+		slot := instruction.Result + ".proto.slot"
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot)
+		fmt.Fprintf(out, "  %%%s = call ptr @scriptgo_object_get_prototype_value(ptr %%%s)\n", instruction.Result, slot)
+		return nil
+	case "__object.new":
+		// Object(value) for a value that is already an object (lowering
+		// handles every other case): the result is the value itself.
+		if instruction.Type == ir.TypeUnknown {
+			if len(instruction.Args) == 0 {
+				return fmt.Errorf("__object.new requires an argument")
+			}
+			argType := e.types[instruction.Args[0]]
+			if argType == "" {
+				argType = ir.TypeObject
+			}
+			return e.emitBoxValue(out, instruction.Args[0], argType, instruction.Result)
+		}
+		if len(instruction.Args) == 0 {
+			return fmt.Errorf("__object.new requires an argument")
+		}
+		ptrArg := e.ensurePointerArg(out, instruction.Args[0])
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, ptrArg))
+		return nil
+	default:
 		return fmt.Errorf("unknown object intrinsic %q", instruction.Callee)
 	}
 	return nil

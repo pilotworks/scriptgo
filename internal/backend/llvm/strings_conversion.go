@@ -124,6 +124,13 @@ func (e *functionEmitter) emitStringConversionIntrinsic(out *strings.Builder, in
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_inspect_buffer(ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.inspectNumber":
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.inspectNumber has invalid signature")
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_inspect_number(double %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0])
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.inspectArray":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.inspectArray has invalid signature")
@@ -302,7 +309,7 @@ func (e *functionEmitter) emitStringConversionIntrinsic(out *strings.Builder, in
 			return nil
 		}
 		if argType == ir.TypeBigInt {
-			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_bigint_to_string(i64 %%%s, double 10.0, ptr %%__slot_ptr)\n", status, arg)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_bigint(i64 %%%s, ptr %%__slot_ptr)\n", status, arg)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil
@@ -321,6 +328,15 @@ func (e *functionEmitter) emitStringConversionIntrinsic(out *strings.Builder, in
 			e.loadCounter++
 			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_unknown(ptr %s, ptr %%__slot_ptr)\n", statusVar, valuePtr)
 			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", statusVar)
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+			return nil
+		}
+		if argType == ir.TypeObject || strings.HasPrefix(string(argType), "object:") || strings.HasSuffix(string(argType), "[]") || argType == ir.TypeUnknownArray {
+			// String(reference): the runtime inspects the actual value (union
+			// types may be narrowed at run time): strings pass through, arrays
+			// join with ",", errors use Error.prototype.toString.
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_from_object(ptr %%%s, ptr %%__slot_ptr)\n", status, arg)
+			fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 			return nil
 		}

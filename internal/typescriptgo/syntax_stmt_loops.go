@@ -24,6 +24,12 @@ func syntaxForInStatement(node *ast.Node, chk *checker.Checker, span SourceSpan)
 			}
 		}
 	}
+	body := syntaxBlockStatements(forIn.Statement, chk)
+	if forIn.Initializer != nil && forIn.Initializer.Kind != ast.KindVariableDeclarationList {
+		varName = fmt.Sprintf("__forin_target_%d", forIn.Initializer.Pos())
+		varType, varInferredType = "string", "string"
+		body = append(forTargetAssignment(forIn.Initializer, varName, varType, chk), body...)
+	}
 	return SyntaxStatement{
 		Span:         span,
 		Kind:         "forin",
@@ -31,7 +37,7 @@ func syntaxForInStatement(node *ast.Node, chk *checker.Checker, span SourceSpan)
 		Type:         varType,
 		InferredType: varInferredType,
 		Expression:   syntaxExpression(forIn.Expression, chk),
-		Body:         syntaxBlockStatements(forIn.Statement, chk),
+		Body:         body,
 	}, true
 }
 
@@ -67,6 +73,15 @@ func syntaxForOfStatement(node *ast.Node, chk *checker.Checker, span SourceSpan)
 				}, chk, &c)
 			}
 		}
+	}
+	if forOf.Initializer != nil && forOf.Initializer.Kind != ast.KindVariableDeclarationList {
+		varName = fmt.Sprintf("__forof_target_%d", forOf.Initializer.Pos())
+		varInferredType = resolveIteratedElementType(chk, forOf.Expression)
+		if varInferredType == "" {
+			varInferredType = resolveInferredType(chk, forOf.Initializer)
+		}
+		varType = varInferredType
+		bindingStmts = forTargetAssignment(forOf.Initializer, varName, varType, chk)
 	}
 	bodyStmts := syntaxBlockStatements(forOf.Statement, chk)
 	if len(bindingStmts) > 0 {
@@ -166,4 +181,45 @@ func syntaxForStatement(node *ast.Node, chk *checker.Checker, span SourceSpan) (
 		}
 	}
 	return whileStmt, true
+}
+
+// forTargetAssignment assigns the loop's per-iteration value (held in temp)
+// to a for-in/for-of target that is an expression rather than a declaration:
+// an identifier or member access (`for (obj.key in o)`) or an assignment
+// pattern (`for ([a, b] of pairs)`).
+func forTargetAssignment(target *ast.Node, temp, tempType string, chk *checker.Checker) []SyntaxStatement {
+	value := &SyntaxExpression{Span: sourceSpan(target), Kind: "identifier", Text: temp, InferredType: tempType}
+	if target.Kind == ast.KindArrayLiteralExpression || target.Kind == ast.KindObjectLiteralExpression {
+		c := 0
+		return flattenDestructuringAssignment(target, value, chk, &c)
+	}
+	left := syntaxExpression(target, chk)
+	if stmt, ok := assignmentStatement(sourceSpan(target), left, value); ok {
+		return []SyntaxStatement{stmt}
+	}
+	// Not an assignable target (e.g. a call): keep it visible to the subset
+	// gate instead of producing an iteration variable with no name.
+	return []SyntaxStatement{{
+		Span: sourceSpan(target),
+		Kind: "unsupported",
+		Type: "for-in/for-of target that is not assignable",
+	}}
+}
+
+// resolveIteratedElementType returns the element type of an array being
+// iterated, so an assignment-pattern target is destructured from the value's
+// own type rather than the type TypeScript gives the pattern (a tuple).
+func resolveIteratedElementType(chk *checker.Checker, iterable *ast.Node) string {
+	if chk == nil || iterable == nil {
+		return ""
+	}
+	t := chk.GetTypeAtLocation(iterable)
+	if t == nil || !chk.IsArrayType(t) {
+		return ""
+	}
+	element := chk.GetElementTypeOfArrayType(t)
+	if element == nil {
+		return ""
+	}
+	return normalizeInferredType(chk.TypeToString(element))
 }

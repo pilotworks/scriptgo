@@ -227,6 +227,11 @@ func lowerIndexExpression(path string, expression *frontend.SyntaxExpression, re
 				}
 			}
 		}
+		if ok && isKeyedObjectShape(shapeName, shapes) && expression.Right != nil && expression.Right.Kind == "number" {
+			// Positional reads are for tuples; a keyed object reads the
+			// property named ToString(index).
+			return lowerNumericKeyRead(path, expression, array, shapeName, result, function, env, counter, shapes, signatures)
+		}
 		if ok {
 			if expression.Right != nil && (expression.Right.Kind == "number" || expression.Right.Kind == "literal") {
 				fieldIdx, err := strconv.Atoi(expression.Right.Text)
@@ -336,6 +341,11 @@ func lowerIndexExpression(path string, expression *frontend.SyntaxExpression, re
 		}
 	} else if after, ok := strings.CutPrefix(string(arrayType), "object:"); ok {
 		shapeName := after
+		if isKeyedObjectShape(shapeName, shapes) {
+			// A numeric index on a keyed object reads the property named
+			// ToString(index), not the field at that position.
+			return lowerNumericKeyRead(path, expression, array, shapeName, result, function, env, counter, shapes, signatures)
+		}
 		idx := 0
 		if expression.Right != nil {
 			if n, err := strconv.Atoi(expression.Right.Text); err == nil {

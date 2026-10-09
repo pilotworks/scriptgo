@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -52,19 +53,18 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 				result = nextTemp(call.Counter)
 			}
 
-			// Static check if object shape and property is a string literal
-			if after, ok := strings.CutPrefix(string(objType), "object:"); ok {
+			// A class layout answers statically for a required field (always
+			// present) or a key it lacks; objects addressed by name and
+			// optional fields are checked at run time.
+			if after, ok := strings.CutPrefix(string(objType), "object:"); ok && !dynamicFieldAccess(after) {
 				className := after
 				shape, exists := call.Shapes[className]
+				propName := ""
 				if exists && call.Expression.Arguments[1] != nil && call.Expression.Arguments[1].Kind == "string" {
-					propName := call.Expression.Arguments[1].Text
-					hasProp := false
-					for _, f := range shape.Fields {
-						if f.Name == propName {
-							hasProp = true
-							break
-						}
-					}
+					propName = call.Expression.Arguments[1].Text
+				}
+				if index := fieldIndex(shape, propName); propName != "" && (index < 0 || !shape.Fields[index].Optional) {
+					hasProp := index >= 0
 					valStr := "false"
 					if hasProp {
 						valStr = "true"
@@ -80,18 +80,15 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 				}
 			}
 
-			propVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			propVal, propType, err := call.LowerExpression(call.Path, call.Expression.Arguments[1], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 			if err != nil {
 				return "", "", err
 			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeBool,
-				Result: result,
-				Callee: "__object.hasOwn",
-				Args:   []string{objVal, propVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
+			span := toIRSpan(call.Path, call.Expression.Span)
+			if propVal, err = propertyKeyString(call.Function, call.Counter, span, propVal, propType); err != nil {
+				return "", "", err
+			}
+			emitHasOwnProperty(call.Function, call.Counter, span, result, objVal, propVal, false)
 			return result, ir.TypeBool, nil
 		},
 	}
@@ -171,10 +168,14 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 		}
 	}
 
-	registerSimpleObj([]string{"Object.create"}, "__object.create", ir.TypeObject, 1, 2)
-	registerSimpleObj([]string{"Object.freeze"}, "__object.freeze", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.seal"}, "__object.seal", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.preventExtensions"}, "__object.preventExtensions", ir.TypeObject, 1, 1)
+	registerCustomIntrinsic(m, []string{"Object.create"}, CategoryECMAScript, "", ir.TypeObject, 1, 2, lowerObjectCreate)
+	registerCustomIntrinsic(m, []string{"Object.defineProperty"}, CategoryECMAScript, "", ir.TypeObject, 3, 3, lowerObjectDefineProperty)
+	registerCustomIntrinsic(m, []string{"Object.defineProperties"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerObjectDefineProperties)
+	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptor"}, CategoryECMAScript, "", ir.TypeObject, 2, 2, lowerGetOwnPropertyDescriptor)
+	registerCustomIntrinsic(m, []string{"Object.getOwnPropertyDescriptors", "Object.setPrototypeOf"}, CategoryECMAScript, "", ir.TypeObject, 1, 2, lowerUnmodelledObjectReflection)
+	registerIntegrityLevel(m, "Object.freeze", "__object.freeze")
+	registerIntegrityLevel(m, "Object.seal", "__object.seal")
+	registerIntegrityLevel(m, "Object.preventExtensions", "__object.preventExtensions")
 	registerSimpleObj([]string{"Object.isFrozen"}, "__object.isFrozen", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isSealed"}, "__object.isSealed", ir.TypeBool, 1, 1)
 	registerSimpleObj([]string{"Object.isExtensible"}, "__object.isExtensible", ir.TypeBool, 1, 1)
@@ -203,10 +204,37 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 			return result, ir.Type("symbol[]"), nil
 		},
 	}
-	registerSimpleObj([]string{"Object.getOwnPropertyDescriptor"}, "__object.getOwnPropertyDescriptor", ir.TypeObject, 2, 2)
-	registerSimpleObj([]string{"Object.getOwnPropertyDescriptors"}, "__object.getOwnPropertyDescriptors", ir.TypeObject, 1, 1)
 	registerSimpleObj([]string{"Object.getPrototypeOf"}, "__object.getPrototypeOf", ir.TypeObject, 1, 1)
-	registerSimpleObj([]string{"Object.setPrototypeOf"}, "__object.setPrototypeOf", "", 2, 2)
-	registerSimpleObj([]string{"Object.defineProperty"}, "__object.defineProperty", "", 3, 3)
-	registerSimpleObj([]string{"Object.defineProperties"}, "__object.defineProperties", "", 2, 2)
+}
+
+// registerIntegrityLevel lowers Object.freeze/seal/preventExtensions, which
+// return their argument: an object or array keeps its type and has its
+// integrity level raised at run time.
+func registerIntegrityLevel(m map[string]BuiltinIntrinsic, name string, callee string) {
+	m[name] = BuiltinIntrinsic{
+		Category: CategoryECMAScript,
+		Name:     name,
+		MinArgs:  1,
+		MaxArgs:  1,
+		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
+			value, typ, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			if err != nil {
+				return "", "", err
+			}
+			if isTypedArrayType(typ) {
+				return "", "", fmt.Errorf("%s of a typed array is not supported in the native subset (JavaScript throws for one with elements)", name)
+			}
+			if typ != ir.TypeObject && !strings.HasPrefix(string(typ), "object:") && !strings.HasSuffix(string(typ), "[]") {
+				// Primitives, and built-ins whose state is not modelled as
+				// own properties (Map, Set, functions), are returned as is.
+				return value, typ, nil
+			}
+			result := call.Result
+			if result == "" {
+				result = nextTemp(call.Counter)
+			}
+			call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: typ, Result: result, Callee: callee, Args: []string{value}, Span: toIRSpan(call.Path, call.Expression.Span)})
+			return result, typ, nil
+		},
+	}
 }

@@ -343,6 +343,7 @@ func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Func
 		return err
 	}
 	var catchInstructions []ir.Instruction
+	var catchVarType ir.Type
 	if len(statement.Catch) > 0 {
 		if len(statement.Finally) > 0 {
 			activeReturnFinallyStack = append(activeReturnFinallyStack, statement.Finally)
@@ -351,9 +352,18 @@ func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Func
 		catchEnv := make(map[string]ir.Type, len(env)+1)
 		maps.Copy(catchEnv, env)
 		if statement.CatchVar != "" {
-			if statement.CatchVarType != "" {
+			switch {
+			case statement.CatchVarType != "":
 				catchEnv[statement.CatchVar] = toIRType(statement.CatchVarType)
-			} else {
+				if catchEnv[statement.CatchVar] == ir.TypeUnknown {
+					catchVarType = ir.TypeUnknown
+				}
+			case statement.CatchVarInferredType == "unknown":
+				// Strict TypeScript: the binding is unknown and holds exactly
+				// the thrown value (any thrown type); uses must narrow it.
+				catchEnv[statement.CatchVar] = ir.TypeUnknown
+				catchVarType = ir.TypeUnknown
+			default:
 				catchEnv[statement.CatchVar] = ir.Type("object:Error")
 			}
 		}
@@ -394,13 +404,14 @@ func lowerTry(path string, statement frontend.SyntaxStatement, function *ir.Func
 		finallyInstructions = finallyBranch
 	}
 	function.Body = append(function.Body, ir.Instruction{
-		Op:       ir.OpTry,
-		Type:     ir.TypeVoid,
-		Body:     bodyInstructions,
-		CatchVar: statement.CatchVar,
-		Catch:    catchInstructions,
-		Finally:  finallyInstructions,
-		Span:     toIRSpan(path, statement.Span),
+		Op:           ir.OpTry,
+		Type:         ir.TypeVoid,
+		Body:         bodyInstructions,
+		CatchVar:     statement.CatchVar,
+		CatchVarType: catchVarType,
+		Catch:        catchInstructions,
+		Finally:      finallyInstructions,
+		Span:         toIRSpan(path, statement.Span),
 	})
 	return nil
 }

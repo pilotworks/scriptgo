@@ -162,7 +162,7 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 			return Result{Path: rel, Outcome: Pass}
 		}
 		if buildErr != nil && isToolchainFailure(buildErr) {
-			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + firstLine(buildErr.Error())}
+			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + toolchainError(buildErr)}
 		}
 		if buildErr != nil {
 			return Result{Path: rel, Outcome: Unsupported, Detail: firstLine(buildErr.Error())}
@@ -173,7 +173,7 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 		if isToolchainFailure(buildErr) {
 			// The compiler accepted the program but emitted code the native
 			// toolchain rejects: a compiler bug, not a subset limitation.
-			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + firstLine(buildErr.Error())}
+			return Result{Path: rel, Outcome: Fail, Detail: "invalid native code: " + toolchainError(buildErr)}
 		}
 		return Result{Path: rel, Outcome: Unsupported, Detail: firstLine(buildErr.Error())}
 	}
@@ -191,12 +191,20 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 		return Result{Path: rel, Outcome: Fail, Detail: "timeout"}
 	}
 	if negative != nil && negative.Phase == "runtime" {
-		// Uncaught exceptions carry no type name at the native boundary, so
-		// a runtime-negative test passes when the program throws at all.
-		if runErr != nil {
+		// The runtime reports an uncaught Error instance as
+		// "Uncaught exception: <name>: <message>", so the thrown type must
+		// match; a crash or a different error is a failure.
+		if runErr == nil {
+			return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, completed normally"}
+		}
+		if uncaughtErrorName(stderr.String()) == negative.Type {
 			return Result{Path: rel, Outcome: Pass}
 		}
-		return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, completed normally"}
+		detail := firstLine(stderr.String())
+		if detail == "" {
+			detail = runErr.Error()
+		}
+		return Result{Path: rel, Outcome: Fail, Detail: "expected " + negative.Type + " at runtime, got: " + detail}
 	}
 	if runErr != nil {
 		detail := firstLine(stderr.String())
@@ -208,12 +216,42 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 	return Result{Path: rel, Outcome: Pass}
 }
 
-var syntaxDiagnostic = regexp.MustCompile(`error TS1\d{3}:`)
+// syntaxDiagnostic matches TypeScript-Go diagnostics that implement
+// ECMAScript early errors: the syntax/grammar range TS1xxx, plus checker codes
+// that are spec early errors rather than type errors — invalid assignment
+// target (2364), rest element not last (2462), misplaced super() (2337), and
+// a private name outside a class body (18016).
+var syntaxDiagnostic = regexp.MustCompile(`error TS(1\d{3}|2364|2462|2337|18016):`)
 
-// isSyntaxDiagnostic reports a TypeScript-Go syntax error (TS1xxx), the
-// compile-time equivalent of an early or parse-phase SyntaxError.
+// isSyntaxDiagnostic reports a TypeScript-Go diagnostic for an early error,
+// the compile-time equivalent of an early or parse-phase SyntaxError.
 func isSyntaxDiagnostic(err error) bool {
 	return syntaxDiagnostic.MatchString(err.Error())
+}
+
+// uncaughtError matches the runtime's report of an uncaught Error instance.
+var uncaughtError = regexp.MustCompile(`(?m)^Uncaught exception: ([A-Za-z_$][\w$]*)(?::|$)`)
+
+// uncaughtErrorName returns the error name of an uncaught exception report,
+// or "" when the program did not die from an uncaught Error.
+func uncaughtErrorName(stderr string) string {
+	if match := uncaughtError.FindStringSubmatch(stderr); match != nil {
+		return match[1]
+	}
+	return ""
+}
+
+var toolchainLocation = regexp.MustCompile(`^\S*module\.ll:\d+:\d+: `)
+
+// toolchainError returns the first diagnostic Clang reported, without the
+// temporary file location, so identical backend defects group together.
+func toolchainError(err error) string {
+	for _, line := range strings.Split(err.Error(), "\n") {
+		if strings.Contains(line, "error:") {
+			return firstLine(toolchainLocation.ReplaceAllString(strings.TrimSpace(line), ""))
+		}
+	}
+	return firstLine(err.Error())
 }
 
 // isToolchainFailure reports a build error raised by Clang after scriptgo

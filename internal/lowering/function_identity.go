@@ -27,6 +27,11 @@ var (
 	functionCandidates       = map[string][]functionIdentity{}
 	functionImportsByFile    = map[string]map[string]functionIdentity{}
 	functionNamespacesByFile = map[string]map[string]string{}
+	// defaultNamespacesByFile maps a default-import local name to its module
+	// when the module has no default-exported declaration: the adapter does
+	// not materialize `export default { ...exports }`, so the default import
+	// reads the module's exported bindings, as calls through it already do.
+	defaultNamespacesByFile = map[string]map[string]string{}
 )
 
 func initializeFunctionIdentities(program frontend.Program) {
@@ -35,7 +40,16 @@ func initializeFunctionIdentities(program frontend.Program) {
 	functionCandidates = map[string][]functionIdentity{}
 	functionImportsByFile = map[string]map[string]functionIdentity{}
 	functionNamespacesByFile = map[string]map[string]string{}
+	defaultNamespacesByFile = map[string]map[string]string{}
 
+	declaresDefault := map[string]bool{}
+	for _, file := range program.Files {
+		for _, statement := range file.Syntax.Statements {
+			if statement.DefaultExport {
+				declaresDefault[filepath.Clean(file.FileName)] = true
+			}
+		}
+	}
 	publicFiles := map[string]map[string]bool{}
 	filesByPrefix := map[string][]string{}
 	topLevelVariables := map[string]bool{}
@@ -117,6 +131,12 @@ func initializeFunctionIdentities(program frontend.Program) {
 			for _, binding := range reference.Bindings {
 				if binding.LocalName == "" || binding.TypeOnly {
 					continue
+				}
+				if binding.ImportedName == "default" && !declaresDefault[targetFile] {
+					if defaultNamespacesByFile[fileName] == nil {
+						defaultNamespacesByFile[fileName] = map[string]string{}
+					}
+					defaultNamespacesByFile[fileName][binding.LocalName] = targetFile
 				}
 				if target, ok := functionIdentitiesByFile[targetFile][binding.ImportedName]; ok {
 					if functionImportsByFile[fileName] == nil {

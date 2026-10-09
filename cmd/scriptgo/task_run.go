@@ -142,7 +142,7 @@ func executeTask(task *pkgmgr.TaskDefinition, extraArgs []string) int {
 	err := cmd.Run()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode()
+			return childExitCode("scriptgo task", exitErr)
 		}
 		fmt.Fprintf(os.Stderr, "scriptgo task: %v\n", err)
 		return 1

@@ -133,15 +133,21 @@ static int next_class_descriptor_token(const char **cursor, char *kind,
     return 1;
 }
 
-static int object_field_index(const scriptgo_object *object, const char *property) {
+/* object_field_visit walks an object's field layout (class descriptor,
+ * dictionary keys, or a shape's key list with dynamic extensions) in field
+ * order, calling visit(name, length, index, context) for each field until it
+ * returns nonzero; it returns that field's index, or -1 when the walk ends.
+ * Lookups by name or position and key enumeration all use this one parser. */
+typedef int (*object_field_visitor)(const char *name, size_t length, int index, void *context);
+
+static int object_field_visit(const scriptgo_object *object, object_field_visitor visit, void *context) {
     const char *cursor;
     int index = 0;
-    size_t property_len;
 
-    if (object == NULL || object->type_name == NULL || property == NULL) {
+    if (object == NULL || object->type_name == NULL) {
         return -1;
     }
-    property_len = strlen(property);
+#define SCRIPTGO_FIELD_MATCHES(name, length, at) (visit((name), (length), (at), context) != 0)
 
     if (is_class_descriptor(object->type_name)) {
         cursor = object->type_name + 10;
@@ -152,7 +158,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
             int token = next_class_descriptor_token(&cursor, &kind, &value, &value_length);
             if (token <= 0) return -1;
             if (kind == 'f') {
-                if (value_length == property_len && memcmp(value, property, value_length) == 0) {
+                if (SCRIPTGO_FIELD_MATCHES(value, value_length, index)) {
                     return index;
                 }
                 index++;
@@ -172,7 +178,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
                 encoded++;
             }
             if (*encoded++ != ':') return -1;
-            if (key_length == property_len && strncmp(encoded, property, key_length) == 0) return index;
+            if (SCRIPTGO_FIELD_MATCHES(encoded, key_length, index)) return index;
             encoded += key_length;
             index++;
         }
@@ -204,8 +210,7 @@ static int object_field_index(const scriptgo_object *object, const char *propert
                 cursor++;
             }
             if (*cursor++ != ':') return -1;
-            if (encoded_len == property_len &&
-                memcmp(cursor, property, encoded_len) == 0) {
+            if (SCRIPTGO_FIELD_MATCHES(cursor, encoded_len, index)) {
                 return index;
             }
             cursor += encoded_len;
@@ -222,7 +227,13 @@ static int object_field_index(const scriptgo_object *object, const char *propert
             field_end = field_start + strlen(field_start);
         }
         field_len = (size_t)(field_end - field_start);
-        if (field_len == property_len && strncmp(field_start, property, field_len) == 0) {
+        if (field_len == 0) {
+            /* An empty key list ("::") names no field. */
+            if (*field_end == '\0') break;
+            cursor = field_end + 1;
+            continue;
+        }
+        if (SCRIPTGO_FIELD_MATCHES(field_start, field_len, index)) {
             return index;
         }
         if (*field_end == '\0') {
@@ -232,6 +243,43 @@ static int object_field_index(const scriptgo_object *object, const char *propert
         index++;
     }
     return -1;
+#undef SCRIPTGO_FIELD_MATCHES
+}
+
+typedef struct {
+    const char *property;
+    size_t property_len;
+    int64_t want_index;
+    const char *name;
+    size_t length;
+} object_field_query;
+
+static int object_field_matches(const char *name, size_t length, int index, void *context) {
+    object_field_query *query = context;
+    if (query->property != NULL) return length == query->property_len && memcmp(name, query->property, length) == 0;
+    if (index != query->want_index) return 0;
+    query->name = name;
+    query->length = length;
+    return 1;
+}
+
+/* object_field_lookup returns the index of the named field, or with
+ * property NULL the name of field want_index; -1 when absent. */
+static int object_field_lookup(const scriptgo_object *object, const char *property, int64_t want_index,
+                               const char **out_name, size_t *out_len) {
+    object_field_query query = {property, property != NULL ? strlen(property) : 0, want_index, NULL, 0};
+    if (property == NULL && want_index < 0) return -1;
+    int index = object_field_visit(object, object_field_matches, &query);
+    if (index >= 0 && property == NULL) {
+        *out_name = query.name;
+        *out_len = query.length;
+    }
+    return index;
+}
+
+static int object_field_index(const scriptgo_object *object, const char *property) {
+    if (property == NULL) return -1;
+    return object_field_lookup(object, property, -1, NULL, NULL);
 }
 
 int scriptgo_unknown_number_property(const scriptgo_value *value, const char *property, double *out_value) {
@@ -337,38 +385,11 @@ int scriptgo_object_is_string(const char *a, const char *b, int32_t *out_result)
     return 0;
 }
 
+/* Object.is on references is identity: two objects with equal fields are
+ * still different objects. */
 int scriptgo_object_is_ptr(void *a, void *b, int32_t *out_result) {
     if (out_result == NULL) {
         return object_fail("scriptgo Object.is null output");
-    }
-    if (a == b) {
-        *out_result = 1;
-        return 0;
-    }
-    if (is_invalid_object_handle(a) || is_invalid_object_handle(b)) {
-        *out_result = 0;
-        return 0;
-    }
-    scriptgo_object *oa = (scriptgo_object *)a;
-    scriptgo_object *ob = (scriptgo_object *)b;
-    if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-        if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
-            *out_result = 0;
-            return 0;
-        }
-        if (oa->field_count != ob->field_count) {
-            *out_result = 0;
-            return 0;
-        }
-        int64_t count = oa->field_count;
-        for (int64_t i = 0; i < count; i++) {
-            if (oa->fields[i] != ob->fields[i]) {
-                *out_result = 0;
-                return 0;
-            }
-        }
-        *out_result = 1;
-        return 0;
     }
     *out_result = (a == b) ? 1 : 0;
     return 0;
@@ -419,38 +440,8 @@ int scriptgo_object_is_unknown(const scriptgo_value *value0, const scriptgo_valu
         *out_result = (strcmp(s0, s1) == 0) ? 1 : 0;
         return 0;
     }
-    if (payload0 == payload1) {
-        *out_result = 1;
-        return 0;
-    }
-    if (payload0 == 0 || payload1 == 0) {
-        *out_result = 0;
-        return 0;
-    }
-    if (scriptgo_gc_is_registered((void *)(uintptr_t)payload0) &&
-        scriptgo_gc_is_registered((void *)(uintptr_t)payload1)) {
-        scriptgo_object *oa = (scriptgo_object *)(uintptr_t)payload0;
-        scriptgo_object *ob = (scriptgo_object *)(uintptr_t)payload1;
-        if (oa->magic == SCRIPTGO_OBJECT_MAGIC && ob->magic == SCRIPTGO_OBJECT_MAGIC) {
-            if (oa->type_name != NULL && ob->type_name != NULL && strcmp(oa->type_name, ob->type_name) != 0) {
-                *out_result = 0;
-                return 0;
-            }
-            if (oa->field_count != ob->field_count) {
-                *out_result = 0;
-                return 0;
-            }
-            int64_t count = oa->field_count;
-            for (int64_t i = 0; i < count; i++) {
-                if (oa->fields[i] != ob->fields[i]) {
-                    *out_result = 0;
-                    return 0;
-                }
-            }
-            *out_result = 1;
-            return 0;
-        }
-    }
+    /* bigint by value; references (objects, arrays, functions, symbols) by
+     * identity. */
     *out_result = (payload0 == payload1) ? 1 : 0;
     return 0;
 }
@@ -780,8 +771,21 @@ int scriptgo_object_new(int64_t field_count, void **out_object) {
     return scriptgo_object_new_typed(field_count, NULL, out_object);
 }
 
+int scriptgo_array_set_integrity(void *handle, int64_t level);
+int scriptgo_object_delete_property(void *handle, const char *property, int32_t *out_result);
+int64_t scriptgo_array_integrity(void *handle);
+
+static int object_is_array(void *handle) {
+    return handle != NULL && handle != (void *)&scriptgo_undefined_sentinel &&
+           scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2;
+}
+
 int scriptgo_object_freeze(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object freeze failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 3);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object freeze invalid object");
     }
@@ -795,6 +799,10 @@ int scriptgo_object_freeze(void *handle, void **out_object) {
 
 int scriptgo_object_seal(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object seal failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 2);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object seal invalid object");
     }
@@ -807,6 +815,10 @@ int scriptgo_object_seal(void *handle, void **out_object) {
 
 int scriptgo_object_prevent_extensions(void *handle, void **out_object) {
     if (out_object == NULL) return object_fail("scriptgo object preventExtensions failed");
+    if (object_is_array(handle)) {
+        *out_object = handle;
+        return scriptgo_array_set_integrity(handle, 1);
+    }
     if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) {
         return object_fail("scriptgo object preventExtensions invalid object");
     }
@@ -817,20 +829,73 @@ int scriptgo_object_prevent_extensions(void *handle, void **out_object) {
 
 int scriptgo_object_is_frozen(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isFrozen failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) >= 3;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->frozen;
     return 0;
 }
 
 int scriptgo_object_is_sealed(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isSealed failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) >= 2;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->sealed;
     return 0;
 }
 
 int scriptgo_object_is_extensible(void *handle, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo object isExtensible failed");
+    if (object_is_array(handle)) {
+        *out_result = scriptgo_array_integrity(handle) == 0;
+        return 0;
+    }
     *out_result = !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC && ((scriptgo_object *)handle)->extensible;
     return 0;
+}
+
+void scriptgo_throw_error_message(const char *text);
+
+/* Writes the name of field index into buf, or "" when the layout does not
+ * name it. */
+static void object_field_name(const scriptgo_object *object, int64_t index, char *buf, size_t cap) {
+    const char *name = NULL;
+    size_t length = 0;
+    if (cap == 0) return;
+    buf[0] = '\0';
+    if (object_field_lookup(object, NULL, index, &name, &length) >= 0 && name != NULL) {
+        snprintf(buf, cap, "%.*s", (int)length, name);
+    }
+}
+
+/* The constructor name V8 prints for an object: its class, else Object. */
+static void object_constructor_name(const scriptgo_object *object, char *buf, size_t cap) {
+    snprintf(buf, cap, "Object");
+    if (is_class_descriptor(object->type_name)) {
+        const char *cursor = object->type_name + 10;
+        char kind;
+        const char *value;
+        size_t length;
+        if (next_class_descriptor_token(&cursor, &kind, &value, &length) > 0 && kind == 'c') {
+            snprintf(buf, cap, "%.*s", (int)length, value);
+        }
+    }
+}
+
+/* Strict-mode assignment to a frozen object throws a TypeError. */
+static int object_check_writable(scriptgo_object *object, int64_t index) {
+    if (object->magic != SCRIPTGO_OBJECT_MAGIC || !object->frozen) return 0;
+    char field[128];
+    char owner[128];
+    char message[384];
+    object_field_name(object, index, field, sizeof(field));
+    object_constructor_name(object, owner, sizeof(owner));
+    snprintf(message, sizeof(message), "TypeError: Cannot assign to read only property '%s' of object '#<%s>'", field, owner);
+    scriptgo_throw_error_message(message);
+    return object_fail("assignment to a frozen object");
 }
 
 int scriptgo_object_number_set(void *handle, int64_t index, double value) {
@@ -838,6 +903,7 @@ int scriptgo_object_number_set(void *handle, int64_t index, double value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -870,6 +936,7 @@ int scriptgo_object_string_set(void *handle, int64_t index, const char *value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -913,6 +980,7 @@ int scriptgo_object_bool_set(void *handle, int64_t index, int32_t value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -952,6 +1020,7 @@ int scriptgo_object_bigint_set(void *handle, int64_t index, int64_t value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -984,6 +1053,7 @@ int scriptgo_object_ptr_set(void *handle, int64_t index, void *value) {
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
+    if (object_check_writable(o, index) != 0) return -1;
     if (index >= o->capacity) {
         return 0;
     }
@@ -1033,6 +1103,7 @@ int scriptgo_object_unknown_set(void *handle, int64_t index, const scriptgo_valu
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->capacity) {
         return 0;
     }
+    if (object_check_writable(o, index) != 0) return -1;
 	if (o->boxed_fields != NULL && (o->boxed_fields[index].flags != 0 || o->boxed_fields[index].payload != 0))
 		scriptgo_value_release(&o->boxed_fields[index]);
 	if ((value->flags & SCRIPTGO_VALUE_ENGINE_REF) != 0) {
@@ -1073,7 +1144,8 @@ int scriptgo_object_unknown_get(void *handle, int64_t index, scriptgo_value *out
 		return scriptgo_value_clone(out_value, &o->boxed_fields[index]);
 	}
     uintptr_t val = o->fields[index];
-    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS) {
+    if (val == (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS || val == (uintptr_t)&scriptgo_undefined_sentinel) {
+        /* undefined: an unset slot, or a pointer-typed field holding undefined */
     } else if (val == (uintptr_t)SCRIPTGO_OBJECT_NULL_BITS) {
         out_value->tag = SCRIPTGO_TAG_NULL;
     } else if (((uint64_t)val >> 32) == 2) {
@@ -1203,6 +1275,12 @@ static int object_property_index_for_set(void *handle, const char *property) {
     }
     index = object_field_index(object, property);
     if (index >= 0) return index;
+    if (!object->extensible || object->sealed || object->frozen) {
+        char message[384];
+        snprintf(message, sizeof(message), "TypeError: Cannot add property %s, object is not extensible", property);
+        scriptgo_throw_error_message(message);
+        return -1;
+    }
     if (is_class_descriptor(object->type_name)) return -1;
     /* Empty object literals become dictionary-backed once a dynamic key is assigned. */
     if (strcmp(object->type_name, "__shape_empty") == 0) {
@@ -1472,6 +1550,108 @@ int scriptgo_object_type_get(void *handle, const char **out_type) {
     return 0;
 }
 
+/* Reflect.set: like assignment, but reports false instead of throwing when
+ * the object's integrity level forbids the write. */
+int scriptgo_object_reflect_set(void *handle, const char *property, const scriptgo_value *value, int32_t *out_result) {
+    if (out_result == NULL || property == NULL || value == NULL) return object_fail("Reflect.set invalid arguments");
+    *out_result = 0;
+    if (object_is_array(handle)) return object_fail("Reflect.set on an array is not supported in the native subset");
+    if (is_invalid_object_handle(handle)) return object_fail("Reflect.set requires an object target");
+    if (find_engine_ref((uintptr_t)handle) == NULL) {
+        scriptgo_object *object = (scriptgo_object *)resolve_object_handle(handle, 0);
+        if (object != NULL && object->magic == SCRIPTGO_OBJECT_MAGIC) {
+            if (object->frozen) return 0;
+            if (object_field_index(object, property) < 0 && (!object->extensible || object->sealed)) return 0;
+        }
+    }
+    if (scriptgo_object_property_unknown_set(handle, property, value) != 0) return -1;
+    *out_result = 1;
+    return 0;
+}
+
+/* Reflect.deleteProperty: like delete, but reports false for a property of a
+ * sealed or frozen object instead of throwing. */
+int scriptgo_object_reflect_delete(void *handle, const char *property, int32_t *out_result) {
+    if (out_result == NULL || property == NULL) return object_fail("Reflect.deleteProperty invalid arguments");
+    *out_result = 0;
+    if (object_is_array(handle)) return object_fail("Reflect.deleteProperty on an array is not supported in the native subset");
+    if (is_invalid_object_handle(handle)) return object_fail("Reflect.deleteProperty requires an object target");
+    if (find_engine_ref((uintptr_t)handle) == NULL) {
+        scriptgo_object *object = (scriptgo_object *)resolve_object_handle(handle, 0);
+        if (object != NULL && object->magic == SCRIPTGO_OBJECT_MAGIC && (object->sealed || object->frozen) &&
+            object_field_index(object, property) >= 0) {
+            return 0;
+        }
+    }
+    return scriptgo_object_delete_property(handle, property, out_result);
+}
+
+typedef struct {
+    char *buffer;
+    size_t capacity;
+    size_t length;
+    int skip;
+    int dictionary;
+    int failed;
+} object_layout_writer;
+
+/* Re-encodes every field but writer->skip in the dictionary or key-list
+ * layout format. */
+static int object_layout_write(const char *name, size_t length, int index, void *context) {
+    object_layout_writer *writer = context;
+    if (index == writer->skip) return 0;
+    size_t room = writer->capacity - writer->length;
+    int written = writer->dictionary ? snprintf(writer->buffer + writer->length, room, "|%zu:%.*s", length, (int)length, name)
+                                     : snprintf(writer->buffer + writer->length, room, "%.*s:", (int)length, name);
+    if (written < 0 || (size_t)written >= room) {
+        writer->failed = 1;
+        return 1;
+    }
+    writer->length += (size_t)written;
+    return 0;
+}
+
+/* Removes field index from an object addressed by key name (an object
+ * literal's ":a:b:" key list or a "__json__" dictionary): the key leaves the
+ * layout and later fields shift down, so in, hasOwn and Object.keys no
+ * longer see it. Returns -1 for layouts with fixed indices (classes), which
+ * keep the slot and store undefined instead. */
+static int object_remove_named_field(scriptgo_object *obj, int index) {
+    const char *type_name = obj->type_name;
+    int dictionary = type_name != NULL && strncmp(type_name, "__json__", 8) == 0;
+    if (type_name == NULL || (!dictionary && type_name[0] != ':')) return -1;
+    size_t capacity = strlen(type_name) + 16;
+    char *rebuilt = malloc(capacity);
+    if (rebuilt == NULL) return -1;
+    size_t length = 0;
+    if (dictionary) {
+        memcpy(rebuilt, "__json__", 8);
+        length = 8;
+    } else {
+        rebuilt[length++] = ':';
+    }
+    object_layout_writer writer = {rebuilt, capacity, length, index, dictionary, 0};
+    object_field_visit(obj, object_layout_write, &writer);
+    if (writer.failed) {
+        free(rebuilt);
+        return -1;
+    }
+    length = writer.length;
+    rebuilt[length] = '\0';
+    if (obj->boxed_fields != NULL) {
+        if (obj->boxed_fields[index].flags != 0 || obj->boxed_fields[index].payload != 0) scriptgo_value_release(&obj->boxed_fields[index]);
+        memmove(&obj->boxed_fields[index], &obj->boxed_fields[index + 1], (size_t)(obj->field_count - index - 1) * sizeof(scriptgo_value));
+        memset(&obj->boxed_fields[obj->field_count - 1], 0, sizeof(scriptgo_value));
+    }
+    memmove(&obj->fields[index], &obj->fields[index + 1], (size_t)(obj->field_count - index - 1) * sizeof(uintptr_t));
+    obj->fields[obj->field_count - 1] = (uintptr_t)SCRIPTGO_OBJECT_NAN_BITS;
+    obj->field_count--;
+    if (obj->type_name_owned) free((void *)obj->type_name);
+    obj->type_name = rebuilt;
+    obj->type_name_owned = 1;
+    return 0;
+}
+
 int scriptgo_object_delete_property(void *handle, const char *property, int32_t *out_result) {
     if (out_result == NULL) return object_fail("scriptgo delete property null output");
     *out_result = 1;
@@ -1487,11 +1667,168 @@ int scriptgo_object_delete_property(void *handle, const char *property, int32_t 
     if (handle == NULL || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
     scriptgo_object *obj = (scriptgo_object *)handle;
     int index = object_field_index(obj, property);
+    if (index >= 0 && index < obj->field_count && (obj->sealed || obj->frozen)) {
+        char owner[128];
+        char message[384];
+        object_constructor_name(obj, owner, sizeof(owner));
+        snprintf(message, sizeof(message), "TypeError: Cannot delete property '%s' of #<%s>", property, owner);
+        scriptgo_throw_error_message(message);
+        return object_fail("delete on a sealed object");
+    }
+    if (index >= 0 && index < obj->field_count && object_remove_named_field(obj, index) == 0) {
+        return 0;
+    }
     if (index >= 0 && index < obj->field_count) {
         scriptgo_value undefined_val;
         scriptgo_value_init_undefined(&undefined_val);
         scriptgo_object_unknown_set(obj, index, &undefined_val);
     }
+    return 0;
+}
+
+int scriptgo_gc_add_root_slot(void *slot, int64_t word_count);
+
+/* Prototype objects are not modelled as property holders; getPrototypeOf
+ * returns one canonical token object per constructor name, so prototype
+ * identity comparisons (Object.getPrototypeOf(a) === Object.getPrototypeOf(b))
+ * behave as in JavaScript. Tokens are allocated once and kept as GC roots. */
+#define SCRIPTGO_PROTOTYPE_TOKENS 128
+static struct {
+    char name[64];
+    void *token;
+} scriptgo_prototype_tokens[SCRIPTGO_PROTOTYPE_TOKENS];
+static int scriptgo_prototype_token_count = 0;
+
+static void *scriptgo_prototype_token(const char *name, size_t length) {
+    if (length >= sizeof(scriptgo_prototype_tokens[0].name)) length = sizeof(scriptgo_prototype_tokens[0].name) - 1;
+    for (int i = 0; i < scriptgo_prototype_token_count; i++) {
+        if (strlen(scriptgo_prototype_tokens[i].name) == length &&
+            strncmp(scriptgo_prototype_tokens[i].name, name, length) == 0) {
+            return scriptgo_prototype_tokens[i].token;
+        }
+    }
+    if (scriptgo_prototype_token_count == SCRIPTGO_PROTOTYPE_TOKENS) return NULL;
+    int slot = scriptgo_prototype_token_count++;
+    memcpy(scriptgo_prototype_tokens[slot].name, name, length);
+    scriptgo_prototype_tokens[slot].name[length] = '\0';
+    if (scriptgo_object_new_typed(0, "__prototype__", &scriptgo_prototype_tokens[slot].token) != 0) return NULL;
+    scriptgo_gc_add_root_slot(&scriptgo_prototype_tokens[slot].token, 1);
+    return scriptgo_prototype_tokens[slot].token;
+}
+
+/* Object.getPrototypeOf for a reference: the token of the object's class
+ * (the most-derived class in its descriptor), Array for arrays, and Object
+ * for plain objects. */
+void *scriptgo_object_get_prototype(void *handle) {
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) return NULL;
+    if (scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2) {
+        return scriptgo_prototype_token("Array", 5);
+    }
+    if (!is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
+        const char *type_name = ((scriptgo_object *)handle)->type_name;
+        if (is_class_descriptor(type_name)) {
+            const char *cursor = type_name + 10;
+            char kind;
+            const char *value;
+            size_t value_length;
+            if (next_class_descriptor_token(&cursor, &kind, &value, &value_length) > 0 && kind == 'c') {
+                return scriptgo_prototype_token(value, value_length);
+            }
+        }
+    }
+    return scriptgo_prototype_token("Object", 6);
+}
+
+/* Object.getPrototypeOf for a boxed value: primitives report their wrapper
+ * constructor's prototype. */
+void *scriptgo_object_get_prototype_value(const scriptgo_value *value) {
+    if (value == NULL) return NULL;
+    switch (value->tag) {
+    case SCRIPTGO_TAG_NUMBER: return scriptgo_prototype_token("Number", 6);
+    case SCRIPTGO_TAG_STRING: return scriptgo_prototype_token("String", 6);
+    case SCRIPTGO_TAG_BOOLEAN: return scriptgo_prototype_token("Boolean", 7);
+    case SCRIPTGO_TAG_BIGINT: return scriptgo_prototype_token("BigInt", 6);
+    case SCRIPTGO_TAG_SYMBOL: return scriptgo_prototype_token("Symbol", 6);
+    case SCRIPTGO_TAG_FUNCTION: return scriptgo_prototype_token("Function", 8);
+    case SCRIPTGO_TAG_UNDEFINED:
+    case SCRIPTGO_TAG_NULL:
+        return NULL;
+    default:
+        return scriptgo_object_get_prototype((void *)(uintptr_t)value->payload);
+    }
+}
+
+/* Object.prototype.isPrototypeOf: only prototype tokens are prototypes in
+ * the native model, so an ordinary receiver is never in a chain. A token is
+ * in a value's chain when it names the value's class or one of its bases
+ * (from the class descriptor), Array for arrays, Function for functions, or
+ * Object for any object. Primitives have no chain to search. */
+int32_t scriptgo_object_is_prototype_of(void *receiver, const scriptgo_value *value) {
+    const char *name = NULL;
+    for (int i = 0; i < scriptgo_prototype_token_count; i++) {
+        if (scriptgo_prototype_tokens[i].token == receiver) {
+            name = scriptgo_prototype_tokens[i].name;
+            break;
+        }
+    }
+    if (name == NULL || value == NULL) return 0;
+    size_t name_length = strlen(name);
+    switch (value->tag) {
+    case SCRIPTGO_TAG_FUNCTION:
+        return strcmp(name, "Function") == 0 || strcmp(name, "Object") == 0;
+    case SCRIPTGO_TAG_ARRAY:
+    case SCRIPTGO_TAG_OBJECT:
+        break;
+    default:
+        return 0;
+    }
+    if (strcmp(name, "Object") == 0) return 1;
+    void *handle = (void *)(uintptr_t)value->payload;
+    if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) return 0;
+    if (value->tag == SCRIPTGO_TAG_ARRAY ||
+        (scriptgo_gc_is_registered(handle) && scriptgo_gc_get_tag(handle) == 2)) {
+        return strcmp(name, "Array") == 0;
+    }
+    if (is_invalid_object_handle(handle) || ((scriptgo_object *)handle)->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    const char *type_name = ((scriptgo_object *)handle)->type_name;
+    if (!is_class_descriptor(type_name)) return 0;
+    const char *cursor = type_name + 10;
+    char kind;
+    const char *class_name;
+    size_t class_length;
+    while (next_class_descriptor_token(&cursor, &kind, &class_name, &class_length) > 0) {
+        if ((kind == 'c' || kind == 'b') && class_length == name_length &&
+            memcmp(class_name, name, name_length) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Own-property presence for `in`, Object.hasOwn, hasOwnProperty and
+ * Reflect.has: a key the object's layout holds (objects keep only the keys
+ * they have), an array index or "length" of an array, or what the dynamic
+ * engine reports for its objects. */
+int scriptgo_object_has_own(void *handle, const char *key, int32_t *out_result) {
+    if (out_result == NULL) return object_fail("scriptgo has-property null output");
+    *out_result = 0;
+    if (is_invalid_object_handle(handle) || key == NULL) return 0;
+    scriptgo_engine_ref *ref = find_engine_ref((uintptr_t)handle);
+    if (ref != NULL) {
+        return scriptgo_dynamic_hook_has != NULL ? scriptgo_dynamic_hook_has(ref->handle, key, out_result) : 0;
+    }
+    if (object_is_array(handle)) {
+        char *end = NULL;
+        long long index = strtoll(key, &end, 10);
+        int64_t length = 0;
+        if (scriptgo_array_length(handle, &length) != 0) return -1;
+        *out_result = strcmp(key, "length") == 0 || (end != key && *end == '\0' && index >= 0 && index < length);
+        return 0;
+    }
+    if (!scriptgo_gc_is_registered(handle)) return 0;
+    scriptgo_object *object = (scriptgo_object *)resolve_object_handle(handle, 0);
+    if (object == NULL || object->magic != SCRIPTGO_OBJECT_MAGIC) return 0;
+    *out_result = object_field_index(object, key) >= 0;
     return 0;
 }
 
@@ -1593,109 +1930,55 @@ int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_set_owned_data(void *handle, void *owned_data);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
 
-static int object_key_count(const scriptgo_object *object) {
-    const char *cursor;
-    int count = 0;
+/* object_key_count and object_key_storage_size walk the layout once with
+ * object_field_visit, the parser property access uses, so every layout
+ * (class descriptor, dictionary, key list and dynamic extensions) agrees. */
+typedef struct {
+    int count;
+    size_t storage;
+} object_key_totals;
 
+static int object_key_total(const char *name, size_t length, int index, void *context) {
+    object_key_totals *totals = context;
+    (void)name;
+    (void)index;
+    totals->count++;
+    totals->storage += length + 1;
+    return 0;
+}
+
+static int object_key_count(const scriptgo_object *object) {
+    object_key_totals totals = {0, 0};
     if (object == NULL || object->type_name == NULL) return 0;
-    if (is_class_descriptor(object->type_name)) {
-        cursor = object->type_name + 10;
-        for (;;) {
-            char kind;
-            const char *value;
-            size_t value_length;
-            int token = next_class_descriptor_token(&cursor, &kind, &value, &value_length);
-            if (token <= 0) return token < 0 ? -1 : count;
-            if (kind == 'f') count++;
-        }
-    }
-    if (strncmp(object->type_name, "__json__", 8) == 0) {
-        cursor = object->type_name + 8;
-        while (*cursor != '\0') {
-            size_t key_length = 0;
-            if (*cursor++ != '|') return -1;
-            if (*cursor < '0' || *cursor > '9') return -1;
-            while (*cursor >= '0' && *cursor <= '9') {
-                key_length = key_length * 10 + (size_t)(*cursor - '0');
-                cursor++;
-            }
-            if (*cursor++ != ':' || strlen(cursor) < key_length) return -1;
-            cursor += key_length;
-            count++;
-        }
-        return count;
-    }
-    if (object->type_name[0] != ':') return 0;
-    cursor = object->type_name;
-    while (*cursor != '\0') {
-        const char *field_start;
-        const char *field_end;
-        if (*cursor == ':') cursor++;
-        field_start = cursor;
-        field_end = strchr(field_start, ':');
-        if (field_end == NULL) return -1;
-        if (field_end != field_start) count++;
-        cursor = field_end + 1;
-    }
-    return count;
+    object_field_visit(object, object_key_total, &totals);
+    return totals.count;
 }
 
 static int object_key_storage_size(const scriptgo_object *object, size_t *out_size) {
-    const char *cursor;
-    size_t total = 0;
-
+    object_key_totals totals = {0, 0};
     if (out_size == NULL) return -1;
-    *out_size = 0;
-    if (object == NULL || object->type_name == NULL) return 0;
-    if (is_class_descriptor(object->type_name)) {
-        cursor = object->type_name + 10;
-        for (;;) {
-            char kind;
-            const char *value;
-            size_t value_length;
-            int token = next_class_descriptor_token(&cursor, &kind, &value, &value_length);
-            if (token <= 0) return token < 0 ? -1 : (*out_size = total, 0);
-            if (kind == 'f') {
-                if (value_length > SIZE_MAX - total - 1) return -1;
-                total += value_length + 1;
-            }
-        }
+    if (object != NULL && object->type_name != NULL) object_field_visit(object, object_key_total, &totals);
+    *out_size = totals.storage;
+    return 0;
+}
+
+typedef struct {
+    void *array;
+    char *storage;
+    size_t offset;
+    int failed;
+} object_key_writer;
+
+static int object_key_write(const char *name, size_t length, int index, void *context) {
+    object_key_writer *writer = context;
+    char *key = writer->storage + writer->offset;
+    memcpy(key, name, length);
+    key[length] = '\0';
+    if (scriptgo_array_set(writer->array, (double)index, &key) != 0) {
+        writer->failed = 1;
+        return 1;
     }
-    if (strncmp(object->type_name, "__json__", 8) == 0) {
-        cursor = object->type_name + 8;
-        while (*cursor != '\0') {
-            size_t key_length = 0;
-            if (*cursor++ != '|') return -1;
-            if (*cursor < '0' || *cursor > '9') return -1;
-            while (*cursor >= '0' && *cursor <= '9') {
-                key_length = key_length * 10 + (size_t)(*cursor - '0');
-                cursor++;
-            }
-            if (*cursor++ != ':' || strlen(cursor) < key_length) return -1;
-            if (key_length > SIZE_MAX - total - 1) return -1;
-            total += key_length + 1;
-            cursor += key_length;
-        }
-        *out_size = total;
-        return 0;
-    }
-    if (object->type_name[0] != ':') return 0;
-    cursor = object->type_name;
-    while (*cursor != '\0') {
-        const char *field_start;
-        const char *field_end;
-        if (*cursor == ':') cursor++;
-        field_start = cursor;
-        field_end = strchr(field_start, ':');
-        if (field_end == NULL) return -1;
-        if (field_end != field_start) {
-            size_t field_length = (size_t)(field_end - field_start);
-            if (field_length > SIZE_MAX - total - 1) return -1;
-            total += field_length + 1;
-        }
-        cursor = field_end + 1;
-    }
-    *out_size = total;
+    writer->offset += length + 1;
     return 0;
 }
 
@@ -1743,70 +2026,13 @@ int scriptgo_object_keys(void *handle, void **out_array) {
             return object_fail("scriptgo object key allocation failed");
         }
     }
-    if (object->type_name != NULL && count > 0) {
-        const char *cursor = object->type_name;
-        if (is_class_descriptor(object->type_name)) {
-            cursor += 10;
-            while (*cursor != '\0') {
-                char kind;
-                const char *value;
-                size_t value_length;
-                if (next_class_descriptor_token(&cursor, &kind, &value, &value_length) <= 0) break;
-                if (kind == 'f') {
-                    char *key = storage + storage_offset;
-                    memcpy(key, value, value_length);
-                    key[value_length] = '\0';
-                    if (scriptgo_array_set(*out_array, (double)index, &key) != 0) {
-                        scriptgo_array_release(*out_array);
-                        *out_array = NULL;
-                        return object_fail("scriptgo object key allocation failed");
-                    }
-                    storage_offset += value_length + 1;
-                    index++;
-                }
-            }
-        } else if (strncmp(object->type_name, "__json__", 8) == 0) {
-            cursor += 8;
-            while (*cursor != '\0') {
-                size_t key_length = 0;
-                cursor++;
-                while (*cursor >= '0' && *cursor <= '9') {
-                    key_length = key_length * 10 + (size_t)(*cursor - '0');
-                    cursor++;
-                }
-                cursor++;
-                char *key = storage + storage_offset;
-                memcpy(key, cursor, key_length);
-                key[key_length] = '\0';
-                if (scriptgo_array_set(*out_array, (double)index, &key) != 0) {
-                    scriptgo_array_release(*out_array);
-                    *out_array = NULL;
-                    return object_fail("scriptgo object key allocation failed");
-                }
-                storage_offset += key_length + 1;
-                index++;
-                cursor += key_length;
-            }
-        } else if (object->type_name[0] == ':') {
-            while (*cursor != '\0') {
-                const char *start = cursor;
-                const char *end = strchr(start, ':');
-                if (end == NULL) break;
-                if (end != start) {
-                    size_t key_length = (size_t)(end - start);
-                    char *key = storage + storage_offset;
-                    memcpy(key, start, key_length);
-                    key[key_length] = '\0';
-                    if (scriptgo_array_set(*out_array, (double)index, &key) != 0) {
-                        scriptgo_array_release(*out_array);
-                        *out_array = NULL;
-                        return object_fail("scriptgo object key allocation failed");
-                    }
-                    storage_offset += key_length + 1;
-                    index++;
-                }
-                cursor = end + 1;
-            }
+    if (count > 0) {
+        object_key_writer writer = {*out_array, storage, storage_offset, 0};
+        object_field_visit(object, object_key_write, &writer);
+        if (writer.failed) {
+            scriptgo_array_release(*out_array);
+            *out_array = NULL;
+            return object_fail("scriptgo object key allocation failed");
         }
     }
     return 0;

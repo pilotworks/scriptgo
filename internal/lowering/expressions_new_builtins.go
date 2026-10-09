@@ -88,6 +88,12 @@ func lowerNewWeakMap(path string, expression *frontend.SyntaxExpression, result 
 
 func lowerNewArray(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	if len(expression.Arguments) == 1 {
+		if argType := toIRType(expression.Arguments[0].InferredType); argType != "" && argType != ir.TypeNumber && argType != ir.TypeUnknown {
+			// new Array(x) with a non-number x is the one-element array [x];
+			// only a number argument is a length.
+			literal := &frontend.SyntaxExpression{Span: expression.Span, Kind: "array", Arguments: expression.Arguments, InferredType: expression.InferredType}
+			return lowerExpression(path, literal, result, function, env, counter, shapes, signatures)
+		}
 		lenVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err

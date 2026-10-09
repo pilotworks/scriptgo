@@ -65,7 +65,7 @@ func lowerCallExpression(
 			if !isIndexedCall {
 				receiver, receiverType, err := lowerExpression(path, expression.Left.Left, "", function, env, counter, shapes, signatures)
 				if err == nil {
-					if methodName == "then" || methodName == "catch" {
+					if (methodName == "then" || methodName == "catch") && isPromiseReceiverType(receiverType) {
 						return lowerPromiseThenCatchCall(path, expression, result, function, env, counter, shapes, signatures, methodName, receiver)
 					}
 					if res, typ, handled, err := lowerWeakReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
@@ -153,6 +153,9 @@ func lowerCallExpression(
 					if res, typ, handled, err := lowerIteratorReceiverMethod(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
 						return res, typ, err
 					}
+					if res, typ, handled, err := lowerFunctionValueMethod(path, expression, receiver, receiverType, methodName, result, function, env, counter, shapes, signatures); handled {
+						return res, typ, err
+					}
 					className := strings.TrimPrefix(string(receiverType), "object:")
 					className = classIdentityForPath(path, className)
 					if className != "" && className != "number" && className != "string" && className != "bool" && className != "void" {
@@ -164,34 +167,19 @@ func lowerCallExpression(
 								return lowerHasOwnPropertyCall(path, expression, result, function, env, counter, shapes, signatures, receiver)
 							}
 						}
-						if methodName == "isPrototypeOf" {
+						if methodName == "isPrototypeOf" && len(expression.Arguments) == 1 {
+							value, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+							if err != nil {
+								return "", "", err
+							}
 							if result == "" {
 								result = nextTemp(counter)
 							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeBool,
-								Result: result,
-								Value:  "false",
-								Span:   toIRSpan(path, expression.Span),
-							})
+							function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__object.isPrototypeOf", Args: []string{receiver, value}, Span: toIRSpan(path, expression.Span)})
 							return result, ir.TypeBool, nil
 						}
-						if methodName == "toString" || methodName == "toLocaleString" {
-							if result == "" {
-								result = nextTemp(counter)
-							}
-							function.Body = append(function.Body, ir.Instruction{
-								Op:     ir.OpConst,
-								Type:   ir.TypeString,
-								Result: result,
-								Value:  "[object Object]",
-								Span:   toIRSpan(path, expression.Span),
-							})
-							return result, ir.TypeString, nil
-						}
-						if methodName == "valueOf" {
-							return receiver, receiverType, nil
+						if value, typ, handled := lowerInheritedObjectMethod(path, expression, receiver, receiverType, className, methodName, result, function, counter, shapes); handled {
+							return value, typ, nil
 						}
 						propVal, propType, err := lowerPropertyExpression(path, &frontend.SyntaxExpression{
 							Span:         expression.Left.Span,
@@ -437,7 +425,7 @@ func lowerCallExpression(
 			if !strings.HasPrefix(value, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
 				if sig, isSig := signatures[value]; isSig {
 					closureSlot := nextTemp(counter)
-					calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+					calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 					function.Body = append(function.Body, ir.Instruction{
 						Op:     ir.OpClosure,
 						Type:   ir.TypeClosure,
@@ -557,7 +545,7 @@ func lowerCallExpression(
 						if !strings.HasPrefix(val, "%") && valType != ir.TypeVoid && valType != "null" && valType != "ptr" {
 							if sig, isSig := signatures[val]; isSig {
 								closureSlot := nextTemp(counter)
-								calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+								calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 								function.Body = append(function.Body, ir.Instruction{
 									Op:     ir.OpClosure,
 									Type:   ir.TypeClosure,

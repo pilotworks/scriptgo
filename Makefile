@@ -1,4 +1,4 @@
-.PHONY: all build test test-frontend test-parity test-262 test-sanitizers audit lint clean release help
+.PHONY: all build test test-frontend test-parity test-262 test-262-baseline test-sanitizers audit lint clean release help
 
 BINARY_NAME=scriptgo
 ALIAS_NAME=scg
@@ -32,6 +32,13 @@ TEST262_PATHS ?= language/expressions,language/statements,built-ins/Math,built-i
 test-262:
 	@test -n "$(TEST262_ROOT)" || (echo "set TEST262_ROOT to a tc39/test262 checkout" && exit 2)
 	go run ./cmd/test262 -root $(TEST262_ROOT) -paths $(TEST262_PATHS)
+
+## test-262-baseline: Fail if a test in the recorded passing baseline regresses (CI gate)
+TEST262_REV ?= 2e0a56762801e275a9fdf96dc49d90ba0cddcf63
+TEST262_BASELINE ?= internal/test262/testdata/baseline.txt
+test-262-baseline:
+	@test -n "$(TEST262_ROOT)" || (echo "set TEST262_ROOT to a tc39/test262 checkout at $(TEST262_REV)" && exit 2)
+	go run ./cmd/test262 -root $(TEST262_ROOT) -list $(TEST262_BASELINE) -require-pass -reasons 5
 
 ## audit: Run official Node.js API coverage audit against corpus tests (Source of Truth)
 audit:

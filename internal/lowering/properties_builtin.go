@@ -188,20 +188,27 @@ func tryLowerTextDecoderProperty(path string, expression *frontend.SyntaxExpress
 	return "", "", false, nil
 }
 
+var regExpFlagLetters = map[string]string{
+	"global": "g", "ignoreCase": "i", "multiline": "m", "dotAll": "s",
+	"unicode": "u", "sticky": "y", "hasIndices": "d", "unicodeSets": "v",
+}
+
 func tryLowerRegExpProperty(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, counter *int, object string) (string, ir.Type, bool, error) {
 	switch expression.Text {
 	case "global", "ignoreCase", "multiline", "dotAll", "unicode", "sticky", "hasIndices", "unicodeSets":
 		if *result == "" {
 			*result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeBool,
-			Result: *result,
-			Callee: "__regexp." + expression.Text,
-			Args:   []string{object},
-			Span:   toIRSpan(path, expression.Span),
-		})
+		// Each flag accessor reports whether its letter is in the stored
+		// flags string.
+		span := toIRSpan(path, expression.Span)
+		flags := nextTemp(counter)
+		letter := nextTemp(counter)
+		function.Body = append(function.Body,
+			ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flags, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{object}, Span: span},
+			ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: letter, Value: regExpFlagLetters[expression.Text], Span: span},
+			ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: *result, Callee: "__string.includes", Args: []string{flags, letter}, Span: span},
+		)
 		return *result, ir.TypeBool, true, nil
 	case "lastIndex":
 		if *result == "" {

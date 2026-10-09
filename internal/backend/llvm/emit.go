@@ -214,7 +214,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 			}
 			paramTypes = append(paramTypes, pType)
 		}
-		out.WriteString(fmt.Sprintf("declare %s @%s(%s)\n", retType, mangleFunctionName(ext.Name), strings.Join(paramTypes, ", ")))
+		out.WriteString(fmt.Sprintf("declare %s %s(%s)\n", retType, functionSymbol(mangleFunctionName(ext.Name)), strings.Join(paramTypes, ", ")))
 	}
 	out.WriteString("\n")
 
@@ -260,7 +260,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 				}
 			}
 		}
-		out.WriteString(fmt.Sprintf("@%s = global %s %s\n", g.Name, gType, initVal))
+		out.WriteString(fmt.Sprintf("%s = global %s %s\n", functionSymbol(g.Name), gType, initVal))
 	}
 	out.WriteString("\ndefine internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind readnone willreturn {\nentry:\n  %abs = call double @llvm.fabs.f64(double %val)\n  %in_range = fcmp olt double %abs, 2147483648.0\n  br i1 %in_range, label %fast, label %slow\n\nfast:\n  %i32_fast = fptosi double %val to i32\n  ret i32 %i32_fast\n\nslow:\n  %i32_slow = call i32 @scriptgo_to_int32(double %val)\n  ret i32 %i32_slow\n}\n\n")
 

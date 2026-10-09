@@ -377,10 +377,15 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 				switch propNode.Kind {
 				case ast.KindPropertyAssignment:
 					prop := propNode.AsPropertyAssignment()
+					key, ok := objectLiteralKey(prop.Name(), chk)
+					if !ok {
+						result.Arguments = append(result.Arguments, unsupportedComputedKey(propNode))
+						continue
+					}
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),
 						Kind:         "property_assignment",
-						Text:         syntaxMemberName(prop.Name()),
+						Text:         key,
 						Left:         syntaxExpression(prop.Initializer, chk),
 						InferredType: resolveInferredType(chk, propNode),
 					})
@@ -403,7 +408,11 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 						InferredType: resolveInferredType(chk, propNode),
 					})
 				case ast.KindMethodDeclaration:
-					name := syntaxMemberName(propNode.Name())
+					name, ok := objectLiteralKey(propNode.Name(), chk)
+					if !ok {
+						result.Arguments = append(result.Arguments, unsupportedComputedKey(propNode))
+						continue
+					}
 					result.Arguments = append(result.Arguments, &SyntaxExpression{
 						Span:         sourceSpan(propNode),
 						Kind:         "property_assignment",

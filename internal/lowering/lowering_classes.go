@@ -64,7 +64,8 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 		if statement.Class.Extends != "" {
 			var superArgs []*frontend.SyntaxExpression
 			baseClass := qualifyClassType(fileName, statement.Class.Extends)
-			if baseCtor, _, found := findConstructorInHierarchy(baseClass, signatures, hierarchy); found && len(baseCtor.Parameters) > 1 {
+			baseCtor, _, found := findConstructorInHierarchy(baseClass, signatures, hierarchy)
+			if found && len(baseCtor.Parameters) > 1 {
 				for _, p := range baseCtor.Parameters[1:] {
 					ctorParams = append(ctorParams, frontend.SyntaxParameter{
 						Name: p.Name,
@@ -76,6 +77,11 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 						Text: p.Name,
 					})
 				}
+			} else if !found && extendsBuiltinError(baseClass, hierarchy) {
+				// The implicit constructor forwards its arguments to super();
+				// Error and its native subclasses take an optional message.
+				ctorParams = append(ctorParams, frontend.SyntaxParameter{Name: "message", Type: "string", Optional: true})
+				superArgs = append(superArgs, &frontend.SyntaxExpression{Span: statement.Span, Kind: "identifier", Text: "message"})
 			}
 			ctorBody = append(ctorBody, frontend.SyntaxStatement{
 				Span: statement.Span,
@@ -169,7 +175,7 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 			case frontend.StaticElementField:
 				f := elem.Field
 				if f != nil && f.IsStatic && f.Initializer != nil {
-					staticVar := className + "_" + f.Name
+					staticVar := staticFieldGlobal(className, f.Name)
 					_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, main, env, counter, shapes, signatures)
 					if err == nil {
 						env[staticVar] = valType
@@ -186,7 +192,7 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 	} else {
 		for _, f := range statement.Class.Fields {
 			if f.IsStatic && f.Initializer != nil {
-				staticVar := className + "_" + f.Name
+				staticVar := staticFieldGlobal(className, f.Name)
 				_, valType, err := lowerExpression(fileName, f.Initializer, staticVar, main, env, counter, shapes, signatures)
 				if err == nil {
 					env[staticVar] = valType
@@ -205,4 +211,22 @@ func lowerClassDeclaration(fileName string, statement frontend.SyntaxStatement, 
 		return fmt.Errorf("lower class %s decorators: %w", statement.Class.Name, err)
 	}
 	return nil
+}
+
+// extendsBuiltinError reports a class whose user-class chain ends at Error or
+// one of the native error constructors.
+func extendsBuiltinError(className string, hierarchy map[string]ClassMeta) bool {
+	curr := cleanGenericBase(className)
+	for seen := map[string]bool{}; curr != "" && !seen[curr]; {
+		seen[curr] = true
+		if curr == "Error" || builtinErrorBase[curr] != "" {
+			return true
+		}
+		meta, ok := hierarchy[curr]
+		if !ok {
+			return false
+		}
+		curr = cleanGenericBase(meta.Extends)
+	}
+	return false
 }

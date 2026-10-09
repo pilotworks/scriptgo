@@ -65,6 +65,9 @@ static const char *scriptgo_tag_name(unsigned int tag) {
 }
 
 void scriptgo_throw_string(const char *str);
+void scriptgo_throw_error_message(const char *text);
+int scriptgo_object_new_typed(int64_t field_count, const char *type_name, void **out_object);
+int scriptgo_error_capture_stack(const char *name, const char *msg, char **out_stack);
 
 void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected_tag, const char *span) {
     char msg[256];
@@ -78,7 +81,7 @@ void __scriptgo_fail_checked_cast(unsigned int actual_tag, unsigned int expected
                  scriptgo_tag_name(actual_tag),
                  scriptgo_tag_name(expected_tag));
     }
-    scriptgo_throw_string(msg);
+    scriptgo_throw_error_message(msg);
 }
 
 int32_t scriptgo_is_truthy_unknown(const scriptgo_value *value) {
@@ -198,6 +201,40 @@ typedef struct {
 
 int scriptgo_gc_is_registered(void *ptr);
 
+int scriptgo_object_instanceof(void *handle, const char *class_name, int32_t *out_result);
+int scriptgo_error_to_string(void *obj, char **out_str);
+int scriptgo_gc_get_tag(void *ptr);
+int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_str);
+
+int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
+int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1, const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4, scriptgo_value *out_value);
+int scriptgo_string_from_number(double value, char **out_str);
+
+/* ToString of an object whose own toString property is a function (an
+ * object literal method) calls it: 1 with *out_str set, 0 when the object
+ * has no such method, -1 on failure. Class methods are dispatched
+ * statically by lowering and never reach here. */
+static int scriptgo_object_own_to_string(void *obj, char **out_str) {
+    scriptgo_value method;
+    scriptgo_value_init_undefined(&method);
+    if (scriptgo_object_property_unknown_get(obj, "toString", &method) != 0 || method.tag != SCRIPTGO_TAG_FUNCTION) {
+        return 0;
+    }
+    scriptgo_value result;
+    scriptgo_value_init_undefined(&result);
+    if (scriptgo_closure_invoke_value((void *)(uintptr_t)method.payload, 0, NULL, NULL, NULL, NULL, &result) != 0) return -1;
+    if (result.tag == SCRIPTGO_TAG_STRING) {
+        *out_str = strdup((const char *)(uintptr_t)result.payload);
+    } else if (result.tag == SCRIPTGO_TAG_NUMBER) {
+        double number;
+        memcpy(&number, &result.payload, sizeof(number));
+        return scriptgo_string_from_number(number, out_str) == 0 ? 1 : -1;
+    } else {
+        return 0;
+    }
+    return *out_str != NULL ? 1 : -1;
+}
+
 int scriptgo_string_from_object(void *obj, char **out_str) {
     if (out_str == NULL) {
         return -1;
@@ -231,15 +268,19 @@ int scriptgo_string_from_object(void *obj, char **out_str) {
             return 0;
         }
     }
+    if (scriptgo_gc_is_registered(obj) && scriptgo_gc_get_tag(obj) == 2 /* array */) {
+        return scriptgo_array_join_unknown(obj, NULL, out_str);
+    }
     if (scriptgo_gc_is_registered(obj)) {
         scriptgo_object_t *o = (scriptgo_object_t *)obj;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
-            if (o->type_name != NULL && (strcmp(o->type_name, "Error") == 0 || strstr(o->type_name, "Error") != NULL)) {
-                if (o->field_count > 0 && o->fields[0] != 0 && (uint64_t)o->fields[0] != 0x7FF8000000000000ULL) {
-                    *out_str = strdup((const char *)o->fields[0]);
-                    return 0;
-                }
+            int32_t is_error = 0;
+            if (scriptgo_object_instanceof(obj, "Error", &is_error) == 0 && is_error) {
+                /* Error.prototype.toString: "name: message" */
+                return scriptgo_error_to_string(obj, out_str);
             }
+            int own = scriptgo_object_own_to_string(obj, out_str);
+            if (own != 0) return own < 0 ? -1 : 0;
             *out_str = strdup("[object Object]");
             return 0;
         }
@@ -326,11 +367,22 @@ static void scriptgo_uncaught_value(const scriptgo_value *value) {
     if (value == NULL) exit(1);
     if (value->tag == SCRIPTGO_TAG_OBJECT || value->tag == SCRIPTGO_TAG_ARRAY ||
         value->tag == SCRIPTGO_TAG_FUNCTION) {
-        fprintf(stderr, "Uncaught exception object: %p\n", (void *)(uintptr_t)value->payload);
+        void *object = (void *)(uintptr_t)value->payload;
+        int32_t is_error = 0;
+        char *text = NULL;
+        if (scriptgo_object_instanceof(object, "Error", &is_error) == 0 && is_error &&
+            scriptgo_error_to_string(object, &text) == 0 && text != NULL) {
+            fprintf(stderr, "Uncaught exception: %s\n", text);
+            free(text);
+        } else {
+            fprintf(stderr, "Uncaught exception object: %p\n", object);
+        }
     } else if (value->tag == SCRIPTGO_TAG_NUMBER) {
         double number;
+        char text[64];
         memcpy(&number, &value->payload, sizeof(number));
-        fprintf(stderr, "Uncaught exception: %g\n", number);
+        scriptgo_number_format(number, text, sizeof(text));
+        fprintf(stderr, "Uncaught exception: %s\n", text);
     } else if (value->tag == SCRIPTGO_TAG_BOOLEAN) {
         fprintf(stderr, "Uncaught exception: %s\n", value->payload ? "true" : "false");
     } else if (value->tag == SCRIPTGO_TAG_STRING) {
@@ -398,6 +450,52 @@ void scriptgo_throw_string(const char *str) {
     } else {
         scriptgo_value_string_borrow(str ? str : "", str ? strlen(str) : 0, &value);
     }
+    scriptgo_exception_throw_copy(&value);
+}
+
+/* scriptgo_throw_error_message throws a runtime-detected failure such as
+ * "TypeError: ..." as an instance of the named built-in error, so catch
+ * bindings see the same value JavaScript would (instanceof, name, message).
+ * Text without a known error-name prefix becomes a plain Error. */
+void scriptgo_throw_error_message(const char *text) {
+    static const struct { const char *name; const char *descriptor; } kinds[] = {
+        {"TypeError", "__class__|c9:TypeError|b5:Error"},
+        {"RangeError", "__class__|c10:RangeError|b5:Error"},
+        {"SyntaxError", "__class__|c11:SyntaxError|b5:Error"},
+        {"ReferenceError", "__class__|c14:ReferenceError|b5:Error"},
+        {"URIError", "__class__|c8:URIError|b5:Error"},
+        {"EvalError", "__class__|c9:EvalError|b5:Error"},
+    };
+    const char *name = "Error";
+    const char *descriptor = "__class__|c5:Error";
+    const char *message = text != NULL ? text : "";
+    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+        size_t len = strlen(kinds[i].name);
+        if (strncmp(message, kinds[i].name, len) == 0 && message[len] == ':' && message[len + 1] == ' ') {
+            name = kinds[i].name;
+            descriptor = kinds[i].descriptor;
+            message += len + 2;
+            break;
+        }
+    }
+    void *object = NULL;
+    char *stack = NULL;
+    char *owned_message = strdup(message);
+    if (owned_message == NULL || scriptgo_object_new_typed(4, descriptor, &object) != 0) {
+        scriptgo_throw_string(text);
+        return;
+    }
+    if (scriptgo_error_capture_stack(name, owned_message, &stack) != 0) stack = NULL;
+    scriptgo_object_t *error = (scriptgo_object_t *)object;
+    error->fields[0] = (uintptr_t)owned_message;
+    error->fields[1] = (uintptr_t)name;
+    error->fields[2] = (uintptr_t)(stack != NULL ? stack : "");
+    error->fields[3] = (uintptr_t)"";
+    scriptgo_value value;
+    value.tag = SCRIPTGO_TAG_OBJECT;
+    value.flags = 0;
+    value.payload = (uint64_t)(uintptr_t)object;
+    value.aux = 0;
     scriptgo_exception_throw_copy(&value);
 }
 

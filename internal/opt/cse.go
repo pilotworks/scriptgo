@@ -150,7 +150,8 @@ func (p *csePass) expressionKey(inst ir.Instruction) string {
 		}
 	case ir.OpFieldGet:
 		if len(inst.Args) == 1 {
-			return fmt.Sprintf("field.get:%s:%s:%d", inst.Type, inst.Args[0], inst.FieldIndex)
+			// Object first so invalidateObject's "field.get:<obj>:" prefix matches.
+			return fmt.Sprintf("field.get:%s:%d:%s", inst.Args[0], inst.FieldIndex, inst.Type)
 		}
 	case ir.OpBinary, ir.OpCompare:
 		if len(inst.Args) == 2 {

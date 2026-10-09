@@ -1,9 +1,17 @@
 package lowering
 
 import (
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
+
+// isPromiseReceiverType reports receivers whose then/catch are
+// Promise.prototype methods; other objects may define methods with those names.
+func isPromiseReceiverType(receiverType ir.Type) bool {
+	return strings.HasPrefix(string(receiverType), "object:Promise")
+}
 
 func lowerPromiseThenCatchCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, methodName string, receiver string) (string, ir.Type, error) {
 	args := []string{receiver}
@@ -94,20 +102,17 @@ func lowerNumberFormatCall(path string, expression *frontend.SyntaxExpression, r
 }
 
 func lowerHasOwnPropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string) (string, ir.Type, error) {
-	propVal, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+	propVal, propType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
 	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpCall,
-		Type:   ir.TypeBool,
-		Result: result,
-		Callee: "__object.hasOwn",
-		Args:   []string{receiver, propVal},
-		Span:   toIRSpan(path, expression.Span),
-	})
+	span := toIRSpan(path, expression.Span)
+	if propVal, err = propertyKeyString(function, counter, span, propVal, propType); err != nil {
+		return "", "", err
+	}
+	emitHasOwnProperty(function, counter, span, result, receiver, propVal, false)
 	return result, ir.TypeBool, nil
 }

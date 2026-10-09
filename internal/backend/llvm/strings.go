@@ -23,7 +23,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 	case "__string.indexOf", "__string.lastIndexOf", "__string.startsWith", "__string.endsWith", "__string.includes", "__string.replace", "__string.replaceAll", "__string.split", "__string.match", "__string.search", "__string.replace_regex", "__string.matchAll", "__string.localeCompare":
 		return e.emitStringSearchIntrinsic(out, instruction, status)
 
-	case "__string.fromNumber", "__string.fromBool", "__string.fromUnknown", "__string.fromObject", "__string.inspectObject", "__string.inspectBuffer", "__string.inspectArray", "__string.fromBigInt", "__string.fromBigIntLocale", "__string.errorToString", "__string.fromCodePoint", "__string.fromCharCode", "__string.encodeURIComponent", "__string.decodeURIComponent", "__string.encodeURI", "__string.decodeURI", "__string.raw", "__string.new":
+	case "__string.fromNumber", "__string.inspectNumber", "__string.fromBool", "__string.fromUnknown", "__string.fromObject", "__string.inspectObject", "__string.inspectBuffer", "__string.inspectArray", "__string.fromBigInt", "__string.fromBigIntLocale", "__string.errorToString", "__string.fromCodePoint", "__string.fromCharCode", "__string.encodeURIComponent", "__string.decodeURIComponent", "__string.encodeURI", "__string.decodeURI", "__string.raw", "__string.new":
 		return e.emitStringConversionIntrinsic(out, instruction, status)
 
 	case "__string.slice", "__string.substring":
@@ -161,6 +161,17 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s.f64 = load double, ptr %%__slot_double\n", instruction.Result)
 		fmt.Fprintf(out, "  %%%s = fcmp one double %%%s.f64, 0.0\n", instruction.Result, instruction.Result)
+	case "__string.normalize":
+		if len(instruction.Args) < 1 || len(instruction.Args) > 2 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("string.normalize has invalid signature")
+		}
+		form := "null"
+		if len(instruction.Args) == 2 {
+			form = "%" + instruction.Args[1]
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_normalize(ptr %%%s, ptr %s, ptr %%__slot_ptr)\n", status, instruction.Args[0], form)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.toWellFormed":
 		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
 			return fmt.Errorf("string.toWellFormed has invalid signature")
@@ -191,24 +202,6 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 
 	default:
-		if strings.HasPrefix(instruction.Callee, "__string.") {
-			if instruction.Type == ir.TypeString {
-				if len(instruction.Args) > 0 {
-					fmt.Fprintf(out, "  %%%s = bitcast ptr %%%s to ptr\n", instruction.Result, instruction.Args[0])
-				} else {
-					fmt.Fprintf(out, "  %%%s = alloca i8\n", instruction.Result)
-				}
-				return nil
-			}
-			if instruction.Type == ir.TypeNumber {
-				fmt.Fprintf(out, "  %%%s = fadd double 0.0, 0.0\n", instruction.Result)
-				return nil
-			}
-			if instruction.Type == ir.TypeBool {
-				fmt.Fprintf(out, "  %%%s = icmp eq i32 1, 1\n", instruction.Result)
-				return nil
-			}
-		}
 		return fmt.Errorf("unknown string intrinsic %q", instruction.Callee)
 	}
 	return nil

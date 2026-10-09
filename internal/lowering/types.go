@@ -98,6 +98,11 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 	if idx := strings.Index(base, "<"); idx != -1 {
 		base = base[:idx]
 	}
+	if isSettledResultType(base) && !strings.HasSuffix(value, "[]") && !strings.HasSuffix(value, "_arr") {
+		// Settled results are { status, value } or { status, reason }
+		// runtime objects read by property name (see async/combinators.c).
+		return ir.TypeObject
+	}
 	if aliased, ok := typeAliasesIndex[base]; ok && aliased != base {
 		if strings.Contains(aliased, "=>") && !strings.HasPrefix(aliased, "{") {
 			return ir.TypeClosure
@@ -411,6 +416,15 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 				return toIRType(strings.Join(kept, " | "))
 			}
 		}
+		if base == "IteratorObject" {
+			// Iterator helpers run over a materialized copy of the sequence,
+			// so an IteratorObject<T> is stored as a T[] (see calls_iterator.go).
+			elemType := "unknown"
+			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" {
+				elemType = typeArgs[0]
+			}
+			return toIRType(elemType + "[]")
+		}
 		if base == "IteratorResult" {
 			elemType := "number"
 			if len(typeArgs) > 0 && typeArgs[0] != "" && typeArgs[0] != "any" && typeArgs[0] != "unknown" {
@@ -530,6 +544,10 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		return ir.TypeClosure
 	case "unknown", "any":
 		return ir.TypeUnknown
+	case "object":
+		// The `object` keyword (and an element of object[]) is a dynamic
+		// object, not a class named "object".
+		return ir.TypeObject
 	case "unknown[]", "any[]":
 		return ir.TypeUnknownArray
 	case "Uint8Array":
@@ -637,4 +655,9 @@ func toIRTypeInternal(value string, visited map[string]bool) ir.Type {
 		}
 		return ir.Type("object:" + value)
 	}
+}
+
+func isSettledResultType(name string) bool {
+	name = strings.TrimPrefix(name, "object:")
+	return name == "PromiseSettledResult" || name == "PromiseFulfilledResult" || name == "PromiseRejectedResult"
 }

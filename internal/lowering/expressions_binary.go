@@ -72,6 +72,7 @@ func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, r
 		(leftType == ir.TypeString || rightType == ir.TypeString || toIRType(expression.InferredType) == ir.TypeString) {
 		left, leftType, right, rightType = boxUnknownConcatenationOperands(path, expression, function, counter, left, leftType, right, rightType)
 	}
+	coerceBoolOperandsToNumber(path, expression, function, counter, &left, &leftType, &right, &rightType)
 	if leftType != rightType {
 		if value, valueType, handled, err := tryLowerMixedTypeBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, &rightType); handled {
 			return value, valueType, err

@@ -327,7 +327,7 @@ func handleRun(args []string) {
 	cmd.Stdin = os.Stdin
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitErr.ExitCode())
+			os.Exit(childExitCode("scriptgo", exitErr))
 		}
 		fmt.Fprintf(os.Stderr, "scriptgo: %v\n", err)
 		os.Exit(1)

@@ -139,7 +139,7 @@ func TestConstFold_AlgebraicIdentities(t *testing.T) {
 		Parameters: []ir.Parameter{{Name: "x", Type: ir.TypeNumber}},
 		Body: []ir.Instruction{
 			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"},
-			{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "+", Result: "res1", Args: []string{"x", "zero"}},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "-", Result: "res1", Args: []string{"x", "zero"}},
 			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "one", Value: "1"},
 			{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "*", Result: "res2", Args: []string{"res1", "one"}},
 			{Op: ir.OpReturn, Type: ir.TypeNumber, Result: "res2", Args: []string{"res2"}},
@@ -342,4 +342,67 @@ func TestConstFoldPreservesNegativeZero(t *testing.T) {
 		}
 	}
 	t.Fatal("product instruction missing after folding")
+}
+
+func TestConstFoldKeepsAdditionOfPositiveZero(t *testing.T) {
+	// -0 + 0 is +0, so x + 0 must not be simplified to x.
+	m := ir.Module{Functions: []ir.Function{{
+		Name:       "testFn",
+		ReturnType: ir.TypeNumber,
+		Parameters: []ir.Parameter{{Name: "x", Type: ir.TypeNumber}},
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "zero", Value: "0"},
+			{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "+", Result: "sum", Args: []string{"x", "zero"}},
+			{Op: ir.OpReturn, Type: ir.TypeNumber, Args: []string{"sum"}},
+		},
+	}}}
+	optMod, err := Optimize(m, Options{Level: "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := optMod.Functions[0].Body
+	if ret := body[len(body)-1]; len(ret.Args) == 0 || ret.Args[0] == "x" {
+		t.Fatalf("x + 0 was simplified to x: %+v", body)
+	}
+}
+
+func TestConstFoldTreatsRedefinedNamesAsMutable(t *testing.T) {
+	m := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeString, Result: "key", Value: "first", StringLiteral: true},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"key"}},
+			{Op: ir.OpConst, Type: ir.TypeString, Result: "key", Value: "second", StringLiteral: true},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"key"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+	assigned := map[string]bool{}
+	collectAssigned(m.Functions[0].Body, assigned)
+	if !assigned["key"] {
+		t.Fatal("a name defined twice must be treated as mutable")
+	}
+}
+
+func TestCSEInvalidatesFieldReadAfterWrite(t *testing.T) {
+	m := ir.Module{Functions: []ir.Function{{
+		Name:       "main",
+		ReturnType: ir.TypeVoid,
+		Parameters: []ir.Parameter{{Name: "box", Type: ir.Type("object:Box")}, {Name: "v", Type: ir.TypeNumber}},
+		Body: []ir.Instruction{
+			{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: "first", Args: []string{"box"}, Field: "x", FieldIndex: 0},
+			{Op: ir.OpFieldSet, Type: ir.TypeVoid, Args: []string{"box", "v"}, Field: "x", FieldIndex: 0},
+			{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: "second", Args: []string{"box"}, Field: "x", FieldIndex: 0},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"first"}},
+			{Op: ir.OpPrint, Type: ir.TypeVoid, Args: []string{"second"}},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}}}
+	if _, err := NewCSEPass().Run(&m); err != nil {
+		t.Fatal(err)
+	}
+	if body := m.Functions[0].Body; body[4].Args[0] != "second" {
+		t.Fatalf("read after field.set was replaced by the earlier read: %+v", body)
+	}
 }

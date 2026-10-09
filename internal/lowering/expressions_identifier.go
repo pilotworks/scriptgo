@@ -121,7 +121,7 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 			if typ == ir.TypeNumber {
 				zeroConst := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{identName, zeroConst}, Span: toIRSpan(path, expression.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "-", Args: []string{identName, zeroConst}, Span: toIRSpan(path, expression.Span)})
 				return result, typ, nil
 			}
 			if typ == ir.TypeString {
@@ -151,7 +151,7 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		calleeName := ensureFunctionClosureTrampoline(path, sig, signatures)
+		calleeName := ensureFunctionClosureTrampoline(path, sig, shapes, signatures)
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpClosure,
 			Type:   ir.TypeClosure,
@@ -161,6 +161,11 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, ir.TypeClosure, nil
+	}
+	if binding, ok := resolveTopLevelBinding(path, expression.Text); ok && function.Name != "main" {
+		// A function reads its module's variable (or the one it imports),
+		// not whichever module declared the name first.
+		return binding.Storage, bindingType(binding), nil
 	}
 	if topVar, ok := topLevelVars[expression.Text]; ok && topVar.Expression != nil && !inProgressVars[expression.Text] {
 		isPrimitiveConst := topVar.VarDeclKind == "const" && (topVar.Expression.Kind == "number" || topVar.Expression.Kind == "string" || topVar.Expression.Kind == "bool" || topVar.Expression.Kind == "literal" || topVar.Expression.Kind == "null" || topVar.Expression.Kind == "undefined")

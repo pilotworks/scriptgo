@@ -1,6 +1,6 @@
 // @native.expected: valid pid: true
 // @native.expected: fabs(-42): 42
-// @native.expected: strlen("Hello"): 5
+// @native.expected: strlen("Hello"): 5n
 // @native.expected: Hello from native puts!
 
 declare function getpid(): bigint;

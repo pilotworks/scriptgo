@@ -91,10 +91,6 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		return err
 	}
 
-	if strings.HasPrefix(instruction.Callee, "__iterator.") {
-		return e.emitIteratorIntrinsicCall(out, instruction)
-	}
-
 	if handled, err := e.tryEmitServiceIntrinsicCall(out, instruction); handled {
 		return err
 	}
@@ -140,7 +136,7 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 						typ = ir.TypePointer
 					}
 					e.types[loadName] = typ
-					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr @%s\n", loadName, llvmType(typ), global.Name))
+					out.WriteString(fmt.Sprintf("  %%%s = load volatile %s, ptr %s\n", loadName, llvmType(typ), functionSymbol(global.Name)))
 					argVal = loadName
 					break
 				}
@@ -202,10 +198,10 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		returnType = "zeroext i1"
 	}
 	if returnType == "void" {
-		out.WriteString(fmt.Sprintf("  call void @%s(", mangleFunctionName(instruction.Callee)))
+		out.WriteString(fmt.Sprintf("  call void %s(", functionSymbol(mangleFunctionName(instruction.Callee))))
 	} else {
 		e.types[instruction.Result] = callee.ReturnType
-		out.WriteString(fmt.Sprintf("  %%%s = call %s @%s(", instruction.Result, returnType, mangleFunctionName(instruction.Callee)))
+		out.WriteString(fmt.Sprintf("  %%%s = call %s %s(", instruction.Result, returnType, functionSymbol(mangleFunctionName(instruction.Callee))))
 	}
 	out.WriteString(strings.Join(callArgs, ", "))
 	out.WriteString(")\n")

@@ -153,8 +153,8 @@ func registerNumberStringIntrinsics(m map[string]BuiltinIntrinsic) {
 	registerCallIntrinsic(m, []string{"encodeURI"}, CategoryECMAScript, "__string.encodeURI", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	registerCallIntrinsic(m, []string{"decodeURI"}, CategoryECMAScript, "__string.decodeURI", []ir.Type{ir.TypeString}, ir.TypeString, 1, 1)
 	registerCallIntrinsic(m, []string{"Number"}, CategoryECMAScript, "__number.new", nil, ir.TypeNumber, 0, 1)
-	registerCallIntrinsic(m, []string{"String"}, CategoryECMAScript, "__string.new", nil, ir.TypeString, 0, 1)
-	registerCallIntrinsic(m, []string{"Object"}, CategoryECMAScript, "__object.new", nil, ir.TypeObject, 0, 1)
+	registerCustomIntrinsic(m, []string{"String"}, CategoryECMAScript, "__string.new", ir.TypeString, 0, 1, lowerStringConversion)
+	registerCustomIntrinsic(m, []string{"Object"}, CategoryECMAScript, "__object.new", ir.TypeObject, 0, 1, lowerObjectConversion)
 	// JSON.parse is a dynamic boundary: its result is any in TypeScript and
 	// must remain boxed until a checked use narrows it.
 	registerCallIntrinsic(m, []string{"JSON.parse"}, CategoryECMAScript, "__json.parse_unknown", []ir.Type{ir.TypeString}, ir.TypeUnknown, 1, 1)

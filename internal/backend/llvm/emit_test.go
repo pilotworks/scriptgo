@@ -402,3 +402,21 @@ func TestEmitNoBoundsCheckAndLoopVectorize(t *testing.T) {
 		t.Errorf("vectorized loop latch branch must attach !llvm.loop metadata:\n%s", output)
 	}
 }
+
+func TestFunctionSymbolQuotesNonIdentifierNames(t *testing.T) {
+	cases := map[string]string{
+		"main":           "@main",
+		"C_get_value":    "@C_get_value",
+		"C_static_#$":    `@"C_static_#$"`,
+		"C_#℘_impl":      `@"C_#\E2\84\98_impl"`,
+		`quote"back\`:    `@"quote\22back\5C"`,
+		"9starts_digit":  `@"9starts_digit"`,
+		"close$user":     "@close$user",
+		"fn.with.dots-1": "@fn.with.dots-1",
+	}
+	for name, want := range cases {
+		if got := functionSymbol(name); got != want {
+			t.Errorf("functionSymbol(%q) = %s, want %s", name, got, want)
+		}
+	}
+}

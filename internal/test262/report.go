@@ -115,3 +115,16 @@ func WriteText(w io.Writer, summaries []Summary) {
 		fmt.Fprintf(w, "| %s | %d | %d | %d | %d | %s |\n", s.Group, s.Pass, s.Fail, s.Unsupported, s.Skipped, rate)
 	}
 }
+
+// Regressions returns the results that did not pass, in input order. A
+// baseline run (-require-pass) lists tests that passed before, so any entry
+// here is a conformance regression.
+func Regressions(results []Result) []Result {
+	var regressed []Result
+	for _, r := range results {
+		if r.Outcome != Pass {
+			regressed = append(regressed, r)
+		}
+	}
+	return regressed
+}

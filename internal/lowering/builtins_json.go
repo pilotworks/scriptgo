@@ -413,17 +413,22 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 		Span:   toIRSpan(call.Path, call.Expression.Span),
 	})
 
+	// Interface and object-literal shapes hold only the keys an object has
+	// and are addressed by name, so each field is emitted only when present
+	// (an anonymous shape's name does not record which fields are optional).
+	byName := dynamicFieldAccess(shape.Name)
 	for i, f := range shape.Fields {
 		fVal := nextTemp(call.Counter)
 		call.Function.Body = append(call.Function.Body, ir.Instruction{
-			Op:         ir.OpFieldGet,
-			Type:       f.Type,
-			Result:     fVal,
-			Callee:     shape.Name,
-			Field:      f.Name,
-			FieldIndex: i,
-			Args:       []string{argVal},
-			Span:       toIRSpan(call.Path, call.Expression.Span),
+			Op:           ir.OpFieldGet,
+			Type:         f.Type,
+			Result:       fVal,
+			Callee:       shape.Name,
+			Field:        f.Name,
+			FieldIndex:   i,
+			DynamicField: byName,
+			Args:         []string{argVal},
+			Span:         toIRSpan(call.Path, call.Expression.Span),
 		})
 
 		subFunc := &ir.Function{}
@@ -452,6 +457,15 @@ func lowerJSONStringifyObject(call IntrinsicCall, argVal string, shape ir.Object
 			Args:     []string{fStr, undefStr},
 			Span:     toIRSpan(call.Path, call.Expression.Span),
 		})
+		if byName {
+			present := nextTemp(call.Counter)
+			emitted := nextTemp(call.Counter)
+			emitHasOwnProperty(call.Function, call.Counter, toIRSpan(call.Path, call.Expression.Span), present, argVal, f.Name, true)
+			call.Function.Body = append(call.Function.Body,
+				ir.Instruction{Op: ir.OpBinary, Type: ir.TypeBool, Result: emitted, Operator: "&&", Args: []string{isNotUndef, present}, Span: toIRSpan(call.Path, call.Expression.Span)},
+			)
+			isNotUndef = emitted
+		}
 
 		var thenInstructions []ir.Instruction
 

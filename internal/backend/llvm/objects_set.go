@@ -75,22 +75,18 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		id := e.labelCounter
 		e.labelCounter++
 
-		if objArg == "this" {
-			fieldPtr := fmt.Sprintf("fset.field_ptr.%d", id)
-			byteOffset := 40 + instruction.FieldIndex*8
-			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, ptrObj, byteOffset))
-			if actualType == ir.TypeNumber {
-				out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", valArg, fieldPtr))
-			} else {
-				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", valArg, fieldPtr))
-			}
-			return nil
-		}
-
 		checkLabel := fmt.Sprintf("fset.check.%d", id)
 		fastLabel := fmt.Sprintf("fset.fast.%d", id)
 		slowLabel := fmt.Sprintf("fset.slow.%d", id)
-		doneLabel := fmt.Sprintf("fset.done.%d", id)
+
+		if objArg == "this" {
+			// `this` is a live instance of the method's class; only a frozen
+			// instance needs the runtime setter, which throws.
+			notFrozen := e.emitObjectNotFrozen(out, ptrObj, id)
+			out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\x22branch_weights\x22, i32 10000, i32 1}\n", notFrozen, fastLabel, slowLabel))
+			e.emitFieldSetFastAndSlow(out, instruction, ptrObj, valArg, actualType, id)
+			return nil
+		}
 
 		notNull := fmt.Sprintf("fset.not_null.%d", id)
 		notUndef := fmt.Sprintf("fset.not_undef.%d", id)
@@ -113,32 +109,12 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 8\n", fcPtr, ptrObj))
 		out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", fcVal, fcPtr))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ugt i64 %%%s, %d\n", inBounds, fcVal, instruction.FieldIndex))
-		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, isMagic, inBounds))
+		notFrozen := e.emitObjectNotFrozen(out, ptrObj, id)
+		writable := fmt.Sprintf("fset.writable.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", writable, isMagic, inBounds))
+		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, writable, notFrozen))
 		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\x22branch_weights\x22, i32 10000, i32 1}\n", condFast, fastLabel, slowLabel))
-
-		out.WriteString(fmt.Sprintf("\n%s:\n", fastLabel))
-		fieldPtr := fmt.Sprintf("fset.field_ptr.%d", id)
-		byteOffset := 40 + instruction.FieldIndex*8
-		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, ptrObj, byteOffset))
-		if actualType == ir.TypeNumber {
-			out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", valArg, fieldPtr))
-		} else {
-			out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", valArg, fieldPtr))
-		}
-		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
-
-		out.WriteString(fmt.Sprintf("\n%s:\n", slowLabel))
-		slowStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		if actualType == ir.TypeNumber {
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", slowStatus, ptrObj, instruction.FieldIndex, valArg))
-		} else {
-			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", slowStatus, ptrObj, instruction.FieldIndex, valArg))
-		}
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", slowStatus))
-		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
-
-		out.WriteString(fmt.Sprintf("\n%s:\n", doneLabel))
+		e.emitFieldSetFastAndSlow(out, instruction, ptrObj, valArg, actualType, id)
 		return nil
 	}
 
@@ -170,4 +146,48 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 	}
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	return nil
+}
+
+// emitFieldSetFastAndSlow emits the fast-path store and the runtime-setter
+// slow path (which also enforces frozen objects) for a field set.
+func (e *functionEmitter) emitFieldSetFastAndSlow(out *strings.Builder, instruction ir.Instruction, ptrObj, valArg string, actualType ir.Type, id int) {
+	fastLabel := fmt.Sprintf("fset.fast.%d", id)
+	slowLabel := fmt.Sprintf("fset.slow.%d", id)
+	doneLabel := fmt.Sprintf("fset.done.%d", id)
+
+	out.WriteString(fmt.Sprintf("\n%s:\n", fastLabel))
+	fieldPtr := fmt.Sprintf("fset.field_ptr.%d", id)
+	byteOffset := 40 + instruction.FieldIndex*8
+	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, ptrObj, byteOffset))
+	if actualType == ir.TypeNumber {
+		out.WriteString(fmt.Sprintf("  store double %%%s, ptr %%%s\n", valArg, fieldPtr))
+	} else {
+		out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", valArg, fieldPtr))
+	}
+	out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
+
+	out.WriteString(fmt.Sprintf("\n%s:\n", slowLabel))
+	slowStatus := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	if actualType == ir.TypeNumber {
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", slowStatus, ptrObj, instruction.FieldIndex, valArg))
+	} else {
+		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", slowStatus, ptrObj, instruction.FieldIndex, valArg))
+	}
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", slowStatus))
+	out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
+
+	out.WriteString(fmt.Sprintf("\n%s:\n", doneLabel))
+}
+
+// emitObjectNotFrozen loads the object's frozen flag (byte 26 of the object
+// header) and returns an i1 that is true when the object is not frozen.
+func (e *functionEmitter) emitObjectNotFrozen(out *strings.Builder, ptrObj string, id int) string {
+	flagPtr := fmt.Sprintf("fset.frozen_ptr.%d", id)
+	flag := fmt.Sprintf("fset.frozen.%d", id)
+	notFrozen := fmt.Sprintf("fset.not_frozen.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %s, i64 26\n", flagPtr, ptrObj))
+	out.WriteString(fmt.Sprintf("  %%%s = load i8, ptr %%%s\n", flag, flagPtr))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i8 %%%s, 0\n", notFrozen, flag))
+	return notFrozen
 }

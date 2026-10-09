@@ -142,24 +142,24 @@ func (p *constFoldPass) foldBlock(
 				}
 
 				// Algebraic identities
-				// x + 0 -> x
-				if inst.Operator == "+" && rightIsConst && rightVal == 0 {
+				// x + (-0) -> x. x + (+0) is not an identity: -0 + 0 is +0.
+				if inst.Operator == "+" && rightIsConst && rightVal == 0 && math.Signbit(rightVal) {
 					if p.simplifyTo(fn, assigned, localAliases, &inst, left, changed) {
 						continue
 					}
 					result = append(result, inst)
 					continue
 				}
-				// 0 + x -> x
-				if inst.Operator == "+" && leftIsConst && leftVal == 0 {
+				// (-0) + x -> x
+				if inst.Operator == "+" && leftIsConst && leftVal == 0 && math.Signbit(leftVal) {
 					if p.simplifyTo(fn, assigned, localAliases, &inst, right, changed) {
 						continue
 					}
 					result = append(result, inst)
 					continue
 				}
-				// x - 0 -> x
-				if inst.Operator == "-" && rightIsConst && rightVal == 0 {
+				// x - (+0) -> x (also preserves -0)
+				if inst.Operator == "-" && rightIsConst && rightVal == 0 && !math.Signbit(rightVal) {
 					if p.simplifyTo(fn, assigned, localAliases, &inst, left, changed) {
 						continue
 					}
@@ -324,18 +324,35 @@ func formatNumber(val float64) string {
 	return strconv.FormatFloat(val, 'f', -1, 64)
 }
 
+// collectAssigned marks names whose value can change: targets of assign and
+// names defined by more than one instruction (lowering reuses a name for a
+// value that is redefined, e.g. an unrolled for-in key), so constant
+// propagation must not treat their first definition as final.
 func collectAssigned(instructions []ir.Instruction, assigned map[string]bool) {
-	for _, inst := range instructions {
-		if inst.Op == ir.OpAssign && inst.Result != "" {
-			assigned[inst.Result] = true
+	defined := map[string]int{}
+	countDefinitions(instructions, assigned, defined)
+	for name, count := range defined {
+		if count > 1 {
+			assigned[name] = true
 		}
-		collectAssigned(inst.Cond, assigned)
-		collectAssigned(inst.Body, assigned)
-		collectAssigned(inst.Step, assigned)
-		collectAssigned(inst.Then, assigned)
-		collectAssigned(inst.Else, assigned)
-		collectAssigned(inst.Catch, assigned)
-		collectAssigned(inst.Finally, assigned)
+	}
+}
+
+func countDefinitions(instructions []ir.Instruction, assigned map[string]bool, defined map[string]int) {
+	for _, inst := range instructions {
+		if inst.Result != "" && definesResult(inst.Op) {
+			if inst.Op == ir.OpAssign {
+				assigned[inst.Result] = true
+			}
+			defined[inst.Result]++
+		}
+		countDefinitions(inst.Cond, assigned, defined)
+		countDefinitions(inst.Body, assigned, defined)
+		countDefinitions(inst.Step, assigned, defined)
+		countDefinitions(inst.Then, assigned, defined)
+		countDefinitions(inst.Else, assigned, defined)
+		countDefinitions(inst.Catch, assigned, defined)
+		countDefinitions(inst.Finally, assigned, defined)
 	}
 }
 
@@ -361,4 +378,14 @@ func cloneMapStr(m map[string]string) map[string]string {
 		res[k] = v
 	}
 	return res
+}
+
+// definesResult reports ops whose Result names a value they produce; control
+// and store ops may carry a Result only as a reference.
+func definesResult(op string) bool {
+	switch op {
+	case ir.OpReturn, ir.OpThrow, ir.OpFieldSet, ir.OpIndexSet, ir.OpPrint, ir.OpBreak, ir.OpContinue:
+		return false
+	}
+	return true
 }

@@ -36,13 +36,23 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 	m["RegExp"] = BuiltinIntrinsic{
 		Category: CategoryECMAScript,
 		Name:     "RegExp",
-		MinArgs:  1,
+		MinArgs:  0,
 		MaxArgs:  2,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 			ensureRegExpShape(call.Shapes)
-			patternVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-			if err != nil {
-				return "", "", err
+			var patternVal string
+			if len(call.Expression.Arguments) == 0 {
+				// RegExp() matches the empty string; its source is "(?:)".
+				patternVal = nextTemp(call.Counter)
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpConst, Type: ir.TypeString, Result: patternVal, Value: "(?:)", StringLiteral: true, Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+			} else {
+				value, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				if err != nil {
+					return "", "", err
+				}
+				patternVal = value
 			}
 			flagsVal := nextTemp(call.Counter)
 			if len(call.Expression.Arguments) > 1 {

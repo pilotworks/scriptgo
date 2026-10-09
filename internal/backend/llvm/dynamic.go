@@ -91,7 +91,7 @@ func (e *functionEmitter) emitDynamicCall(out *strings.Builder, instruction ir.I
 		} else {
 			for _, global := range e.module.Globals {
 				if global.Name == targetResult {
-					fmt.Fprintf(out, "  store %s %%%s, ptr @%s\n", llvmType(instruction.Type), instruction.Result, targetResult)
+					fmt.Fprintf(out, "  store %s %%%s, ptr %s\n", llvmType(instruction.Type), instruction.Result, functionSymbol(targetResult))
 					break
 				}
 			}

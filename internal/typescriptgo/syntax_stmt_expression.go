@@ -34,32 +34,23 @@ func syntaxExpressionStatement(node *ast.Node, chk *checker.Checker, span Source
 	expr := syntaxExpression(node.Expression(), chk)
 	if expr != nil && expr.Kind == "binary" && isAssignmentOperator(expr.Operator) && expr.Left != nil {
 		valExpr, _ := desugarAssignment(expr)
-		if expr.Left.Kind == "identifier" {
-			return SyntaxStatement{
-				Span:       span,
-				Kind:       "assign",
-				Name:       expr.Left.Text,
-				Expression: valExpr,
-			}, true
-		}
-		if expr.Left.Kind == "index" {
-			return SyntaxStatement{
-				Span:       span,
-				Kind:       "index_set",
-				Left:       expr.Left.Left,
-				Right:      expr.Left.Right,
-				Expression: valExpr,
-			}, true
-		}
-		if expr.Left.Kind == "property" {
-			return SyntaxStatement{
-				Span:       span,
-				Kind:       "field_set",
-				Left:       expr.Left.Left,
-				Name:       expr.Left.Text,
-				Expression: valExpr,
-			}, true
+		if stmt, ok := assignmentStatement(span, expr.Left, valExpr); ok {
+			return stmt, true
 		}
 	}
 	return SyntaxStatement{Span: span, Kind: "expression", Expression: expr}, true
+}
+
+// assignmentStatement normalizes `target = value` for an identifier, index,
+// or property target into the assign/index_set/field_set statement forms.
+func assignmentStatement(span SourceSpan, target, value *SyntaxExpression) (SyntaxStatement, bool) {
+	switch target.Kind {
+	case "identifier":
+		return SyntaxStatement{Span: span, Kind: "assign", Name: target.Text, Expression: value}, true
+	case "index":
+		return SyntaxStatement{Span: span, Kind: "index_set", Left: target.Left, Right: target.Right, Expression: value}, true
+	case "property":
+		return SyntaxStatement{Span: span, Kind: "field_set", Left: target.Left, Name: target.Text, Expression: value}, true
+	}
+	return SyntaxStatement{}, false
 }

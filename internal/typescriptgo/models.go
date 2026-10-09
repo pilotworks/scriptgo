@@ -87,13 +87,16 @@ type SyntaxStatement struct {
 	Cases          []SyntaxSwitchCase
 	CatchVar       string
 	CatchVarType   string
-	CatchVarSpan   SourceSpan
-	Catch          []SyntaxStatement
-	Finally        []SyntaxStatement
-	Class          *SyntaxClass
-	Enum           *SyntaxEnum
-	IsGenerator    bool
-	IsAsync        bool
+	// CatchVarInferredType is the checker's type for an unannotated catch
+	// binding ("unknown" under useUnknownInCatchVariables, otherwise "any").
+	CatchVarInferredType string
+	CatchVarSpan         SourceSpan
+	Catch                []SyntaxStatement
+	Finally              []SyntaxStatement
+	Class                *SyntaxClass
+	Enum                 *SyntaxEnum
+	IsGenerator          bool
+	IsAsync              bool
 }
 
 type SyntaxSwitchCase struct {

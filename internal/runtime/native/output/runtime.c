@@ -29,19 +29,7 @@ static void scriptgo_format_double_shortest(char *buf, size_t size, double value
         snprintf(buf, size, "-0");
         return;
     }
-    char b15[64], b16[64], b17[64];
-    snprintf(b15, sizeof(b15), "%.15g", value);
-    if (strtod(b15, NULL) == value) {
-        snprintf(buf, size, "%s", b15);
-        return;
-    }
-    snprintf(b16, sizeof(b16), "%.16g", value);
-    if (strtod(b16, NULL) == value) {
-        snprintf(buf, size, "%s", b16);
-        return;
-    }
-    snprintf(b17, sizeof(b17), "%.17g", value);
-    snprintf(buf, size, "%s", b17);
+    scriptgo_number_format(value, buf, size);
 }
 
 static int scriptgo_console_number(FILE *stream, double value) {
@@ -49,8 +37,6 @@ static int scriptgo_console_number(FILE *stream, double value) {
     int ret;
     if (value == 0.0 && signbit(value)) {
         ret = fprintf(stream, "-0\n");
-    } else if (!isnan(value) && !isinf(value) && value == (double)(long long)value && value >= -9007199254740991.0 && value <= 9007199254740991.0) {
-        ret = fprintf(stream, "%lld\n", (long long)value);
     } else {
         char buf[64];
         scriptgo_format_double_shortest(buf, sizeof(buf), value);
@@ -154,58 +140,15 @@ typedef struct {
 int scriptgo_string_from_object(void *obj, char **out_str);
 int scriptgo_json_inspect_object(void *obj, char **out_str);
 
-static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
-    if (arr == NULL) return scriptgo_console_string(stream, "null");
-    if (arr == (scriptgo_array_raw_t *)&scriptgo_undefined_sentinel) return scriptgo_console_string(stream, "undefined");
-    if (arr->length == 0) return scriptgo_console_string(stream, "[]");
+int scriptgo_console_inspect_array(void *value, char **out_str);
 
-    scriptgo_console_print_indent(stream);
-    fprintf(stream, "[ ");
-    for (int64_t i = 0; i < arr->length; i++) {
-        if (i > 0) fprintf(stream, ", ");
-        if (arr->element_tag == SCRIPTGO_TAG_STRING) {
-            const char *s = *(const char **)(arr->data + (size_t)i * sizeof(char *));
-            if (s == NULL) fprintf(stream, "null");
-            else if (s == &scriptgo_undefined_sentinel) fprintf(stream, "undefined");
-            else fprintf(stream, "'%s'", s);
-        } else if (arr->element_size == 1) {
-            uint8_t b = *(uint8_t *)(arr->data + (size_t)i);
-            fprintf(stream, "%s", b ? "true" : "false");
-        } else if (arr->element_size == sizeof(double)) {
-            double d = *(double *)(arr->data + (size_t)i * sizeof(double));
-            char buf[64];
-            scriptgo_format_double_shortest(buf, sizeof(buf), d);
-            fprintf(stream, "%s", buf);
-        } else if (arr->element_size == sizeof(char *)) {
-            const char *s = *(const char **)(arr->data + (size_t)i * sizeof(char *));
-            if (s == NULL) fprintf(stream, "null");
-            else if (s == &scriptgo_undefined_sentinel) fprintf(stream, "undefined");
-            else fprintf(stream, "'%s'", s);
-        } else if (arr->element_size == sizeof(scriptgo_value)) {
-            scriptgo_value *value = (scriptgo_value *)(arr->data + (size_t)i * sizeof(scriptgo_value));
-            uint32_t tag = value->tag;
-            uint64_t payload = value->payload;
-            if (tag == SCRIPTGO_TAG_UNDEFINED) fprintf(stream, "undefined");
-            else if (tag == SCRIPTGO_TAG_NULL) fprintf(stream, "null");
-            else if (tag == SCRIPTGO_TAG_BOOLEAN) fprintf(stream, "%s", payload ? "true" : "false");
-            else if (tag == SCRIPTGO_TAG_NUMBER) {
-                union { unsigned long long raw; double num; } u;
-                u.raw = payload;
-                char buf[64];
-                scriptgo_format_double_shortest(buf, sizeof(buf), u.num);
-                fprintf(stream, "%s", buf);
-            } else if (tag == SCRIPTGO_TAG_STRING) {
-                fprintf(stream, "'%s'", (const char *)payload);
-            } else {
-                fprintf(stream, "[object Object]");
-            }
-        } else {
-            fprintf(stream, "[object Object]");
-        }
-    }
-    fprintf(stream, " ]\n");
-    fflush(stream);
-    return 0;
+/* console.log(array) and console formatting share one array renderer. */
+static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
+    char *inspected = NULL;
+    if (scriptgo_console_inspect_array(arr, &inspected) != 0 || inspected == NULL) return -1;
+    int result = scriptgo_console_string(stream, inspected);
+    free(inspected);
+    return result;
 }
 
 int scriptgo_gc_get_tag(void *ptr);
@@ -270,6 +213,15 @@ static int scriptgo_console_object(FILE *stream, void *value) {
     return scriptgo_console_string(stream, (const char *)value);
 }
 
+/* console formatting of a number: like String(n) except -0 stays "-0". */
+int scriptgo_console_inspect_number(double value, char **out_str) {
+    char buf[64];
+    if (out_str == NULL) return scriptgo_runtime_set_error("invalid number inspection");
+    scriptgo_format_double_shortest(buf, sizeof(buf), value);
+    *out_str = strdup(buf);
+    return *out_str == NULL ? scriptgo_runtime_set_error("number inspection allocation failed") : 0;
+}
+
 int scriptgo_console_inspect_buffer(void *value, char **out_str) {
     struct {
         uint32_t magic;
@@ -323,6 +275,8 @@ int scriptgo_console_inspect_array(void *value, char **out_str) {
             } else {
                 pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
             }
+        } else if (arr->element_tag == SCRIPTGO_TAG_BIGINT && arr->element_size == sizeof(int64_t)) {
+            pos += (size_t)snprintf(out + pos, capacity - pos, "%lldn", (long long)*(int64_t *)(arr->data + (size_t)i * sizeof(int64_t)));
         } else if (arr->element_tag == 3 || arr->element_size == sizeof(double)) {
             char number[64];
             scriptgo_format_double_shortest(number, sizeof(number), *(double *)(arr->data + (size_t)i * sizeof(double)));
@@ -344,6 +298,10 @@ int scriptgo_console_inspect_array(void *value, char **out_str) {
                 pos += (size_t)snprintf(out + pos, capacity - pos, "%s", payload ? "true" : "false");
             } else if (tag == SCRIPTGO_TAG_NULL) {
                 pos += (size_t)snprintf(out + pos, capacity - pos, "null");
+            } else if (tag == SCRIPTGO_TAG_UNDEFINED) {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "undefined");
+            } else if (tag == SCRIPTGO_TAG_BIGINT) {
+                pos += (size_t)snprintf(out + pos, capacity - pos, "%lldn", (long long)payload);
             } else {
                 pos += (size_t)snprintf(out + pos, capacity - pos, "[object Object]");
             }

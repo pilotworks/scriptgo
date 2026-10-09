@@ -81,6 +81,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	}
 	initializeClassIdentities(program)
 	initializeFunctionIdentities(program)
+	initializeTopLevelBindings(program)
 	module := ir.Module{SourcePath: program.EntryPath, SourceFiles: make(map[string]string), StatementCount: program.StatementCount}
 	module.DynamicModules = dynamicModules
 	typeAliasesIndex = map[string]string{}
@@ -129,6 +130,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "SyntaxError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "URIError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
 		{Name: "EvalError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}}},
+		{Name: "AggregateError", Fields: []ir.Field{{Name: "message", Type: ir.TypeString}, {Name: "name", Type: ir.TypeString}, {Name: "stack", Type: ir.TypeString}, {Name: "cause", Type: ir.TypeString}, {Name: "errors", Type: ir.TypeUnknownArray}}},
 		{Name: "Date", Fields: []ir.Field{{Name: "time", Type: ir.TypeNumber}}},
 		{Name: "RegExp", Fields: []ir.Field{{Name: "source", Type: ir.TypeString}, {Name: "flags", Type: ir.TypeString}, {Name: "lastIndex", Type: ir.TypeNumber}}},
 		{Name: "ResponseInit", Fields: []ir.Field{{Name: "status", Type: ir.TypeNumber}, {Name: "statusText", Type: ir.TypeString}, {Name: "headers", Type: ir.TypeObject}}},
@@ -170,7 +172,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					if fTypeStr == "" {
 						fTypeStr = field.InferredType
 					}
-					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRTypeForPath(fileName, fTypeStr), Value: val, Optional: field.Optional, Span: toIRSpan(fileName, field.Span)})
+					// A field typed void/never (its initializer always throws)
+					// still has storage: it holds undefined, boxed.
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: variableStorageType(toIRTypeForPath(fileName, fTypeStr)), Value: val, Optional: field.Optional, Span: toIRSpan(fileName, field.Span)})
 				}
 				if statement.Kind == "interface" {
 					if _, exists := shapes[shape.Name]; exists {
@@ -311,7 +315,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		meta := hierarchy[clsName]
 		for _, fName := range slices.Sorted(maps.Keys(meta.Statics)) {
 			field := meta.Statics[fName]
-			globalName := clsName + "_" + fName
+			globalName := staticFieldGlobal(clsName, fName)
 			globalType := toIRTypeForPath(meta.FileName, field.Type)
 			if globalType == "" {
 				globalType = ir.TypeNumber
@@ -394,7 +398,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				module.Globals = append(module.Globals, ir.Global{
 					Name: statement.Name,
-					Type: typ,
+					Type: variableStorageType(typ),
 				})
 			} else if statement.Kind == "namespace" {
 				for _, sub := range statement.Body {
@@ -555,7 +559,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, l := range main.Locals {
 		if !existingGlobals[l.Name] {
 			existingGlobals[l.Name] = true
-			gType := l.Type
+			gType := variableStorageType(l.Type)
 			if gType == "" {
 				gType = ir.TypePointer
 			}
@@ -575,11 +579,11 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 			stageFunctions := functions[:len(functions)-1]
 			module.Functions = append(append([]ir.Function{mainFunction}, stageFunctions...), module.Functions...)
 		} else {
-			main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+			main.Body = appendImplicitVoidReturn(main.Body)
 			module.Functions = append([]ir.Function{main}, module.Functions...)
 		}
 	} else {
-		main.Body = append(main.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
+		main.Body = appendImplicitVoidReturn(main.Body)
 		module.Functions = append([]ir.Function{main}, module.Functions...)
 	}
 	module.Functions = append(module.Functions, extraFunctions...)
@@ -602,4 +606,14 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		return ir.Module{}, err
 	}
 	return module, nil
+}
+
+// appendImplicitVoidReturn ends a void body that can fall off its end. A body
+// whose last top-level instruction already leaves the function (a top-level
+// `throw`) must not gain an unreachable return.
+func appendImplicitVoidReturn(body []ir.Instruction) []ir.Instruction {
+	if n := len(body); n > 0 && (body[n-1].Op == ir.OpThrow || body[n-1].Op == ir.OpReturn) {
+		return body
+	}
+	return append(body, ir.Instruction{Op: ir.OpReturn, Type: ir.TypeVoid})
 }

@@ -20,10 +20,14 @@ func lowerExpression(path string, expression *frontend.SyntaxExpression, result 
 		return result, typ, nil
 	case "bigint":
 		typ := ir.TypeBigInt
+		value, ok := bigIntLiteralValue(expression.Text)
+		if !ok {
+			return "", "", fmt.Errorf("bigint literal %s is outside the native 64-bit range", expression.Text)
+		}
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: expression.Text, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: typ, Result: result, Value: value, Span: toIRSpan(path, expression.Span)})
 		return result, typ, nil
 	case "regex":
 		return lowerRegexLiteral(path, expression, result, function, env, counter, shapes, signatures)

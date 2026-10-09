@@ -27,7 +27,7 @@ func emitClosureInvokeAdapter(function ir.Function) string {
 	name := mangleFunctionName(function.Name)
 	params := "ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3"
 	var out strings.Builder
-	fmt.Fprintf(&out, "define internal void @%s$invoke(%s, ptr %%out) nounwind {\n", name, params)
+	fmt.Fprintf(&out, "define internal void %s(%s, ptr %%out) nounwind {\n", functionSymbol(name+"$invoke"), params)
 
 	var callArgs []string
 	valIdx := 0
@@ -77,20 +77,20 @@ func emitClosureInvokeAdapter(function ir.Function) string {
 	args := strings.Join(callArgs, ", ")
 
 	if function.ReturnType == ir.TypeUnknown {
-		fmt.Fprintf(&out, "  %%result = call %s @%s(%s)\n", valueType, name, args)
+		fmt.Fprintf(&out, "  %%result = call %s %s(%s)\n", valueType, functionSymbol(name), args)
 		fmt.Fprintf(&out, "  store %s %%result, ptr %%out\n", valueType)
 		out.WriteString("  ret void\n}\n\n")
 		return out.String()
 	}
 	if function.ReturnType == ir.TypeVoid {
-		fmt.Fprintf(&out, "  call void @%s(%s)\n", name, args)
+		fmt.Fprintf(&out, "  call void %s(%s)\n", functionSymbol(name), args)
 		fmt.Fprintf(&out, "  store %s zeroinitializer, ptr %%out\n", valueType)
 		out.WriteString("  ret void\n}\n\n")
 		return out.String()
 	}
 
 	returnType := llvmType(function.ReturnType)
-	fmt.Fprintf(&out, "  %%typed = call %s @%s(%s)\n", returnType, name, args)
+	fmt.Fprintf(&out, "  %%typed = call %s %s(%s)\n", returnType, functionSymbol(name), args)
 	tag := closureReturnTag(function.ReturnType)
 	payload := "%typed"
 	switch function.ReturnType {
@@ -119,4 +119,32 @@ func mangleFunctionName(name string) string {
 	default:
 		return name
 	}
+}
+
+// functionSymbol returns the LLVM global identifier for a lowered function.
+// Names that are not valid bare LLVM identifiers (for example private
+// members such as "C_#method_impl") are emitted as quoted names, which LLVM
+// accepts for any byte sequence.
+func functionSymbol(name string) string {
+	bare := name != ""
+	for i := 0; i < len(name) && bare; i++ {
+		c := name[i]
+		isLetter := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '$' || c == '.' || c == '_' || c == '-'
+		bare = isLetter || (i > 0 && c >= '0' && c <= '9')
+	}
+	if bare {
+		return "@" + name
+	}
+	var b strings.Builder
+	b.WriteString(`@"`)
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c == '"' || c == '\\' || c < 0x20 || c >= 0x7f {
+			fmt.Fprintf(&b, `\%02X`, c)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	b.WriteByte('"')
+	return b.String()
 }

@@ -11,11 +11,24 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span fr
 	if valType == ir.TypeString {
 		return val
 	}
+	if valType == ir.TypeBigInt {
+		// console formatting inspects bigints with an "n" suffix (16n), unlike
+		// String(16n).
+		digits := nextTemp(call.Counter)
+		suffix := nextTemp(call.Counter)
+		inspected := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body,
+			ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: digits, Callee: "__string.fromBigInt", Args: []string{val}, Span: toIRSpan(call.Path, span)},
+			ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: suffix, Value: "n", StringLiteral: true, Span: toIRSpan(call.Path, span)},
+			ir.Instruction{Op: ir.OpBinary, Type: ir.TypeString, Result: inspected, Operator: "+", Args: []string{digits, suffix}, Span: toIRSpan(call.Path, span)},
+		)
+		return inspected
+	}
 	strTemp := nextTemp(call.Counter)
 	var callee string
 	switch valType {
 	case ir.TypeNumber:
-		callee = "__string.fromNumber"
+		callee = "__string.inspectNumber"
 	case ir.TypeBool:
 		callee = "__string.fromBool"
 	case ir.TypeBigInt:

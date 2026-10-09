@@ -90,7 +90,9 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 		isRest := strings.HasPrefix(trimmed, "...")
 		trimmed = strings.TrimPrefix(trimmed, "...")
 		trimmed = strings.TrimSuffix(trimmed, "?")
-		elemType := toIRType(trimmed)
+		// An element typed undefined still holds a value, so it is stored
+		// boxed like a void-typed variable.
+		elemType := variableStorageType(toIRType(trimmed))
 		if isRest {
 			if strings.HasSuffix(string(elemType), "[]") {
 				elemType = arrayElementType(elemType)
@@ -104,7 +106,21 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 	return fields, true
 }
 
+// anonymousObjectFields returns the fields of an object type literal in
+// property key order (see orderPropertyKeys).
 func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
+	fields, ok := declaredObjectFields(typeStr, visited)
+	if !ok {
+		return fields, ok
+	}
+	ordered := make([]ir.Field, len(fields))
+	for to, from := range orderPropertyKeys(fields) {
+		ordered[to] = fields[from]
+	}
+	return ordered, true
+}
+
+func declaredObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
 	if strings.Contains(typeStr, "|") && len(splitTopLevelUnion(typeStr)) > 1 {
 		return nil, false
 	}

@@ -37,28 +37,23 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 				if elem == nil || elem.Kind == ast.KindOmittedExpression {
 					continue
 				}
-				if elem.Kind == ast.KindIdentifier {
-					stmts = append(stmts, SyntaxStatement{
-						Span: sourceSpan(elem),
-						Kind: "assign",
-						Name: elem.Text(),
-						Expression: &SyntaxExpression{
-							Span:  sourceSpan(elem),
-							Kind:  "index",
-							Left:  &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
-							Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
-						},
-					})
-				} else if elem.Kind == ast.KindArrayLiteralExpression || elem.Kind == ast.KindObjectLiteralExpression {
-					itemExpr := &SyntaxExpression{
-						Span:  sourceSpan(elem),
-						Kind:  "index",
-						Left:  &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
-						Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
-					}
-					nested := flattenDestructuringAssignment(elem, itemExpr, chk, counter)
-					stmts = append(stmts, nested...)
+				itemExpr := &SyntaxExpression{
+					Span:  sourceSpan(elem),
+					Kind:  "index",
+					Left:  &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+					Right: &SyntaxExpression{Span: sourceSpan(elem), Kind: "number", Text: fmt.Sprintf("%d", idx)},
 				}
+				if elem.Kind == ast.KindSpreadElement {
+					stmts = append(stmts, SyntaxStatement{Span: sourceSpan(elem), Kind: "unsupported", Type: "rest element in an array destructuring assignment"})
+					continue
+				}
+				target := elem
+				var value *SyntaxExpression = itemExpr
+				if bin := assignmentWithDefault(elem); bin != nil {
+					target = bin.Left
+					value = &SyntaxExpression{Span: sourceSpan(elem), Kind: "binary", Operator: "??", Left: itemExpr, Right: syntaxExpression(bin.Right, chk)}
+				}
+				stmts = append(stmts, destructuringAssignmentTarget(target, value, chk, counter)...)
 			}
 		}
 	} else if leftNode.Kind == ast.KindObjectLiteralExpression {
@@ -82,43 +77,25 @@ func flattenDestructuringAssignment(leftNode *ast.Node, initExpr *SyntaxExpressi
 					pAssign := prop.AsPropertyAssignment()
 					propName := syntaxMemberName(pAssign.Name())
 					if pAssign.Initializer != nil {
-						if pAssign.Initializer.Kind == ast.KindIdentifier {
-							stmts = append(stmts, SyntaxStatement{
-								Span: sourceSpan(prop),
-								Kind: "assign",
-								Name: pAssign.Initializer.Text(),
-								Expression: &SyntaxExpression{
-									Span: sourceSpan(prop),
-									Kind: "property",
-									Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
-									Text: propName,
-								},
-							})
-						} else if pAssign.Initializer.Kind == ast.KindBinaryExpression {
-							bin := pAssign.Initializer.AsBinaryExpression()
-							if bin != nil && bin.OperatorToken != nil && bin.OperatorToken.Kind == ast.KindEqualsToken {
-								targetName := bin.Left.Text()
-								defaultVal := syntaxExpression(bin.Right, chk)
-								propExpr := &SyntaxExpression{
-									Span: sourceSpan(prop),
-									Kind: "property",
-									Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
-									Text: propName,
-								}
-								stmts = append(stmts, SyntaxStatement{
-									Span: sourceSpan(prop),
-									Kind: "assign",
-									Name: targetName,
-									Expression: &SyntaxExpression{
-										Span:     sourceSpan(prop),
-										Kind:     "binary",
-										Operator: "??",
-										Left:     propExpr,
-										Right:    defaultVal,
-									},
-								})
+						propExpr := &SyntaxExpression{
+							Span: sourceSpan(prop),
+							Kind: "property",
+							Left: &SyntaxExpression{Span: sourceSpan(leftNode), Kind: "identifier", Text: tmpVar},
+							Text: propName,
+						}
+						target := pAssign.Initializer
+						value := propExpr
+						if bin := assignmentWithDefault(target); bin != nil {
+							target = bin.Left
+							value = &SyntaxExpression{
+								Span:     sourceSpan(prop),
+								Kind:     "binary",
+								Operator: "??",
+								Left:     propExpr,
+								Right:    syntaxExpression(bin.Right, chk),
 							}
 						}
+						stmts = append(stmts, destructuringAssignmentTarget(target, value, chk, counter)...)
 					}
 				} else if prop.Kind == ast.KindBinaryExpression {
 					bin := prop.AsBinaryExpression()
@@ -174,4 +151,34 @@ func countTupleElements(tupleType string) int {
 		}
 	}
 	return count
+}
+
+// destructuringAssignmentTarget stores value into one assignment-pattern
+// target: a nested pattern is flattened, an identifier or member expression
+// is assigned, and anything else stays visible to the subset gate.
+func destructuringAssignmentTarget(target *ast.Node, value *SyntaxExpression, chk *checker.Checker, counter *int) []SyntaxStatement {
+	if target.Kind == ast.KindArrayLiteralExpression || target.Kind == ast.KindObjectLiteralExpression {
+		return flattenDestructuringAssignment(target, value, chk, counter)
+	}
+	if stmt, ok := assignmentStatement(sourceSpan(target), syntaxExpression(target, chk), value); ok {
+		return []SyntaxStatement{stmt}
+	}
+	return []SyntaxStatement{{
+		Span: sourceSpan(target),
+		Kind: "unsupported",
+		Type: "destructuring assignment target that is not assignable",
+	}}
+}
+
+// assignmentWithDefault returns `target = default` inside an assignment
+// pattern, or nil for any other node.
+func assignmentWithDefault(node *ast.Node) *ast.BinaryExpression {
+	if node == nil || node.Kind != ast.KindBinaryExpression {
+		return nil
+	}
+	bin := node.AsBinaryExpression()
+	if bin == nil || bin.OperatorToken == nil || bin.OperatorToken.Kind != ast.KindEqualsToken {
+		return nil
+	}
+	return bin
 }

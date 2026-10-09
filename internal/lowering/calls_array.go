@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -143,6 +144,30 @@ func lowerTypedArrayReceiverMethod(
 		})
 		return result, receiverType, true, nil
 	}
+	if methodName == "join" || methodName == "toString" {
+		separator := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: separator, Value: ",", StringLiteral: true, Span: toIRSpan(path, expression.Span),
+		})
+		if methodName == "join" && len(expression.Arguments) > 0 && expression.Arguments[0].Kind != "undefined" {
+			value, valueType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			if valueType != ir.TypeString {
+				return "", "", true, fmt.Errorf("TypedArray.prototype.join separator must be a string")
+			}
+			separator = value
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__typedarray.join",
+			Args: []string{receiver, separator}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeString, true, nil
+	}
 	return "", "", false, nil
 }
 
@@ -165,6 +190,39 @@ func lowerArrayReceiverMethod(
 	if !isArr || !isArrayMethod(methodName) {
 		return "", "", false, nil
 	}
+	if !isTuple {
+		if value, typ, handled, err := lowerArrayReduce(path, expression, receiver, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+			return value, typ, true, err
+		}
+		if value, typ, handled, err := lowerMismatchedArraySearch(path, expression, methodName, receiverType, result, function, env, counter, shapes, signatures); handled {
+			return value, typ, true, err
+		}
+	}
+	if methodName == "toSpliced" && len(expression.Arguments) > 2 && !isTuple {
+		value, typ, err := lowerToSplicedWithItems(path, expression, receiver, receiverType, result, function, env, counter, shapes, signatures)
+		return value, typ, true, err
+	}
+	if methodName == "toSpliced" && len(expression.Arguments) == 0 {
+		// toSpliced() with no start skips nothing: it is a copy, the same as
+		// toSpliced(0, 0). (A start without deleteCount removes the rest.)
+		zero := func() *frontend.SyntaxExpression {
+			return &frontend.SyntaxExpression{Span: expression.Span, Kind: "number", Text: "0", InferredType: "number"}
+		}
+		copied := *expression
+		copied.Arguments = []*frontend.SyntaxExpression{zero(), zero()}
+		expression = &copied
+	}
+	if methodName == "fill" && len(expression.Arguments) == 0 {
+		// fill() fills with undefined: the omitted value argument is undefined,
+		// which unboxed number storage represents as NaN.
+		value := &frontend.SyntaxExpression{Span: expression.Span, Kind: "undefined", Text: "undefined", InferredType: "undefined"}
+		if receiverType == ir.TypeNumberArray {
+			value = &frontend.SyntaxExpression{Span: expression.Span, Kind: "identifier", Text: "NaN", InferredType: "number"}
+		}
+		withValue := *expression
+		withValue.Arguments = []*frontend.SyntaxExpression{value}
+		expression = &withValue
+	}
 	if isTuple && methodName == "slice" {
 		var srcShape ir.ObjectShape
 		if s, ok := shapes[shapeName]; ok {
@@ -175,23 +233,26 @@ func lowerArrayReceiverMethod(
 			srcShape = s
 		}
 		if len(srcShape.Fields) > 0 {
-			startIdx := 0
+			// A tuple slice has a static result shape, so its bounds must be
+			// integer literals; they are relative like Array.prototype.slice.
+			length := len(srcShape.Fields)
+			startIdx, endIdx := 0, length
 			if len(expression.Arguments) > 0 {
-				if n, err := strconv.Atoi(expression.Arguments[0].Text); err == nil {
-					startIdx = n
+				n, ok := staticIntegerArgument(expression.Arguments[0])
+				if !ok {
+					return "", "", true, fmt.Errorf("tuple slice start must be an integer literal")
 				}
+				startIdx = relativeTupleIndex(n, length)
 			}
-			endIdx := len(srcShape.Fields)
 			if len(expression.Arguments) > 1 {
-				if n, err := strconv.Atoi(expression.Arguments[1].Text); err == nil {
-					endIdx = n
+				n, ok := staticIntegerArgument(expression.Arguments[1])
+				if !ok {
+					return "", "", true, fmt.Errorf("tuple slice end must be an integer literal")
 				}
+				endIdx = relativeTupleIndex(n, length)
 			}
-			if startIdx < 0 {
-				startIdx = 0
-			}
-			if endIdx > len(srcShape.Fields) {
-				endIdx = len(srcShape.Fields)
+			if endIdx < startIdx {
+				endIdx = startIdx
 			}
 			var resFields []ir.Field
 			for i := startIdx; i < endIdx; i++ {
@@ -330,12 +391,15 @@ func lowerArrayReceiverMethod(
 		}
 		return lastResult, ir.TypeNumber, true, nil
 	}
-	for _, argument := range expression.Arguments {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
+	for index, argument := range expression.Arguments {
+		value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
 		}
-		args = append(args, value)
+		value, _, present := coerceMethodArgument(path, argument, "array", methodName, index, len(expression.Arguments), value, typ, function, counter)
+		if present {
+			args = append(args, value)
+		}
 	}
 	if result == "" {
 		result = nextTemp(counter)
@@ -380,7 +444,10 @@ func lowerArrayReceiverMethod(
 		returnType = ir.TypeString
 	case "push", "unshift", "indexOf", "lastIndexOf", "reduce", "reduceRight", "findIndex", "findLastIndex":
 		returnType = ir.TypeNumber
-	case "pop", "shift", "at", "find", "findLast":
+	case "find", "findLast":
+		// T | undefined: the element when the predicate matches, else undefined.
+		returnType = ir.TypeUnknown
+	case "pop", "shift", "at":
 		if receiverType == ir.TypeNumberArray {
 			returnType = ir.TypeNumber
 		} else if receiverType == ir.TypeStringArray {

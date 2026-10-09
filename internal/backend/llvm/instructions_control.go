@@ -338,18 +338,16 @@ func (e *functionEmitter) emitTry(out *strings.Builder, instruction ir.Instructi
 		out.WriteString(fmt.Sprintf("%s:\n", catchLabel))
 		if instruction.CatchVar != "" {
 			catchValName := fmt.Sprintf("caught.%d", labelId)
-			out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_get_string(ptr %%%s)\n", catchValName, frameName))
-			e.types[catchValName] = ir.Type("object:Error")
-			if e.types[instruction.CatchVar] == ir.TypeUnknown {
-				e.tempCounter++
-				boxed := fmt.Sprintf("caught.boxed.%d", e.tempCounter)
-				if err := e.emitBoxValue(out, catchValName, ir.Type("object:Error"), boxed); err != nil {
-					return err
-				}
+			if instruction.CatchVarType == ir.TypeUnknown {
+				e.types[instruction.CatchVar] = ir.TypeUnknown
+				// catch (e: unknown) binds exactly the thrown value (string,
+				// number, Error, ...), tag included.
 				if slot, ok := e.varSlots[instruction.CatchVar]; ok {
-					out.WriteString(fmt.Sprintf("  store volatile { i32, i32, i64, i64 } %%%s, ptr %%%s\n", boxed, slot))
+					out.WriteString(fmt.Sprintf("  call void @scriptgo_exception_take_value(ptr %%%s, ptr %%%s)\n", frameName, slot))
 				}
 			} else {
+				out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_exception_get_string(ptr %%%s)\n", catchValName, frameName))
+				e.types[catchValName] = ir.Type("object:Error")
 				e.types[instruction.CatchVar] = ir.Type("object:Error")
 				if slot, ok := e.varSlots[instruction.CatchVar]; ok {
 					out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", catchValName, slot))

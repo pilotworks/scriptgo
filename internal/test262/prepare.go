@@ -2,6 +2,7 @@ package test262
 
 import (
 	_ "embed"
+	"regexp"
 	"strings"
 )
 
@@ -12,7 +13,11 @@ var harnessSource string
 func Harness() string { return harnessSource }
 
 // supportedIncludes are harness files whose behavior harness.ts provides.
-var supportedIncludes = map[string]bool{"assert.js": true, "sta.js": true}
+var supportedIncludes = map[string]bool{"assert.js": true, "sta.js": true, "compareArray.js": true}
+
+// assertThrows matches `assert.throws(<Name>,` for a constructor that
+// harness.ts errorName can identify; Prepare rewrites it to throwsNamed.
+var assertThrows = regexp.MustCompile(`\bassert\.throws\(\s*(Test262Error|TypeError|RangeError|SyntaxError|ReferenceError|URIError|EvalError|Error)\s*,`)
 
 // unsupportedFlags are execution modes the runner does not model yet.
 var unsupportedFlags = map[string]string{
@@ -39,13 +44,26 @@ func Prepare(source string, meta Metadata) (entry string, skip string) {
 		}
 	}
 	var b strings.Builder
-	// Type errors are expected in conformance code (implicit any, coercions);
-	// the native subset gate still validates every construct.
-	b.WriteString("// @ts-nocheck\n")
+	// Type errors are expected in conformance code (implicit any, coercions),
+	// so type checking is off; the native subset gate still validates every
+	// construct. Tests that expect an early SyntaxError keep checking on,
+	// because TypeScript reports many grammar errors (TS1xxx) from the checker.
+	if !expectsEarlyError(meta) {
+		b.WriteString("// @ts-nocheck\n")
+	}
 	if !meta.HasFlag("raw") {
 		b.WriteString(harnessSource)
 		b.WriteString("\n")
 	}
+	if !meta.HasFlag("raw") {
+		source = assertThrows.ReplaceAllString(source, `assert.throwsNamed("$1",`)
+	}
 	b.WriteString(source)
 	return b.String(), ""
+}
+
+// expectsEarlyError reports a negative test whose error must be raised
+// before evaluation.
+func expectsEarlyError(meta Metadata) bool {
+	return meta.Negative != nil && (meta.Negative.Phase == "parse" || meta.Negative.Phase == "early")
 }

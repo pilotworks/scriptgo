@@ -93,18 +93,8 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							}
 						}
 					}
-					if parameter.Initializer != nil {
-						if defaultParamsIndex[function.Name] == nil {
-							defaultParamsIndex[function.Name] = map[int]*frontend.SyntaxExpression{}
-						}
-						defaultParamsIndex[function.Name][pIdx] = parameter.Initializer
-					} else if parameter.Optional {
-						if defaultParamsIndex[function.Name] == nil {
-							defaultParamsIndex[function.Name] = map[int]*frontend.SyntaxExpression{}
-						}
-						defaultParamsIndex[function.Name][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
-					}
-					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
+					recordParameterDefault(function.Name, pIdx, parameter)
+					function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(typ)})
 				}
 				index[statement.Name] = function
 				index[function.Name] = function
@@ -126,112 +116,6 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 				}
 				functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: statement.Name})
 			} else if statement.Kind == "namespace" {
-				indexClass := func(classStmt frontend.SyntaxStatement) {
-					if classStmt.Class == nil {
-						return
-					}
-					className := classIdentityForPath(fileName, classStmt.Class.Name)
-					// 1. Index constructor
-					if classStmt.Class.Constructor != nil {
-						ctorMangled := className + "_constructor"
-						ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid}
-						ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-						if classStmt.Class.Constructor != nil {
-							for pIdx, parameter := range classStmt.Class.Constructor.Parameters {
-								typ := toIRTypeForPath(fileName, parameter.Type)
-								if parameter.Initializer != nil {
-									if defaultParamsIndex[ctorMangled] == nil {
-										defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
-								} else if parameter.Optional {
-									if defaultParamsIndex[ctorMangled] == nil {
-										defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[ctorMangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
-								}
-								ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-							}
-						}
-						index[ctorMangled] = ctorFn
-						functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: ctorFn, PublicName: ctorFn.Name})
-					}
-
-					// 2. Index all methods (including inherited)
-					allMethods := getInheritedMethods(className, hierarchy)
-					for _, method := range allMethods {
-						var mangled string
-						var function ir.Function
-						if method.IsStatic {
-							mangled = className + "_static_" + method.Name
-							function = ir.Function{Name: mangled, ReturnType: toIRTypeForPath(fileName, method.Type)}
-							if function.ReturnType == "" {
-								function.ReturnType = ir.TypeVoid
-							}
-							for pIdx, parameter := range method.Parameters {
-								typ := toIRTypeForPath(fileName, parameter.Type)
-								if parameter.Initializer != nil {
-									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[mangled][pIdx] = parameter.Initializer
-								} else if parameter.Optional {
-									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[mangled][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
-								}
-								function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-							}
-							index[mangled] = function
-							index[className+"."+method.Name] = function
-						} else if method.Kind == "get" {
-							mangled = className + "_get_" + method.Name
-							function = ir.Function{Name: mangled, ReturnType: toIRTypeForPath(fileName, method.Type)}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-						} else if method.Kind == "set" {
-							mangled = className + "_set_" + method.Name
-							function = ir.Function{Name: mangled, ReturnType: ir.TypeVoid}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-							if len(method.Parameters) > 0 {
-								function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRTypeForPath(fileName, method.Parameters[0].Type)})
-							}
-						} else {
-							mangled = methodImplementationName(className, method.Name)
-							retType := toIRTypeForPath(fileName, method.Type)
-							if method.Type == "this" || retType == "this" || retType == "object:this" {
-								retType = ir.Type("object:" + className)
-							}
-							function = ir.Function{Name: mangled, ReturnType: retType}
-							if function.ReturnType == "" {
-								function.ReturnType = ir.TypeVoid
-							}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-							for pIdx, parameter := range method.Parameters {
-								typ := toIRTypeForPath(fileName, parameter.Type)
-								if parameter.Initializer != nil {
-									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
-								} else if parameter.Optional {
-									if defaultParamsIndex[mangled] == nil {
-										defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-									}
-									defaultParamsIndex[mangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
-								}
-								if parameter.Rest {
-									restParamsIndex[mangled] = true
-								}
-								function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-							}
-						}
-						if !method.IsAbstract {
-							index[mangled] = function
-							functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: function.Name})
-						}
-					}
-				}
 
 				for _, subStmt := range statement.Body {
 					if subStmt.Kind == "function" || subStmt.Kind == "async_function" {
@@ -249,116 +133,16 @@ func buildFunctionIndex(program frontend.Program) map[string]ir.Function {
 							if pType == "" && parameter.InferredType != "" {
 								pType = parameter.InferredType
 							}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: toIRTypeForPath(fileName, pType)})
+							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: variableStorageType(toIRTypeForPath(fileName, pType))})
 						}
 						index[fullName] = function
 						functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: function.Name})
 					} else if subStmt.Kind == "class" && subStmt.Class != nil {
-						indexClass(subStmt)
+						indexClassDeclaration(fileName, *subStmt.Class, hierarchy, index, functionsByFile)
 					}
 				}
 			} else if statement.Kind == "class" && statement.Class != nil {
-				className := classIdentityForPath(fileName, statement.Class.Name)
-				// 1. Index constructor
-				if statement.Class.Constructor != nil {
-					ctorMangled := className + "_constructor"
-					ctorFn := ir.Function{Name: ctorMangled, ReturnType: ir.TypeVoid}
-					ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-					if statement.Class.Constructor != nil {
-						for pIdx, parameter := range statement.Class.Constructor.Parameters {
-							typ := toIRTypeForPath(fileName, parameter.Type)
-							if parameter.Initializer != nil {
-								if defaultParamsIndex[ctorMangled] == nil {
-									defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[ctorMangled][pIdx+1] = parameter.Initializer
-							} else if parameter.Optional {
-								if defaultParamsIndex[ctorMangled] == nil {
-									defaultParamsIndex[ctorMangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[ctorMangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
-							}
-							ctorFn.Parameters = append(ctorFn.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-						}
-					}
-					index[ctorMangled] = ctorFn
-					functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: ctorFn, PublicName: ctorFn.Name})
-				}
-
-				// 2. Index all methods (including inherited)
-				allMethods := getInheritedMethods(className, hierarchy)
-				for _, method := range allMethods {
-					var mangled string
-					var function ir.Function
-					if method.IsStatic {
-						mangled = className + "_static_" + method.Name
-						function = ir.Function{Name: mangled, ReturnType: toIRTypeForPath(fileName, method.Type)}
-						if function.ReturnType == "" {
-							function.ReturnType = ir.TypeVoid
-						}
-						for pIdx, parameter := range method.Parameters {
-							typ := toIRTypeForPath(fileName, parameter.Type)
-							if parameter.Initializer != nil {
-								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[mangled][pIdx] = parameter.Initializer
-							} else if parameter.Optional {
-								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[mangled][pIdx] = &frontend.SyntaxExpression{Kind: "undefined"}
-							}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-						}
-						index[mangled] = function
-						index[className+"."+method.Name] = function
-					} else if method.Kind == "get" {
-						mangled = className + "_get_" + method.Name
-						function = ir.Function{Name: mangled, ReturnType: toIRTypeForPath(fileName, method.Type)}
-						function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-					} else if method.Kind == "set" {
-						mangled = className + "_set_" + method.Name
-						function = ir.Function{Name: mangled, ReturnType: ir.TypeVoid}
-						function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-						if len(method.Parameters) > 0 {
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: method.Parameters[0].Name, Type: toIRTypeForPath(fileName, method.Parameters[0].Type)})
-						}
-					} else {
-						mangled = methodImplementationName(className, method.Name)
-						retType := toIRTypeForPath(fileName, method.Type)
-						if method.Type == "this" || retType == "this" || retType == "object:this" {
-							retType = ir.Type("object:" + className)
-						}
-						function = ir.Function{Name: mangled, ReturnType: retType}
-						if function.ReturnType == "" {
-							function.ReturnType = ir.TypeVoid
-						}
-						function.Parameters = append(function.Parameters, ir.Parameter{Name: "this", Type: ir.Type("object:" + className)})
-						for pIdx, parameter := range method.Parameters {
-							typ := toIRTypeForPath(fileName, parameter.Type)
-							if parameter.Initializer != nil {
-								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[mangled][pIdx+1] = parameter.Initializer
-							} else if parameter.Optional {
-								if defaultParamsIndex[mangled] == nil {
-									defaultParamsIndex[mangled] = map[int]*frontend.SyntaxExpression{}
-								}
-								defaultParamsIndex[mangled][pIdx+1] = &frontend.SyntaxExpression{Kind: "undefined"}
-							}
-							if parameter.Rest {
-								restParamsIndex[mangled] = true
-							}
-							function.Parameters = append(function.Parameters, ir.Parameter{Name: parameter.Name, Type: typ})
-						}
-					}
-					if !method.IsAbstract {
-						index[mangled] = function
-						functionsByFile[fileName] = append(functionsByFile[fileName], indexedFunction{Function: function, PublicName: function.Name})
-					}
-				}
+				indexClassDeclaration(fileName, *statement.Class, hierarchy, index, functionsByFile)
 			}
 		}
 	}

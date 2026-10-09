@@ -113,6 +113,20 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 		if instruction.NoBoundsCheck {
 			id := e.labelCounter
 			e.labelCounter++
+			// The index is proven in bounds; only an array whose integrity
+			// level was raised (Object.freeze, seal, preventExtensions) takes
+			// the runtime setter, which enforces it.
+			storeLabel := fmt.Sprintf("idxset.store.%d", id)
+			lockedLabel := fmt.Sprintf("idxset.locked.%d", id)
+			storedLabel := fmt.Sprintf("idxset.stored.%d", id)
+			unlocked := e.emitArrayUnlocked(out, arrArg, id)
+			out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", unlocked, storeLabel, lockedLabel))
+			out.WriteString(fmt.Sprintf("\n%s:\n", lockedLabel))
+			if err := e.emitArraySetTyped(out, instruction, arrayType, arrArg, idxArg, valArg); err != nil {
+				return err
+			}
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", storedLabel))
+			out.WriteString(fmt.Sprintf("\n%s:\n", storeLabel))
 			idxI64 := fmt.Sprintf("idxset.i64.%d", id)
 			out.WriteString(fmt.Sprintf("  %%%s = fptosi double %%%s to i64\n", idxI64, idxArg))
 			dataPtrPtr := fmt.Sprintf("idxset.data.ptr.%d", id)
@@ -137,6 +151,8 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 			} else {
 				out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemPtrType, valArg, elemPtr))
 			}
+			out.WriteString(fmt.Sprintf("  br label %%%s\n", storedLabel))
+			out.WriteString(fmt.Sprintf("\n%s:\n", storedLabel))
 			return nil
 		}
 
@@ -194,7 +210,10 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 			out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condFast, inBounds, isExpectedSize))
 		}
 
-		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", condFast, fastLabel, slowLabel))
+		unlocked := e.emitArrayUnlocked(out, arrArg, id)
+		condStore := fmt.Sprintf("idxset.cond_store.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = and i1 %%%s, %%%s\n", condStore, condFast, unlocked))
+		out.WriteString(fmt.Sprintf("  br i1 %%%s, label %%%s, label %%%s, !prof !{!\"branch_weights\", i32 10000, i32 1}\n", condStore, fastLabel, slowLabel))
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", fastLabel))
 		dataPtrPtr := fmt.Sprintf("idxset.data.ptr.%d", id)
@@ -222,17 +241,9 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", slowLabel))
-		valSlot := fmt.Sprintf("%s.set.slot.%d", instruction.Args[0], e.runtimeStatus)
-		out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", valSlot, elemLLVMType))
-		out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemLLVMType, valArg, valSlot))
-		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
-		e.runtimeStatus++
-		valueSize, err := arrayElementSizeForTarget(arrayType, e.pointerSize())
-		if err != nil {
+		if err := e.emitArraySetTyped(out, instruction, arrayType, arrArg, idxArg, valArg); err != nil {
 			return err
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_typed(ptr %%%s, double %%%s, ptr %%%s, i64 %d, i64 %d)\n", status, arrArg, idxArg, valSlot, valueSize, arrayElementTag(arrayType)))
-		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", doneLabel))
 
 		out.WriteString(fmt.Sprintf("\n%s:\n", doneLabel))
@@ -251,4 +262,34 @@ func (e *functionEmitter) emitIndexSet(out *strings.Builder, instruction ir.Inst
 	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_typed(ptr %%%s, double %%%s, ptr %%%s, i64 %d, i64 %d)\n", status, arrArg, idxArg, valSlot, valueSize, arrayElementTag(arrayType)))
 	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 	return nil
+}
+
+// emitArraySetTyped stores through the runtime setter, which grows the
+// array and enforces its integrity level.
+func (e *functionEmitter) emitArraySetTyped(out *strings.Builder, instruction ir.Instruction, arrayType ir.Type, arrArg, idxArg, valArg string) error {
+	elemLLVMType := arrayElementLLVMType(arrayType)
+	valSlot := fmt.Sprintf("%s.set.slot.%d", instruction.Args[0], e.runtimeStatus)
+	out.WriteString(fmt.Sprintf("  %%%s = alloca %s\n", valSlot, elemLLVMType))
+	out.WriteString(fmt.Sprintf("  store %s %%%s, ptr %%%s\n", elemLLVMType, valArg, valSlot))
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	valueSize, err := arrayElementSizeForTarget(arrayType, e.pointerSize())
+	if err != nil {
+		return err
+	}
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_set_typed(ptr %%%s, double %%%s, ptr %%%s, i64 %d, i64 %d)\n", status, arrArg, idxArg, valSlot, valueSize, arrayElementTag(arrayType)))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	return nil
+}
+
+// emitArrayUnlocked loads the array's integrity level (offset 48 of the
+// array header) and returns an i1 that is true while it is still 0.
+func (e *functionEmitter) emitArrayUnlocked(out *strings.Builder, arrArg string, id int) string {
+	levelPtr := fmt.Sprintf("idxset.integrity.ptr.%d", id)
+	level := fmt.Sprintf("idxset.integrity.%d", id)
+	unlocked := fmt.Sprintf("idxset.unlocked.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds i8, ptr %%%s, i64 48\n", levelPtr, arrArg))
+	out.WriteString(fmt.Sprintf("  %%%s = load i64, ptr %%%s\n", level, levelPtr))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, 0\n", unlocked, level))
+	return unlocked
 }
