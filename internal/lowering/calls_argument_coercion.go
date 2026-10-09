@@ -16,6 +16,7 @@ var numericMethodArguments = map[string]map[string][]int{
 		"slice": {0, 1}, "substring": {0, 1}, "substr": {0, 1}, "charAt": {0}, "at": {0},
 		"charCodeAt": {0}, "codePointAt": {0}, "repeat": {0}, "padStart": {0}, "padEnd": {0},
 		"indexOf": {1}, "lastIndexOf": {1}, "includes": {1}, "startsWith": {1}, "endsWith": {1},
+		"split": {1},
 	},
 	"array": {
 		"slice": {0, 1}, "at": {0}, "indexOf": {1}, "lastIndexOf": {1}, "includes": {1},
@@ -27,7 +28,7 @@ var numericMethodArguments = map[string]map[string][]int{
 // argument means "not present" (to the end of the receiver), unlike other
 // index positions where ToIntegerOrInfinity(undefined) is 0.
 var omittedWhenUndefined = map[string]map[string]int{
-	"string": {"slice": 1, "substring": 1, "substr": 1},
+	"string": {"slice": 1, "substring": 1, "substr": 1, "split": 1},
 	"array":  {"slice": 1, "fill": 2, "copyWithin": 2},
 }
 

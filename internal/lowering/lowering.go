@@ -170,7 +170,9 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 					if fTypeStr == "" {
 						fTypeStr = field.InferredType
 					}
-					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: toIRTypeForPath(fileName, fTypeStr), Value: val, Optional: field.Optional, Span: toIRSpan(fileName, field.Span)})
+					// A field typed void/never (its initializer always throws)
+					// still has storage: it holds undefined, boxed.
+					shape.Fields = append(shape.Fields, ir.Field{Name: field.Name, Type: variableStorageType(toIRTypeForPath(fileName, fTypeStr)), Value: val, Optional: field.Optional, Span: toIRSpan(fileName, field.Span)})
 				}
 				if statement.Kind == "interface" {
 					if _, exists := shapes[shape.Name]; exists {

@@ -84,11 +84,14 @@ func lowerStringReceiverMethod(
 		}
 		splitArgs := []string{receiver, sepVal}
 		if len(expression.Arguments) > 1 {
-			limVal, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			limVal, limType, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", true, err
 			}
-			splitArgs = append(splitArgs, limVal)
+			limVal, _, present := coerceMethodArgument(path, expression.Arguments[1], "string", methodName, 1, len(expression.Arguments), limVal, limType, function, counter)
+			if present {
+				splitArgs = append(splitArgs, limVal)
+			}
 		}
 		if result == "" {
 			result = nextTemp(counter)

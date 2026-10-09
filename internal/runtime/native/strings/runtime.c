@@ -320,8 +320,12 @@ int scriptgo_array_set(void *handle, double index, const void *value);
 int scriptgo_array_set_owned_data(void *handle, void *owned_data);
 int scriptgo_array_release(void *handle);
 
+extern const char scriptgo_undefined_sentinel;
+
 int scriptgo_string_split(const char *value, const char *separator, double limit, void **out_array) {
     if (value == NULL || out_array == NULL) return string_fail("scriptgo string argument is invalid");
+    /* An undefined separator does not split: the result is [value]. */
+    if (separator == &scriptgo_undefined_sentinel) separator = NULL;
     if (!isnan(limit) && limit == 0.0) {
         return scriptgo_array_new(0, sizeof(char *), out_array);
     }
