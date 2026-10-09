@@ -42,7 +42,7 @@ func lowerVariableStatement(path string, statement frontend.SyntaxStatement, fun
 		if typeStr == "" {
 			typeStr = statement.InferredType
 		}
-		declaredType := toIRType(typeStr)
+		declaredType := variableStorageType(toIRType(typeStr))
 		if declaredType == "" {
 			declaredType = ir.TypeUnknown
 		}
@@ -89,6 +89,7 @@ func lowerVariableStatement(path string, statement frontend.SyntaxStatement, fun
 	if statement.Type == "" && statement.InferredType != "" {
 		declaredType = toIRTypeForPath(path, statement.InferredType)
 	}
+	declaredType = variableStorageType(declaredType)
 	if statement.Expression.Kind == "identifier" {
 		if _, isDynamicAlias := dynamicImports[statement.Expression.Text]; isDynamicAlias {
 			env[varResultName] = ir.TypeUnknown
@@ -123,9 +124,11 @@ func lowerVariableStatement(path string, statement frontend.SyntaxStatement, fun
 			env[statement.Name] = srcType
 			switch srcType {
 			case ir.TypeNumber:
+				// x - 0 copies every IEEE value unchanged, including -0
+				// (x + 0 would turn -0 into +0).
 				zeroConst := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, statement.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: varResultName, Operator: "+", Args: []string{identText, zeroConst}, Span: toIRSpan(path, statement.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: srcType, Result: varResultName, Operator: "-", Args: []string{identText, zeroConst}, Span: toIRSpan(path, statement.Span)})
 			case ir.TypeString:
 				emptyStr := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeString, Result: emptyStr, Value: "", Span: toIRSpan(path, statement.Span)})
@@ -373,4 +376,14 @@ func lowerImportAliasStatement(path string, statement frontend.SyntaxStatement, 
 		}
 	}
 	return nil
+}
+
+// variableStorageType maps a declared variable type to the IR type used for
+// its storage. A variable typed void/undefined/never still holds a value
+// (undefined), so it is stored boxed rather than as an unsized void slot.
+func variableStorageType(declared ir.Type) ir.Type {
+	if declared == ir.TypeVoid {
+		return ir.TypeUnknown
+	}
+	return declared
 }

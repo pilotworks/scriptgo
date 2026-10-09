@@ -29,19 +29,7 @@ static void scriptgo_format_double_shortest(char *buf, size_t size, double value
         snprintf(buf, size, "-0");
         return;
     }
-    char b15[64], b16[64], b17[64];
-    snprintf(b15, sizeof(b15), "%.15g", value);
-    if (strtod(b15, NULL) == value) {
-        snprintf(buf, size, "%s", b15);
-        return;
-    }
-    snprintf(b16, sizeof(b16), "%.16g", value);
-    if (strtod(b16, NULL) == value) {
-        snprintf(buf, size, "%s", b16);
-        return;
-    }
-    snprintf(b17, sizeof(b17), "%.17g", value);
-    snprintf(buf, size, "%s", b17);
+    scriptgo_number_format(value, buf, size);
 }
 
 static int scriptgo_console_number(FILE *stream, double value) {
@@ -49,8 +37,6 @@ static int scriptgo_console_number(FILE *stream, double value) {
     int ret;
     if (value == 0.0 && signbit(value)) {
         ret = fprintf(stream, "-0\n");
-    } else if (!isnan(value) && !isinf(value) && value == (double)(long long)value && value >= -9007199254740991.0 && value <= 9007199254740991.0) {
-        ret = fprintf(stream, "%lld\n", (long long)value);
     } else {
         char buf[64];
         scriptgo_format_double_shortest(buf, sizeof(buf), value);
@@ -225,6 +211,15 @@ static int scriptgo_console_object(FILE *stream, void *value) {
         return scriptgo_console_string(stream, str);
     }
     return scriptgo_console_string(stream, (const char *)value);
+}
+
+/* console formatting of a number: like String(n) except -0 stays "-0". */
+int scriptgo_console_inspect_number(double value, char **out_str) {
+    char buf[64];
+    if (out_str == NULL) return scriptgo_runtime_set_error("invalid number inspection");
+    scriptgo_format_double_shortest(buf, sizeof(buf), value);
+    *out_str = strdup(buf);
+    return *out_str == NULL ? scriptgo_runtime_set_error("number inspection allocation failed") : 0;
 }
 
 int scriptgo_console_inspect_buffer(void *value, char **out_str) {

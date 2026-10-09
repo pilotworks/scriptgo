@@ -121,7 +121,7 @@ func lowerIdentifierExpression(path string, expression *frontend.SyntaxExpressio
 			if typ == ir.TypeNumber {
 				zeroConst := nextTemp(counter)
 				function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "+", Args: []string{identName, zeroConst}, Span: toIRSpan(path, expression.Span)})
+				function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: typ, Result: result, Operator: "-", Args: []string{identName, zeroConst}, Span: toIRSpan(path, expression.Span)})
 				return result, typ, nil
 			}
 			if typ == ir.TypeString {

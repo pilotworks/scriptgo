@@ -76,6 +76,9 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 		fmt.Fprintf(out, "  %%%s = load %s, ptr %%%s\n", instruction.Result, elemLLVMType, resSlot)
 		return nil
 	case "__array.find":
+		if instruction.Type == ir.TypeUnknown {
+			return e.emitArrayFindValue(out, instruction, 0)
+		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -118,6 +121,9 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 		out.WriteString(fmt.Sprintf("  %%%s = load double, ptr %%%s\n", instruction.Result, slot))
 		return nil
 	case "__array.findLast":
+		if instruction.Type == ir.TypeUnknown {
+			return e.emitArrayFindValue(out, instruction, 1)
+		}
 		slot := instruction.Result + ".slot"
 		out.WriteString(fmt.Sprintf("  %%%s = alloca double\n", slot))
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
@@ -164,4 +170,17 @@ func (e *functionEmitter) emitArraySearchIntrinsic(out *strings.Builder, instruc
 	default:
 		return fmt.Errorf("unknown array intrinsic %q", instruction.Callee)
 	}
+}
+
+// emitArrayFindValue lowers find/findLast whose result is T | undefined: the
+// runtime returns the matching element boxed, or undefined.
+func (e *functionEmitter) emitArrayFindValue(out *strings.Builder, instruction ir.Instruction, fromEnd int) error {
+	slot := instruction.Result + ".slot"
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", slot))
+	out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_array_find_value(ptr %%%s, ptr %%%s, i32 %d, ptr %%%s)\n", status, instruction.Args[0], instruction.Args[1], fromEnd, slot))
+	out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
+	out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot))
+	return nil
 }

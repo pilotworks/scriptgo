@@ -326,6 +326,21 @@ func (e *functionEmitter) emitTypedArrayIntrinsic(out *strings.Builder, instruct
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 		return nil
 
+	case "__typedarray.join":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("typedarray.join requires 2 arguments")
+		}
+		slot := instruction.Result + ".slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		arrayArg := e.ensurePointerArg(out, instruction.Args[0])
+		separatorArg := e.ensurePointerArg(out, instruction.Args[1])
+		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_typedarray_join(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, arrayArg, separatorArg, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		return nil
+
 	case "__typedarray.toString":
 		if len(instruction.Args) != 1 {
 			return fmt.Errorf("typedarray.toString requires 1 argument")

@@ -645,6 +645,43 @@ static const char *typedarray_kind_name(scriptgo_typedarray_kind kind) {
     }
 }
 
+/* %TypedArray%.prototype.join / toString: elements formatted with
+ * Number::toString (or BigInt::toString) and joined by separator. */
+int scriptgo_typedarray_join(void *handle, const char *separator, char **out_str) {
+    scriptgo_typed_array *ta = (scriptgo_typed_array *)handle;
+    if (ta == NULL || out_str == NULL) return typedarray_fail("scriptgo TypedArray join failed");
+    if (separator == NULL) separator = ",";
+    size_t sep_len = strlen(separator);
+    size_t cap = 1 + (size_t)ta->length * (32 + sep_len);
+    char *buf = malloc(cap);
+    if (buf == NULL) return typedarray_fail("scriptgo TypedArray join allocation failed");
+    size_t len = 0;
+    buf[0] = '\0';
+    for (int64_t i = 0; i < ta->length; i++) {
+        char item[40];
+        if (ta->kind == SCRIPTGO_TYPEDARRAY_BIGINT64 || ta->kind == SCRIPTGO_TYPEDARRAY_BIGUINT64) {
+            int64_t bval = 0;
+            scriptgo_typedarray_get_bigint(ta, (double)i, &bval);
+            if (ta->kind == SCRIPTGO_TYPEDARRAY_BIGUINT64) snprintf(item, sizeof(item), "%llu", (unsigned long long)bval);
+            else snprintf(item, sizeof(item), "%lld", (long long)bval);
+        } else {
+            double val = 0.0;
+            scriptgo_typedarray_get(ta, (double)i, &val);
+            scriptgo_number_format(val, item, sizeof(item));
+        }
+        size_t item_len = strlen(item);
+        if (i > 0) {
+            memcpy(buf + len, separator, sep_len);
+            len += sep_len;
+        }
+        memcpy(buf + len, item, item_len);
+        len += item_len;
+        buf[len] = '\0';
+    }
+    *out_str = buf;
+    return 0;
+}
+
 int scriptgo_typedarray_to_string(void *handle, char **out_str) {
     scriptgo_typed_array *ta = (scriptgo_typed_array *)handle;
     if (ta == NULL || out_str == NULL) return typedarray_fail("scriptgo TypedArray toString failed");
@@ -664,11 +701,9 @@ int scriptgo_typedarray_to_string(void *handle, char **out_str) {
         } else {
             double val = 0.0;
             scriptgo_typedarray_get(ta, (double)i, &val);
-            if (val == (double)(long long)val) {
-                offset += snprintf(buf + offset, cap - (size_t)offset, "%lld", (long long)val);
-            } else {
-                offset += snprintf(buf + offset, cap - (size_t)offset, "%.15g", val);
-            }
+            char number[32];
+            scriptgo_number_format(val, number, sizeof(number));
+            offset += snprintf(buf + offset, cap - (size_t)offset, "%s", number);
         }
     }
     snprintf(buf + offset, cap - (size_t)offset, " ]");

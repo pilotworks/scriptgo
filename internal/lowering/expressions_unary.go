@@ -120,7 +120,7 @@ func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, re
 		if result != "" && result != value {
 			zeroConst := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: zeroConst, Value: "0", Span: toIRSpan(path, expression.Span)})
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "+", Args: []string{value, zeroConst}, Span: toIRSpan(path, expression.Span)})
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: result, Operator: "-", Args: []string{value, zeroConst}, Span: toIRSpan(path, expression.Span)})
 			return result, ir.TypeNumber, nil
 		}
 		return value, ir.TypeNumber, nil

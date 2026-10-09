@@ -121,6 +121,11 @@ enum {
 };
 
 void scriptgo_value_init_undefined(scriptgo_value *value);
+
+/* ECMAScript Number::toString(10): shortest round-trip digits with the
+ * specification's fixed/exponential layout ("0.1", "1e+21", "1.5e-7").
+ * Writes a NUL-terminated string to buf (at least 32 bytes). */
+void scriptgo_number_format(double value, char *buf, size_t size);
 int32_t scriptgo_value_validate(const scriptgo_value *value);
 int32_t scriptgo_value_clone(scriptgo_value *out, const scriptgo_value *source);
 int32_t scriptgo_value_move(scriptgo_value *out, scriptgo_value *source);

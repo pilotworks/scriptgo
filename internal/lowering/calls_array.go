@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -142,6 +143,30 @@ func lowerTypedArrayReceiverMethod(
 			Span:   toIRSpan(path, expression.Span),
 		})
 		return result, receiverType, true, nil
+	}
+	if methodName == "join" || methodName == "toString" {
+		separator := nextTemp(counter)
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpConst, Type: ir.TypeString, Result: separator, Value: ",", StringLiteral: true, Span: toIRSpan(path, expression.Span),
+		})
+		if methodName == "join" && len(expression.Arguments) > 0 && expression.Arguments[0].Kind != "undefined" {
+			value, valueType, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
+			if err != nil {
+				return "", "", true, err
+			}
+			if valueType != ir.TypeString {
+				return "", "", true, fmt.Errorf("TypedArray.prototype.join separator must be a string")
+			}
+			separator = value
+		}
+		if result == "" {
+			result = nextTemp(counter)
+		}
+		function.Body = append(function.Body, ir.Instruction{
+			Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__typedarray.join",
+			Args: []string{receiver, separator}, Span: toIRSpan(path, expression.Span),
+		})
+		return result, ir.TypeString, true, nil
 	}
 	return "", "", false, nil
 }
@@ -380,7 +405,10 @@ func lowerArrayReceiverMethod(
 		returnType = ir.TypeString
 	case "push", "unshift", "indexOf", "lastIndexOf", "reduce", "reduceRight", "findIndex", "findLastIndex":
 		returnType = ir.TypeNumber
-	case "pop", "shift", "at", "find", "findLast":
+	case "find", "findLast":
+		// T | undefined: the element when the predicate matches, else undefined.
+		returnType = ir.TypeUnknown
+	case "pop", "shift", "at":
 		if receiverType == ir.TypeNumberArray {
 			returnType = ir.TypeNumber
 		} else if receiverType == ir.TypeStringArray {

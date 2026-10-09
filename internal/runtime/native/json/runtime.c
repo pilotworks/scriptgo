@@ -91,12 +91,9 @@ static inline int jb_number(json_builder *b, double value) {
         return jb_append(b, "null", 4);
     }
     if (jb_reserve(b, 32) != 0) return -1;
-    int written;
-    if (value == (double)(int64_t)value && fabs(value) < 9e18) {
-        written = snprintf(b->buf + b->len, 32, "%lld", (long long)value);
-    } else {
-        written = snprintf(b->buf + b->len, 32, "%g", value);
-    }
+    char number[32];
+    scriptgo_number_format(value, number, sizeof(number));
+    int written = snprintf(b->buf + b->len, 32, "%s", number);
     if (written > 0) {
         b->len += (size_t)written;
         b->buf[b->len] = '\0';

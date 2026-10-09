@@ -96,6 +96,45 @@ int scriptgo_number_to_fixed(double val, double digits, char **out_value) {
     return 0;
 }
 
+void scriptgo_number_format(double value, char *buf, size_t size) {
+    if (isnan(value)) { snprintf(buf, size, "NaN"); return; }
+    if (value == 0.0) { snprintf(buf, size, "0"); return; }
+    if (isinf(value)) { snprintf(buf, size, value > 0 ? "Infinity" : "-Infinity"); return; }
+    char sign[2] = {0, 0};
+    if (value < 0) { sign[0] = '-'; value = -value; }
+    /* Shortest digit string s (k digits) and exponent n with value = 0.s * 10^n. */
+    char sci[40];
+    int k = 1;
+    for (; k <= 17; k++) {
+        snprintf(sci, sizeof(sci), "%.*e", k - 1, value);
+        if (strtod(sci, NULL) == value) break;
+    }
+    char digits[20];
+    int len = 0;
+    const char *p = sci;
+    for (; *p != 'e' && *p != '\0'; p++) {
+        if (*p >= '0' && *p <= '9' && len < 19) digits[len++] = *p;
+    }
+    while (len > 1 && digits[len - 1] == '0') len--;
+    digits[len] = '\0';
+    int n = (*p == 'e' ? atoi(p + 1) : 0) + 1;
+    char out[64];
+    if (len <= n && n <= 21) {
+        snprintf(out, sizeof(out), "%s%s%0*d", sign, digits, n - len, 0);
+        if (n - len == 0) snprintf(out, sizeof(out), "%s%s", sign, digits);
+    } else if (0 < n && n <= 21) {
+        snprintf(out, sizeof(out), "%s%.*s.%s", sign, n, digits, digits + n);
+    } else if (-6 < n && n <= 0) {
+        snprintf(out, sizeof(out), "%s0.%0*d%s", sign, -n, 0, digits);
+        if (n == 0) snprintf(out, sizeof(out), "%s0.%s", sign, digits);
+    } else {
+        int e = n - 1;
+        if (len == 1) snprintf(out, sizeof(out), "%s%se%c%d", sign, digits, e < 0 ? '-' : '+', e < 0 ? -e : e);
+        else snprintf(out, sizeof(out), "%s%c.%se%c%d", sign, digits[0], digits + 1, e < 0 ? '-' : '+', e < 0 ? -e : e);
+    }
+    snprintf(buf, size, "%s", out);
+}
+
 int scriptgo_number_to_string(double val, double radix, char **out_value) {
     if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to toString");
     int r = 10;
@@ -129,11 +168,7 @@ int scriptgo_number_to_string(double val, double radix, char **out_value) {
             snprintf(buf, sizeof(buf), "%s", &temp[pos]);
         }
     } else {
-        if (trunc(val) == val) {
-            snprintf(buf, sizeof(buf), "%.0f", val);
-        } else {
-            snprintf(buf, sizeof(buf), "%g", val);
-        }
+        scriptgo_number_format(val, buf, sizeof(buf));
     }
     size_t len = strlen(buf);
     char *res = malloc(len + 1);
@@ -185,11 +220,22 @@ int scriptgo_number_to_precision(double val, double precision, char **out_value)
         if (val > 0) snprintf(buf, sizeof(buf), "Infinity");
         else snprintf(buf, sizeof(buf), "-Infinity");
     } else if (!isnan(precision) && precision > 0.0) {
+        /* Number.prototype.toPrecision: p significant digits, keeping
+         * trailing zeros; exponential when e < -6 or e >= p. */
         int p = (int)precision;
-        if (p > 21) p = 21;
-        snprintf(buf, sizeof(buf), "%.*g", p, val);
+        if (p > 100) p = 100;
+        char sci[160];
+        snprintf(sci, sizeof(sci), "%.*e", p - 1, val);
+        int e = atoi(strchr(sci, 'e') + 1);
+        if (e < -6 || e >= p) {
+            char *exp = strchr(sci, 'e');
+            *exp = '\0';
+            snprintf(buf, sizeof(buf), "%se%c%d", sci, e < 0 ? '-' : '+', e < 0 ? -e : e);
+        } else {
+            snprintf(buf, sizeof(buf), "%.*f", p - 1 - e, val);
+        }
     } else {
-        snprintf(buf, sizeof(buf), "%g", val);
+        scriptgo_number_format(val, buf, sizeof(buf));
     }
     size_t len = strlen(buf);
     char *res = malloc(len + 1);

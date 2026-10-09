@@ -684,6 +684,79 @@ int scriptgo_array_find_number(void *handle, void *closure_handle, double *out_v
     return 0;
 }
 
+typedef struct {
+    int64_t length;
+    int64_t capacity;
+    int64_t element_size;
+    unsigned char *data;
+    void *owned_data;
+    int64_t element_tag;
+} scriptgo_array_tagged_view;
+
+/* scriptgo_array_element_value reads element i as a canonical tagged value
+ * borrowed from the array (no ownership is transferred). */
+static void scriptgo_array_element_value(const scriptgo_array_tagged_view *array, int64_t i, scriptgo_value *out) {
+    const unsigned char *slot = array->data + (size_t)i * (size_t)array->element_size;
+    memset(out, 0, sizeof(*out));
+    if (array->element_size == (int64_t)sizeof(scriptgo_value)) {
+        const scriptgo_value *value = (const scriptgo_value *)slot;
+        out->tag = value->tag;
+        out->payload = value->payload;
+        out->aux = value->aux;
+        return;
+    }
+    if (array->element_size == 1 || array->element_tag == SCRIPTGO_TAG_BOOLEAN) {
+        out->tag = SCRIPTGO_TAG_BOOLEAN;
+        out->payload = *(const uint8_t *)slot != 0;
+        return;
+    }
+    if (array->element_tag == SCRIPTGO_TAG_STRING) {
+        const char *text = *(const char *const *)slot;
+        if (text == NULL || text == &scriptgo_undefined_sentinel) {
+            out->tag = text == NULL ? SCRIPTGO_TAG_NULL : SCRIPTGO_TAG_UNDEFINED;
+            return;
+        }
+        out->tag = SCRIPTGO_TAG_STRING;
+        out->payload = (uint64_t)(uintptr_t)text;
+        out->aux = strlen(text);
+        return;
+    }
+    if (array->element_tag == SCRIPTGO_TAG_NUMBER || array->element_tag == 0) {
+        out->tag = SCRIPTGO_TAG_NUMBER;
+        memcpy(&out->payload, slot, sizeof(double));
+        return;
+    }
+    memcpy(&out->payload, slot, sizeof(uint64_t));
+    out->tag = (uint32_t)array->element_tag;
+}
+
+/* Array.prototype.find / findLast for every element layout. The predicate
+ * receives (element, index) in the canonical tagged closure ABI; the result
+ * is the matching element boxed, or undefined when nothing matches. */
+int scriptgo_array_find_value(void *handle, void *closure_handle, int32_t from_end, scriptgo_value *out_value) {
+    const scriptgo_array_tagged_view *array = handle;
+    scriptgo_closure *c = closure_handle;
+    if (array == NULL || c == NULL || out_value == NULL || array->element_size <= 0) {
+        return scriptgo_runtime_set_error("scriptgo array find failed");
+    }
+    uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
+        (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
+    for (int64_t step = 0; step < array->length; step++) {
+        int64_t i = from_end ? array->length - 1 - step : step;
+        scriptgo_value element;
+        union { double d; int64_t i; } u_idx;
+        scriptgo_array_element_value(array, i, &element);
+        u_idx.d = (double)i;
+        if (fn(c->env, (int32_t)element.tag, 0, (int64_t)element.payload, SCRIPTGO_TAG_NUMBER, 0, u_idx.i, 0, 0, 0, 0, 0, 0)) {
+            *out_value = element;
+            return 0;
+        }
+    }
+    memset(out_value, 0, sizeof(*out_value));
+    out_value->tag = SCRIPTGO_TAG_UNDEFINED;
+    return 0;
+}
+
 int scriptgo_array_some_number(void *handle, void *closure_handle, int32_t *out_bool) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;

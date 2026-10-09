@@ -394,7 +394,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 				}
 				module.Globals = append(module.Globals, ir.Global{
 					Name: statement.Name,
-					Type: typ,
+					Type: variableStorageType(typ),
 				})
 			} else if statement.Kind == "namespace" {
 				for _, sub := range statement.Body {
@@ -555,7 +555,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	for _, l := range main.Locals {
 		if !existingGlobals[l.Name] {
 			existingGlobals[l.Name] = true
-			gType := l.Type
+			gType := variableStorageType(l.Type)
 			if gType == "" {
 				gType = ir.TypePointer
 			}

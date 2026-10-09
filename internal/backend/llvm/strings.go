@@ -23,7 +23,7 @@ func (e *functionEmitter) emitStringIntrinsic(out *strings.Builder, instruction 
 	case "__string.indexOf", "__string.lastIndexOf", "__string.startsWith", "__string.endsWith", "__string.includes", "__string.replace", "__string.replaceAll", "__string.split", "__string.match", "__string.search", "__string.replace_regex", "__string.matchAll", "__string.localeCompare":
 		return e.emitStringSearchIntrinsic(out, instruction, status)
 
-	case "__string.fromNumber", "__string.fromBool", "__string.fromUnknown", "__string.fromObject", "__string.inspectObject", "__string.inspectBuffer", "__string.inspectArray", "__string.fromBigInt", "__string.fromBigIntLocale", "__string.errorToString", "__string.fromCodePoint", "__string.fromCharCode", "__string.encodeURIComponent", "__string.decodeURIComponent", "__string.encodeURI", "__string.decodeURI", "__string.raw", "__string.new":
+	case "__string.fromNumber", "__string.inspectNumber", "__string.fromBool", "__string.fromUnknown", "__string.fromObject", "__string.inspectObject", "__string.inspectBuffer", "__string.inspectArray", "__string.fromBigInt", "__string.fromBigIntLocale", "__string.errorToString", "__string.fromCodePoint", "__string.fromCharCode", "__string.encodeURIComponent", "__string.decodeURIComponent", "__string.encodeURI", "__string.decodeURI", "__string.raw", "__string.new":
 		return e.emitStringConversionIntrinsic(out, instruction, status)
 
 	case "__string.slice", "__string.substring":

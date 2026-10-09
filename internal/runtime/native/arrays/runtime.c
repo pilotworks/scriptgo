@@ -798,11 +798,7 @@ int scriptgo_array_join_number(void *handle, const char *separator, char **out_s
     for (int64_t i = 0; i < array->length; i++) {
         double val = *(double *)(array->data + (size_t)i * sizeof(double));
         char num_buf[64];
-        if (val == (double)(int64_t)val && fabs(val) < 1e15) {
-            snprintf(num_buf, sizeof(num_buf), "%lld", (long long)val);
-        } else {
-            snprintf(num_buf, sizeof(num_buf), "%g", val);
-        }
+        scriptgo_number_format(val, num_buf, sizeof(num_buf));
         size_t n_len = strlen(num_buf);
         while (len + n_len + sep_len + 1 >= cap) {
             cap *= 2;

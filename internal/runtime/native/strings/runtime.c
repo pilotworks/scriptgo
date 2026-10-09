@@ -176,10 +176,8 @@ int scriptgo_string_from_number(double value, char **out_value) {
     } else if (isinf(value)) {
         if (value > 0) strcpy(buf, "Infinity");
         else strcpy(buf, "-Infinity");
-    } else if (value == (double)(int64_t)value && fabs(value) < 1e15) {
-        snprintf(buf, sizeof(buf), "%lld", (long long)value);
     } else {
-        snprintf(buf, sizeof(buf), "%g", value);
+        scriptgo_number_format(value, buf, sizeof(buf));
     }
     length = strlen(buf);
     result = malloc(length + 1);

@@ -28,7 +28,7 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span fr
 	var callee string
 	switch valType {
 	case ir.TypeNumber:
-		callee = "__string.fromNumber"
+		callee = "__string.inspectNumber"
 	case ir.TypeBool:
 		callee = "__string.fromBool"
 	case ir.TypeBigInt:
