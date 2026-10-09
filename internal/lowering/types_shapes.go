@@ -106,7 +106,21 @@ func tupleFields(typeStr string) ([]ir.Field, bool) {
 	return fields, true
 }
 
+// anonymousObjectFields returns the fields of an object type literal in
+// property key order (see orderPropertyKeys).
 func anonymousObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
+	fields, ok := declaredObjectFields(typeStr, visited)
+	if !ok {
+		return fields, ok
+	}
+	ordered := make([]ir.Field, len(fields))
+	for to, from := range orderPropertyKeys(fields) {
+		ordered[to] = fields[from]
+	}
+	return ordered, true
+}
+
+func declaredObjectFields(typeStr string, visited map[string]bool) ([]ir.Field, bool) {
 	if strings.Contains(typeStr, "|") && len(splitTopLevelUnion(typeStr)) > 1 {
 		return nil, false
 	}

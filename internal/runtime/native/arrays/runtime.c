@@ -34,6 +34,17 @@ static int check_index(scriptgo_array *array, double index, size_t *offset) {
     return 0;
 }
 
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+
+/* scriptgo_array_new_tagged allocates an array and records the tag of its
+ * 8-byte elements (3 number, 4 string, 8 bigint; 0 for references), so
+ * boxed reads (scriptgo_array_get_unknown) decode the element correctly. */
+int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array) {
+    if (scriptgo_array_new(length, element_size, out_array) != 0) return -1;
+    ((scriptgo_array *)*out_array)->element_tag = element_tag;
+    return 0;
+}
+
 int scriptgo_array_set_tag(void *handle, int64_t tag) {
     scriptgo_array *array = handle;
     if (array == NULL) return fail("scriptgo array null");
@@ -381,7 +392,7 @@ int scriptgo_array_slice_with_size(void *handle, double start_val, double end_va
     end = scriptgo_array_relative_index(end_val, length);
     if (end < start) end = start;
     new_len = end - start;
-    if (scriptgo_array_new(new_len, element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(new_len, element_size, source_array != NULL && element_size == source_array->element_size ? source_array->element_tag : 0, out_array) != 0) {
         return -1;
     }
     if (new_len > 0) {
@@ -715,7 +726,7 @@ int scriptgo_array_concat(void *handle1, void *handle2, void **out_array) {
         return fail("scriptgo array access failed");
     }
     total_len = arr1->length + arr2->length;
-    if (scriptgo_array_new(total_len, arr1->element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(total_len, arr1->element_size, arr1->element_tag == arr2->element_tag ? arr1->element_tag : 0, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -768,7 +779,7 @@ int scriptgo_array_splice(void *handle, double start_val, double delete_count_va
             delete_count = length - start;
         }
     }
-    if (scriptgo_array_new(delete_count, array->element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(delete_count, array->element_size, array->element_tag, out_array) != 0) {
         return -1;
     }
     deleted = *out_array;
@@ -1111,7 +1122,7 @@ int scriptgo_array_to_reversed(void *handle, void **out_array) {
     if (array == NULL || out_array == NULL || array->element_size <= 0) {
         return fail("scriptgo array toReversed failed");
     }
-    if (scriptgo_array_new(array->length, array->element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, array->element_size, array->element_tag, out_array) != 0) {
         return -1;
     }
     scriptgo_array *res = *out_array;
@@ -1137,7 +1148,7 @@ int scriptgo_array_to_sorted_number(void *handle, void **out_array) {
     if (array == NULL || out_array == NULL || array->element_size != sizeof(double)) {
         return fail("scriptgo array toSorted failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     scriptgo_array *res = *out_array;
@@ -1153,7 +1164,7 @@ int scriptgo_array_to_sorted_string(void *handle, void **out_array) {
     if (array == NULL || out_array == NULL || array->element_size != sizeof(char *)) {
         return fail("scriptgo array toSorted failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     scriptgo_array *res = *out_array;
@@ -1281,7 +1292,7 @@ int scriptgo_array_with_number(void *handle, double index, double value, void **
     if (idx < 0 || idx >= array->length) {
         return fail("scriptgo array index out of bounds");
     }
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     scriptgo_array *res = *out_array;
@@ -1300,7 +1311,7 @@ int scriptgo_array_with_string(void *handle, double index, const char *value, vo
     if (idx < 0 || idx >= array->length) {
         return fail("scriptgo array index out of bounds");
     }
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     scriptgo_array *res = *out_array;
@@ -1334,7 +1345,7 @@ int scriptgo_array_to_spliced(void *handle, double start_val, double delete_coun
         }
     }
     int64_t new_len = length - delete_count;
-    if (scriptgo_array_new(new_len, array->element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(new_len, array->element_size, array->element_tag, out_array) != 0) {
         return -1;
     }
 	scriptgo_array *res = *out_array;
@@ -1406,7 +1417,7 @@ int scriptgo_array_is_array(void *handle, double *out_bool) {
 int scriptgo_array_keys(void *handle, void **out_array) {
     scriptgo_array *array = handle;
     if (array == NULL || out_array == NULL) return fail("scriptgo array keys failed");
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) return -1;
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) return -1;
     scriptgo_array *res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
         double d = (double)i;
@@ -1418,7 +1429,7 @@ int scriptgo_array_keys(void *handle, void **out_array) {
 int scriptgo_array_entries(void *handle, void **out_array) {
     scriptgo_array *array = handle;
     if (array == NULL || out_array == NULL) return fail("scriptgo array entries failed");
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) return -1;
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) return -1;
     scriptgo_array *res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
         char buf[256];

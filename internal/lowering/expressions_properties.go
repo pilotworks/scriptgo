@@ -232,6 +232,9 @@ func lowerPropertyExpression(path string, expression *frontend.SyntaxExpression,
 	if className == "this" || className == "" || className == "object" {
 		className = resolveThisPropertyClass(expression, function, env, shapes, className)
 	}
+	if isFunctionDeclarationReference(path, expression.Left, env, signatures) && !functionValueProperty(expression.Text) {
+		return "", "", fmt.Errorf("property %q on a function declaration is not supported", expression.Text)
+	}
 	isUnionAlias := false
 	if typeAliasesIndex != nil && typeAliasesIndex[className] != "" && strings.Contains(typeAliasesIndex[className], "|") {
 		isUnionAlias = true
@@ -416,4 +419,29 @@ func resolveShapeFields(name string, shapes map[string]ir.ObjectShape) ([]ir.Fie
 		}
 	}
 	return nil, false
+}
+
+// isFunctionDeclarationReference reports an identifier that names a function
+// declaration. Each such reference materializes a fresh closure-ABI
+// trampoline, so it has no identity to hold properties (foo.x = 1 would be
+// lost, and reading foo.x would read past the closure object).
+func isFunctionDeclarationReference(path string, expression *frontend.SyntaxExpression, env map[string]ir.Type, signatures map[string]ir.Function) bool {
+	if expression == nil || expression.Kind != "identifier" {
+		return false
+	}
+	if _, isVariable := env[expression.Text]; isVariable {
+		return false
+	}
+	_, ok := resolveFunctionSignature(path, expression.Text, signatures)
+	return ok
+}
+
+// functionValueProperty reports the Function properties the native subset
+// models on a function declaration reference.
+func functionValueProperty(name string) bool {
+	switch name {
+	case "name", "length", "call", "apply", "bind", "toString":
+		return true
+	}
+	return false
 }

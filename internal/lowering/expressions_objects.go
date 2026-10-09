@@ -172,6 +172,14 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 		})
 		propValues = append(propValues, val)
 	}
+	// Values were evaluated in source order; the shape lists properties in
+	// key order (integer keys first), as Object.keys and JSON report them.
+	orderedFields := make([]ir.Field, len(fields))
+	orderedValues := make([]string, len(propValues))
+	for to, from := range orderPropertyKeys(fields) {
+		orderedFields[to], orderedValues[to] = fields[from], propValues[from]
+	}
+	fields, propValues = orderedFields, orderedValues
 	shapeName := anonymousShapeName(fields)
 	var targetS *ir.ObjectShape
 	if expression.InferredType != "" {

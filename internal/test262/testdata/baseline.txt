@@ -934,8 +934,6 @@ language/expressions/assignmenttargettype/parenthesized-updateexpression-star-st
 language/expressions/assignmenttargettype/parenthesized-yieldexpression-0.js
 language/expressions/assignmenttargettype/parenthesized-yieldexpression-1.js
 language/expressions/assignmenttargettype/simple-basic-identifierreference-await.js
-language/expressions/assignmenttargettype/simple-complex-callexpression-expression.js
-language/expressions/assignmenttargettype/simple-complex-memberexpression-expression.js
 language/expressions/async-arrow-function/array-destructuring-param-strict-body.js
 language/expressions/async-arrow-function/await-as-binding-identifier-escaped.js
 language/expressions/async-arrow-function/await-as-binding-identifier.js
@@ -1665,8 +1663,6 @@ language/expressions/concatenation/S9.8_A4_T2.js
 language/expressions/conditional/in-branch-2.js
 language/expressions/conditional/in-condition.js
 language/expressions/delete/S11.4.1_A2.1.js
-language/expressions/delete/S11.4.1_A3.2_T2.js
-language/expressions/delete/S11.4.1_A3.3_T2.js
 language/expressions/delete/identifier-strict.js
 language/expressions/delete/non-reference-return-true.js
 language/expressions/division/S11.5.2_A2.4_T1.js
@@ -3243,8 +3239,6 @@ language/statements/class/subclass/builtin-objects/NativeError/TypeError-name.js
 language/statements/class/subclass/builtin-objects/NativeError/URIError-name.js
 language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js
 language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js
-language/statements/class/subclass/superclass-prototype-setter-constructor.js
-language/statements/class/subclass/superclass-prototype-setter-method-override.js
 language/statements/class/subclass/superclass-static-method-override.js
 language/statements/class/syntax/class-body-has-direct-super-class-heritage.js
 language/statements/class/syntax/class-expression-heritage-identifier-reference.js

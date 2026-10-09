@@ -5,6 +5,7 @@
 
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array);
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
 int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 
@@ -17,6 +18,7 @@ typedef struct {
     int64_t element_size;
     unsigned char *data;
     void *owned_data;
+    int64_t element_tag;
 } scriptgo_array_inner;
 
 typedef struct {
@@ -207,7 +209,7 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -234,7 +236,7 @@ int scriptgo_array_flat_map_number(void *handle, void *closure_handle, void **ou
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array flatMap failed");
     }
-    if (scriptgo_array_new(0, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(0, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     scriptgo_array_set_tag(*out_array, 3);
@@ -269,7 +271,7 @@ int scriptgo_array_flat_map_number_scalar(void *handle, void *closure_handle, vo
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array flatMap failed");
     }
-    if (scriptgo_array_new(0, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(0, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     scriptgo_array_set_tag(*out_array, 3);
@@ -294,7 +296,7 @@ int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void 
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -317,7 +319,7 @@ int scriptgo_array_map_number_from_string(void *handle, void *closure_handle, vo
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -340,7 +342,7 @@ int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_arr
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -363,7 +365,7 @@ int scriptgo_array_map_string_from_number(void *handle, void *closure_handle, vo
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -387,7 +389,7 @@ int scriptgo_array_map_string_from_ptr(void *handle, void *closure_handle, void 
     if (array == NULL || c == NULL || out_array == NULL) {
         return scriptgo_runtime_set_error("scriptgo array map failed");
     }
-    if (scriptgo_array_new(array->length, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(array->length, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     res = *out_array;
@@ -490,7 +492,7 @@ int scriptgo_array_filter_number(void *handle, void *closure_handle, void **out_
     if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(double)) {
         return scriptgo_runtime_set_error("scriptgo array filter failed");
     }
-    if (scriptgo_array_new(0, sizeof(double), out_array) != 0) {
+    if (scriptgo_array_new_tagged(0, sizeof(double), 3, out_array) != 0) {
         return -1;
     }
     for (int64_t i = 0; i < array->length; i++) {
@@ -515,7 +517,7 @@ int scriptgo_array_filter_string(void *handle, void *closure_handle, void **out_
     if (array == NULL || c == NULL || out_array == NULL || array->element_size != sizeof(char *)) {
         return scriptgo_runtime_set_error("scriptgo array filter failed");
     }
-    if (scriptgo_array_new(0, sizeof(char *), out_array) != 0) {
+    if (scriptgo_array_new_tagged(0, sizeof(char *), 4, out_array) != 0) {
         return -1;
     }
     for (int64_t i = 0; i < array->length; i++) {
@@ -542,7 +544,7 @@ int scriptgo_array_filter_ptr(void *handle, void *closure_handle, void **out_arr
     if (array->element_size != sizeof(void *) && array->element_size != sizeof(scriptgo_value)) {
         return scriptgo_runtime_set_error("scriptgo array filter failed");
     }
-    if (scriptgo_array_new(0, array->element_size, out_array) != 0) {
+    if (scriptgo_array_new_tagged(0, array->element_size, array->element_tag, out_array) != 0) {
         return -1;
     }
     uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =

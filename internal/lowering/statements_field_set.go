@@ -136,6 +136,9 @@ func lowerFieldSetStatement(path string, statement frontend.SyntaxStatement, fun
 		}
 	}
 	if !ok {
+		if isFunctionDeclarationReference(path, statement.Left, env, signatures) {
+			return fmt.Errorf("property %q on a function declaration is not supported", statement.Name)
+		}
 		if className == "closure" || strings.HasPrefix(className, "__closure_") || className == "object" || className == "Record" || strings.HasPrefix(className, "Record_") || strings.HasPrefix(className, "Record<") || objType == ir.TypeObject || objType == ir.TypeUnknown {
 			propNameConst := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
