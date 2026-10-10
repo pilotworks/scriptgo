@@ -299,7 +299,6 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		}
 		args = append(args, qjsObj)
 	}
-	args = append(args, codecConfig.linkFlags...)
 
 	// Process FFI manifests and extra native sources
 	var extraLibs []string
@@ -379,7 +378,10 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = append(args, "-L"+dir)
 	}
 	args = append(args, extraCFlags...)
-	args = append(args, "-o", filepath.Clean(outputPath), "-lm")
+	args = append(args, "-o", filepath.Clean(outputPath))
+	// Runtime libraries come after every input so a library is recorded as
+	// needed only when the linked program references it.
+	args = append(args, runtimeLibraryFlags(options.Target, append(codecConfig.linkFlags, "-lm"))...)
 	for _, lib := range extraLibs {
 		if strings.HasPrefix(lib, "-l") {
 			args = append(args, lib)
@@ -508,48 +510,6 @@ func CheckWithOptions(entryPath string, options BuildOptions) error {
 		if len(warns) > 0 {
 			return fmt.Errorf("strict casts: %s: %s at offset %d: %s", warns[0].Code, warns[0].FileName, warns[0].Span.Start, warns[0].Message)
 		}
-	}
-	return nil
-}
-
-func linkerDCEFlags(target string) []string {
-	t := strings.ToLower(target)
-	if strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin") {
-		return []string{"-Wl,-dead_strip"}
-	}
-	flags := []string{"-Wl,--gc-sections"}
-	if _, err := exec.LookPath("ld.lld"); err == nil {
-		flags = append(flags, "-fuse-ld=lld")
-	} else if _, err := exec.LookPath("lld"); err == nil {
-		flags = append(flags, "-fuse-ld=lld")
-	}
-	return flags
-}
-
-func stripExecutable(outputPath, target string) error {
-	t := strings.ToLower(target)
-	if strings.HasPrefix(t, "wasm") {
-		return nil
-	}
-	stripBin, err := exec.LookPath("strip")
-	if err != nil {
-		return nil
-	}
-	isDarwin := strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "apple") || (t == "native" && goRuntime.GOOS == "darwin") || (t == "" && goRuntime.GOOS == "darwin")
-	var cmd *exec.Cmd
-	if isDarwin {
-		cmd = exec.Command(stripBin, "-x", outputPath)
-	} else {
-		cmd = exec.Command(stripBin, "--strip-all", outputPath)
-	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !isDarwin {
-			cmdFallback := exec.Command(stripBin, "-s", outputPath)
-			if _, errFallback := cmdFallback.CombinedOutput(); errFallback == nil {
-				return nil
-			}
-		}
-		return fmt.Errorf("strip %s: %w: %s", outputPath, err, string(out))
 	}
 	return nil
 }

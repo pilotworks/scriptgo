@@ -448,6 +448,17 @@ scriptgo run --native --cc zigcc src/main.ts
 SCRIPTGO_CC="zigcc" SCRIPTGO_TARGET="aarch64-macos" scriptgo build src/main.ts -o main-macos
 ```
 
+### Linked Native Libraries
+
+The runtime object is compiled once with every available codec (zlib, OpenSSL,
+brotli, zstd, resolv), but an executable depends only on the libraries its
+program references after dead code elimination: ELF links use
+`-Wl,--as-needed` and Apple links use `-Wl,-dead_strip_dylibs`. A program that
+never compresses, hashes or resolves names loads only the C library (and libm
+when it calls a math function), so it starts faster and runs on machines
+without those libraries installed. Libraries named in `.ffi.json` manifests are
+linked as given.
+
 ### Manual Toolchain Invocation Syntax
 
 Both drivers accept the same argument patterns for compiling emitted LLVM IR and C runtime sources:
