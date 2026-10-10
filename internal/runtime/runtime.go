@@ -76,6 +76,12 @@ var osSource string
 //go:embed native/regex/runtime.c
 var regexSource string
 
+//go:embed native/regex/methods.c
+var regexMethodsSource string
+
+//go:embed native/bigint/runtime.c
+var bigintSource string
+
 //go:embed native/symbol/runtime.c
 var symbolSource string
 
@@ -195,7 +201,7 @@ var tlsRootCertificatesSource = "#define NODE_WANT_INTERNALS 1\nstatic const cha
 var Source = baseSource()
 
 func baseSource() []byte {
-	return []byte("#ifndef _GNU_SOURCE\n#define _GNU_SOURCE 1\n#endif\n#ifndef _DEFAULT_SOURCE\n#define _DEFAULT_SOURCE 1\n#endif\n" + ValueHeader + "\n" + valueSource + "\n" + errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + dnsSource + "\n" + netSource + "\n" + dgramSource + "\n" + tlsRootCertificatesSource + tlsSource + "\n" + websocketSource + "\n" + ttySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringUTF16Source + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + asyncCombinatorSource + "\n" + fsSource + "\n" + fsWatcherSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + cryptoEVPSource + "\n" + zlibSource + "\n" + webSource + "\n" + YYJSONHeader + "\n" + yyjsonSource + "\n" + jsonSource + "\n" + regexSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)
+	return []byte("#ifndef _GNU_SOURCE\n#define _GNU_SOURCE 1\n#endif\n#ifndef _DEFAULT_SOURCE\n#define _DEFAULT_SOURCE 1\n#endif\n" + ValueHeader + "\n" + valueSource + "\n" + errorSource + "\n" + outputSource + "\n" + arraySource + "\n" + typedarraySource + "\n" + atomicsSource + "\n" + bufferSource + "\n" + mapSource + "\n" + setSource + "\n" + encodingSource + "\n" + timersSource + "\n" + gcSource + "\n" + weakSource + "\n" + intlSource + "\n" + dnsSource + "\n" + netSource + "\n" + dgramSource + "\n" + tlsRootCertificatesSource + tlsSource + "\n" + websocketSource + "\n" + ttySource + "\n" + objectSource + "\n" + numberSource + "\n" + stringUTF16Source + "\n" + stringSource + "\n" + closureSource + "\n" + asyncSource + "\n" + asyncCombinatorSource + "\n" + fsSource + "\n" + fsWatcherSource + "\n" + childProcessSource + "\n" + processSource + "\n" + osSource + "\n" + cryptoSource + "\n" + cryptoEVPSource + "\n" + zlibSource + "\n" + webSource + "\n" + YYJSONHeader + "\n" + yyjsonSource + "\n" + jsonSource + "\n" + regexSource + "\n" + regexMethodsSource + "\n" + bigintSource + "\n" + symbolSource + "\n" + dateSource + "\n" + sqliteSource)
 }
 
 // SourceForDynamic adds the embedded engine only for artifacts that need it.

@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **511** | **511 / 511 match expected output; 509 / 511 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 511 | 486 PASS plus 25 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **512** | **512 / 512 match expected output; 510 / 512 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 512 | 487 PASS plus 25 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -55,7 +55,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | `WebSocket (Web Standards / WinterCG)` | ✅ Full (RFC 6455) | Native RFC 6455 client engine with HTTP 101 upgrade handshake, client-side frame masking, unmasking, ping/pong, CloseEvent/MessageEvent dispatch, and non-blocking event loop polling. |
 | `Streaming Fetch & WHATWG Streams` | ✅ Full | `Response.body` tích hợp `ReadableStream` reader, stream locking, byte stream piping (`pipeThrough`), `TransformStream`, and correct nullable stream state propagation. |
 | `URLPattern (WinterCG / WHATWG)` | ✅ Full Standard | Complete Web Standard / WinterCG pattern matching across all 8 components (`protocol`, `username`, `password`, `hostname`, `port`, `pathname`, `search`, `hash`), supporting named parameters (`:id`), wildcards (`*`), optional patterns (`:id?`, `{...}?`), regex constraints (`:orderId(\\d+)`), baseURL resolution, dictionary inputs (`URLPatternInput`), `test()`, `exec()`, and `hasRegExpGroups`. Seamlessly exported in `node:url`, `node:urlpattern`, and global `URLPattern`. |
-| `RegExp (POSIX Runtime Hardening)` | ✅ Full Native | Native extended regular expressions (`REG_EXTENDED`) hardened with full ECMAScript compatibility: non-capturing groups `(?:...)` support in pattern compilation, accurate capturing group numbering and filtering, and correct `undefined` sentinel propagation for unmatched optional capture groups (`a(b)?c`) in `RegExp.prototype.exec()` and `String.prototype.match()`. |
+| `RegExp` engine | ✅ Full Native | ECMAScript regular expressions on QuickJS-ng's libregexp, taken from the vendored amalgam and linked into every executable as its own object (`internal/runtime/regexp_engine.go`): lookahead and lookbehind, backreferences (`\1`, `\k<name>`), named groups, lazy quantifiers, `\b`, Unicode property escapes (`\p{L}`), and the `d`, `g`, `i`, `m`, `s`, `u`, `v`, `y` flags. Subjects are matched as UTF-16 code units, so match indices, `lastIndex` and `search` are JavaScript string indices. |
 
 ---
 
@@ -153,7 +153,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError` (`new AggregateError(errorsArray, message?)`, `.errors`), `Error.stackTraceLimit` (read/write; caps recorded native frames), user subclasses (`.name`, `.message`, `.stack`, `.cause`, `instanceof`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
 | **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes), roundtrip & array of objects serialization | ✅ Matches ECMAScript specification (AOT static shape lowering & native runtime C tokenizer/parser); object literals and interface-typed objects serialize in insertion order, class instances in field declaration order |
-| **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `source`, `flags`, `global`, `ignoreCase`, `multiline`, `dotAll`, `unicode`, `sticky`, `hasIndices`, `unicodeSets` (read from `flags`), `compile()`, `match()`, `matchAll()`, `search()`, `replace()`, match `index` / `input` / `groups`, named groups `(?<name>...)` | ✅ Matches POSIX regex engine standard: `exec()` / `match()` / `matchAll()` results are match arrays with `index` (UTF-16 code units), `input` and `groups` shown by console.log like Node; `matchAll` yields one match array per match and steps past empty matches. Differences: `groups` prints without Node's `[Object: null prototype]` tag, and patterns are POSIX ERE after translation (no lookaround or backreferences) |
+| **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `lastIndex`, `source`, `flags`, `global`, `ignoreCase`, `multiline`, `dotAll`, `unicode`, `sticky`, `hasIndices`, `unicodeSets` (read from `flags`), `compile()`, `match()`, `matchAll()`, `search()`, `replace()`, `replaceAll()`, `split()`, match `index` / `input` / `groups`, named groups `(?<name>...)` | ✅ Matches ECMAScript (libregexp engine): `test()` and `exec()` start at and advance `lastIndex` for `g` and `y`; an invalid pattern or flags throws `SyntaxError` from the constructor; replacement strings support `$$`, `$&`, `` $` ``, `$'`, `$n`/`$nn` and `$<name>`; `split()` splices captures and honors `limit`; `matchAll` yields one match array per match and steps past empty matches. Differences: a replacer function receives at most four arguments (`match`, captures, `offset`, `string` in that order, as native closures take four), console output of `groups` has no `[Object: null prototype]` tag and omits groups that did not match, and ES2025 pattern modifiers (`(?i:...)`) and duplicate named groups are `SyntaxError`s, as in Node.js 22 |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description` (`undefined` when absent), `.toString()`, `String(symbol)`, symbol-keyed properties (`{ [k]: v }`, `obj[k]`, `k in obj`, `delete obj[k]`, `Object.getOwnPropertySymbols`) | ✅ Matches primitive symbol format; a symbol-keyed property is stored under the symbol's identity, shown by console.log and skipped by `Object.keys`, `for..in` and JSON. Class fields keyed by a symbol are not modelled |
 | **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
 | **`node:path` / `path`** | `basename`, `delimiter`, `dirname`, `extname`, `format`, `isAbsolute`, `join`, `matchesGlob`, `normalize`, `parse`, `posix`, `relative`, `resolve`, `sep`, `toNamespacedPath`, `win32` | ✅ 100% matches Node.js v22 Path specification (16 / 16 APIs verified) |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 511
-Native Backend Parity  : 486/511 (95.1%)
-Diagnostic Parity      : 25/511
-Overall Full Parity    : 511/511 (100.0%)
+Total Test Cases       : 512
+Native Backend Parity  : 487/512 (95.1%)
+Diagnostic Parity      : 25/512
+Overall Full Parity    : 512/512 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
@@ -356,7 +356,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Numeric Literal** | `42`, `3.14`, `1e5`, `0xFF`, `0b1010` | ✅ Full | IEEE-754 64-bit float (`f64`). |
 | **BigInt Literal** | `100n`, `9007199254740991n` | ✅ Full | `bigint` type (64-bit integer), arithmetic, bitwise, comparisons, `BigInt(...)`, `toString()`. |
 | **String & Template Literals** | `"str"`, `` `Count: ${n}` `` | ✅ Full | Immutable, runtime string interpolation/concatenation. |
-| **Regex Literals** | `/^[a-z]+$/gi` | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`, `source`, `flags`), string `match`, `search`, `replace`. |
+| **Regex Literals** | `/^[a-z]+$/gi` | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`, `lastIndex`, `source`, `flags`), string `match`, `matchAll`, `search`, `replace`, `replaceAll`, `split`. |
 | **Boolean, Null, Undefined** | `true`, `false`, `null`, `undefined` | ✅ Full | Explicit type and value representations. |
 | **Array Literal** | `[1, 2, 3]`, `["a", "b"]` | ✅ Full | Heap-allocated memory management, bounds checking. |
 | **Object Literal** | `{ name: "Alice", age: 30 }` | ✅ Full | Static layout, shorthand property initialization `{ name, age }`. |
@@ -397,7 +397,7 @@ Below is the detailed audit of all TypeScript/ECMAScript Abstract Syntax Tree (A
 | **Dynamic `any`** | ⚠️ Bounded executable slice | Static mode rejects `any` with `SG1001`; `--dynamic` maps bounded local values, parameters, returns, boxed property reads, array indexing, aliases of local JavaScript imports, returned synchronous function handles, and method receivers to the existing boxed ABI. Async handles and unrestricted runtime values remain outside this slice. |
 | **`bigint`** | ✅ Full | 64-bit integer type (`100n`, `BigInt(...)`, arithmetic, bitwise, comparison operators, `.toString()`). |
 | **`symbol`** | ✅ Full | Primitive `symbol` type, `Symbol` object, Symbol Registry (`Symbol.for`, `Symbol.keyFor`), well-known symbols (`Symbol.iterator`), `.description`, `.toString()`. |
-| **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `search`, `replace` via POSIX regex runtime. |
+| **`RegExp` Object & Regex Literals** | ✅ Full | Literal `/pattern/flags`, `RegExp` object (`test`, `exec`), string methods `match`, `matchAll`, `search`, `replace`, `replaceAll`, `split` on the libregexp ECMAScript engine. |
 | **Decorators (Stage 3 / Experimental & Reflection)** | ✅ Full | Standardized in Frontend; desugared to static wrappers & compile-time metadata registry (`Reflect.getMetadata`, `defineMetadata`, `hasMetadata`) in Static Tier. |
 | **User-defined Type Predicates** | ⚠️ Rudimentary | Complex `x is Type` functions (beyond basic `typeof` and `instanceof`) are not yet deeply narrowed in the backend. |
 | **Complex Conditional & Mapped Types** | ⚠️ Frontend only | Resolved at compile-time by TypeScript-Go, but complex dynamic layout generation is not fully lowered to IR. |

@@ -1,322 +1,385 @@
-#include <ctype.h>
-#include <regex.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* ECMAScript regular expressions on QuickJS-ng's libregexp, compiled as its
+ * own translation unit with a scriptgo_re_ prefix (see
+ * internal/runtime/regexp_engine.go). Subjects are matched as UTF-16 code
+ * units, so every index (match index, lastIndex, search) is a JavaScript
+ * string index. This file holds compilation, matching and match arrays;
+ * methods.c holds the String.prototype methods built on them. */
+
 int scriptgo_runtime_set_error(const char *message);
 int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array);
 int scriptgo_array_set(void *array, double index, const void *element);
-
-extern const char scriptgo_undefined_sentinel;
-
-#define MAX_REGEX_GROUPS 64
-
-typedef struct {
-    char *pattern;
-    int posix_group_count;
-    int js_group_count;
-    int is_capturing[MAX_REGEX_GROUPS];
-    /* names[i] is the name of JS capture group i ((?<name>...)), or NULL. */
-    char *names[MAX_REGEX_GROUPS];
-    int named_count;
-} normalized_regex_t;
-
-static void normalized_regex_free_names(normalized_regex_t *norm) {
-    for (int g = 0; g < MAX_REGEX_GROUPS; g++) {
-        free(norm->names[g]);
-        norm->names[g] = NULL;
-    }
-}
-
-static int normalize_pattern_full(const char *pattern, normalized_regex_t *out) {
-    if (pattern == NULL || out == NULL) return -1;
-    size_t len = strlen(pattern);
-    char *buf = malloc(len * 16 + 1);
-    if (buf == NULL) return -1;
-
-    out->posix_group_count = 0;
-    out->js_group_count = 0;
-    out->named_count = 0;
-    for (int g = 0; g < MAX_REGEX_GROUPS; g++) {
-        out->is_capturing[g] = 0;
-        out->names[g] = NULL;
-    }
-
-    size_t out_idx = 0;
-    size_t i = 0;
-    int in_bracket = 0;
-
-    while (i < len) {
-        if (pattern[i] == '\\' && i + 1 < len) {
-            char next = pattern[i + 1];
-            if (!in_bracket) {
-                if (next == 'd') {
-                    const char *rep = "[0-9]";
-                    size_t rlen = 5;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                } else if (next == 'D') {
-                    const char *rep = "[^0-9]";
-                    size_t rlen = 6;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                } else if (next == 'w') {
-                    const char *rep = "[a-zA-Z0-9_]";
-                    size_t rlen = 12;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                } else if (next == 'W') {
-                    const char *rep = "[^a-zA-Z0-9_]";
-                    size_t rlen = 13;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                } else if (next == 's') {
-                    const char *rep = "[ \t\r\n\f\v]";
-                    size_t rlen = 8;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                } else if (next == 'S') {
-                    const char *rep = "[^ \t\r\n\f\v]";
-                    size_t rlen = 9;
-                    memcpy(buf + out_idx, rep, rlen);
-                    out_idx += rlen;
-                    i += 2;
-                    continue;
-                }
-            }
-            buf[out_idx++] = '\\';
-            buf[out_idx++] = next;
-            i += 2;
-            continue;
-        }
-
-        if (pattern[i] == '[') {
-            in_bracket = 1;
-            buf[out_idx++] = pattern[i++];
-            if (i < len && pattern[i] == '^') {
-                buf[out_idx++] = pattern[i++];
-            }
-            if (i < len && pattern[i] == ']') {
-                buf[out_idx++] = pattern[i++];
-            }
-            continue;
-        }
-
-        if (pattern[i] == ']' && in_bracket) {
-            in_bracket = 0;
-            buf[out_idx++] = pattern[i++];
-            continue;
-        }
-
-        if (!in_bracket && pattern[i] == '(') {
-            if (i + 2 < len && pattern[i + 1] == '?' && pattern[i + 2] == ':') {
-                out->posix_group_count++;
-                if (out->posix_group_count < MAX_REGEX_GROUPS) {
-                    out->is_capturing[out->posix_group_count] = 0;
-                }
-                buf[out_idx++] = '(';
-                i += 3;
-                continue;
-            } else {
-                out->posix_group_count++;
-                if (out->posix_group_count < MAX_REGEX_GROUPS) {
-                    out->is_capturing[out->posix_group_count] = 1;
-                }
-                out->js_group_count++;
-                buf[out_idx++] = '(';
-                i++;
-                /* A named group (?<name>...) captures like (...). */
-                if (i + 1 < len && pattern[i] == '?' && pattern[i + 1] == '<' &&
-                    i + 2 < len && pattern[i + 2] != '=' && pattern[i + 2] != '!') {
-                    const char *name = pattern + i + 2;
-                    const char *close = strchr(name, '>');
-                    if (close != NULL) {
-                        if (out->js_group_count < MAX_REGEX_GROUPS) {
-                            out->names[out->js_group_count] = strndup(name, (size_t)(close - name));
-                            out->named_count++;
-                        }
-                        i = (size_t)(close - pattern) + 1;
-                    }
-                }
-                continue;
-            }
-        }
-
-        buf[out_idx++] = pattern[i++];
-    }
-
-    buf[out_idx] = '\0';
-    out->pattern = buf;
-    return 0;
-}
-
-static char *normalize_pattern(const char *pattern) {
-    normalized_regex_t norm;
-    if (normalize_pattern_full(pattern, &norm) != 0) return NULL;
-    normalized_regex_free_names(&norm);
-    return norm.pattern;
-}
-
-int scriptgo_regex_test(const char *pattern, const char *flags, const char *str, double *out_bool) {
-    if (pattern == NULL || str == NULL || out_bool == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to regex test");
-    }
-    int cflags = REG_EXTENDED;
-    if (flags != NULL) {
-        if (strchr(flags, 'i') != NULL) cflags |= REG_ICASE;
-        if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
-    }
-    regex_t re;
-    char *norm = normalize_pattern(pattern);
-    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
-        if (norm) free(norm);
-        return scriptgo_runtime_set_error("invalid regular expression");
-    }
-    if (norm) free(norm);
-    regmatch_t pmatch[1];
-    int status = regexec(&re, str, 1, pmatch, 0);
-    regfree(&re);
-    *out_bool = (status == 0) ? 1.0 : 0.0;
-    return 0;
-}
-
+int scriptgo_array_get(void *handle, double index, void *out_value);
+int scriptgo_array_set_properties(void *handle, void *properties);
+int scriptgo_array_properties(void *handle, void **out_properties);
 int scriptgo_object_new_typed(int64_t field_count, const char *type_name, void **out_object);
 int scriptgo_object_number_set(void *handle, int64_t index, double value);
 int scriptgo_object_string_set(void *handle, int64_t index, const char *value);
 int scriptgo_object_ptr_set(void *handle, int64_t index, void *value);
-int scriptgo_array_set_properties(void *handle, void *properties);
-int scriptgo_array_get(void *handle, double index, void *out_value);
-int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array);
 
-/* regex_match_groups builds the groups object of a match with named
- * captures: its key list names the groups and each field holds the captured
- * text or undefined. */
-static void *regex_match_groups(const normalized_regex_t *norm, char *const *captures) {
-    if (norm->named_count == 0) return (void *)&scriptgo_undefined_sentinel;
+extern const char scriptgo_undefined_sentinel;
+
+/* libregexp's interface (libregexp.h). */
+#define REGEX_FLAG_GLOBAL (1 << 0)
+#define REGEX_FLAG_IGNORECASE (1 << 1)
+#define REGEX_FLAG_MULTILINE (1 << 2)
+#define REGEX_FLAG_DOTALL (1 << 3)
+#define REGEX_FLAG_UNICODE (1 << 4)
+#define REGEX_FLAG_STICKY (1 << 5)
+#define REGEX_FLAG_INDICES (1 << 6)
+#define REGEX_FLAG_NAMED_GROUPS (1 << 7)
+#define REGEX_FLAG_UNICODE_SETS (1 << 8)
+
+uint8_t *scriptgo_re_lre_compile(int *plen, char *error_msg, int error_msg_size, const char *buf,
+                                 size_t buf_len, int re_flags, void *opaque);
+int scriptgo_re_lre_get_capture_count(const uint8_t *bc_buf);
+int scriptgo_re_lre_get_flags(const uint8_t *bc_buf);
+const char *scriptgo_re_lre_get_groupnames(const uint8_t *bc_buf);
+int scriptgo_re_lre_exec(uint8_t **capture, const uint8_t *bc_buf, const uint8_t *cbuf, int cindex, int clen,
+                         int cbuf_type, void *opaque);
+
+/* Matching recurses on the C stack; the engine fails a match rather than
+ * use more than this much stack below its caller. */
+#define REGEX_STACK_BUDGET (256 * 1024)
+
+void scriptgo_throw_error_message(const char *text);
+
+static int regex_fail(const char *message) {
+    return scriptgo_runtime_set_error(message);
+}
+
+/* regex_throw throws a JavaScript error ("SyntaxError: ..." and so on) that
+ * a try statement can catch. */
+static int regex_throw(const char *message) {
+    scriptgo_throw_error_message(message);
+    return -1;
+}
+
+/* regex_parse_flags maps a flags string to libregexp flags; a repeated or
+ * unknown flag, or u with v, is a SyntaxError. */
+static int regex_parse_flags(const char *flags, int *out) {
+    int result = 0;
+    for (const char *p = flags != NULL ? flags : ""; *p != 0; p++) {
+        int bit;
+        switch (*p) {
+        case 'd': bit = REGEX_FLAG_INDICES; break;
+        case 'g': bit = REGEX_FLAG_GLOBAL; break;
+        case 'i': bit = REGEX_FLAG_IGNORECASE; break;
+        case 'm': bit = REGEX_FLAG_MULTILINE; break;
+        case 's': bit = REGEX_FLAG_DOTALL; break;
+        case 'u': bit = REGEX_FLAG_UNICODE; break;
+        case 'v': bit = REGEX_FLAG_UNICODE_SETS; break;
+        case 'y': bit = REGEX_FLAG_STICKY; break;
+        default: bit = 0; break;
+        }
+        if (bit == 0 || (result & bit) != 0) goto invalid;
+        result |= bit;
+    }
+    if ((result & REGEX_FLAG_UNICODE) && (result & REGEX_FLAG_UNICODE_SETS)) goto invalid;
+    *out = result;
+    return 0;
+invalid: {
+        char message[160];
+        snprintf(message, sizeof(message), "SyntaxError: Invalid flags supplied to RegExp constructor '%.64s'", flags);
+        return regex_throw(message);
+    }
+}
+
+/* A program's bytecode belongs to the compile cache and stays valid until
+ * the next compile; code that runs user code while matching (a replacer
+ * function) takes its own copy with regex_program_own. */
+typedef struct {
+    const uint8_t *bytecode;
+    size_t length;
+    int flags;
+    int capture_count;
+} regex_program;
+
+typedef struct {
+    char *pattern;
+    char *flags;
+    uint8_t *bytecode;
+    size_t length;
+} regex_cache_entry;
+
+/* Compiled patterns are cached, so a loop over exec or test compiles once. */
+#define REGEX_CACHE_SIZE 64
+static regex_cache_entry regex_cache[REGEX_CACHE_SIZE];
+static unsigned regex_cache_next;
+
+static uintptr_t regex_stack_limit(void) {
+    char probe;
+    uintptr_t here = (uintptr_t)&probe;
+    return here > REGEX_STACK_BUDGET ? here - REGEX_STACK_BUDGET : 0;
+}
+
+/* regex_compile returns the program for pattern and flags, compiling and
+ * caching it on first use. */
+static int regex_compile(const char *pattern, const char *flags, regex_program *out) {
+    if (pattern == NULL) pattern = "";
+    if (flags == NULL) flags = "";
+    for (unsigned i = 0; i < REGEX_CACHE_SIZE; i++) {
+        regex_cache_entry *entry = &regex_cache[i];
+        if (entry->bytecode != NULL && strcmp(entry->pattern, pattern) == 0 && strcmp(entry->flags, flags) == 0) {
+            out->bytecode = entry->bytecode;
+            out->length = entry->length;
+            out->flags = scriptgo_re_lre_get_flags(entry->bytecode);
+            out->capture_count = scriptgo_re_lre_get_capture_count(entry->bytecode);
+            return 0;
+        }
+    }
+    int re_flags;
+    if (regex_parse_flags(flags, &re_flags) != 0) return -1;
+    char error[64];
+    int length = 0;
+    uintptr_t limit = regex_stack_limit();
+    uint8_t *bytecode = scriptgo_re_lre_compile(&length, error, sizeof(error), pattern, strlen(pattern), re_flags, &limit);
+    if (bytecode == NULL) {
+        char message[256];
+        snprintf(message, sizeof(message), "SyntaxError: Invalid regular expression: /%.96s/%.16s: %s", pattern, flags, error);
+        return regex_throw(message);
+    }
+    char *pattern_copy = strdup(pattern);
+    char *flags_copy = strdup(flags);
+    if (pattern_copy == NULL || flags_copy == NULL) {
+        free(pattern_copy);
+        free(flags_copy);
+        free(bytecode);
+        return regex_fail("regex compile: out of memory");
+    }
+    regex_cache_entry *slot = &regex_cache[regex_cache_next++ % REGEX_CACHE_SIZE];
+    free(slot->pattern);
+    free(slot->flags);
+    free(slot->bytecode);
+    slot->pattern = pattern_copy;
+    slot->flags = flags_copy;
+    slot->bytecode = bytecode;
+    slot->length = (size_t)length;
+    out->bytecode = bytecode;
+    out->length = (size_t)length;
+    out->flags = scriptgo_re_lre_get_flags(bytecode);
+    out->capture_count = scriptgo_re_lre_get_capture_count(bytecode);
+    return 0;
+}
+
+/* regex_program_own copies the program's bytecode out of the cache; the
+ * caller frees it with free((void *)program->bytecode). */
+static int regex_program_own(regex_program *program) {
+    uint8_t *copy = malloc(program->length);
+    if (copy == NULL) return regex_fail("regex: out of memory");
+    memcpy(copy, program->bytecode, program->length);
+    program->bytecode = copy;
+    return 0;
+}
+
+/* A subject is the UTF-8 string and its UTF-16 code units. */
+typedef struct {
+    const char *text;
+    uint16_t *units;
+    size_t length;
+} regex_subject;
+
+static int regex_subject_init(regex_subject *subject, const char *text) {
+    if (text == NULL) text = "";
+    size_t bytes = strlen(text);
+    subject->text = text;
+    subject->length = 0;
+    subject->units = malloc((bytes + 1) * sizeof(uint16_t));
+    if (subject->units == NULL) return regex_fail("regex: out of memory");
+    const unsigned char *p = (const unsigned char *)text;
+    while (*p != 0) {
+        size_t step;
+        uint32_t cp = utf8_decode(p, &step);
+        if (cp >= 0x10000) {
+            subject->units[subject->length++] = (uint16_t)(0xD800 + ((cp - 0x10000) >> 10));
+            subject->units[subject->length++] = (uint16_t)(0xDC00 + ((cp - 0x10000) & 0x3FF));
+        } else {
+            subject->units[subject->length++] = (uint16_t)cp;
+        }
+        p += step;
+    }
+    return 0;
+}
+
+static void regex_subject_free(regex_subject *subject) {
+    free(subject->units);
+    subject->units = NULL;
+}
+
+/* regex_units_text writes code units as UTF-8, pairing surrogates; a lone
+ * surrogate is written in its 3-byte form. */
+static char *regex_units_text(const uint16_t *units, size_t count) {
+    char *out = malloc(count * 3 + 1);
+    size_t written = 0;
+    if (out == NULL) return NULL;
+    for (size_t i = 0; i < count; i++) {
+        uint32_t cp = units[i];
+        if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < count && units[i + 1] >= 0xDC00 && units[i + 1] <= 0xDFFF) {
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (units[i + 1] - 0xDC00);
+            i++;
+        }
+        written += utf8_encode(cp, out + written);
+    }
+    out[written] = '\0';
+    return out;
+}
+
+/* regex_advance is AdvanceStringIndex: past one code unit, or one code
+ * point in unicode mode. */
+static size_t regex_advance(const regex_program *program, const regex_subject *subject, size_t index) {
+    if ((program->flags & (REGEX_FLAG_UNICODE | REGEX_FLAG_UNICODE_SETS)) && index + 1 < subject->length &&
+        subject->units[index] >= 0xD800 && subject->units[index] <= 0xDBFF &&
+        subject->units[index + 1] >= 0xDC00 && subject->units[index + 1] <= 0xDFFF) {
+        return index + 2;
+    }
+    return index + 1;
+}
+
+/* A match holds 2 * capture_count positions into the subject's units; an
+ * unmatched group has NULL positions. */
+typedef struct {
+    uint8_t **capture;
+    int count;
+} regex_match;
+
+static int regex_match_init(regex_match *match, const regex_program *program) {
+    match->count = program->capture_count;
+    match->capture = calloc((size_t)program->capture_count * 2, sizeof(uint8_t *));
+    return match->capture == NULL ? regex_fail("regex: out of memory") : 0;
+}
+
+static void regex_match_free(regex_match *match) {
+    free(match->capture);
+    match->capture = NULL;
+}
+
+/* regex_exec_at matches from code unit start: 1 on a match, 0 on none, -1
+ * on an engine failure (the error is set). A sticky program matches only
+ * at start. */
+static int regex_exec_at(const regex_program *program, const regex_subject *subject, size_t start, regex_match *match) {
+    if (start > subject->length) return 0;
+    /* Type 1 is a 16-bit buffer; the engine reads surrogate pairs as code
+     * points itself when the program has the u or v flag. */
+    uintptr_t limit = regex_stack_limit();
+    int status = scriptgo_re_lre_exec(match->capture, program->bytecode, (const uint8_t *)subject->units, (int)start,
+                                      (int)subject->length, 1, &limit);
+    if (status < 0) return regex_throw("RangeError: Maximum call stack size exceeded");
+    return status;
+}
+
+static bool regex_group_matched(const regex_match *match, int group) {
+    return match->capture[2 * group] != NULL && match->capture[2 * group + 1] != NULL;
+}
+
+static size_t regex_group_start(const regex_match *match, const regex_subject *subject, int group) {
+    return (size_t)((const uint16_t *)match->capture[2 * group] - subject->units);
+}
+
+static size_t regex_group_end(const regex_match *match, const regex_subject *subject, int group) {
+    return (size_t)((const uint16_t *)match->capture[2 * group + 1] - subject->units);
+}
+
+/* regex_group_text is the text group captured, or the undefined sentinel
+ * when it did not participate. */
+static const char *regex_group_text(const regex_match *match, const regex_subject *subject, int group) {
+    if (!regex_group_matched(match, group)) return &scriptgo_undefined_sentinel;
+    size_t start = regex_group_start(match, subject, group);
+    char *text = regex_units_text(subject->units + start, regex_group_end(match, subject, group) - start);
+    return text != NULL ? text : &scriptgo_undefined_sentinel;
+}
+
+/* regex_group_names lists the name of each capture group 1..count-1 (NULL
+ * for an unnamed group) and reports whether any is named. */
+static bool regex_group_names(const regex_program *program, const char **names) {
+    for (int i = 0; i < program->capture_count; i++) names[i] = NULL;
+    if (!(program->flags & REGEX_FLAG_NAMED_GROUPS)) return false;
+    const char *cursor = scriptgo_re_lre_get_groupnames(program->bytecode);
+    bool any = false;
+    for (int group = 1; cursor != NULL && group < program->capture_count; group++) {
+        if (*cursor != 0) {
+            names[group] = cursor;
+            any = true;
+        }
+        cursor += strlen(cursor) + 1;
+    }
+    return any;
+}
+
+/* regex_groups_object builds the groups object of a match: its key list
+ * names the groups, each field holds the captured text or undefined. */
+static void *regex_groups_object(const regex_program *program, const regex_match *match, const regex_subject *subject) {
+    const char **names = calloc((size_t)program->capture_count, sizeof(char *));
+    if (names == NULL) return NULL;
+    if (!regex_group_names(program, names)) {
+        free(names);
+        return (void *)&scriptgo_undefined_sentinel;
+    }
     size_t layout_length = 2;
-    for (int g = 1; g <= norm->js_group_count && g < MAX_REGEX_GROUPS; g++) {
-        if (norm->names[g] != NULL) layout_length += strlen(norm->names[g]) + 1;
+    int named = 0;
+    for (int group = 1; group < program->capture_count; group++) {
+        if (names[group] == NULL) continue;
+        layout_length += strlen(names[group]) + 1;
+        named++;
     }
-    /* The layout string lives as long as the object (objects keep it). */
+    /* Objects keep their layout string, so it is not freed. */
     char *layout = malloc(layout_length);
-    if (layout == NULL) return NULL;
-    size_t at = 0;
-    layout[at++] = ':';
-    for (int g = 1; g <= norm->js_group_count && g < MAX_REGEX_GROUPS; g++) {
-        if (norm->names[g] == NULL) continue;
-        size_t n = strlen(norm->names[g]);
-        memcpy(layout + at, norm->names[g], n);
-        at += n;
-        layout[at++] = ':';
-    }
-    layout[at] = '\0';
     void *groups = NULL;
-    if (scriptgo_object_new_typed(norm->named_count, layout, &groups) != 0) return NULL;
-    int field = 0;
-    for (int g = 1; g <= norm->js_group_count && g < MAX_REGEX_GROUPS; g++) {
-        if (norm->names[g] == NULL) continue;
-        scriptgo_object_string_set(groups, field++, captures[g] != NULL ? captures[g] : &scriptgo_undefined_sentinel);
+    if (layout != NULL) {
+        size_t at = 0;
+        layout[at++] = ':';
+        for (int group = 1; group < program->capture_count; group++) {
+            if (names[group] == NULL) continue;
+            size_t n = strlen(names[group]);
+            memcpy(layout + at, names[group], n);
+            at += n;
+            layout[at++] = ':';
+        }
+        layout[at] = '\0';
+        if (scriptgo_object_new_typed(named, layout, &groups) == 0) {
+            int field = 0;
+            for (int group = 1; group < program->capture_count; group++) {
+                if (names[group] == NULL) continue;
+                scriptgo_object_string_set(groups, field++, regex_group_text(match, subject, group));
+            }
+        }
     }
+    free(names);
     return groups;
 }
 
-/* regex_exec_at matches pattern against str from byte offset start. On a
- * match it returns the RegExp match array ([match, ...captures] with index,
- * input and groups properties) and the byte offsets of the match; otherwise
- * *out_array is NULL. */
-static int regex_exec_at(const char *pattern, const char *flags, const char *str, size_t start,
-                         size_t *out_begin, size_t *out_end, void **out_array) {
-    *out_array = NULL;
-    int cflags = REG_EXTENDED;
-    if (flags != NULL) {
-        if (strchr(flags, 'i') != NULL) cflags |= REG_ICASE;
-        if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
-    }
-    regex_t re;
-    normalized_regex_t norm;
-    if (normalize_pattern_full(pattern, &norm) != 0) {
-        return scriptgo_runtime_set_error("regex normalization failed");
-    }
-    if (regcomp(&re, norm.pattern, cflags) != 0) {
-        free(norm.pattern);
-        normalized_regex_free_names(&norm);
-        return scriptgo_runtime_set_error("invalid regular expression");
-    }
-    free(norm.pattern);
-
-    size_t nmatch = re.re_nsub + 1;
-    regmatch_t *pmatch = malloc(nmatch * sizeof(regmatch_t));
-    char **captures = calloc((size_t)norm.js_group_count + 1, sizeof(char *));
-    if (pmatch == NULL || captures == NULL) {
-        free(pmatch);
-        free(captures);
-        regfree(&re);
-        normalized_regex_free_names(&norm);
-        return scriptgo_runtime_set_error("regex match allocation failed");
-    }
-    int status = regexec(&re, str + start, nmatch, pmatch, start > 0 ? REG_NOTBOL : 0);
-    regfree(&re);
-    int err = 0;
-    if (status != 0) goto done;
-    *out_begin = start + (size_t)pmatch[0].rm_so;
-    *out_end = start + (size_t)pmatch[0].rm_eo;
-
-    captures[0] = strndup(str + *out_begin, (size_t)(pmatch[0].rm_eo - pmatch[0].rm_so));
-    int js_idx = 1;
-    for (int p = 1; p <= norm.posix_group_count && (size_t)p < nmatch && js_idx <= norm.js_group_count; p++) {
-        if (p < MAX_REGEX_GROUPS && !norm.is_capturing[p]) continue;
-        if (pmatch[p].rm_so != -1) {
-            captures[js_idx] = strndup(str + start + pmatch[p].rm_so, (size_t)(pmatch[p].rm_eo - pmatch[p].rm_so));
-        }
-        js_idx++;
-    }
-
-    err = scriptgo_array_new_tagged(1 + norm.js_group_count, sizeof(const char *), SCRIPTGO_TAG_STRING, out_array);
-    if (err != 0) goto done;
-    for (int g = 0; g <= norm.js_group_count; g++) {
-        const char *value = captures[g] != NULL ? captures[g] : &scriptgo_undefined_sentinel;
-        scriptgo_array_set(*out_array, (double)g, &value);
+/* regex_match_array is the RegExp exec result: [match, ...captures] as a
+ * string array whose properties object holds index, input and groups. */
+static int regex_match_array(const regex_program *program, const regex_match *match, const regex_subject *subject,
+                             void **out_array) {
+    if (scriptgo_array_new_tagged(program->capture_count, sizeof(char *), 4, out_array) != 0) return -1;
+    for (int group = 0; group < program->capture_count; group++) {
+        const char *text = regex_group_text(match, subject, group);
+        scriptgo_array_set(*out_array, (double)group, &text);
     }
     void *properties = NULL;
-    void *groups = regex_match_groups(&norm, captures);
+    void *groups = regex_groups_object(program, match, subject);
     if (groups == NULL || scriptgo_object_new_typed(3, ":index:input:groups:", &properties) != 0) {
-        err = scriptgo_runtime_set_error("regex match allocation failed");
-        goto done;
+        return regex_fail("regex match: out of memory");
     }
-    scriptgo_object_number_set(properties, 0, (double)utf16_unit_offset(str, *out_begin));
-    scriptgo_object_string_set(properties, 1, str);
+    scriptgo_object_number_set(properties, 0, (double)regex_group_start(match, subject, 0));
+    scriptgo_object_string_set(properties, 1, subject->text);
     scriptgo_object_ptr_set(properties, 2, groups);
-    scriptgo_array_set_properties(*out_array, properties);
-
-done:
-    /* The array and groups object keep the capture strings. */
-    free(captures);
-    free(pmatch);
-    normalized_regex_free_names(&norm);
-    return err;
+    return scriptgo_array_set_properties(*out_array, properties);
 }
-
-int scriptgo_array_properties(void *handle, void **out_properties);
 
 /* scriptgo_regex_match_properties is the index/input/groups object of a
  * match array; an array without one (a global match's strings) reads all
  * three as undefined. */
 int scriptgo_regex_match_properties(void *array, void **out_properties) {
     static void *absent = NULL;
-    if (out_properties == NULL) return scriptgo_runtime_set_error("invalid argument to match properties");
+    if (out_properties == NULL) return regex_fail("invalid argument to match properties");
     if (scriptgo_array_properties(array, out_properties) != 0) return -1;
     if (*out_properties != NULL) return 0;
     if (absent == NULL) {
@@ -327,308 +390,80 @@ int scriptgo_regex_match_properties(void *array, void **out_properties) {
     return 0;
 }
 
-int scriptgo_regex_exec_stateful(const char *pattern, const char *flags, const char *str, double *inout_last_index, void **out_array) {
-    if (pattern == NULL || str == NULL || out_array == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to regex exec");
+int scriptgo_regex_test(const char *pattern, const char *flags, const char *str, double *out_bool) {
+    if (out_bool == NULL) return regex_fail("invalid argument to regex test");
+    regex_program program;
+    regex_subject subject;
+    regex_match match;
+    if (regex_compile(pattern, flags, &program) != 0) return -1;
+    if (regex_subject_init(&subject, str) != 0) return -1;
+    if (regex_match_init(&match, &program) != 0) {
+        regex_subject_free(&subject);
+        return -1;
     }
-    int is_global = (flags != NULL && (strchr(flags, 'g') != NULL || strchr(flags, 'y') != NULL));
-    size_t last_idx = 0;
-    if (is_global && inout_last_index != NULL && !isnan(*inout_last_index) && *inout_last_index > 0.0) {
-        last_idx = (size_t)*inout_last_index;
-    }
-    if (last_idx > strlen(str)) {
-        if (is_global && inout_last_index != NULL) *inout_last_index = 0.0;
-        *out_array = NULL;
-        return 0;
-    }
-    size_t begin = 0, end = 0;
-    if (regex_exec_at(pattern, flags, str, last_idx, &begin, &end, out_array) != 0) return -1;
-    if (is_global && inout_last_index != NULL) {
-        *inout_last_index = *out_array != NULL ? (double)end : 0.0;
-    }
+    int status = regex_exec_at(&program, &subject, 0, &match);
+    regex_match_free(&match);
+    regex_subject_free(&subject);
+    if (status < 0) return -1;
+    *out_bool = status > 0 ? 1.0 : 0.0;
     return 0;
+}
+
+/* regex_exec_stateful is RegExp.prototype.exec. A global or sticky pattern
+ * starts at *inout_last_index (a code unit index) and stores the end of the
+ * match there, or 0 when there is none. With out_array NULL only *out_found
+ * is reported (RegExp.prototype.test). */
+static int regex_exec_stateful(const char *pattern, const char *flags, const char *str, double *inout_last_index,
+                               void **out_array, bool *out_found) {
+    regex_program program;
+    regex_subject subject;
+    regex_match match;
+    if (regex_compile(pattern, flags, &program) != 0) return -1;
+    bool stateful = (program.flags & (REGEX_FLAG_GLOBAL | REGEX_FLAG_STICKY)) && inout_last_index != NULL;
+    size_t start = 0;
+    if (stateful && *inout_last_index == *inout_last_index && *inout_last_index > 0.0) {
+        start = *inout_last_index > 9007199254740991.0 ? (size_t)-1 : (size_t)*inout_last_index;
+    }
+    if (regex_subject_init(&subject, str) != 0) return -1;
+    if (regex_match_init(&match, &program) != 0) {
+        regex_subject_free(&subject);
+        return -1;
+    }
+    int status = regex_exec_at(&program, &subject, start, &match);
+    if (status > 0 && out_array != NULL) status = regex_match_array(&program, &match, &subject, out_array) == 0 ? 1 : -1;
+    if (stateful && status >= 0) *inout_last_index = status > 0 ? (double)regex_group_end(&match, &subject, 0) : 0.0;
+    *out_found = status > 0;
+    regex_match_free(&match);
+    regex_subject_free(&subject);
+    return status < 0 ? -1 : 0;
+}
+
+int scriptgo_regex_exec_stateful(const char *pattern, const char *flags, const char *str, double *inout_last_index,
+                                 void **out_array) {
+    if (out_array == NULL) return regex_fail("invalid argument to regex exec");
+    bool found;
+    *out_array = NULL;
+    return regex_exec_stateful(pattern, flags, str, inout_last_index, out_array, &found);
+}
+
+/* scriptgo_regex_test_stateful is RegExp.prototype.test, which advances
+ * lastIndex like exec. */
+int scriptgo_regex_test_stateful(const char *pattern, const char *flags, const char *str, double *inout_last_index,
+                                 double *out_bool) {
+    if (out_bool == NULL) return regex_fail("invalid argument to regex test");
+    bool found = false;
+    if (regex_exec_stateful(pattern, flags, str, inout_last_index, NULL, &found) != 0) return -1;
+    *out_bool = found ? 1.0 : 0.0;
+    return 0;
+}
+
+/* scriptgo_regex_validate compiles a pattern for the RegExp constructor, so
+ * an invalid pattern or flags is a SyntaxError where it is created. */
+int scriptgo_regex_validate(const char *pattern, const char *flags) {
+    regex_program program;
+    return regex_compile(pattern, flags, &program);
 }
 
 int scriptgo_regex_exec(const char *pattern, const char *flags, const char *str, void **out_array) {
     return scriptgo_regex_exec_stateful(pattern, flags, str, NULL, out_array);
-}
-
-/* regex_next_start is where a global search resumes after a match ending at
- * end: past an empty match by one UTF-8 character (past the end of str for
- * an empty match at its end, which ends the search). */
-static size_t regex_next_start(const char *str, size_t begin, size_t end) {
-    size_t units;
-    if (end > begin) return end;
-    if (str[end] == '\0') return end + 1;
-    return end + utf8_step((const unsigned char *)str + end, &units);
-}
-
-/* scriptgo_string_match_all returns every match of a global pattern as an
- * array of match arrays (str.matchAll). */
-int scriptgo_string_match_all(const char *str, const char *pattern, const char *flags, void **out_array) {
-    if (pattern == NULL || str == NULL || out_array == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to matchAll");
-    }
-    if (flags == NULL || strchr(flags, 'g') == NULL) {
-        return scriptgo_runtime_set_error("TypeError: String.prototype.matchAll called with a non-global RegExp argument");
-    }
-    void **matches = NULL;
-    int64_t count = 0, capacity = 0;
-    size_t start = 0, length = strlen(str);
-    while (start <= length) {
-        size_t begin = 0, end = 0;
-        void *match = NULL;
-        if (regex_exec_at(pattern, flags, str, start, &begin, &end, &match) != 0) {
-            free(matches);
-            return -1;
-        }
-        if (match == NULL) break;
-        if (count == capacity) {
-            capacity = capacity == 0 ? 8 : capacity * 2;
-            void **grown = realloc(matches, (size_t)capacity * sizeof(void *));
-            if (grown == NULL) {
-                free(matches);
-                return scriptgo_runtime_set_error("regex match allocation failed");
-            }
-            matches = grown;
-        }
-        matches[count++] = match;
-        start = regex_next_start(str, begin, end);
-    }
-    int err = scriptgo_array_new_tagged(count, sizeof(void *), SCRIPTGO_TAG_ARRAY, out_array);
-    for (int64_t i = 0; err == 0 && i < count; i++) {
-        scriptgo_array_set(*out_array, (double)i, &matches[i]);
-    }
-    free(matches);
-    return err;
-}
-
-/* scriptgo_string_match is str.match: the first match with its properties,
- * or every matched string for a global pattern. */
-int scriptgo_string_match(const char *str, const char *pattern, const char *flags, void **out_array) {
-    if (pattern == NULL || flags == NULL || str == NULL || out_array == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to match");
-    }
-    if (strchr(flags, 'g') == NULL) {
-        return scriptgo_regex_exec(pattern, flags, str, out_array);
-    }
-    void *all = NULL;
-    if (scriptgo_string_match_all(str, pattern, flags, &all) != 0) return -1;
-    int64_t count = ((int64_t *)all)[0];
-    *out_array = NULL;
-    if (count == 0) return 0;
-    if (scriptgo_array_new_tagged(count, sizeof(const char *), SCRIPTGO_TAG_STRING, out_array) != 0) return -1;
-    for (int64_t i = 0; i < count; i++) {
-        void *match = NULL;
-        const char *text = NULL;
-        scriptgo_array_get(all, (double)i, &match);
-        scriptgo_array_get(match, 0.0, &text);
-        scriptgo_array_set(*out_array, (double)i, &text);
-    }
-    return 0;
-}
-
-int scriptgo_string_search(const char *str, const char *pattern, const char *flags, double *out_index) {
-    if (pattern == NULL || str == NULL || out_index == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to search");
-    }
-    int cflags = REG_EXTENDED;
-    if (flags != NULL) {
-        if (strchr(flags, 'i') != NULL) cflags |= REG_ICASE;
-        if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
-    }
-    regex_t re;
-    char *norm = normalize_pattern(pattern);
-    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
-        if (norm) free(norm);
-        return scriptgo_runtime_set_error("invalid regular expression");
-    }
-    if (norm) free(norm);
-    regmatch_t pmatch[1];
-    int status = regexec(&re, str, 1, pmatch, 0);
-    regfree(&re);
-    if (status == 0) {
-        *out_index = (double)utf16_unit_offset(str, (size_t)pmatch[0].rm_so);
-    } else {
-        *out_index = -1.0;
-    }
-    return 0;
-}
-
-int scriptgo_string_replace_regex(const char *str, const char *pattern, const char *flags, const char *repl, char **out_str) {
-    if (str == NULL || pattern == NULL || repl == NULL || out_str == NULL) {
-        return scriptgo_runtime_set_error("invalid argument to replace");
-    }
-    int cflags = REG_EXTENDED;
-    int is_global = 0;
-    if (flags != NULL) {
-        if (strchr(flags, 'i') != NULL) cflags |= REG_ICASE;
-        if (strchr(flags, 'm') != NULL) cflags |= REG_NEWLINE;
-        if (strchr(flags, 'g') != NULL) is_global = 1;
-    }
-    regex_t re;
-    char *norm = normalize_pattern(pattern);
-    if (regcomp(&re, norm ? norm : pattern, cflags) != 0) {
-        if (norm) free(norm);
-        return scriptgo_runtime_set_error("invalid regular expression");
-    }
-    if (norm) free(norm);
-
-    regmatch_t pmatch[1];
-    if (regexec(&re, str, 1, pmatch, 0) != 0) {
-        regfree(&re);
-        *out_str = strdup(str);
-        return 0;
-    }
-    if (!is_global) {
-        regfree(&re);
-        size_t prefix_len = pmatch[0].rm_so;
-        size_t repl_len = strlen(repl);
-        size_t suffix_len = strlen(str + pmatch[0].rm_eo);
-        char *res = malloc(prefix_len + repl_len + suffix_len + 1);
-        if (res == NULL) return scriptgo_runtime_set_error("replace allocation failed");
-        memcpy(res, str, prefix_len);
-        memcpy(res + prefix_len, repl, repl_len);
-        memcpy(res + prefix_len + repl_len, str + pmatch[0].rm_eo, suffix_len + 1);
-        *out_str = res;
-        return 0;
-    }
-    size_t cap = strlen(str) * 2 + strlen(repl) * 4 + 64;
-    char *buf = malloc(cap);
-    if (buf == NULL) {
-        regfree(&re);
-        return scriptgo_runtime_set_error("replace allocation failed");
-    }
-    size_t len = 0;
-    const char *cursor = str;
-    size_t repl_len = strlen(repl);
-    while (*cursor && regexec(&re, cursor, 1, pmatch, 0) == 0) {
-        size_t pfx = pmatch[0].rm_so;
-        while (len + pfx + repl_len + 1 >= cap) {
-            cap *= 2;
-            buf = realloc(buf, cap);
-        }
-        memcpy(buf + len, cursor, pfx);
-        len += pfx;
-        memcpy(buf + len, repl, repl_len);
-        len += repl_len;
-        int adv = pmatch[0].rm_eo;
-        if (adv == 0) adv = 1;
-        cursor += adv;
-    }
-    size_t rem = strlen(cursor);
-    while (len + rem + 1 >= cap) {
-        cap *= 2;
-        buf = realloc(buf, cap);
-    }
-    memcpy(buf + len, cursor, rem);
-    len += rem;
-    buf[len] = '\0';
-    regfree(&re);
-    *out_str = buf;
-    return 0;
-}
-
-int scriptgo_string_from_bigint(long long value, char **out_str) {
-    if (out_str == NULL) return scriptgo_runtime_set_error("invalid argument to fromBigInt");
-    char buf[64];
-    snprintf(buf, sizeof(buf), "%lld", value);
-    *out_str = strdup(buf);
-    if (*out_str == NULL) return scriptgo_runtime_set_error("fromBigInt allocation failed");
-    return 0;
-}
-
-int scriptgo_string_from_bigint_locale(long long value, char **out_str) {
-    char raw[64];
-    size_t digits;
-    size_t groups;
-    size_t output_len;
-    size_t src = 0;
-    size_t dst = 0;
-    char *result;
-
-    if (out_str == NULL) return scriptgo_runtime_set_error("invalid argument to bigint locale formatting");
-    snprintf(raw, sizeof(raw), "%lld", value);
-    digits = raw[0] == '-' ? strlen(raw) - 1 : strlen(raw);
-    groups = digits > 3 ? (digits - 1) / 3 : 0;
-    output_len = strlen(raw) + groups;
-    result = malloc(output_len + 1);
-    if (result == NULL) return scriptgo_runtime_set_error("bigint locale allocation failed");
-    if (raw[0] == '-') result[dst++] = raw[src++];
-    for (size_t i = 0; i < digits; i++) {
-        if (i > 0 && (digits - i) % 3 == 0) result[dst++] = ',';
-        result[dst++] = raw[src++];
-    }
-    result[dst] = '\0';
-    *out_str = result;
-    return 0;
-}
-
-int scriptgo_bigint_from_number(double value, long long *out_value) {
-    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint fromNumber");
-    *out_value = (long long)value;
-    return 0;
-}
-
-int scriptgo_bigint_from_string(const char *str, long long *out_value) {
-    if (str == NULL || out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint fromString");
-    char *endptr = NULL;
-    *out_value = strtoll(str, &endptr, 10);
-    return 0;
-}
-
-int scriptgo_bigint_as_int_n(long long bits, long long value, long long *out_value) {
-    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint asIntN");
-    if (bits <= 0) {
-        *out_value = 0;
-        return 0;
-    }
-    if (bits >= 64) {
-        *out_value = value;
-        return 0;
-    }
-    unsigned long long uval = (unsigned long long)value;
-    unsigned long long mask = (1ULL << bits) - 1ULL;
-    uval = uval & mask;
-    if (uval & (1ULL << (bits - 1))) {
-        uval |= (~mask);
-    }
-    *out_value = (long long)uval;
-    return 0;
-}
-
-int scriptgo_bigint_as_uint_n(long long bits, long long value, long long *out_value) {
-    if (out_value == NULL) return scriptgo_runtime_set_error("invalid argument to bigint asUintN");
-    if (bits <= 0) {
-        *out_value = 0;
-        return 0;
-    }
-    if (bits >= 64) {
-        *out_value = value;
-        return 0;
-    }
-    unsigned long long uval = (unsigned long long)value;
-    unsigned long long mask = (1ULL << bits) - 1ULL;
-    *out_value = (long long)(uval & mask);
-    return 0;
-}
-
-long long scriptgo_bigint_pow(long long base, long long exp) {
-    if (exp < 0) {
-        if (base == 1) return 1;
-        if (base == -1) return (exp % 2 == 0) ? 1 : -1;
-        return 0;
-    }
-    if (exp == 0) return 1;
-    long long result = 1;
-    long long b = base;
-    unsigned long long e = (unsigned long long)exp;
-    while (e > 0) {
-        if (e & 1) {
-            result *= b;
-        }
-        b *= b;
-        e >>= 1;
-    }
-    return result;
 }

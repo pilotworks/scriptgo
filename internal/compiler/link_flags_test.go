@@ -73,3 +73,17 @@ func TestBuildLinksOnlyReferencedLibraries(t *testing.T) {
 		}
 	}
 }
+
+func TestTargetCPUFlag(t *testing.T) {
+	tests := []struct{ target, want string }{
+		{"x86_64-linux-gnu", "-march=skylake"},
+		{"i686-windows-gnu", "-march=skylake"},
+		{"aarch64-linux-gnu", "-mcpu=skylake"},
+		{"riscv64-linux-gnu", "-mcpu=skylake"},
+	}
+	for _, tc := range tests {
+		if got := targetCPUFlag(tc.target, "skylake"); got != tc.want {
+			t.Errorf("targetCPUFlag(%q) = %q, want %q", tc.target, got, tc.want)
+		}
+	}
+}

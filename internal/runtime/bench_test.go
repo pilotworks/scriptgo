@@ -37,7 +37,15 @@ func TestNativeRuntimeBenchmarks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	compileCmd := exec.Command(clang, "-O2", benchMainPath, runtimePath, "-I", dir, "-o", executable, "-lm", "-lresolv")
+	enginePath := filepath.Join(dir, "regexp_engine.c")
+	engineSource, err := runtime.RegExpEngineSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(enginePath, engineSource, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	compileCmd := exec.Command(clang, "-O2", benchMainPath, runtimePath, enginePath, "-I", dir, "-o", executable, "-lm", "-lresolv")
 	if out, err := compileCmd.CombinedOutput(); err != nil {
 		t.Fatalf("clang compilation failed: %v\n%s", err, out)
 	}

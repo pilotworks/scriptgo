@@ -168,7 +168,10 @@ func (p *licmPass) canHoist(
 			return false
 		}
 		obj := inst.Args[0]
-		if assigned[obj] || localDefs[obj] {
+		// A field read stays in a loop that writes the object's fields or
+		// calls code that may (a call can reach the object through an
+		// argument, a closure or a global).
+		if assigned[obj] || localDefs[obj] || mutatedArrays[obj] || mutatedArrays[loopWritesMemory] {
 			return false
 		}
 		return true
@@ -190,6 +193,12 @@ func (p *licmPass) collectLoopMutations(
 			}
 			if inst.Op == ir.OpIndexSet && len(inst.Args) > 0 {
 				mutatedArrays[inst.Args[0]] = true
+			}
+			if inst.Op == ir.OpFieldSet && len(inst.Args) > 0 {
+				mutatedArrays[inst.Args[0]] = true
+			}
+			if callWritesMemory(inst) {
+				mutatedArrays[loopWritesMemory] = true
 			}
 			if inst.Op == ir.OpCall {
 				// Builtin mutating array methods
@@ -242,4 +251,20 @@ func (p *licmPass) collectLocalDefs(list []ir.Instruction, defs map[string]bool)
 		p.collectLocalDefs(inst.Catch, defs)
 		p.collectLocalDefs(inst.Finally, defs)
 	}
+}
+
+// loopWritesMemory is the mutation-set key recording that a loop calls code
+// which may write any object's fields.
+const loopWritesMemory = "\x00memory"
+
+// callWritesMemory reports whether a call may write object fields: any call
+// except the Math intrinsics, which only compute numbers.
+func callWritesMemory(inst ir.Instruction) bool {
+	switch inst.Op {
+	case ir.OpClosureCall, ir.OpDynamicCall, ir.OpExternCall:
+		return true
+	case ir.OpCall:
+		return !strings.HasPrefix(inst.Callee, "__Math.")
+	}
+	return false
 }

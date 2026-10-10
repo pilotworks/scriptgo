@@ -12,6 +12,20 @@ func isDarwinTarget(target string) bool {
 	return strings.Contains(t, "darwin") || strings.Contains(t, "macos") || strings.Contains(t, "ios") || strings.Contains(t, "apple") || ((t == "native" || t == "") && goRuntime.GOOS == "darwin")
 }
 
+// targetCPUFlag selects the CPU to tune for: clang spells it -march on x86
+// and -mcpu on ARM, AArch64 and RISC-V.
+func targetCPUFlag(target, cpu string) string {
+	arch := strings.ToLower(target)
+	if arch == "native" || arch == "" {
+		arch = goRuntime.GOARCH
+	}
+	if strings.HasPrefix(arch, "x86") || strings.HasPrefix(arch, "amd64") || strings.HasPrefix(arch, "i386") ||
+		strings.HasPrefix(arch, "i686") || arch == "386" {
+		return "-march=" + cpu
+	}
+	return "-mcpu=" + cpu
+}
+
 func isWindowsTarget(target string) bool {
 	t := strings.ToLower(target)
 	return strings.Contains(t, "windows") || strings.Contains(t, "mingw") || ((t == "native" || t == "") && goRuntime.GOOS == "windows")

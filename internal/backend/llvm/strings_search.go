@@ -102,6 +102,33 @@ func (e *functionEmitter) emitStringSearchIntrinsic(out *strings.Builder, instru
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_search(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_double)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%__slot_double\n", instruction.Result)
+	case "__string.replaceAll_regex", "__string.replace_regex_fn", "__string.replaceAll_regex_fn":
+		if len(instruction.Args) != 4 {
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
+		}
+		fn := map[string]string{
+			"__string.replaceAll_regex":    "scriptgo_string_replace_all_regex",
+			"__string.replace_regex_fn":    "scriptgo_string_replace_regex_fn",
+			"__string.replaceAll_regex_fn": "scriptgo_string_replace_all_regex_fn",
+		}[instruction.Callee]
+		replacement := e.resolveArg(out, instruction.Args[3])
+		if strings.HasSuffix(instruction.Callee, "_fn") {
+			replacement = e.ensurePointerArg(out, instruction.Args[3])
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @%s(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, fn, instruction.Args[0], instruction.Args[1], instruction.Args[2], replacement)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+	case "__string.split_regex":
+		if len(instruction.Args) < 3 || len(instruction.Args) > 4 || instruction.Type != ir.TypeStringArray {
+			return fmt.Errorf("string.split_regex has invalid signature")
+		}
+		limitArg := "-1.000000e+00" // omitted: no limit
+		if len(instruction.Args) == 4 {
+			limitArg = "%" + instruction.Args[3]
+		}
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_split_regex(ptr %%%s, ptr %%%s, ptr %%%s, double %s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2], limitArg)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.replace_regex":
 		if len(instruction.Args) != 4 {
 			return fmt.Errorf("string.replace_regex has invalid signature")

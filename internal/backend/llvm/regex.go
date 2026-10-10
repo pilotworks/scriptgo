@@ -41,15 +41,17 @@ func (e *functionEmitter) emitRegexIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
 
-	case "__regex.exec_stateful":
+	case "__regex.exec_stateful", "__regex.test_stateful":
 		if len(instruction.Args) != 4 {
-			return fmt.Errorf("regex.exec_stateful has invalid signature")
+			return fmt.Errorf("%s has invalid signature", instruction.Callee)
 		}
 		recArg := e.resolveArg(out, instruction.Args[0])
 		patArg := e.resolveArg(out, instruction.Args[1])
 		flagsArg := e.resolveArg(out, instruction.Args[2])
 		strArg := e.resolveArg(out, instruction.Args[3])
 
+		// lastIndex is the RegExp object's field 2; the runtime reads and
+		// advances it in place.
 		lastIdxSlot := fmt.Sprintf("%s.lastidx.slot.%d", instruction.Args[0], e.loadCounter)
 		e.loadCounter++
 		fmt.Fprintf(out, "  %%%s = alloca double\n", lastIdxSlot)
@@ -58,8 +60,13 @@ func (e *functionEmitter) emitRegexIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_get(ptr %%%s, i64 2, ptr %%%s)\n", getIdxStatus, recArg, lastIdxSlot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", getIdxStatus)
 
-		fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_exec_stateful(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, patArg, flagsArg, strArg, lastIdxSlot, slot)
+		if instruction.Callee == "__regex.exec_stateful" {
+			fmt.Fprintf(out, "  %%%s = alloca ptr\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_exec_stateful(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, patArg, flagsArg, strArg, lastIdxSlot, slot)
+		} else {
+			fmt.Fprintf(out, "  %%%s = alloca double\n", slot)
+			fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_test_stateful(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s, ptr %%%s)\n", status, patArg, flagsArg, strArg, lastIdxSlot, slot)
+		}
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 
 		newIdx := fmt.Sprintf("%s.newidx.%d", instruction.Args[0], e.loadCounter)
@@ -70,7 +77,22 @@ func (e *functionEmitter) emitRegexIntrinsic(out *strings.Builder, instruction i
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_number_set(ptr %%%s, i64 2, double %%%s)\n", setIdxStatus, recArg, newIdx)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", setIdxStatus)
 
-		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		if instruction.Callee == "__regex.exec_stateful" {
+			fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, slot)
+		} else {
+			found := instruction.Result + ".found"
+			fmt.Fprintf(out, "  %%%s = load double, ptr %%%s\n", found, slot)
+			fmt.Fprintf(out, "  %%%s = fcmp one double %%%s, 0.0\n", instruction.Result, found)
+		}
+
+	case "__regex.validate":
+		if len(instruction.Args) != 2 {
+			return fmt.Errorf("regex.validate has invalid signature")
+		}
+		validated := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_regex_validate(ptr %%%s, ptr %%%s)\n", validated, e.resolveArg(out, instruction.Args[0]), e.resolveArg(out, instruction.Args[1]))
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", validated)
 
 	default:
 		return fmt.Errorf("unknown regex intrinsic %q", instruction.Callee)

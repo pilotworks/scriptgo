@@ -1,6 +1,8 @@
 package lowering
 
 import (
+	"strings"
+
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
@@ -56,13 +58,13 @@ func lowerStringReceiverMethod(
 			}
 		}
 	}
-	if methodName == "replace" && len(expression.Arguments) >= 2 {
+	if (methodName == "replace" || methodName == "replaceAll") && len(expression.Arguments) >= 2 && isRegExpExpression(expression.Arguments[0]) {
 		arg0Val, arg0Typ, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", true, err
 		}
 		if arg0Typ == "object:RegExp" {
-			arg1Val, _, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
+			arg1Val, arg1Typ, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return "", "", true, err
 			}
@@ -73,7 +75,16 @@ func lowerStringReceiverMethod(
 			if result == "" {
 				result = nextTemp(counter)
 			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: "__string.replace_regex", Args: []string{receiver, srcVal, flagsVal, arg1Val}, Span: toIRSpan(path, expression.Span)})
+			// A function replacement is called per match; anything else is a
+			// replacement string with $ patterns.
+			callee := "__string.replace_regex"
+			if methodName == "replaceAll" {
+				callee = "__string.replaceAll_regex"
+			}
+			if arg1Typ == ir.TypeClosure || strings.Contains(string(arg1Typ), "=>") {
+				callee += "_fn"
+			}
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: result, Callee: callee, Args: []string{receiver, srcVal, flagsVal, arg1Val}, Span: toIRSpan(path, expression.Span)})
 			return result, ir.TypeString, true, nil
 		}
 	}
@@ -83,11 +94,19 @@ func lowerStringReceiverMethod(
 			return "", "", true, err
 		}
 		sepVal := arg0Val
-		if arg0Typ == "object:RegExp" {
-			sepVal = nextTemp(counter)
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: sepVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)})
-		}
+		callee := "__string.split"
 		splitArgs := []string{receiver, sepVal}
+		if arg0Typ == "object:RegExp" {
+			// A RegExp separator splits at its matches, with captures.
+			callee = "__string.split_regex"
+			srcVal := nextTemp(counter)
+			flagsVal := nextTemp(counter)
+			function.Body = append(function.Body,
+				ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: srcVal, Callee: "RegExp", Field: "source", FieldIndex: 0, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)},
+				ir.Instruction{Op: ir.OpFieldGet, Type: ir.TypeString, Result: flagsVal, Callee: "RegExp", Field: "flags", FieldIndex: 1, Args: []string{arg0Val}, Span: toIRSpan(path, expression.Span)},
+			)
+			splitArgs = []string{receiver, srcVal, flagsVal}
+		}
 		if len(expression.Arguments) > 1 {
 			limVal, limType, err := lowerExpression(path, expression.Arguments[1], "", function, env, counter, shapes, signatures)
 			if err != nil {
@@ -102,7 +121,7 @@ func lowerStringReceiverMethod(
 			result = nextTemp(counter)
 		}
 		env[result] = ir.TypeStringArray
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: "__string.split", Args: splitArgs, Span: toIRSpan(path, expression.Span)})
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeStringArray, Result: result, Callee: callee, Args: splitArgs, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeStringArray, true, nil
 	}
 	args := []string{receiver}
@@ -136,4 +155,13 @@ func lowerStringReceiverMethod(
 	env[result] = returnType
 	function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: returnType, Result: result, Callee: "__string." + methodName, Args: args, Span: toIRSpan(path, expression.Span)})
 	return result, returnType, true, nil
+}
+
+// isRegExpExpression reports whether an argument is a RegExp (a literal or a
+// RegExp-typed value) from its syntax and checked type, before lowering it.
+func isRegExpExpression(expression *frontend.SyntaxExpression) bool {
+	if expression == nil {
+		return false
+	}
+	return expression.Kind == "regex" || strings.TrimSpace(expression.InferredType) == "RegExp"
 }
