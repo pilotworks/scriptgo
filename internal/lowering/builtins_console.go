@@ -100,35 +100,9 @@ func lowerPrint(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type
 			})
 			return "", ir.TypeVoid, nil
 		}
-		if argType == ir.TypeMap {
-			strTemp := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: strTemp,
-				Callee: "__map.toString",
-				Args:   []string{argVal},
-				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
-			})
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpPrint,
-				Type:   ir.TypeVoid,
-				Callee: intrinsic.Name,
-				Args:   []string{strTemp},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return "", ir.TypeVoid, nil
-		}
-		if argType == ir.TypeSet {
-			strTemp := nextTemp(call.Counter)
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeString,
-				Result: strTemp,
-				Callee: "__set.toString",
-				Args:   []string{argVal},
-				Span:   toIRSpan(call.Path, call.Expression.Arguments[0].Span),
-			})
+		if argType == ir.TypeMap || argType == ir.TypeSet {
+			// Maps and sets print their laid-out inspection.
+			strTemp := lowerValueToString(call, argVal, argType, call.Expression.Arguments[0].Span)
 			call.Function.Body = append(call.Function.Body, ir.Instruction{
 				Op:     ir.OpPrint,
 				Type:   ir.TypeVoid,

@@ -1121,7 +1121,9 @@ int scriptgo_array_join_unknown(void *handle, const char *separator, char **out_
         int need_free = 0;
         if (array->element_size == sizeof(scriptgo_value)) {
             scriptgo_value *item = (scriptgo_value *)(array->data + (size_t)i * sizeof(scriptgo_value));
-            if (scriptgo_string_from_unknown(item, &val_str) != 0 || val_str == NULL) {
+            /* null and undefined join as the empty string. */
+            if (item->tag == SCRIPTGO_TAG_UNDEFINED || item->tag == SCRIPTGO_TAG_NULL ||
+                scriptgo_string_from_unknown(item, &val_str) != 0 || val_str == NULL) {
                 val_str = "";
             } else {
                 need_free = 1;

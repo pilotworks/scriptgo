@@ -142,25 +142,25 @@ int scriptgo_string_from_object(void *obj, char **out_str);
 int scriptgo_json_inspect_object(void *obj, char **out_str);
 
 int scriptgo_console_inspect_array(void *value, char **out_str);
+int scriptgo_console_layout(const char *inspected, char **out_str);
 
-/* console.log(array) and console formatting share one array renderer. */
-static int scriptgo_console_array(FILE *stream, scriptgo_array_raw_t *arr) {
-    char *inspected = NULL;
-    if (scriptgo_console_inspect_array(arr, &inspected) != 0 || inspected == NULL) return -1;
-    int result = scriptgo_console_string(stream, inspected);
-    free(inspected);
-    return result;
-}
 
 int scriptgo_gc_get_tag(void *ptr);
 int scriptgo_error_to_string(void *obj, char **out_str);
 
-static int scriptgo_console_object(FILE *stream, void *value) {
+/* scriptgo_console_object_text is console.log's text for a reference value:
+ * a buffer's bytes, an error's message and stack, or the laid-out
+ * inspection of an object or array. *owned reports whether the caller
+ * frees the text. */
+static int scriptgo_console_object_text(void *value, char **out_str, int *owned) {
+    *owned = 0;
     if (value == NULL) {
-        return scriptgo_console_string(stream, "null");
+        *out_str = "null";
+        return 0;
     }
     if (value == &scriptgo_undefined_sentinel) {
-        return scriptgo_console_string(stream, "undefined");
+        *out_str = "undefined";
+        return 0;
     }
     uint32_t magic = *(const uint32_t *)value;
     if (magic == 0x42554646) {
@@ -173,45 +173,73 @@ static int scriptgo_console_object(FILE *stream, void *value) {
             void *buffer;
             unsigned char *data;
         } *bv = (void *)value;
-        scriptgo_console_print_indent(stream);
-        fprintf(stream, "<Buffer");
+        size_t length = 9 + (size_t)(bv->length > 0 ? bv->length : 0) * 3;
+        char *text = malloc(length);
+        if (text == NULL) return scriptgo_runtime_set_error("console buffer allocation failed");
+        size_t at = (size_t)snprintf(text, length, "<Buffer");
         for (int64_t i = 0; i < bv->length; i++) {
-            fprintf(stream, " %02x", bv->data == NULL ? 0 : bv->data[i]);
+            at += (size_t)snprintf(text + at, length - at, " %02x", bv->data == NULL ? 0 : bv->data[i]);
         }
-        fprintf(stream, ">\n");
-        fflush(stream);
+        snprintf(text + at, length - at, ">");
+        *out_str = text;
+        *owned = 1;
         return 0;
     }
+    char *inspected = NULL;
     int tag = scriptgo_gc_get_tag(value);
     if (tag == 1 /* SCRIPTGO_TYPE_OBJECT */) {
         scriptgo_object_raw_t *o = (scriptgo_object_raw_t *)value;
         if (o->magic == SCRIPTGO_OBJECT_MAGIC) {
-            if (o->type_name != NULL && strstr(o->type_name, "Error") != NULL) {
-                char *error_string = NULL;
-                if (scriptgo_error_to_string(value, &error_string) == 0 && error_string != NULL) {
-                    int result = scriptgo_console_string(stream, error_string);
-                    free(error_string);
-                    return result;
-                }
+            if (o->type_name != NULL && strstr(o->type_name, "Error") != NULL &&
+                scriptgo_error_to_string(value, out_str) == 0 && *out_str != NULL) {
+                *owned = 1;
+                return 0;
             }
-            char *inspected = NULL;
-            if (scriptgo_json_inspect_object(value, &inspected) == 0 && inspected != NULL) {
-                int result = scriptgo_console_string(stream, inspected);
-                free(inspected);
-                return result;
+            if (scriptgo_json_inspect_object(value, &inspected) != 0 || inspected == NULL) {
+                *out_str = "[object Object]";
+                return 0;
             }
-            return scriptgo_console_string(stream, "[object Object]");
         }
     } else if (tag == 2 /* SCRIPTGO_TYPE_ARRAY */) {
-        scriptgo_array_raw_t *arr = (scriptgo_array_raw_t *)value;
-        return scriptgo_console_array(stream, arr);
+        if (scriptgo_console_inspect_array(value, &inspected) != 0 || inspected == NULL) return -1;
     }
-    char *str = NULL;
-    int err = scriptgo_string_from_object(value, &str);
-    if (err == 0 && str != NULL) {
-        return scriptgo_console_string(stream, str);
+    if (inspected != NULL) {
+        int status = scriptgo_console_layout(inspected, out_str);
+        free(inspected);
+        *owned = status == 0;
+        return status;
     }
-    return scriptgo_console_string(stream, (const char *)value);
+    if (scriptgo_string_from_object(value, out_str) == 0 && *out_str != NULL) return 0;
+    *out_str = (char *)value;
+    return 0;
+}
+
+static int scriptgo_console_object(FILE *stream, void *value) {
+    char *text = NULL;
+    int owned = 0;
+    if (scriptgo_console_object_text(value, &text, &owned) != 0) return -1;
+    int result = scriptgo_console_string(stream, text);
+    if (owned) free(text);
+    return result;
+}
+
+/* scriptgo_console_inspect_unknown formats a dynamically typed console
+ * argument: primitives as console.log prints them (strings unquoted),
+ * reference values as their console text. */
+int scriptgo_string_from_unknown(const scriptgo_value *value, char **out_str);
+
+int scriptgo_console_inspect_unknown(const scriptgo_value *value, char **out_str) {
+    if (out_str == NULL || value == NULL || scriptgo_value_validate(value) != 0) {
+        return scriptgo_runtime_set_error("console argument inspection failed");
+    }
+    if (value->tag != SCRIPTGO_TAG_OBJECT && value->tag != SCRIPTGO_TAG_ARRAY) {
+        return scriptgo_string_from_unknown(value, out_str) == 0 ? 0 : scriptgo_runtime_set_error("console argument inspection failed");
+    }
+    char *text = NULL;
+    int owned = 0;
+    if (scriptgo_console_object_text((void *)(uintptr_t)value->payload, &text, &owned) != 0) return -1;
+    *out_str = owned ? text : strdup(text);
+    return *out_str == NULL ? scriptgo_runtime_set_error("console argument allocation failed") : 0;
 }
 
 /* console formatting of a number: like String(n) except -0 stays "-0". */

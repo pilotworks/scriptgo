@@ -60,6 +60,9 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span fr
 			callee = "__string.fromUnknown"
 		}
 	}
+	if callee == "__string.fromUnknown" {
+		callee = "__console.inspectUnknown"
+	}
 	call.Function.Body = append(call.Function.Body, ir.Instruction{
 		Op:     ir.OpCall,
 		Type:   ir.TypeString,
@@ -68,6 +71,13 @@ func lowerValueToString(call IntrinsicCall, val string, valType ir.Type, span fr
 		Args:   []string{val},
 		Span:   toIRSpan(call.Path, span),
 	})
+	switch callee {
+	case "__string.inspectArray", "__string.inspectObject", "__map.toString", "__set.toString":
+		// Containers print over several lines when they do not fit on one.
+		laidOut := nextTemp(call.Counter)
+		call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: laidOut, Callee: "__console.layout", Args: []string{strTemp}, Span: toIRSpan(call.Path, span)})
+		return laidOut
+	}
 	return strTemp
 }
 

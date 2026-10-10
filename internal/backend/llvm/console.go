@@ -9,6 +9,49 @@ import (
 
 func (e *functionEmitter) emitConsoleIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	switch instruction.Callee {
+	case "__console.layout":
+		// The console's line layout of a value's single-line inspection.
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("console.layout has invalid signature")
+		}
+		text := e.ensurePointerArg(out, instruction.Args[0])
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_layout(ptr %%%s, ptr %%__slot_ptr)\n", status, text)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+		e.types[instruction.Result] = ir.TypeString
+		return nil
+	case "__console.inspectUnknown":
+		// A dynamically typed console argument: strings print as they are,
+		// other values as their laid-out inspection.
+		if len(instruction.Args) != 1 || instruction.Type != ir.TypeString {
+			return fmt.Errorf("console.inspectUnknown has invalid signature")
+		}
+		value := e.resolveArg(out, instruction.Args[0])
+		argType := e.types[value]
+		if argType == "" {
+			argType = e.types[instruction.Args[0]]
+		}
+		if argType != ir.TypeUnknown && argType != "" {
+			boxed := fmt.Sprintf("console.box.%d", e.loadCounter)
+			e.loadCounter++
+			if err := e.emitBoxValue(out, value, argType, boxed); err != nil {
+				return err
+			}
+			value = boxed
+		}
+		valuePtr, err := e.emitCanonicalValuePointer(out, value, ir.TypeUnknown, "console.unknown")
+		if err != nil {
+			return err
+		}
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_console_inspect_unknown(ptr %s, ptr %%__slot_ptr)\n", status, valuePtr)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
+		e.types[instruction.Result] = ir.TypeString
+		return nil
 	case "__console.new":
 		slot := instruction.Result + ".slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)

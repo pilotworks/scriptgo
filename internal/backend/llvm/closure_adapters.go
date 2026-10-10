@@ -179,10 +179,12 @@ func functionSymbol(name string) string {
 // scriptgo_closure_more_set (see internal/runtime/native/closures).
 const closureRawParameterCount = 4
 
-// emitClosureMoreIntrinsic lowers the reads a closure with more than four
-// parameters makes on entry: __closure.more_arg [index] is argument
-// 4 + index of the current call (undefined when absent), and
-// __closure.more_done releases the arguments.
+// emitClosureMoreIntrinsic lowers the closure argument intrinsics: the reads
+// a closure with more than four parameters makes on entry
+// (__closure.more_arg [index] is argument 4 + index of the current call,
+// undefined when absent; __closure.more_done releases the arguments), and
+// __closure.apply [closure, array, restIndex], a call with an array's
+// elements, those from restIndex on packed into one rest array.
 func (e *functionEmitter) emitClosureMoreIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	self := functionSymbol(mangleFunctionName(e.function.Name))
 	switch instruction.Callee {
@@ -199,6 +201,23 @@ func (e *functionEmitter) emitClosureMoreIntrinsic(out *strings.Builder, instruc
 		return nil
 	case "__closure.more_done":
 		fmt.Fprintf(out, "  call void @scriptgo_closure_more_done(ptr %s)\n", self)
+		return nil
+	case "__closure.apply":
+		if len(instruction.Args) != 3 || instruction.Result == "" {
+			return fmt.Errorf("closure.apply requires a closure, an argument array and a rest index")
+		}
+		closure := e.ensurePointerArg(out, instruction.Args[0])
+		array := e.ensurePointerArg(out, instruction.Args[1])
+		restIndex := e.resolveArg(out, instruction.Args[2])
+		fmt.Fprintf(out, "  %%%s.apply.rest = fptosi double %%%s to i32\n", instruction.Result, restIndex)
+		slot := instruction.Result + ".apply.slot"
+		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+		e.runtimeStatus++
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_closure_apply(ptr %%%s, ptr %%%s, i32 %%%s.apply.rest, ptr %%%s)\n", status, closure, array, instruction.Result, slot)
+		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot)
+		e.types[instruction.Result] = ir.TypeUnknown
 		return nil
 	}
 	return fmt.Errorf("unknown closure intrinsic %q", instruction.Callee)

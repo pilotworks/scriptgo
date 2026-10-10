@@ -241,6 +241,56 @@ int scriptgo_closure_invoke_argv(void *closure_handle, int32_t arg_count, const 
     return 0;
 }
 
+int scriptgo_array_length(void *handle, int64_t *out_length);
+int scriptgo_array_get_unknown(void *handle, double index, void *out_value);
+int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
+int scriptgo_array_set(void *handle, double index, const void *value);
+
+/* scriptgo_closure_apply calls a closure with an array's elements as its
+ * arguments (Function.prototype.apply with a runtime-length array). With
+ * rest_index >= 0 the elements from that index on are packed into one
+ * unknown[] array, the closure's rest parameter, as call sites pack them. */
+int scriptgo_closure_apply(void *closure_handle, void *array, int32_t rest_index, scriptgo_value *out_value) {
+    int64_t length = 0;
+    if (out_value == NULL) return scriptgo_runtime_set_error("scriptgo closure result is null");
+    if (array != NULL && array != &scriptgo_undefined_sentinel && scriptgo_array_length(array, &length) != 0) return -1;
+    int64_t count = rest_index >= 0 ? (int64_t)rest_index + 1 : length;
+    if (count > INT32_MAX) return scriptgo_runtime_set_error("RangeError: too many arguments in function call");
+    scriptgo_value *args = NULL;
+    if (count > 0) {
+        args = calloc((size_t)count, sizeof(scriptgo_value));
+        if (args == NULL) return scriptgo_runtime_set_error("scriptgo closure apply: out of memory");
+    }
+    void *rest = NULL;
+    if (rest_index >= 0) {
+        int64_t rest_length = length > rest_index ? length - rest_index : 0;
+        if (scriptgo_array_new(0, (int64_t)sizeof(scriptgo_value), &rest) != 0) {
+            free(args);
+            return -1;
+        }
+        args[rest_index].tag = SCRIPTGO_TAG_ARRAY;
+        args[rest_index].payload = (uint64_t)(uintptr_t)rest;
+        for (int64_t i = 0; i < rest_length; i++) {
+            scriptgo_value element;
+            if (scriptgo_array_get_unknown(array, (double)(rest_index + i), &element) != 0 ||
+                scriptgo_array_set(rest, (double)i, &element) != 0) {
+                free(args);
+                return -1;
+            }
+        }
+    }
+    int64_t direct = rest_index >= 0 ? (length < rest_index ? length : rest_index) : length;
+    for (int64_t i = 0; i < direct; i++) {
+        if (scriptgo_array_get_unknown(array, (double)i, &args[i]) != 0) {
+            free(args);
+            return -1;
+        }
+    }
+    int status = scriptgo_closure_invoke_argv(closure_handle, (int32_t)count, args, out_value);
+    free(args);
+    return status;
+}
+
 /* scriptgo_closure_invoke_value calls a closure with up to four boxed
  * arguments (NULL pointers are undefined). */
 int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1, const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4, scriptgo_value *out_value) {
