@@ -89,11 +89,7 @@ func (e *functionEmitter) emitClosure(out *strings.Builder, instruction ir.Instr
 			} else {
 				cellAlloc := fmt.Sprintf("closure.cell.%s.%d", arg, e.loadCounter)
 				e.loadCounter++
-				allocSize := 8
-				if typ == ir.TypeUnknown {
-					allocSize = 24
-				}
-				out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellAlloc, allocSize))
+				out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellAlloc, closureCellSize(typ)))
 				argVal := e.resolveArg(out, arg)
 				out.WriteString(fmt.Sprintf("  store volatile %s %%%s, ptr %%%s\n", llvmType(typ), argVal, cellAlloc))
 				out.WriteString(fmt.Sprintf("  store ptr %%%s, ptr %%%s\n", cellAlloc, fieldPtr))
@@ -304,4 +300,16 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("%s:\n", contBlock))
 	}
 	return nil
+}
+
+// closureCellSize is the byte size of the heap cell holding a captured
+// variable. A variable whose type is not known where its cell is allocated
+// (a local of the enclosing function, typed only where a closure assigns it)
+// gets room for the largest IR value, a boxed { i32, i32, i64, i64 }, so a
+// closure storing an unknown value into it stays in bounds.
+func closureCellSize(typ ir.Type) int {
+	if typ == "" || typ == ir.TypeVoid || typ == ir.TypeUnknown {
+		return 24
+	}
+	return 8
 }

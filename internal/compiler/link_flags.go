@@ -21,10 +21,12 @@ func isWindowsTarget(target string) bool {
 // and the codec libraries: zlib, OpenSSL, brotli, zstd, resolv) only when the
 // program references them after dead code elimination, so a program that
 // never compresses, hashes or resolves names does not load those libraries
-// at startup or require them on the machine it runs on. ELF linkers drop an
-// unreferenced shared library under --as-needed; Apple's linker does the same
-// with -dead_strip_dylibs. Libraries named by FFI manifests are linked
-// as given, after this group.
+// at startup or require them on the machine it runs on. Under --as-needed,
+// lld (which linkerDCEFlags selects when installed) drops a library only
+// referenced by sections --gc-sections removed; GNU ld decides before garbage
+// collection and keeps it, linking as before. Apple's linker drops it with
+// -dead_strip_dylibs. Libraries named by FFI manifests are linked as given,
+// after this group.
 func runtimeLibraryFlags(target string, libraries []string) []string {
 	if len(libraries) == 0 {
 		return nil

@@ -453,7 +453,9 @@ SCRIPTGO_CC="zigcc" SCRIPTGO_TARGET="aarch64-macos" scriptgo build src/main.ts -
 The runtime object is compiled once with every available codec (zlib, OpenSSL,
 brotli, zstd, resolv), but an executable depends only on the libraries its
 program references after dead code elimination: ELF links use
-`-Wl,--as-needed` and Apple links use `-Wl,-dead_strip_dylibs`. A program that
+`-Wl,--as-needed` and Apple links use `-Wl,-dead_strip_dylibs`. On ELF this
+needs `lld` (selected automatically when `ld.lld` is installed); GNU ld decides
+`--as-needed` before discarding unused sections, so it keeps every library. A program that
 never compresses, hashes or resolves names loads only the C library (and libm
 when it calls a math function), so it starts faster and runs on machines
 without those libraries installed. Libraries named in `.ffi.json` manifests are

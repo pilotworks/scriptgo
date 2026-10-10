@@ -67,7 +67,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev lld
 
       - name: Build scriptgo CLI
         run: go build -v ./cmd/scriptgo
