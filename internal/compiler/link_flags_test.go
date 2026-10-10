@@ -42,6 +42,11 @@ func TestBuildLinksOnlyReferencedLibraries(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang is not installed")
 	}
+	if !slices.Contains(linkerDCEFlags("native"), "-fuse-ld=lld") {
+		// GNU ld records --as-needed libraries before --gc-sections runs, so
+		// only lld drops the libraries of eliminated runtime code.
+		t.Skip("lld is not installed")
+	}
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.ts")
 	output := filepath.Join(dir, "main")

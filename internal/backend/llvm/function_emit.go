@@ -162,17 +162,15 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		}
 		cellSlot := fmt.Sprintf("cell.%s.%d", capName, emitter.loadCounter)
 		emitter.loadCounter++
-		allocSize := 8
+		var cellType ir.Type
 		for _, param := range function.Parameters {
 			if param.Name == capName {
 				emitter.types[capName] = param.Type
-				if param.Type == ir.TypeUnknown {
-					allocSize = 24
-				}
+				cellType = param.Type
 				break
 			}
 		}
-		out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellSlot, allocSize))
+		out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_closure_alloc(i64 %d)\n", cellSlot, closureCellSize(cellType)))
 		emitter.sharedEnvCells[capName] = cellSlot
 		for _, param := range function.Parameters {
 			if param.Name == capName {
