@@ -312,34 +312,33 @@ static bool regex_group_names(const regex_program *program, const char **names) 
     return any;
 }
 
-/* regex_groups_object builds the groups object of a match: its key list
- * names the groups, each field holds the captured text or undefined. */
+/* regex_groups_object builds the groups object of a match: a null-prototype
+ * object (the __null_prototype shape, its keys in the |length:name extension
+ * encoding) whose fields hold the captured text or undefined. */
 static void *regex_groups_object(const regex_program *program, const regex_match *match, const regex_subject *subject) {
+    static const char shape[] = "__null_prototype";
     const char **names = calloc((size_t)program->capture_count, sizeof(char *));
     if (names == NULL) return NULL;
     if (!regex_group_names(program, names)) {
         free(names);
         return (void *)&scriptgo_undefined_sentinel;
     }
-    size_t layout_length = 2;
+    size_t layout_length = sizeof(shape);
     int named = 0;
     for (int group = 1; group < program->capture_count; group++) {
         if (names[group] == NULL) continue;
-        layout_length += strlen(names[group]) + 1;
+        layout_length += strlen(names[group]) + 24;
         named++;
     }
     /* Objects keep their layout string, so it is not freed. */
     char *layout = malloc(layout_length);
     void *groups = NULL;
     if (layout != NULL) {
-        size_t at = 0;
-        layout[at++] = ':';
+        size_t at = sizeof(shape) - 1;
+        memcpy(layout, shape, at);
         for (int group = 1; group < program->capture_count; group++) {
             if (names[group] == NULL) continue;
-            size_t n = strlen(names[group]);
-            memcpy(layout + at, names[group], n);
-            at += n;
-            layout[at++] = ':';
+            at += (size_t)snprintf(layout + at, layout_length - at, "|%zu:%s", strlen(names[group]), names[group]);
         }
         layout[at] = '\0';
         if (scriptgo_object_new_typed(named, layout, &groups) == 0) {

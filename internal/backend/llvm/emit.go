@@ -156,7 +156,9 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 	var out strings.Builder
 	out.WriteString("; ModuleID = 'scriptgo'\n")
 	out.WriteString(formatArtifactMetadata(options))
-	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n\n")
+	out.WriteString("@scriptgo_undefined_sentinel = external global i8\n")
+	// Closure invoke adapters read a missing argument from this undefined value.
+	out.WriteString("@scriptgo_closure_absent_arg = external constant { i32, i32, i64, i64 }\n\n")
 	out.WriteString("declare void @scriptgo_runtime_abort_if_failed(i32)\n")
 	if moduleHasDynamic(module) {
 		out.WriteString("declare i32 @scriptgo_dynamic_register_module(ptr, ptr, ptr, ptr)\n")

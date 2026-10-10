@@ -24,6 +24,7 @@ extern const char scriptgo_undefined_sentinel;
 int scriptgo_object_property_unknown_get(void *handle, const char *property, scriptgo_value *out_value);
 int scriptgo_object_property_unknown_set(void *handle, const char *property, const scriptgo_value *value);
 int scriptgo_array_length(void *handle, int64_t *out_length);
+int scriptgo_string_length(const char *value, double *out_length);
 
 static inline int is_invalid_object_handle(void *handle) {
     return handle == NULL || handle == (void *)&scriptgo_undefined_sentinel;
@@ -282,6 +283,31 @@ static int object_field_index(const scriptgo_object *object, const char *propert
     return object_field_lookup(object, property, -1, NULL, NULL);
 }
 
+/* Reads a property of a dynamically typed value: strings answer length, and
+ * reference values defer to the object property lookup, and other primitives
+ * read undefined. */
+int scriptgo_unknown_property_get(const scriptgo_value *value, const char *property, scriptgo_value *out_value) {
+    if (out_value == NULL) {
+        return object_fail("scriptgo unknown property output is invalid");
+    }
+    scriptgo_value_init_undefined(out_value);
+    if (value == NULL || property == NULL) return 0;
+    if (value->tag == SCRIPTGO_OBJECT_TAG_STRING) {
+        if (strcmp(property, "length") == 0) {
+            union { double d; uint64_t u; } bits;
+            if (scriptgo_string_length((const char *)(uintptr_t)value->payload, &bits.d) != 0) return -1;
+            out_value->tag = SCRIPTGO_TAG_NUMBER;
+            out_value->payload = bits.u;
+        }
+        return 0;
+    }
+    if (value->tag != SCRIPTGO_TAG_OBJECT && value->tag != SCRIPTGO_TAG_ARRAY &&
+        value->tag != SCRIPTGO_TAG_FUNCTION && value->tag != SCRIPTGO_TAG_PROMISE) {
+        return 0;
+    }
+    return scriptgo_object_property_unknown_get((void *)(uintptr_t)value->payload, property, out_value);
+}
+
 int scriptgo_unknown_number_property(const scriptgo_value *value, const char *property, double *out_value) {
     if (property == NULL || out_value == NULL) {
         return object_fail("scriptgo unknown property invalid arguments");
@@ -292,7 +318,7 @@ int scriptgo_unknown_number_property(const scriptgo_value *value, const char *pr
     *out_value = NAN;
     if (value->tag == SCRIPTGO_OBJECT_TAG_STRING) {
         if (strcmp(property, "length") == 0) {
-            *out_value = (double)value->aux;
+            return scriptgo_string_length((const char *)(uintptr_t)value->payload, out_value);
         }
         return 0;
     }

@@ -25,9 +25,27 @@ func collectClosureCallees(instructions []ir.Instruction, callees map[string]boo
 func emitClosureInvokeAdapter(function ir.Function) string {
 	const valueType = "{ i32, i32, i64, i64 }"
 	name := mangleFunctionName(function.Name)
-	params := "ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3"
 	var out strings.Builder
-	fmt.Fprintf(&out, "define internal void %s(%s, ptr %%out) nounwind {\n", functionSymbol(name+"$invoke"), params)
+	// The adapter takes the arguments as an array of argc boxed values; a
+	// parameter past argc reads scriptgo_closure_absent_arg (undefined).
+	fmt.Fprintf(&out, "define internal void %s(ptr %%env, i32 %%argc, ptr %%argv, ptr %%out) nounwind {\n", functionSymbol(name+"$invoke"))
+	valueCount := 0
+	for _, param := range function.Parameters {
+		if param.Name != "__env_ctx" {
+			valueCount++
+		}
+	}
+	for i := 0; i < valueCount; i++ {
+		fmt.Fprintf(&out, "  %%in%d = icmp sgt i32 %%argc, %d\n", i, i)
+		fmt.Fprintf(&out, "  %%slot%d = getelementptr inbounds %s, ptr %%argv, i64 %d\n", i, valueType, i)
+		fmt.Fprintf(&out, "  %%arg%d = select i1 %%in%d, ptr %%slot%d, ptr @scriptgo_closure_absent_arg\n", i, i, i)
+		fmt.Fprintf(&out, "  %%tp%d = getelementptr inbounds %s, ptr %%arg%d, i32 0, i32 0\n", i, valueType, i)
+		fmt.Fprintf(&out, "  %%t%d = load i32, ptr %%tp%d\n", i, i)
+		fmt.Fprintf(&out, "  %%fp%d = getelementptr inbounds %s, ptr %%arg%d, i32 0, i32 1\n", i, valueType, i)
+		fmt.Fprintf(&out, "  %%f%d = load i32, ptr %%fp%d\n", i, i)
+		fmt.Fprintf(&out, "  %%pp%d = getelementptr inbounds %s, ptr %%arg%d, i32 0, i32 2\n", i, valueType, i)
+		fmt.Fprintf(&out, "  %%p%d = load i64, ptr %%pp%d\n", i, i)
+	}
 
 	var callArgs []string
 	valIdx := 0
@@ -75,6 +93,13 @@ func emitClosureInvokeAdapter(function ir.Function) string {
 		valIdx++
 	}
 	args := strings.Join(callArgs, ", ")
+	if functionReadsMoreArguments(function.Body) {
+		// Arguments past the fourth reach the function through the
+		// extra-argument slot.
+		fmt.Fprintf(&out, "  %%more.count = sub i32 %%argc, %d\n", closureRawParameterCount)
+		fmt.Fprintf(&out, "  %%more.args = getelementptr %s, ptr %%argv, i64 %d\n", valueType, closureRawParameterCount)
+		fmt.Fprintf(&out, "  call void @scriptgo_closure_more_set(ptr %s, i32 %%more.count, ptr %%more.args)\n", functionSymbol(name))
+	}
 
 	if function.ReturnType == ir.TypeUnknown {
 		fmt.Fprintf(&out, "  %%result = call %s %s(%s)\n", valueType, functionSymbol(name), args)
@@ -147,4 +172,45 @@ func functionSymbol(name string) string {
 	}
 	b.WriteByte('"')
 	return b.String()
+}
+
+// closureRawParameterCount is the number of arguments the closure ABI
+// passes in registers; a closure call passes the rest through
+// scriptgo_closure_more_set (see internal/runtime/native/closures).
+const closureRawParameterCount = 4
+
+// emitClosureMoreIntrinsic lowers the reads a closure with more than four
+// parameters makes on entry: __closure.more_arg [index] is argument
+// 4 + index of the current call (undefined when absent), and
+// __closure.more_done releases the arguments.
+func (e *functionEmitter) emitClosureMoreIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
+	self := functionSymbol(mangleFunctionName(e.function.Name))
+	switch instruction.Callee {
+	case "__closure.more_arg":
+		if len(instruction.Args) != 1 || instruction.Result == "" {
+			return fmt.Errorf("closure.more_arg has invalid signature")
+		}
+		index := e.resolveArg(out, instruction.Args[0])
+		slot := instruction.Result + ".more.slot"
+		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
+		fmt.Fprintf(out, "  %%%s.more.index = fptosi double %%%s to i32\n", instruction.Result, index)
+		fmt.Fprintf(out, "  call void @scriptgo_closure_more_arg(ptr %s, i32 %%%s.more.index, ptr %%%s)\n", self, instruction.Result, slot)
+		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot)
+		return nil
+	case "__closure.more_done":
+		fmt.Fprintf(out, "  call void @scriptgo_closure_more_done(ptr %s)\n", self)
+		return nil
+	}
+	return fmt.Errorf("unknown closure intrinsic %q", instruction.Callee)
+}
+
+// functionReadsMoreArguments reports whether a closure reads arguments past
+// the fourth (it has more than four parameters).
+func functionReadsMoreArguments(body []ir.Instruction) bool {
+	for _, instruction := range body {
+		if instruction.Op == ir.OpCall && instruction.Callee == "__closure.more_arg" {
+			return true
+		}
+	}
+	return false
 }

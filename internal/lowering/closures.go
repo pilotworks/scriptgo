@@ -221,7 +221,10 @@ func lowerClosureExpression(
 		"__env_ctx": ir.Type("ptr"),
 	}
 
-	for pIdx := 0; pIdx < 4; pIdx++ {
+	// The closure ABI passes four arguments as raw parameters; parameters
+	// past the fourth are read on entry from the call's extra arguments.
+	paramCount := max(closureRawParameterCount, len(fnStmt.Parameters))
+	for pIdx := 0; pIdx < paramCount; pIdx++ {
 		var pName string
 		var pType ir.Type
 		if pIdx < len(fnStmt.Parameters) {
@@ -238,13 +241,20 @@ func lowerClosureExpression(
 			pName = fmt.Sprintf("__unused_arg_%d", pIdx)
 			pType = ir.TypeUnknown
 		}
-		targetFn.Parameters = append(targetFn.Parameters, ir.Parameter{
-			Name: pName + "$raw",
-			Type: ir.TypeUnknown,
-		})
+		if pIdx < closureRawParameterCount {
+			targetFn.Parameters = append(targetFn.Parameters, ir.Parameter{
+				Name: pName + "$raw",
+				Type: ir.TypeUnknown,
+			})
+		} else {
+			targetFn.Body = append(targetFn.Body, closureMoreArgument(pName+"$raw", pIdx-closureRawParameterCount, targetFn.Span)...)
+		}
 		closureEnv[pName+"$raw"] = ir.TypeUnknown
 		closureEnv[pName] = pType
 		closureEnv["__param."+pName] = pType
+	}
+	if paramCount > closureRawParameterCount {
+		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__closure.more_done", Span: targetFn.Span})
 	}
 
 	for _, capVar := range capturedVars {
@@ -486,110 +496,4 @@ func lowerClosureExpression(
 	})
 
 	return result, ir.TypeClosure, nil
-}
-
-func ensureFunctionClosureTrampoline(path string, sig ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) string {
-	if strings.HasPrefix(sig.Name, "__closure_") {
-		return sig.Name
-	}
-	trampolineName := "__closure_trampoline_" + sig.Name
-	if _, exists := signatures[trampolineName]; exists {
-		return trampolineName
-	}
-
-	trampolineFn := ir.Function{
-		Name:       trampolineName,
-		ReturnType: sig.ReturnType,
-		Span:       sig.Span,
-	}
-
-	// Closure ABI parameters: (__env_ctx: ptr, param0$raw: unknown, param1$raw: unknown, param2$raw: unknown, param3$raw: unknown)
-	trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
-		Name: "__env_ctx",
-		Type: ir.TypePointer,
-	})
-
-	var callArgs []string
-	counter := 0
-	// Call sites substitute defaults for direct calls; a closure call cannot,
-	// so the trampoline applies them. Parameters keep their source names
-	// then, because an initializer may refer to earlier parameters.
-	defaults := defaultParamsIndex[sig.Name]
-	trampolineEnv := map[string]ir.Type{}
-	for i, param := range sig.Parameters {
-		unboxedName := fmt.Sprintf("arg_%d", i)
-		if len(defaults) > 0 && param.Name != "" {
-			unboxedName = param.Name
-		}
-		rawName := unboxedName + "$raw"
-		trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
-			Name: rawName,
-			Type: ir.TypeUnknown,
-		})
-		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
-			Op:     ir.OpCheckedCast,
-			Type:   param.Type,
-			Result: unboxedName,
-			Args:   []string{rawName},
-			Span:   sig.Span,
-		})
-		trampolineEnv[rawName] = ir.TypeUnknown
-		trampolineEnv[unboxedName] = param.Type
-		if initializer := defaults[i]; initializer != nil && initializer.Kind != "undefined" {
-			statement := parameterDefaultStatement(frontend.SyntaxParameter{Span: initializer.Span, Name: unboxedName, Initializer: initializer})
-			bodyLen := len(trampolineFn.Body)
-			if err := lowerStatement(path, statement, &trampolineFn, trampolineEnv, &counter, shapes, signatures); err != nil {
-				// An initializer that only lowers in its declaring scope
-				// (it reads a local of an enclosing function) stays a
-				// call-site default; closure calls then pass undefined.
-				trampolineFn.Body = trampolineFn.Body[:bodyLen]
-			}
-		}
-		callArgs = append(callArgs, unboxedName)
-		counter++
-	}
-
-	// Fill remaining up to 4 raw args if sig has fewer than 4 parameters
-	for i := len(sig.Parameters); i < 4; i++ {
-		rawName := fmt.Sprintf("__unused_arg_%d$raw", i)
-		trampolineFn.Parameters = append(trampolineFn.Parameters, ir.Parameter{
-			Name: rawName,
-			Type: ir.TypeUnknown,
-		})
-	}
-
-	if sig.ReturnType != ir.TypeVoid {
-		retVal := fmt.Sprintf("ret_%d", counter)
-		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   sig.ReturnType,
-			Result: retVal,
-			Callee: sig.Name,
-			Args:   callArgs,
-			Span:   sig.Span,
-		})
-		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
-			Op:   ir.OpReturn,
-			Type: sig.ReturnType,
-			Args: []string{retVal},
-			Span: sig.Span,
-		})
-	} else {
-		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeVoid,
-			Callee: sig.Name,
-			Args:   callArgs,
-			Span:   sig.Span,
-		})
-		trampolineFn.Body = append(trampolineFn.Body, ir.Instruction{
-			Op:   ir.OpReturn,
-			Type: ir.TypeVoid,
-			Span: sig.Span,
-		})
-	}
-
-	extraFunctions = append(extraFunctions, trampolineFn)
-	signatures[trampolineName] = trampolineFn
-	return trampolineName
 }
