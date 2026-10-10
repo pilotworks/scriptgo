@@ -9,7 +9,7 @@ import (
 
 func tryLowerPropertyClosureCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string, receiverType ir.Type, propVal string, propType ir.Type) (string, ir.Type, error) {
 	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range expression.Arguments {
+	for _, argument := range closureCallArguments(expression) {
 		val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -46,7 +46,7 @@ func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression,
 		return "", "", err
 	}
 	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range expression.Arguments {
+	for _, argument := range closureCallArguments(expression) {
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -77,7 +77,7 @@ func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression,
 
 func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, callee string) (string, ir.Type, error) {
 	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range expression.Arguments {
+	for _, argument := range closureCallArguments(expression) {
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -121,7 +121,7 @@ func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, r
 
 func tryLowerClosurePropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, closureVal string, closureType ir.Type) (string, ir.Type, error) {
 	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range expression.Arguments {
+	for _, argument := range closureCallArguments(expression) {
 		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err

@@ -1,0 +1,99 @@
+[
+    0,   7,  14,  21,  28,  35,  42,  49,
+   56,  63,  70,  77,  84,  91,  98, 105,
+  112, 119, 126, 133, 140, 147, 154, 161,
+  168, 175, 182, 189, 196, 203
+]
+[
+  1, 2, 3, 4,
+  5, 6, 7
+]
+[
+  'apple',
+  'banana',
+  'cherry',
+  'date',
+  'elderberry',
+  'fig',
+  'grape',
+  'honeydew'
+]
+{ a: { b: { c: [Object] } } }
+{ a: { b: { c: 1 } } }
+[
+  { name: 'Alice', age: 30, city: 'Hanoi' },
+  { name: 'Bob', age: 25, city: 'Saigon' },
+  { name: 'Carol', age: 41, city: 'Danang' }
+]
+Point { x: 1, y: 2 } [
+  Point { x: 1, y: 2 },
+  Point { x: 3, y: 4 },
+  Point { x: 5, y: 6 },
+  Point { x: 7, y: 8 },
+  Point { x: 9, y: 10 }
+]
+Map(2) {
+  'first' => { id: 1, tags: [ 'x', 'y', 'z' ] },
+  'second' => { id: 2, tags: [ 'long-tag-name', 'another-long-tag' ] }
+}
+Set(10) {
+  'alpha',
+  'beta',
+  'gamma',
+  'delta',
+  'epsilon',
+  'zeta',
+  'eta',
+  'theta',
+  'iota',
+  'kappa'
+}
+{
+  text: 'line one of the text\n' +
+    'line two of the text\n' +
+    'line three of the text that is long'
+}
+[
+   0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11,
+  12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+  36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+  48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+  60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+  72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83,
+  84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95,
+  96, 97, 98, 99,
+  ... 20 more items
+]
+[
+  1.5, -2, 300, 4,  5,
+    6,  7,   8, 9, 10,
+   11
+]
+label {
+  alpha: 'aaaaaaaaaaaa',
+  beta: 'bbbbbbbbbbbbbbbb',
+  gamma: 'cccccccccccccccc',
+  delta: 'ddddddddd'
+}
+[ [ 1, 2, [ 3, 4, [Array] ] ], { k: [ 1, [Object] ] } ]
+[
+  true, false,
+  true, false,
+  true, false,
+  true, false
+]
+user {
+  name: 'Alice',
+  tags: [ 'admin', 'editor', 'viewer' ],
+  profile: { city: 'Hanoi' }
+}
+[
+  '2024-05-06',
+  '2024',
+  '05',
+  '06',
+  index: 3,
+  input: 'on 2024-05-06',
+  groups: [Object: null prototype] { year: '2024', month: '05', day: '06' }
+]

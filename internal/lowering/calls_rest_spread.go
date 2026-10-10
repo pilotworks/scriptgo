@@ -151,3 +151,97 @@ func isIdentifierName(text string) bool {
 	}
 	return true
 }
+
+// closureRestParameter reports the rest parameter of a function type such as
+// "(a: T, ...rest: U[]) => R": its index and declared array type.
+func closureRestParameter(signature string) (index int, restType string, ok bool) {
+	signature = strings.TrimSpace(signature)
+	if strings.HasPrefix(signature, "<") {
+		depth := 0
+		for i, r := range signature {
+			if r == '<' {
+				depth++
+			} else if r == '>' {
+				depth--
+				if depth == 0 {
+					signature = strings.TrimSpace(signature[i+1:])
+					break
+				}
+			}
+		}
+	}
+	if !strings.HasPrefix(signature, "(") {
+		return -1, "", false
+	}
+	depth := 0
+	end := -1
+	for i, r := range signature {
+		if r == '(' {
+			depth++
+		} else if r == ')' {
+			depth--
+			if depth == 0 {
+				end = i
+				break
+			}
+		}
+	}
+	if end < 0 || !strings.HasPrefix(strings.TrimSpace(signature[end+1:]), "=>") {
+		return -1, "", false
+	}
+	parameters := splitTopLevel(signature[1:end])
+	if len(parameters) == 0 {
+		return -1, "", false
+	}
+	last := parameters[len(parameters)-1]
+	colon := strings.Index(last, ":")
+	if !strings.HasPrefix(last, "...") || colon < 0 {
+		return -1, "", false
+	}
+	restType = strings.TrimSpace(last[colon+1:])
+	if !strings.HasSuffix(restType, "[]") {
+		return -1, "", false
+	}
+	return len(parameters) - 1, restType, true
+}
+
+// closureCallArguments is the argument list of a call through a closure
+// value. A closure with a rest parameter receives its rest arguments packed
+// into one array, as a direct call of a function with a rest parameter does.
+func closureCallArguments(expression *frontend.SyntaxExpression) []*frontend.SyntaxExpression {
+	if expression.Left == nil {
+		return expression.Arguments
+	}
+	return packRestArguments(expression.Arguments, expression.Left.InferredType, expression.Span)
+}
+
+// packRestArguments gathers the arguments that fill the rest parameter of
+// the function type signature into one array literal. Arguments are kept as
+// they are when the type has no rest parameter or a spread fills an earlier
+// parameter.
+func packRestArguments(arguments []*frontend.SyntaxExpression, signature string, span frontend.SourceSpan) []*frontend.SyntaxExpression {
+	restIndex, restType, ok := closureRestParameter(signature)
+	if !ok {
+		return arguments
+	}
+	arguments = expandTupleSpreads(arguments)
+	if restIndex > len(arguments) {
+		return arguments
+	}
+	for _, argument := range arguments[:restIndex] {
+		if argument.Kind == "spread" {
+			return arguments
+		}
+	}
+	rest := arguments[restIndex:]
+	if len(rest) > 0 {
+		last := rest[len(rest)-1].Span
+		span = frontend.SourceSpan{Start: rest[0].Span.Start, Length: last.Start + last.Length - rest[0].Span.Start}
+	}
+	return append(append([]*frontend.SyntaxExpression(nil), arguments[:restIndex]...), &frontend.SyntaxExpression{
+		Span:         span,
+		Kind:         "array",
+		Arguments:    rest,
+		InferredType: restType,
+	})
+}

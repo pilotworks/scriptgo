@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **514** | **514 / 514 match expected output; 512 / 514 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 514 | 489 PASS plus 25 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **516** | **516 / 516 match expected output; 514 / 516 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 516 | 491 PASS plus 25 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -90,11 +90,11 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | :--- | :---: | :--- |
 | Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
 | Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
-| `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes up to four arguments (the closure ABI limit). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; partial application is rejected. |
+| `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes all of its elements (packing those that fill a rest parameter). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; partial application is rejected. |
 | `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`, and `this` in an object literal method with `SG2005`; class members and arrow functions use their lexical receiver. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
-| Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
+| Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, closures (called directly, through a function-typed value, or with `call`/`apply`), methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
 | Function Overloads | ⚠️ Static only | Overload signatures checked at compile time; lowered to a single standard implementation. |
 | Generators (`function*`, `yield`) | ⚠️ Partial | State-machine infrastructure producing `IteratorResult<T>` shapes, `.next()`, and `for..of` loop integration for generator functions, generator closures, instance generator methods (`*items()`, `*[Symbol.iterator]()`) and values typed only `Generator<T>` (each generator object carries its `next` as a closure). A generator whose yields sit in loops collects its values when created, so an infinite generator does not terminate; static generator methods are not supported. |
 
@@ -144,7 +144,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Module / Namespace | Supported APIs | Parity Status |
 | :--- | :--- | :---: |
-| **`console`** | `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `time`, `timeLog`, `timeEnd`, `trace`, `dir`, `dirxml`, `table`, `group`, `groupCollapsed`, `groupEnd`, format strings (`%s`, `%d`, `%i`, `%f`, `%j`, `%%`), `node:console` module | ✅ Matches Node.js console core subset format & method suite; `console.log` prefixes class instances with their class name (`K { a: 1 }`) and prints nested, boolean, bigint, symbol and closure array elements like `util.inspect` |
+| **`console`** | `log`, `info`, `warn`, `error`, `debug`, `assert`, `clear`, `count`, `countReset`, `time`, `timeLog`, `timeEnd`, `trace`, `dir`, `dirxml`, `table`, `group`, `groupCollapsed`, `groupEnd`, format strings (`%s`, `%d`, `%i`, `%f`, `%j`, `%%`), `node:console` module | ✅ Matches Node.js console core subset format & method suite; `console.log` prefixes class instances with their class name (`K { a: 1 }`) and prints nested, boolean, bigint, symbol and closure array elements like `util.inspect`, with its line layout: a container prints on one line within `breakLength` 80, otherwise one entry per line; arrays of more than six entries in aligned columns; containers nested past depth 2 as `[Object]` / `[Array]`; at most 100 array elements (`... n more items`); long multi-line strings split per line |
 | **`Math`** | `abs`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `min`, `max`, `trunc`, `sin`, `cos`, `tan`, `log`, `exp`, `random`, `PI`, `E`, `clz32`, `imul`, `cbrt`, `fround`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `expm1`, `log1p`, `asin`, `acos` | ✅ 100% matches IEEE-754 results; `cbrt` uses V8's fdlibm algorithm in the runtime rather than the C library's (glibc's `cbrt(27)` is off by an ulp) |
 | **`String`** | `length`, `indexOf`, `substring`, `slice`, `trim`, `split`, `includes`, `startsWith`, `endsWith`, `toUpperCase`, `toLowerCase`, `charAt`, `charCodeAt`, `concat`, `replace`, `replaceAll`, `padStart`, `padEnd`, `match`, `search`, `codePointAt`, `fromCodePoint`, `matchAll`, `isWellFormed`, `toWellFormed`, `toString`, `valueOf`, `normalize` | ✅ Matches Unicode/ASCII behavior: positions and lengths count UTF-16 code units over UTF-8 storage (a split astral character yields its lone surrogate), `for..of` and spread iterate code points, case mapping covers ASCII, Latin-1, Latin Extended (Vietnamese included), Greek and Cyrillic (no length-changing mappings such as ß→SS), `localeCompare` and `Intl.Collator` order by base letter, then accent, then case (root locale, no locale tailoring); `normalize` validates the form (RangeError) and returns ASCII text unchanged, but throws on non-ASCII text (no Unicode decomposition tables in the native runtime) |
 | **`Array`** | `length`, `push`, `pop`, `shift`, `unshift`, `slice`, `join`, `indexOf`, `lastIndexOf`, `includes`, `reverse`, `concat`, `map`, `filter`, `forEach`, `reduce`, `reduceRight`, `find`, `findIndex`, `findLast`, `findLastIndex`, `fill`, `sort`, `copyWithin`, `toReversed`, `toSorted`, `toSpliced`, `with`, `toString`, `toLocaleString`, `flat`, `flatMap`, `entries`, `keys`, `values`, `Array.isArray`, `Array.of`, `Array.from`, `Array.fromAsync`, `new Array(n).fill(v)` / `Array(n).fill(v)` (typed by `v`) (`number[]`, `string[]`, `bool[]`, `bigint[]`, `T[]`) | ✅ 100% matches typed, generic & ES2023/2024 array behavior |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 514
-Native Backend Parity  : 489/514 (95.1%)
-Diagnostic Parity      : 25/514
-Overall Full Parity    : 514/514 (100.0%)
+Total Test Cases       : 516
+Native Backend Parity  : 491/516 (95.2%)
+Diagnostic Parity      : 25/516
+Overall Full Parity    : 516/516 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
@@ -210,7 +210,7 @@ Total Time Elapsed     : ~1m54s
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 116 | **100% (116/116)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 117 | **100% (117/117)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
 | **`arrays`** | 11 | **100% (11/11)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 22 | **100% (22/22)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
@@ -219,7 +219,7 @@ Total Time Elapsed     : ~1m54s
 | **`destructuring`** | 22 | **100% (22/22)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 29 | **100% (29/29)** | Closures with any number of parameters, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 30 | **100% (30/30)** | Closures with any number of parameters, default/rest params (closures included), higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
 | **`language`** | 26 | **100% (26/26)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 6 | **100% (6/6)** | Tier selection, dynamic fallbacks, mode validations. |

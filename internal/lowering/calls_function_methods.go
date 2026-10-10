@@ -9,16 +9,12 @@ import (
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-// closureABIArgumentLimit is the number of arguments a closure call passes
-// (scriptgo_closure_invoke takes four boxed arguments).
-const closureABIArgumentLimit = 4
-
 // lowerFunctionValueMethod lowers call, apply and bind on a function value.
 // Closures in the native subset have no dynamic `this` (and strict mode bars
 // `this` in a function without a `this:` parameter), so thisArg is evaluated
 // but not passed: the call goes straight to the closure.
-// apply spreads an array literal or tuple; a runtime-length array passes its
-// first four elements (the closure ABI limit), missing ones as undefined.
+// apply spreads an array literal or tuple; a runtime-length array passes all
+// of its elements through __closure.apply.
 // bind without partial arguments is the function itself.
 func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression, receiver string, receiverType ir.Type, methodName string, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
 	if receiverType != ir.TypeClosure || (methodName != "call" && methodName != "apply" && methodName != "bind") {
@@ -42,12 +38,17 @@ func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression
 			return "", "", true, err
 		}
 	}
+	signature := ""
+	if expression.Left != nil && expression.Left.Left != nil {
+		signature = expression.Left.Left.InferredType
+	}
 	var args []string
+	var spread string
 	var err error
 	if methodName == "call" {
-		args, err = lowerArgumentList(path, tail(expression.Arguments), function, env, counter, shapes, signatures)
+		args, err = lowerArgumentList(path, packRestArguments(tail(expression.Arguments), signature, expression.Span), function, env, counter, shapes, signatures)
 	} else if len(expression.Arguments) > 1 {
-		args, err = lowerApplyArguments(path, expression.Arguments[1], function, env, counter, shapes, signatures)
+		args, spread, err = lowerApplyArguments(path, expression.Arguments[1], signature, function, env, counter, shapes, signatures)
 	}
 	if err != nil {
 		return "", "", true, err
@@ -59,7 +60,28 @@ func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression
 	if retType == "" {
 		retType = ir.TypeUnknown
 	}
-	function.Body = append(function.Body, ir.Instruction{Op: ir.OpClosureCall, Type: retType, Result: result, Callee: receiver, Args: args, Span: span})
+	if spread == "" {
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpClosureCall, Type: retType, Result: result, Callee: receiver, Args: args, Span: span})
+		return result, retType, true, nil
+	}
+	// The runtime packs the elements from the rest parameter's index on into
+	// its array (-1: the function has no rest parameter).
+	restIndex := -1
+	if index, _, ok := closureRestParameter(signature); ok {
+		restIndex = index
+	}
+	restValue := nextTemp(counter)
+	function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: restValue, Value: strconv.Itoa(restIndex), Span: span})
+	applyArgs := []string{receiver, spread, restValue}
+	if retType == ir.TypeUnknown {
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: result, Callee: "__closure.apply", Args: applyArgs, Span: span})
+		return result, retType, true, nil
+	}
+	raw := nextTemp(counter)
+	function.Body = append(function.Body,
+		ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: raw, Callee: "__closure.apply", Args: applyArgs, Span: span},
+		ir.Instruction{Op: ir.OpCheckedCast, Type: retType, Result: result, Args: []string{raw}, Span: span},
+	)
 	return result, retType, true, nil
 }
 
@@ -82,14 +104,18 @@ func lowerArgumentList(path string, arguments []*frontend.SyntaxExpression, func
 	return values, nil
 }
 
-// lowerApplyArguments spreads apply's argument array into call arguments.
-func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) ([]string, error) {
+// lowerApplyArguments spreads apply's argument array into call arguments,
+// packing those that fill a rest parameter of signature. A
+// runtime-length unknown[] is returned as spread instead, for the runtime to
+// pass its elements.
+func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, signature string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (args []string, spread string, err error) {
 	if argument.Kind == "array" {
-		return lowerArgumentList(path, argument.Arguments, function, env, counter, shapes, signatures)
+		args, err = lowerArgumentList(path, packRestArguments(argument.Arguments, signature, argument.Span), function, env, counter, shapes, signatures)
+		return args, "", err
 	}
 	value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	span := toIRSpan(path, argument.Span)
 	shapeName := strings.TrimPrefix(string(typ), "object:")
@@ -100,20 +126,10 @@ func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, funct
 			function.Body = append(function.Body, ir.Instruction{Op: ir.OpFieldGet, Type: field.Type, Result: element, Callee: shapeName, Field: field.Name, FieldIndex: index, Args: []string{value}, Span: span})
 			values = append(values, element)
 		}
-		return values, nil
+		return values, "", nil
 	}
 	if typ != ir.TypeUnknownArray {
-		return nil, fmt.Errorf("Function.prototype.apply needs an array literal, a tuple, or an unknown[] in the native subset, got %s", argument.InferredType)
+		return nil, "", fmt.Errorf("Function.prototype.apply needs an array literal, a tuple, or an unknown[] in the native subset, got %s", argument.InferredType)
 	}
-	values := make([]string, 0, closureABIArgumentLimit)
-	for index := 0; index < closureABIArgumentLimit; index++ {
-		position := nextTemp(counter)
-		element := nextTemp(counter)
-		function.Body = append(function.Body,
-			ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: position, Value: strconv.Itoa(index), Span: span},
-			ir.Instruction{Op: ir.OpIndex, Type: ir.TypeUnknown, Result: element, Args: []string{value, position}, Span: span},
-		)
-		values = append(values, element)
-	}
-	return values, nil
+	return nil, value, nil
 }

@@ -28,6 +28,8 @@ typedef struct {
     /* inspect renders non-finite numbers as console.log does (NaN,
      * Infinity) instead of JSON's null. */
     int inspect;
+    /* depth is the number of containers the inspection is inside. */
+    int depth;
 } json_builder;
 
 static inline int jb_reserve(json_builder *b, size_t extra) {
@@ -168,14 +170,51 @@ static int json_builder_number_array(json_builder *b, const scriptgo_array_inter
     return jb_char(b, ']');
 }
 
+/* Console inspection follows util.inspect's defaults: containers nested
+ * deeper than JSON_INSPECT_DEPTH print as [Object] / [Array], and arrays
+ * show at most JSON_INSPECT_MAX_ARRAY elements. Such text is written
+ * between JSON_INSPECT_RAW markers, which json_inspect_text copies as they
+ * are. */
+#define JSON_INSPECT_DEPTH 2
+#define JSON_INSPECT_MAX_ARRAY 100
+#define JSON_INSPECT_RAW '\x03'
+
+
+static int json_inspect_raw(json_builder *b, const char *text) {
+    return jb_char(b, JSON_INSPECT_RAW) != 0 || jb_append(b, text, strlen(text)) != 0 || jb_char(b, JSON_INSPECT_RAW) != 0 ? -1 : 0;
+}
+
+/* json_inspect_beyond_depth reports whether a container entered now is
+ * past the inspection depth. */
+static int json_inspect_beyond_depth(const json_builder *b) {
+    return b->inspect && b->depth > JSON_INSPECT_DEPTH;
+}
+
+/* json_inspect_shown is the number of an array's elements an inspection
+ * shows; json_inspect_more writes the "... n more items" entry. */
+static int64_t json_inspect_shown(const json_builder *b, int64_t length) {
+    return b->inspect && length > JSON_INSPECT_MAX_ARRAY ? JSON_INSPECT_MAX_ARRAY : length;
+}
+
+static int json_inspect_more(json_builder *b, int64_t length) {
+    if (!b->inspect || length <= JSON_INSPECT_MAX_ARRAY) return 0;
+    char text[64];
+    int64_t more = length - JSON_INSPECT_MAX_ARRAY;
+    snprintf(text, sizeof(text), "... %lld more item%s", (long long)more, more == 1 ? "" : "s");
+    return jb_char(b, ',') != 0 || json_inspect_raw(b, text) != 0 ? -1 : 0;
+}
+
 static int json_builder_string_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if (arr->length > 0 && json_inspect_beyond_depth(b)) return json_inspect_raw(b, "[Array]");
     if (jb_char(b, '[') != 0) return -1;
-    for (int64_t i = 0; i < arr->length; i++) {
+    int64_t shown = json_inspect_shown(b, arr->length);
+    for (int64_t i = 0; i < shown; i++) {
         if (i > 0 && jb_char(b, ',') != 0) return -1;
         const char *elem = *(const char **)(arr->data + (size_t)i * sizeof(char *));
         const char *s = elem != NULL ? elem : "";
         if (jb_string(b, s, strlen(s)) != 0) return -1;
     }
+    if (json_inspect_more(b, arr->length) != 0) return -1;
     return jb_char(b, ']');
 }
 int scriptgo_array_push(void *handle, const void *value, double *out_length);
@@ -563,20 +602,58 @@ static int json_is_null_prototype(const char *type_name) {
            (type_name[length] == '\0' || type_name[length] == '|');
 }
 
+static int json_count_field(const char *key, size_t key_len, int index, void *context) {
+    (void)key;
+    (void)key_len;
+    (void)index;
+    (*(int *)context)++;
+    return 0;
+}
+
+/* json_inspect_placeholder is an object past the inspection depth:
+ * [ClassName], [Object: null prototype] or [Object]. */
+static int json_inspect_placeholder(json_builder *b, const char *type_name, int null_prototype) {
+    if (null_prototype) return json_inspect_raw(b, "[Object: null prototype]");
+    json_builder name = {0};
+    if (json_append_class_name(&name, type_name) != 0) {
+        free(name.buf);
+        return -1;
+    }
+    int status;
+    if (name.len > 1) {
+        name.buf[name.len - 1] = '\0';
+        char text[256];
+        snprintf(text, sizeof(text), "[%s]", name.buf);
+        status = json_inspect_raw(b, text);
+    } else {
+        status = json_inspect_raw(b, "[Object]");
+    }
+    free(name.buf);
+    return status;
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);
     }
     scriptgo_json_object *obj = (scriptgo_json_object *)handle;
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC && json_object_is_tuple(obj)) {
+        if (json_inspect_beyond_depth(b)) return json_inspect_raw(b, "[Array]");
         json_object_writer writer = {b, handle, obj, 0, 0, 0};
         if (jb_char(b, '[') != 0) return -1;
+        b->depth++;
         object_field_visit((const scriptgo_object *)handle, json_write_tuple_element, &writer);
+        b->depth--;
         if (writer.failed) return -1;
         return jb_char(b, ']');
     }
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC) {
         int null_prototype = json_is_null_prototype(obj->type_name);
+        if (json_inspect_beyond_depth(b)) {
+            int keys = 0;
+            object_field_visit((const scriptgo_object *)handle, json_count_field, &keys);
+            if (keys > 0) return json_inspect_placeholder(b, obj->type_name, null_prototype);
+        }
         if (b->inspect && json_append_class_name(b, obj->type_name) != 0) return -1;
         if (b->inspect && null_prototype && jb_char(b, JSON_INSPECT_NULL_PROTOTYPE) != 0) return -1;
         if (jb_char(b, '{') != 0) return -1;
@@ -585,7 +662,9 @@ static int json_builder_object(json_builder *b, void *handle) {
          * property access. A null-prototype object (a match's groups) owns
          * every key it lists, so its undefined fields print. */
         json_object_writer writer = {b, handle, obj, obj->type_name != NULL && strncmp(obj->type_name, "__json__", 8) == 0, 0, 0, null_prototype};
+        b->depth++;
         object_field_visit((const scriptgo_object *)handle, json_write_object_field, &writer);
+        b->depth--;
         if (writer.failed) return -1;
         return jb_char(b, '}');
     }
@@ -596,8 +675,13 @@ static int json_builder_object(json_builder *b, void *handle) {
         scriptgo_array_release(keys);
         return -1;
     }
+    if (key_count > 0 && json_inspect_beyond_depth(b)) {
+        scriptgo_array_release(keys);
+        return json_inspect_raw(b, "[Object]");
+    }
     if (jb_char(b, '{') != 0) { scriptgo_array_release(keys); return -1; }
     int has_fields = 0;
+    b->depth++;
     for (int64_t i = 0; i < key_count; i++) {
         const char *key = NULL;
         scriptgo_value value;
@@ -617,6 +701,7 @@ static int json_builder_object(json_builder *b, void *handle) {
         }
         has_fields = 1;
     }
+    b->depth--;
     scriptgo_array_release(keys);
     return jb_char(b, '}');
 }
@@ -632,6 +717,7 @@ static int json_builder_array_elements(json_builder *b, const scriptgo_array_int
 static int json_builder_array_properties(json_builder *b, const scriptgo_array_internal *arr) {
     json_builder fields = {0};
     fields.inspect = 1;
+    fields.depth = b->depth + 1;
     json_object_writer writer = {&fields, arr->properties, (scriptgo_json_object *)arr->properties, 0, 0, 0, 1};
     if (jb_char(&fields, '{') != 0) return -1;
     object_field_visit((const scriptgo_object *)arr->properties, json_write_object_field, &writer);
@@ -652,6 +738,7 @@ static int json_builder_array_properties(json_builder *b, const scriptgo_array_i
 }
 
 static int json_builder_array(json_builder *b, const scriptgo_array_internal *arr) {
+    if ((arr->length > 0 || (b->inspect && arr->properties != NULL)) && json_inspect_beyond_depth(b)) return json_inspect_raw(b, "[Array]");
     if (json_builder_array_elements(b, arr) != 0) return -1;
     if (b->inspect && arr->properties != NULL) return json_builder_array_properties(b, arr);
     return 0;
@@ -662,7 +749,9 @@ static int json_builder_array_elements(json_builder *b, const scriptgo_array_int
         return json_builder_string_array(b, arr);
     }
     if (jb_char(b, '[') != 0) return -1;
-    for (int64_t i = 0; i < arr->length; i++) {
+    int64_t shown = json_inspect_shown(b, arr->length);
+    b->depth++;
+    for (int64_t i = 0; i < shown; i++) {
         if (i > 0 && jb_char(b, ',') != 0) return -1;
         scriptgo_value element;
         memset(&element, 0, sizeof(element));
@@ -703,6 +792,8 @@ static int json_builder_array_elements(json_builder *b, const scriptgo_array_int
         }
         if (json_builder_value(b, &element) != 0) return -1;
     }
+    b->depth--;
+    if (json_inspect_more(b, arr->length) != 0) return -1;
     return jb_char(b, ']');
 }
 
@@ -1157,6 +1248,13 @@ static int json_inspect_text(char *json, char **out_str) {
             }
             i = end;
             in_string = 0;
+            continue;
+        }
+        if (c == JSON_INSPECT_RAW) {
+            for (i++; json[i] != '\0' && json[i] != JSON_INSPECT_RAW; i++) {
+                if (inspect_append(&out, &length, &capacity, json[i]) != 0) goto fail;
+            }
+            if (json[i] == '\0') break;
             continue;
         }
         if (c == JSON_INSPECT_NULL_PROTOTYPE) {

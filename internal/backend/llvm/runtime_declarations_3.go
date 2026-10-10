@@ -35,6 +35,8 @@ declare i32 @scriptgo_console_inspect_buffer(ptr, ptr)
 `
 
 const declarationsConsole3 = `declare i32 @scriptgo_console_inspect_array(ptr, ptr)
+declare i32 @scriptgo_console_layout(ptr, ptr)
+declare i32 @scriptgo_console_inspect_unknown(ptr, ptr)
 declare i32 @scriptgo_console_inspect_number(double, ptr)
 declare i32 @scriptgo_weakref_new(ptr, ptr)
 declare i32 @scriptgo_weakref_deref(ptr, ptr)
