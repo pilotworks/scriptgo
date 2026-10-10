@@ -8,7 +8,7 @@ import (
 )
 
 func (e *functionEmitter) emitZlibIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
-	if len(instruction.Args) != 2 || instruction.Result == "" || instruction.Type != ir.TypeUint8Array {
+	if len(instruction.Args) != 2 || instruction.Result == "" || instruction.Type != ir.TypeBuffer {
 		return fmt.Errorf("zlib intrinsic %q has invalid signature", instruction.Callee)
 	}
 

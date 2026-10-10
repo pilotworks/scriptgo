@@ -33,7 +33,7 @@ func emitMathIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 			"__Math.atan":  "atan",
 			"__Math.asin":  "asin",
 			"__Math.acos":  "acos",
-			"__Math.cbrt":  "cbrt",
+			"__Math.cbrt":  "scriptgo_math_cbrt",
 			"__Math.sinh":  "sinh",
 			"__Math.cosh":  "cosh",
 			"__Math.tanh":  "tanh",
