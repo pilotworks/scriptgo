@@ -406,3 +406,48 @@ func TestCSEInvalidatesFieldReadAfterWrite(t *testing.T) {
 		t.Fatalf("read after field.set was replaced by the earlier read: %+v", body)
 	}
 }
+
+// TestLICM_KeepsFieldReadAfterCall keeps a field read in a loop that passes
+// the object to a call, which may write the field (RegExp exec updating
+// lastIndex is one).
+func TestLICM_KeepsFieldReadAfterCall(t *testing.T) {
+	fn := ir.Function{
+		Name:       "testLICMFieldCall",
+		ReturnType: ir.TypeVoid,
+		Parameters: []ir.Parameter{
+			{Name: "re", Type: "object:RegExp"},
+			{Name: "size", Type: ir.TypeNumber},
+		},
+		Locals: []ir.Parameter{{Name: "k", Type: ir.TypeNumber}},
+		Body: []ir.Instruction{
+			{Op: ir.OpConst, Type: ir.TypeNumber, Result: "k", Value: "0"},
+			{
+				Op:   ir.OpWhile,
+				Type: ir.TypeVoid,
+				Args: []string{"cond"},
+				Cond: []ir.Instruction{
+					{Op: ir.OpCompare, Type: ir.TypeBool, Operator: "<", Result: "cond", Args: []string{"k", "size"}},
+				},
+				Body: []ir.Instruction{
+					{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "mutate", Args: []string{"re"}},
+					{Op: ir.OpFieldGet, Type: ir.TypeNumber, Result: "last", Callee: "RegExp", Field: "lastIndex", FieldIndex: 2, Args: []string{"re"}},
+					{Op: ir.OpBinary, Type: ir.TypeNumber, Operator: "+", Result: "kNext", Args: []string{"k", "last"}},
+					{Op: ir.OpAssign, Result: "k", Args: []string{"kNext"}},
+				},
+			},
+			{Op: ir.OpReturn, Type: ir.TypeVoid},
+		},
+	}
+	optMod, err := Optimize(ir.Module{Functions: []ir.Function{fn}}, Options{Level: "2"})
+	if err != nil {
+		t.Fatalf("Optimize failed: %v", err)
+	}
+	for _, inst := range optMod.Functions[0].Body {
+		if inst.Op == ir.OpWhile {
+			break
+		}
+		if inst.Op == ir.OpFieldGet && inst.Result == "last" {
+			t.Fatal("field read hoisted out of a loop whose call may write the field")
+		}
+	}
+}

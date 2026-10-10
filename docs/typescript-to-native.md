@@ -473,6 +473,12 @@ clang -O2 -x ir module.ll -x c internal/runtime/runtime.c -o output
 zig cc -O2 -x ir module.ll -x c internal/runtime/runtime.c -o output
 ```
 
+The runtime calls the ECMAScript regular expression engine, a second C
+translation unit generated from the vendored QuickJS-ng sources by
+`runtime.RegExpEngineSource` (`internal/runtime/regexp_engine.go`).
+`scriptgo build` compiles and caches it like the runtime; a manual link
+needs it as one more C input.
+
 ### Cross-Compilation Workflow with `zig cc`
 
 Cross-compiling `scriptgo` output to multiple operating systems and architectures:

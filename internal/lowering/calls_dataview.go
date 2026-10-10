@@ -48,7 +48,8 @@ func lowerRegExpReceiverMethod(
 		if result == "" {
 			result = nextTemp(counter)
 		}
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__regex.test", Args: []string{srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
+		// test advances lastIndex for a global or sticky RegExp, as exec does.
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: result, Callee: "__regex.test_stateful", Args: []string{receiver, srcVal, flagsVal, argVal}, Span: toIRSpan(path, expression.Span)})
 		return result, ir.TypeBool, true, nil
 	}
 	if methodName == "exec" && len(expression.Arguments) > 0 {

@@ -232,7 +232,7 @@ int main(void) {
 	if err := os.WriteFile(harnessPath, []byte(harness), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := exec.Command(clang, "-fsanitize=address,undefined", "-fno-omit-frame-pointer", harnessPath, runtimePath, "-I", dir, "-o", executable, "-lm", "-lresolv").CombinedOutput(); err != nil {
+	if output, err := exec.Command(clang, "-fsanitize=address,undefined", "-fno-omit-frame-pointer", harnessPath, runtimePath, writeRegExpEngine(t, dir), "-I", dir, "-o", executable, "-lm", "-lresolv").CombinedOutput(); err != nil {
 		t.Fatalf("clang: %v\n%s", err, output)
 	}
 	command := exec.Command(executable)
@@ -429,7 +429,7 @@ int main(void) {
 	if err := os.WriteFile(harnessPath, []byte(harness), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := exec.Command(clang, "-fsanitize=address,undefined", "-fno-omit-frame-pointer", harnessPath, runtimePath, "-I", dir, "-o", executable, "-lm", "-lresolv").CombinedOutput(); err != nil {
+	if output, err := exec.Command(clang, "-fsanitize=address,undefined", "-fno-omit-frame-pointer", harnessPath, runtimePath, writeRegExpEngine(t, dir), "-I", dir, "-o", executable, "-lm", "-lresolv").CombinedOutput(); err != nil {
 		t.Fatalf("clang: %v\n%s", err, output)
 	}
 	command := exec.Command(executable)
@@ -441,4 +441,19 @@ int main(void) {
 	if strings.TrimSpace(string(output)) != "ok" {
 		t.Fatalf("boxed ABI harness output = %q", output)
 	}
+}
+
+// writeRegExpEngine writes the regular expression engine, which the runtime
+// links against, into dir and returns its path.
+func writeRegExpEngine(t *testing.T, dir string) string {
+	t.Helper()
+	source, err := runtime.RegExpEngineSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "regexp_engine.c")
+	if err := os.WriteFile(path, source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

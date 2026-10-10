@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -113,7 +115,7 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 		buildArgs = append(buildArgs, "-flto")
 	}
 	if options.TargetCPU != "" {
-		buildArgs = append(buildArgs, "-mcpu="+options.TargetCPU)
+		buildArgs = append(buildArgs, targetCPUFlag(options.Target, options.TargetCPU))
 	}
 	if options.Target != "native" {
 		buildArgs = append(buildArgs, "--target="+options.Target)
@@ -132,6 +134,63 @@ func getOrBuildCachedRuntime(ccParts []string, options BuildOptions, codecConfig
 }
 
 func getOrBuildCachedQuickJS(ccParts []string, options BuildOptions) (string, error) {
+	return getOrBuildCachedObject(ccParts, options, cachedObject{
+		name:    "quickjs",
+		label:   "QuickJS-ng",
+		version: "quickjs-sections-v1",
+		source:  runtime.QuickJSSource(),
+		headers: map[string][]byte{"quickjs.h": runtime.QuickJSHeader()},
+	})
+}
+
+// getOrBuildCachedRegExpEngine compiles the ECMAScript regular expression
+// engine (see runtime.RegExpEngineSource), which every executable links.
+func getOrBuildCachedRegExpEngine(ccParts []string, options BuildOptions) (string, error) {
+	source, err := runtime.RegExpEngineSource()
+	if err != nil {
+		return "", err
+	}
+	return getOrBuildCachedObject(ccParts, options, cachedObject{
+		name:    "regexp",
+		label:   "regular expression engine",
+		version: "regexp-sections-v1",
+		source:  source,
+	})
+}
+
+// regExpEngineObject is the regular expression engine object for a build:
+// the cached one, or one compiled into temporaryDir when the cache is not
+// writable.
+func regExpEngineObject(ccParts []string, options BuildOptions, temporaryDir string) (string, error) {
+	if obj, err := getOrBuildCachedRegExpEngine(ccParts, options); err == nil {
+		return obj, nil
+	}
+	source, err := runtime.RegExpEngineSource()
+	if err != nil {
+		return "", err
+	}
+	srcPath := filepath.Join(temporaryDir, "regexp_engine.c")
+	objPath := filepath.Join(temporaryDir, "regexp_engine.o")
+	if err := os.WriteFile(srcPath, source, 0o644); err != nil {
+		return "", fmt.Errorf("write regular expression engine source: %w", err)
+	}
+	if err := compileCObject(ccParts, options, "regular expression engine", srcPath, objPath, temporaryDir); err != nil {
+		return "", err
+	}
+	return objPath, nil
+}
+
+// cachedObject is a C translation unit compiled once per source and build
+// configuration into the ScriptGo cache directory.
+type cachedObject struct {
+	name    string
+	label   string
+	version string
+	source  []byte
+	headers map[string][]byte
+}
+
+func getOrBuildCachedObject(ccParts []string, options BuildOptions, object cachedObject) (string, error) {
 	if len(ccParts) == 0 {
 		return "", fmt.Errorf("no C compiler specified")
 	}
@@ -145,12 +204,15 @@ func getOrBuildCachedQuickJS(ccParts []string, options BuildOptions) (string, er
 	}
 
 	h := sha256.New()
-	h.Write(runtime.QuickJSSource())
-	h.Write(runtime.QuickJSHeader())
+	h.Write(object.source)
+	for _, name := range slices.Sorted(maps.Keys(object.headers)) {
+		h.Write([]byte(name))
+		h.Write(object.headers[name])
+	}
 	h.Write([]byte(options.Target))
 	h.Write([]byte(options.OptLevel))
 	h.Write([]byte(strings.Join(options.Sanitizers, ",")))
-	h.Write([]byte("quickjs-sections-v1"))
+	h.Write([]byte(object.version))
 	if options.TargetCPU != "" {
 		h.Write([]byte("cpu:" + options.TargetCPU))
 	}
@@ -158,52 +220,61 @@ func getOrBuildCachedQuickJS(ccParts []string, options BuildOptions) (string, er
 		h.Write([]byte("debug"))
 	}
 	hash := hex.EncodeToString(h.Sum(nil))
-	objPath := filepath.Join(sgCache, fmt.Sprintf("quickjs-%s.o", hash[:16]))
+	objPath := filepath.Join(sgCache, fmt.Sprintf("%s-%s.o", object.name, hash[:16]))
 
 	if info, err := os.Stat(objPath); err == nil && info.Size() > 0 {
 		return objPath, nil
 	}
 
-	headerPath := filepath.Join(sgCache, "quickjs.h")
-	if err := os.WriteFile(headerPath, runtime.QuickJSHeader(), 0o644); err != nil {
-		return "", err
+	for _, name := range slices.Sorted(maps.Keys(object.headers)) {
+		if err := os.WriteFile(filepath.Join(sgCache, name), object.headers[name], 0o644); err != nil {
+			return "", err
+		}
 	}
 
-	tmpSrcPath := filepath.Join(sgCache, fmt.Sprintf("quickjs-%s-%d.c", hash[:16], os.Getpid()))
-	if err := os.WriteFile(tmpSrcPath, runtime.QuickJSSource(), 0o644); err != nil {
+	tmpSrcPath := filepath.Join(sgCache, fmt.Sprintf("%s-%s-%d.c", object.name, hash[:16], os.Getpid()))
+	if err := os.WriteFile(tmpSrcPath, object.source, 0o644); err != nil {
 		return "", err
 	}
 	defer os.Remove(tmpSrcPath)
 
-	tmpObjPath := filepath.Join(sgCache, fmt.Sprintf("quickjs-%s-%d.o", hash[:16], os.Getpid()))
+	tmpObjPath := filepath.Join(sgCache, fmt.Sprintf("%s-%s-%d.o", object.name, hash[:16], os.Getpid()))
 	defer os.Remove(tmpObjPath)
 
-	qjsArgs := append([]string{}, ccParts[1:]...)
-	qjsArgs = append(qjsArgs, "-I", sgCache, "-ffunction-sections", "-fdata-sections")
-	if options.OptLevel != "" {
-		qjsArgs = append(qjsArgs, "-O"+options.OptLevel)
-	} else if options.Debug {
-		qjsArgs = append(qjsArgs, "-O0", "-g")
-	} else {
-		qjsArgs = append(qjsArgs, "-O2")
-	}
-	if options.TargetCPU != "" {
-		qjsArgs = append(qjsArgs, "-mcpu="+options.TargetCPU)
-	}
-	if options.Target != "native" {
-		qjsArgs = append(qjsArgs, "--target="+options.Target)
-	}
-	if len(options.Sanitizers) > 0 {
-		qjsArgs = append(qjsArgs, "-fsanitize="+strings.Join(options.Sanitizers, ","))
-	}
-	qjsArgs = append(qjsArgs, "-c", tmpSrcPath, "-o", tmpObjPath)
-
-	cmd := exec.Command(ccParts[0], qjsArgs...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("compile QuickJS-ng: %w: %s", err, string(out))
+	if err := compileCObject(ccParts, options, object.label, tmpSrcPath, tmpObjPath, sgCache); err != nil {
+		return "", err
 	}
 	if err := os.Rename(tmpObjPath, objPath); err != nil {
 		return "", err
 	}
 	return objPath, nil
+}
+
+// compileCObject compiles one C translation unit with the flags of the
+// executable it is linked into, sections split for linker dead code
+// elimination.
+func compileCObject(ccParts []string, options BuildOptions, label, srcPath, objPath, includeDir string) error {
+	args := append([]string{}, ccParts[1:]...)
+	args = append(args, "-I", includeDir, "-ffunction-sections", "-fdata-sections")
+	if options.OptLevel != "" {
+		args = append(args, "-O"+options.OptLevel)
+	} else if options.Debug {
+		args = append(args, "-O0", "-g")
+	} else {
+		args = append(args, "-O2")
+	}
+	if options.TargetCPU != "" {
+		args = append(args, targetCPUFlag(options.Target, options.TargetCPU))
+	}
+	if options.Target != "native" {
+		args = append(args, "--target="+options.Target)
+	}
+	if len(options.Sanitizers) > 0 {
+		args = append(args, "-fsanitize="+strings.Join(options.Sanitizers, ","))
+	}
+	args = append(args, "-c", srcPath, "-o", objPath)
+	if out, err := exec.Command(ccParts[0], args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("compile %s: %w: %s", label, err, string(out))
+	}
+	return nil
 }

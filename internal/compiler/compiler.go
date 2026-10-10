@@ -277,6 +277,11 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 	} else {
 		args = []string{temporaryPath, runtimeObj}
 	}
+	regexpObj, err := regExpEngineObject(ccParts, options, temporaryDir)
+	if err != nil {
+		return err
+	}
+	args = append(args, regexpObj)
 	if dynamicRuntime {
 		qjsObj, err := getOrBuildCachedQuickJS(ccParts, options)
 		if err != nil {
@@ -352,7 +357,7 @@ func BuildWithOptions(entryPath, outputPath string, options BuildOptions) error 
 		args = append(args, "-flto")
 	}
 	if options.TargetCPU != "" {
-		args = append(args, "-mcpu="+options.TargetCPU)
+		args = append(args, targetCPUFlag(options.Target, options.TargetCPU))
 	}
 	if options.Strip {
 		t := strings.ToLower(options.Target)

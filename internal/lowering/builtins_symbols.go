@@ -41,6 +41,7 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
 			ensureRegExpShape(call.Shapes)
 			var patternVal string
+			patternType := ir.TypeString
 			if len(call.Expression.Arguments) == 0 {
 				// RegExp() matches the empty string; its source is "(?:)".
 				patternVal = nextTemp(call.Counter)
@@ -48,11 +49,11 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 					Op: ir.OpConst, Type: ir.TypeString, Result: patternVal, Value: "(?:)", StringLiteral: true, Span: toIRSpan(call.Path, call.Expression.Span),
 				})
 			} else {
-				value, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+				value, valueType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 				if err != nil {
 					return "", "", err
 				}
-				patternVal = value
+				patternVal, patternType = value, valueType
 			}
 			flagsVal := nextTemp(call.Counter)
 			if len(call.Expression.Arguments) > 1 {
@@ -64,6 +65,13 @@ func registerRegExpSymbolIntrinsics(m map[string]BuiltinIntrinsic) {
 			} else {
 				call.Function.Body = append(call.Function.Body, ir.Instruction{
 					Op: ir.OpConst, Type: ir.TypeString, Result: flagsVal, Value: "", Span: toIRSpan(call.Path, call.Expression.Span),
+				})
+			}
+			if patternType == ir.TypeString {
+				// An invalid pattern or flags throws SyntaxError here, as
+				// the RegExp constructor does.
+				call.Function.Body = append(call.Function.Body, ir.Instruction{
+					Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__regex.validate", Args: []string{patternVal, flagsVal}, Span: toIRSpan(call.Path, call.Expression.Span),
 				})
 			}
 			res := call.Result
