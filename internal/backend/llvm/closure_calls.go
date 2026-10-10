@@ -281,7 +281,8 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	}
 
 	for len(callArgs) < 13 { // env + 4 flattened value triples
-		callArgs = append(callArgs, "i32 0")
+		// Slots past the passed arguments are absent.
+		callArgs = append(callArgs, fmt.Sprintf("i32 %d", closureAbsentTag))
 		callArgs = append(callArgs, "i32 0")
 		callArgs = append(callArgs, "i64 0")
 	}

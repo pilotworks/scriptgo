@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -8,13 +9,9 @@ import (
 )
 
 func tryLowerPropertyClosureCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string, receiverType ir.Type, propVal string, propType ir.Type) (string, ir.Type, error) {
-	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range closureCallArguments(expression) {
-		val, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args = append(args, val)
+	args, spread, err := lowerClosureCallArguments(path, expression.Arguments, expression.Span, function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
@@ -32,6 +29,13 @@ func tryLowerPropertyClosureCall(path string, expression *frontend.SyntaxExpress
 		Args: append([]string{propVal}, args...), This: receiver,
 		Span: toIRSpan(path, expression.Span),
 	}
+	if spread != "" {
+		if op != ir.OpClosureCall {
+			return "", "", fmt.Errorf("spread arguments in a dynamic function call are not supported in the native subset")
+		}
+		appendClosureCall(function, counter, propVal, nil, spread, retType, result, toIRSpan(path, expression.Span))
+		return result, retType, nil
+	}
 	if op == ir.OpClosureCall {
 		instruction.Args = args
 		instruction.This = ""
@@ -45,13 +49,9 @@ func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression,
 	if err != nil {
 		return "", "", err
 	}
-	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range closureCallArguments(expression) {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args = append(args, value)
+	args, spread, err := lowerClosureCallArguments(path, expression.Arguments, expression.Span, function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
@@ -64,25 +64,14 @@ func lowerImmediateArrowCall(path string, expression *frontend.SyntaxExpression,
 	} else if expression.InferredType != "" {
 		retType = toIRType(expression.InferredType)
 	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpClosureCall,
-		Type:   retType,
-		Result: result,
-		Callee: closureVal,
-		Args:   args,
-		Span:   toIRSpan(path, expression.Span),
-	})
+	appendClosureCall(function, counter, closureVal, args, spread, retType, result, toIRSpan(path, expression.Span))
 	return result, retType, nil
 }
 
 func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, callee string) (string, ir.Type, error) {
-	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range closureCallArguments(expression) {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args = append(args, value)
+	args, spread, err := lowerClosureCallArguments(path, expression.Arguments, expression.Span, function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
@@ -108,25 +97,17 @@ func lowerClosureValueCall(path string, expression *frontend.SyntaxExpression, r
 	if targetName, ok := env[callee+".closureTarget"]; ok && targetName != "" {
 		calleeName = string(targetName)
 	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpClosureCall,
-		Type:   retType,
-		Result: result,
-		Callee: calleeName,
-		Args:   args,
-		Span:   toIRSpan(path, expression.Span),
-	})
+	if spread != "" {
+		calleeName = callee
+	}
+	appendClosureCall(function, counter, calleeName, args, spread, retType, result, toIRSpan(path, expression.Span))
 	return result, retType, nil
 }
 
 func tryLowerClosurePropertyCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, closureVal string, closureType ir.Type) (string, ir.Type, error) {
-	args := make([]string, 0, len(expression.Arguments))
-	for _, argument := range closureCallArguments(expression) {
-		value, _, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
-		if err != nil {
-			return "", "", err
-		}
-		args = append(args, value)
+	args, spread, err := lowerClosureCallArguments(path, expression.Arguments, expression.Span, function, env, counter, shapes, signatures)
+	if err != nil {
+		return "", "", err
 	}
 	if result == "" {
 		result = nextTemp(counter)
@@ -142,13 +123,6 @@ func tryLowerClosurePropertyCall(path string, expression *frontend.SyntaxExpress
 	} else if strings.HasPrefix(string(closureType), "object:Generator_") {
 		retType = closureType
 	}
-	function.Body = append(function.Body, ir.Instruction{
-		Op:     ir.OpClosureCall,
-		Type:   retType,
-		Result: result,
-		Callee: closureVal,
-		Args:   args,
-		Span:   toIRSpan(path, expression.Span),
-	})
+	appendClosureCall(function, counter, closureVal, args, spread, retType, result, toIRSpan(path, expression.Span))
 	return result, retType, nil
 }

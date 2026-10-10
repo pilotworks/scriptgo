@@ -264,6 +264,11 @@ static void scriptgo_promise_resolver_callback(
     (void)pad0;
     scriptgo_promise_resolver_env *env = (scriptgo_promise_resolver_env *)env_ptr;
     if (env == NULL || env->promise == NULL) return;
+    /* resolve() without an argument settles with undefined. */
+    if (tag0 == SCRIPTGO_ARG_ABSENT_TAG) {
+        tag0 = SCRIPTGO_TAG_UNDEFINED;
+        payload0 = 0;
+    }
     (void)scriptgo_promise_set_boxed(env->promise, env->reject, (uint32_t)tag0, (uint64_t)payload0);
 }
 
@@ -440,7 +445,7 @@ int scriptgo_event_loop_run(void) {
                     if (resume != NULL && resume->fn_ptr != NULL) {
                         void (*fn)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t) =
                             (void (*)(void *, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint64_t))resume->fn_ptr;
-                        fn(resume->env, tag, 0, payload, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                        fn(resume->env, tag, 0, payload, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
                     }
 				} else {
 					scriptgo_closure_inner *handler = p->state == PROMISE_FULFILLED ? r->on_fulfilled : r->on_rejected;

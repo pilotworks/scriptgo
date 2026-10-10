@@ -222,8 +222,10 @@ func lowerClosureExpression(
 	}
 
 	// The closure ABI passes four arguments as raw parameters; parameters
-	// past the fourth are read on entry from the call's extra arguments.
+	// past the fourth are read on entry from the call's extra arguments. A
+	// rest parameter is built on entry from the arguments the call passed.
 	paramCount := max(closureRawParameterCount, len(fnStmt.Parameters))
+	restParameter := false
 	for pIdx := 0; pIdx < paramCount; pIdx++ {
 		var pName string
 		var pType ir.Type
@@ -241,19 +243,24 @@ func lowerClosureExpression(
 			pName = fmt.Sprintf("__unused_arg_%d", pIdx)
 			pType = ir.TypeUnknown
 		}
+		rest := pIdx < len(fnStmt.Parameters) && fnStmt.Parameters[pIdx].Rest && strings.HasSuffix(string(pType), "[]")
 		if pIdx < closureRawParameterCount {
 			targetFn.Parameters = append(targetFn.Parameters, ir.Parameter{
 				Name: pName + "$raw",
 				Type: ir.TypeUnknown,
 			})
-		} else {
+		} else if !rest {
 			targetFn.Body = append(targetFn.Body, closureMoreArgument(pName+"$raw", pIdx-closureRawParameterCount, targetFn.Span)...)
+		}
+		if rest {
+			targetFn.Body = append(targetFn.Body, closureRestArgument(pName, pType, pIdx, targetFn.Span)...)
+			restParameter = true
 		}
 		closureEnv[pName+"$raw"] = ir.TypeUnknown
 		closureEnv[pName] = pType
 		closureEnv["__param."+pName] = pType
 	}
-	if paramCount > closureRawParameterCount {
+	if paramCount > closureRawParameterCount && !restParameter {
 		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__closure.more_done", Span: targetFn.Span})
 	}
 
@@ -423,6 +430,9 @@ func lowerClosureExpression(
 		}
 		for _, p := range fnStmt.Parameters {
 			typ := closureEnv[p.Name]
+			if p.Rest && strings.HasSuffix(string(typ), "[]") {
+				continue
+			}
 			targetFn.Body = append(targetFn.Body, ir.Instruction{
 				Op:     ir.OpCheckedCast,
 				Type:   typ,
