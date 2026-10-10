@@ -4,8 +4,8 @@ import { Buffer } from "node:buffer";
 import { Transform, StreamChunk } from "node:stream";
 
 declare namespace __scriptgo {
-    function zlibTransformString(data: string, mode: number): Uint8Array;
-    function zlibTransformBuffer(data: Uint8Array, mode: number): Uint8Array;
+    function zlibTransformString(data: string, mode: number): Buffer;
+    function zlibTransformBuffer(data: Uint8Array, mode: number): Buffer;
 }
 
 export const constants = {
@@ -75,11 +75,12 @@ export interface ZstdOptions extends ZlibOptions {
     params?: Record<number, number>;
 }
 
-export type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
+export type ZlibCallback = (error: Error | null, result: Buffer) => void;
 
 type ZlibInput = string | Uint8Array;
 
-function _transform(data: ZlibInput, mode: number): Uint8Array {
+// The native codec returns a Buffer, as the Node.js zlib functions do.
+function _transform(data: ZlibInput, mode: number): Buffer {
     if (typeof data === "string") {
         return __scriptgo.zlibTransformString(data, mode);
     }
@@ -120,7 +121,7 @@ export function deflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, ca
     }
 }
 
-export function deflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function deflateSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 0);
 }
 
@@ -131,7 +132,7 @@ export function deflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback,
     }
 }
 
-export function deflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function deflateRawSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 1);
 }
 
@@ -142,7 +143,7 @@ export function gunzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, cal
     }
 }
 
-export function gunzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function gunzipSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 5);
 }
 
@@ -153,7 +154,7 @@ export function gzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, callb
     }
 }
 
-export function gzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function gzipSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 2);
 }
 
@@ -164,7 +165,7 @@ export function inflate(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, ca
     }
 }
 
-export function inflateSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function inflateSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 3);
 }
 
@@ -175,7 +176,7 @@ export function inflateRaw(buf: ZlibInput, options?: ZlibOptions | ZlibCallback,
     }
 }
 
-export function inflateRawSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function inflateRawSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 4);
 }
 
@@ -186,7 +187,7 @@ export function unzip(buf: ZlibInput, options?: ZlibOptions | ZlibCallback, call
     }
 }
 
-export function unzipSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function unzipSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 5);
 }
 
@@ -197,7 +198,7 @@ export function brotliCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallb
     }
 }
 
-export function brotliCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function brotliCompressSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 6);
 }
 
@@ -208,7 +209,7 @@ export function brotliDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCal
     }
 }
 
-export function brotliDecompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function brotliDecompressSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 7);
 }
 
@@ -219,7 +220,7 @@ export function zstdCompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallbac
     }
 }
 
-export function zstdCompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function zstdCompressSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 8);
 }
 
@@ -230,7 +231,7 @@ export function zstdDecompress(buf: ZlibInput, options?: ZlibOptions | ZlibCallb
     }
 }
 
-export function zstdDecompressSync(buf: ZlibInput, options?: ZlibOptions): Uint8Array {
+export function zstdDecompressSync(buf: ZlibInput, options?: ZlibOptions): Buffer {
     return _transform(buf, 9);
 }
 
@@ -271,8 +272,7 @@ export class ZlibBase extends Transform {
         const fullBuf = Buffer.concat(this._chunks);
         this._chunks = [];
         try {
-            const result = _transform(fullBuf, this._mode);
-            this.push(Buffer.from(result));
+            this.push(_transform(fullBuf, this._mode));
             callback(null);
         } catch (err) {
             callback(err);

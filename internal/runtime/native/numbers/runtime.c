@@ -327,6 +327,61 @@ double scriptgo_math_round(double x) {
     return floor(x + 0.5);
 }
 
+/* scriptgo_math_cbrt is Math.cbrt with the result V8 (and so Node.js)
+ * computes: FreeBSD msun's s_cbrt.c, a polynomial estimate rounded to 23 bits
+ * and one Newton step, accurate to < 0.667 ulp. The C library's cbrt is not
+ * required to agree (glibc returns 3.0000000000000004 for cbrt(27)).
+ *
+ * Derived from s_cbrt.c, Copyright (C) 1993 by Sun Microsystems, Inc. All
+ * rights reserved. Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this software is freely
+ * granted, provided that this notice is preserved. Optimized by Bruce D.
+ * Evans. */
+double scriptgo_math_cbrt(double x) {
+    static const uint32_t B1 = 715094163; /* (1023-1023/3-0.03306235651)*2**20 */
+    static const uint32_t B2 = 696219795; /* (1023-1023/3-54/3-0.03306235651)*2**20 */
+    static const double P0 = 1.87595182427177009643;
+    static const double P1 = -1.88497979543377169875;
+    static const double P2 = 1.621429720105354466140;
+    static const double P3 = -0.758397934778766047437;
+    static const double P4 = 0.145996192886612446982;
+    uint64_t bits;
+    memcpy(&bits, &x, sizeof(bits));
+    uint32_t hx = (uint32_t)(bits >> 32);
+    uint32_t low = (uint32_t)bits;
+    uint32_t sign = hx & 0x80000000u;
+    hx ^= sign;
+    if (hx >= 0x7ff00000u) return x + x; /* NaN and infinities are themselves */
+    double t;
+    if (hx < 0x00100000u) {
+        if ((hx | low) == 0) return x; /* +-0 */
+        /* Subnormal: scale by 2**54 to estimate the exponent. */
+        t = x * 18014398509481984.0;
+        uint64_t scaled;
+        memcpy(&scaled, &t, sizeof(scaled));
+        uint32_t high = (uint32_t)(scaled >> 32) & 0x7fffffffu;
+        uint64_t estimate = (uint64_t)(sign | (high / 3 + B2)) << 32;
+        memcpy(&t, &estimate, sizeof(t));
+    } else {
+        uint64_t estimate = (uint64_t)(sign | (hx / 3 + B1)) << 32;
+        memcpy(&t, &estimate, sizeof(t));
+    }
+    /* Refine to about 23 bits with a polynomial in r = t**3/x. */
+    double r = (t * t) * (t / x);
+    t = t * ((P0 + r * (P1 + r * P2)) + ((r * r) * r) * (P3 + r * P4));
+    /* Round t away from zero to 23 bits so t*t is exact. */
+    uint64_t rounded;
+    memcpy(&rounded, &t, sizeof(rounded));
+    rounded = (rounded + 0x80000000ull) & 0xffffffffc0000000ull;
+    memcpy(&t, &rounded, sizeof(t));
+    /* One Newton step to 53 bits. */
+    double s = t * t;
+    r = x / s;
+    double w = t + t;
+    r = (r - t) / (w + r);
+    return t + t * r;
+}
+
 double scriptgo_math_pow(double x, double y) {
     if (isnan(y)) return NAN;
     if (y == 0.0) return 1.0;
