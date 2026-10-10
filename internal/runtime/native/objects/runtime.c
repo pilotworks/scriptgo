@@ -2219,12 +2219,12 @@ int scriptgo_object_group_by(void *handle, void *closure_handle, void **out_obje
             u_item.d = item;
             char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
                 (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-            key = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+            key = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
         } else {
             void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
             char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
                 (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-            key = fn(c->env, 4, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+            key = fn(c->env, 4, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
         }
         if (key == NULL) key = "undefined";
         void *sub_arr = NULL;

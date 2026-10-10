@@ -2,7 +2,6 @@ package lowering
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
@@ -38,17 +37,13 @@ func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression
 			return "", "", true, err
 		}
 	}
-	signature := ""
-	if expression.Left != nil && expression.Left.Left != nil {
-		signature = expression.Left.Left.InferredType
-	}
 	var args []string
 	var spread string
 	var err error
 	if methodName == "call" {
-		args, err = lowerArgumentList(path, packRestArguments(tail(expression.Arguments), signature, expression.Span), function, env, counter, shapes, signatures)
+		args, spread, err = lowerClosureCallArguments(path, tail(expression.Arguments), expression.Span, function, env, counter, shapes, signatures)
 	} else if len(expression.Arguments) > 1 {
-		args, spread, err = lowerApplyArguments(path, expression.Arguments[1], signature, function, env, counter, shapes, signatures)
+		args, spread, err = lowerApplyArguments(path, expression.Arguments[1], function, env, counter, shapes, signatures)
 	}
 	if err != nil {
 		return "", "", true, err
@@ -60,29 +55,41 @@ func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression
 	if retType == "" {
 		retType = ir.TypeUnknown
 	}
+	appendClosureCall(function, counter, receiver, args, spread, retType, result, span)
+	return result, retType, true, nil
+}
+
+// appendClosureCall calls closure with args, or with the elements of the
+// unknown[] array spread when it is set.
+func appendClosureCall(function *ir.Function, counter *int, closure string, args []string, spread string, retType ir.Type, result string, span ir.SourceSpan) {
 	if spread == "" {
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpClosureCall, Type: retType, Result: result, Callee: receiver, Args: args, Span: span})
-		return result, retType, true, nil
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpClosureCall, Type: retType, Result: result, Callee: closure, Args: args, Span: span})
+		return
 	}
-	// The runtime packs the elements from the rest parameter's index on into
-	// its array (-1: the function has no rest parameter).
-	restIndex := -1
-	if index, _, ok := closureRestParameter(signature); ok {
-		restIndex = index
-	}
-	restValue := nextTemp(counter)
-	function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: restValue, Value: strconv.Itoa(restIndex), Span: span})
-	applyArgs := []string{receiver, spread, restValue}
 	if retType == ir.TypeUnknown {
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: result, Callee: "__closure.apply", Args: applyArgs, Span: span})
-		return result, retType, true, nil
+		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: result, Callee: "__closure.apply", Args: []string{closure, spread}, Span: span})
+		return
 	}
 	raw := nextTemp(counter)
 	function.Body = append(function.Body,
-		ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: raw, Callee: "__closure.apply", Args: applyArgs, Span: span},
+		ir.Instruction{Op: ir.OpCall, Type: ir.TypeUnknown, Result: raw, Callee: "__closure.apply", Args: []string{closure, spread}, Span: span},
 		ir.Instruction{Op: ir.OpCheckedCast, Type: retType, Result: result, Args: []string{raw}, Span: span},
 	)
-	return result, retType, true, nil
+}
+
+// lowerClosureCallArguments lowers a closure call's arguments. A call that
+// spreads an array passes all of its arguments as one unknown[] array
+// (spread) for __closure.apply.
+func lowerClosureCallArguments(path string, arguments []*frontend.SyntaxExpression, span frontend.SourceSpan, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (args []string, spread string, err error) {
+	for _, argument := range arguments {
+		if argument.Kind == "spread" {
+			array := &frontend.SyntaxExpression{Span: span, Kind: "array", Arguments: arguments, InferredType: "unknown[]"}
+			spread, _, err = lowerExpression(path, array, "", function, env, counter, shapes, signatures)
+			return nil, spread, err
+		}
+	}
+	args, err = lowerArgumentList(path, arguments, function, env, counter, shapes, signatures)
+	return args, "", err
 }
 
 func tail(arguments []*frontend.SyntaxExpression) []*frontend.SyntaxExpression {
@@ -104,14 +111,13 @@ func lowerArgumentList(path string, arguments []*frontend.SyntaxExpression, func
 	return values, nil
 }
 
-// lowerApplyArguments spreads apply's argument array into call arguments,
-// packing those that fill a rest parameter of signature. A
+// lowerApplyArguments spreads apply's argument array into call arguments. A
 // runtime-length unknown[] is returned as spread instead, for the runtime to
 // pass its elements.
-func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, signature string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (args []string, spread string, err error) {
+func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (args []string, spread string, err error) {
 	if argument.Kind == "array" {
-		args, err = lowerArgumentList(path, packRestArguments(argument.Arguments, signature, argument.Span), function, env, counter, shapes, signatures)
-		return args, "", err
+		args, spread, err = lowerClosureCallArguments(path, argument.Arguments, argument.Span, function, env, counter, shapes, signatures)
+		return args, spread, err
 	}
 	value, typ, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 	if err != nil {

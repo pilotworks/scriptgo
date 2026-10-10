@@ -62,7 +62,10 @@ func emitFunction(function ir.Function, functions map[string]ir.Function, string
 		value := parameter.Name
 		first := fmt.Sprintf("%s.box.0", value)
 		second := fmt.Sprintf("%s.box.1", value)
-		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %%%s.tag, 0\n", first, value))
+		// An argument slot the caller did not pass reads as undefined.
+		fmt.Fprintf(&out, "  %%%s.absent = icmp eq i32 %%%s.tag, %d\n", value, value, closureAbsentTag)
+		fmt.Fprintf(&out, "  %%%s.tag.value = select i1 %%%s.absent, i32 0, i32 %%%s.tag\n", value, value, value)
+		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %%%s.tag.value, 0\n", first, value))
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } %%%s, i32 %%%s.flags, 1\n", second, first, value))
 		out.WriteString(fmt.Sprintf("  %%%s = insertvalue { i32, i32, i64, i64 } %%%s, i64 %%%s.payload, 2\n", value, second, value))
 	}

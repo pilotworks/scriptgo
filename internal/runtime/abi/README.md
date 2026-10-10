@@ -114,6 +114,17 @@ function ABI for typed fast paths. Runtime callback dispatch uses the adapter
 because directly returning a 24-byte aggregate can introduce a hidden result
 pointer or otherwise differ between LLVM and C ABIs across native targets.
 
+A closure function takes its environment and four argument slots as
+flattened `(tag, flags, payload)` triples; the adapter takes
+`(env, argc, argv, out)`. Arguments past the fourth travel through the
+runtime's extra-argument slot (`scriptgo_closure_more_set`), tagged with the
+target function, which the callee reads on entry. A slot the caller did not
+pass carries `SCRIPTGO_ARG_ABSENT_TAG` (`SCRIPTGO_ABSENT_ARG` in C); every
+caller, compiled or runtime, pads with it. The closure turns absent slots into
+`undefined` on entry, and builds a rest parameter itself
+(`scriptgo_closure_rest`) from the arguments the call passed, so callers never
+pack rest arguments.
+
 The Dynamic call boundary returns `0` for success, `1` for a JavaScript
 exception, and `-1` for a fatal ABI/runtime invariant failure. The executable
 boundary accepts `undefined`, `null`, `boolean`, `number`, `string`, and

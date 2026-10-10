@@ -179,12 +179,17 @@ func functionSymbol(name string) string {
 // scriptgo_closure_more_set (see internal/runtime/native/closures).
 const closureRawParameterCount = 4
 
+// closureAbsentTag is the tag of an argument slot a closure call did not pass
+// (SCRIPTGO_ARG_ABSENT_TAG in the runtime ABI).
+const closureAbsentTag = -1
+
 // emitClosureMoreIntrinsic lowers the closure argument intrinsics: the reads
 // a closure with more than four parameters makes on entry
 // (__closure.more_arg [index] is argument 4 + index of the current call,
 // undefined when absent; __closure.more_done releases the arguments), and
-// __closure.apply [closure, array, restIndex], a call with an array's
-// elements, those from restIndex on packed into one rest array.
+// __closure.apply [closure, array], a call with an array's elements, and
+// __closure.rest [index], the rest parameter at index built from the
+// call's arguments.
 func (e *functionEmitter) emitClosureMoreIntrinsic(out *strings.Builder, instruction ir.Instruction) error {
 	self := functionSymbol(mangleFunctionName(e.function.Name))
 	switch instruction.Callee {
@@ -203,33 +208,77 @@ func (e *functionEmitter) emitClosureMoreIntrinsic(out *strings.Builder, instruc
 		fmt.Fprintf(out, "  call void @scriptgo_closure_more_done(ptr %s)\n", self)
 		return nil
 	case "__closure.apply":
-		if len(instruction.Args) != 3 || instruction.Result == "" {
-			return fmt.Errorf("closure.apply requires a closure, an argument array and a rest index")
+		if len(instruction.Args) != 2 || instruction.Result == "" {
+			return fmt.Errorf("closure.apply requires a closure and an argument array")
 		}
 		closure := e.ensurePointerArg(out, instruction.Args[0])
 		array := e.ensurePointerArg(out, instruction.Args[1])
-		restIndex := e.resolveArg(out, instruction.Args[2])
-		fmt.Fprintf(out, "  %%%s.apply.rest = fptosi double %%%s to i32\n", instruction.Result, restIndex)
 		slot := instruction.Result + ".apply.slot"
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		fmt.Fprintf(out, "  %%%s = alloca { i32, i32, i64, i64 }\n", slot)
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_closure_apply(ptr %%%s, ptr %%%s, i32 %%%s.apply.rest, ptr %%%s)\n", status, closure, array, instruction.Result, slot)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_closure_apply(ptr %%%s, ptr %%%s, ptr %%%s)\n", status, closure, array, slot)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load { i32, i32, i64, i64 }, ptr %%%s\n", instruction.Result, slot)
 		e.types[instruction.Result] = ir.TypeUnknown
 		return nil
+	case "__closure.rest":
+		return e.emitClosureRest(out, instruction, self)
 	}
 	return fmt.Errorf("unknown closure intrinsic %q", instruction.Callee)
 }
 
 // functionReadsMoreArguments reports whether a closure reads arguments past
-// the fourth (it has more than four parameters).
+// the fourth (it has more than four parameters or a rest parameter).
 func functionReadsMoreArguments(body []ir.Instruction) bool {
 	for _, instruction := range body {
-		if instruction.Op == ir.OpCall && instruction.Callee == "__closure.more_arg" {
+		if instruction.Op == ir.OpCall && (instruction.Callee == "__closure.more_arg" || instruction.Callee == "__closure.rest") {
 			return true
 		}
 	}
 	return false
+}
+
+// emitClosureRest builds a closure's rest parameter: the runtime counts the
+// passed arguments from the raw argument slots (an absent slot ends them)
+// and the call's extra arguments, and stores those from the rest index on
+// in an array of the parameter's type.
+func (e *functionEmitter) emitClosureRest(out *strings.Builder, instruction ir.Instruction, self string) error {
+	if len(instruction.Args) != 1 || instruction.Result == "" {
+		return fmt.Errorf("closure.rest requires the rest parameter index")
+	}
+	var raw []string
+	for _, parameter := range e.function.Parameters {
+		if isRawCallbackParameter(parameter) && parameter.Name != "__resume_raw" {
+			raw = append(raw, parameter.Name)
+		}
+	}
+	elementSize, err := arrayElementSizeForTarget(instruction.Type, e.pointerSize())
+	if err != nil {
+		return err
+	}
+	index := e.resolveArg(out, instruction.Args[0])
+	slots := instruction.Result + ".rest.raw"
+	arrayType := fmt.Sprintf("[%d x { i32, i32, i64, i64 }]", max(len(raw), 1))
+	fmt.Fprintf(out, "  %%%s = alloca %s\n", slots, arrayType)
+	for position, name := range raw {
+		// The slots keep their absent tags, so the runtime can count them.
+		element := fmt.Sprintf("%s.%d", slots, position)
+		fmt.Fprintf(out, "  %%%s.v0 = insertvalue { i32, i32, i64, i64 } zeroinitializer, i32 %%%s.tag, 0\n", element, name)
+		fmt.Fprintf(out, "  %%%s.v1 = insertvalue { i32, i32, i64, i64 } %%%s.v0, i32 %%%s.flags, 1\n", element, element, name)
+		fmt.Fprintf(out, "  %%%s.v2 = insertvalue { i32, i32, i64, i64 } %%%s.v1, i64 %%%s.payload, 2\n", element, element, name)
+		fmt.Fprintf(out, "  %%%s = getelementptr inbounds %s, ptr %%%s, i64 0, i64 %d\n", element, arrayType, slots, position)
+		fmt.Fprintf(out, "  store { i32, i32, i64, i64 } %%%s.v2, ptr %%%s\n", element, element)
+	}
+	status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
+	e.runtimeStatus++
+	result := instruction.Result + ".rest.slot"
+	fmt.Fprintf(out, "  %%%s = alloca ptr\n", result)
+	fmt.Fprintf(out, "  %%%s.rest.index = fptosi double %%%s to i32\n", instruction.Result, index)
+	fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_closure_rest(ptr %s, ptr %%%s, i32 %d, i32 %%%s.rest.index, i64 %d, i64 %d, ptr %%%s)\n",
+		status, self, slots, len(raw), instruction.Result, elementSize, arrayElementTag(instruction.Type), result)
+	fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
+	fmt.Fprintf(out, "  %%%s = load ptr, ptr %%%s\n", instruction.Result, result)
+	e.types[instruction.Result] = instruction.Type
+	return nil
 }

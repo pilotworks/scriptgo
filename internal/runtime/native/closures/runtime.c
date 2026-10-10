@@ -167,9 +167,53 @@ void scriptgo_closure_more_done(const void *fn) {
     if (fn == closure_more_args.fn) scriptgo_closure_more_clear();
 }
 
-/* scriptgo_closure_absent_arg is the undefined value a closure's invoke
- * adapter reads for a parameter past the arguments it was called with. */
-const scriptgo_value scriptgo_closure_absent_arg = {0};
+/* scriptgo_closure_absent_arg is the argument slot a closure's invoke
+ * adapter passes for a parameter past the arguments it was called with. */
+const scriptgo_value scriptgo_closure_absent_arg = {SCRIPTGO_ARG_ABSENT_TAG, 0, 0, 0};
+
+int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array);
+
+/* scriptgo_closure_rest builds the rest parameter of closure fn from its
+ * arguments: raw holds the raw_count argument slots of the call (absent
+ * past the last passed argument), followed by the call's extra arguments
+ * when every slot was passed. The array keeps the elements from
+ * rest_index on, stored as element_size-byte elements tagged element_tag
+ * (the rest parameter's array type). The extra arguments are released. */
+int scriptgo_closure_rest(const void *fn, const scriptgo_value *raw, int32_t raw_count, int32_t rest_index,
+                          int64_t element_size, int64_t element_tag, void **out_array) {
+    if (out_array == NULL || raw == NULL || raw_count < 0 || rest_index < 0) {
+        return scriptgo_runtime_set_error("scriptgo closure rest: invalid arguments");
+    }
+    int64_t passed = 0;
+    while (passed < raw_count && raw[passed].tag != SCRIPTGO_ARG_ABSENT_TAG) passed++;
+    int64_t more = 0;
+    if (passed == raw_count && fn != NULL && fn == closure_more_args.fn) more = closure_more_args.count;
+    int64_t total = passed + more;
+    int64_t length = total > rest_index ? total - rest_index : 0;
+    if (scriptgo_array_new_tagged(length, element_size, element_tag, out_array) != 0) return -1;
+    unsigned char *data = ((scriptgo_array_inner *)*out_array)->data;
+    for (int64_t i = 0; i < length; i++) {
+        int64_t position = rest_index + i;
+        const scriptgo_value *value = position < raw_count ? &raw[position] : &closure_more_args.args[position - raw_count];
+        unsigned char *slot = data + (size_t)i * (size_t)element_size;
+        if (element_size == (int64_t)sizeof(scriptgo_value)) {
+            if (scriptgo_value_clone((scriptgo_value *)slot, value) != 0) return -1;
+        } else if (element_size == 1) {
+            *slot = value->payload != 0;
+        } else if (element_tag == SCRIPTGO_TAG_NUMBER && value->tag != SCRIPTGO_TAG_NUMBER) {
+            /* undefined and null in number storage */
+            uint64_t bits = value->tag == SCRIPTGO_TAG_NULL ? SCRIPTGO_NUMBER_NULL_BITS : SCRIPTGO_NUMBER_UNDEFINED_BITS;
+            memcpy(slot, &bits, sizeof(bits));
+        } else if (value->tag == SCRIPTGO_TAG_UNDEFINED && element_tag != SCRIPTGO_TAG_NUMBER) {
+            void *undefined = (void *)&scriptgo_undefined_sentinel;
+            memcpy(slot, &undefined, sizeof(undefined));
+        } else {
+            memcpy(slot, &value->payload, (size_t)element_size);
+        }
+    }
+    scriptgo_closure_more_done(fn);
+    return 0;
+}
 
 /* scriptgo_closure_invoke_argv calls a closure with arg_count boxed
  * arguments. Closures compiled from TypeScript take any number through their
@@ -196,7 +240,7 @@ int scriptgo_closure_invoke_argv(void *closure_handle, int32_t arg_count, const 
         *out_value = result;
         return 0;
     }
-    scriptgo_value dummy = {0};
+    const scriptgo_value dummy = {SCRIPTGO_ARG_ABSENT_TAG, 0, 0, 0};
     const scriptgo_value *v1 = arg_count >= 1 ? &args[0] : &dummy;
     const scriptgo_value *v2 = arg_count >= 2 ? &args[1] : &dummy;
     const scriptgo_value *v3 = arg_count >= 3 ? &args[2] : &dummy;
@@ -243,50 +287,26 @@ int scriptgo_closure_invoke_argv(void *closure_handle, int32_t arg_count, const 
 
 int scriptgo_array_length(void *handle, int64_t *out_length);
 int scriptgo_array_get_unknown(void *handle, double index, void *out_value);
-int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
-int scriptgo_array_set(void *handle, double index, const void *value);
 
 /* scriptgo_closure_apply calls a closure with an array's elements as its
- * arguments (Function.prototype.apply with a runtime-length array). With
- * rest_index >= 0 the elements from that index on are packed into one
- * unknown[] array, the closure's rest parameter, as call sites pack them. */
-int scriptgo_closure_apply(void *closure_handle, void *array, int32_t rest_index, scriptgo_value *out_value) {
+ * arguments (Function.prototype.apply with a runtime-length array). */
+int scriptgo_closure_apply(void *closure_handle, void *array, scriptgo_value *out_value) {
     int64_t length = 0;
     if (out_value == NULL) return scriptgo_runtime_set_error("scriptgo closure result is null");
     if (array != NULL && array != &scriptgo_undefined_sentinel && scriptgo_array_length(array, &length) != 0) return -1;
-    int64_t count = rest_index >= 0 ? (int64_t)rest_index + 1 : length;
-    if (count > INT32_MAX) return scriptgo_runtime_set_error("RangeError: too many arguments in function call");
+    if (length > INT32_MAX) return scriptgo_runtime_set_error("RangeError: too many arguments in function call");
     scriptgo_value *args = NULL;
-    if (count > 0) {
-        args = calloc((size_t)count, sizeof(scriptgo_value));
+    if (length > 0) {
+        args = calloc((size_t)length, sizeof(scriptgo_value));
         if (args == NULL) return scriptgo_runtime_set_error("scriptgo closure apply: out of memory");
-    }
-    void *rest = NULL;
-    if (rest_index >= 0) {
-        int64_t rest_length = length > rest_index ? length - rest_index : 0;
-        if (scriptgo_array_new(0, (int64_t)sizeof(scriptgo_value), &rest) != 0) {
-            free(args);
-            return -1;
-        }
-        args[rest_index].tag = SCRIPTGO_TAG_ARRAY;
-        args[rest_index].payload = (uint64_t)(uintptr_t)rest;
-        for (int64_t i = 0; i < rest_length; i++) {
-            scriptgo_value element;
-            if (scriptgo_array_get_unknown(array, (double)(rest_index + i), &element) != 0 ||
-                scriptgo_array_set(rest, (double)i, &element) != 0) {
+        for (int64_t i = 0; i < length; i++) {
+            if (scriptgo_array_get_unknown(array, (double)i, &args[i]) != 0) {
                 free(args);
                 return -1;
             }
         }
     }
-    int64_t direct = rest_index >= 0 ? (length < rest_index ? length : rest_index) : length;
-    for (int64_t i = 0; i < direct; i++) {
-        if (scriptgo_array_get_unknown(array, (double)i, &args[i]) != 0) {
-            free(args);
-            return -1;
-        }
-    }
-    int status = scriptgo_closure_invoke_argv(closure_handle, (int32_t)count, args, out_value);
+    int status = scriptgo_closure_invoke_argv(closure_handle, (int32_t)length, args, out_value);
     free(args);
     return status;
 }
@@ -328,7 +348,7 @@ int scriptgo_array_map_number(void *handle, void *closure_handle, void **out_arr
         u_idx.d = (double)i;
         double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        double mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        double mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
     }
     return 0;
@@ -355,7 +375,7 @@ int scriptgo_array_flat_map_number(void *handle, void *closure_handle, void **ou
         u_idx.d = (double)i;
         void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        void *res_ptr = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        void *res_ptr = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         double out_len;
         if (res_ptr != NULL) {
             scriptgo_array_inner *sub = res_ptr;
@@ -390,7 +410,7 @@ int scriptgo_array_flat_map_number_scalar(void *handle, void *closure_handle, vo
         u_idx.d = (double)i;
         double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        double res_val = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        double res_val = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         double out_len;
         scriptgo_array_push(*out_array, &res_val, &out_len);
     }
@@ -431,7 +451,7 @@ int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void 
         u_idx.d = (double)i;
         double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        double mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        double mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
     }
     return 0;
@@ -454,7 +474,7 @@ int scriptgo_array_map_number_from_string(void *handle, void *closure_handle, vo
         u_idx.d = (double)i;
         double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        double mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        double mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
     }
     return 0;
@@ -477,7 +497,7 @@ int scriptgo_array_map_string(void *handle, void *closure_handle, void **out_arr
         u_idx.d = (double)i;
         char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        char *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        char *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
     }
     return 0;
@@ -501,7 +521,7 @@ int scriptgo_array_map_string_from_number(void *handle, void *closure_handle, vo
         u_idx.d = (double)i;
         char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        char *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        char *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
     }
     return 0;
@@ -524,7 +544,7 @@ int scriptgo_array_map_string_from_ptr(void *handle, void *closure_handle, void 
         u_idx.d = (double)i;
         char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        char *mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        char *mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
     }
     return 0;
@@ -549,7 +569,7 @@ int scriptgo_array_map_ptr(void *handle, void *closure_handle, void **out_array)
             boxed_val item = *(boxed_val *)(array->data + (size_t)i * sizeof(scriptgo_value));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            void *mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            void *mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
             memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
         }
     } else {
@@ -557,7 +577,7 @@ int scriptgo_array_map_ptr(void *handle, void *closure_handle, void **out_array)
             void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            void *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            void *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
             memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
         }
     }
@@ -582,7 +602,7 @@ int scriptgo_array_map_ptr_from_number(void *handle, void *closure_handle, void 
         u_idx.d = (double)i;
         void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        void *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        void *mapped = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
     }
     return 0;
@@ -605,7 +625,7 @@ int scriptgo_array_map_ptr_from_string(void *handle, void *closure_handle, void 
         u_idx.d = (double)i;
         void *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        void *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        void *mapped = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         memcpy(res->data + (size_t)i * sizeof(void *), &mapped, sizeof(void *));
     }
     return 0;
@@ -627,7 +647,7 @@ int scriptgo_array_filter_number(void *handle, void *closure_handle, void **out_
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        uint8_t keep = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        uint8_t keep = fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         if (keep) {
             double dummy;
             if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -651,7 +671,7 @@ int scriptgo_array_filter_string(void *handle, void *closure_handle, void **out_
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        uint8_t keep = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        uint8_t keep = fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         if (keep) {
             double dummy;
             if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -681,7 +701,7 @@ int scriptgo_array_filter_ptr(void *handle, void *closure_handle, void **out_arr
             boxed_val item = *(boxed_val *)(array->data + (size_t)i * sizeof(scriptgo_value));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            uint8_t keep = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            uint8_t keep = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
             if (keep) {
                 double dummy;
                 if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -692,7 +712,7 @@ int scriptgo_array_filter_ptr(void *handle, void *closure_handle, void **out_arr
             void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            uint8_t keep = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            uint8_t keep = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
             if (keep) {
                 double dummy;
                 if (scriptgo_array_push(*out_array, &item, &dummy) != 0) return -1;
@@ -715,7 +735,7 @@ int scriptgo_array_for_each_number(void *handle, void *closure_handle) {
         u_idx.d = (double)i;
         void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
     }
     return 0;
 }
@@ -732,7 +752,7 @@ int scriptgo_array_for_each_string(void *handle, void *closure_handle) {
         u_idx.d = (double)i;
         void (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (void (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+        fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
     }
     return 0;
 }
@@ -754,14 +774,14 @@ int scriptgo_array_for_each_ptr(void *handle, void *closure_handle) {
             boxed_val item = *(boxed_val *)(array->data + (size_t)i * sizeof(scriptgo_value));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         }
     } else {
         for (int64_t i = 0; i < array->length; i++) {
             void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
             union { double d; int64_t i; } u_idx;
             u_idx.d = (double)i;
-            fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0);
+            fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG);
         }
     }
     return 0;
@@ -802,7 +822,7 @@ int scriptgo_array_find_number(void *handle, void *closure_handle, double *out_v
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_val = item;
             return 0;
         }
@@ -874,7 +894,7 @@ int scriptgo_array_find_value(void *handle, void *closure_handle, int32_t from_e
         union { double d; int64_t i; } u_idx;
         scriptgo_array_element_value(array, i, &element);
         u_idx.d = (double)i;
-        if (fn(c->env, (int32_t)element.tag, 0, (int64_t)element.payload, SCRIPTGO_TAG_NUMBER, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, (int32_t)element.tag, 0, (int64_t)element.payload, SCRIPTGO_TAG_NUMBER, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_value = element;
             return 0;
         }
@@ -897,7 +917,7 @@ int scriptgo_array_some_number(void *handle, void *closure_handle, int32_t *out_
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_bool = 1;
             return 0;
         }
@@ -919,7 +939,7 @@ int scriptgo_array_every_number(void *handle, void *closure_handle, int32_t *out
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (!fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (!fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_bool = 0;
             return 0;
         }
@@ -941,7 +961,7 @@ int scriptgo_array_find_index_number(void *handle, void *closure_handle, double 
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -962,7 +982,7 @@ int scriptgo_array_find_index_string(void *handle, void *closure_handle, double 
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -984,7 +1004,7 @@ int scriptgo_array_find_last_number(void *handle, void *closure_handle, double *
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_val = item;
             return 0;
         }
@@ -1006,7 +1026,7 @@ int scriptgo_array_find_last_index_number(void *handle, void *closure_handle, do
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 3, 0, u_item.i, 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -1027,7 +1047,7 @@ int scriptgo_array_find_last_index_string(void *handle, void *closure_handle, do
         u_idx.d = (double)i;
         uint8_t (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (uint8_t (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, 0, 0, 0)) {
+        if (fn(c->env, 4, 0, (int64_t)(uintptr_t)(item ? item : ""), 3, 0, u_idx.i, SCRIPTGO_TAG_ARRAY, 0, (int64_t)(uintptr_t)handle, SCRIPTGO_ABSENT_ARG)) {
             *out_idx = (double)i;
             return 0;
         }
@@ -1120,7 +1140,7 @@ int scriptgo_array_sort_closure_ptr(void *handle, void *closure_handle, void **o
         void *key = items[i];
         int64_t j = i - 1;
         while (j >= 0) {
-            double cmp = fn(c->env, 5, 0, (int64_t)items[j], 5, 0, (int64_t)key, 0, 0, 0, 0, 0, 0);
+            double cmp = fn(c->env, 5, 0, (int64_t)items[j], 5, 0, (int64_t)key, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
             if (cmp > 0.0) {
                 items[j + 1] = items[j];
                 j--;
@@ -1159,7 +1179,7 @@ int scriptgo_array_sort_closure_number(void *handle, void *closure_handle, void 
         while (j >= 0) {
             union { double d; int64_t i; } u_j;
             u_j.d = items[j];
-            double cmp = fn(c->env, 3, 0, u_j.i, 3, 0, u_key.i, 0, 0, 0, 0, 0, 0);
+            double cmp = fn(c->env, 3, 0, u_j.i, 3, 0, u_key.i, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
             if (cmp > 0.0) {
                 items[j + 1] = items[j];
                 j--;
@@ -1194,7 +1214,7 @@ int scriptgo_array_sort_closure_string(void *handle, void *closure_handle, void 
         char *key = items[i];
         int64_t j = i - 1;
         while (j >= 0) {
-            double cmp = fn(c->env, 4, 0, (int64_t)items[j], 4, 0, (int64_t)key, 0, 0, 0, 0, 0, 0);
+            double cmp = fn(c->env, 4, 0, (int64_t)items[j], 4, 0, (int64_t)key, SCRIPTGO_ABSENT_ARG, SCRIPTGO_ABSENT_ARG);
             if (cmp > 0.0) {
                 items[j + 1] = items[j];
                 j--;

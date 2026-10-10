@@ -23,6 +23,14 @@ typedef enum {
     SCRIPTGO_TAG_PROMISE   = 10
 } scriptgo_value_tag;
 
+/* SCRIPTGO_ARG_ABSENT_TAG marks a closure argument slot the caller did not
+ * pass (the closure ABI always has four argument slots). It is never a
+ * value: a closure turns it into undefined on entry, and a rest parameter
+ * counts the arguments before it. SCRIPTGO_ABSENT_ARG is such a slot as the
+ * flattened (tag, flags, payload) triple a closure call passes. */
+#define SCRIPTGO_ARG_ABSENT_TAG 0xFFFFFFFFu
+#define SCRIPTGO_ABSENT_ARG SCRIPTGO_ARG_ABSENT_TAG, 0, 0
+
 enum {
     SCRIPTGO_VALUE_OWNED     = 1u << 0,
     SCRIPTGO_VALUE_ENGINE_REF = 1u << 1
