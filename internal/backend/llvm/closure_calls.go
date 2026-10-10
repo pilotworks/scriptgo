@@ -189,9 +189,6 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	if useValueDispatcher {
 		argPointers := []string{"ptr null", "ptr null", "ptr null", "ptr null"}
 		for index, arg := range instruction.Args {
-			if index >= len(argPointers) {
-				return fmt.Errorf("closure call supports at most 4 arguments")
-			}
 			argType := e.types[arg]
 			if argType == "" {
 				argType = ir.TypeNumber
@@ -200,13 +197,31 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 			if err != nil {
 				return err
 			}
-			argPointers[index] = "ptr " + argPointer
+			if index < len(argPointers) {
+				argPointers[index] = "ptr " + argPointer
+			} else {
+				argPointers = append(argPointers, "ptr "+argPointer)
+			}
 		}
 		resultSlot := fmt.Sprintf("closure.result.slot.%d", callID)
 		status := fmt.Sprintf("runtime.status.%d", e.runtimeStatus)
 		e.runtimeStatus++
 		out.WriteString(fmt.Sprintf("  %%%s = alloca { i32, i32, i64, i64 }\n", resultSlot))
-		out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_invoke_value(ptr %%%s, i32 %d, %s, ptr %%%s)\n", status, closureVar, len(instruction.Args), strings.Join(argPointers, ", "), resultSlot))
+		if len(instruction.Args) <= 4 {
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_invoke_value(ptr %%%s, i32 %d, %s, ptr %%%s)\n", status, closureVar, len(instruction.Args), strings.Join(argPointers, ", "), resultSlot))
+		} else {
+			// More than four arguments go as an array of boxed values.
+			argv := fmt.Sprintf("closure.argv.%d", callID)
+			out.WriteString(fmt.Sprintf("  %%%s = alloca [%d x { i32, i32, i64, i64 }]\n", argv, len(instruction.Args)))
+			for index, pointer := range argPointers {
+				value := fmt.Sprintf("%s.value.%d", argv, index)
+				element := fmt.Sprintf("%s.element.%d", argv, index)
+				out.WriteString(fmt.Sprintf("  %%%s = load { i32, i32, i64, i64 }, %s\n", value, pointer))
+				out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x { i32, i32, i64, i64 }], ptr %%%s, i64 0, i64 %d\n", element, len(instruction.Args), argv, index))
+				out.WriteString(fmt.Sprintf("  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", value, element))
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_closure_invoke_argv(ptr %%%s, i32 %d, ptr %%%s, ptr %%%s)\n", status, closureVar, len(instruction.Args), argv, resultSlot))
+		}
 		out.WriteString(fmt.Sprintf("  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status))
 		if instruction.Type == ir.TypeUnknown && instruction.Result != "" {
 			e.types[instruction.Result] = ir.TypeUnknown
@@ -228,7 +243,8 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		callArgs = append(callArgs, fmt.Sprintf("ptr %%%s", envCtx))
 	}
 
-	for _, arg := range instruction.Args {
+	var moreArgs []string
+	for argIndex, arg := range instruction.Args {
 		typ, ok := e.types[arg]
 		if !ok {
 			typ = ir.TypeNumber
@@ -247,6 +263,11 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 				return err
 			}
 			argVal = boxedVar
+		}
+		if argIndex >= closureRawParameterCount {
+			// Arguments past the fourth go through the extra-argument slot.
+			moreArgs = append(moreArgs, argVal)
+			continue
 		}
 		// Static closure callbacks use the C-compatible flattened ABI. The
 		// canonical value remains the source representation inside LLVM, but
@@ -271,13 +292,27 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 	if strings.HasPrefix(fnPtr, "@") {
 		fnTarget = fnPtr
 	}
+	moreClear := ""
+	if len(moreArgs) > 0 {
+		argv := fmt.Sprintf("closure.more.%d", callID)
+		out.WriteString(fmt.Sprintf("  %%%s = alloca [%d x { i32, i32, i64, i64 }]\n", argv, len(moreArgs)))
+		for index, value := range moreArgs {
+			element := fmt.Sprintf("%s.element.%d", argv, index)
+			out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x { i32, i32, i64, i64 }], ptr %%%s, i64 0, i64 %d\n", element, len(moreArgs), argv, index))
+			out.WriteString(fmt.Sprintf("  store { i32, i32, i64, i64 } %%%s, ptr %%%s\n", value, element))
+		}
+		out.WriteString(fmt.Sprintf("  call void @scriptgo_closure_more_set(ptr %s, i32 %d, ptr %%%s)\n", fnTarget, len(moreArgs), argv))
+		moreClear = "  call void @scriptgo_closure_more_clear()\n"
+	}
 	if instruction.Result != "" && retType != "void" {
 		e.types[instruction.Result] = instruction.Type
 		if recursive {
 			out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", instruction.Result, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
+			out.WriteString(moreClear)
 			return nil
 		}
 		out.WriteString(fmt.Sprintf("  %%%s = call %s %s%s(%s)\n", callRes, retType, fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		out.WriteString(moreClear)
 		out.WriteString(fmt.Sprintf("  br label %%%s\n", contBlock))
 		out.WriteString(fmt.Sprintf("%s:\n", contBlock))
 		defaultVal := "null"
@@ -293,6 +328,7 @@ func (e *functionEmitter) emitClosureCall(out *strings.Builder, instruction ir.I
 		out.WriteString(fmt.Sprintf("  %%%s = phi %s [ %s, %%%s ], [ %%%s, %%%s ]\n", instruction.Result, retType, defaultVal, nullBlock, callRes, callBlock))
 	} else {
 		out.WriteString(fmt.Sprintf("  call void %s%s(%s)\n", fnSig, fnTarget, strings.Join(callArgs, ", ")))
+		out.WriteString(moreClear)
 		if recursive {
 			return nil
 		}

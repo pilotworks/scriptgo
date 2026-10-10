@@ -17,6 +17,15 @@ func (e *functionEmitter) tryEmitCoreIntrinsicCall(out *strings.Builder, instruc
 		}
 		return true, nil
 	}
+	if strings.HasPrefix(instruction.Callee, "__closure.") {
+		if err := e.emitClosureMoreIntrinsic(out, instruction); err != nil {
+			return true, err
+		}
+		if instruction.Result != "" {
+			e.types[instruction.Result] = instruction.Type
+		}
+		return true, nil
+	}
 	if strings.HasPrefix(instruction.Callee, "__console.") {
 		if err := e.emitConsoleIntrinsic(out, instruction); err != nil {
 			return true, err

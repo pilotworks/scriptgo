@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **512** | **512 / 512 match expected output; 510 / 512 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 512 | 487 PASS plus 25 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **514** | **514 / 514 match expected output; 512 / 514 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 514 | 489 PASS plus 25 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -153,7 +153,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | **`Errors`** | `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `URIError`, `EvalError`, `AggregateError` (`new AggregateError(errorsArray, message?)`, `.errors`), `Error.stackTraceLimit` (read/write; caps recorded native frames), user subclasses (`.name`, `.message`, `.stack`, `.cause`, `instanceof`, throw/catch) | ✅ Matches ES specification |
 | **`Date`** | `Date.now()`, `Date.parse()`, `Date.UTC()`, `new Date()`, `getTime()`, `getFullYear()`, `getMonth()`, `getDate()`, `getDay()`, `getHours()`, `getMinutes()`, `getSeconds()`, `getMilliseconds()`, `getTimezoneOffset()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`, `getUTCDay()`, `getUTCHours()`, `getUTCHMinutes()`, `getUTCSeconds()`, `getUTCMilliseconds()`, `setTime()`, `setFullYear()`, `setMonth()`, `setDate()`, `setHours()`, `setMinutes()`, `setSeconds()`, `setMilliseconds()`, `setUTCFullYear()`, `setUTCMonth()`, `setUTCDate()`, `setUTCHours()`, `setUTCHMinutes()`, `setUTCSeconds()`, `setUTCMilliseconds()`, `toISOString()`, `toJSON()`, `toString()`, `toDateString()`, `toTimeString()`, `toUTCString()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()`, `valueOf()` | ✅ 100% matches ECMAScript Date specification (46/46 APIs) |
 | **`JSON`** | `JSON.stringify()` (1 to 3 args: `value`, `replacer?`, `space?`), `JSON.parse()` (for primitive, array & complex object shapes), roundtrip & array of objects serialization | ✅ Matches ECMAScript specification (AOT static shape lowering & native runtime C tokenizer/parser); object literals and interface-typed objects serialize in insertion order, class instances in field declaration order |
-| **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `lastIndex`, `source`, `flags`, `global`, `ignoreCase`, `multiline`, `dotAll`, `unicode`, `sticky`, `hasIndices`, `unicodeSets` (read from `flags`), `compile()`, `match()`, `matchAll()`, `search()`, `replace()`, `replaceAll()`, `split()`, match `index` / `input` / `groups`, named groups `(?<name>...)` | ✅ Matches ECMAScript (libregexp engine): `test()` and `exec()` start at and advance `lastIndex` for `g` and `y`; an invalid pattern or flags throws `SyntaxError` from the constructor; replacement strings support `$$`, `$&`, `` $` ``, `$'`, `$n`/`$nn` and `$<name>`; `split()` splices captures and honors `limit`; `matchAll` yields one match array per match and steps past empty matches. Differences: a replacer function receives at most four arguments (`match`, captures, `offset`, `string` in that order, as native closures take four), console output of `groups` has no `[Object: null prototype]` tag and omits groups that did not match, and ES2025 pattern modifiers (`(?i:...)`) and duplicate named groups are `SyntaxError`s, as in Node.js 22 |
+| **`RegExp`** | `new RegExp()`, `/pattern/flags`, `test()`, `exec()`, `lastIndex`, `source`, `flags`, `global`, `ignoreCase`, `multiline`, `dotAll`, `unicode`, `sticky`, `hasIndices`, `unicodeSets` (read from `flags`), `compile()`, `match()`, `matchAll()`, `search()`, `replace()`, `replaceAll()`, `split()`, match `index` / `input` / `groups`, named groups `(?<name>...)` | ✅ Matches ECMAScript (libregexp engine): `test()` and `exec()` start at and advance `lastIndex` for `g` and `y`; an invalid pattern or flags throws `SyntaxError` from the constructor; replacement strings support `$$`, `$&`, `` $` ``, `$'`, `$n`/`$nn` and `$<name>`; `split()` splices captures and honors `limit`; `matchAll` yields one match array per match and steps past empty matches. A replacer function receives `match`, the captures, `offset`, the string and, with named groups, `groups`; `groups` is a null-prototype object (console shows `[Object: null prototype]`) listing unmatched groups as `undefined`. Differences: ES2025 pattern modifiers (`(?i:...)`) and duplicate named groups are `SyntaxError`s, as in Node.js 22 |
 | **`Symbol`** | `Symbol()`, `Symbol.for()`, `Symbol.keyFor()`, `Symbol.iterator`, `.description` (`undefined` when absent), `.toString()`, `String(symbol)`, symbol-keyed properties (`{ [k]: v }`, `obj[k]`, `k in obj`, `delete obj[k]`, `Object.getOwnPropertySymbols`) | ✅ Matches primitive symbol format; a symbol-keyed property is stored under the symbol's identity, shown by console.log and skipped by `Object.keys`, `for..in` and JSON. Class fields keyed by a symbol are not modelled |
 | **`BigInt`** | `BigInt(...)`, `100n`, `bigint[]`, `asIntN`, `asUintN`, `.toString()` | ✅ Matches standard 64-bit integer behavior |
 | **`node:path` / `path`** | `basename`, `delimiter`, `dirname`, `extname`, `format`, `isAbsolute`, `join`, `matchesGlob`, `normalize`, `parse`, `posix`, `relative`, `resolve`, `sep`, `toNamespacedPath`, `win32` | ✅ 100% matches Node.js v22 Path specification (16 / 16 APIs verified) |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 512
-Native Backend Parity  : 487/512 (95.1%)
-Diagnostic Parity      : 25/512
-Overall Full Parity    : 512/512 (100.0%)
+Total Test Cases       : 514
+Native Backend Parity  : 489/514 (95.1%)
+Diagnostic Parity      : 25/514
+Overall Full Parity    : 514/514 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
@@ -210,7 +210,7 @@ Total Time Elapsed     : ~1m54s
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 115 | **100% (115/115)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 116 | **100% (116/116)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
 | **`arrays`** | 11 | **100% (11/11)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 22 | **100% (22/22)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
@@ -219,7 +219,7 @@ Total Time Elapsed     : ~1m54s
 | **`destructuring`** | 22 | **100% (22/22)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 28 | **100% (28/28)** | Closures, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 29 | **100% (29/29)** | Closures with any number of parameters, default/rest params, higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
 | **`language`** | 26 | **100% (26/26)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 6 | **100% (6/6)** | Tier selection, dynamic fallbacks, mode validations. |

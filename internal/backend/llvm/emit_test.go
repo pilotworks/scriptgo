@@ -336,7 +336,7 @@ func TestEmitFunctionNounwind(t *testing.T) {
 	if !strings.Contains(output, "define internal double @helper() nounwind") {
 		t.Errorf("internal function definition missing nounwind attribute:\n%s", output)
 	}
-	if !strings.Contains(output, "define internal void @helper$invoke(ptr %env, i32 %t0, i32 %f0, i64 %p0, i32 %t1, i32 %f1, i64 %p1, i32 %t2, i32 %f2, i64 %p2, i32 %t3, i32 %f3, i64 %p3, ptr %out) nounwind") {
+	if !strings.Contains(output, "define internal void @helper$invoke(ptr %env, i32 %argc, ptr %argv, ptr %out) nounwind") {
 		t.Errorf("invoke adapter definition missing nounwind attribute:\n%s", output)
 	}
 	if !strings.Contains(output, "define internal i32 @__scriptgo_to_int32(double %val) alwaysinline nounwind") {

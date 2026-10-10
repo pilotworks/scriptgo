@@ -372,7 +372,8 @@ typedef struct {
     int has_fields;
     int failed;
     /* keep_undefined writes undefined fields (console output of a match
-     * array's groups) instead of omitting them. */
+     * array's properties and of null-prototype objects) instead of omitting
+     * them. */
     int keep_undefined;
 } json_object_writer;
 
@@ -515,8 +516,10 @@ static int json_write_tuple_element(const char *key, size_t key_len, int index, 
         writer->failed = 1;
         return 1;
     }
-    /* An array element without a JSON value (undefined, a function) is null. */
-    if (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL) {
+    /* In JSON an array element without a JSON value (undefined, a function)
+     * is null; console output prints the value itself. */
+    if (!writer->builder->inspect &&
+        (value.tag == SCRIPTGO_TAG_UNDEFINED || value.tag == SCRIPTGO_TAG_FUNCTION || value.tag == SCRIPTGO_TAG_SYMBOL)) {
         if (jb_append(writer->builder, "null", 4) != 0) writer->failed = 1;
         return writer->failed;
     }
@@ -547,6 +550,19 @@ static int json_append_class_name(json_builder *b, const char *type_name) {
     return 0;
 }
 
+/* A null-prototype object's shape is __null_prototype, optionally followed
+ * by its |length:name key extensions (see regex_groups_object). Console
+ * output tags it with JSON_INSPECT_NULL_PROTOTYPE, which json_inspect_text
+ * expands to Node's "[Object: null prototype] " prefix. */
+#define JSON_NULL_PROTOTYPE_SHAPE "__null_prototype"
+#define JSON_INSPECT_NULL_PROTOTYPE '\x02'
+
+static int json_is_null_prototype(const char *type_name) {
+    size_t length = sizeof(JSON_NULL_PROTOTYPE_SHAPE) - 1;
+    return type_name != NULL && strncmp(type_name, JSON_NULL_PROTOTYPE_SHAPE, length) == 0 &&
+           (type_name[length] == '\0' || type_name[length] == '|');
+}
+
 static int json_builder_object(json_builder *b, void *handle) {
     if (handle == NULL || handle == (void *)&scriptgo_undefined_sentinel) {
         return jb_append(b, "null", 4);
@@ -560,12 +576,15 @@ static int json_builder_object(json_builder *b, void *handle) {
         return jb_char(b, ']');
     }
     if (obj->magic == SCRIPTGO_OBJECT_MAGIC) {
+        int null_prototype = json_is_null_prototype(obj->type_name);
         if (b->inspect && json_append_class_name(b, obj->type_name) != 0) return -1;
+        if (b->inspect && null_prototype && jb_char(b, JSON_INSPECT_NULL_PROTOTYPE) != 0) return -1;
         if (jb_char(b, '{') != 0) return -1;
         /* The field names come from the shared layout walk, so key lists
          * with dynamic extensions, dictionaries and class layouts agree with
-         * property access. */
-        json_object_writer writer = {b, handle, obj, obj->type_name != NULL && strncmp(obj->type_name, "__json__", 8) == 0, 0, 0};
+         * property access. A null-prototype object (a match's groups) owns
+         * every key it lists, so its undefined fields print. */
+        json_object_writer writer = {b, handle, obj, obj->type_name != NULL && strncmp(obj->type_name, "__json__", 8) == 0, 0, 0, null_prototype};
         object_field_visit((const scriptgo_object *)handle, json_write_object_field, &writer);
         if (writer.failed) return -1;
         return jb_char(b, '}');
@@ -1138,6 +1157,13 @@ static int json_inspect_text(char *json, char **out_str) {
             }
             i = end;
             in_string = 0;
+            continue;
+        }
+        if (c == JSON_INSPECT_NULL_PROTOTYPE) {
+            static const char prefix[] = "[Object: null prototype] ";
+            for (size_t j = 0; j + 1 < sizeof(prefix); j++) {
+                if (inspect_append(&out, &length, &capacity, prefix[j]) != 0) goto fail;
+            }
             continue;
         }
         if (!in_string && c == '{' && json[i + 1] == '}') {

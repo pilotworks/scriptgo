@@ -3,9 +3,8 @@
  * [Symbol.match] / [Symbol.matchAll] / [Symbol.search] / [Symbol.replace] /
  * [Symbol.split] algorithms of ECMA-262 over the matcher in runtime.c. */
 
-int scriptgo_closure_invoke_value(void *closure_handle, int32_t arg_count, const scriptgo_value *a1,
-                                  const scriptgo_value *a2, const scriptgo_value *a3, const scriptgo_value *a4,
-                                  scriptgo_value *out_value);
+int scriptgo_closure_invoke_argv(void *closure_handle, int32_t arg_count, const scriptgo_value *args,
+                                 scriptgo_value *out_value);
 int scriptgo_string_from_unknown(const scriptgo_value *value, char **out_str);
 
 /* A growable list of pointers (match arrays or strings). */
@@ -282,29 +281,32 @@ static scriptgo_value regex_value_text(const char *text) {
     return value;
 }
 
-/* regex_call_replacer appends the replacer's result for a match. It is
- * called with (match, ...captures, offset, string) cut to the four
- * arguments a native closure takes. */
+/* regex_call_replacer appends the replacer's result for a match, called as
+ * JavaScript does with (match, ...captures, offset, string[, groups]). */
 static int regex_call_replacer(regex_replace_state *state, const regex_program *program, const regex_match *match,
                                const regex_subject *subject) {
-    scriptgo_value args[4];
-    int count = 0;
-    for (int group = 0; group < program->capture_count && count < 4; group++) {
-        args[count++] = regex_value_text(regex_group_text(match, subject, group));
+    int count = program->capture_count + 3;
+    scriptgo_value *args = calloc((size_t)count, sizeof(scriptgo_value));
+    if (args == NULL) return regex_fail("regex: out of memory");
+    int at = 0;
+    for (int group = 0; group < program->capture_count; group++) {
+        args[at++] = regex_value_text(regex_group_text(match, subject, group));
     }
-    if (count < 4) {
-        scriptgo_value offset = {0};
-        double position = (double)regex_group_start(match, subject, 0);
-        offset.tag = SCRIPTGO_TAG_NUMBER;
-        memcpy(&offset.payload, &position, sizeof(position));
-        args[count++] = offset;
+    double position = (double)regex_group_start(match, subject, 0);
+    args[at].tag = SCRIPTGO_TAG_NUMBER;
+    memcpy(&args[at].payload, &position, sizeof(position));
+    at++;
+    args[at++] = regex_value_text(subject->text);
+    void *groups = regex_groups_object(program, match, subject);
+    if (groups != NULL && groups != (void *)&scriptgo_undefined_sentinel) {
+        args[at].tag = SCRIPTGO_TAG_OBJECT;
+        args[at].payload = (uint64_t)(uintptr_t)groups;
+        at++;
     }
-    if (count < 4) args[count++] = regex_value_text(subject->text);
     scriptgo_value result = {0};
-    if (scriptgo_closure_invoke_value(state->replacer, count, &args[0], count > 1 ? &args[1] : NULL,
-                                      count > 2 ? &args[2] : NULL, count > 3 ? &args[3] : NULL, &result) != 0) {
-        return -1;
-    }
+    int status = scriptgo_closure_invoke_argv(state->replacer, at, args, &result);
+    free(args);
+    if (status != 0) return -1;
     char *text = NULL;
     if (scriptgo_string_from_unknown(&result, &text) != 0 || text == NULL) return -1;
     return regex_builder_append_text(&state->out, text);
