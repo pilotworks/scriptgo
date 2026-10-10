@@ -38,6 +38,9 @@ func arrayElementTag(arrayType ir.Type) int {
 	if strings.HasPrefix(string(elemType), "object:") || elemType == ir.TypeObject {
 		return 5
 	}
+	if strings.HasSuffix(string(elemType), "[]") {
+		return 6
+	}
 	return 0
 }
 

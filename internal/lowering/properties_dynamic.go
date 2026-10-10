@@ -57,8 +57,6 @@ func lowerAnonymousShapeProperty(path string, expression *frontend.SyntaxExpress
 		switch retType {
 		case ir.TypeBool:
 			initVal = "false"
-		case ir.TypeNumber:
-			initVal = "NaN"
 		}
 		function.Body = append(function.Body, ir.Instruction{
 			Op:     ir.OpConst,

@@ -36,7 +36,7 @@ func lowerAssignStatement(path string, statement frontend.SyntaxStatement, funct
 			if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
 				defaultVal = "undefined"
 			} else if varType == ir.TypeNumber {
-				defaultVal = "NaN"
+				defaultVal = "undefined"
 			} else if varType == ir.TypeBool {
 				defaultVal = "false"
 			}
@@ -44,7 +44,7 @@ func lowerAssignStatement(path string, statement frontend.SyntaxStatement, funct
 			if isPointerLikeType(varType) || strings.HasPrefix(string(varType), "object:") || varType == ir.TypeString {
 				defaultVal = "null"
 			} else if varType == ir.TypeNumber {
-				defaultVal = "NaN"
+				defaultVal = "null"
 			} else if varType == ir.TypeBool {
 				defaultVal = "false"
 			}
@@ -204,7 +204,10 @@ func lowerIndexSetStatement(path string, statement frontend.SyntaxStatement, fun
 		if err != nil {
 			return err
 		}
-		if idxType == ir.TypeString || idxType == ir.TypeUnknown {
+		if idxType == ir.TypeString || idxType == ir.TypeUnknown || idxType == ir.TypeSymbol {
+			if idxType == ir.TypeSymbol {
+				idxVal, _ = propertyKeyValue(path, statement.Right.Span, idxVal, idxType, function, counter)
+			}
 			val, _, err := lowerExpression(path, statement.Expression, "", function, env, counter, shapes, signatures)
 			if err != nil {
 				return err

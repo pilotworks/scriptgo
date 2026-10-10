@@ -289,6 +289,23 @@ int scriptgo_array_flat_map_number_scalar(void *handle, void *closure_handle, vo
     return 0;
 }
 
+/* closure_pointer_element is element i of a pointer or boxed-value array as
+ * the (tag, flags, payload) of a closure argument: a boxed unknown[] element
+ * keeps its own tag, a pointer element is passed with the array's element
+ * tag. */
+static scriptgo_value closure_pointer_element(const scriptgo_array_inner *array, int64_t i) {
+    scriptgo_value value = {0};
+    if (array->element_size == sizeof(scriptgo_value)) {
+        memcpy(&value, array->data + (size_t)i * sizeof(scriptgo_value), sizeof(scriptgo_value));
+        return value;
+    }
+    /* A pointer element carries the array's element tag (a symbol[] holds
+     * symbols); untagged arrays hold objects. */
+    value.tag = array->element_tag == SCRIPTGO_TAG_SYMBOL || array->element_tag == SCRIPTGO_TAG_ARRAY ? (uint32_t)array->element_tag : 5;
+    value.payload = (int64_t)(uintptr_t)*(void **)(array->data + (size_t)i * sizeof(void *));
+    return value;
+}
+
 int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void **out_array) {
     scriptgo_array_inner *array = handle;
     scriptgo_closure *c = closure_handle;
@@ -301,12 +318,12 @@ int scriptgo_array_map_number_from_ptr(void *handle, void *closure_handle, void 
     }
     res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
-        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        scriptgo_value item = closure_pointer_element(array, i);
         union { double d; int64_t i; } u_idx;
         u_idx.d = (double)i;
         double (*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (double (*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        double mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        double mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         memcpy(res->data + (size_t)i * sizeof(double), &mapped, sizeof(double));
     }
     return 0;
@@ -394,12 +411,12 @@ int scriptgo_array_map_string_from_ptr(void *handle, void *closure_handle, void 
     }
     res = *out_array;
     for (int64_t i = 0; i < array->length; i++) {
-        void *item = *(void **)(array->data + (size_t)i * sizeof(void *));
+        scriptgo_value item = closure_pointer_element(array, i);
         union { double d; int64_t i; } u_idx;
         u_idx.d = (double)i;
         char *(*fn)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t) =
             (char *(*)(void *, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t, int32_t, int32_t, int64_t))c->fn_ptr;
-        char *mapped = fn(c->env, 5, 0, (int64_t)(uintptr_t)item, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
+        char *mapped = fn(c->env, item.tag, item.flags, item.payload, 3, 0, u_idx.i, 0, 0, 0, 0, 0, 0);
         memcpy(res->data + (size_t)i * sizeof(char *), &mapped, sizeof(char *));
     }
     return 0;

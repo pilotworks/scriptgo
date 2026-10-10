@@ -186,7 +186,7 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 		MinArgs:  1,
 		MaxArgs:  1,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			_, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+			object, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
 			if err != nil {
 				return "", "", err
 			}
@@ -194,14 +194,8 @@ func registerObjectIntrinsics(m map[string]BuiltinIntrinsic) {
 			if result == "" {
 				result = nextTemp(call.Counter)
 			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:         ir.OpArray,
-				Type:       ir.Type("symbol[]"),
-				Result:     result,
-				FieldCount: 0,
-				Span:       toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, ir.Type("symbol[]"), nil
+			call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeSymbolArray, Result: result, Callee: "__object.ownSymbols", Args: []string{object}, Span: toIRSpan(call.Path, call.Expression.Span)})
+			return result, ir.TypeSymbolArray, nil
 		},
 	}
 	registerSimpleObj([]string{"Object.getPrototypeOf"}, "__object.getPrototypeOf", ir.TypeObject, 1, 1)

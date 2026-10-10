@@ -93,10 +93,14 @@ type SyntaxStatement struct {
 	CatchVarSpan         SourceSpan
 	Catch                []SyntaxStatement
 	Finally              []SyntaxStatement
-	Class                *SyntaxClass
-	Enum                 *SyntaxEnum
-	IsGenerator          bool
-	IsAsync              bool
+	// HasCatch and HasFinally record a try statement's clauses, which an
+	// empty Catch or Finally block cannot tell apart from an absent one.
+	HasCatch    bool
+	HasFinally  bool
+	Class       *SyntaxClass
+	Enum        *SyntaxEnum
+	IsGenerator bool
+	IsAsync     bool
 }
 
 type SyntaxSwitchCase struct {
@@ -217,6 +221,11 @@ type SyntaxExpression struct {
 	WhenTrue      *SyntaxExpression
 	WhenFalse     *SyntaxExpression
 	Function      *SyntaxStatement
+	// ThisBinding classifies a `this` expression by its nearest this
+	// container: "caller" for a function declaration or expression (bound by
+	// the call site), "object" for an object literal method or accessor, and
+	// empty for class members, modules, and other expressions.
+	ThisBinding string
 }
 
 // ProgramResult contains the resolved files and all frontend diagnostics.

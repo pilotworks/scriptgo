@@ -69,7 +69,7 @@ func isUnknownType(typ string) bool {
 }
 
 func isOrContainsAny(typ string) bool {
-	typ = strings.ToLower(strings.TrimSpace(typ))
+	typ = strings.ToLower(strings.TrimSpace(withoutIteratorDefaultAny(typ)))
 	if typ == "" {
 		return false
 	}

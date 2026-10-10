@@ -96,6 +96,8 @@ func propertyKeyString(function *ir.Function, counter *int, span ir.SourceSpan, 
 		callee = "__string.fromBool"
 	case ir.TypeUnknown:
 		callee = "__string.fromUnknown"
+	case ir.TypeSymbol:
+		callee = "__symbol.propertyKey" // see propertyKeyValue
 	default:
 		return "", fmt.Errorf("property key of type %s is not supported by this check in the native subset", keyType)
 	}

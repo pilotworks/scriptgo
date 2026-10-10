@@ -369,6 +369,19 @@ func (c *compatibilityCollector) expression(path string, expression *frontend.Sy
 		case "unsupported":
 			c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, expression.Text, "", false)
 			classified = true
+		case "identifier":
+			if isJavaScriptFile(path) {
+				// JavaScript files run with JavaScript `this` semantics.
+				break
+			}
+			switch expression.ThisBinding {
+			case "caller":
+				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "call-site `this` in a function declaration or function expression", "use a class method or an arrow function", false)
+				classified = true
+			case "object":
+				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "`this` in an object literal method", "use a class, or reference the object by name", false)
+				classified = true
+			}
 		case "bigint":
 			if _, ok := bigIntLiteralValue(expression.Text); !ok {
 				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "bigint literal outside the native 64-bit range", "", false)
@@ -429,7 +442,7 @@ func knownStatementKind(kind string) bool {
 
 func knownExpressionKind(kind string) bool {
 	switch kind {
-	case "as", "non_null", "identifier", "number", "bigint", "regex", "string", "bool", "null", "undefined", "arrow_function", "array", "object_literal", "property_assignment", "spread", "optional_index", "index", "optional_property", "property", "new", "typeof", "await", "yield", "yield_star", "unary", "postfix_unary", "binary", "template", "tagged_template", "conditional", "call", "optional_call":
+	case "as", "non_null", "identifier", "number", "bigint", "regex", "string", "bool", "null", "undefined", "arrow_function", "array", "object_literal", "property_assignment", "computed_property", "spread", "optional_index", "index", "optional_property", "property", "new", "typeof", "await", "yield", "yield_star", "unary", "postfix_unary", "binary", "template", "tagged_template", "conditional", "call", "optional_call":
 		return true
 	}
 	return false

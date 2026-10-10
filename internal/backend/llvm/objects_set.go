@@ -138,7 +138,12 @@ func (e *functionEmitter) emitFieldSet(out *strings.Builder, instruction ir.Inst
 		if (actualType == "ptr" || actualType == ir.TypePointer || actualType == ir.TypeVoid) && valueType == ir.TypeNumber {
 			nanVar := fmt.Sprintf("nan.%d", e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = fdiv double 0.0, 0.0\n", nanVar))
+			// undefined (a void value) or null stored into a number field.
+			marker := numberMarkerBits["null"]
+			if actualType == ir.TypeVoid {
+				marker = numberMarkerBits["undefined"]
+			}
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %s to double\n", nanVar, marker))
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_number_set(ptr %s, i64 %d, double %%%s)\n", status, ptrObj, instruction.FieldIndex, nanVar))
 		} else {
 			out.WriteString(fmt.Sprintf("  %%%s = call i32 @scriptgo_object_ptr_set(ptr %s, i64 %d, ptr %%%s)\n", status, ptrObj, instruction.FieldIndex, valArg))

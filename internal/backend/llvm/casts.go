@@ -27,9 +27,23 @@ func (e *functionEmitter) emitBoxValue(out *strings.Builder, argVal string, argT
 
 	switch argType {
 	case ir.TypeNumber:
-		tag = 3 // SCRIPTGO_TAG_NUMBER
+		// Number storage holds undefined and null as markers
+		// (numberMarkerBits); they box as their own tags.
+		bits := fmt.Sprintf("box.bits.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", bits, argVal))
+		isUndefined := fmt.Sprintf("box.is_undef.%d", id)
+		isNull := fmt.Sprintf("box.is_null.%d", id)
+		nullOrNumber := fmt.Sprintf("box.null_or_number.%d", id)
+		tagValue := fmt.Sprintf("tag.%d", id)
+		isMarker := fmt.Sprintf("box.is_marker.%d", id)
 		payloadVal = fmt.Sprintf("payload.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", payloadVal, argVal))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isUndefined, bits, numberMarkerBits["undefined"]))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isNull, bits, numberMarkerBits["null"]))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i32 1, i32 3\n", nullOrNumber, isNull))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i32 0, i32 %%%s\n", tagValue, isUndefined, nullOrNumber))
+		out.WriteString(fmt.Sprintf("  %%%s = or i1 %%%s, %%%s\n", isMarker, isUndefined, isNull))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i64 0, i64 %%%s\n", payloadVal, isMarker, bits))
+		tagOperand = "%" + tagValue
 	case ir.TypeBool:
 		tag = 2 // SCRIPTGO_TAG_BOOLEAN
 		payloadVal = fmt.Sprintf("payload.%d", id)
@@ -220,11 +234,20 @@ func (e *functionEmitter) emitCheckedCast(out *strings.Builder, instruction ir.I
 	out.WriteString(fmt.Sprintf("\n%s:\n", castOk))
 	switch instruction.Type {
 	case ir.TypeNumber:
-		dblVal := fmt.Sprintf("cast.dbl.%d", id)
 		isNotNumber := fmt.Sprintf("cast.not_num.%d", id)
-		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s to double\n", dblVal, rawPayload))
 		out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 3\n", isNotNumber, tagVar))
-		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, double 0x7FF8000000000000, double %%%s\n", instruction.Result, isNotNumber, dblVal))
+		// undefined and null keep their number-storage markers; any
+		// other non-number becomes NaN.
+		isUndefined := fmt.Sprintf("cast.is_undef.%d", id)
+		isNull := fmt.Sprintf("cast.is_null.%d", id)
+		marker := fmt.Sprintf("cast.marker.%d", id)
+		markerOrNaN := fmt.Sprintf("cast.marker_or_nan.%d", id)
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 0\n", isUndefined, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = icmp eq i32 %%%s, 1\n", isNull, tagVar))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i64 %s, i64 %s\n", marker, isNull, numberMarkerBits["null"], numberMarkerBits["NaN"]))
+		out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, i64 %s, i64 %%%s\n", markerOrNaN, isUndefined, numberMarkerBits["undefined"], marker))
+		out.WriteString(fmt.Sprintf("  %%%s.bits = select i1 %%%s, i64 %%%s, i64 %%%s\n", instruction.Result, isNotNumber, markerOrNaN, rawPayload))
+		out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %%%s.bits to double\n", instruction.Result, instruction.Result))
 	case ir.TypeBool:
 		out.WriteString(fmt.Sprintf("  %%%s = trunc i64 %%%s to i1\n", instruction.Result, rawPayload))
 	case ir.TypeBigInt:
@@ -332,10 +355,11 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 			out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", instruction.Result, isNonNull, fnPtr, undefPtr))
 			return nil
 		}
+		if argType == ir.TypeNumber {
+			return e.emitNumberTypeOf(out, instruction.Result, e.resolveArg(out, arg))
+		}
 		var typeStr string
 		switch {
-		case argType == ir.TypeNumber:
-			typeStr = "number"
 		case argType == ir.TypeString:
 			typeStr = "string"
 		case argType == ir.TypeBool:
@@ -360,5 +384,43 @@ func (e *functionEmitter) emitTypeOf(out *strings.Builder, instruction ir.Instru
 		return err
 	}
 	out.WriteString(fmt.Sprintf("  %%%s = call ptr @__scriptgo_typeof_unknown(ptr %s)\n", instruction.Result, valuePtr))
+	return nil
+}
+
+// emitNumberTypeOf is typeof for a value in number storage, where undefined
+// and null are markers (numberMarkerBits): "undefined", "object" or "number".
+func (e *functionEmitter) emitNumberTypeOf(out *strings.Builder, result, value string) error {
+	id := e.loadCounter
+	e.loadCounter++
+	name := func(text string) (string, error) {
+		global, ok := e.stringsByValue[text]
+		if !ok {
+			return "", fmt.Errorf("typeof string %q is not interned", text)
+		}
+		ptr := fmt.Sprintf("typeof.num.%s.%d", text, id)
+		out.WriteString(fmt.Sprintf("  %%%s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", ptr, len(text)+1, global))
+		return ptr, nil
+	}
+	numberPtr, err := name("number")
+	if err != nil {
+		return err
+	}
+	undefinedPtr, err := name("undefined")
+	if err != nil {
+		return err
+	}
+	objectPtr, err := name("object")
+	if err != nil {
+		return err
+	}
+	bits := fmt.Sprintf("typeof.num.bits.%d", id)
+	isUndefined := fmt.Sprintf("typeof.num.is_undef.%d", id)
+	isNull := fmt.Sprintf("typeof.num.is_null.%d", id)
+	nullOrNumber := fmt.Sprintf("typeof.num.null_or_number.%d", id)
+	out.WriteString(fmt.Sprintf("  %%%s = bitcast double %%%s to i64\n", bits, value))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isUndefined, bits, numberMarkerBits["undefined"]))
+	out.WriteString(fmt.Sprintf("  %%%s = icmp eq i64 %%%s, %s\n", isNull, bits, numberMarkerBits["null"]))
+	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", nullOrNumber, isNull, objectPtr, numberPtr))
+	out.WriteString(fmt.Sprintf("  %%%s = select i1 %%%s, ptr %%%s, ptr %%%s\n", result, isUndefined, undefinedPtr, nullOrNumber))
 	return nil
 }

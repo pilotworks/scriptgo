@@ -305,6 +305,9 @@ func lowerIndexExpression(path string, expression *frontend.SyntaxExpression, re
 			if result == "" {
 				result = nextTemp(counter)
 			}
+			if indexType == ir.TypeSymbol {
+				index, _ = propertyKeyValue(path, expression.Right.Span, index, indexType, function, counter)
+			}
 			retType := ir.TypeString
 			if expression.InferredType != "" {
 				retType = toIRType(expression.InferredType)

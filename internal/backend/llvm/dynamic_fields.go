@@ -91,7 +91,12 @@ func (e *functionEmitter) emitDynamicFieldSet(out *strings.Builder, instruction 
 	if expectedType == ir.TypeNumber && (actualType == ir.TypePointer || actualType == ir.TypeVoid) {
 		nan := fmt.Sprintf("dynamic.field.nan.%d", e.loadCounter)
 		e.loadCounter++
-		fmt.Fprintf(out, "  %%%s = fdiv double 0.0, 0.0\n", nan)
+		// undefined (a void value) or null stored into a number field.
+		marker := numberMarkerBits["null"]
+		if actualType == ir.TypeVoid {
+			marker = numberMarkerBits["undefined"]
+		}
+		fmt.Fprintf(out, "  %%%s = bitcast i64 %s to double\n", nan, marker)
 		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_object_property_number_set(ptr %s, ptr %%%s, double %%%s)\n", status, object, property, nan)
 	} else {
 		switch actualType {

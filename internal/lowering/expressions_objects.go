@@ -12,6 +12,9 @@ import (
 )
 
 func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
+	if hasComputedProperties(expression) {
+		return lowerObjectLiteralWithSymbolKeys(path, expression, result, function, env, counter, shapes, signatures)
+	}
 	if len(expression.Arguments) == 0 {
 		shapeName := "__shape_empty"
 		if expression.InferredType != "" {
@@ -57,10 +60,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			}
 			defVal := "undefined"
 			defType := field.Type
-			switch field.Type {
-			case ir.TypeNumber:
-				defVal = "NaN"
-			case ir.TypeBool:
+			if field.Type == ir.TypeBool {
 				defVal = "false"
 			}
 			defConst := nextTemp(counter)
@@ -417,9 +417,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 			}
 			defVal := "undefined"
 			defType := field.Type
-			if field.Type == ir.TypeNumber {
-				defVal = "NaN"
-			} else if field.Type == ir.TypeBool {
+			if field.Type == ir.TypeBool {
 				defVal = "false"
 			}
 			defConst := nextTemp(counter)

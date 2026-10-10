@@ -18,6 +18,9 @@ func lowerCallExpression(
 	shapes map[string]ir.ObjectShape,
 	signatures map[string]ir.Function,
 ) (string, ir.Type, error) {
+	if typed := typedFilledArray(expression); typed != nil {
+		expression = typed
+	}
 	if expression.Left != nil && expression.Left.Kind == "identifier" {
 		if dynamic, ok := dynamicImports[expression.Left.Text]; ok {
 			return lowerDynamicImportCall(path, expression, result, function, env, counter, shapes, signatures, dynamic)
@@ -161,6 +164,9 @@ func lowerCallExpression(
 					if className != "" && className != "number" && className != "string" && className != "bool" && className != "void" {
 						if target, mangled, ok := findMethodInHierarchy(className, methodName, signatures, classHierarchy); ok {
 							return lowerInstanceMethodCall(path, expression, result, function, env, counter, shapes, signatures, receiver, target, mangled)
+						}
+						if methodName == "next" && len(expression.Arguments) == 0 && strings.HasPrefix(className, "Generator_") {
+							return lowerGeneratorNextMethod(path, expression, receiver, className, result, function, shapes, counter)
 						}
 						if methodName == "hasOwnProperty" || methodName == "propertyIsEnumerable" {
 							if len(expression.Arguments) > 0 {
@@ -361,7 +367,12 @@ func lowerCallExpression(
 		args = append(args, receiver)
 		paramOffset = 1
 	}
-	for aIdx, argument := range expression.Arguments {
+	restIndex := restParameterIndex(target, callee)
+	arguments, restPacked, err := spreadRestArguments(expression.Arguments, expression.Span, target, restIndex, paramOffset, false)
+	if err != nil {
+		return "", "", err
+	}
+	for aIdx, argument := range arguments {
 		pIdx := aIdx + paramOffset
 		if argument.Kind == "array" && pIdx < len(target.Parameters) {
 			paramType := target.Parameters[pIdx].Type
@@ -409,7 +420,7 @@ func lowerCallExpression(
 		hasRest := (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0
 		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
 		fixed := len(target.Parameters) - 1
-		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed)
+		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed && !restPacked)
 		if needsUnknownBox && valType != ir.TypeUnknown {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
@@ -456,7 +467,7 @@ func lowerCallExpression(
 		args = append(args, value)
 	}
 
-	if (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+	if !restPacked && (restParamsIndex[callee] || restParamsIndex[strings.Split(callee, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
 		restType := target.Parameters[len(target.Parameters)-1].Type
 		fixed := len(target.Parameters) - 1
 		if len(args) >= fixed {
@@ -484,6 +495,10 @@ func lowerCallExpression(
 			}
 		}
 		for i := len(args); i < len(target.Parameters); i++ {
+			if i == restIndex {
+				args = append(args, emptyRestArray(path, expression.Span, target.Parameters[i].Type, function, counter))
+				continue
+			}
 			if defaults != nil {
 				if initExpr, ok := defaults[i]; ok {
 					initExpr = substituteParamIdentifiers(initExpr, paramMap)
@@ -493,7 +508,7 @@ func lowerCallExpression(
 							Op:     ir.OpConst,
 							Type:   ir.TypeNumber,
 							Result: numConst,
-							Value:  "0",
+							Value:  initExpr.Kind, // number storage holds undefined and null as markers
 							Span:   toIRSpan(path, initExpr.Span),
 						})
 						args = append(args, numConst)
@@ -593,7 +608,7 @@ func lowerCallExpression(
 					Op:     ir.OpConst,
 					Type:   ir.TypeNumber,
 					Result: numConst,
-					Value:  "0",
+					Value:  "undefined", // an omitted argument
 					Span:   toIRSpan(path, expression.Span),
 				})
 				args = append(args, numConst)

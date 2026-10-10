@@ -35,7 +35,7 @@ func lowerUnaryExpression(path string, expression *frontend.SyntaxExpression, re
 					return "", "", err
 				}
 				// Property keys are strings: ToPropertyKey of a primitive.
-				propVal, _ = coercePrimitiveToString(path, expression.Left.Right.Span, pv, pvType, function, counter)
+				propVal, _ = propertyKeyValue(path, expression.Left.Right.Span, pv, pvType, function, counter)
 			}
 			if result == "" {
 				result = nextTemp(counter)

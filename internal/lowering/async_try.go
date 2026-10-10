@@ -74,7 +74,7 @@ func lowerStructuredAsyncTry(path string, statement frontend.SyntaxStatement, lo
 	fulfilled.Body = append(fulfilled.Body,
 		ir.Instruction{Op: ir.OpCheckedCast, Type: await.Type, Result: await.Result, Args: []string{"__resume_raw"}, Span: await.Span},
 	)
-	fulfilled.Body = append(fulfilled.Body, rewriteAsyncTryPath(bodySegments[1], tryInstruction.CatchVar, tryInstruction.Catch, catchFinally, tail, promiseName, frameName, await.Span)...)
+	fulfilled.Body = append(fulfilled.Body, rewriteAsyncTryPath(bodySegments[1], tryInstruction.CatchVar, tryInstruction.HasCatch, tryInstruction.Catch, catchFinally, tail, promiseName, frameName, await.Span)...)
 	if !instructionListTerminates(fulfilled.Body) {
 		fulfilled.Body = append(fulfilled.Body, settleAsyncVoid(promiseName, frameName, await.Span)...)
 	}
@@ -86,10 +86,16 @@ func lowerStructuredAsyncTry(path string, statement frontend.SyntaxStatement, lo
 		Captured:   asyncCapturedParameters(captures, valueTypes, promiseName),
 		ReturnType: ir.TypeVoid,
 	}
-	if tryInstruction.CatchVar != "" {
-		rejected.Body = append(rejected.Body, ir.Instruction{Op: ir.OpCheckedCast, Type: ir.Type("object:Error"), Result: tryInstruction.CatchVar, Args: []string{"__resume_raw"}, Span: await.Span})
+	if !tryInstruction.HasCatch {
+		// Without a catch clause the rejection propagates after finally.
+		rethrow := ir.Instruction{Op: ir.OpThrow, Type: ir.TypeVoid, Args: []string{"__resume_raw"}, Span: await.Span}
+		rejected.Body = append(rejected.Body, rewriteAsyncTryPath([]ir.Instruction{rethrow}, "", false, nil, finally, nil, promiseName, frameName, await.Span)...)
+	} else {
+		if tryInstruction.CatchVar != "" {
+			rejected.Body = append(rejected.Body, ir.Instruction{Op: ir.OpCheckedCast, Type: ir.Type("object:Error"), Result: tryInstruction.CatchVar, Args: []string{"__resume_raw"}, Span: await.Span})
+		}
+		rejected.Body = append(rejected.Body, rewriteAsyncTryPath(tryInstruction.Catch, "", false, nil, catchFinally, tail, promiseName, frameName, await.Span)...)
 	}
-	rejected.Body = append(rejected.Body, rewriteAsyncTryPath(tryInstruction.Catch, "", nil, catchFinally, tail, promiseName, frameName, await.Span)...)
 	if !instructionListTerminates(rejected.Body) {
 		rejected.Body = append(rejected.Body, settleAsyncVoid(promiseName, frameName, await.Span)...)
 	}
@@ -107,16 +113,16 @@ func lowerStructuredAsyncTry(path string, statement frontend.SyntaxStatement, lo
 // rewriteAsyncTryPath preserves try/finally ordering when a continuation path
 // contains a terminal return or throw. A terminal instruction must not be
 // emitted before finally; doing so changes JavaScript completion semantics.
-func rewriteAsyncTryPath(body []ir.Instruction, catchVar string, catchBody, finally, tail []ir.Instruction, promiseName, frameName string, span ir.SourceSpan) []ir.Instruction {
+func rewriteAsyncTryPath(body []ir.Instruction, catchVar string, hasCatch bool, catchBody, finally, tail []ir.Instruction, promiseName, frameName string, span ir.SourceSpan) []ir.Instruction {
 	result := make([]ir.Instruction, 0, len(body)+len(catchBody)+len(finally)+len(tail)+4)
 	for _, instruction := range body {
 		switch instruction.Op {
 		case ir.OpThrow:
-			if len(catchBody) > 0 {
+			if hasCatch {
 				if catchVar != "" && len(instruction.Args) > 0 {
 					result = append(result, ir.Instruction{Op: ir.OpCheckedCast, Type: ir.Type("object:Error"), Result: catchVar, Args: []string{instruction.Args[0]}, Span: instruction.Span})
 				}
-				result = append(result, rewriteAsyncTryPath(catchBody, "", nil, finally, tail, promiseName, frameName, span)...)
+				result = append(result, rewriteAsyncTryPath(catchBody, "", false, nil, finally, tail, promiseName, frameName, span)...)
 			} else {
 				result = append(result, finally...)
 				if len(instruction.Args) > 0 {
@@ -127,6 +133,9 @@ func rewriteAsyncTryPath(body []ir.Instruction, catchVar string, catchBody, fina
 			return result
 		case ir.OpReturn:
 			result = append(result, finally...)
+			if isAsyncTailReturn(instruction) {
+				return append(result, asyncTailCall(instruction, ir.TypeVoid, promiseName, frameName)...)
+			}
 			value := "__async.undefined"
 			if len(instruction.Args) > 0 {
 				value = instruction.Args[0]

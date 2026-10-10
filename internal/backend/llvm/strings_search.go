@@ -24,7 +24,7 @@ func (e *functionEmitter) emitStringSearchIntrinsic(out *strings.Builder, instru
 		if (len(instruction.Args) != 2 && len(instruction.Args) != 3) || instruction.Type != ir.TypeNumber {
 			return fmt.Errorf("string.lastIndexOf has invalid signature")
 		}
-		position := "-1.0"
+		position := "0x7FF0000000000000" // an omitted position searches from the end
 		if len(instruction.Args) == 3 {
 			position = "%" + instruction.Args[2]
 		}
@@ -113,15 +113,15 @@ func (e *functionEmitter) emitStringSearchIntrinsic(out *strings.Builder, instru
 		if len(instruction.Args) != 3 {
 			return fmt.Errorf("string.matchAll has invalid signature")
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_match(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_match_all(ptr %%%s, ptr %%%s, ptr %%%s, ptr %%__slot_ptr)\n", status, instruction.Args[0], instruction.Args[1], instruction.Args[2])
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load ptr, ptr %%__slot_ptr\n", instruction.Result)
 	case "__string.localeCompare":
-		other := "\"\""
+		other := "@scriptgo_undefined_sentinel" // compares with "undefined"
 		if len(instruction.Args) >= 2 {
 			other = "%" + instruction.Args[1]
 		}
-		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_index_of(ptr %%%s, ptr %s, double 0.0, ptr %%__slot_double)\n", status, instruction.Args[0], other)
+		fmt.Fprintf(out, "  %%%s = call i32 @scriptgo_string_locale_compare(ptr %%%s, ptr %s, ptr %%__slot_double)\n", status, instruction.Args[0], other)
 		fmt.Fprintf(out, "  call void @scriptgo_runtime_abort_if_failed(i32 %%%s)\n", status)
 		fmt.Fprintf(out, "  %%%s = load double, ptr %%__slot_double\n", instruction.Result)
 	}

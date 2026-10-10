@@ -18,6 +18,9 @@ typedef struct {
     /* Integrity level from Object.preventExtensions/seal/freeze (offset 48):
      * 0 extensible, 1 non-extensible, 2 sealed, 3 frozen. */
     int64_t integrity;
+    /* Named non-index properties as an object handle, or NULL: a RegExp
+     * match result's index, input and groups (offset 56). */
+    void *properties;
 } scriptgo_array;
 
 enum {
@@ -96,6 +99,20 @@ int scriptgo_array_new(int64_t length, int64_t element_size, void **out_array);
 int scriptgo_array_new_tagged(int64_t length, int64_t element_size, int64_t element_tag, void **out_array) {
     if (scriptgo_array_new(length, element_size, out_array) != 0) return -1;
     ((scriptgo_array *)*out_array)->element_tag = element_tag;
+    return 0;
+}
+
+int scriptgo_array_set_properties(void *handle, void *properties) {
+    scriptgo_array *array = handle;
+    if (array == NULL) return fail("scriptgo array null");
+    array->properties = properties;
+    return 0;
+}
+
+int scriptgo_array_properties(void *handle, void **out_properties) {
+    scriptgo_array *array = handle;
+    if (out_properties == NULL) return fail("scriptgo array properties: null out");
+    *out_properties = array != NULL ? array->properties : NULL;
     return 0;
 }
 

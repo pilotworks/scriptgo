@@ -40,68 +40,7 @@ func registerObjectEnumerationIntrinsics(m map[string]BuiltinIntrinsic) {
 		MinArgs:  1,
 		MaxArgs:  1,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			objVal, objType, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-			if err != nil {
-				return "", "", err
-			}
-			result := call.Result
-			if result == "" {
-				result = nextTemp(call.Counter)
-			}
-
-			if after, ok := strings.CutPrefix(string(objType), "object:"); ok {
-				className := after
-				shape, exists := call.Shapes[className]
-				if exists {
-					elemType := ir.TypeNumber
-					if len(shape.Fields) > 0 {
-						elemType = shape.Fields[0].Type
-					}
-					arrayType := ir.TypeNumberArray
-					if elemType == ir.TypeString {
-						arrayType = ir.TypeStringArray
-					}
-					call.Function.Body = append(call.Function.Body, ir.Instruction{
-						Op:         ir.OpArray,
-						Type:       arrayType,
-						Result:     result,
-						FieldCount: len(shape.Fields),
-						Span:       toIRSpan(call.Path, call.Expression.Span),
-					})
-					for i, f := range shape.Fields {
-						fieldVal := nextTemp(call.Counter)
-						call.Function.Body = append(call.Function.Body, ir.Instruction{
-							Op:         ir.OpFieldGet,
-							Type:       f.Type,
-							Result:     fieldVal,
-							Args:       []string{objVal},
-							Field:      f.Name,
-							FieldIndex: i,
-							Span:       toIRSpan(call.Path, call.Expression.Span),
-						})
-						pushRes := nextTemp(call.Counter)
-						call.Function.Body = append(call.Function.Body, ir.Instruction{
-							Op:     ir.OpCall,
-							Type:   ir.TypeNumber,
-							Result: pushRes,
-							Callee: "__array.push",
-							Args:   []string{result, fieldVal},
-							Span:   toIRSpan(call.Path, call.Expression.Span),
-						})
-					}
-					return result, arrayType, nil
-				}
-			}
-
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.TypeNumberArray,
-				Result: result,
-				Callee: "__object.values",
-				Args:   []string{objVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, ir.TypeNumberArray, nil
+			return lowerObjectEnumeration(call, "__object.values")
 		},
 	}
 
@@ -111,23 +50,34 @@ func registerObjectEnumerationIntrinsics(m map[string]BuiltinIntrinsic) {
 		MinArgs:  1,
 		MaxArgs:  1,
 		Lower: func(call IntrinsicCall, intrinsic BuiltinIntrinsic) (string, ir.Type, error) {
-			objVal, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
-			if err != nil {
-				return "", "", err
-			}
-			result := call.Result
-			if result == "" {
-				result = nextTemp(call.Counter)
-			}
-			call.Function.Body = append(call.Function.Body, ir.Instruction{
-				Op:     ir.OpCall,
-				Type:   ir.Type("[string,unknown][]"),
-				Result: result,
-				Callee: "__object.entries",
-				Args:   []string{objVal},
-				Span:   toIRSpan(call.Path, call.Expression.Span),
-			})
-			return result, ir.Type("[string,unknown][]"), nil
+			return lowerObjectEnumeration(call, "__object.entries")
 		},
 	}
+}
+
+// lowerObjectEnumeration lowers Object.values/entries to the runtime walk of
+// the fields the object actually has (absent optional fields are skipped).
+// The result is the array type TypeScript gives the call, so values land in
+// that element layout and entries are [key, value] tuples.
+func lowerObjectEnumeration(call IntrinsicCall, callee string) (string, ir.Type, error) {
+	object, _, err := call.LowerExpression(call.Path, call.Expression.Arguments[0], "", call.Function, call.Env, call.Counter, call.Shapes, call.Signatures)
+	if err != nil {
+		return "", "", err
+	}
+	resultType := toIRType(call.Expression.InferredType)
+	if declared := call.Env["__storage_type."+call.Result]; call.Result != "" && strings.HasSuffix(string(declared), "[]") &&
+		(resultType == ir.TypeUnknownArray || !strings.HasSuffix(string(resultType), "[]")) {
+		// TypeScript types Object.values(instance) as any[]; the declared
+		// variable type gives the element layout.
+		resultType = declared
+	}
+	if !strings.HasSuffix(string(resultType), "[]") {
+		resultType = ir.TypeUnknownArray
+	}
+	result := call.Result
+	if result == "" {
+		result = nextTemp(call.Counter)
+	}
+	call.Function.Body = append(call.Function.Body, ir.Instruction{Op: ir.OpCall, Type: resultType, Result: result, Callee: callee, Args: []string{object}, Span: toIRSpan(call.Path, call.Expression.Span)})
+	return result, resultType, nil
 }

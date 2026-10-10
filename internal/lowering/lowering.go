@@ -76,6 +76,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	if err != nil {
 		return ir.Module{}, err
 	}
+	program = desugarGeneratorMethods(program)
 	if err := validateSubsetLocked(program, options); err != nil {
 		return ir.Module{}, err
 	}
@@ -140,6 +141,7 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		{Name: "TextEncoderEncodeIntoResult", Fields: []ir.Field{{Name: "read", Type: ir.TypeNumber}, {Name: "written", Type: ir.TypeNumber}}},
 		{Name: "IteratorResult", Fields: []ir.Field{{Name: "done", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}}},
 		{Name: "TypedPropertyDescriptor", Fields: []ir.Field{{Name: "enumerable", Type: ir.TypeBool}, {Name: "configurable", Type: ir.TypeBool}, {Name: "writable", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}, {Name: "get", Type: ir.TypeClosure}, {Name: "set", Type: ir.TypeClosure}}},
+		regExpMatchPropertiesShape,
 		{Name: "PropertyDescriptor", Fields: []ir.Field{{Name: "enumerable", Type: ir.TypeBool}, {Name: "configurable", Type: ir.TypeBool}, {Name: "writable", Type: ir.TypeBool}, {Name: "value", Type: ir.TypeUnknown}, {Name: "get", Type: ir.TypeClosure}, {Name: "set", Type: ir.TypeClosure}}},
 	}
 	for _, s := range builtinShapes {

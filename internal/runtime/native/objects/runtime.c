@@ -495,8 +495,16 @@ int scriptgo_gc_register(void *ptr, int tag, uint32_t field_count);
 int scriptgo_gc_is_registered(void *ptr);
 int scriptgo_gc_unregister(void *ptr);
 
-#define SCRIPTGO_OBJECT_NAN_BITS 0x7FF8000000000000ULL
-#define SCRIPTGO_OBJECT_NULL_BITS 0x7FF8000000000001ULL
+/* Number-storage markers for undefined (an absent field) and null. */
+#define SCRIPTGO_OBJECT_NAN_BITS SCRIPTGO_NUMBER_UNDEFINED_BITS
+#define SCRIPTGO_OBJECT_NULL_BITS SCRIPTGO_NUMBER_NULL_BITS
+
+static double object_undefined_number(void) {
+    uint64_t bits = SCRIPTGO_OBJECT_NAN_BITS;
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
 
 typedef struct scriptgo_slab_node {
     struct scriptgo_slab_node *next;
@@ -919,12 +927,12 @@ int scriptgo_object_number_get(void *handle, int64_t index, double *out_value) {
         return 0;
     }
     if (is_invalid_object_handle(handle) || index < 0) {
-        *out_value = NAN;
+        *out_value = object_undefined_number();
         return 0;
     }
     scriptgo_object *o = (scriptgo_object *)handle;
     if (o->magic != SCRIPTGO_OBJECT_MAGIC || index >= o->field_count) {
-        *out_value = NAN;
+        *out_value = object_undefined_number();
         return 0;
     }
     memcpy(out_value, &o->fields[index], sizeof(*out_value));
@@ -1314,7 +1322,7 @@ static int object_property_index_for_set(void *handle, const char *property) {
 int scriptgo_object_property_number_get(void *handle, const char *property, double *out_value) {
     int index;
     if (out_value == NULL) return object_fail("scriptgo object property number output is invalid");
-    *out_value = NAN;
+    *out_value = object_undefined_number();
     if (is_invalid_object_handle(handle) || property == NULL) return 0;
     scriptgo_engine_ref *ref = find_engine_ref((uintptr_t)handle);
     if (ref != NULL) {
@@ -1938,10 +1946,16 @@ typedef struct {
     size_t storage;
 } object_key_totals;
 
+/* A symbol-keyed property's stored key starts with \x01 (see
+ * scriptgo_symbol_property_key); string-key enumerations skip it. */
+static int object_is_symbol_key(const char *name, size_t length) {
+    return length > 0 && name[0] == '\x01';
+}
+
 static int object_key_total(const char *name, size_t length, int index, void *context) {
     object_key_totals *totals = context;
-    (void)name;
     (void)index;
+    if (object_is_symbol_key(name, length)) return 0;
     totals->count++;
     totals->storage += length + 1;
     return 0;
@@ -1966,15 +1980,18 @@ typedef struct {
     void *array;
     char *storage;
     size_t offset;
+    int position;
     int failed;
 } object_key_writer;
 
 static int object_key_write(const char *name, size_t length, int index, void *context) {
     object_key_writer *writer = context;
+    (void)index;
+    if (object_is_symbol_key(name, length)) return 0;
     char *key = writer->storage + writer->offset;
     memcpy(key, name, length);
     key[length] = '\0';
-    if (scriptgo_array_set(writer->array, (double)index, &key) != 0) {
+    if (scriptgo_array_set(writer->array, (double)writer->position++, &key) != 0) {
         writer->failed = 1;
         return 1;
     }
@@ -2027,7 +2044,7 @@ int scriptgo_object_keys(void *handle, void **out_array) {
         }
     }
     if (count > 0) {
-        object_key_writer writer = {*out_array, storage, storage_offset, 0};
+        object_key_writer writer = {*out_array, storage, storage_offset, 0, 0};
         object_field_visit(object, object_key_write, &writer);
         if (writer.failed) {
             scriptgo_array_release(*out_array);
@@ -2036,6 +2053,102 @@ int scriptgo_object_keys(void *handle, void **out_array) {
         }
     }
     return 0;
+}
+
+int scriptgo_array_set_typed(void *handle, double index, const void *value, int64_t value_size, int64_t tag);
+
+/* Stores value into slot index of an array laid out as element_size bytes
+ * (a full tagged value, a bool byte, or an 8-byte payload). */
+static int object_store_array_value(void *array, int64_t index, int64_t element_size, int64_t element_tag, const scriptgo_value *value) {
+    if (element_size == (int64_t)sizeof(scriptgo_value)) {
+        return scriptgo_array_set_typed(array, (double)index, value, (int64_t)sizeof(scriptgo_value), 0);
+    }
+    if (element_size == 1) {
+        uint8_t flag = value->tag == SCRIPTGO_TAG_BOOLEAN && value->payload != 0;
+        return scriptgo_array_set_typed(array, (double)index, &flag, 1, element_tag);
+    }
+    uint64_t payload = value->payload;
+    if (value->tag == SCRIPTGO_TAG_UNDEFINED || value->tag == SCRIPTGO_TAG_NULL) {
+        if (element_tag == SCRIPTGO_TAG_NUMBER) {
+            double nan = NAN;
+            memcpy(&payload, &nan, sizeof(payload));
+        } else {
+            payload = value->tag == SCRIPTGO_TAG_UNDEFINED ? (uint64_t)(uintptr_t)&scriptgo_undefined_sentinel : 0;
+        }
+    }
+    return scriptgo_array_set_typed(array, (double)index, &payload, element_size, element_tag);
+}
+
+typedef struct {
+    void *object;
+    void *array;
+    int64_t element_size;
+    int64_t element_tag;
+    int entries;
+    int position;
+    int failed;
+} object_enumeration_writer;
+
+static int object_enumerate_field(const char *name, size_t length, int index, void *context) {
+    object_enumeration_writer *writer = context;
+    if (object_is_symbol_key(name, length)) return 0;
+    int position = writer->position++;
+    scriptgo_value value;
+    scriptgo_value_init_undefined(&value);
+    if (scriptgo_object_unknown_get(writer->object, index, &value) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    if (!writer->entries) {
+        if (object_store_array_value(writer->array, position, writer->element_size, writer->element_tag, &value) != 0) writer->failed = 1;
+        return writer->failed;
+    }
+    /* A [key, value] pair is a two-field tuple object, as lowering lays out
+     * a [string, T] tuple. */
+    void *pair = NULL;
+    char *key = malloc(length + 1);
+    if (key == NULL || scriptgo_object_new_typed(2, "::0:1:", &pair) != 0) {
+        free(key);
+        writer->failed = 1;
+        return 1;
+    }
+    memcpy(key, name, length);
+    key[length] = '\0';
+    ((scriptgo_object *)pair)->fields[0] = (uintptr_t)key;
+    ((scriptgo_object *)pair)->field_count = 2;
+    if (scriptgo_object_unknown_set(pair, 1, &value) != 0 ||
+        scriptgo_array_set_typed(writer->array, (double)position, &pair, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+
+static int object_enumerate(void *handle, int entries, int64_t element_size, int64_t element_tag, void **out_array) {
+    if (out_array == NULL) return object_fail("scriptgo object enumeration output is invalid");
+    handle = resolve_object_handle(handle, 0);
+    int count = 0;
+    if (handle != NULL && !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC) {
+        count = object_key_count((scriptgo_object *)handle);
+    }
+    if (scriptgo_array_new(count, element_size, out_array) != 0) return -1;
+    if (scriptgo_array_set_tag(*out_array, element_tag) != 0) return -1;
+    if (count == 0) return 0;
+    object_enumeration_writer writer = {handle, *out_array, element_size, element_tag, entries, 0, 0};
+    object_field_visit((scriptgo_object *)handle, object_enumerate_field, &writer);
+    return writer.failed ? object_fail("scriptgo object enumeration failed") : 0;
+}
+
+/* Object.values: the object's own field values in layout order, written in
+ * the element layout of the static result type. */
+int scriptgo_object_values(void *handle, int64_t element_size, int64_t element_tag, void **out_array) {
+    if (element_size <= 0) return object_fail("scriptgo object values element size is invalid");
+    return object_enumerate(handle, 0, element_size, element_tag, out_array);
+}
+
+/* Object.entries: [key, value] tuple objects for the object's own fields. */
+int scriptgo_object_entries(void *handle, void **out_array) {
+    return object_enumerate(handle, 1, (int64_t)sizeof(void *), SCRIPTGO_TAG_OBJECT, out_array);
 }
 
 int scriptgo_object_release(void *handle) {
@@ -2100,4 +2213,47 @@ int scriptgo_object_group_by(void *handle, void *closure_handle, void **out_obje
         scriptgo_array_push(sub_arr, val_ptr, &dummy);
     }
     return 0;
+}
+
+void *scriptgo_symbol_for_property_key(const char *key, size_t length);
+
+typedef struct {
+    void *array;
+    int position;
+    int failed;
+} object_symbol_writer;
+
+static int object_symbol_total(const char *name, size_t length, int index, void *context) {
+    (void)index;
+    if (object_is_symbol_key(name, length) && scriptgo_symbol_for_property_key(name, length) != NULL) (*(int *)context)++;
+    return 0;
+}
+
+static int object_symbol_write(const char *name, size_t length, int index, void *context) {
+    object_symbol_writer *writer = context;
+    (void)index;
+    if (!object_is_symbol_key(name, length)) return 0;
+    void *symbol = scriptgo_symbol_for_property_key(name, length);
+    if (symbol == NULL) return 0;
+    if (scriptgo_array_set(writer->array, (double)writer->position++, &symbol) != 0) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+
+/* Object.getOwnPropertySymbols: the symbols keying the object's own
+ * properties, in insertion order. */
+int scriptgo_object_own_symbols(void *handle, void **out_array) {
+    if (out_array == NULL) return object_fail("scriptgo object symbols output is invalid");
+    handle = resolve_object_handle(handle, 0);
+    int count = 0;
+    int valid = handle != NULL && !is_invalid_object_handle(handle) && ((scriptgo_object *)handle)->magic == SCRIPTGO_OBJECT_MAGIC;
+    if (valid) object_field_visit((scriptgo_object *)handle, object_symbol_total, &count);
+    if (scriptgo_array_new(count, (int64_t)sizeof(void *), out_array) != 0) return -1;
+    if (scriptgo_array_set_tag(*out_array, SCRIPTGO_TAG_SYMBOL) != 0) return -1;
+    if (count == 0) return 0;
+    object_symbol_writer writer = {*out_array, 0, 0};
+    object_field_visit((scriptgo_object *)handle, object_symbol_write, &writer);
+    return writer.failed ? object_fail("scriptgo object symbols failed") : 0;
 }

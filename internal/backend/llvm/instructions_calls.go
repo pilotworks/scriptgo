@@ -188,7 +188,8 @@ func (e *functionEmitter) emitCall(out *strings.Builder, instruction ir.Instruct
 		} else if hasArgType && argType == ir.TypeVoid && paramType == "double" {
 			nanName := fmt.Sprintf("call.nan.%d", e.loadCounter)
 			e.loadCounter++
-			out.WriteString(fmt.Sprintf("  %%%s = fadd double 0.0, 0x7FF8000000000000\n", nanName))
+			// undefined passed for a number parameter.
+			out.WriteString(fmt.Sprintf("  %%%s = bitcast i64 %s to double\n", nanName, numberMarkerBits["undefined"]))
 			argVal = nanName
 		}
 		callArgs = append(callArgs, fmt.Sprintf("%s %%%s", paramType, argVal))

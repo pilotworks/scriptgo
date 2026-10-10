@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/ir"
@@ -14,22 +15,7 @@ func (e *functionEmitter) emitObjectNew(out *strings.Builder, instruction ir.Ins
 	e.types[instruction.Result] = instruction.Type
 	e.objects = append(e.objects, instruction.Result)
 
-	typeName := instruction.Value
-	if typeName == "" {
-		for _, s := range e.module.Shapes {
-			if s.Name == instruction.Callee && len(s.Fields) > 0 {
-				var names []string
-				for _, f := range s.Fields {
-					names = append(names, f.Name)
-				}
-				typeName = ":" + strings.Join(names, ":") + ":"
-				break
-			}
-		}
-	}
-	if typeName == "" {
-		typeName = instruction.Callee
-	}
+	typeName := objectLayoutName(e.module, instruction)
 	if typeName != "" {
 		if strGlobal, ok := e.stringsByValue[typeName]; ok {
 			out.WriteString(fmt.Sprintf("  %%%s = call ptr @scriptgo_object_new_typed_fast(i64 %d, ptr %s)\n", instruction.Result, instruction.FieldCount, strGlobal))
@@ -110,4 +96,33 @@ func (e *functionEmitter) emitInstanceOf(out *strings.Builder, instruction ir.In
 	out.WriteString(fmt.Sprintf("  %%%s = load i32, ptr %%%s\n", i32Val, slot))
 	out.WriteString(fmt.Sprintf("  %%%s = icmp ne i32 %%%s, 0\n", instruction.Result, i32Val))
 	return nil
+}
+
+// objectLayoutName is the runtime type name a new object carries: the
+// instruction's explicit layout, else its shape's key list (`:a:b:`), else
+// the shape name. A tuple shape's key list starts with an empty segment
+// (`::0:1:`), which the runtime's layout walk skips, so a tuple prints and
+// serializes as an array while an object literal `{ 0: x, 1: y }` keeps
+// the plain `:0:1:` list.
+func objectLayoutName(module ir.Module, instruction ir.Instruction) string {
+	if instruction.Value != "" {
+		return instruction.Value
+	}
+	for _, shape := range module.Shapes {
+		if shape.Name != instruction.Callee || len(shape.Fields) == 0 {
+			continue
+		}
+		names := make([]string, 0, len(shape.Fields))
+		tuple := true
+		for index, field := range shape.Fields {
+			names = append(names, field.Name)
+			tuple = tuple && field.Name == strconv.Itoa(index)
+		}
+		prefix := ":"
+		if tuple {
+			prefix = "::"
+		}
+		return prefix + strings.Join(names, ":") + ":"
+	}
+	return instruction.Callee
 }

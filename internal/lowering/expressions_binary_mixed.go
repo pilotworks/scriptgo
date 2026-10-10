@@ -2,101 +2,19 @@ package lowering
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/pilotworks/scriptgo/internal/frontend"
 	"github.com/pilotworks/scriptgo/internal/ir"
 )
 
-func boxUnknownConcatenationOperands(path string, expression *frontend.SyntaxExpression, function *ir.Function, counter *int, left string, leftType ir.Type, right string, rightType ir.Type) (string, ir.Type, string, ir.Type) {
-	coerce := func(value string, typ ir.Type) (string, ir.Type) {
-		if typ == ir.TypeString {
-			return value, typ
-		}
-		callee := "__string.fromUnknown"
-		switch {
-		case typ == ir.TypeNumber:
-			callee = "__string.fromNumber"
-		case typ == ir.TypeBool:
-			callee = "__string.fromBool"
-		case typ == ir.TypeBigInt:
-			callee = "__string.fromBigInt"
-		case typ == ir.TypeObject || strings.HasPrefix(string(typ), "object:") || isPointerLikeType(typ):
-			callee = "__string.fromObject"
-		}
-		converted := nextTemp(counter)
-		function.Body = append(function.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeString,
-			Result: converted,
-			Callee: callee,
-			Args:   []string{value},
-			Span:   toIRSpan(path, expression.Span),
-		})
-		return converted, ir.TypeString
+func tryLowerMixedTypeBinary(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, env map[string]ir.Type, counter *int, signatures map[string]ir.Function, left *string, leftType *ir.Type, right *string, rightType *ir.Type) (string, ir.Type, bool, error) {
+	if isEquality(expression.Operator) && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
+		value, typ := lowerNumberNullishCompare(path, expression, *left, expression.Right, result, function, counter)
+		return value, typ, true, nil
 	}
-	left, leftType = coerce(left, leftType)
-	right, rightType = coerce(right, rightType)
-
-	return left, leftType, right, rightType
-}
-
-func tryLowerMixedTypeBinary(path string, expression *frontend.SyntaxExpression, result *string, function *ir.Function, env map[string]ir.Type, counter *int, left *string, leftType *ir.Type, right *string, rightType *ir.Type) (string, ir.Type, bool, error) {
-	if (expression.Operator == "!==" || expression.Operator == "!=") && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "==",
-			Args:     []string{*left, *left},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
-	}
-	if (expression.Operator == "===" || expression.Operator == "==") && *leftType == ir.TypeNumber && expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "!=",
-			Args:     []string{*left, *left},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
-	}
-	if (expression.Operator == "!==" || expression.Operator == "!=") && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "==",
-			Args:     []string{*right, *right},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
-	}
-	if (expression.Operator == "===" || expression.Operator == "==") && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
-		if *result == "" {
-			*result = nextTemp(counter)
-		}
-		function.Body = append(function.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   *result,
-			Operator: "!=",
-			Args:     []string{*right, *right},
-			Span:     toIRSpan(path, expression.Span),
-		})
-		return *result, ir.TypeBool, true, nil
+	if isEquality(expression.Operator) && *rightType == ir.TypeNumber && expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null") {
+		value, typ := lowerNumberNullishCompare(path, expression, *right, expression.Left, result, function, counter)
+		return value, typ, true, nil
 	}
 	if isComparison(expression.Operator) && (*leftType == ir.TypeBool || *rightType == ir.TypeBool) && (*leftType == ir.TypeVoid || *rightType == ir.TypeVoid || (expression.Left != nil && (expression.Left.Kind == "undefined" || expression.Left.Kind == "null")) || (expression.Right != nil && (expression.Right.Kind == "undefined" || expression.Right.Kind == "null"))) {
 		if *result == "" {
@@ -179,42 +97,16 @@ func tryLowerMixedTypeBinary(path string, expression *frontend.SyntaxExpression,
 			*rightType = ir.TypeUnknown
 		}
 	} else if expression.Operator == "+" && (*leftType == ir.TypeString || *rightType == ir.TypeString) {
-		if *leftType != ir.TypeString {
-			strTemp := nextTemp(counter)
-			callee := "__string.fromNumber"
-			if *leftType == ir.TypeBool {
-				callee = "__string.fromBool"
-			} else if *leftType == ir.TypeBigInt {
-				callee = "__string.fromBigInt"
-			} else if *leftType == ir.TypeUnknown {
-				callee = "__string.fromUnknown"
-			} else if *leftType == ir.TypeObject || strings.HasPrefix(string(*leftType), "object:") || *leftType == ir.TypePointer {
-				callee = "__string.fromObject"
-			} else if *leftType != ir.TypeNumber {
-				return "", "", true, fmt.Errorf("operator %q does not support %s and %s", expression.Operator, *leftType, *rightType)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{*left}, Span: toIRSpan(path, expression.Span)})
-			*left = strTemp
-			*leftType = ir.TypeString
+		converted, err := lowerToString(path, expression.Left.Span, *left, *leftType, function, counter, signatures)
+		if err != nil {
+			return "", "", true, err
 		}
-		if *rightType != ir.TypeString {
-			strTemp := nextTemp(counter)
-			callee := "__string.fromNumber"
-			if *rightType == ir.TypeBool {
-				callee = "__string.fromBool"
-			} else if *rightType == ir.TypeBigInt {
-				callee = "__string.fromBigInt"
-			} else if *rightType == ir.TypeUnknown {
-				callee = "__string.fromUnknown"
-			} else if *rightType == ir.TypeObject || strings.HasPrefix(string(*rightType), "object:") || *rightType == ir.TypePointer {
-				callee = "__string.fromObject"
-			} else if *rightType != ir.TypeNumber {
-				return "", "", true, fmt.Errorf("operator %q does not support %s and %s", expression.Operator, *leftType, *rightType)
-			}
-			function.Body = append(function.Body, ir.Instruction{Op: ir.OpCall, Type: ir.TypeString, Result: strTemp, Callee: callee, Args: []string{*right}, Span: toIRSpan(path, expression.Span)})
-			*right = strTemp
-			*rightType = ir.TypeString
+		*left, *leftType = converted, ir.TypeString
+		converted, err = lowerToString(path, expression.Right.Span, *right, *rightType, function, counter, signatures)
+		if err != nil {
+			return "", "", true, err
 		}
+		*right, *rightType = converted, ir.TypeString
 	} else if (expression.Operator == "||" || expression.Operator == "&&") &&
 		(*leftType == ir.TypeUnknown || *rightType == ir.TypeUnknown ||
 			(*rightType == ir.TypeVoid && !isPointerLikeType(*leftType))) {

@@ -319,7 +319,7 @@ func TestBuiltinGlobalsCompileToLLVM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output, "0x7FF8000000000000") || !strings.Contains(output, "0x7FF0000000000000") {
+	if !strings.Contains(output, "9221120237041090560") || !strings.Contains(output, "0x7FF0000000000000") {
 		t.Fatalf("LLVM output does not contain builtin number constants:\n%s", output)
 	}
 }

@@ -9,7 +9,12 @@ import (
 
 func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, receiver string, target ir.Function, mangled string) (string, ir.Type, error) {
 	args := []string{receiver}
-	for aIdx, argument := range expression.Arguments {
+	restIndex := restParameterIndex(target, mangled)
+	arguments, restPacked, err := spreadRestArguments(expression.Arguments, expression.Span, target, restIndex, 1, false)
+	if err != nil {
+		return "", "", err
+	}
+	for aIdx, argument := range arguments {
 		pIdx := aIdx + 1
 		if argument.Kind == "array" && (argument.InferredType == "" || argument.InferredType == "never[]" || argument.InferredType == "unknown[]") && pIdx < len(target.Parameters) && strings.HasSuffix(string(target.Parameters[pIdx].Type), "[]") {
 			argument.InferredType = string(target.Parameters[pIdx].Type)
@@ -24,7 +29,7 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 		hasRest := (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0
 		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
 		fixed := len(target.Parameters) - 1
-		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed)
+		needsUnknownBox := (pIdx < len(target.Parameters) && target.Parameters[pIdx].Type == ir.TypeUnknown) || (restIsUnknown && pIdx >= fixed && !restPacked)
 		if needsUnknownBox && valType != ir.TypeUnknown {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
@@ -52,7 +57,7 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 		}
 		args = append(args, argVal)
 	}
-	if (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
+	if !restPacked && (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0 && (strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") || target.Parameters[len(target.Parameters)-1].Type == ir.TypeStringArray || target.Parameters[len(target.Parameters)-1].Type == ir.TypeNumberArray) {
 		restType := target.Parameters[len(target.Parameters)-1].Type
 		fixed := len(target.Parameters) - 1
 		if len(args) >= fixed {
@@ -69,6 +74,10 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 			defaults = defaultParamsIndex[strings.Split(mangled, "__")[0]]
 		}
 		for i := len(args); i < len(target.Parameters); i++ {
+			if i == restIndex {
+				args = append(args, emptyRestArray(path, expression.Span, target.Parameters[i].Type, function, counter))
+				continue
+			}
 			var val string
 			var valType ir.Type
 			paramType := target.Parameters[i].Type
@@ -80,7 +89,7 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 						Op:     ir.OpConst,
 						Type:   ir.TypeNumber,
 						Result: numConst,
-						Value:  "0",
+						Value:  initExpr.Kind, // number storage holds undefined and null as markers
 						Span:   toIRSpan(path, initExpr.Span),
 					})
 					val = numConst
@@ -144,6 +153,8 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 				defStr := "0"
 				if paramType == ir.TypeBool {
 					defStr = "false"
+				} else if paramType == ir.TypeNumber {
+					defStr = "undefined" // an omitted argument
 				} else if paramType == ir.TypeString {
 					// Missing optional strings must retain undefined rather than
 					// collapsing into the valid empty-string value.
@@ -221,7 +232,12 @@ func lowerInstanceMethodCall(path string, expression *frontend.SyntaxExpression,
 
 func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, target ir.Function, mangled string) (string, ir.Type, error) {
 	args := make([]string, 0, len(expression.Arguments))
-	for aIdx, argument := range expression.Arguments {
+	restIndex := restParameterIndex(target, mangled)
+	arguments, restPacked, err := spreadRestArguments(expression.Arguments, expression.Span, target, restIndex, 0, false)
+	if err != nil {
+		return "", "", err
+	}
+	for aIdx, argument := range arguments {
 		val, valType, err := lowerExpression(path, argument, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
@@ -229,7 +245,7 @@ func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, r
 		hasRest := (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0
 		restIsUnknown := hasRest && target.Parameters[len(target.Parameters)-1].Type == ir.TypeUnknownArray
 		fixed := len(target.Parameters) - 1
-		needsUnknownBox := (aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown) || (restIsUnknown && aIdx >= fixed)
+		needsUnknownBox := (aIdx < len(target.Parameters) && target.Parameters[aIdx].Type == ir.TypeUnknown) || (restIsUnknown && aIdx >= fixed && !restPacked)
 		if needsUnknownBox && valType != ir.TypeUnknown {
 			boxed := nextTemp(counter)
 			function.Body = append(function.Body, ir.Instruction{
@@ -268,6 +284,11 @@ func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, r
 		}
 		if defaults != nil {
 			for i := len(args); i < len(target.Parameters); i++ {
+				if i == restIndex {
+					args = append(args, emptyRestArray(path, expression.Span, target.Parameters[i].Type, function, counter))
+					restPacked = true
+					continue
+				}
 				if initExpr, ok := defaults[i]; ok {
 					paramType := target.Parameters[i].Type
 					if paramType == ir.TypeNumber && (initExpr.Kind == "undefined" || initExpr.Kind == "null") {
@@ -276,7 +297,7 @@ func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, r
 							Op:     ir.OpConst,
 							Type:   ir.TypeNumber,
 							Result: numConst,
-							Value:  "0",
+							Value:  initExpr.Kind, // number storage holds undefined and null as markers
 							Span:   toIRSpan(path, initExpr.Span),
 						})
 						args = append(args, numConst)
@@ -346,7 +367,7 @@ func lowerStaticMethodCall(path string, expression *frontend.SyntaxExpression, r
 			}
 		}
 	}
-	if (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0 && strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") {
+	if !restPacked && (restParamsIndex[mangled] || restParamsIndex[strings.Split(mangled, "__")[0]]) && len(target.Parameters) > 0 && strings.HasSuffix(string(target.Parameters[len(target.Parameters)-1].Type), "[]") {
 		restType := target.Parameters[len(target.Parameters)-1].Type
 		fixed := len(target.Parameters) - 1
 		if len(args) >= fixed {

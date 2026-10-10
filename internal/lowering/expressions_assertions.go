@@ -178,7 +178,7 @@ func lowerTypeofExpression(path string, expression *frontend.SyntaxExpression, r
 		result = nextTemp(counter)
 	}
 	runtimeTypeOf := expression.Left != nil && (typeContainsNullish(expression.Left.InferredType) || strings.Contains(string(valType), "|"))
-	if runtimeTypeOf && isPointerLikeType(valType) {
+	if runtimeTypeOf && (isPointerLikeType(valType) || valType == ir.TypeNumber) {
 		function.Body = append(function.Body, ir.Instruction{
 			Op:            ir.OpTypeOf,
 			Type:          ir.TypeString,

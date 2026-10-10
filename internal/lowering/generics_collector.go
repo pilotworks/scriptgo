@@ -345,3 +345,13 @@ func scanTypeForGenerics(typ, fileName string, genericClasses map[string]fronten
 		}
 	}
 }
+
+// isFunctionDeclarationKind reports whether kind is a function declaration:
+// plain, generator, async, or async generator.
+func isFunctionDeclarationKind(kind string) bool {
+	switch kind {
+	case "function", "generator_function", "async_function", "async_generator_function":
+		return true
+	}
+	return false
+}

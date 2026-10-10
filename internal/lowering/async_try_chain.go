@@ -20,7 +20,9 @@ func lowerStructuredAsyncTryChain(path string, statement frontend.SyntaxStatemen
 		if !hasAwait(instruction) {
 			continue
 		}
-		if instruction.Op != ir.OpTry || hasStructuredAwait(instruction.Catch) || hasStructuredAwait(instruction.Finally) {
+		// Each state's rejection continues the chain, so every try needs a
+		// catch clause; others are sequenced (lowerAsyncSequence).
+		if instruction.Op != ir.OpTry || !instruction.HasCatch || hasStructuredAwait(instruction.Catch) || hasStructuredAwait(instruction.Finally) {
 			return ir.Function{}, false, nil
 		}
 		segments, awaits := splitLinearAsyncBody(instruction.Body)

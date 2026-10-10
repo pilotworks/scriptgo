@@ -91,6 +91,9 @@ func lowerGeneratorFunction(
 		{Name: "__state", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(path, statement.Span)},
 		{Name: "__done", Type: ir.TypeBool, Value: "false", Span: toIRSpan(path, statement.Span)},
 		{Name: "__value", Type: yieldType, Span: toIRSpan(path, statement.Span)},
+		// __next is this generator's next() as a closure, so a value typed
+		// only Generator<T> can be advanced (generatorNextCall).
+		{Name: "__next", Type: ir.TypeClosure, Span: toIRSpan(path, statement.Span)},
 	}
 
 	// Add parameter fields
@@ -176,143 +179,22 @@ func lowerGeneratorFunction(
 		Span:       toIRSpan(path, statement.Span),
 	})
 
+	// Parameters live in generator fields; load them under their own names
+	// so any yield expression can read them.
+	for fIdx, f := range genFields {
+		if fIdx < 4 || f.Name == "__items" {
+			continue
+		}
+		nextFn.Body = append(nextFn.Body, ir.Instruction{Op: ir.OpFieldGet, Type: f.Type, Result: f.Name, Callee: genClassName, Field: f.Name, FieldIndex: fIdx, Args: []string{"this"}, Span: f.Span})
+		nextEnv[f.Name] = f.Type
+	}
+
 	yields := collectYieldPoints(statement.Body)
 
 	// Dispatch states
 	if len(yields) == 0 {
 		// Generator with loops / control flow: items were collected in this.__items
-		itemsFieldIdx := len(genFields) - 1
-		itemsVal := nextTemp(&counter)
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:         ir.OpFieldGet,
-			Type:       ir.Type(string(yieldType) + "[]"),
-			Result:     itemsVal,
-			Callee:     genClassName,
-			Field:      "__items",
-			FieldIndex: itemsFieldIdx,
-			Args:       []string{"this"},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		lenVal := nextTemp(&counter)
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:     ir.OpCall,
-			Type:   ir.TypeNumber,
-			Result: lenVal,
-			Callee: "__array.length",
-			Args:   []string{itemsVal},
-			Span:   toIRSpan(path, statement.Span),
-		})
-		hasMore := nextTemp(&counter)
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:       ir.OpCompare,
-			Type:     ir.TypeBool,
-			Result:   hasMore,
-			Operator: "<",
-			Args:     []string{stateVal, lenVal},
-			Span:     toIRSpan(path, statement.Span),
-		})
-
-		var thenBranch []ir.Instruction
-		thenCounter := counter
-
-		// val = items[state]
-		valTemp := nextTemp(&thenCounter)
-		thenBranch = append(thenBranch, ir.Instruction{
-			Op:     ir.OpIndex,
-			Type:   yieldType,
-			Result: valTemp,
-			Args:   []string{itemsVal, stateVal},
-			Span:   toIRSpan(path, statement.Span),
-		})
-		// state++
-		oneConst := nextTemp(&thenCounter)
-		thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: oneConst, Value: "1", Span: toIRSpan(path, statement.Span)})
-		nextState := nextTemp(&thenCounter)
-		thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpBinary, Type: ir.TypeNumber, Result: nextState, Operator: "+", Args: []string{stateVal, oneConst}, Span: toIRSpan(path, statement.Span)})
-		thenBranch = append(thenBranch, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     genClassName,
-			Field:      "__state",
-			FieldIndex: 0,
-			Args:       []string{"this", nextState},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		falseVal := nextTemp(&thenCounter)
-		thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: falseVal, Value: "false", Span: toIRSpan(path, statement.Span)})
-		resObj := nextTemp(&thenCounter)
-		thenBranch = append(thenBranch, ir.Instruction{
-			Op:         ir.OpObjectNew,
-			Type:       ir.Type("object:" + resultShapeName),
-			Result:     resObj,
-			Callee:     resultShapeName,
-			FieldCount: 2,
-			Args:       []string{falseVal, valTemp},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		thenBranch = append(thenBranch, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     resultShapeName,
-			Field:      "done",
-			FieldIndex: 0,
-			Args:       []string{resObj, falseVal},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		thenBranch = append(thenBranch, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     resultShapeName,
-			Field:      "value",
-			FieldIndex: 1,
-			Args:       []string{resObj, valTemp},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpReturn, Type: ir.Type("object:" + resultShapeName), Args: []string{resObj}, Span: toIRSpan(path, statement.Span)})
-
-		counter = thenCounter
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:   ir.OpIf,
-			Type: ir.TypeVoid,
-			Args: []string{hasMore},
-			Then: thenBranch,
-			Span: toIRSpan(path, statement.Span),
-		})
-
-		// Otherwise: done: true
-		doneResObj := nextTemp(&counter)
-		defVal := nextTemp(&counter)
-		nextFn.Body = append(nextFn.Body, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: defVal, Value: "0", Span: toIRSpan(path, statement.Span)})
-		trueVal := nextTemp(&counter)
-		nextFn.Body = append(nextFn.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: trueVal, Value: "true", Span: toIRSpan(path, statement.Span)})
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:         ir.OpObjectNew,
-			Type:       ir.Type("object:" + resultShapeName),
-			Result:     doneResObj,
-			Callee:     resultShapeName,
-			FieldCount: 2,
-			Args:       []string{trueVal, defVal},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     resultShapeName,
-			Field:      "done",
-			FieldIndex: 0,
-			Args:       []string{doneResObj, trueVal},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		nextFn.Body = append(nextFn.Body, ir.Instruction{
-			Op:         ir.OpFieldSet,
-			Type:       ir.TypeVoid,
-			Callee:     resultShapeName,
-			Field:      "value",
-			FieldIndex: 1,
-			Args:       []string{doneResObj, defVal},
-			Span:       toIRSpan(path, statement.Span),
-		})
-		nextFn.Body = append(nextFn.Body, ir.Instruction{Op: ir.OpReturn, Type: ir.Type("object:" + resultShapeName), Args: []string{doneResObj}, Span: toIRSpan(path, statement.Span)})
+		nextFn.Body = appendItemsGeneratorNext(nextFn.Body, toIRSpan(path, statement.Span), genClassName, len(genFields)-1, yieldType, resultShapeName, stateVal, &counter)
 	} else {
 		for i, y := range yields {
 			// Compare state == i
@@ -368,8 +250,7 @@ func lowerGeneratorFunction(
 					valTemp, _, err = lowerExpression(path, y.expr, "", thenFn, nextEnv, &thenCounter, shapes, signatures)
 					thenBranch = thenFn.Body
 					if err != nil {
-						valTemp = nextTemp(&thenCounter)
-						thenBranch = append(thenBranch, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: valTemp, Value: "0", Span: toIRSpan(path, statement.Span)})
+						return ir.Function{}, nil, nil, err
 					}
 				}
 			} else {
@@ -498,6 +379,10 @@ func lowerGeneratorFunction(
 	defVal := nextTemp(&factoryCounter)
 	factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: defVal, Value: "0", Span: toIRSpan(path, statement.Span)})
 	factoryArgs = append(factoryArgs, defVal)
+
+	nextClosure := nextTemp(&factoryCounter)
+	factoryFn.Body = append(factoryFn.Body, ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: nextClosure, Callee: ensureFunctionClosureTrampoline(path, nextFn, shapes, signatures), Span: toIRSpan(path, statement.Span)})
+	factoryArgs = append(factoryArgs, nextClosure)
 
 	for _, p := range statement.Parameters {
 		pType := toIRType(p.Type)

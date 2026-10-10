@@ -172,10 +172,19 @@ func lowerNullishCoalescingExpression(path string, expression *frontend.SyntaxEx
 
 	var cond string
 	if leftTyp == ir.TypeNumber {
-		cmpNaN := nextTemp(counter)
-		env[cmpNaN] = ir.TypeBool
-		function.Body = append(function.Body, ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: cmpNaN, Operator: "==", Args: []string{leftVal, leftVal}, Span: toIRSpan(path, expression.Span)})
-		cond = cmpNaN
+		// undefined and null are number-storage markers; NaN is a value.
+		isNullish := nextTemp(counter)
+		falseConst := nextTemp(counter)
+		notNullish := nextTemp(counter)
+		env[isNullish] = ir.TypeBool
+		env[falseConst] = ir.TypeBool
+		env[notNullish] = ir.TypeBool
+		function.Body = append(function.Body,
+			ir.Instruction{Op: ir.OpCall, Type: ir.TypeBool, Result: isNullish, Callee: "__number.isNullish", Args: []string{leftVal}, Span: toIRSpan(path, expression.Span)},
+			ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: falseConst, Value: "false", Span: toIRSpan(path, expression.Span)},
+			ir.Instruction{Op: ir.OpCompare, Type: ir.TypeBool, Result: notNullish, Operator: "==", Args: []string{isNullish, falseConst}, Span: toIRSpan(path, expression.Span)},
+		)
+		cond = notNullish
 	} else if leftTyp == ir.TypeBool {
 		trueConst := nextTemp(counter)
 		env[trueConst] = ir.TypeBool

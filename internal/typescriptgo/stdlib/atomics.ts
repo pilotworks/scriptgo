@@ -54,10 +54,10 @@ export const Atomics = {
         return __scriptgo.atomicsCompareExchange(typedArray, index, expected, replacement);
     },
     wait(typedArray: Int32Array, index: number, value: number, timeout?: number): "ok" | "not-equal" | "timed-out" {
-        return __scriptgo.atomicsWait(typedArray, index, value, timeout);
+        return __scriptgo.atomicsWait(typedArray, index, value, timeout ?? 0);
     },
     notify(typedArray: Int32Array, index: number, count?: number): number {
-        return __scriptgo.atomicsNotify(typedArray, index, count);
+        return __scriptgo.atomicsNotify(typedArray, index, count ?? 0);
     }
 };
 

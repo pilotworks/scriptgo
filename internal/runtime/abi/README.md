@@ -39,6 +39,18 @@ Typed operations remain available for optimized native paths:
   shared `scriptgo_array_length` operation. Objects use compiler-resolved
   static field IDs.
 
+### Number storage markers
+
+`number` storage that may also hold `undefined` or `null` (optional fields and
+parameters, `number | undefined` values, absent object fields) keeps them as
+NaNs with reserved payloads: `undefined` is `0x7FF8000000000002`
+(`SCRIPTGO_NUMBER_UNDEFINED_BITS`) and `null` is `0x7FF8000000000001`
+(`SCRIPTGO_NUMBER_NULL_BITS`). Neither is the canonical NaN
+`0x7FF8000000000000` that arithmetic, constant folding and the C library
+produce, so a NaN value is never read back as `undefined` or `null`.
+Comparisons with `undefined`/`null`, `??`, `typeof`, and number formatting
+test these exact bit patterns; truthiness treats every NaN as falsy.
+
 ### Target and calling convention
 
 The initial v1 target is macOS ARM64 using the target selected by Clang or `zig cc`. Runtime

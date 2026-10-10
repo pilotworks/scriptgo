@@ -227,3 +227,12 @@ func evalConstNumberWithEnv(expr *SyntaxExpression, env map[string]float64) (flo
 	}
 	return 0, false
 }
+
+// valueParameters drops TypeScript's `this:` pseudo-parameter, which only
+// types the receiver and is erased from the emitted JavaScript signature.
+func valueParameters(parameters []*ast.Node) []*ast.Node {
+	if len(parameters) == 0 || !ast.IsThisParameter(parameters[0]) {
+		return parameters
+	}
+	return parameters[1:]
+}

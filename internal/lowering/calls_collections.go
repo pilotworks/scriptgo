@@ -376,6 +376,10 @@ func lowerMapSetReceiverMethod(
 			if expression.InferredType != "" {
 				retType = toIRType(expression.InferredType)
 			}
+			if element, ok := iteratorElementType(expression); ok && methodName == "keys" {
+				// The runtime materializes the keys as a K[] laid out for K.
+				retType = ir.Type(string(element) + "[]")
+			}
 			function.Body = append(function.Body, ir.Instruction{
 				Op:     ir.OpCall,
 				Type:   retType,

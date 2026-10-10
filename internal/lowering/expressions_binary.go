@@ -70,11 +70,18 @@ func lowerBinaryExpression(path string, expression *frontend.SyntaxExpression, r
 	// branch. JavaScript concatenation converts those operands to strings.
 	if expression.Operator == "+" && (leftType == ir.TypeUnknown || rightType == ir.TypeUnknown) &&
 		(leftType == ir.TypeString || rightType == ir.TypeString || toIRType(expression.InferredType) == ir.TypeString) {
-		left, leftType, right, rightType = boxUnknownConcatenationOperands(path, expression, function, counter, left, leftType, right, rightType)
+		var err error
+		if left, err = lowerToString(path, expression.Left.Span, left, leftType, function, counter, signatures); err != nil {
+			return "", "", err
+		}
+		if right, err = lowerToString(path, expression.Right.Span, right, rightType, function, counter, signatures); err != nil {
+			return "", "", err
+		}
+		leftType, rightType = ir.TypeString, ir.TypeString
 	}
 	coerceBoolOperandsToNumber(path, expression, function, counter, &left, &leftType, &right, &rightType)
 	if leftType != rightType {
-		if value, valueType, handled, err := tryLowerMixedTypeBinary(path, expression, &result, function, env, counter, &left, &leftType, &right, &rightType); handled {
+		if value, valueType, handled, err := tryLowerMixedTypeBinary(path, expression, &result, function, env, counter, signatures, &left, &leftType, &right, &rightType); handled {
 			return value, valueType, err
 		}
 	}

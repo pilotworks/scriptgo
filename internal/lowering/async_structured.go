@@ -138,7 +138,7 @@ func lowerStructuredAsyncLoop(path string, statement frontend.SyntaxStatement, l
 // the fulfilled path may either continue or settle the async function.
 func lowerStructuredAsyncLoopTry(path string, statement frontend.SyntaxStatement, lowered ir.Function, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function, loopIndex int, loop ir.Instruction, try ir.Instruction) (ir.Function, bool, error) {
 	segments, awaits := splitLinearAsyncBody(try.Body)
-	if len(awaits) != 1 || len(try.Finally) > 0 || hasNestedAwait(try.Catch) {
+	if len(awaits) != 1 || !try.HasCatch || len(try.Finally) > 0 || hasNestedAwait(try.Catch) {
 		return ir.Function{}, false, nil
 	}
 
@@ -299,7 +299,7 @@ func supportedAsyncLoopBody(body []ir.Instruction) bool {
 	if countDirectAwaits(body) >= 1 {
 		return true
 	}
-	if len(body) != 1 || body[0].Op != ir.OpTry || len(body[0].Finally) > 0 || hasNestedAwait(body[0].Catch) {
+	if len(body) != 1 || body[0].Op != ir.OpTry || !body[0].HasCatch || len(body[0].Finally) > 0 || hasNestedAwait(body[0].Catch) {
 		return false
 	}
 	_, awaits := splitLinearAsyncBody(body[0].Body)
@@ -399,10 +399,15 @@ func asyncLoopCaptures(lowered ir.Function, loop ir.Instruction, segments [][]ir
 	// Recursive runner calls pass the continuation environment directly. Keep
 	// the runner's fields as the stable prefix of that environment.
 	orderedContinuation := append([]string{}, runner...)
+	seenOrdered := make(map[string]bool, len(runner)+len(continuation))
+	for _, name := range runner {
+		seenOrdered[name] = true
+	}
 	for _, name := range continuation {
-		add(&orderedContinuation, seenContinuation, name)
+		add(&orderedContinuation, seenOrdered, name)
 	}
 	continuation = orderedContinuation
+	seenContinuation = seenOrdered
 	var addDefined func([]ir.Instruction)
 	addDefined = func(instructions []ir.Instruction) {
 		for _, instruction := range instructions {
@@ -478,6 +483,10 @@ func rewriteAsyncReturnsVoid(instructions []ir.Instruction, promiseName, frameNa
 		instruction.Step = rewriteAsyncReturnsVoid(instruction.Step, promiseName, frameName, span)
 		instruction.Catch = rewriteAsyncReturnsVoid(instruction.Catch, promiseName, frameName, span)
 		instruction.Finally = rewriteAsyncReturnsVoid(instruction.Finally, promiseName, frameName, span)
+		if isAsyncTailReturn(instruction) {
+			result = append(result, asyncTailCall(instruction, ir.TypeVoid, promiseName, frameName)...)
+			continue
+		}
 		if instruction.Op == ir.OpThrow {
 			if len(instruction.Args) > 0 {
 				result = append(result, ir.Instruction{Op: ir.OpCall, Type: ir.TypeVoid, Callee: "__async.promise_reject_existing", Args: []string{promiseName, instruction.Args[0]}, Span: instruction.Span})
@@ -517,6 +526,10 @@ func rewriteAsyncEntryReturns(instructions []ir.Instruction, promiseName, frameN
 		instruction.Step = rewriteAsyncEntryReturns(instruction.Step, promiseName, frameName, returnType, span)
 		instruction.Catch = rewriteAsyncEntryReturns(instruction.Catch, promiseName, frameName, returnType, span)
 		instruction.Finally = rewriteAsyncEntryReturns(instruction.Finally, promiseName, frameName, returnType, span)
+		if isAsyncTailReturn(instruction) {
+			result = append(result, asyncTailCall(instruction, returnType, promiseName, frameName)...)
+			continue
+		}
 		if instruction.Op != ir.OpReturn && instruction.Op != ir.OpThrow {
 			result = append(result, instruction)
 			continue

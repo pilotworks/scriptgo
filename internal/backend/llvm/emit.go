@@ -87,22 +87,7 @@ func EmitWithOptions(module ir.Module, options Options) (string, error) {
 				}
 			}
 			if instruction.Op == ir.OpObjectNew {
-				val := instruction.Value
-				if val == "" {
-					for _, s := range module.Shapes {
-						if s.Name == instruction.Callee && len(s.Fields) > 0 {
-							var names []string
-							for _, f := range s.Fields {
-								names = append(names, f.Name)
-							}
-							val = ":" + strings.Join(names, ":") + ":"
-							break
-						}
-					}
-				}
-				if val == "" {
-					val = instruction.Callee
-				}
+				val := objectLayoutName(module, instruction)
 				if val != "" {
 					if _, ok := stringsByValue[val]; !ok {
 						stringsByValue[val] = fmt.Sprintf("@.str.%d", len(stringsByValue))

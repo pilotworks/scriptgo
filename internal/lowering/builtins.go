@@ -88,15 +88,14 @@ var builtinGlobals = map[string]BuiltinGlobal{
 	"Symbol.matchAll":           {Category: CategoryECMAScript, Name: "Symbol.matchAll", Type: ir.TypeSymbol, Value: "Symbol.matchAll"},
 	// Node.js v22 does not expose Symbol.metadata yet. Keep the property
 	// undefined until the runtime supports the proposal natively.
-	"Symbol.metadata":       {Category: CategoryECMAScript, Name: "Symbol.metadata", Type: ir.TypeVoid, Value: "undefined"},
-	"Symbol.replace":        {Category: CategoryECMAScript, Name: "Symbol.replace", Type: ir.TypeSymbol, Value: "Symbol.replace"},
-	"Symbol.search":         {Category: CategoryECMAScript, Name: "Symbol.search", Type: ir.TypeSymbol, Value: "Symbol.search"},
-	"Symbol.species":        {Category: CategoryECMAScript, Name: "Symbol.species", Type: ir.TypeSymbol, Value: "Symbol.species"},
-	"Symbol.split":          {Category: CategoryECMAScript, Name: "Symbol.split", Type: ir.TypeSymbol, Value: "Symbol.split"},
-	"Symbol.toPrimitive":    {Category: CategoryECMAScript, Name: "Symbol.toPrimitive", Type: ir.TypeSymbol, Value: "Symbol.toPrimitive"},
-	"Symbol.toStringTag":    {Category: CategoryECMAScript, Name: "Symbol.toStringTag", Type: ir.TypeSymbol, Value: "Symbol.toStringTag"},
-	"Symbol.unscopables":    {Category: CategoryECMAScript, Name: "Symbol.unscopables", Type: ir.TypeSymbol, Value: "Symbol.unscopables"},
-	"Error.stackTraceLimit": {Category: CategoryNodeGlobal, Name: "Error.stackTraceLimit", Type: ir.TypeNumber, Value: "10"},
+	"Symbol.metadata":    {Category: CategoryECMAScript, Name: "Symbol.metadata", Type: ir.TypeVoid, Value: "undefined"},
+	"Symbol.replace":     {Category: CategoryECMAScript, Name: "Symbol.replace", Type: ir.TypeSymbol, Value: "Symbol.replace"},
+	"Symbol.search":      {Category: CategoryECMAScript, Name: "Symbol.search", Type: ir.TypeSymbol, Value: "Symbol.search"},
+	"Symbol.species":     {Category: CategoryECMAScript, Name: "Symbol.species", Type: ir.TypeSymbol, Value: "Symbol.species"},
+	"Symbol.split":       {Category: CategoryECMAScript, Name: "Symbol.split", Type: ir.TypeSymbol, Value: "Symbol.split"},
+	"Symbol.toPrimitive": {Category: CategoryECMAScript, Name: "Symbol.toPrimitive", Type: ir.TypeSymbol, Value: "Symbol.toPrimitive"},
+	"Symbol.toStringTag": {Category: CategoryECMAScript, Name: "Symbol.toStringTag", Type: ir.TypeSymbol, Value: "Symbol.toStringTag"},
+	"Symbol.unscopables": {Category: CategoryECMAScript, Name: "Symbol.unscopables", Type: ir.TypeSymbol, Value: "Symbol.unscopables"},
 }
 
 func lowerMathMinMax(callee string) func(IntrinsicCall, BuiltinIntrinsic) (string, ir.Type, error) {
