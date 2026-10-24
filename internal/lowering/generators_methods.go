@@ -65,7 +65,7 @@ func generatorMethodFunction(className string, method frontend.SyntaxMethod) (fr
 	parameters := append([]frontend.SyntaxParameter{{Span: method.Span, Name: generatorSelf, Type: className, InferredType: className}}, method.Parameters...)
 	body := make([]frontend.SyntaxStatement, len(method.Body))
 	for index, statement := range method.Body {
-		body[index] = replaceThisInStatement(statement)
+		body[index] = replaceThisInStatement(statement, "", generatorSelf)
 	}
 	generator := frontend.SyntaxStatement{
 		Span:           method.Span,
@@ -96,68 +96,3 @@ func generatorMethodFunction(className string, method frontend.SyntaxMethod) (fr
 }
 
 const generatorSelf = "__self"
-
-// replaceThisInStatement and replaceThisInExpression copy a syntax tree with
-// every lexical `this` (including inside arrow functions) renamed to
-// generatorSelf. A `this` bound by its own call site (ThisBinding
-// "caller") is left alone.
-func replaceThisInStatement(statement frontend.SyntaxStatement) frontend.SyntaxStatement {
-	statement.Expression = replaceThisInExpression(statement.Expression)
-	statement.Left = replaceThisInExpression(statement.Left)
-	statement.Right = replaceThisInExpression(statement.Right)
-	statement.Body = replaceThisInStatements(statement.Body)
-	statement.Step = replaceThisInStatements(statement.Step)
-	statement.Then = replaceThisInStatements(statement.Then)
-	statement.Else = replaceThisInStatements(statement.Else)
-	statement.Catch = replaceThisInStatements(statement.Catch)
-	statement.Finally = replaceThisInStatements(statement.Finally)
-	if statement.Cases != nil {
-		cases := make([]frontend.SyntaxSwitchCase, len(statement.Cases))
-		for index, c := range statement.Cases {
-			c.Expression = replaceThisInExpression(c.Expression)
-			c.Statements = replaceThisInStatements(c.Statements)
-			cases[index] = c
-		}
-		statement.Cases = cases
-	}
-	return statement
-}
-
-func replaceThisInStatements(statements []frontend.SyntaxStatement) []frontend.SyntaxStatement {
-	if statements == nil {
-		return nil
-	}
-	result := make([]frontend.SyntaxStatement, len(statements))
-	for index, statement := range statements {
-		result[index] = replaceThisInStatement(statement)
-	}
-	return result
-}
-
-func replaceThisInExpression(expression *frontend.SyntaxExpression) *frontend.SyntaxExpression {
-	if expression == nil {
-		return nil
-	}
-	copied := *expression
-	if (copied.Kind == "identifier" || copied.Kind == "this") && copied.Text == "this" && copied.ThisBinding != "caller" {
-		copied.Kind = "identifier"
-		copied.Text = generatorSelf
-		return &copied
-	}
-	copied.Left = replaceThisInExpression(copied.Left)
-	copied.Right = replaceThisInExpression(copied.Right)
-	copied.WhenTrue = replaceThisInExpression(copied.WhenTrue)
-	copied.WhenFalse = replaceThisInExpression(copied.WhenFalse)
-	if copied.Arguments != nil {
-		arguments := make([]*frontend.SyntaxExpression, len(copied.Arguments))
-		for index, argument := range copied.Arguments {
-			arguments[index] = replaceThisInExpression(argument)
-		}
-		copied.Arguments = arguments
-	}
-	if copied.Function != nil {
-		function := replaceThisInStatement(*copied.Function)
-		copied.Function = &function
-	}
-	return &copied
-}

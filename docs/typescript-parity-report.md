@@ -18,9 +18,9 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **521** | **521 / 521 match expected output; 519 / 521 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 521 | 494 PASS plus 27 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 27 | 27 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **524** | **524 / 524 match expected output; 522 / 524 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 524 | 498 PASS plus 26 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 26 | 26 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
 | **Total Test Suite Runtime** | ~1m54s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
@@ -91,7 +91,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
 | Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
 | `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes all of its elements (packing those that fill a rest parameter). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; with partial arguments it returns a closure that prepends them (the target and arguments are evaluated at bind time). |
-| `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`, and `this` in an object literal method with `SG2005`; class members and arrow functions use their lexical receiver. |
+| `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`. `this` in an object literal method is the object the method is defined on, also when the method is detached or called on another receiver (JavaScript would use the call's receiver); class members and arrow functions use their lexical receiver. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, closures (called directly, through a function-typed value, with `call`/`apply`, or by built-ins such as `map`, `reduce`, `sort` and `replace`; a closure counts the arguments its call passed), methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 521
-Native Backend Parity  : 494/521 (94.8%)
-Diagnostic Parity      : 27/521
-Overall Full Parity    : 521/521 (100.0%)
+Total Test Cases       : 524
+Native Backend Parity  : 498/524 (95.0%)
+Diagnostic Parity      : 26/524
+Overall Full Parity    : 524/524 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```

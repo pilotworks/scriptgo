@@ -105,6 +105,7 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 	}
 	var fields []ir.Field
 	var propValues []string
+	var thisMethods []*frontend.SyntaxExpression
 	for _, prop := range expression.Arguments {
 		if prop.Kind == "spread" {
 			val, valType, err := lowerExpression(path, prop.Left, "", function, env, counter, shapes, signatures)
@@ -133,6 +134,15 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 					propValues = append(propValues, fieldVal)
 				}
 			}
+			continue
+		}
+		if prop.Kind == "property_assignment" && objectMethodUsesThis(prop) {
+			// Set once the object exists (bindObjectMethodThis).
+			placeholder := nextTemp(counter)
+			function.Body = append(function.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeClosure, Result: placeholder, Value: "null", Span: toIRSpan(path, prop.Span)})
+			fields = append(fields, ir.Field{Name: prop.Text, Type: ir.TypeClosure, Span: toIRSpan(path, prop.Span)})
+			propValues = append(propValues, placeholder)
+			thisMethods = append(thisMethods, prop)
 			continue
 		}
 		if parentShape != nil && prop.Left != nil {
@@ -439,6 +449,27 @@ func lowerObjectLiteralExpression(path string, expression *frontend.SyntaxExpres
 				Span:         toIRSpan(path, expression.Span),
 			})
 		}
+	}
+	var self string
+	if len(thisMethods) > 0 {
+		self = objectThisLocal(path, expression.Span, result, objType, function, env, counter)
+	}
+	for _, prop := range thisMethods {
+		method, _, err := lowerExpression(path, bindObjectMethodThis(prop, self), "", function, env, counter, shapes, signatures)
+		if err != nil {
+			return "", "", err
+		}
+		index := slices.IndexFunc(targetShape.Fields, func(field ir.Field) bool { return field.Name == prop.Text })
+		function.Body = append(function.Body, ir.Instruction{
+			Op:           ir.OpFieldSet,
+			Type:         ir.TypeVoid,
+			Callee:       shapeName,
+			Field:        prop.Text,
+			FieldIndex:   index,
+			DynamicField: dynamicFieldAccess(shapeName),
+			Args:         []string{result, method},
+			Span:         toIRSpan(path, prop.Span),
+		})
 	}
 	return result, objType, nil
 }
