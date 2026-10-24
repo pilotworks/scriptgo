@@ -187,10 +187,15 @@ func lowerCallExpression(
 						if value, typ, handled := lowerInheritedObjectMethod(path, expression, receiver, receiverType, className, methodName, result, function, counter, shapes); handled {
 							return value, typ, nil
 						}
+						// Read the method from the receiver already evaluated
+						// above; lowering expression.Left.Left again would run
+						// its side effects (a call in a chain) twice.
+						env[receiver] = receiverType
+						evaluated := &frontend.SyntaxExpression{Span: expression.Left.Left.Span, Kind: "identifier", Text: receiver, InferredType: expression.Left.Left.InferredType}
 						propVal, propType, err := lowerPropertyExpression(path, &frontend.SyntaxExpression{
 							Span:         expression.Left.Span,
 							Kind:         "property",
-							Left:         expression.Left.Left,
+							Left:         evaluated,
 							Text:         methodName,
 							InferredType: "",
 						}, "", function, env, counter, shapes, signatures)
