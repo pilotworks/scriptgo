@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -179,14 +180,8 @@ func runOne(ctx context.Context, cfg Config, rel string) (result Result) {
 	}
 	runCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, binary)
-	cmd.Dir = dir
-	// Do not wait on pipes held open by processes the test spawned.
-	cmd.WaitDelay = time.Second
 	var stderr bytes.Buffer
-	cmd.Stdout = &bytes.Buffer{}
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
+	runErr := runBinary(runCtx, binary, dir, &stderr)
 	if runCtx.Err() == context.DeadlineExceeded {
 		return Result{Path: rel, Outcome: Fail, Detail: "timeout"}
 	}
@@ -269,4 +264,27 @@ func firstLine(s string) string {
 		s = s[:200] + "…"
 	}
 	return s
+}
+
+// runBinary runs a built test. A fork from a concurrent test can briefly
+// inherit the descriptor that wrote the binary, so exec fails with ETXTBSY
+// (golang/go#22315); retry until that descriptor is closed.
+func runBinary(ctx context.Context, binary, dir string, stderr *bytes.Buffer) error {
+	for delay := 10 * time.Millisecond; ; delay *= 2 {
+		cmd := exec.CommandContext(ctx, binary)
+		cmd.Dir = dir
+		// Do not wait on pipes held open by processes the test spawned.
+		cmd.WaitDelay = time.Second
+		cmd.Stdout = &bytes.Buffer{}
+		cmd.Stderr = stderr
+		err := cmd.Run()
+		if !errors.Is(err, syscall.ETXTBSY) || delay > time.Second {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(delay):
+		}
+	}
 }
