@@ -18,9 +18,9 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **516** | **516 / 516 match expected output; 514 / 516 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 516 | 491 PASS plus 25 diagnostic cases | 100.0% |
-| - *Static Subset Diagnostics* | 25 | 25 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
+| **Total Corpus Test Cases** | **519** | **519 / 519 match expected output; 517 / 519 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 519 | 492 PASS plus 27 diagnostic cases | 100.0% |
+| - *Static Subset Diagnostics* | 27 | 27 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
 | **Total Test Suite Runtime** | ~1m54s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
@@ -96,7 +96,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
 | Rest Parameters (`...args`) & Spread Arguments | ✅ Full | Collects trailing arguments into a `T[]` array in functions, closures (called directly, through a function-typed value, with `call`/`apply`, or by built-ins such as `map`, `reduce`, `sort` and `replace`; a closure counts the arguments its call passed), methods, static methods, constructors and `super(...)` calls. Spread arguments (`f(a, ...xs, b)`) fill a rest parameter; a fixed-length tuple variable spreads into ordinary parameters (`f(...pair)`). Spreading a runtime-length array into non-rest parameters is rejected at compile time. |
 | Function Overloads | ⚠️ Static only | Overload signatures checked at compile time; lowered to a single standard implementation. |
-| Generators (`function*`, `yield`) | ⚠️ Partial | State-machine infrastructure producing `IteratorResult<T>` shapes, `.next()`, and `for..of` loop integration for generator functions, generator closures, instance generator methods (`*items()`, `*[Symbol.iterator]()`) and values typed only `Generator<T>` (each generator object carries its `next` as a closure). A generator whose yields sit in loops collects its values when created, so an infinite generator does not terminate; static generator methods are not supported. |
+| Generators (`function*`, `yield`) | ⚠️ Partial | Lazy: the body is lowered to a step closure that resumes after its last `yield` on each `.next()`, with locals whose scope spans a yield held in captured cells. Covers generator functions, generator closures, instance generator methods (`*items()`, `*[Symbol.iterator]()`), values typed only `Generator<T>`, `yield`/`yield*` statements inside blocks, `if`, `while`/`do`/`for`/`for..of` loops (including labels) and `try`/`catch`, and infinite generators. A `yield` used as a value (`next(value)`), inside `catch`/`finally` or `switch`, and static generator methods are rejected; hoisted locals are shared across loop iterations by closures created in a yielding loop. |
 
 ---
 
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 516
-Native Backend Parity  : 491/516 (95.2%)
-Diagnostic Parity      : 25/516
-Overall Full Parity    : 516/516 (100.0%)
+Total Test Cases       : 519
+Native Backend Parity  : 492/519 (94.8%)
+Diagnostic Parity      : 27/519
+Overall Full Parity    : 519/519 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```

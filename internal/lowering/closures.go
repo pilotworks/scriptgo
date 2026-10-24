@@ -327,6 +327,11 @@ func lowerClosureExpression(
 			Type: capStorageType,
 		})
 	}
+	isGenerator := fnStmt.IsGenerator || fnStmt.Kind == "generator_function" || fnStmt.Kind == "async_generator_function"
+	genClassName := "Generator_" + closureName
+	if isGenerator {
+		targetFn.ReturnType = ir.Type("object:" + genClassName)
+	}
 	if fnStmt.Name != "" {
 		closureEnv[fnStmt.Name] = ir.TypeClosure
 		closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
@@ -334,124 +339,51 @@ func lowerClosureExpression(
 	}
 
 	closureBodyCounter := 0
-	if fnStmt.IsGenerator || fnStmt.Kind == "generator_function" || fnStmt.Kind == "async_generator_function" {
-		yieldType := ir.TypeNumber
-		if strings.Contains(fnStmt.Type, "<") && strings.HasSuffix(fnStmt.Type, ">") {
-			idx := strings.Index(fnStmt.Type, "<")
-			inner := fnStmt.Type[idx+1 : len(fnStmt.Type)-1]
-			parts := splitTypeArguments(inner)
-			if len(parts) > 0 {
-				yieldType = toIRType(parts[0])
-			}
-		} else if strings.Contains(fnStmt.InferredType, "<") && strings.HasSuffix(fnStmt.InferredType, ">") {
-			idx := strings.Index(fnStmt.InferredType, "<")
-			inner := fnStmt.InferredType[idx+1 : len(fnStmt.InferredType)-1]
-			parts := splitTypeArguments(inner)
-			if len(parts) > 0 {
-				yieldType = toIRType(parts[0])
-			}
-		}
-
-		genClassName := "Generator_" + closureName
-		targetFn.ReturnType = ir.Type("object:" + genClassName)
-
-		if _, exists := shapes[genClassName]; !exists {
-			shapes[genClassName] = ir.ObjectShape{
-				Name: genClassName,
-				Span: toIRSpan(path, fnStmt.Span),
-				Fields: []ir.Field{
-					{Name: "__state", Type: ir.TypeNumber, Value: "0", Span: toIRSpan(path, fnStmt.Span)},
-					{Name: "__done", Type: ir.TypeBool, Value: "false", Span: toIRSpan(path, fnStmt.Span)},
-					{Name: "__value", Type: yieldType, Span: toIRSpan(path, fnStmt.Span)},
-					{Name: "__next", Type: ir.TypeClosure, Span: toIRSpan(path, fnStmt.Span)},
-					{Name: "__items", Type: ir.Type(string(yieldType) + "[]"), Span: toIRSpan(path, fnStmt.Span)},
-				},
-			}
-		}
-		nextFn := ensureClosureGeneratorNext(toIRSpan(path, fnStmt.Span), genClassName, yieldType, shapes, signatures)
-
-		itemsTemp := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpArray, Type: ir.Type(string(yieldType) + "[]"), Result: itemsTemp, Span: targetFn.Span})
-		closureEnv["__items"] = ir.Type(string(yieldType) + "[]")
-		closureEnv[itemsTemp] = ir.Type(string(yieldType) + "[]")
-
-		rewrittenBody := rewriteYieldsToPush(fnStmt.Body, itemsTemp)
-		for _, bodyStatement := range rewrittenBody {
-			_ = lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures)
-		}
-
-		stateZero := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeNumber, Result: stateZero, Value: "0", Span: targetFn.Span})
-		doneFalse := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: ir.TypeBool, Result: doneFalse, Value: "false", Span: targetFn.Span})
-		defVal := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpConst, Type: yieldType, Result: defVal, Value: "0", Span: targetFn.Span})
-
-		nextClosure := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{Op: ir.OpClosure, Type: ir.TypeClosure, Result: nextClosure, Callee: ensureFunctionClosureTrampoline(path, nextFn, shapes, signatures), Span: targetFn.Span})
-		fieldValues := []string{stateZero, doneFalse, defVal, nextClosure, itemsTemp}
-		genObj := nextTemp(&closureBodyCounter)
-		targetFn.Body = append(targetFn.Body, ir.Instruction{
-			Op:         ir.OpObjectNew,
-			Type:       ir.Type("object:" + genClassName),
-			Result:     genObj,
-			Callee:     genClassName,
-			FieldCount: len(fieldValues),
-			Args:       fieldValues,
-			Span:       targetFn.Span,
-		})
-		for fIdx, fName := range []string{"__state", "__done", "__value", "__next", "__items"} {
-			targetFn.Body = append(targetFn.Body, ir.Instruction{
-				Op:         ir.OpFieldSet,
-				Type:       ir.TypeVoid,
-				Callee:     genClassName,
-				Field:      fName,
-				FieldIndex: fIdx,
-				Args:       []string{genObj, fieldValues[fIdx]},
-				Span:       targetFn.Span,
-			})
+	if fnStmt.Name != "" {
+		closureEnv[fnStmt.Name] = ir.TypeClosure
+		closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
+		closureEnv[fnStmt.Name+".closureTarget"] = ir.Type(closureName)
+	}
+	if result != "" {
+		closureEnv[result] = ir.TypeClosure
+		closureEnv[result+".retType"] = targetFn.ReturnType
+		closureEnv[result+".closureTarget"] = ir.Type(closureName)
+	}
+	for _, p := range fnStmt.Parameters {
+		typ := closureEnv[p.Name]
+		if p.Rest && strings.HasSuffix(string(typ), "[]") {
+			continue
 		}
 		targetFn.Body = append(targetFn.Body, ir.Instruction{
-			Op:   ir.OpReturn,
-			Type: ir.Type("object:" + genClassName),
-			Args: []string{genObj},
-			Span: targetFn.Span,
+			Op:     ir.OpCheckedCast,
+			Type:   typ,
+			Result: p.Name,
+			Args:   []string{p.Name + "$raw"},
+			Span:   targetFn.Span,
 		})
+	}
+	// Closures are called through the closure ABI, so call sites cannot
+	// substitute defaults: an initializer runs in the body when its
+	// argument is undefined, before pattern bindings read the parameter.
+	for _, p := range fnStmt.Parameters {
+		if p.Initializer == nil {
+			continue
+		}
+		if err := lowerStatement(path, parameterDefaultStatement(p), &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
+			return "", "", sourceError(path, p.Span, err)
+		}
+	}
+	if isGenerator {
+		yieldType := generatorYieldType(*fnStmt)
+		if _, defined := signatures[genClassName+"_next"]; !defined {
+			nextFn, _ := defineGeneratorClass(toIRSpan(path, fnStmt.Span), genClassName, yieldType, shapes)
+			signatures[nextFn.Name] = nextFn
+			extraFunctions = append(extraFunctions, nextFn)
+		}
+		if err := lowerGeneratorBody(path, *fnStmt, genClassName, yieldType, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
+			return "", "", err
+		}
 	} else {
-		if fnStmt.Name != "" {
-			closureEnv[fnStmt.Name] = ir.TypeClosure
-			closureEnv[fnStmt.Name+".retType"] = targetFn.ReturnType
-			closureEnv[fnStmt.Name+".closureTarget"] = ir.Type(closureName)
-		}
-		if result != "" {
-			closureEnv[result] = ir.TypeClosure
-			closureEnv[result+".retType"] = targetFn.ReturnType
-			closureEnv[result+".closureTarget"] = ir.Type(closureName)
-		}
-		for _, p := range fnStmt.Parameters {
-			typ := closureEnv[p.Name]
-			if p.Rest && strings.HasSuffix(string(typ), "[]") {
-				continue
-			}
-			targetFn.Body = append(targetFn.Body, ir.Instruction{
-				Op:     ir.OpCheckedCast,
-				Type:   typ,
-				Result: p.Name,
-				Args:   []string{p.Name + "$raw"},
-				Span:   targetFn.Span,
-			})
-		}
-		// Closures are called through the closure ABI, so call sites cannot
-		// substitute defaults: an initializer runs in the body when its
-		// argument is undefined, before pattern bindings read the parameter.
-		for _, p := range fnStmt.Parameters {
-			if p.Initializer == nil {
-				continue
-			}
-			if err := lowerStatement(path, parameterDefaultStatement(p), &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {
-				return "", "", sourceError(path, p.Span, err)
-			}
-		}
 		returned := false
 		for _, bodyStatement := range fnStmt.Body {
 			if err := lowerStatement(path, bodyStatement, &targetFn, closureEnv, &closureBodyCounter, shapes, signatures); err != nil {

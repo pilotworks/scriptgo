@@ -124,6 +124,8 @@ func lowerExpression(path string, expression *frontend.SyntaxExpression, result 
 			return lowerExpression(path, expression.Right, result, function, env, counter, shapes, signatures)
 		}
 		return "", "", fmt.Errorf("invalid spread expression")
+	case "generator_result":
+		return lowerGeneratorResult(path, expression, result, function, env, counter, shapes, signatures)
 	case "yield", "yield_star":
 		if expression.Left != nil {
 			return lowerExpression(path, expression.Left, result, function, env, counter, shapes, signatures)
