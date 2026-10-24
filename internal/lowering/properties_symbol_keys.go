@@ -46,13 +46,21 @@ func lowerObjectLiteralWithSymbolKeys(path string, expression *frontend.SyntaxEx
 	if err != nil {
 		return "", "", err
 	}
+	self := ""
 	for _, member := range computed {
 		key, keyType, err := lowerExpression(path, member.Right, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}
 		key, _ = propertyKeyValue(path, member.Right.Span, key, keyType, function, counter)
-		value, _, err := lowerExpression(path, member.Left, "", function, env, counter, shapes, signatures)
+		valueExpression := member.Left
+		if objectMethodUsesThis(member) {
+			if self == "" {
+				self = objectThisLocal(path, expression.Span, object, objectType, function, env, counter)
+			}
+			valueExpression = bindObjectMethodThis(member, self)
+		}
+		value, _, err := lowerExpression(path, valueExpression, "", function, env, counter, shapes, signatures)
 		if err != nil {
 			return "", "", err
 		}

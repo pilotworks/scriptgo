@@ -378,9 +378,6 @@ func (c *compatibilityCollector) expression(path string, expression *frontend.Sy
 			case "caller":
 				c.add(path, expression.Span, expression.Kind, CodeFunctionValue, "call-site `this` in a function declaration or function expression", "use a class method or an arrow function", false)
 				classified = true
-			case "object":
-				c.add(path, expression.Span, expression.Kind, CodeLanguageLowering, "`this` in an object literal method", "use a class, or reference the object by name", false)
-				classified = true
 			}
 		case "bigint":
 			if _, ok := bigIntLiteralValue(expression.Text); !ok {
