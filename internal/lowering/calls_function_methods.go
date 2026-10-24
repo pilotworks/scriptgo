@@ -14,20 +14,21 @@ import (
 // but not passed: the call goes straight to the closure.
 // apply spreads an array literal or tuple; a runtime-length array passes all
 // of its elements through __closure.apply.
-// bind without partial arguments is the function itself.
+// bind without partial arguments is the function itself; with them it is a
+// closure that prepends them (lowerBoundClosure).
 func lowerFunctionValueMethod(path string, expression *frontend.SyntaxExpression, receiver string, receiverType ir.Type, methodName string, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
 	if receiverType != ir.TypeClosure || (methodName != "call" && methodName != "apply" && methodName != "bind") {
 		return "", "", false, nil
 	}
 	span := toIRSpan(path, expression.Span)
 	if methodName == "bind" {
-		if len(expression.Arguments) > 1 {
-			return "", "", true, fmt.Errorf("Function.prototype.bind with partial arguments is not supported in the native subset")
-		}
-		if len(expression.Arguments) == 1 {
+		if len(expression.Arguments) > 0 {
 			if _, _, err := lowerExpression(path, expression.Arguments[0], "", function, env, counter, shapes, signatures); err != nil {
 				return "", "", true, err
 			}
+		}
+		if len(expression.Arguments) > 1 {
+			return lowerBoundClosure(path, expression, receiver, result, function, env, counter, shapes, signatures)
 		}
 		return receiver, ir.TypeClosure, true, nil
 	}
@@ -138,4 +139,42 @@ func lowerApplyArguments(path string, argument *frontend.SyntaxExpression, funct
 		return nil, "", fmt.Errorf("Function.prototype.apply needs an array literal, a tuple, or an unknown[] in the native subset, got %s", argument.InferredType)
 	}
 	return nil, value, nil
+}
+
+// lowerBoundClosure lowers f.bind(thisArg, ...partial) as the closure
+// (...rest) => f(...partial, ...rest). f and the partial arguments are
+// evaluated once, at bind time, into locals the closure captures.
+func lowerBoundClosure(path string, expression *frontend.SyntaxExpression, receiver string, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, bool, error) {
+	span := expression.Span
+	ident := func(name string) *frontend.SyntaxExpression {
+		return &frontend.SyntaxExpression{Span: span, Kind: "identifier", Text: name}
+	}
+	base := fmt.Sprintf("__bound_%d_%d", span.Start, *counter)
+	target := base + "_target"
+	function.Locals = append(function.Locals, ir.Parameter{Name: target, Type: ir.TypeClosure})
+	function.Body = append(function.Body, ir.Instruction{Op: ir.OpAssign, Type: ir.TypeClosure, Result: target, Args: []string{receiver}, Span: toIRSpan(path, span)})
+	env[target] = ir.TypeClosure
+	var arguments []*frontend.SyntaxExpression
+	for index, argument := range expression.Arguments[1:] {
+		name := fmt.Sprintf("%s_arg%d", base, index)
+		if _, typ, err := lowerExpression(path, argument, name, function, env, counter, shapes, signatures); err != nil {
+			return "", "", true, err
+		} else {
+			env[name] = typ
+		}
+		arguments = append(arguments, ident(name))
+	}
+	rest := base + "_rest"
+	arguments = append(arguments, &frontend.SyntaxExpression{Span: span, Kind: "spread", Left: ident(rest)})
+	returnType := extractTopLevelReturnType(expression.InferredType)
+	call := &frontend.SyntaxExpression{Span: span, Kind: "call", Left: ident(target), Arguments: arguments, InferredType: returnType}
+	closure := &frontend.SyntaxStatement{
+		Span:       span,
+		Kind:       "function",
+		Type:       returnType,
+		Parameters: []frontend.SyntaxParameter{{Span: span, Name: rest, Type: "unknown[]", InferredType: "unknown[]", Rest: true}},
+		Body:       []frontend.SyntaxStatement{{Span: span, Kind: "return", Expression: call}},
+	}
+	value, typ, err := lowerClosureExpression(path, closure, result, function, env, counter, shapes, signatures)
+	return value, typ, true, err
 }

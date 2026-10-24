@@ -18,8 +18,8 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **520** | **520 / 520 match expected output; 518 / 520 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
-| - *Native LLVM/Clang Parity* | 520 | 493 PASS plus 27 diagnostic cases | 100.0% |
+| **Total Corpus Test Cases** | **521** | **521 / 521 match expected output; 519 / 521 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| - *Native LLVM/Clang Parity* | 521 | 494 PASS plus 27 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 27 | 27 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
@@ -90,7 +90,7 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 | :--- | :---: | :--- |
 | Named Functions, Arrow Functions & Function Expressions | ✅ Full | `function foo()`, `(x) => x * 2`, and `const f = function() { ... }` syntax. |
 | Closures & Lexical Scoping | ✅ Full | Variable capture from outer scope, first-class function passing, higher-order functions. |
-| `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes all of its elements (packing those that fill a rest parameter). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; partial application is rejected. |
+| `Function.prototype.call` / `apply` / `bind` | ⚠️ Partial | `call` and `apply` invoke the function with the given arguments; `apply` spreads an array literal or tuple, and a runtime-length `unknown[]` passes all of its elements (packing those that fill a rest parameter). `thisArg` is evaluated but not passed: native closures have no dynamic `this`. `bind` without partial arguments returns the function; with partial arguments it returns a closure that prepends them (the target and arguments are evaluated at bind time). |
 | `this` Parameters & Dynamic `this` | ⚠️ Partial | A `this:` parameter is erased from the call signature, as in JavaScript. `this` inside a function declaration or function expression (bound by the call site) is rejected with `SG1004`, and `this` in an object literal method with `SG2005`; class members and arrow functions use their lexical receiver. |
 | Default Parameters | ✅ Full | Automatically populates default values when argument is `undefined`. |
 | Optional Parameters (`param?`) | ✅ Full | Automatically handles `T \| undefined` types. |
@@ -199,10 +199,10 @@ Below is the category-by-category breakdown across all 18 test suites (`go run .
 ================================================================================
   PARITY BENCHMARK SUMMARY REPORT
 ================================================================================
-Total Test Cases       : 520
-Native Backend Parity  : 493/520 (94.8%)
-Diagnostic Parity      : 27/520
-Overall Full Parity    : 520/520 (100.0%)
+Total Test Cases       : 521
+Native Backend Parity  : 494/521 (94.8%)
+Diagnostic Parity      : 27/521
+Overall Full Parity    : 521/521 (100.0%)
 Total Time Elapsed     : ~1m54s
 ================================================================================
 ```
