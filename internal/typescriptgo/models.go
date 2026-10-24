@@ -95,12 +95,16 @@ type SyntaxStatement struct {
 	Finally              []SyntaxStatement
 	// HasCatch and HasFinally record a try statement's clauses, which an
 	// empty Catch or Finally block cannot tell apart from an absent one.
-	HasCatch    bool
-	HasFinally  bool
-	Class       *SyntaxClass
-	Enum        *SyntaxEnum
-	IsGenerator bool
-	IsAsync     bool
+	HasCatch   bool
+	HasFinally bool
+	// ParameterBindings counts the leading Body statements that bind
+	// destructured parameters; they run when the function is called, which
+	// for a generator is before its body starts.
+	ParameterBindings int
+	Class             *SyntaxClass
+	Enum              *SyntaxEnum
+	IsGenerator       bool
+	IsAsync           bool
 }
 
 type SyntaxSwitchCase struct {
@@ -182,6 +186,8 @@ type SyntaxMethod struct {
 	Kind           string
 	IsGenerator    bool
 	IsAsync        bool
+	// ParameterBindings is SyntaxStatement.ParameterBindings for a method.
+	ParameterBindings int
 }
 
 type SyntaxField struct {

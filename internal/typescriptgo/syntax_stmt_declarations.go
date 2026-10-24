@@ -65,9 +65,8 @@ func syntaxFunctionDeclaration(node *ast.Node, chk *checker.Checker, span Source
 			Initializer:  syntaxExpression(parameter.Initializer(), chk),
 		})
 	}
-	if len(bindingStmts) > 0 {
-		result.Body = append(result.Body, bindingStmts...)
-	}
+	result.Body = append(result.Body, bindingStmts...)
+	result.ParameterBindings = len(bindingStmts)
 	if body := node.Body(); body != nil {
 		for _, statement := range body.Statements() {
 			appendSyntaxStatement(&result.Body, statement, chk)

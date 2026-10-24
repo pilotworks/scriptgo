@@ -794,9 +794,11 @@ int scriptgo_crypto_spkac_export_challenge(const char *spkac, char **out_challen
     *out_challenge = strdup("");
     NETSCAPE_SPKI *spki = NETSCAPE_SPKI_b64_decode(spkac, -1);
     if (!spki) return 0;
-    if (spki->spkac && spki->spkac->challenge && spki->spkac->challenge->data) {
+    // ASN1_STRING is opaque from OpenSSL 4.0; read it through its accessor.
+    const unsigned char *challenge = spki->spkac && spki->spkac->challenge ? ASN1_STRING_get0_data(spki->spkac->challenge) : NULL;
+    if (challenge) {
         free(*out_challenge);
-        *out_challenge = strdup((const char *)spki->spkac->challenge->data);
+        *out_challenge = strdup((const char *)challenge);
     }
     NETSCAPE_SPKI_free(spki);
     return 0;

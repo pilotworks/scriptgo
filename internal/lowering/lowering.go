@@ -62,7 +62,6 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 	program.Files = nativeSourceFiles(program.Files)
 	anonymousShapes = make(map[string]ir.ObjectShape)
 	registeredShapes = nil
-	generatorASTIndex = map[string]frontend.SyntaxStatement{}
 	defaultParamsIndex = map[string]map[int]*frontend.SyntaxExpression{}
 	restParamsIndex = map[string]bool{}
 	activeReturnFinallyStack = nil
@@ -410,14 +409,6 @@ func LowerWithOptions(program frontend.Program, options Options) (ir.Module, err
 		}
 		for _, statement := range file.Syntax.Statements {
 			collectGlobals(statement)
-		}
-	}
-
-	for _, file := range program.Files {
-		for _, statement := range file.Syntax.Statements {
-			if statement.IsGenerator || statement.Kind == "generator_function" || statement.Kind == "async_generator_function" {
-				RegisterGeneratorStatement(functionIdentityForPath(file.FileName, statement.Name), statement)
-			}
 		}
 	}
 
