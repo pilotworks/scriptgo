@@ -108,3 +108,25 @@ for (const f of new Fib()) {
   fib.push(f);
 }
 console.log(fib.join(","));
+
+// Destructured parameters are bound when the generator is called.
+// @expect: 1,5
+// @expect: bound at call
+function* pair({ a, b }: { a: number; b: number }, [c]: number[]): Generator<number> {
+  yield a;
+  yield b + c;
+}
+console.log([...pair({ a: 1, b: 2 }, [3])].join(","));
+function fail(): number {
+  throw new Error("bound at call");
+}
+function* lazyBody([x = fail()]: number[]): Generator<number> {
+  console.log("body runs");
+  yield x;
+}
+try {
+  lazyBody([]);
+  console.log("not thrown");
+} catch (e) {
+  console.log((e as Error).message);
+}

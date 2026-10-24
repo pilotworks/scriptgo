@@ -50,7 +50,10 @@ func generatorStep(path string, statement frontend.SyntaxStatement, yieldType st
 	for _, parameter := range statement.Parameters {
 		g.parameters[parameter.Name] = true
 	}
-	body, err := g.list(statement.Body)
+	// Destructured parameters are bound when the generator function is
+	// called, so their errors throw there rather than at the first next().
+	bindings := min(statement.ParameterBindings, len(statement.Body))
+	body, err := g.list(statement.Body[bindings:])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -60,7 +63,7 @@ func generatorStep(path string, statement frontend.SyntaxStatement, yieldType st
 	}
 	step = append(step, body...)
 	step = append(step, g.result(true, nil))
-	prelude := append([]frontend.SyntaxStatement{g.declare(g.state, "number", g.number("0"))}, g.hoisted...)
+	prelude := append(append(append([]frontend.SyntaxStatement{}, statement.Body[:bindings]...), g.declare(g.state, "number", g.number("0"))), g.hoisted...)
 	closure := &frontend.SyntaxExpression{Span: g.span, Kind: "arrow_function", Function: &frontend.SyntaxStatement{
 		Span: g.span,
 		Kind: "function",

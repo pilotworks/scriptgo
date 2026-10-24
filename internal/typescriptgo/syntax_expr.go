@@ -458,6 +458,8 @@ func syntaxExpressionInner(node *ast.Node, chk *checker.Checker) *SyntaxExpressi
 			Body:           body,
 			IsGenerator:    isGen,
 			IsAsync:        isAsync,
+
+			ParameterBindings: len(bindingStmts),
 		}
 		return &SyntaxExpression{
 			Span:         span,

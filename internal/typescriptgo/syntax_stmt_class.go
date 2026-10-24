@@ -364,6 +364,8 @@ func syntaxClassDeclaration(node *ast.Node, span SourceSpan, chk *checker.Checke
 				Kind:           "method",
 				IsGenerator:    isGen,
 				IsAsync:        isAsync,
+
+				ParameterBindings: len(bindingStmts),
 			})
 		case ast.KindGetAccessor:
 			var body []SyntaxStatement

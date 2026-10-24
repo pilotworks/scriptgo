@@ -78,6 +78,8 @@ func generatorMethodFunction(className string, method frontend.SyntaxMethod) (fr
 		Body:           body,
 		IsGenerator:    true,
 		IsAsync:        method.IsAsync,
+
+		ParameterBindings: method.ParameterBindings,
 	}
 	arguments := []*frontend.SyntaxExpression{{Span: method.Span, Kind: "identifier", Text: "this", InferredType: className}}
 	for _, parameter := range method.Parameters {
