@@ -10,7 +10,15 @@ import (
 
 func lowerAsExpression(path string, expression *frontend.SyntaxExpression, result string, function *ir.Function, env map[string]ir.Type, counter *int, shapes map[string]ir.ObjectShape, signatures map[string]ir.Function) (string, ir.Type, error) {
 	targetIRType := toIRType(expression.Text)
-	val, valType, err := lowerExpression(path, expression.Left, "", function, env, counter, shapes, signatures)
+	operand := expression.Left
+	if operand != nil && operand.Kind == "array" && len(operand.Arguments) == 0 && strings.HasSuffix(string(targetIRType), "[]") {
+		// `[] as T[]` is an empty T[]: contextually typed, as an assignment
+		// would type it, rather than an unknown[] that the cast rejects.
+		typed := *operand
+		typed.InferredType = expression.Text
+		operand = &typed
+	}
+	val, valType, err := lowerExpression(path, operand, "", function, env, counter, shapes, signatures)
 	if err != nil {
 		return "", "", err
 	}
