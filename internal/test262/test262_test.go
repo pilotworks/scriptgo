@@ -154,8 +154,10 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]Outcome{}
+	detail := map[string]string{}
 	for _, r := range results {
 		got[r.Path] = r.Outcome
+		detail[r.Path] = r.Detail
 	}
 	want := map[string]Outcome{
 		"a/pass.js":         Pass,
@@ -176,7 +178,7 @@ func TestRunClassifiesOutcomes(t *testing.T) {
 	}
 	for path, outcome := range want {
 		if got[path] != outcome {
-			t.Errorf("%s: got %s, want %s", path, got[path], outcome)
+			t.Errorf("%s: got %s (%s), want %s", path, got[path], detail[path], outcome)
 		}
 	}
 	summaries := Summarize(results, 1)
