@@ -2,6 +2,88 @@
 
 All notable changes to ScriptGo will be documented in this file.
 
+## [0.1.0-alpha.8] - 2026-10-25
+
+### Features
+- feat(test262): add a test262 conformance subset runner (2ffd3ff)
+- feat(dynamic): expand dynamic tier with Proxy traps and unconstrained invocations (#32) (9d30305)
+- feat(stdlib): 100% parity for node:tls, node:https, and node:timers (#31) (92c2892)
+- feat(stdlib): 100% verified parity for node:crypto and node:net (#30) (32309ac)
+
+### Bug Fixes
+- fix: silent miscompiles and fake stubs; gate CI on a test262 baseline (#34) (6512aac)
+- fix: Object.is identity, real getPrototypeOf, no silent Object stubs (4452c49)
+- fix(opt,llvm): preserve -0 in constant folding and box mixed Object.is operands (f90df58)
+- fix(lowering,llvm,opt): make compiler output deterministic (588cee6)
+- fix(frontend): handle computed property names safely and prevent AST text panics (#29) (88c3b1f)
+
+### Refactoring
+- refactor(llvm,typescriptgo,lowering): split remaining oversized files (b2a9d3d)
+- refactor(lowering): split oversized lowering stages by concern (eab3759)
+- refactor(frontend): make frontend the only consumer of the TypeScript-Go adapter (bf56769)
+
+### Documentation
+- docs(parity): record test262 results for v0.1.0-alpha.8 (9f9adf7)
+- docs(parity): refresh corpus results for v0.1.0-alpha.8 (09be13d)
+- docs(roadmap): define release targets from alpha.8 to 0.1.0 (45b2a94)
+- docs: record corpus parity and test262 subset results (abbe27d)
+
+### Maintenance & Chores
+- ci(release): rebuild release stages as verify, CI gate, build, publish (3753487)
+- ci: run govulncheck with the latest Go 1.26 patch release (30005ed)
+- ci: fix invalid workflow; set TEST262_ROOT in a step (da46f34)
+- test: cover frontend contract, split lowering stages, runtime declarations, BCE order (04e87cd)
+
+### Other
+- test262: raise the CI baseline to the 4,500 passing tests (de1ef63)
+- Bind `this` in object literal methods to their object (cfaba1f)
+- Type `[] as T[]` as an empty T[] (c9d6fea)
+- Evaluate a method call's receiver once when the method is a closure field (35ea56e)
+- Lower Function.prototype.bind with partial arguments (4a9be01)
+- Retry test262 binaries that fail to exec with ETXTBSY (34dcad7)
+- Read the SPKAC challenge through ASN1_STRING_get0_data (dc851ae)
+- Bind destructured generator parameters when the generator is called (939a593)
+- Run generators lazily through a resumable step closure (4dd23d4)
+- Build closure rest parameters in the callee from the arguments passed (026dc60)
+- Lay out console output like util.inspect; pass every element through apply (92152c6)
+- Pass any number of arguments to closures; print regex groups as Node does (f12417e)
+- Run regular expressions on QuickJS-ng's ECMAScript engine (702af69)
+- Fix closure cell overflow; require lld for library pruning test (aba2094)
+- Return Buffers from zlib; compute Math.cbrt as V8 does (59222a1)
+- Link runtime libraries only when the program references them (a15d12f)
+- Remove ineffectual restPacked assignments flagged by golangci-lint (6735f4d)
+- Update parity report metrics (509 corpus cases) (293b2f8)
+- Give RegExp match arrays index, input and groups; real matchAll (bbce551)
+- Keep Map key types and compare keys with SameValueZero (2a1a2d5)
+- Print class names and nested arrays in console output; ToString objects in templates (5e43933)
+- Make Map/Set iterators, generator methods and Generator<T> values iterate (a472255)
+- Index strings by UTF-16 code unit; Unicode case mapping and collation (f51ca30)
+- Update parity report metrics (504 corpus cases) (d8ef75f)
+- Model symbol-keyed properties by symbol identity (4cc855c)
+- Print tuples as arrays; fix new Map(entries) with non-string values (d230482)
+- Serialize typed object literals in insertion order (7c6e12f)
+- Keep NaN distinct from undefined and null in number storage (e165991)
+- Sequence async suspension units; fix try without catch (034180b)
+- Specialize generic async and generator functions; spread iterables (c9e593f)
+- Support spread arguments into rest parameters (71e7074)
+- Erase this: parameters; diagnose call-site this at compile time (b984824)
+- Make Error.stackTraceLimit a real setting; fix Symbol descriptions (8bb2579)
+- Implement Object.values and Object.entries in the runtime (099be8c)
+- Type new Array(n).fill(v) by the fill value (9977eee)
+- Fix String.prototype.repeat: O(1) empty repeat, RangeErrors, overflow (0da43e5)
+- corpus: make new cases match Node's parity oracle (6a3e970)
+- Fix ineffectual assignment flagged by golangci-lint (c0e3f7e)
+- Fix property presence, delete, Object.keys and JSON for name-addressed objects (6476fe6)
+- Use objects' own toString/valueOf in calls and string conversion (4229736)
+- Implement Function call/apply/bind and the Reflect object operations (0a26d52)
+- Enforce Object.freeze/seal/preventExtensions on objects and arrays (54a7358)
+- Implement Promise.all/allSettled/any/race in the runtime; add AggregateError (15f49d4)
+- Remove the class-name special case for Trie.root field initialization (6c91708)
+- Give module top-level variables per-module storage; stop folding them (2ac2373)
+- Implement Object.prototype.isPrototypeOf over prototype tokens (8593001)
+- Replace constant RegExp flag and string intrinsic stubs (2d2cbba)
+- Replace hardcoded iterator helper stubs with an array-backed model (19f22eb)
+
 ## [0.1.0-alpha.7] - 2026-09-24
 
 ### Features
