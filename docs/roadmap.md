@@ -36,8 +36,8 @@ Releases are cut by stage, not by date. A stage ships when every exit criterion
 holds on `main` with CI green; unfinished work moves to the next stage instead
 of lowering the bar. Metrics refer to the test262 run in
 [`typescript-parity-report.md`](typescript-parity-report.md#41-test262-conformance-subset)
-(baseline at `2e0a5676`: 4,154 pass, 1,078 fail, 12,378 unsupported, 23.6%
-attempted pass rate, 61 invalid-IR and 153 native-crash failures).
+(test262 `2e0a5676` at alpha.8: 4,500 pass, 1,093 fail, 12,017 unsupported,
+25.6% attempted pass rate, 29 invalid-IR and 89 native-crash failures).
 
 ### 0.1.0-alpha.8: Semantic Correctness Rollup
 
@@ -45,16 +45,16 @@ Ships the correctness work merged since alpha.7 (UTF-16 strings, libregexp,
 lazy generators, closure arity, `bind`/`call`/`apply`, `Promise` combinators,
 integrity levels, test262 CI gate).
 
-- [ ] test262 baseline gate is green on `main`.
-- [ ] Parity report header, corpus totals, and test262 table match the release commit.
+- [x] test262 baseline gate is green on `main`.
+- [x] Parity report header, corpus totals, and test262 table match the release commit.
 
 ### 0.1.0-beta.1: No Silent Failures
 
 Every program the Static tier accepts either behaves like Node.js or fails
 with an `SGxxxx` diagnostic or a JavaScript exception.
 
-- [ ] 0 test262 failures from LLVM IR rejected by Clang (61 today).
-- [ ] 0 test262 native crashes or runtime ABI precondition failures (153 today).
+- [ ] 0 test262 failures from LLVM IR rejected by Clang (29 at alpha.8).
+- [ ] 0 test262 native crashes or runtime ABI precondition failures (89 at alpha.8).
 - [ ] Known limitations in parity report §4.1 are fixed or rejected at compile time.
 - [ ] Every shipped release target is CI-verified, or dropped from the release
   matrix (`windows/amd64` is built but never tested).

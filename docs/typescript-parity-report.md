@@ -276,35 +276,35 @@ Results at test262 `2e0a5676` (25,248 tests, Linux x86-64):
 
 | Group | Pass | Fail | Unsupported | Skipped | Pass rate (attempted) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| built-ins/Array | 198 | 188 | 2285 | 412 | 7.4% |
-| built-ins/JSON | 20 | 36 | 87 | 23 | 14.0% |
+| built-ins/Array | 234 | 125 | 2312 | 412 | 8.8% |
+| built-ins/JSON | 20 | 35 | 88 | 23 | 14.0% |
 | built-ins/Math | 120 | 5 | 43 | 159 | 71.4% |
-| built-ins/String | 148 | 186 | 747 | 142 | 13.7% |
-| language/expressions | 2033 | 230 | 5488 | 3351 | 26.2% |
-| language/statements | 1635 | 433 | 3728 | 3551 | 28.2% |
-| **total** | **4154** | **1078** | **12378** | **7638** | **23.6%** |
+| built-ins/String | 190 | 141 | 750 | 142 | 17.6% |
+| language/expressions | 2176 | 276 | 5299 | 3351 | 28.1% |
+| language/statements | 1760 | 511 | 3525 | 3551 | 30.4% |
+| **total** | **4500** | **1093** | **12017** | **7638** | **25.6%** |
 
-Most attempted tests are rejected by design: `any` (SG1001, 4,263),
-unannotated `{}` (SG2005, 1,025), dynamic call targets (SG1004, 302), array
-holes and class expressions (SG2005, 379), and global constructors used as
-values (`String`, `Array`, `Object`, `Boolean`). The main correctness signals
-are:
+Most attempted tests are rejected by design: `any` (SG1001, 4,264),
+unannotated `{}` (SG2005, 1,019), dynamic call targets (SG1004, 300), array
+holes and class expressions (SG2005, 378), accessor property descriptors
+(335), and global constructors used as values (`String`, `Array`, `Object`,
+`Boolean`). The main correctness signals are:
 
 | Signal | Tests | Meaning |
 | --- | ---: | --- |
-| Assertion failure at runtime | 838 | Behavior differs from the specification; most expect a `TypeError` that the native subset does not raise. |
-| LLVM IR rejected by Clang | 61 | The backend emits invalid code for accepted programs (reduce accumulators of another type, object fields of mixed storage). |
-| Native crash or runtime ABI failure | 153 | Segmentation faults (52), array/JSON runtime precondition failures, `SG4002` casts. |
+| Assertion failure at runtime | 926 | Behavior differs from the specification; most expect an exception the native subset does not raise, or a function `name` (`__closure_1` instead of the binding name). |
+| LLVM IR rejected by Clang | 29 | The backend emits invalid code for accepted programs (mismatched value types across spread, globals, and booleans; undefined values). |
+| Native crash or runtime ABI failure | 89 | Segmentation faults (9), array/JSON/string runtime precondition failures, `SG4002` casts, `SG9001` malformed unknown values. |
 | Early/parse `SyntaxError` not reported | 26 | TypeScript-Go accepts these programs; tracked upstream. |
+| Other | 23 | Unexpected exception type (10), timeouts (6), invalid code point (5), missing runtime `ReferenceError` (2). |
 
 Fixed defects found this way are covered by corpus cases (signed zero,
 number formatting, error subclasses, `catch` bindings, boolean ToNumber,
 destructuring `TypeError`s, parameter defaults through closures and
 trampolines, static methods as values, single-element tuples,
-BigInt literals, typed array `join`, invalid-IR regressions). Known
-limitations: `String(obj)` does not call a user `toString`, a method call on a
-`new` expression receiver is unsupported, and `[].find` on an unannotated
-empty array literal is rejected.
+BigInt literals, typed array `join`, user `toString` in `String(obj)`, method
+calls on `new` expressions, invalid-IR regressions). Known limitation: `[].find`
+on an unannotated empty array literal is rejected.
 
 ---
 
