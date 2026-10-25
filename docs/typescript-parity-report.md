@@ -1,7 +1,7 @@
 # ScriptGo vs TypeScript/JavaScript Parity Report
 
-> **Report Date**: September 23, 2026
-> **Compiler Version**: `scriptgo` v0.1.0-alpha.6  
+> **Report Date**: October 25, 2026
+> **Compiler Version**: `scriptgo` v0.1.0-alpha.8  
 > **Target Platforms**: macOS (ARM64 / Apple Silicon), Linux (x86_64 / ARM64), & WebAssembly / WASI (`wasm32-wasi`)  
 > **Reference Engine**: Node.js v22+ (TypeScript engine via TypeScript-Go frontend)  
 > **Machine Code Backend**: LLVM IR + Clang / Zig CC Toolchain  
@@ -18,12 +18,12 @@ All test cases in the regression test suite (Corpus Test Suite) have been cross-
 
 | Category | Count | Result | Pass Rate |
 | :--- | :--- | :--- | :--- |
-| **Total Corpus Test Cases** | **524** | **524 / 524 match expected output; 522 / 524 match Node.js v22 (see note¹)** | **100.0% / 99.6%** |
+| **Total Corpus Test Cases** | **524** | **524 / 524 match expected output; 490 / 490 `run.expected` cases match Node.js v22.22 (8 `native.expected` cases are native-only)** | **100.0% / 100.0%** |
 | - *Native LLVM/Clang Parity* | 524 | 498 PASS plus 26 diagnostic cases | 100.0% |
 | - *Static Subset Diagnostics* | 26 | 26 PASS (accurate error detection via `SGxxxx` codes) | 100.0% |
 | **Implemented Node Core Subset Surface** | **100** | **100 / 100 Core Subset Parity (macOS + Ubuntu Docker)** | **100.0%** |
 | **Installed Package Integration Paths** | **1** | **Registry install -> Dynamic execution and offline/frozen reinstall** | **Verified** |
-| **Total Test Suite Runtime** | ~1m54s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
+| **Total Test Suite Runtime** | ~1m42s (Linux x86-64, `go run ./cmd/parity`) | API surface verified across macOS / Ubuntu Docker | - |
 
 ---
 
@@ -203,25 +203,25 @@ Total Test Cases       : 524
 Native Backend Parity  : 498/524 (95.0%)
 Diagnostic Parity      : 26/524
 Overall Full Parity    : 524/524 (100.0%)
-Total Time Elapsed     : ~1m54s
+Total Time Elapsed     : ~1m42s
 ================================================================================
 ```
 
 | Category | Test Count | Pass Rate | Representative Features Verified |
 | :--- | :---: | :---: | :--- |
 | **`algorithms`** | 27 | **100% (27/27)** | Binary search, Dijkstra shortest path, LRU cache, Segment tree, Shunting-yard expression evaluator, Bellman-Ford, AVL tree, Convex hull, Fenwick tree, Floyd-Warshall, Graph BFS/DFS, Kadane, KMP, 0/1 Knapsack, Levenshtein, Linked list, LIS, Matrix multiplication, Mergesort, Kruskal MST, Priority queue, Quicksort, Rabin-Karp, Tarjan SCC, Topological sort, Trie. |
-| **`api`** | 117 | **100% (117/117)**¹ | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
+| **`api`** | 125 | **100% (125/125)** | Implemented Node.js APIs and built-ins, including arrays, buffers, collections, encoding, networking, process APIs, streams, typed arrays, URLs, WHATWG URLPattern, WHATWG Request/Response, web globals, reflection, and compression. |
 | **`api/fs`** | 7 | **100% (7/7)** | Callback, synchronous, promise, class, streams, watch, and `FileHandle` file-system APIs. |
-| **`arrays`** | 11 | **100% (11/11)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
+| **`arrays`** | 12 | **100% (12/12)** | Array methods, bounds check elimination, indexed assignment and manipulation. |
 | **`async`** | 22 | **100% (22/22)** | Top-level await, timer suspension, async pipelines, typed array payloads, try/finally suspension, rejection after suspension, microtask sequencing, async generator iteration, parallel execution, error propagation. |
 | **`classes`** | 32 | **100% (32/32)** | Parameter properties, inheritance, private/protected fields, static blocks, method chaining, polymorphism, and object-oriented patterns. |
-| **`control_flow`** | 27 | **100% (27/27)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
+| **`control_flow`** | 28 | **100% (28/28)** | Complex branching, do..while, for..in, for await..of, loop labeling, for loops with multiple variables, nested exception finally return overrides. |
 | **`destructuring`** | 22 | **100% (22/22)** | Nested params, nested object, nested mixed, nested defaults, rest bindings, deep destructuring transforms, `TypeError` on a null/undefined source. |
 | **`dynamic`** | 25 | **100% (25/25)** | Bounded dynamic evaluation, JS/npm imports, microtask chaining, dynamic async promises. |
 | **`enums`** | 10 | **100% (10/10)** | Numeric, string, const enums, bitwise flags, reverse mapping, permission matrices. |
-| **`functions`** | 30 | **100% (30/30)** | Closures with any number of parameters, default/rest params (closures included), higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
+| **`functions`** | 36 | **100% (36/36)** | Closures with any number of parameters, default/rest params (closures included), higher-order combinators (`zipWith`, `partition`, `foldl`, `foldr`), generator delegation, currying, trampolines. |
 | **`generics`** | 20 | **100% (20/20)** | Type parameters, constraints, variance, monomorphization, generic binary search tree `<K, V>`. |
-| **`language`** | 26 | **100% (26/26)**¹ | Static tier features, syntax, async and generators, circular references, types, and decorators. |
+| **`language`** | 26 | **100% (26/26)** | Static tier features, syntax, async and generators, circular references, types, and decorators. |
 | **`language/compatibility_tiers`** | 6 | **100% (6/6)** | Tier selection, dynamic fallbacks, mode validations. |
 | **`language/diagnostics`** | 9 | **100% (9/9)** | Static subset error detection with standardized `SGxxxx` error codes. |
 | **`language/errors`** | 8 | **100% (8/8)** | Array indexing bounds/types, type mismatches, unknown names. |
@@ -232,7 +232,7 @@ Total Time Elapsed     : ~1m54s
 | **`types`** | 22 | **100% (22/22)** | Indexed access, declaration merging, inheritance, intersection types, readonly properties, unknown tag narrowing. |
 | **`unions`** | 20 | **100% (20/20)** | Flexible general unions, discriminated unions, literal unions, narrowing with `typeof`/`instanceof`/`in`, exhaustive switch narrowing. |
 
-The compiler corpus also contains 23 opt-in Dynamic cases. They cover bounded
+The compiler corpus also contains 25 opt-in Dynamic cases. They cover bounded
 `any`, boxed values, exceptions, local JavaScript imports, local npm entry
 points, persistent ESM/CommonJS dependency graphs, named re-exports,
 two-way synchronous ESM/CommonJS interoperability, Dynamic async Promise
@@ -240,11 +240,6 @@ materialization with microtask chaining, host-job timer integration, and pending
 one compiler integration test verifies registry installation, nested ESM/CommonJS execution,
 and offline/frozen reinstall from the local content store.
 
-
-¹ `api/reflect.ts` and `language/decorators.ts`: ScriptGo matches the recorded
-expected output, but Node.js v22 running TypeScript by type stripping emits no
-decorator metadata, so its output differs. These are oracle limitations, not
-ScriptGo regressions.
 
 ### 4.1. test262 Conformance Subset
 
