@@ -10,66 +10,41 @@ permissions:
 
 jobs:
   # ============================================================================
-  # Quality Gate: Full test suite, Parity benchmark, Sanitizers & Linter
+  # Verify: Tag points at main and CHANGELOG.md has a section for the version
   # ============================================================================
-  gate:
-    name: Release Quality Gates
+  verify:
+    name: Verify Release Tag
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
         with:
-          go-version: '1.26.x'
-          cache: true
+          fetch-depth: 0
 
-      - name: Setup Node.js (Parity Oracle & WASI execution)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install parity Node dependencies
-        run: npm ci --prefix internal/compiler
-
-      - name: Setup Zig (WebAssembly & Cross-Toolchain)
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Setup Clang / LLVM
+      - name: Check tag, branch, and changelog
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm libclang-rt-dev
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not v<SemVer>."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not on main. Run scripts/prepare-release.sh on main."
+            exit 1
+          fi
+          if ! grep -qF "## [$version]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section. Run scripts/prepare-release.sh."
+            exit 1
+          fi
 
-      - name: Gate 1 - Full Unit & Integration Tests
-        run: go test -v -count=1 ./...
-
-      - name: Gate 2 - TypeScript-Go Frontend Tests
-        run: go test -v -count=1 ./internal/typescriptgo/...
-
-      - name: Gate 3 - Node.js Parity Benchmark
-        run: go run ./cmd/parity -v
-
-      - name: Gate 4 - Native Memory & Address Sanitizer Check
-        env:
-          ASAN_OPTIONS: 'detect_leaks=0'
-        run: |
-          mkdir -p bin_gate
-          go build -ldflags="-X main.version=${GITHUB_REF_NAME}" -o bin_gate/scriptgo ./cmd/scriptgo
-          ./bin_gate/scriptgo build --sanitize address,undefined examples/fibonacci.ts -o bin_gate/fib
-          ./bin_gate/fib
-          ./bin_gate/scriptgo build --sanitize address,undefined examples/classes_oop.ts -o bin_gate/oop
-          ./bin_gate/oop
-          ./bin_gate/scriptgo build --sanitize address,undefined examples/functional_arrays.ts -o bin_gate/arr
-          ./bin_gate/arr
-          rm -rf bin_gate
-
-      - name: Gate 5 - Code Quality (Go Vet)
-        run: |
-          go vet ./...
-          go vet ./internal/typescriptgo/...
+  # ============================================================================
+  # Gate: The full CI suite (tests, parity, test262, sanitizers, lint, vulncheck)
+  # ============================================================================
+  gate:
+    name: Quality Gate
+    needs: [verify]
+    uses: ./.github/workflows/ci.yml
 
   # ============================================================================
   # Build Matrix: Cross-compile & package archives in parallel (only if gates pass)
@@ -141,6 +116,16 @@ jobs:
           else
             tar -czvf "dist/${PKG_NAME}.tar.gz" -C build_pkg .
           fi
+
+      - name: Smoke Test Packaged Binary
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libclang-rt-dev
+          build_pkg/scriptgo version | tee /dev/stderr | grep -qF "${GITHUB_REF_NAME}"
+          build_pkg/scriptgo build examples/fibonacci.ts -o "$RUNNER_TEMP/fib"
+          "$RUNNER_TEMP/fib"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

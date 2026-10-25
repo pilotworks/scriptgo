@@ -112,6 +112,18 @@ For every new syntax construct, operator, standard library API, or bug fix:
 
 ---
 
-## 7. Code of Conduct
+## 7. Releases
+
+On an up-to-date `main`, run `make release VERSION=0.1.0-alpha.8`, then push
+`main` and the tag. Pushing a `v*` tag runs `.github/workflows/release.yml`:
+
+1. **Verify**: the tag is `v<SemVer>`, on `main`, and `CHANGELOG.md` has its section.
+2. **Gate**: the full CI suite (`ci.yml`), so a release never passes weaker checks than a PR.
+3. **Build**: cross-compiled archives; the `linux/amd64` binary is smoke-tested.
+4. **Publish**: manifest, `SHA256SUMS` with minisign signature, and the GitHub release.
+
+---
+
+## 8. Code of Conduct
 
 Please review and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) in all community interactions.
