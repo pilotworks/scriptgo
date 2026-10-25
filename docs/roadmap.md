@@ -30,6 +30,60 @@ and the current 8C slice bundles closed ESM/CommonJS Dynamic module graphs.
 - [ ] npm/package resolution and full JavaScript compatibility remain roadmap work, not permanent non-goals.
 - [x] Static/Dynamic/Unsupported policy, `--dynamic`, and the first constrained Dynamic execution island are implemented.
 
+## Release Targets
+
+Releases are cut by stage, not by date. A stage ships when every exit criterion
+holds on `main` with CI green; unfinished work moves to the next stage instead
+of lowering the bar. Metrics refer to the test262 run in
+[`typescript-parity-report.md`](typescript-parity-report.md#41-test262-conformance-subset)
+(baseline at `2e0a5676`: 4,154 pass, 1,078 fail, 12,378 unsupported, 23.6%
+attempted pass rate, 61 invalid-IR and 153 native-crash failures).
+
+### 0.1.0-alpha.8: Semantic Correctness Rollup
+
+Ships the correctness work merged since alpha.7 (UTF-16 strings, libregexp,
+lazy generators, closure arity, `bind`/`call`/`apply`, `Promise` combinators,
+integrity levels, test262 CI gate).
+
+- [ ] test262 baseline gate is green on `main`.
+- [ ] Parity report header, corpus totals, and test262 table match the release commit.
+
+### 0.1.0-beta.1: No Silent Failures
+
+Every program the Static tier accepts either behaves like Node.js or fails
+with an `SGxxxx` diagnostic or a JavaScript exception.
+
+- [ ] 0 test262 failures from LLVM IR rejected by Clang (61 today).
+- [ ] 0 test262 native crashes or runtime ABI precondition failures (153 today).
+- [ ] Known limitations in parity report §4.1 are fixed or rejected at compile time.
+- [ ] Every shipped release target is CI-verified, or dropped from the release
+  matrix (`windows/amd64` is built but never tested).
+- [ ] `install.sh` installs and runs each published Unix archive.
+
+### 0.1.0-beta.2: Static Coverage
+
+Shrink the Unsupported tier for code real programs write, keeping the
+three-tier policy.
+
+- [ ] test262 attempted pass rate ≥ 40%, with the baseline regenerated.
+- [ ] Unsupported reduced for unannotated `{}` (SG2005), class expressions,
+  global constructors as values, and user-defined type predicates.
+- [ ] Each newly accepted construct has corpus cases and a parity-report row.
+
+### 0.1.0-rc.1: Contract Freeze
+
+- [ ] CLI flags, runtime ABI v1, lockfile v1, and `SGxxxx` codes are frozen;
+  later changes require a documented migration.
+- [ ] Benchmarks in parity report §7 rerun on the release commit.
+- [ ] No open regression against the previous release.
+
+### 0.1.0: Stable Static Tier
+
+- [ ] An rc ships without regressions for one full release cycle.
+
+Dynamic `import()`, npm lifecycle scripts, native addons, `worker_threads`,
+`http2`, and the C backend are outside 0.1.0.
+
 ## Milestones
 
 ### Milestone 1: Checked Front-End Contract
